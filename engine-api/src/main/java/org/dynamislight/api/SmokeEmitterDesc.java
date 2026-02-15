@@ -1,5 +1,8 @@
 package org.dynamislight.api;
 
+/**
+ * SmokeEmitterDesc API type.
+ */
 public record SmokeEmitterDesc(
         String id,
         Vec3 position,

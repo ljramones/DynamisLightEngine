@@ -1,5 +1,8 @@
 package org.dynamislight.api;
 
+/**
+ * KeyCode API type.
+ */
 public enum KeyCode {
     W,
     A,

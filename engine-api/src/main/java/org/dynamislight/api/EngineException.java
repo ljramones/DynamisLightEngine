@@ -1,5 +1,8 @@
 package org.dynamislight.api;
 
+/**
+ * EngineException API type.
+ */
 public final class EngineException extends Exception {
     private final EngineErrorCode code;
     private final boolean recoverable;

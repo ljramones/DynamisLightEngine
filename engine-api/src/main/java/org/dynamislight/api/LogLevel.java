@@ -1,5 +1,8 @@
 package org.dynamislight.api;
 
+/**
+ * LogLevel API type.
+ */
 public enum LogLevel {
     TRACE,
     DEBUG,

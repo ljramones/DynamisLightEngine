@@ -58,6 +58,20 @@ Select backend by argument:
 mvn -f engine-host-sample/pom.xml exec:java -Dexec.args="vulkan"
 ```
 
+OpenGL backend options (via `EngineConfig.backendOptions`):
+- `opengl.mockContext=true|false` (default `false`) skips native context creation for headless/test runs.
+- `opengl.forceInitFailure=true|false` forces `BACKEND_INIT_FAILED` for failure-path testing.
+
+Sample-host default keeps OpenGL in mock mode for portability. To run real OpenGL init/render from sample host:
+
+```bash
+mvn -f engine-host-sample/pom.xml exec:java -Dexec.args=\"opengl\" -Ddle.opengl.mockContext=false
+```
+
 ## Current status
 
 This is compile-first scaffolding for v1 interface contracts. OpenGL and Vulkan modules currently provide lifecycle-safe stub runtimes to validate API shape, backend discovery, and host integration flow.
+
+## Planning
+
+- Milestone and issue backlog: `docs/github-milestones.md`

@@ -2,6 +2,9 @@ package org.dynamislight.api;
 
 import java.util.List;
 
+/**
+ * SceneDescriptor API type.
+ */
 public record SceneDescriptor(
         String sceneName,
         List<CameraDesc> cameras,

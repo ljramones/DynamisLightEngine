@@ -1,5 +1,8 @@
 package org.dynamislight.api;
 
+/**
+ * EngineStats API type.
+ */
 public record EngineStats(
         double fps,
         double cpuFrameMs,

@@ -1,5 +1,8 @@
 package org.dynamislight.api;
 
+/**
+ * FogDesc API type.
+ */
 public record FogDesc(
         boolean enabled,
         FogMode mode,

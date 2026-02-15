@@ -5,9 +5,12 @@ out/
 *.jar
 *.war
 *.ear
+dependency-reduced-pom.xml
+.mvn/timing.properties
 
 # Logs
 *.log
+logs/
 
 # OS files
 .DS_Store
@@ -20,7 +23,14 @@ Thumbs.db
 .classpath
 .project
 .settings/
+*.swp
+*.swo
+*~
 
 # Local environment files
 .env
 .env.*
+
+# JVM crash artifacts
+hs_err_pid*
+replay_pid*

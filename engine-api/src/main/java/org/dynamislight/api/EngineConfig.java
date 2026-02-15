@@ -3,6 +3,9 @@ package org.dynamislight.api;
 import java.nio.file.Path;
 import java.util.Map;
 
+/**
+ * EngineConfig API type.
+ */
 public record EngineConfig(
         String backendId,
         String appName,

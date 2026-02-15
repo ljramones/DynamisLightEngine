@@ -1,5 +1,8 @@
 package org.dynamislight.api;
 
+/**
+ * LightDesc API type.
+ */
 public record LightDesc(
         String id,
         Vec3 position,

@@ -1,5 +1,8 @@
 package org.dynamislight.api;
 
+/**
+ * MaterialDesc API type.
+ */
 public record MaterialDesc(
         String id,
         Vec3 albedo,

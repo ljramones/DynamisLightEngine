@@ -4,10 +4,10 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.ServiceLoader;
 import java.util.Set;
 import org.dynamislight.api.CameraDesc;
 import org.dynamislight.api.DeviceLostEvent;
+import org.dynamislight.api.EngineApiVersion;
 import org.dynamislight.api.EngineConfig;
 import org.dynamislight.api.EngineErrorReport;
 import org.dynamislight.api.EngineEvent;
@@ -32,18 +32,27 @@ import org.dynamislight.api.SmokeEmitterDesc;
 import org.dynamislight.api.TransformDesc;
 import org.dynamislight.api.Vec3;
 import org.dynamislight.spi.EngineBackendProvider;
+import org.dynamislight.api.validation.EngineConfigValidator;
+import org.dynamislight.api.validation.SceneValidator;
+import org.dynamislight.spi.registry.BackendRegistry;
 
 public final class SampleHostApp {
+    private static final EngineApiVersion HOST_REQUIRED_API = new EngineApiVersion(1, 0, 0);
+
     private SampleHostApp() {
     }
 
     public static void main(String[] args) throws Exception {
         String backendId = args.length > 0 ? args[0] : "opengl";
         EngineBackendProvider provider = resolveProvider(backendId);
+        EngineConfig config = defaultConfig(backendId);
+        SceneDescriptor scene = defaultScene();
+        EngineConfigValidator.validate(config);
+        SceneValidator.validate(scene);
 
         try (var runtime = provider.createRuntime()) {
-            runtime.initialize(defaultConfig(backendId), new ConsoleCallbacks());
-            runtime.loadScene(defaultScene());
+            runtime.initialize(config, new ConsoleCallbacks());
+            runtime.loadScene(scene);
 
             for (int i = 0; i < 3; i++) {
                 EngineFrameResult updateResult = runtime.update(1.0 / 60.0, emptyInput());
@@ -63,20 +72,13 @@ public final class SampleHostApp {
     }
 
     private static EngineBackendProvider resolveProvider(String backendId) throws EngineException {
-        ServiceLoader<EngineBackendProvider> providers = ServiceLoader.load(EngineBackendProvider.class);
-        for (EngineBackendProvider provider : providers) {
-            if (provider.backendId().equalsIgnoreCase(backendId)) {
-                return provider;
-            }
-        }
-        throw new EngineException(
-                org.dynamislight.api.EngineErrorCode.BACKEND_NOT_FOUND,
-                "No backend provider found for id: " + backendId,
-                true
-        );
+        return BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
     }
 
     private static EngineConfig defaultConfig(String backendId) {
+        Map<String, String> backendOptions = "opengl".equalsIgnoreCase(backendId)
+                ? Map.of("opengl.mockContext", System.getProperty("dle.opengl.mockContext", "true"))
+                : Map.of();
         return new EngineConfig(
                 backendId,
                 "DynamicLightEngine Sample Host",
@@ -87,7 +89,7 @@ public final class SampleHostApp {
                 60,
                 QualityTier.MEDIUM,
                 Path.of("assets"),
-                Map.of()
+                backendOptions
         );
     }
 

@@ -2,6 +2,9 @@ package org.dynamislight.api;
 
 import java.util.Set;
 
+/**
+ * EngineInput API type.
+ */
 public record EngineInput(
         double mouseX,
         double mouseY,

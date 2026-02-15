@@ -12,4 +12,13 @@
 
   <artifactId>engine-api</artifactId>
   <name>DynamicLightEngine API</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 </project>

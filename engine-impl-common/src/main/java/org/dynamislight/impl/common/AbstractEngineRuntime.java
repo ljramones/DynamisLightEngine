@@ -18,6 +18,16 @@ import org.dynamislight.api.LogMessage;
 import org.dynamislight.api.SceneDescriptor;
 
 public abstract class AbstractEngineRuntime implements EngineRuntime {
+    protected record RenderMetrics(
+            double cpuFrameMs,
+            double gpuFrameMs,
+            long drawCalls,
+            long triangles,
+            long visibleObjects,
+            long gpuMemoryBytes
+    ) {
+    }
+
     private enum State {
         NEW,
         INITIALIZED,
@@ -62,6 +72,7 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
             throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "config and host are required", true);
         }
 
+        onInitialize(config);
         this.host = host;
         state = State.INITIALIZED;
         this.host.onLog(new LogMessage(LogLevel.INFO, "LIFECYCLE", backendName + " runtime initialized", System.currentTimeMillis()));
@@ -88,8 +99,21 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     @Override
     public final EngineFrameResult render() throws EngineException {
         ensureInitialized();
+        RenderMetrics renderMetrics = onRender();
         frameIndex++;
-        stats = new EngineStats(60.0, renderCpuFrameMs, renderGpuFrameMs, 1, 3, 1, 0);
+        if (renderMetrics == null) {
+            renderMetrics = new RenderMetrics(renderCpuFrameMs, renderGpuFrameMs, 1, 3, 1, 0);
+        }
+        double frameMs = Math.max(renderMetrics.cpuFrameMs(), 0.0001);
+        stats = new EngineStats(
+                1000.0 / frameMs,
+                renderMetrics.cpuFrameMs(),
+                renderMetrics.gpuFrameMs(),
+                renderMetrics.drawCalls(),
+                renderMetrics.triangles(),
+                renderMetrics.visibleObjects(),
+                renderMetrics.gpuMemoryBytes()
+        );
         return new EngineFrameResult(frameIndex, stats.cpuFrameMs(), stats.gpuFrameMs(), new FrameHandle(frameIndex, false),
                 List.of(stubWarning));
     }
@@ -100,6 +124,7 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
         if (widthPx <= 0 || heightPx <= 0 || dpiScale <= 0f) {
             throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "Invalid resize dimensions", true);
         }
+        onResize(widthPx, heightPx, dpiScale);
         host.onLog(new LogMessage(LogLevel.INFO, "RENDER",
                 "Resize to " + widthPx + "x" + heightPx + " @ " + dpiScale, System.currentTimeMillis()));
     }
@@ -119,10 +144,32 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
         if (state == State.SHUTDOWN) {
             return;
         }
+        onShutdown();
         state = State.SHUTDOWN;
         if (host != null) {
             host.onLog(new LogMessage(LogLevel.INFO, "LIFECYCLE", backendName + " runtime shut down", System.currentTimeMillis()));
         }
+    }
+
+    protected void onInitialize(EngineConfig config) throws EngineException {
+    }
+
+    protected RenderMetrics onRender() throws EngineException { return null; }
+
+    protected void onResize(int widthPx, int heightPx, float dpiScale) throws EngineException { }
+
+    protected final RenderMetrics renderMetrics(
+            double cpuFrameMs,
+            double gpuFrameMs,
+            long drawCalls,
+            long triangles,
+            long visibleObjects,
+            long gpuMemoryBytes
+    ) {
+        return new RenderMetrics(cpuFrameMs, gpuFrameMs, drawCalls, triangles, visibleObjects, gpuMemoryBytes);
+    }
+
+    protected void onShutdown() {
     }
 
     private void ensureInitialized() throws EngineException {

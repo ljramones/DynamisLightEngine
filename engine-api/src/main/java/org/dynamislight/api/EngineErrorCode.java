@@ -1,5 +1,8 @@
 package org.dynamislight.api;
 
+/**
+ * EngineErrorCode API type.
+ */
 public enum EngineErrorCode {
     INVALID_STATE,
     INVALID_ARGUMENT,

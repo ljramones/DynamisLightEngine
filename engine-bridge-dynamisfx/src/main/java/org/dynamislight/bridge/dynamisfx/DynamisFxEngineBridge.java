@@ -1,23 +1,14 @@
 package org.dynamislight.bridge.dynamisfx;
 
-import java.util.ServiceLoader;
-import org.dynamislight.api.EngineErrorCode;
+import org.dynamislight.api.EngineApiVersion;
 import org.dynamislight.api.EngineException;
 import org.dynamislight.api.EngineRuntime;
-import org.dynamislight.spi.EngineBackendProvider;
+import org.dynamislight.spi.registry.BackendRegistry;
 
 public final class DynamisFxEngineBridge {
+    private static final EngineApiVersion HOST_REQUIRED_API = new EngineApiVersion(1, 0, 0);
+
     public EngineRuntime createRuntime(String backendId) throws EngineException {
-        ServiceLoader<EngineBackendProvider> providers = ServiceLoader.load(EngineBackendProvider.class);
-        for (EngineBackendProvider provider : providers) {
-            if (provider.backendId().equalsIgnoreCase(backendId)) {
-                return provider.createRuntime();
-            }
-        }
-        throw new EngineException(
-                EngineErrorCode.BACKEND_NOT_FOUND,
-                "No backend provider found for id: " + backendId,
-                true
-        );
+        return BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API).createRuntime();
     }
 }

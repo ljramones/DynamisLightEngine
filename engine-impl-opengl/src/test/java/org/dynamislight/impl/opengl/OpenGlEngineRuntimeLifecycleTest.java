@@ -54,6 +54,15 @@ class OpenGlEngineRuntimeLifecycleTest {
     }
 
     @Test
+    void loadSceneBeforeInitializeThrowsInvalidState() {
+        var runtime = new OpenGlEngineRuntime();
+
+        EngineException ex = assertThrows(EngineException.class, () -> runtime.loadScene(validScene()));
+
+        assertEquals(EngineErrorCode.INVALID_STATE, ex.code());
+    }
+
+    @Test
     void initializeThenRenderProducesFrameAndStats() throws Exception {
         var runtime = new OpenGlEngineRuntime();
         var callbacks = new RecordingCallbacks();
@@ -72,6 +81,22 @@ class OpenGlEngineRuntimeLifecycleTest {
 
         runtime.shutdown();
         runtime.shutdown();
+    }
+
+    @Test
+    void fullLifecycleFlowSupportsResizeAndShutdown() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+
+        runtime.initialize(validConfig(), callbacks);
+        runtime.loadScene(validScene());
+        runtime.update(1.0 / 60.0, emptyInput());
+        runtime.resize(1920, 1080, 1.0f);
+        EngineFrameResult frame = runtime.render();
+        runtime.shutdown();
+
+        assertEquals(1L, frame.frameIndex());
+        assertTrue(callbacks.logs.stream().anyMatch(log -> "RENDER".equals(log.category())));
     }
 
     @Test
@@ -95,7 +120,42 @@ class OpenGlEngineRuntimeLifecycleTest {
         assertEquals(EngineErrorCode.INVALID_ARGUMENT, ex.code());
     }
 
+    @Test
+    void negativeDeltaTimeThrowsInvalidArgument() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(), new RecordingCallbacks());
+
+        EngineException ex = assertThrows(EngineException.class, () -> runtime.update(-0.1, emptyInput()));
+
+        assertEquals(EngineErrorCode.INVALID_ARGUMENT, ex.code());
+    }
+
+    @Test
+    void renderAfterShutdownThrowsInvalidState() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(), new RecordingCallbacks());
+        runtime.shutdown();
+
+        EngineException ex = assertThrows(EngineException.class, runtime::render);
+
+        assertEquals(EngineErrorCode.INVALID_STATE, ex.code());
+    }
+
+    @Test
+    void forcedInitFailureMapsToBackendInitFailed() {
+        var runtime = new OpenGlEngineRuntime();
+
+        EngineException ex = assertThrows(EngineException.class,
+                () -> runtime.initialize(validConfig(Map.of("opengl.forceInitFailure", "true")), new RecordingCallbacks()));
+
+        assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, ex.code());
+    }
+
     private static EngineConfig validConfig() {
+        return validConfig(Map.of("opengl.mockContext", "true"));
+    }
+
+    private static EngineConfig validConfig(Map<String, String> backendOptions) {
         return new EngineConfig(
                 "opengl",
                 "test-host",
@@ -106,7 +166,7 @@ class OpenGlEngineRuntimeLifecycleTest {
                 60,
                 QualityTier.MEDIUM,
                 Path.of("."),
-                Map.of()
+                backendOptions
         );
     }
 

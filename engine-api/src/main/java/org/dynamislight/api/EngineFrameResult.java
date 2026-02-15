@@ -2,6 +2,9 @@ package org.dynamislight.api;
 
 import java.util.List;
 
+/**
+ * EngineFrameResult API type.
+ */
 public record EngineFrameResult(
         long frameIndex,
         double cpuFrameMs,

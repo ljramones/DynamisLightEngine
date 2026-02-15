@@ -2,6 +2,9 @@ package org.dynamislight.api;
 
 import java.util.Set;
 
+/**
+ * EngineCapabilities API type.
+ */
 public record EngineCapabilities(
         Set<String> backends,
         boolean volumetricFog,
