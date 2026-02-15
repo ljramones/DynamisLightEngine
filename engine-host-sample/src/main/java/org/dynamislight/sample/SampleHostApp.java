@@ -1,0 +1,140 @@
+package org.dynamislight.sample;
+
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.ServiceLoader;
+import java.util.Set;
+import org.dynamislight.api.CameraDesc;
+import org.dynamislight.api.DeviceLostEvent;
+import org.dynamislight.api.EngineConfig;
+import org.dynamislight.api.EngineErrorReport;
+import org.dynamislight.api.EngineEvent;
+import org.dynamislight.api.EngineException;
+import org.dynamislight.api.EngineFrameResult;
+import org.dynamislight.api.EngineHostCallbacks;
+import org.dynamislight.api.EngineInput;
+import org.dynamislight.api.EnvironmentDesc;
+import org.dynamislight.api.FogDesc;
+import org.dynamislight.api.FogMode;
+import org.dynamislight.api.KeyCode;
+import org.dynamislight.api.LightDesc;
+import org.dynamislight.api.LogMessage;
+import org.dynamislight.api.MaterialDesc;
+import org.dynamislight.api.MeshDesc;
+import org.dynamislight.api.QualityTier;
+import org.dynamislight.api.ResourceHotReloadedEvent;
+import org.dynamislight.api.SceneDescriptor;
+import org.dynamislight.api.SceneLoadFailedEvent;
+import org.dynamislight.api.SceneLoadedEvent;
+import org.dynamislight.api.SmokeEmitterDesc;
+import org.dynamislight.api.TransformDesc;
+import org.dynamislight.api.Vec3;
+import org.dynamislight.spi.EngineBackendProvider;
+
+public final class SampleHostApp {
+    private SampleHostApp() {
+    }
+
+    public static void main(String[] args) throws Exception {
+        String backendId = args.length > 0 ? args[0] : "opengl";
+        EngineBackendProvider provider = resolveProvider(backendId);
+
+        try (var runtime = provider.createRuntime()) {
+            runtime.initialize(defaultConfig(backendId), new ConsoleCallbacks());
+            runtime.loadScene(defaultScene());
+
+            for (int i = 0; i < 3; i++) {
+                EngineFrameResult updateResult = runtime.update(1.0 / 60.0, emptyInput());
+                EngineFrameResult renderResult = runtime.render();
+                System.out.printf(
+                        "frame=%d updateCpuMs=%.2f renderCpuMs=%.2f warnings=%d%n",
+                        renderResult.frameIndex(),
+                        updateResult.cpuFrameMs(),
+                        renderResult.cpuFrameMs(),
+                        renderResult.warnings().size()
+                );
+            }
+
+            runtime.shutdown();
+            System.out.println("Shutdown complete.");
+        }
+    }
+
+    private static EngineBackendProvider resolveProvider(String backendId) throws EngineException {
+        ServiceLoader<EngineBackendProvider> providers = ServiceLoader.load(EngineBackendProvider.class);
+        for (EngineBackendProvider provider : providers) {
+            if (provider.backendId().equalsIgnoreCase(backendId)) {
+                return provider;
+            }
+        }
+        throw new EngineException(
+                org.dynamislight.api.EngineErrorCode.BACKEND_NOT_FOUND,
+                "No backend provider found for id: " + backendId,
+                true
+        );
+    }
+
+    private static EngineConfig defaultConfig(String backendId) {
+        return new EngineConfig(
+                backendId,
+                "DynamicLightEngine Sample Host",
+                1280,
+                720,
+                1.0f,
+                true,
+                60,
+                QualityTier.MEDIUM,
+                Path.of("assets"),
+                Map.of()
+        );
+    }
+
+    private static SceneDescriptor defaultScene() {
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(0, 2, 5), new Vec3(0, 0, 0), 60f, 0.1f, 1000f);
+        TransformDesc transform = new TransformDesc("root", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh-1", "root", "mat-1", "meshes/triangle.glb");
+        MaterialDesc material = new MaterialDesc("mat-1", new Vec3(1, 1, 1), 0.1f, 0.7f, null, null);
+        LightDesc light = new LightDesc("sun", new Vec3(0, 10, 0), new Vec3(1, 1, 1), 1.0f, 100f, false);
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.12f), 0.25f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "sample-scene",
+                List.of(camera),
+                camera.id(),
+                List.of(transform),
+                List.of(mesh),
+                List.of(material),
+                List.of(light),
+                environment,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static EngineInput emptyInput() {
+        return new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0);
+    }
+
+    private static final class ConsoleCallbacks implements EngineHostCallbacks {
+        @Override
+        public void onEvent(EngineEvent event) {
+            if (event instanceof SceneLoadedEvent || event instanceof SceneLoadFailedEvent || event instanceof ResourceHotReloadedEvent
+                    || event instanceof DeviceLostEvent) {
+                System.out.println("event=" + event);
+            }
+        }
+
+        @Override
+        public void onLog(LogMessage message) {
+            System.out.printf("[%s] %s %s%n", Instant.ofEpochMilli(message.epochMillis()), message.category(), message.message());
+        }
+
+        @Override
+        public void onError(EngineErrorReport error) {
+            System.err.printf("error=%s recoverable=%s message=%s%n", error.code(), error.recoverable(), error.message());
+        }
+    }
+}
