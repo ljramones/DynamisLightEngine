@@ -26,7 +26,7 @@ Last updated: February 16, 2026.
 - Clean Java-first runtime/SPI boundary with backend swap flexibility.
 - Real OpenGL and Vulkan runtime paths with broad scene parity checks.
 - TAA now includes confidence-buffer decay/recovery on instability/disocclusion, plus authored reactive-mask stress profiles for thin-geometry shimmer and specular flicker.
-- ULTRA parity envelopes for AA stress now include tighter bounds (`taa-thin-geometry-shimmer` and `taa-specular-flicker` at `<= 0.31`).
+- ULTRA parity envelopes for AA stress now include tighter bounds (`taa-thin-geometry-shimmer` and `taa-specular-flicker` at `<= 0.31`; `taa-history-confidence-stress` and `taa-specular-aa-stress` at `<= 0.32`).
 - Specular AA is reinforced with Toksvig-style roughness filtering in both backends to reduce glossy shimmer.
 - Runtime AA telemetry is now surfaced in frame stats/events (`historyRejectRate`, `confidenceMean`, `confidenceDropEvents`) for data-driven tuning.
 - Strong regression harness (`--compare`, tiered golden thresholds, stress profiles including post/SSAO).

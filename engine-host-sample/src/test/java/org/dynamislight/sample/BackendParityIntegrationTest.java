@@ -428,7 +428,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.33, "taa history confidence stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.32, "taa history confidence stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -445,7 +445,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.33, "taa specular aa stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.32, "taa specular aa stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -556,13 +556,13 @@ class BackendParityIntegrationTest {
                 QualityTier.LOW, 0.56,
                 QualityTier.MEDIUM, 0.48,
                 QualityTier.HIGH, 0.40,
-                QualityTier.ULTRA, 0.33
+                QualityTier.ULTRA, 0.32
         );
         Map<QualityTier, Double> taaSpecularAaMaxDiff = Map.of(
                 QualityTier.LOW, 0.56,
                 QualityTier.MEDIUM, 0.48,
                 QualityTier.HIGH, 0.40,
-                QualityTier.ULTRA, 0.33
+                QualityTier.ULTRA, 0.32
         );
         Map<QualityTier, Double> smaaFullEdgeCrawlMaxDiff = Map.of(
                 QualityTier.LOW, 0.57,
@@ -808,8 +808,8 @@ class BackendParityIntegrationTest {
                 Map.entry("taa-reactive-authored-stress", 0.32),
                 Map.entry("taa-thin-geometry-shimmer", 0.31),
                 Map.entry("taa-specular-flicker", 0.31),
-                Map.entry("taa-history-confidence-stress", 0.33),
-                Map.entry("taa-specular-aa-stress", 0.33),
+                Map.entry("taa-history-confidence-stress", 0.32),
+                Map.entry("taa-specular-aa-stress", 0.32),
                 Map.entry("smaa-full-edge-crawl", 0.34),
                 Map.entry("post-process-ssao", 0.35),
                 Map.entry("post-process-ssao-stress", 0.37),

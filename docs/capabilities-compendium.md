@@ -348,6 +348,8 @@ The repository includes automated tests validating:
 - Current HIGH/ULTRA `post-process-smaa` bound: `<= 0.36`.
 - Current ULTRA `taa-thin-geometry-shimmer` bound: `<= 0.31`.
 - Current ULTRA `taa-specular-flicker` bound: `<= 0.31`.
+- Current ULTRA `taa-history-confidence-stress` bound: `<= 0.32`.
+- Current ULTRA `taa-specular-aa-stress` bound: `<= 0.32`.
 - Vulkan frame-resource profile now also reports:
   - split uniform staging path: global scene UBO uploads are tracked separately from dynamic object UBO uploads
   - `lastUniformUploadRanges`
