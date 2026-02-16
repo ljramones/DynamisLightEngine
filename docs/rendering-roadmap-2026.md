@@ -69,6 +69,7 @@ Exit criteria:
 
 3. Optional SSAO pass
 - Add basic SSAO/HBAO-lite as post pass before bloom/tonemap.
+- Status: implemented as SSAO-lite baseline in both backends (edge-aware screen-space approximation), with compare-harness profile coverage.
 
 Exit criteria:
 - Major realism gain in material/lighting scenes with stable parity thresholds.

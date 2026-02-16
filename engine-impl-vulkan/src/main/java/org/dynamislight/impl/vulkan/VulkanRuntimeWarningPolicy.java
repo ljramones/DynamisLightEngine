@@ -68,6 +68,12 @@ final class VulkanRuntimeWarningPolicy {
                     "Shadow quality reduced for tier " + in.qualityTier() + " to maintain performance"
             ));
         }
+        if (in.currentPost().ssaoEnabled() && in.qualityTier() == QualityTier.MEDIUM) {
+            warnings.add(new EngineWarning(
+                    "SSAO_QUALITY_DEGRADED",
+                    "SSAO-lite strength reduced at MEDIUM tier to maintain stable frame cost"
+            ));
+        }
         if (in.nonDirectionalShadowRequested()) {
             warnings.add(new EngineWarning(
                     "SHADOW_TYPE_UNSUPPORTED",
@@ -282,6 +288,7 @@ final class VulkanRuntimeWarningPolicy {
             VulkanEngineRuntime.FogRenderConfig currentFog,
             VulkanEngineRuntime.SmokeRenderConfig currentSmoke,
             VulkanEngineRuntime.ShadowRenderConfig currentShadows,
+            VulkanEngineRuntime.PostProcessRenderConfig currentPost,
             VulkanEngineRuntime.IblRenderConfig currentIbl,
             boolean nonDirectionalShadowRequested,
             boolean mockContext,

@@ -128,6 +128,12 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - fallback decode path now attempts `libktx` decode/transcode when baseline header-path decoding is unavailable
   - tier-extreme BRDF parity pass applied consistently in OpenGL and Vulkan shaders
   - remaining in this lane is parity tuning/regression observation only (not core missing functionality)
+- Optional Phase 2 SSAO/HBAO-lite item is now closed as SSAO-lite baseline:
+  - implemented in both OpenGL and Vulkan paths with tier-aware attenuation policy
+  - compare harness now includes `post-process-ssao` profile and bounded threshold checks
+- Ongoing parity tuning lane:
+  - tightened `post-process` HIGH bound from `0.33 -> 0.32`
+  - continue incremental tightening after additional deterministic scene expansion
 - Shadow fidelity tune: radius/cascade-aware depth-bias scaling now applied in both backends to reduce acne/flicker at higher PCF/cascade settings.
 - Extend Vulkan dynamic-update staging strategy to more scene data beyond current global/object uniform split:
   - material/instance-class staging paths

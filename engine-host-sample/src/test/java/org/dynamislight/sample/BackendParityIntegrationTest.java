@@ -236,7 +236,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.33, "post-process diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.32, "post-process diff was " + report.diffMetric());
     }
 
     @Test
@@ -255,6 +255,24 @@ class BackendParityIntegrationTest {
         assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
         assertTrue(report.diffMetric() >= 0.0);
         assertTrue(report.diffMetric() <= 0.06, "post-process bloom diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessPostProcessSsaoSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("post-process-ssao");
+        var report = BackendCompareHarness.run(
+                outDir,
+                postProcessScene(false, true),
+                QualityTier.HIGH,
+                "post-process-ssao-high"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.35, "post-process ssao diff was " + report.diffMetric());
     }
 
     @Test
@@ -330,6 +348,12 @@ class BackendParityIntegrationTest {
                 QualityTier.MEDIUM, 0.40,
                 QualityTier.HIGH, 0.36,
                 QualityTier.ULTRA, 0.37
+        );
+        Map<QualityTier, Double> postProcessSsaoMaxDiff = Map.of(
+                QualityTier.LOW, 0.45,
+                QualityTier.MEDIUM, 0.40,
+                QualityTier.HIGH, 0.35,
+                QualityTier.ULTRA, 0.35
         );
         Map<QualityTier, Double> materialFogSmokeShadowMaxDiff = Map.of(
                 QualityTier.LOW, 0.54,
@@ -415,6 +439,19 @@ class BackendParityIntegrationTest {
                             + " exceeded " + postProcessBloomMaxDiff.get(tier) + " at " + tier
             );
 
+            Path postSsaoDir = compareOutputDir("post-process-ssao-" + tier.name().toLowerCase());
+            var postSsaoReport = BackendCompareHarness.run(
+                    postSsaoDir,
+                    postProcessScene(false, true),
+                    tier,
+                    "post-process-ssao-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    postSsaoReport.diffMetric() <= postProcessSsaoMaxDiff.get(tier),
+                    "post-process ssao diff " + postSsaoReport.diffMetric()
+                            + " exceeded " + postProcessSsaoMaxDiff.get(tier) + " at " + tier
+            );
+
             Path materialFogSmokeShadowDir = compareOutputDir("material-fog-smoke-shadow-" + tier.name().toLowerCase());
             var materialFogSmokeShadowReport = BackendCompareHarness.run(
                     materialFogSmokeShadowDir,
@@ -440,7 +477,8 @@ class BackendParityIntegrationTest {
                 "texture-heavy", 0.32,
                 "brdf-tier-extremes", 0.29,
                 "fog-smoke-shadow-post-stress", 0.05,
-                "material-fog-smoke-shadow-cascade-stress", 0.30
+                "material-fog-smoke-shadow-cascade-stress", 0.30,
+                "post-process-ssao", 0.35
         );
 
         var reports = Map.of(
@@ -485,6 +523,12 @@ class BackendParityIntegrationTest {
                         materialFogSmokeShadowCascadeStressScene(),
                         QualityTier.ULTRA,
                         "material-fog-smoke-shadow-cascade-stress-golden-ultra"
+                ),
+                "post-process-ssao", BackendCompareHarness.run(
+                        compareOutputDir("post-process-ssao-golden"),
+                        postProcessScene(false, true),
+                        QualityTier.ULTRA,
+                        "post-process-ssao-golden-ultra"
                 )
         );
 
@@ -933,6 +977,10 @@ class BackendParityIntegrationTest {
     }
 
     private static SceneDescriptor postProcessScene(boolean bloomEnabled) {
+        return postProcessScene(bloomEnabled, false);
+    }
+
+    private static SceneDescriptor postProcessScene(boolean bloomEnabled, boolean ssaoEnabled) {
         SceneDescriptor base = materialLightingScene();
         PostProcessDesc post = new PostProcessDesc(
                 true,
@@ -941,7 +989,9 @@ class BackendParityIntegrationTest {
                 2.2f,
                 bloomEnabled,
                 1.0f,
-                0.75f
+                0.75f,
+                ssaoEnabled,
+                ssaoEnabled ? 0.45f : 0f
         );
         return new SceneDescriptor(
                 "parity-post-process-scene",

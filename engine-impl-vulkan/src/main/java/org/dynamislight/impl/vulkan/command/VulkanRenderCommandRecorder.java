@@ -316,8 +316,8 @@ public final class VulkanRenderCommandRecorder {
         );
         ByteBuffer postPush = stack.malloc(8 * Float.BYTES);
         postPush.asFloatBuffer().put(new float[]{
-                in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), 0f,
-                in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), 0f
+                in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), in.ssaoEnabled() ? 1f : 0f,
+                in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength()
         });
         vkCmdPushConstants(commandBuffer, in.postPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -359,9 +359,11 @@ public final class VulkanRenderCommandRecorder {
             boolean tonemapEnabled,
             float tonemapExposure,
             float tonemapGamma,
+            boolean ssaoEnabled,
             boolean bloomEnabled,
             float bloomThreshold,
             float bloomStrength,
+            float ssaoStrength,
             long postRenderPass,
             long postGraphicsPipeline,
             long postPipelineLayout,

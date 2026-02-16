@@ -36,6 +36,8 @@ public final class VulkanRenderState {
     public boolean bloomEnabled;
     public float bloomThreshold = 1.0f;
     public float bloomStrength = 0.8f;
+    public boolean ssaoEnabled;
+    public float ssaoStrength;
     public boolean postOffscreenRequested;
     public boolean postOffscreenActive;
     public boolean postIntermediateInitialized;

@@ -312,6 +312,8 @@ final class OpenGlContext {
             uniform int uBloomEnabled;
             uniform float uBloomThreshold;
             uniform float uBloomStrength;
+            uniform int uSsaoEnabled;
+            uniform float uSsaoStrength;
             out vec4 FragColor;
             float distributionGGX(float ndh, float roughness) {
                 float a = roughness * roughness;
@@ -533,6 +535,13 @@ final class OpenGlContext {
                     float bloom = bright * strength;
                     color += color * bloom;
                 }
+                if (uSsaoEnabled == 1) {
+                    float depthDelta = length(vec2(dFdx(gl_FragCoord.z), dFdy(gl_FragCoord.z)));
+                    float normalDelta = length(dFdx(normal)) + length(dFdy(normal));
+                    float edge = clamp((depthDelta * 260.0) + (normalDelta * 0.35), 0.0, 1.0);
+                    float ssao = 1.0 - clamp(edge * clamp(uSsaoStrength, 0.0, 1.0), 0.0, 0.75);
+                    color *= ssao;
+                }
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
             }
             """;
@@ -562,7 +571,20 @@ final class OpenGlContext {
             uniform int uBloomEnabled;
             uniform float uBloomThreshold;
             uniform float uBloomStrength;
+            uniform int uSsaoEnabled;
+            uniform float uSsaoStrength;
             out vec4 FragColor;
+            float ssaoLite(vec2 uv) {
+                vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                vec3 c = texture(uSceneColor, uv).rgb;
+                vec3 cx = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                vec3 cy = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+                float lx = dot(cx, vec3(0.2126, 0.7152, 0.0722));
+                float ly = dot(cy, vec3(0.2126, 0.7152, 0.0722));
+                float edge = clamp(abs(l - lx) + abs(l - ly), 0.0, 1.0);
+                return 1.0 - clamp(edge * clamp(uSsaoStrength, 0.0, 1.0), 0.0, 0.75);
+            }
             void main() {
                 vec3 color = texture(uSceneColor, vUv).rgb;
                 if (uTonemapEnabled == 1) {
@@ -578,6 +600,9 @@ final class OpenGlContext {
                     float bright = max(0.0, luma - threshold);
                     float bloom = bright * strength;
                     color += color * bloom;
+                }
+                if (uSsaoEnabled == 1) {
+                    color *= ssaoLite(vUv);
                 }
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
             }
@@ -641,6 +666,8 @@ final class OpenGlContext {
     private int bloomEnabledLocation;
     private int bloomThresholdLocation;
     private int bloomStrengthLocation;
+    private int ssaoEnabledLocation;
+    private int ssaoStrengthLocation;
     private int postProgramId;
     private int postSceneColorLocation;
     private int postTonemapEnabledLocation;
@@ -649,6 +676,8 @@ final class OpenGlContext {
     private int postBloomEnabledLocation;
     private int postBloomThresholdLocation;
     private int postBloomStrengthLocation;
+    private int postSsaoEnabledLocation;
+    private int postSsaoStrengthLocation;
     private int postVaoId;
     private int sceneFramebufferId;
     private int sceneColorTextureId;
@@ -678,6 +707,8 @@ final class OpenGlContext {
     private boolean bloomEnabled;
     private float bloomThreshold = 1.0f;
     private float bloomStrength = 0.8f;
+    private boolean ssaoEnabled;
+    private float ssaoStrength = 0f;
     private float dirLightDirX = 0.3f;
     private float dirLightDirY = -1.0f;
     private float dirLightDirZ = 0.25f;
@@ -1001,6 +1032,8 @@ final class OpenGlContext {
         glUniform1i(postBloomEnabledLocation, bloomEnabled ? 1 : 0);
         glUniform1f(postBloomThresholdLocation, bloomThreshold);
         glUniform1f(postBloomStrengthLocation, bloomStrength);
+        glUniform1i(postSsaoEnabledLocation, ssaoEnabled ? 1 : 0);
+        glUniform1f(postSsaoStrengthLocation, ssaoStrength);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1111,7 +1144,9 @@ final class OpenGlContext {
             float gamma,
             boolean bloomEnabled,
             float bloomThreshold,
-            float bloomStrength
+            float bloomStrength,
+            boolean ssaoEnabled,
+            float ssaoStrength
     ) {
         this.tonemapEnabled = tonemapEnabled;
         tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
@@ -1119,6 +1154,8 @@ final class OpenGlContext {
         this.bloomEnabled = bloomEnabled;
         this.bloomThreshold = Math.max(0f, Math.min(4.0f, bloomThreshold));
         this.bloomStrength = Math.max(0f, Math.min(2.0f, bloomStrength));
+        this.ssaoEnabled = ssaoEnabled;
+        this.ssaoStrength = Math.max(0f, Math.min(1.0f, ssaoStrength));
     }
 
     void setCameraMatrices(float[] view, float[] proj) {
@@ -1297,6 +1334,8 @@ final class OpenGlContext {
         bloomEnabledLocation = glGetUniformLocation(programId, "uBloomEnabled");
         bloomThresholdLocation = glGetUniformLocation(programId, "uBloomThreshold");
         bloomStrengthLocation = glGetUniformLocation(programId, "uBloomStrength");
+        ssaoEnabledLocation = glGetUniformLocation(programId, "uSsaoEnabled");
+        ssaoStrengthLocation = glGetUniformLocation(programId, "uSsaoStrength");
 
         glUseProgram(programId);
         glUniform1i(albedoTextureLocation, 0);
@@ -1335,6 +1374,8 @@ final class OpenGlContext {
         postBloomEnabledLocation = glGetUniformLocation(postProgramId, "uBloomEnabled");
         postBloomThresholdLocation = glGetUniformLocation(postProgramId, "uBloomThreshold");
         postBloomStrengthLocation = glGetUniformLocation(postProgramId, "uBloomStrength");
+        postSsaoEnabledLocation = glGetUniformLocation(postProgramId, "uSsaoEnabled");
+        postSsaoStrengthLocation = glGetUniformLocation(postProgramId, "uSsaoStrength");
         postVaoId = glGenVertexArrays();
         glUseProgram(postProgramId);
         glUniform1i(postSceneColorLocation, 0);
@@ -1666,10 +1707,12 @@ final class OpenGlContext {
         glUniform1i(bloomEnabledLocation, shaderDrivenEnabled && bloomEnabled ? 1 : 0);
         glUniform1f(bloomThresholdLocation, bloomThreshold);
         glUniform1f(bloomStrengthLocation, bloomStrength);
+        glUniform1i(ssaoEnabledLocation, shaderDrivenEnabled && ssaoEnabled ? 1 : 0);
+        glUniform1f(ssaoStrengthLocation, ssaoStrength);
     }
 
     private boolean useDedicatedPostPass() {
-        return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled);
+        return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled || ssaoEnabled);
     }
 
     private boolean useShaderDrivenPost() {

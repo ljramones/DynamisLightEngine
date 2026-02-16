@@ -152,7 +152,9 @@ public final class SceneMapper {
                 post.gamma(),
                 post.bloomEnabled(),
                 post.bloomThreshold(),
-                post.bloomStrength()
+                post.bloomStrength(),
+                post.ssaoEnabled(),
+                post.ssaoStrength()
         );
     }
 }

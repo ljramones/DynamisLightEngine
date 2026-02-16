@@ -95,6 +95,8 @@ public final class VulkanRenderParameterMutator {
         boolean bloomEnabled = current.bloomEnabled();
         float bloomThreshold = current.bloomThreshold();
         float bloomStrength = current.bloomStrength();
+        boolean ssaoEnabled = current.ssaoEnabled();
+        float ssaoStrength = current.ssaoStrength();
 
         if (tonemapEnabled != update.tonemapEnabled()) {
             tonemapEnabled = update.tonemapEnabled();
@@ -118,7 +120,16 @@ public final class VulkanRenderParameterMutator {
             bloomStrength = clampedStrength;
             changed = true;
         }
-        return new PostResult(new PostState(tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength), changed);
+        if (ssaoEnabled != update.ssaoEnabled()) {
+            ssaoEnabled = update.ssaoEnabled();
+            changed = true;
+        }
+        float clampedSsaoStrength = Math.max(0f, Math.min(1.0f, update.ssaoStrength()));
+        if (!floatEquals(ssaoStrength, clampedSsaoStrength)) {
+            ssaoStrength = clampedSsaoStrength;
+            changed = true;
+        }
+        return new PostResult(new PostState(tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength, ssaoEnabled, ssaoStrength), changed);
     }
 
     public static CameraResult applyCameraMatrices(CameraState current, CameraUpdate update) {
@@ -177,7 +188,9 @@ public final class VulkanRenderParameterMutator {
             float gamma,
             boolean bloomEnabled,
             float bloomThreshold,
-            float bloomStrength
+            float bloomStrength,
+            boolean ssaoEnabled,
+            float ssaoStrength
     ) {
     }
 
@@ -187,7 +200,9 @@ public final class VulkanRenderParameterMutator {
             float gamma,
             boolean bloomEnabled,
             float bloomThreshold,
-            float bloomStrength
+            float bloomStrength,
+            boolean ssaoEnabled,
+            float ssaoStrength
     ) {
     }
 

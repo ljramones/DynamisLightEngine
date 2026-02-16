@@ -62,6 +62,8 @@ public final class VulkanGlobalSceneInputBuilder {
                 in.bloomEnabled(),
                 in.bloomThreshold(),
                 in.bloomStrength(),
+                in.ssaoEnabled(),
+                in.ssaoStrength(),
                 in.shadowLightViewProjMatrices()
         );
     }
@@ -133,6 +135,8 @@ public final class VulkanGlobalSceneInputBuilder {
                 post.bloomEnabled(),
                 post.bloomThreshold(),
                 post.bloomStrength(),
+                post.ssaoEnabled(),
+                post.ssaoStrength(),
                 shadowLightViewProjMatrices
         );
     }
@@ -194,6 +198,8 @@ public final class VulkanGlobalSceneInputBuilder {
             boolean bloomEnabled,
             float bloomThreshold,
             float bloomStrength,
+            boolean ssaoEnabled,
+            float ssaoStrength,
             float[][] shadowLightViewProjMatrices
     ) {
     }
@@ -263,7 +269,9 @@ public final class VulkanGlobalSceneInputBuilder {
             float tonemapGamma,
             boolean bloomEnabled,
             float bloomThreshold,
-            float bloomStrength
+            float bloomStrength,
+            boolean ssaoEnabled,
+            float ssaoStrength
     ) {
     }
 }

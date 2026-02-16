@@ -404,6 +404,13 @@ public final class VulkanShaderSources {
                         float bloom = bright * strength;
                         color += color * bloom;
                     }
+                    if (gbo.uPostProcess.w > 0.5) {
+                        float depthDelta = length(vec2(dFdx(gl_FragCoord.z), dFdy(gl_FragCoord.z)));
+                        float normalDelta = length(dFdx(n)) + length(dFdy(n));
+                        float edge = clamp((depthDelta * 260.0) + (normalDelta * 0.35), 0.0, 1.0);
+                        float ssao = 1.0 - clamp(edge * clamp(gbo.uBloom.w, 0.0, 1.0), 0.0, 0.75);
+                        color *= ssao;
+                    }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 }
                 """;
@@ -446,6 +453,17 @@ public final class VulkanShaderSources {
                         float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
                         float bright = max(0.0, luma - threshold);
                         color += color * (bright * strength);
+                    }
+                    if (pc.tonemap.w > 0.5) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec3 c = color;
+                        vec3 cx = texture(uSceneColor, clamp(vUv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 cy = texture(uSceneColor, clamp(vUv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+                        float lx = dot(cx, vec3(0.2126, 0.7152, 0.0722));
+                        float ly = dot(cy, vec3(0.2126, 0.7152, 0.0722));
+                        float edge = clamp(abs(l - lx) + abs(l - ly), 0.0, 1.0);
+                        color *= (1.0 - clamp(edge * clamp(pc.bloom.w, 0.0, 1.0), 0.0, 0.75));
                     }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 }

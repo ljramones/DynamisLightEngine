@@ -429,7 +429,9 @@ final class VulkanContext {
             float gamma,
             boolean bloomEnabled,
             float bloomThreshold,
-            float bloomStrength
+            float bloomStrength,
+            boolean ssaoEnabled,
+            float ssaoStrength
     ) {
         var result = VulkanRenderParameterMutator.applyPost(
                 new VulkanRenderParameterMutator.PostState(
@@ -438,7 +440,9 @@ final class VulkanContext {
                         renderState.tonemapGamma,
                         this.renderState.bloomEnabled,
                         this.renderState.bloomThreshold,
-                        this.renderState.bloomStrength
+                        this.renderState.bloomStrength,
+                        this.renderState.ssaoEnabled,
+                        this.renderState.ssaoStrength
                 ),
                 new VulkanRenderParameterMutator.PostUpdate(
                         tonemapEnabled,
@@ -446,7 +450,9 @@ final class VulkanContext {
                         gamma,
                         bloomEnabled,
                         bloomThreshold,
-                        bloomStrength
+                        bloomStrength,
+                        ssaoEnabled,
+                        ssaoStrength
                 )
         );
         var state = result.state();
@@ -456,6 +462,8 @@ final class VulkanContext {
         this.renderState.bloomEnabled = state.bloomEnabled();
         this.renderState.bloomThreshold = state.bloomThreshold();
         this.renderState.bloomStrength = state.bloomStrength();
+        this.renderState.ssaoEnabled = state.ssaoEnabled();
+        this.renderState.ssaoStrength = state.ssaoStrength();
         if (result.changed()) {
             markGlobalStateDirty();
         }
@@ -699,9 +707,11 @@ final class VulkanContext {
                         renderState.tonemapEnabled,
                         renderState.tonemapExposure,
                         renderState.tonemapGamma,
+                        renderState.ssaoEnabled,
                         renderState.bloomEnabled,
                         renderState.bloomThreshold,
                         renderState.bloomStrength,
+                        renderState.ssaoStrength,
                         backendResources.postRenderPass,
                         backendResources.postGraphicsPipeline,
                         backendResources.postPipelineLayout,
@@ -921,6 +931,8 @@ final class VulkanContext {
                                         renderState.bloomEnabled,
                                         renderState.bloomThreshold,
                                         renderState.bloomStrength,
+                                        renderState.ssaoEnabled,
+                                        renderState.ssaoStrength,
                                         renderState.shadowLightViewProjMatrices
                                 )
                         ),

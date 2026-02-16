@@ -38,8 +38,8 @@ public final class VulkanUniformWriters {
         fb.put(new float[]{in.smokeR(), in.smokeG(), in.smokeB(), 0f});
         fb.put(new float[]{in.iblEnabled() ? 1f : 0f, in.iblDiffuseStrength(), in.iblSpecularStrength(), in.iblPrefilterStrength()});
         boolean scenePostEnabled = !in.postOffscreenActive();
-        fb.put(new float[]{scenePostEnabled && in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), 0f});
-        fb.put(new float[]{scenePostEnabled && in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), 0f});
+        fb.put(new float[]{scenePostEnabled && in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), scenePostEnabled && in.ssaoEnabled() ? 1f : 0f});
+        fb.put(new float[]{scenePostEnabled && in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength()});
         for (int i = 0; i < in.shadowLightViewProjMatrices().length; i++) {
             fb.put(in.shadowLightViewProjMatrices()[i]);
         }
@@ -118,6 +118,8 @@ public final class VulkanUniformWriters {
             boolean bloomEnabled,
             float bloomThreshold,
             float bloomStrength,
+            boolean ssaoEnabled,
+            float ssaoStrength,
             float[][] shadowLightViewProjMatrices
     ) {
     }
