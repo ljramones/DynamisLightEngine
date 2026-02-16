@@ -72,7 +72,7 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 - `org.dynamislight.impl.vulkan.shadow`
   - shadow/cascade matrix and shadow-resource lifecycle (`VulkanShadowMatrixBuilder`, `VulkanShadowResources`)
 - `org.dynamislight.impl.vulkan.uniform`
-  - uniform serialization/upload and frame-uniform preparation helpers (`VulkanUniformWriters`, `VulkanUniformUploadRecorder`, `VulkanFrameUniformCoordinator`)
+  - uniform serialization/upload, global-scene input building, and frame-uniform preparation helpers (`VulkanUniformWriters`, `VulkanGlobalSceneInputBuilder`, `VulkanUniformUploadRecorder`, `VulkanFrameUniformCoordinator`)
 - `org.dynamislight.impl.vulkan.texture`
   - texture pixel/container decode and texture resource lifecycle helpers (`VulkanTexturePixelLoader`, `VulkanTextureResourceOps`)
 - `org.dynamislight.impl.vulkan.memory`
