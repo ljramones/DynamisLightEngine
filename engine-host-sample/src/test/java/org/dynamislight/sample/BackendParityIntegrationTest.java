@@ -142,6 +142,38 @@ class BackendParityIntegrationTest {
         assertTrue(report.diffMetric() <= 0.35, "shadow diff was " + report.diffMetric());
     }
 
+    @Test
+    void compareHarnessTieredGoldenProfilesStayBounded() throws Exception {
+        Map<QualityTier, Double> fogSmokeMaxDiff = Map.of(
+                QualityTier.LOW, 0.45,
+                QualityTier.MEDIUM, 0.36,
+                QualityTier.HIGH, 0.31,
+                QualityTier.ULTRA, 0.31
+        );
+        Map<QualityTier, Double> shadowMaxDiff = Map.of(
+                QualityTier.LOW, 0.50,
+                QualityTier.MEDIUM, 0.42,
+                QualityTier.HIGH, 0.35,
+                QualityTier.ULTRA, 0.35
+        );
+
+        for (QualityTier tier : QualityTier.values()) {
+            Path fogSmokeDir = Files.createTempDirectory("dle-compare-fog-smoke-" + tier.name().toLowerCase());
+            var fogSmokeReport = BackendCompareHarness.run(fogSmokeDir, fogSmokeScene(), tier);
+            assertTrue(
+                    fogSmokeReport.diffMetric() <= fogSmokeMaxDiff.get(tier),
+                    "fog/smoke diff " + fogSmokeReport.diffMetric() + " exceeded " + fogSmokeMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path shadowDir = Files.createTempDirectory("dle-compare-shadow-" + tier.name().toLowerCase());
+            var shadowReport = BackendCompareHarness.run(shadowDir, shadowScene(), tier);
+            assertTrue(
+                    shadowReport.diffMetric() <= shadowMaxDiff.get(tier),
+                    "shadow diff " + shadowReport.diffMetric() + " exceeded " + shadowMaxDiff.get(tier) + " at " + tier
+            );
+        }
+    }
+
     private static void runParityLifecycle(String backendId) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
         RecordingCallbacks callbacks = new RecordingCallbacks();
