@@ -24,7 +24,9 @@ import org.dynamislight.api.error.EngineException;
  *
  * If any validation check fails, an {@link EngineException} is thrown with the appropriate error message.
  *
- * This class is designed as a*/
+ * This class is designed as a utility and cannot be instantiated.
+ * All methods provided are static and thread-safe.
+ */
 public final class EngineConfigValidator {
     private EngineConfigValidator() {
     }

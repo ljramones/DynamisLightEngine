@@ -119,7 +119,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - Revision-aware per-frame uniform staging for dynamic updates:
   - frame slots track applied global/scene uniform revisions
   - uniform copy/barrier is skipped when a frame slot is already synchronized
-  - dirty object subranges are uploaded for dynamic-only scene changes
+  - dirty object subranges are uploaded as sparse multi-range copies for dynamic-only scene changes
 - Per-mesh sampled textures for albedo, normal, metallic-roughness, and occlusion.
 - Attribute-rich vertex path (`position`, `normal`, `uv`, `tangent`) from `.gltf/.glb` mesh ingestion.
 - GGX-style PBR-leaning lighting response aligned with OpenGL baseline (directional + point light path).

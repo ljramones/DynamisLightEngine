@@ -310,6 +310,7 @@ final class VulkanContext {
     private static final int VERTEX_STRIDE_BYTES = VERTEX_STRIDE_FLOATS * Float.BYTES;
     private static final int MAX_FRAMES_IN_FLIGHT = 3;
     private static final int MAX_DYNAMIC_SCENE_OBJECTS = 2048;
+    private static final int MAX_PENDING_UPLOAD_RANGES = 64;
     private static final int MAX_SHADOW_CASCADES = 4;
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 6;
@@ -384,13 +385,18 @@ final class VulkanContext {
     private long sceneStateRevision = 1;
     private final long[] frameGlobalRevisionApplied = new long[MAX_FRAMES_IN_FLIGHT];
     private final long[] frameSceneRevisionApplied = new long[MAX_FRAMES_IN_FLIGHT];
-    private int pendingSceneDirtyStart = Integer.MAX_VALUE;
-    private int pendingSceneDirtyEnd = -1;
+    private final int[] pendingSceneDirtyStarts = new int[MAX_PENDING_UPLOAD_RANGES];
+    private final int[] pendingSceneDirtyEnds = new int[MAX_PENDING_UPLOAD_RANGES];
+    private int pendingSceneDirtyRangeCount;
     private long pendingUploadSrcOffset = -1L;
     private long pendingUploadDstOffset = -1L;
     private int pendingUploadByteCount;
     private int pendingUploadObjectCount;
     private int pendingUploadStartObject;
+    private final long[] pendingUploadSrcOffsets = new long[MAX_PENDING_UPLOAD_RANGES];
+    private final long[] pendingUploadDstOffsets = new long[MAX_PENDING_UPLOAD_RANGES];
+    private final int[] pendingUploadByteCounts = new int[MAX_PENDING_UPLOAD_RANGES];
+    private int pendingUploadRangeCount;
     private final List<GpuMesh> gpuMeshes = new ArrayList<>();
     private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
     private float[] viewMatrix = identityMatrix();
@@ -1168,8 +1174,7 @@ final class VulkanContext {
         pendingUploadByteCount = 0;
         pendingUploadObjectCount = 0;
         pendingUploadStartObject = 0;
-        pendingSceneDirtyStart = Integer.MAX_VALUE;
-        pendingSceneDirtyEnd = -1;
+        pendingSceneDirtyRangeCount = 0;
         globalStateRevision = 1;
         sceneStateRevision = 1;
         Arrays.fill(frameGlobalRevisionApplied, 0L);
@@ -4334,8 +4339,55 @@ final class VulkanContext {
             return;
         }
         sceneStateRevision++;
-        pendingSceneDirtyStart = Math.min(pendingSceneDirtyStart, Math.max(0, dirtyStart));
-        pendingSceneDirtyEnd = Math.max(pendingSceneDirtyEnd, Math.max(0, dirtyEnd));
+        addPendingSceneDirtyRange(Math.max(0, dirtyStart), Math.max(0, dirtyEnd));
+    }
+
+    private void addPendingSceneDirtyRange(int start, int end) {
+        if (end < start) {
+            return;
+        }
+        if (pendingSceneDirtyRangeCount >= MAX_PENDING_UPLOAD_RANGES) {
+            pendingSceneDirtyRangeCount = 1;
+            pendingSceneDirtyStarts[0] = 0;
+            pendingSceneDirtyEnds[0] = Math.max(start, end);
+            return;
+        }
+        pendingSceneDirtyStarts[pendingSceneDirtyRangeCount] = start;
+        pendingSceneDirtyEnds[pendingSceneDirtyRangeCount] = end;
+        pendingSceneDirtyRangeCount++;
+        normalizePendingSceneDirtyRanges();
+    }
+
+    private void normalizePendingSceneDirtyRanges() {
+        if (pendingSceneDirtyRangeCount <= 1) {
+            return;
+        }
+        for (int i = 1; i < pendingSceneDirtyRangeCount; i++) {
+            int start = pendingSceneDirtyStarts[i];
+            int end = pendingSceneDirtyEnds[i];
+            int j = i - 1;
+            while (j >= 0 && pendingSceneDirtyStarts[j] > start) {
+                pendingSceneDirtyStarts[j + 1] = pendingSceneDirtyStarts[j];
+                pendingSceneDirtyEnds[j + 1] = pendingSceneDirtyEnds[j];
+                j--;
+            }
+            pendingSceneDirtyStarts[j + 1] = start;
+            pendingSceneDirtyEnds[j + 1] = end;
+        }
+        int write = 0;
+        for (int read = 1; read < pendingSceneDirtyRangeCount; read++) {
+            int currStart = pendingSceneDirtyStarts[read];
+            int currEnd = pendingSceneDirtyEnds[read];
+            int prevEnd = pendingSceneDirtyEnds[write];
+            if (currStart <= (prevEnd + 1)) {
+                pendingSceneDirtyEnds[write] = Math.max(prevEnd, currEnd);
+            } else {
+                write++;
+                pendingSceneDirtyStarts[write] = currStart;
+                pendingSceneDirtyEnds[write] = currEnd;
+            }
+        }
+        pendingSceneDirtyRangeCount = write + 1;
     }
 
     private boolean allFramesApplied(long[] frameRevisions, long revision) {
@@ -4361,24 +4413,36 @@ final class VulkanContext {
         boolean globalStale = frameGlobalRevisionApplied[normalizedFrame] != globalStateRevision;
         boolean sceneStale = frameSceneRevisionApplied[normalizedFrame] != sceneStateRevision;
         if (!globalStale && !sceneStale) {
-            pendingUploadSrcOffset = -1L;
-            pendingUploadDstOffset = -1L;
-            pendingUploadByteCount = 0;
-            pendingUploadObjectCount = 0;
-            pendingUploadStartObject = 0;
+            clearPendingUploads();
             return;
         }
 
-        int uploadStartObject = 0;
-        int uploadObjectCount = meshCount;
-        if (!globalStale && sceneStale && pendingSceneDirtyEnd >= pendingSceneDirtyStart) {
-            int start = Math.max(0, Math.min(meshCount - 1, pendingSceneDirtyStart));
-            int end = Math.max(start, Math.min(meshCount - 1, pendingSceneDirtyEnd));
-            uploadStartObject = start;
-            uploadObjectCount = (end - start) + 1;
+        int uploadRangeCount;
+        int[] uploadStarts = new int[MAX_PENDING_UPLOAD_RANGES];
+        int[] uploadEnds = new int[MAX_PENDING_UPLOAD_RANGES];
+        if (globalStale) {
+            uploadRangeCount = 1;
+            uploadStarts[0] = 0;
+            uploadEnds[0] = meshCount - 1;
+        } else if (sceneStale && pendingSceneDirtyRangeCount > 0) {
+            uploadRangeCount = 0;
+            for (int i = 0; i < pendingSceneDirtyRangeCount && uploadRangeCount < MAX_PENDING_UPLOAD_RANGES; i++) {
+                int start = Math.max(0, Math.min(meshCount - 1, pendingSceneDirtyStarts[i]));
+                int end = Math.max(start, Math.min(meshCount - 1, pendingSceneDirtyEnds[i]));
+                uploadStarts[uploadRangeCount] = start;
+                uploadEnds[uploadRangeCount] = end;
+                uploadRangeCount++;
+            }
+            if (uploadRangeCount == 0) {
+                uploadRangeCount = 1;
+                uploadStarts[0] = 0;
+                uploadEnds[0] = meshCount - 1;
+            }
+        } else {
+            uploadRangeCount = 1;
+            uploadStarts[0] = 0;
+            uploadEnds[0] = meshCount - 1;
         }
-        int uploadStartByte = uploadStartObject * uniformStrideBytes;
-        int uploadByteCount = uploadObjectCount * uniformStrideBytes;
 
         ByteBuffer mapped;
         if (globalUniformStagingMappedAddress != 0L) {
@@ -4388,9 +4452,13 @@ final class VulkanContext {
         }
         mapped.order(ByteOrder.nativeOrder());
         try {
-            for (int meshIndex = uploadStartObject; meshIndex < uploadStartObject + uploadObjectCount; meshIndex++) {
-                GpuMesh mesh = gpuMeshes.isEmpty() ? null : gpuMeshes.get(meshIndex);
-                writeSceneUniform(mapped, meshIndex * uniformStrideBytes, mesh);
+            for (int range = 0; range < uploadRangeCount; range++) {
+                int rangeStart = uploadStarts[range];
+                int rangeEnd = uploadEnds[range];
+                for (int meshIndex = rangeStart; meshIndex <= rangeEnd; meshIndex++) {
+                    GpuMesh mesh = gpuMeshes.isEmpty() ? null : gpuMeshes.get(meshIndex);
+                    writeSceneUniform(mapped, meshIndex * uniformStrideBytes, mesh);
+                }
             }
             if (globalUniformStagingMappedAddress == 0L) {
                 try (MemoryStack stack = stackPush()) {
@@ -4399,7 +4467,11 @@ final class VulkanContext {
                     if (mapResult != VK_SUCCESS) {
                         throw vkFailure("vkMapMemory(staging)", mapResult);
                     }
-                    memCopy(memAddress(mapped) + uploadStartByte, pData.get(0) + uploadStartByte, uploadByteCount);
+                    for (int range = 0; range < uploadRangeCount; range++) {
+                        int rangeStartByte = uploadStarts[range] * uniformStrideBytes;
+                        int rangeByteCount = ((uploadEnds[range] - uploadStarts[range]) + 1) * uniformStrideBytes;
+                        memCopy(memAddress(mapped) + rangeStartByte, pData.get(0) + rangeStartByte, rangeByteCount);
+                    }
                     vkUnmapMemory(device, globalUniformStagingMemory);
                 }
             }
@@ -4408,16 +4480,36 @@ final class VulkanContext {
                 memFree(mapped);
             }
         }
-        pendingUploadSrcOffset = (long) frameBase + uploadStartByte;
-        pendingUploadDstOffset = (long) frameBase + uploadStartByte;
-        pendingUploadByteCount = uploadByteCount;
-        pendingUploadObjectCount = uploadObjectCount;
-        pendingUploadStartObject = uploadStartObject;
+        pendingUploadRangeCount = uploadRangeCount;
+        pendingUploadObjectCount = 0;
+        pendingUploadStartObject = Integer.MAX_VALUE;
+        pendingUploadByteCount = 0;
+        for (int range = 0; range < uploadRangeCount; range++) {
+            int rangeStartByte = uploadStarts[range] * uniformStrideBytes;
+            int rangeByteCount = ((uploadEnds[range] - uploadStarts[range]) + 1) * uniformStrideBytes;
+            long srcOffset = (long) frameBase + rangeStartByte;
+            pendingUploadSrcOffsets[range] = srcOffset;
+            pendingUploadDstOffsets[range] = srcOffset;
+            pendingUploadByteCounts[range] = rangeByteCount;
+            pendingUploadObjectCount += (uploadEnds[range] - uploadStarts[range]) + 1;
+            pendingUploadStartObject = Math.min(pendingUploadStartObject, uploadStarts[range]);
+            pendingUploadByteCount += rangeByteCount;
+        }
+        if (pendingUploadRangeCount == 1) {
+            pendingUploadSrcOffset = pendingUploadSrcOffsets[0];
+            pendingUploadDstOffset = pendingUploadDstOffsets[0];
+            pendingUploadByteCount = pendingUploadByteCounts[0];
+        } else {
+            pendingUploadSrcOffset = -1L;
+            pendingUploadDstOffset = -1L;
+        }
+        if (pendingUploadStartObject == Integer.MAX_VALUE) {
+            pendingUploadStartObject = 0;
+        }
         frameGlobalRevisionApplied[normalizedFrame] = globalStateRevision;
         frameSceneRevisionApplied[normalizedFrame] = sceneStateRevision;
-        if (pendingSceneDirtyEnd >= pendingSceneDirtyStart && allFramesApplied(frameSceneRevisionApplied, sceneStateRevision)) {
-            pendingSceneDirtyStart = Integer.MAX_VALUE;
-            pendingSceneDirtyEnd = -1;
+        if (pendingSceneDirtyRangeCount > 0 && allFramesApplied(frameSceneRevisionApplied, sceneStateRevision)) {
+            pendingSceneDirtyRangeCount = 0;
         }
     }
 
@@ -4465,7 +4557,7 @@ final class VulkanContext {
     }
 
     private void uploadFrameUniforms(VkCommandBuffer commandBuffer, int frameIdx) {
-        if (pendingUploadByteCount <= 0 || pendingUploadSrcOffset < 0L || pendingUploadDstOffset < 0L) {
+        if (pendingUploadRangeCount <= 0) {
             lastFrameUniformUploadBytes = 0;
             lastFrameUniformObjectCount = 0;
             lastFrameUniformUploadRanges = 0;
@@ -4473,46 +4565,56 @@ final class VulkanContext {
             return;
         }
 
-        int byteCount = pendingUploadByteCount;
-        lastFrameUniformUploadBytes = byteCount;
-        maxFrameUniformUploadBytes = Math.max(maxFrameUniformUploadBytes, byteCount);
+        int totalByteCount = 0;
+        for (int i = 0; i < pendingUploadRangeCount; i++) {
+            totalByteCount += pendingUploadByteCounts[i];
+        }
+        lastFrameUniformUploadBytes = totalByteCount;
+        maxFrameUniformUploadBytes = Math.max(maxFrameUniformUploadBytes, totalByteCount);
         lastFrameUniformObjectCount = pendingUploadObjectCount;
         maxFrameUniformObjectCount = Math.max(maxFrameUniformObjectCount, pendingUploadObjectCount);
-        lastFrameUniformUploadRanges = 1;
-        maxFrameUniformUploadRanges = Math.max(maxFrameUniformUploadRanges, 1);
+        lastFrameUniformUploadRanges = pendingUploadRangeCount;
+        maxFrameUniformUploadRanges = Math.max(maxFrameUniformUploadRanges, pendingUploadRangeCount);
         lastFrameUniformUploadStartObject = pendingUploadStartObject;
 
-        VkBufferCopy.Buffer copy = VkBufferCopy.calloc(1)
-                .srcOffset(pendingUploadSrcOffset)
-                .dstOffset(pendingUploadDstOffset)
-                .size(byteCount);
-        vkCmdCopyBuffer(commandBuffer, globalUniformStagingBuffer, globalUniformBuffer, copy);
-        copy.free();
+        for (int range = 0; range < pendingUploadRangeCount; range++) {
+            VkBufferCopy.Buffer copy = VkBufferCopy.calloc(1)
+                    .srcOffset(pendingUploadSrcOffsets[range])
+                    .dstOffset(pendingUploadDstOffsets[range])
+                    .size(pendingUploadByteCounts[range]);
+            vkCmdCopyBuffer(commandBuffer, globalUniformStagingBuffer, globalUniformBuffer, copy);
+            copy.free();
 
-        VkBufferMemoryBarrier.Buffer barrier = VkBufferMemoryBarrier.calloc(1)
-                .sType(VK10.VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER)
-                .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
-                .dstAccessMask(VK_ACCESS_UNIFORM_READ_BIT)
-                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .buffer(globalUniformBuffer)
-                .offset(pendingUploadDstOffset)
-                .size(byteCount);
-        vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                0,
-                null,
-                barrier,
-                null
-        );
-        barrier.free();
+            VkBufferMemoryBarrier.Buffer barrier = VkBufferMemoryBarrier.calloc(1)
+                    .sType(VK10.VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER)
+                    .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                    .dstAccessMask(VK_ACCESS_UNIFORM_READ_BIT)
+                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .buffer(globalUniformBuffer)
+                    .offset(pendingUploadDstOffsets[range])
+                    .size(pendingUploadByteCounts[range]);
+            vkCmdPipelineBarrier(
+                    commandBuffer,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    0,
+                    null,
+                    barrier,
+                    null
+            );
+            barrier.free();
+        }
+        clearPendingUploads();
+    }
+
+    private void clearPendingUploads() {
         pendingUploadSrcOffset = -1L;
         pendingUploadDstOffset = -1L;
         pendingUploadByteCount = 0;
         pendingUploadObjectCount = 0;
         pendingUploadStartObject = 0;
+        pendingUploadRangeCount = 0;
     }
 
     private int dynamicUniformOffset(int frameIdx, int meshIndex) {

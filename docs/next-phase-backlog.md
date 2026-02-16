@@ -47,7 +47,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - revision-aware dynamic uniform staging:
     - per-frame revision tracking for global + scene uniform state
     - skip uniform buffer copy when frame slot is already synchronized
-    - partial uniform uploads for dynamic-only scene updates using dirty object ranges
+    - sparse multi-range uniform uploads for dynamic-only scene updates using dirty object ranges
     - additional telemetry: upload ranges + start-object index
 - Expanded guarded real-Vulkan suite:
   - longer resize/scene-switch endurance loop

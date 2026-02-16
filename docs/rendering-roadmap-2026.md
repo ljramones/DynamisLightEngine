@@ -95,7 +95,7 @@ Current progress:
 - Expanded Vulkan frame-resource strategy with revision-aware dynamic uniform staging:
   - per-frame ring slots now track global/scene uniform revision sync
   - command recording skips uniform copy/barrier when no sync work is needed
-  - dynamic-only scene changes upload only dirty object uniform ranges where safe
+  - dynamic-only scene changes upload sparse dirty object uniform ranges (multi-range) where safe
 
 ## Near-Term Task Queue (Execution Order)
 1. Post-processing baseline (tonemap then bloom).
