@@ -66,6 +66,77 @@ public final class VulkanGlobalSceneInputBuilder {
         );
     }
 
+    public static VulkanUniformWriters.GlobalSceneUniformInput build(
+            int globalSceneUniformBytes,
+            float[] viewMatrix,
+            float[] projMatrix,
+            LightingInputs lighting,
+            ShadowInputs shadow,
+            AtmosphereInputs atmosphere,
+            PostInputs post,
+            float[][] shadowLightViewProjMatrices
+    ) {
+        return new VulkanUniformWriters.GlobalSceneUniformInput(
+                globalSceneUniformBytes,
+                viewMatrix,
+                projMatrix,
+                lighting.dirLightDirX(),
+                lighting.dirLightDirY(),
+                lighting.dirLightDirZ(),
+                lighting.dirLightColorR(),
+                lighting.dirLightColorG(),
+                lighting.dirLightColorB(),
+                lighting.pointLightPosX(),
+                lighting.pointLightPosY(),
+                lighting.pointLightPosZ(),
+                lighting.pointShadowFarPlane(),
+                lighting.pointLightColorR(),
+                lighting.pointLightColorG(),
+                lighting.pointLightColorB(),
+                lighting.pointLightDirX(),
+                lighting.pointLightDirY(),
+                lighting.pointLightDirZ(),
+                lighting.pointLightInnerCos(),
+                lighting.pointLightOuterCos(),
+                lighting.pointLightIsSpot(),
+                lighting.pointShadowEnabled(),
+                lighting.dirLightIntensity(),
+                lighting.pointLightIntensity(),
+                shadow.shadowEnabled(),
+                shadow.shadowStrength(),
+                shadow.shadowBias(),
+                shadow.shadowPcfRadius(),
+                shadow.shadowCascadeCount(),
+                shadow.shadowMapResolution(),
+                shadow.shadowCascadeSplitNdc(),
+                atmosphere.fogEnabled(),
+                atmosphere.fogDensity(),
+                atmosphere.fogR(),
+                atmosphere.fogG(),
+                atmosphere.fogB(),
+                atmosphere.fogSteps(),
+                atmosphere.smokeEnabled(),
+                atmosphere.smokeIntensity(),
+                atmosphere.swapchainWidth(),
+                atmosphere.swapchainHeight(),
+                atmosphere.smokeR(),
+                atmosphere.smokeG(),
+                atmosphere.smokeB(),
+                atmosphere.iblEnabled(),
+                atmosphere.iblDiffuseStrength(),
+                atmosphere.iblSpecularStrength(),
+                atmosphere.iblPrefilterStrength(),
+                post.postOffscreenActive(),
+                post.tonemapEnabled(),
+                post.tonemapExposure(),
+                post.tonemapGamma(),
+                post.bloomEnabled(),
+                post.bloomThreshold(),
+                post.bloomStrength(),
+                shadowLightViewProjMatrices
+        );
+    }
+
     public record Inputs(
             int globalSceneUniformBytes,
             float[] viewMatrix,
@@ -124,6 +195,75 @@ public final class VulkanGlobalSceneInputBuilder {
             float bloomThreshold,
             float bloomStrength,
             float[][] shadowLightViewProjMatrices
+    ) {
+    }
+
+    public record LightingInputs(
+            float dirLightDirX,
+            float dirLightDirY,
+            float dirLightDirZ,
+            float dirLightColorR,
+            float dirLightColorG,
+            float dirLightColorB,
+            float pointLightPosX,
+            float pointLightPosY,
+            float pointLightPosZ,
+            float pointShadowFarPlane,
+            float pointLightColorR,
+            float pointLightColorG,
+            float pointLightColorB,
+            float pointLightDirX,
+            float pointLightDirY,
+            float pointLightDirZ,
+            float pointLightInnerCos,
+            float pointLightOuterCos,
+            float pointLightIsSpot,
+            boolean pointShadowEnabled,
+            float dirLightIntensity,
+            float pointLightIntensity
+    ) {
+    }
+
+    public record ShadowInputs(
+            boolean shadowEnabled,
+            float shadowStrength,
+            float shadowBias,
+            int shadowPcfRadius,
+            int shadowCascadeCount,
+            int shadowMapResolution,
+            float[] shadowCascadeSplitNdc
+    ) {
+    }
+
+    public record AtmosphereInputs(
+            boolean fogEnabled,
+            float fogDensity,
+            float fogR,
+            float fogG,
+            float fogB,
+            int fogSteps,
+            boolean smokeEnabled,
+            float smokeIntensity,
+            int swapchainWidth,
+            int swapchainHeight,
+            float smokeR,
+            float smokeG,
+            float smokeB,
+            boolean iblEnabled,
+            float iblDiffuseStrength,
+            float iblSpecularStrength,
+            float iblPrefilterStrength
+    ) {
+    }
+
+    public record PostInputs(
+            boolean postOffscreenActive,
+            boolean tonemapEnabled,
+            float tonemapExposure,
+            float tonemapGamma,
+            boolean bloomEnabled,
+            float bloomThreshold,
+            float bloomStrength
     ) {
     }
 }

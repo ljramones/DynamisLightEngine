@@ -50,6 +50,54 @@ public final class VulkanFrameCommandInputsFactory {
         );
     }
 
+    public static VulkanFrameCommandOrchestrator.Inputs create(
+            CommonInputs common,
+            PostInputs post,
+            VulkanFrameCommandOrchestrator.LongByInt descriptorSetForFrame,
+            IntUnaryOperator dynamicUniformOffset,
+            VulkanFrameCommandOrchestrator.FailureFactory vkFailure
+    ) {
+        return new VulkanFrameCommandOrchestrator.Inputs(
+                common.gpuMeshes(),
+                common.maxDynamicSceneObjects(),
+                common.swapchainWidth(),
+                common.swapchainHeight(),
+                common.shadowMapResolution(),
+                common.shadowEnabled(),
+                common.pointShadowEnabled(),
+                common.shadowCascadeCount(),
+                common.maxShadowMatrices(),
+                common.maxShadowCascades(),
+                common.pointShadowFaces(),
+                common.renderPass(),
+                common.framebuffers(),
+                common.graphicsPipeline(),
+                common.pipelineLayout(),
+                common.shadowRenderPass(),
+                common.shadowPipeline(),
+                common.shadowPipelineLayout(),
+                common.shadowFramebuffers(),
+                post.postOffscreenActive(),
+                post.postIntermediateInitialized(),
+                post.tonemapEnabled(),
+                post.tonemapExposure(),
+                post.tonemapGamma(),
+                post.bloomEnabled(),
+                post.bloomThreshold(),
+                post.bloomStrength(),
+                post.postRenderPass(),
+                post.postGraphicsPipeline(),
+                post.postPipelineLayout(),
+                post.postDescriptorSet(),
+                post.offscreenColorImage(),
+                post.swapchainImages(),
+                post.postFramebuffers(),
+                descriptorSetForFrame,
+                dynamicUniformOffset,
+                vkFailure
+        );
+    }
+
     public record Inputs(
             List<VulkanGpuMesh> gpuMeshes,
             int maxDynamicSceneObjects,
@@ -88,6 +136,48 @@ public final class VulkanFrameCommandInputsFactory {
             VulkanFrameCommandOrchestrator.LongByInt descriptorSetForFrame,
             IntUnaryOperator dynamicUniformOffset,
             VulkanFrameCommandOrchestrator.FailureFactory vkFailure
+    ) {
+    }
+
+    public record CommonInputs(
+            List<VulkanGpuMesh> gpuMeshes,
+            int maxDynamicSceneObjects,
+            int swapchainWidth,
+            int swapchainHeight,
+            int shadowMapResolution,
+            boolean shadowEnabled,
+            boolean pointShadowEnabled,
+            int shadowCascadeCount,
+            int maxShadowMatrices,
+            int maxShadowCascades,
+            int pointShadowFaces,
+            long renderPass,
+            long[] framebuffers,
+            long graphicsPipeline,
+            long pipelineLayout,
+            long shadowRenderPass,
+            long shadowPipeline,
+            long shadowPipelineLayout,
+            long[] shadowFramebuffers
+    ) {
+    }
+
+    public record PostInputs(
+            boolean postOffscreenActive,
+            boolean postIntermediateInitialized,
+            boolean tonemapEnabled,
+            float tonemapExposure,
+            float tonemapGamma,
+            boolean bloomEnabled,
+            float bloomThreshold,
+            float bloomStrength,
+            long postRenderPass,
+            long postGraphicsPipeline,
+            long postPipelineLayout,
+            long postDescriptorSet,
+            long offscreenColorImage,
+            long[] swapchainImages,
+            long[] postFramebuffers
     ) {
     }
 }
