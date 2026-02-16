@@ -218,7 +218,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.30, "brdf-tier-extremes diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.29, "brdf-tier-extremes diff was " + report.diffMetric());
     }
 
     @Test
@@ -317,7 +317,7 @@ class BackendParityIntegrationTest {
                 QualityTier.LOW, 0.55,
                 QualityTier.MEDIUM, 0.45,
                 QualityTier.HIGH, 0.35,
-                QualityTier.ULTRA, 0.30
+                QualityTier.ULTRA, 0.29
         );
         Map<QualityTier, Double> postProcessMaxDiff = Map.of(
                 QualityTier.LOW, 0.42,
@@ -438,7 +438,7 @@ class BackendParityIntegrationTest {
                 "fog-shadow-cascade-stress", 0.25,
                 "smoke-shadow-cascade-stress", 0.25,
                 "texture-heavy", 0.32,
-                "brdf-tier-extremes", 0.30,
+                "brdf-tier-extremes", 0.29,
                 "fog-smoke-shadow-post-stress", 0.05,
                 "material-fog-smoke-shadow-cascade-stress", 0.30
         );

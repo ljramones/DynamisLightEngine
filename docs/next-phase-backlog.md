@@ -30,6 +30,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - frame-resource profile now includes pending-range soft-limit config and cooldown counters.
 - Expanded parity harness with deterministic `brdf-tier-extremes` profile and tiered + stress-golden bounds.
   - tightened ULTRA envelope `0.31 -> 0.30` after BRDF/staging parity pass remained green.
+  - tightened ULTRA envelope `0.30 -> 0.29` after BasisLZ/UASTC transcoding rollout remained green.
 - Expanded KTX2 transcode-gap classification for BasisLZ/UASTC families:
   - KTX2 supercompression scheme `1` is now treated as BasisLZ (transcode-required), not zlib.
   - decode-unavailable and variant-unsupported counters now exclude transcode-required KTX2 paths.

@@ -314,7 +314,7 @@ The repository includes automated tests validating:
 - Current ULTRA `smoke-shadow-cascade-stress` bound: `<= 0.25`.
 - Current ULTRA `fog-smoke-shadow-post-stress` bound: `<= 0.05`.
 - Current ULTRA `material-fog-smoke-shadow-cascade-stress` bound: `<= 0.30`.
-- Current ULTRA `brdf-tier-extremes` bound: `<= 0.30`.
+- Current ULTRA `brdf-tier-extremes` bound: `<= 0.29`.
 - Current HIGH `post-process` bound: `<= 0.32`.
 - Current HIGH `post-process-bloom` bound: `<= 0.06`.
 - Vulkan frame-resource profile now also reports:
