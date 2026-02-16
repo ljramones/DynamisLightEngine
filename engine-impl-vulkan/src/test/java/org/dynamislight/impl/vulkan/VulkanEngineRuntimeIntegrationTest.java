@@ -30,6 +30,7 @@ import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.SceneDescriptor;
+import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
@@ -115,11 +116,41 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.shutdown();
     }
 
+    @Test
+    void lowTierShadowAndSmokeEmitQualityWarnings() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.LOW), new RecordingCallbacks());
+        runtime.loadScene(validShadowSmokeScene(new ShadowDesc(2048, 0.0015f, 7, 3)));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_QUALITY_DEGRADED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "SMOKE_QUALITY_DEGRADED".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void ultraTierShadowAndSmokeAvoidQualityWarningsWhenWithinLimits() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.ULTRA), new RecordingCallbacks());
+        runtime.loadScene(validShadowSmokeScene(new ShadowDesc(2048, 0.0015f, 7, 3)));
+
+        var frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_QUALITY_DEGRADED".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SMOKE_QUALITY_DEGRADED".equals(w.code())));
+        runtime.shutdown();
+    }
+
     private static EngineConfig validConfig(boolean mock) {
         return validConfig(Map.of("vulkan.mockContext", Boolean.toString(mock)));
     }
 
     private static EngineConfig validConfig(Map<String, String> backendOptions) {
+        return validConfig(backendOptions, QualityTier.MEDIUM);
+    }
+
+    private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier qualityTier) {
         return new EngineConfig(
                 "vulkan",
                 "vulkan-test",
@@ -128,7 +159,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 1.0f,
                 true,
                 60,
-                QualityTier.MEDIUM,
+                qualityTier,
                 Path.of("."),
                 backendOptions
         );
@@ -178,6 +209,42 @@ class VulkanEngineRuntimeIntegrationTest {
                 env,
                 fog,
                 List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validShadowSmokeScene(ShadowDesc shadowDesc) {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        LightDesc light = new LightDesc("light", new Vec3(1, 3, 2), new Vec3(1, 1, 1), 1.0f, 15f, true, shadowDesc);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        SmokeEmitterDesc smoke = new SmokeEmitterDesc(
+                "smoke-1",
+                new Vec3(0, 0, 0),
+                new Vec3(2, 1, 2),
+                12f,
+                0.8f,
+                new Vec3(0.65f, 0.65f, 0.68f),
+                0.4f,
+                new Vec3(0f, 0.2f, 0f),
+                0.25f,
+                6f,
+                true
+        );
+
+        return new SceneDescriptor(
+                "vulkan-shadow-smoke-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(mat),
+                List.of(light),
+                env,
+                fog,
+                List.of(smoke)
         );
     }
 

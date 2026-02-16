@@ -290,7 +290,8 @@ final class VulkanContext {
     private static final int VERTEX_STRIDE_FLOATS = 11;
     private static final int VERTEX_STRIDE_BYTES = VERTEX_STRIDE_FLOATS * Float.BYTES;
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
-    private static final int GLOBAL_UNIFORM_BYTES = 448;
+    private static final int MAX_SHADOW_CASCADES = 4;
+    private static final int GLOBAL_UNIFORM_BYTES = 656;
     private VkInstance instance;
     private VkPhysicalDevice physicalDevice;
     private VkDevice device;
@@ -311,11 +312,12 @@ final class VulkanContext {
     private long shadowDepthImage = VK_NULL_HANDLE;
     private long shadowDepthMemory = VK_NULL_HANDLE;
     private long shadowDepthImageView = VK_NULL_HANDLE;
+    private long[] shadowDepthLayerImageViews = new long[0];
     private long shadowSampler = VK_NULL_HANDLE;
     private long shadowRenderPass = VK_NULL_HANDLE;
     private long shadowPipelineLayout = VK_NULL_HANDLE;
     private long shadowPipeline = VK_NULL_HANDLE;
-    private long shadowFramebuffer = VK_NULL_HANDLE;
+    private long[] shadowFramebuffers = new long[0];
     private long renderPass = VK_NULL_HANDLE;
     private long pipelineLayout = VK_NULL_HANDLE;
     private long graphicsPipeline = VK_NULL_HANDLE;
@@ -361,7 +363,13 @@ final class VulkanContext {
     private int shadowPcfRadius = 1;
     private int shadowCascadeCount = 1;
     private int shadowMapResolution = 1024;
-    private float[] shadowLightViewProjMatrix = identityMatrix();
+    private final float[][] shadowLightViewProjMatrices = new float[][]{
+            identityMatrix(),
+            identityMatrix(),
+            identityMatrix(),
+            identityMatrix()
+    };
+    private int activeShadowCascadeIndex;
     private boolean fogEnabled;
     private float fogR = 0.5f;
     private float fogG = 0.5f;
@@ -479,7 +487,7 @@ final class VulkanContext {
         shadowStrength = Math.max(0f, Math.min(1f, strength));
         shadowBias = Math.max(0.00002f, bias);
         shadowPcfRadius = Math.max(0, pcfRadius);
-        shadowCascadeCount = Math.max(1, cascadeCount);
+        shadowCascadeCount = Math.max(1, Math.min(MAX_SHADOW_CASCADES, cascadeCount));
         int clampedResolution = Math.max(256, Math.min(4096, mapResolution));
         if (shadowMapResolution != clampedResolution) {
             shadowMapResolution = clampedResolution;
@@ -997,15 +1005,36 @@ final class VulkanContext {
                 depthFormat,
                 VK10.VK_IMAGE_TILING_OPTIMAL,
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                MAX_SHADOW_CASCADES
         );
         shadowDepthImage = shadowDepth.image();
         shadowDepthMemory = shadowDepth.memory();
-        shadowDepthImageView = createImageView(stack, shadowDepthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        shadowDepthImageView = createImageView(
+                stack,
+                shadowDepthImage,
+                depthFormat,
+                VK_IMAGE_ASPECT_DEPTH_BIT,
+                VK10.VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+                0,
+                MAX_SHADOW_CASCADES
+        );
+        shadowDepthLayerImageViews = new long[MAX_SHADOW_CASCADES];
+        for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
+            shadowDepthLayerImageViews[i] = createImageView(
+                    stack,
+                    shadowDepthImage,
+                    depthFormat,
+                    VK_IMAGE_ASPECT_DEPTH_BIT,
+                    VK_IMAGE_VIEW_TYPE_2D,
+                    i,
+                    1
+            );
+        }
         shadowSampler = createShadowSampler(stack);
         createShadowRenderPass(stack);
         createShadowPipeline(stack);
-        createShadowFramebuffer(stack);
+        createShadowFramebuffers(stack);
     }
 
     private long createShadowSampler(MemoryStack stack) throws EngineException {
@@ -1098,14 +1127,16 @@ final class VulkanContext {
                     vec4 uPointLightColor;
                     vec4 uShadow;
                     vec4 uShadowCascade;
+                    vec4 uShadowCascadeExt;
                     vec4 uFog;
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
                     vec4 uSmokeColor;
-                    mat4 uShadowLightViewProj;
+                    mat4 uShadowLightViewProj[4];
                 } ubo;
                 void main() {
-                    gl_Position = ubo.uShadowLightViewProj * ubo.uModel * vec4(inPos, 1.0);
+                    int cascadeIndex = clamp(int(ubo.uShadowCascadeExt.x + 0.5), 0, 3);
+                    gl_Position = ubo.uShadowLightViewProj[cascadeIndex] * ubo.uModel * vec4(inPos, 1.0);
                 }
                 """;
         String shadowFragSource = """
@@ -1232,20 +1263,23 @@ final class VulkanContext {
         }
     }
 
-    private void createShadowFramebuffer(MemoryStack stack) throws EngineException {
-        VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
-                .renderPass(shadowRenderPass)
-                .pAttachments(stack.longs(shadowDepthImageView))
-                .width(shadowMapResolution)
-                .height(shadowMapResolution)
-                .layers(1);
-        var pFramebuffer = stack.longs(VK_NULL_HANDLE);
-        int result = vkCreateFramebuffer(device, framebufferInfo, null, pFramebuffer);
-        if (result != VK_SUCCESS || pFramebuffer.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateFramebuffer(shadow) failed: " + result, false);
+    private void createShadowFramebuffers(MemoryStack stack) throws EngineException {
+        shadowFramebuffers = new long[MAX_SHADOW_CASCADES];
+        for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
+            VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
+                    .renderPass(shadowRenderPass)
+                    .pAttachments(stack.longs(shadowDepthLayerImageViews[i]))
+                    .width(shadowMapResolution)
+                    .height(shadowMapResolution)
+                    .layers(1);
+            var pFramebuffer = stack.longs(VK_NULL_HANDLE);
+            int result = vkCreateFramebuffer(device, framebufferInfo, null, pFramebuffer);
+            if (result != VK_SUCCESS || pFramebuffer.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateFramebuffer(shadow) failed: " + result, false);
+            }
+            shadowFramebuffers[i] = pFramebuffer.get(0);
         }
-        shadowFramebuffer = pFramebuffer.get(0);
     }
 
     private void createRenderPass(MemoryStack stack) throws EngineException {
@@ -1315,7 +1349,6 @@ final class VulkanContext {
                 layout(location = 2) out float vHeight;
                 layout(location = 3) out vec2 vUv;
                 layout(location = 4) out vec3 vTangent;
-                layout(location = 5) out vec4 vShadowPos;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -1328,11 +1361,12 @@ final class VulkanContext {
                     vec4 uPointLightColor;
                     vec4 uShadow;
                     vec4 uShadowCascade;
+                    vec4 uShadowCascadeExt;
                     vec4 uFog;
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
                     vec4 uSmokeColor;
-                    mat4 uShadowLightViewProj;
+                    mat4 uShadowLightViewProj[4];
                 } ubo;
                 void main() {
                     vec4 world = ubo.uModel * vec4(inPos, 1.0);
@@ -1343,7 +1377,6 @@ final class VulkanContext {
                     vNormal = normal;
                     vTangent = tangent;
                     vUv = inUv;
-                    vShadowPos = ubo.uShadowLightViewProj * world;
                     gl_Position = ubo.uProj * ubo.uView * world;
                 }
                 """;
@@ -1354,7 +1387,6 @@ final class VulkanContext {
                 layout(location = 2) in float vHeight;
                 layout(location = 3) in vec2 vUv;
                 layout(location = 4) in vec3 vTangent;
-                layout(location = 5) in vec4 vShadowPos;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -1367,15 +1399,16 @@ final class VulkanContext {
                     vec4 uPointLightColor;
                     vec4 uShadow;
                     vec4 uShadowCascade;
+                    vec4 uShadowCascadeExt;
                     vec4 uFog;
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
                     vec4 uSmokeColor;
-                    mat4 uShadowLightViewProj;
+                    mat4 uShadowLightViewProj[4];
                 } ubo;
                 layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
                 layout(set = 1, binding = 1) uniform sampler2D uNormalTexture;
-                layout(set = 1, binding = 2) uniform sampler2DShadow uShadowMap;
+                layout(set = 1, binding = 2) uniform sampler2DArrayShadow uShadowMap;
                 layout(location = 0) out vec4 outColor;
                 void main() {
                     vec3 n0 = normalize(vNormal);
@@ -1409,27 +1442,26 @@ final class VulkanContext {
 
                     vec3 color = ambient + diffuse + pointLit + vec3(spec);
                     if (ubo.uShadow.x > 0.5) {
-                        vec3 shadowCoord = vShadowPos.xyz / max(vShadowPos.w, 0.0001);
+                        int cascadeCount = clamp(int(ubo.uShadowCascade.x + 0.5), 1, 4);
+                        int cascadeIndex = 0;
+                        float depthNdc = clamp(gl_FragCoord.z, 0.0, 1.0);
+                        if (cascadeCount >= 2 && depthNdc > ubo.uShadowCascade.z) {
+                            cascadeIndex = 1;
+                        }
+                        if (cascadeCount >= 3 && depthNdc > ubo.uShadowCascade.w) {
+                            cascadeIndex = 2;
+                        }
+                        if (cascadeCount >= 4 && depthNdc > ubo.uShadowCascadeExt.y) {
+                            cascadeIndex = 3;
+                        }
+                        vec4 shadowPos = ubo.uShadowLightViewProj[cascadeIndex] * vec4(vWorldPos, 1.0);
+                        vec3 shadowCoord = shadowPos.xyz / max(shadowPos.w, 0.0001);
                         shadowCoord = shadowCoord * 0.5 + 0.5;
                         float shadowVisibility = 1.0;
                         if (shadowCoord.z > 0.0
                                 && shadowCoord.z < 1.0
                                 && shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0
                                 && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0) {
-                            int cascadeCount = clamp(int(ubo.uShadowCascade.x + 0.5), 1, 4);
-                            int cascadeIndex = 0;
-                            float depthNdc = clamp(gl_FragCoord.z, 0.0, 1.0);
-                            if (cascadeCount >= 2 && depthNdc > ubo.uShadowCascade.z) {
-                                cascadeIndex = 1;
-                            }
-                            if (cascadeCount >= 3 && depthNdc > ubo.uShadowCascade.w) {
-                                cascadeIndex = 2;
-                            }
-                            float split3 = mix(ubo.uShadowCascade.w, 1.0, 0.75);
-                            if (cascadeCount >= 4 && depthNdc > split3) {
-                                cascadeIndex = 3;
-                            }
-
                             float cascadeT = float(cascadeIndex) / max(float(cascadeCount - 1), 1.0);
                             int radius = clamp(int(ubo.uShadow.w + 0.5) + (cascadeIndex / 2), 0, 4);
                             float texel = (1.0 / max(ubo.uShadowCascade.y, 1.0)) * mix(1.0, 2.25, cascadeT);
@@ -1443,7 +1475,7 @@ final class VulkanContext {
                                         continue;
                                     }
                                     vec2 offset = vec2(float(x), float(y)) * texel;
-                                    total += texture(uShadowMap, vec3(shadowCoord.xy + offset, compareDepth));
+                                    total += texture(uShadowMap, vec4(shadowCoord.xy + offset, float(cascadeIndex), compareDepth));
                                     taps += 1.0;
                                 }
                             }
@@ -1695,10 +1727,12 @@ final class VulkanContext {
         if (device == null) {
             return;
         }
-        if (shadowFramebuffer != VK_NULL_HANDLE) {
-            vkDestroyFramebuffer(device, shadowFramebuffer, null);
-            shadowFramebuffer = VK_NULL_HANDLE;
+        for (long shadowFramebuffer : shadowFramebuffers) {
+            if (shadowFramebuffer != VK_NULL_HANDLE) {
+                vkDestroyFramebuffer(device, shadowFramebuffer, null);
+            }
         }
+        shadowFramebuffers = new long[0];
         if (shadowPipeline != VK_NULL_HANDLE) {
             vkDestroyPipeline(device, shadowPipeline, null);
             shadowPipeline = VK_NULL_HANDLE;
@@ -1719,6 +1753,12 @@ final class VulkanContext {
             vkDestroyImageView(device, shadowDepthImageView, null);
             shadowDepthImageView = VK_NULL_HANDLE;
         }
+        for (long shadowDepthLayerImageView : shadowDepthLayerImageViews) {
+            if (shadowDepthLayerImageView != VK_NULL_HANDLE) {
+                vkDestroyImageView(device, shadowDepthLayerImageView, null);
+            }
+        }
+        shadowDepthLayerImageViews = new long[0];
         if (shadowDepthImage != VK_NULL_HANDLE) {
             VK10.vkDestroyImage(device, shadowDepthImage, null);
             shadowDepthImage = VK_NULL_HANDLE;
@@ -1889,42 +1929,47 @@ final class VulkanContext {
             throw vkFailure("vkBeginCommandBuffer", beginResult);
         }
 
-        updateShadowLightViewProjMatrix();
+        updateShadowLightViewProjMatrices();
         if (shadowEnabled
                 && shadowRenderPass != VK_NULL_HANDLE
-                && shadowFramebuffer != VK_NULL_HANDLE
+                && shadowFramebuffers.length >= Math.min(MAX_SHADOW_CASCADES, Math.max(1, shadowCascadeCount))
                 && shadowPipeline != VK_NULL_HANDLE
                 && descriptorSet != VK_NULL_HANDLE
                 && !gpuMeshes.isEmpty()) {
-            VkClearValue.Buffer shadowClearValues = VkClearValue.calloc(1, stack);
-            shadowClearValues.get(0).depthStencil().depth(1.0f).stencil(0);
-            VkRenderPassBeginInfo shadowPassInfo = VkRenderPassBeginInfo.calloc(stack)
-                    .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
-                    .renderPass(shadowRenderPass)
-                    .framebuffer(shadowFramebuffer)
-                    .pClearValues(shadowClearValues);
-            shadowPassInfo.renderArea()
-                    .offset(it -> it.set(0, 0))
-                    .extent(VkExtent2D.calloc(stack).set(shadowMapResolution, shadowMapResolution));
-            vkCmdBeginRenderPass(commandBuffer, shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
-            vkCmdBindDescriptorSets(
-                    commandBuffer,
-                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    shadowPipelineLayout,
-                    0,
-                    stack.longs(descriptorSet),
-                    null
-            );
-            for (GpuMesh mesh : gpuMeshes) {
-                updateGlobalUniform(mesh);
-                vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer), stack.longs(0));
-                vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-                vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
+            int cascades = Math.min(MAX_SHADOW_CASCADES, Math.max(1, shadowCascadeCount));
+            for (int cascadeIndex = 0; cascadeIndex < cascades; cascadeIndex++) {
+                activeShadowCascadeIndex = cascadeIndex;
+                VkClearValue.Buffer shadowClearValues = VkClearValue.calloc(1, stack);
+                shadowClearValues.get(0).depthStencil().depth(1.0f).stencil(0);
+                VkRenderPassBeginInfo shadowPassInfo = VkRenderPassBeginInfo.calloc(stack)
+                        .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
+                        .renderPass(shadowRenderPass)
+                        .framebuffer(shadowFramebuffers[cascadeIndex])
+                        .pClearValues(shadowClearValues);
+                shadowPassInfo.renderArea()
+                        .offset(it -> it.set(0, 0))
+                        .extent(VkExtent2D.calloc(stack).set(shadowMapResolution, shadowMapResolution));
+                vkCmdBeginRenderPass(commandBuffer, shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
+                vkCmdBindDescriptorSets(
+                        commandBuffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        shadowPipelineLayout,
+                        0,
+                        stack.longs(descriptorSet),
+                        null
+                );
+                for (GpuMesh mesh : gpuMeshes) {
+                    updateGlobalUniform(mesh);
+                    vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer), stack.longs(0));
+                    vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+                    vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
+                }
+                vkCmdEndRenderPass(commandBuffer);
             }
-            vkCmdEndRenderPass(commandBuffer);
         }
 
+        activeShadowCascadeIndex = 0;
         VkClearValue.Buffer clearValues = VkClearValue.calloc(2, stack);
         clearValues.get(0).color().float32(0, 0.08f);
         clearValues.get(0).color().float32(1, 0.09f);
@@ -2060,7 +2105,7 @@ final class VulkanContext {
         };
     }
 
-    private void updateShadowLightViewProjMatrix() {
+    private void updateShadowLightViewProjMatrices() {
         float len = (float) Math.sqrt(dirLightDirX * dirLightDirX + dirLightDirY * dirLightDirY + dirLightDirZ * dirLightDirZ);
         if (len < 0.0001f) {
             len = 1f;
@@ -2072,8 +2117,12 @@ final class VulkanContext {
         float eyeY = -ly * 8.0f;
         float eyeZ = -lz * 8.0f;
         float[] lightView = lookAt(eyeX, eyeY, eyeZ, 0f, 0f, 0f, 0f, 1f, 0f);
-        float[] lightProj = ortho(-8f, 8f, -8f, 8f, 0.1f, 32f);
-        shadowLightViewProjMatrix = mul(lightProj, lightView);
+        float[] cascadeScales = new float[]{8f, 16f, 28f, 48f};
+        for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
+            float scale = cascadeScales[i];
+            float[] lightProj = ortho(-scale, scale, -scale, scale, 0.1f, 96f);
+            shadowLightViewProjMatrices[i] = mul(lightProj, lightView);
+        }
     }
 
     private static float[] lookAt(float eyeX, float eyeY, float eyeZ, float targetX, float targetY, float targetZ,
@@ -2460,14 +2509,34 @@ final class VulkanContext {
         }
     }
 
-    private ImageAlloc createImage(MemoryStack stack, int width, int height, int format, int tiling, int usage, int properties)
-            throws EngineException {
+    private ImageAlloc createImage(
+            MemoryStack stack,
+            int width,
+            int height,
+            int format,
+            int tiling,
+            int usage,
+            int properties
+    ) throws EngineException {
+        return createImage(stack, width, height, format, tiling, usage, properties, 1);
+    }
+
+    private ImageAlloc createImage(
+            MemoryStack stack,
+            int width,
+            int height,
+            int format,
+            int tiling,
+            int usage,
+            int properties,
+            int arrayLayers
+    ) throws EngineException {
         VkImageCreateInfo imageInfo = VkImageCreateInfo.calloc(stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO)
                 .imageType(VK10.VK_IMAGE_TYPE_2D)
                 .extent(e -> e.width(width).height(height).depth(1))
                 .mipLevels(1)
-                .arrayLayers(1)
+                .arrayLayers(Math.max(1, arrayLayers))
                 .format(format)
                 .tiling(tiling)
                 .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
@@ -2615,17 +2684,29 @@ final class VulkanContext {
     }
 
     private long createImageView(MemoryStack stack, long image, int format, int aspectMask) throws EngineException {
+        return createImageView(stack, image, format, aspectMask, VK_IMAGE_VIEW_TYPE_2D, 0, 1);
+    }
+
+    private long createImageView(
+            MemoryStack stack,
+            long image,
+            int format,
+            int aspectMask,
+            int viewType,
+            int baseArrayLayer,
+            int layerCount
+    ) throws EngineException {
         VkImageViewCreateInfo viewInfo = VkImageViewCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
                 .image(image)
-                .viewType(VK_IMAGE_VIEW_TYPE_2D)
+                .viewType(viewType)
                 .format(format);
         viewInfo.subresourceRange()
                 .aspectMask(aspectMask)
                 .baseMipLevel(0)
                 .levelCount(1)
-                .baseArrayLayer(0)
-                .layerCount(1);
+                .baseArrayLayer(baseArrayLayer)
+                .layerCount(layerCount);
         var pView = stack.longs(VK_NULL_HANDLE);
         int result = vkCreateImageView(device, viewInfo, null, pView);
         if (result != VK_SUCCESS || pView.get(0) == VK_NULL_HANDLE) {
@@ -2676,12 +2757,16 @@ final class VulkanContext {
         fb.put(new float[]{shadowEnabled ? 1f : 0f, shadowStrength, shadowBias, (float) shadowPcfRadius});
         float split1 = shadowCascadeCount <= 1 ? 1.0f : 0.28f;
         float split2 = shadowCascadeCount <= 2 ? 1.0f : 0.62f;
+        float split3 = shadowCascadeCount <= 3 ? 1.0f : 0.86f;
         fb.put(new float[]{(float) shadowCascadeCount, (float) shadowMapResolution, split1, split2});
+        fb.put(new float[]{(float) activeShadowCascadeIndex, split3, 0f, 0f});
         fb.put(new float[]{fogEnabled ? 1f : 0f, fogDensity, 0f, 0f});
         fb.put(new float[]{fogR, fogG, fogB, (float) fogSteps});
         fb.put(new float[]{smokeEnabled ? 1f : 0f, smokeIntensity, 0f, 0f});
         fb.put(new float[]{smokeR, smokeG, smokeB, 0f});
-        fb.put(shadowLightViewProjMatrix);
+        for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
+            fb.put(shadowLightViewProjMatrices[i]);
+        }
         mapped.limit(GLOBAL_UNIFORM_BYTES);
         try (MemoryStack stack = stackPush()) {
             PointerBuffer pData = stack.mallocPointer(1);
