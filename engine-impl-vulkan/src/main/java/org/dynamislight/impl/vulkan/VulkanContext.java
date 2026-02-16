@@ -1315,6 +1315,7 @@ final class VulkanContext {
                 layout(location = 2) out float vHeight;
                 layout(location = 3) out vec2 vUv;
                 layout(location = 4) out vec3 vTangent;
+                layout(location = 5) out vec4 vShadowPos;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -1342,6 +1343,7 @@ final class VulkanContext {
                     vNormal = normal;
                     vTangent = tangent;
                     vUv = inUv;
+                    vShadowPos = ubo.uShadowLightViewProj * world;
                     gl_Position = ubo.uProj * ubo.uView * world;
                 }
                 """;
@@ -1352,6 +1354,7 @@ final class VulkanContext {
                 layout(location = 2) in float vHeight;
                 layout(location = 3) in vec2 vUv;
                 layout(location = 4) in vec3 vTangent;
+                layout(location = 5) in vec4 vShadowPos;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -1372,6 +1375,7 @@ final class VulkanContext {
                 } ubo;
                 layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
                 layout(set = 1, binding = 1) uniform sampler2D uNormalTexture;
+                layout(set = 1, binding = 2) uniform sampler2DShadow uShadowMap;
                 layout(location = 0) out vec4 outColor;
                 void main() {
                     vec3 n0 = normalize(vNormal);
@@ -1405,10 +1409,31 @@ final class VulkanContext {
 
                     vec3 color = ambient + diffuse + pointLit + vec3(spec);
                     if (ubo.uShadow.x > 0.5) {
-                        float horizon = clamp(1.0 - ndl, 0.0, 1.0);
-                        float slope = clamp(max(-n.y, 0.0), 0.0, 1.0);
-                        float shadowFactor = clamp((horizon * 0.8 + slope * 0.2) * ubo.uShadow.y, 0.0, 0.85);
-                        color *= (1.0 - shadowFactor);
+                        vec3 shadowCoord = vShadowPos.xyz / max(vShadowPos.w, 0.0001);
+                        shadowCoord = shadowCoord * 0.5 + 0.5;
+                        float shadowVisibility = 1.0;
+                        if (shadowCoord.z > 0.0
+                                && shadowCoord.z < 1.0
+                                && shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0
+                                && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0) {
+                            int radius = clamp(int(ubo.uShadow.w + 0.5), 0, 4);
+                            float texel = 1.0 / max(ubo.uShadowCascade.y, 1.0);
+                            float compareDepth = clamp(shadowCoord.z - ubo.uShadow.z, 0.0, 1.0);
+                            float total = 0.0;
+                            float taps = 0.0;
+                            for (int y = -4; y <= 4; y++) {
+                                for (int x = -4; x <= 4; x++) {
+                                    if (abs(x) > radius || abs(y) > radius) {
+                                        continue;
+                                    }
+                                    vec2 offset = vec2(float(x), float(y)) * texel;
+                                    total += texture(uShadowMap, vec3(shadowCoord.xy + offset, compareDepth));
+                                    taps += 1.0;
+                                }
+                            }
+                            shadowVisibility = (taps > 0.0) ? (total / taps) : 1.0;
+                        }
+                        color *= mix(1.0, shadowVisibility, clamp(ubo.uShadow.y, 0.0, 1.0));
                     }
                     if (ubo.uFog.x > 0.5) {
                         float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
@@ -2253,7 +2278,7 @@ final class VulkanContext {
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(gpuMeshes.size() * 2);
+                .descriptorCount(gpuMeshes.size() * 3);
 
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
@@ -2303,8 +2328,13 @@ final class VulkanContext {
                     .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
                     .imageView(mesh.normalTexture.view())
                     .sampler(mesh.normalTexture.sampler());
+            VkDescriptorImageInfo.Buffer shadowInfo = VkDescriptorImageInfo.calloc(1, stack);
+            shadowInfo.get(0)
+                    .imageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
+                    .imageView(shadowDepthImageView)
+                    .sampler(shadowSampler);
 
-            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(2, stack);
+            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(3, stack);
             writes.get(0)
                     .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                     .dstSet(mesh.textureDescriptorSet)
@@ -2319,6 +2349,13 @@ final class VulkanContext {
                     .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
                     .pImageInfo(normalInfo);
+            writes.get(2)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(2)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(shadowInfo);
             vkUpdateDescriptorSets(device, writes, null);
         }
     }
