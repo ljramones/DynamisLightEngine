@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Set;
 import org.dynamislight.api.EngineInput;
 import org.dynamislight.api.KeyCode;
+import org.dynamislight.bridge.dynamisfx.model.FxInputSnapshot;
 import org.junit.jupiter.api.Test;
 
 class InputMapperTest {
@@ -76,5 +77,17 @@ class InputMapperTest {
         assertEquals(2.0, look.yawDelta());
         assertEquals(-0.8, look.pitchDelta());
         assertEquals(1.25, look.scrollDelta());
+    }
+
+    @Test
+    void mapsFxSnapshotIntoEngineInput() {
+        InputMapper mapper = new InputMapper();
+        FxInputSnapshot snapshot = new FxInputSnapshot(10, 20, 1.5, -0.5, true, false, Set.of("W", "ARROW_LEFT"), 0.25);
+
+        EngineInput input = mapper.mapInput(snapshot);
+
+        assertEquals(10, input.mouseX());
+        assertTrue(input.keysDown().contains(KeyCode.W));
+        assertTrue(input.keysDown().contains(KeyCode.A));
     }
 }

@@ -43,6 +43,9 @@ mvn clean compile
 mvn test
 ```
 
+GitHub Actions CI runs the same test command on `main` and pull requests using JDK 25:
+- `.github/workflows/ci.yml`
+
 ## Run sample host
 
 Install snapshots, then run the sample host:
@@ -58,9 +61,19 @@ Select backend by argument:
 mvn -f engine-host-sample/pom.xml exec:java -Dexec.args="vulkan"
 ```
 
+Inspect and hot-reload resources in sample host:
+
+```bash
+mvn -f engine-host-sample/pom.xml exec:java -Dexec.args="opengl --resources"
+```
+
 OpenGL backend options (via `EngineConfig.backendOptions`):
 - `opengl.mockContext=true|false` (default `false`) skips native context creation for headless/test runs.
 - `opengl.forceInitFailure=true|false` forces `BACKEND_INIT_FAILED` for failure-path testing.
+- `opengl.windowVisible=true|false` (default `false`) controls visible presentation window.
+
+Vulkan backend options:
+- `vulkan.mockContext=true|false` (default `true`) toggles real Vulkan instance initialization.
 
 Sample-host default keeps OpenGL in mock mode for portability. To run real OpenGL init/render from sample host:
 
@@ -72,6 +85,40 @@ mvn -f engine-host-sample/pom.xml exec:java -Dexec.args=\"opengl\" -Ddle.opengl.
 
 This is compile-first scaffolding for v1 interface contracts. OpenGL and Vulkan modules currently provide lifecycle-safe stub runtimes to validate API shape, backend discovery, and host integration flow.
 
+OpenGL now includes a baseline fog path driven by `SceneDescriptor.fog` with quality-tier dependent sampling:
+- `LOW`: coarse fog steps
+- `MEDIUM/HIGH`: progressively smoother fog
+- `ULTRA`: unquantized fog factor
+
+OpenGL also consumes `SceneDescriptor.smokeEmitters` with a baseline screen-space smoke blend.
+At lower tiers (`LOW`, `MEDIUM`) smoke quality is degraded intentionally and reported through `EngineWarning` code `SMOKE_QUALITY_DEGRADED`.
+
+Resource baseline is now available through `EngineRuntime.resources()`:
+- in-memory asset cache with ref-count ownership
+- automatic scene asset acquire/release on scene swap and shutdown
+- filesystem-backed `LOADED` / `FAILED` state transitions
+- checksum-aware hot reload via `EngineResourceService.reload(ResourceId)` (changed vs unchanged detection) with `ResourceHotReloadedEvent`
+- per-resource metadata in `ResourceInfo` (`resolvedPath`, `lastChecksum`, `lastLoadedEpochMs`)
+- v1 eviction policy: no TTL; zero-ref resources remain cacheable and are evicted by `resource.cache.maxEntries` pressure
+
+Resource runtime options (`EngineConfig.backendOptions`):
+- `resource.watch.enabled=true|false` (default `false`) enables filesystem watcher auto-reload.
+- `resource.watch.debounceMs=<int>` (default `200`) debounce window for watcher-triggered reloads.
+- `resource.cache.maxEntries=<int>` (default `256`) maximum cached resource records.
+- `resource.reload.maxRetries=<int>` (default `2`) retry attempts for failed reload scans.
+
+Resource telemetry is available via `EngineRuntime.resources().stats()`:
+- cache hits/misses
+- reload requests/failures
+- evictions
+- watcher event count
+
+Optional integration-test flags:
+- `-Ddle.test.resource.watch=true` enables watcher auto-reload integration test.
+- `-Ddle.test.vulkan.real=true` enables real Vulkan init integration test.
+
 ## Planning
 
 - Milestone and issue backlog: `docs/github-milestones.md`
+- Architecture note: `docs/architecture/backend-strategy.md`
+- ADR: `docs/adr/0001-backend-strategy.md`

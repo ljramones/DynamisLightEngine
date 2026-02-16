@@ -13,8 +13,16 @@ import org.dynamislight.api.SceneDescriptor;
 import org.dynamislight.api.SmokeEmitterDesc;
 import org.dynamislight.api.TransformDesc;
 import org.dynamislight.api.validation.SceneValidator;
+import org.dynamislight.bridge.dynamisfx.model.FxSceneSnapshot;
 
 public final class SceneMapper {
+    public SceneDescriptor mapScene(FxSceneSnapshot snapshot) throws EngineException {
+        if (snapshot == null) {
+            throw new EngineException(EngineErrorCode.SCENE_VALIDATION_FAILED, "scene snapshot is required", true);
+        }
+        return mapScene(snapshot.descriptor());
+    }
+
     public SceneDescriptor mapScene(SceneDescriptor source) throws EngineException {
         if (source == null) {
             throw new EngineException(EngineErrorCode.SCENE_VALIDATION_FAILED, "source scene is required", true);

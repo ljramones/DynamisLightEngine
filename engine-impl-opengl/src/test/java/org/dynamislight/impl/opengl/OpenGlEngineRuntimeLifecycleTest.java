@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +31,10 @@ import org.dynamislight.api.LogMessage;
 import org.dynamislight.api.MaterialDesc;
 import org.dynamislight.api.MeshDesc;
 import org.dynamislight.api.QualityTier;
+import org.dynamislight.api.ResourceHotReloadedEvent;
+import org.dynamislight.api.ResourceState;
 import org.dynamislight.api.SceneDescriptor;
+import org.dynamislight.api.SceneLoadFailedEvent;
 import org.dynamislight.api.SmokeEmitterDesc;
 import org.dynamislight.api.TransformDesc;
 import org.dynamislight.api.Vec3;
@@ -96,7 +101,12 @@ class OpenGlEngineRuntimeLifecycleTest {
         runtime.shutdown();
 
         assertEquals(1L, frame.frameIndex());
+        assertTrue(callbacks.logs.stream().anyMatch(log -> "LIFECYCLE".equals(log.category())));
+        assertTrue(callbacks.logs.stream().anyMatch(log -> "SCENE".equals(log.category())));
+        assertTrue(callbacks.logs.stream().anyMatch(log -> "SHADER".equals(log.category())));
         assertTrue(callbacks.logs.stream().anyMatch(log -> "RENDER".equals(log.category())));
+        assertTrue(callbacks.logs.stream().anyMatch(log -> "PERF".equals(log.category())));
+        assertFalse(callbacks.events.isEmpty());
     }
 
     @Test
@@ -144,18 +154,228 @@ class OpenGlEngineRuntimeLifecycleTest {
     @Test
     void forcedInitFailureMapsToBackendInitFailed() {
         var runtime = new OpenGlEngineRuntime();
+        var callbacks = new RecordingCallbacks();
 
         EngineException ex = assertThrows(EngineException.class,
-                () -> runtime.initialize(validConfig(Map.of("opengl.forceInitFailure", "true")), new RecordingCallbacks()));
+                () -> runtime.initialize(validConfig(Map.of("opengl.forceInitFailure", "true")), callbacks));
 
         assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, ex.code());
+        assertTrue(callbacks.logs.stream().anyMatch(log -> "ERROR".equals(log.category())));
+        assertFalse(callbacks.errors.isEmpty());
+        assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, callbacks.errors.getFirst().code());
+    }
+
+    @Test
+    void fogQualityTierImpactsFogSamplingAndDensityScale() {
+        assertEquals(4, OpenGlEngineRuntime.fogSteps(QualityTier.LOW));
+        assertEquals(8, OpenGlEngineRuntime.fogSteps(QualityTier.MEDIUM));
+        assertEquals(16, OpenGlEngineRuntime.fogSteps(QualityTier.HIGH));
+        assertEquals(0, OpenGlEngineRuntime.fogSteps(QualityTier.ULTRA));
+
+        assertTrue(OpenGlEngineRuntime.fogDensityScale(QualityTier.LOW) < OpenGlEngineRuntime.fogDensityScale(QualityTier.HIGH));
+        assertTrue(OpenGlEngineRuntime.fogDensityScale(QualityTier.ULTRA) > OpenGlEngineRuntime.fogDensityScale(QualityTier.HIGH));
+    }
+
+    @Test
+    void loadSceneWithFogEnabledRendersSuccessfully() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(), new RecordingCallbacks());
+        runtime.loadScene(validFogScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertTrue(frame.frameIndex() > 0);
+    }
+
+    @Test
+    void lowTierSmokeEmitsQualityDegradedWarning() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validLowQualityConfig(), new RecordingCallbacks());
+        runtime.loadScene(validSmokeScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "SMOKE_QUALITY_DEGRADED".equals(w.code())));
+    }
+
+    @Test
+    void ultraTierSmokeDoesNotEmitQualityDegradedWarning() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validUltraQualityConfig(), new RecordingCallbacks());
+        runtime.loadScene(validSmokeScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SMOKE_QUALITY_DEGRADED".equals(w.code())));
+    }
+
+    @Test
+    void resourceServiceTracksSceneAssetsAndReleasesOnShutdown() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        runtime.initialize(validConfig(), callbacks);
+        runtime.loadScene(validSceneWithResources());
+
+        assertFalse(runtime.resources().loadedResources().isEmpty());
+        assertTrue(runtime.resources().loadedResources().stream().allMatch(r -> r.state() == ResourceState.FAILED));
+        assertTrue(callbacks.events.stream().anyMatch(SceneLoadFailedEvent.class::isInstance));
+        runtime.shutdown();
+        assertTrue(runtime.resources().loadedResources().isEmpty());
+    }
+
+    @Test
+    void resourceHotReloadEmitsResourceReloadedEvent() throws Exception {
+        Path root = Files.createTempDirectory("dle-resources");
+        Files.createDirectories(root.resolve("meshes"));
+        Files.createDirectories(root.resolve("textures"));
+        Files.writeString(root.resolve("meshes/box.glb"), "mesh-v1");
+        Files.writeString(root.resolve("textures/albedo.png"), "albedo-v1");
+        Files.writeString(root.resolve("textures/normal.png"), "normal-v1");
+        Files.writeString(root.resolve("textures/skybox.hdr"), "sky-v1");
+
+        var runtime = new OpenGlEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        runtime.initialize(validConfig(Map.of("opengl.mockContext", "true"), QualityTier.MEDIUM, root), callbacks);
+        runtime.loadScene(validSceneWithResources());
+
+        var resource = runtime.resources().loadedResources().stream()
+                .filter(r -> r.descriptor().sourcePath().equals("meshes/box.glb"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(ResourceState.LOADED, resource.state());
+        assertTrue(resource.resolvedPath().endsWith("meshes/box.glb"));
+        assertNotNull(resource.lastChecksum());
+        Files.writeString(root.resolve("meshes/box.glb"), "mesh-v2");
+        var reloaded = runtime.resources().reload(resource.descriptor().id());
+
+        assertTrue(callbacks.events.stream().anyMatch(ResourceHotReloadedEvent.class::isInstance));
+        assertNotNull(reloaded.lastChecksum());
+        assertFalse(resource.lastChecksum().equals(reloaded.lastChecksum()));
+    }
+
+    @Test
+    void resourceHotReloadWithoutChecksumChangeStillEmitsEvent() throws Exception {
+        Path root = Files.createTempDirectory("dle-resources-nochange");
+        Files.createDirectories(root.resolve("meshes"));
+        Files.writeString(root.resolve("meshes/box.glb"), "mesh-v1");
+
+        var runtime = new OpenGlEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        runtime.initialize(validConfig(Map.of("opengl.mockContext", "true"), QualityTier.MEDIUM, root), callbacks);
+        runtime.loadScene(new SceneDescriptor(
+                "mesh-only-scene",
+                List.of(new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f)),
+                "cam",
+                List.of(new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1))),
+                List.of(new MeshDesc("mesh", "xform", "mat", "meshes/box.glb")),
+                List.of(new MaterialDesc("mat", new Vec3(1, 1, 1), 0f, 0.5f, null, null)),
+                List.of(),
+                new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null),
+                new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0, 0, 0, 0, 0, 0),
+                List.of()
+        ));
+
+        callbacks.events.clear();
+        var resource = runtime.resources().loadedResources().getFirst();
+        var reloaded = runtime.resources().reload(resource.descriptor().id());
+
+        assertTrue(callbacks.events.stream().anyMatch(ResourceHotReloadedEvent.class::isInstance));
+        assertEquals(resource.lastChecksum(), reloaded.lastChecksum());
+    }
+
+    @Test
+    void resourceStatsTrackHitsMissesAndReloads() throws Exception {
+        Path root = Files.createTempDirectory("dle-resource-stats");
+        Files.createDirectories(root.resolve("meshes"));
+        Files.writeString(root.resolve("meshes/box.glb"), "mesh-v1");
+
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(Map.of("opengl.mockContext", "true"), QualityTier.MEDIUM, root), new RecordingCallbacks());
+        runtime.loadScene(new SceneDescriptor(
+                "mesh-only-scene-stats",
+                List.of(new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f)),
+                "cam",
+                List.of(new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1))),
+                List.of(new MeshDesc("mesh", "xform", "mat", "meshes/box.glb")),
+                List.of(new MaterialDesc("mat", new Vec3(1, 1, 1), 0f, 0.5f, null, null)),
+                List.of(),
+                new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null),
+                new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0, 0, 0, 0, 0, 0),
+                List.of()
+        ));
+        var id = runtime.resources().loadedResources().getFirst().descriptor().id();
+        runtime.resources().reload(id);
+
+        var stats = runtime.resources().stats();
+        assertTrue(stats.cacheMisses() >= 1);
+        assertTrue(stats.cacheHits() >= 0);
+        assertTrue(stats.reloadRequests() >= 1);
+    }
+
+    @Test
+    void resourceWatcherAutoReloadsOnFileChange() throws Exception {
+        assumeTrue(Boolean.getBoolean("dle.test.resource.watch"),
+                "Set -Ddle.test.resource.watch=true to run filesystem watcher integration test");
+        Path root = Files.createTempDirectory("dle-resources-watch");
+        Files.createDirectories(root.resolve("meshes"));
+        Files.writeString(root.resolve("meshes/box.glb"), "mesh-v1");
+
+        var runtime = new OpenGlEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        runtime.initialize(validConfig(Map.of(
+                "opengl.mockContext", "true",
+                "resource.watch.enabled", "true"
+        ), QualityTier.MEDIUM, root), callbacks);
+        runtime.loadScene(new SceneDescriptor(
+                "mesh-only-scene-watch",
+                List.of(new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f)),
+                "cam",
+                List.of(new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1))),
+                List.of(new MeshDesc("mesh", "xform", "mat", "meshes/box.glb")),
+                List.of(new MaterialDesc("mat", new Vec3(1, 1, 1), 0f, 0.5f, null, null)),
+                List.of(),
+                new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null),
+                new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0, 0, 0, 0, 0, 0),
+                List.of()
+        ));
+
+        callbacks.events.clear();
+        Files.writeString(root.resolve("meshes/box.glb"), "mesh-v2");
+
+        boolean reloaded = false;
+        for (int i = 0; i < 30; i++) {
+            if (callbacks.events.stream().anyMatch(ResourceHotReloadedEvent.class::isInstance)) {
+                reloaded = true;
+                break;
+            }
+            Thread.sleep(50);
+        }
+
+        runtime.shutdown();
+        assertTrue(reloaded);
     }
 
     private static EngineConfig validConfig() {
         return validConfig(Map.of("opengl.mockContext", "true"));
     }
 
+    private static EngineConfig validLowQualityConfig() {
+        return validConfig(Map.of("opengl.mockContext", "true"), QualityTier.LOW);
+    }
+
+    private static EngineConfig validUltraQualityConfig() {
+        return validConfig(Map.of("opengl.mockContext", "true"), QualityTier.ULTRA);
+    }
+
     private static EngineConfig validConfig(Map<String, String> backendOptions) {
+        return validConfig(backendOptions, QualityTier.MEDIUM);
+    }
+
+    private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier qualityTier) {
+        return validConfig(backendOptions, qualityTier, Path.of("."));
+    }
+
+    private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier qualityTier, Path assetRoot) {
         return new EngineConfig(
                 "opengl",
                 "test-host",
@@ -164,8 +384,8 @@ class OpenGlEngineRuntimeLifecycleTest {
                 1.0f,
                 true,
                 60,
-                QualityTier.MEDIUM,
-                Path.of("."),
+                qualityTier,
+                assetRoot,
                 backendOptions
         );
     }
@@ -181,6 +401,88 @@ class OpenGlEngineRuntimeLifecycleTest {
 
         return new SceneDescriptor(
                 "test-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(mat),
+                List.of(light),
+                env,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validFogScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        LightDesc light = new LightDesc("light", new Vec3(0, 2, 0), new Vec3(1, 1, 1), 1.0f, 10f, false);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(true, FogMode.EXPONENTIAL, new Vec3(0.65f, 0.7f, 0.8f), 0.4f, 0.0f, 1.0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "fog-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(mat),
+                List.of(light),
+                env,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validSmokeScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        LightDesc light = new LightDesc("light", new Vec3(0, 2, 0), new Vec3(1, 1, 1), 1.0f, 10f, false);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        SmokeEmitterDesc emitter = new SmokeEmitterDesc(
+                "smoke-1",
+                new Vec3(0, 0, 0),
+                new Vec3(1, 1, 1),
+                10f,
+                0.7f,
+                new Vec3(0.65f, 0.66f, 0.7f),
+                1f,
+                new Vec3(0, 1, 0),
+                0.3f,
+                10f,
+                true
+        );
+
+        return new SceneDescriptor(
+                "smoke-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(mat),
+                List.of(light),
+                env,
+                fog,
+                List.of(emitter)
+        );
+    }
+
+    private static SceneDescriptor validSceneWithResources() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "meshes/box.glb");
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, "textures/albedo.png", "textures/normal.png");
+        LightDesc light = new LightDesc("light", new Vec3(0, 2, 0), new Vec3(1, 1, 1), 1.0f, 10f, false);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, "textures/skybox.hdr");
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "resource-scene",
                 List.of(camera),
                 "cam",
                 List.of(transform),

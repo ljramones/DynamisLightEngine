@@ -18,6 +18,7 @@ import org.dynamislight.api.SceneDescriptor;
 import org.dynamislight.api.SmokeEmitterDesc;
 import org.dynamislight.api.TransformDesc;
 import org.dynamislight.api.Vec3;
+import org.dynamislight.bridge.dynamisfx.model.FxSceneSnapshot;
 import org.junit.jupiter.api.Test;
 
 class SceneMapperTest {
@@ -58,6 +59,16 @@ class SceneMapperTest {
         EngineException ex = assertThrows(EngineException.class, () -> mapper.mapScene(invalid));
 
         assertEquals(EngineErrorCode.SCENE_VALIDATION_FAILED, ex.code());
+    }
+
+    @Test
+    void mapsFxSceneSnapshot() throws Exception {
+        SceneMapper mapper = new SceneMapper();
+        FxSceneSnapshot snapshot = new FxSceneSnapshot(validScene());
+
+        SceneDescriptor mapped = mapper.mapScene(snapshot);
+
+        assertEquals("sample-scene", mapped.sceneName());
     }
 
     private static SceneDescriptor validScene() {

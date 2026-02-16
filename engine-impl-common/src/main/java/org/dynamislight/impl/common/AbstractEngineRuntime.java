@@ -1,6 +1,23 @@
 package org.dynamislight.impl.common;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.dynamislight.api.EngineApiVersion;
 import org.dynamislight.api.EngineCapabilities;
 import org.dynamislight.api.EngineConfig;
@@ -9,13 +26,26 @@ import org.dynamislight.api.EngineException;
 import org.dynamislight.api.EngineFrameResult;
 import org.dynamislight.api.EngineHostCallbacks;
 import org.dynamislight.api.EngineInput;
+import org.dynamislight.api.EngineErrorReport;
+import org.dynamislight.api.EngineResourceService;
 import org.dynamislight.api.EngineRuntime;
 import org.dynamislight.api.EngineStats;
 import org.dynamislight.api.EngineWarning;
 import org.dynamislight.api.FrameHandle;
 import org.dynamislight.api.LogLevel;
 import org.dynamislight.api.LogMessage;
+import org.dynamislight.api.MaterialDesc;
+import org.dynamislight.api.MeshDesc;
+import org.dynamislight.api.ResourceDescriptor;
+import org.dynamislight.api.ResourceCacheStats;
+import org.dynamislight.api.ResourceHotReloadedEvent;
+import org.dynamislight.api.ResourceId;
+import org.dynamislight.api.ResourceInfo;
+import org.dynamislight.api.ResourceState;
+import org.dynamislight.api.ResourceType;
 import org.dynamislight.api.SceneDescriptor;
+import org.dynamislight.api.SceneLoadFailedEvent;
+import org.dynamislight.api.SceneLoadedEvent;
 
 public abstract class AbstractEngineRuntime implements EngineRuntime {
     protected record RenderMetrics(
@@ -38,12 +68,29 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     private final EngineCapabilities capabilities;
     private final double renderCpuFrameMs;
     private final double renderGpuFrameMs;
-    private final EngineWarning stubWarning;
 
     private State state = State.NEW;
     private EngineHostCallbacks host;
+    private Path assetRoot = Path.of(".");
     private long frameIndex;
     private EngineStats stats = new EngineStats(0.0, 0.0, 0.0, 0, 0, 0, 0);
+    private final Map<ResourceId, ResourceInfo> resourceCache = new LinkedHashMap<>();
+    private final Map<ResourceId, String> resourceChecksums = new LinkedHashMap<>();
+    private List<ResourceId> activeSceneResourceIds = new ArrayList<>();
+    private final EngineResourceService resourceService = new RuntimeResourceService();
+    private int resourceCacheMaxEntries = 256;
+    private int resourceReloadMaxRetries = 2;
+    private boolean resourceWatchEnabled;
+    private long resourceWatchDebounceMs = 200L;
+    private WatchService resourceWatchService;
+    private Thread resourceWatcherThread;
+    private final Map<Path, Long> watchedPathLastReloadMs = new ConcurrentHashMap<>();
+    private long cacheHits;
+    private long cacheMisses;
+    private long reloadRequests;
+    private long reloadFailures;
+    private long evictions;
+    private long watcherEvents;
 
     protected AbstractEngineRuntime(
             String backendName,
@@ -55,7 +102,6 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
         this.capabilities = capabilities;
         this.renderCpuFrameMs = renderCpuFrameMs;
         this.renderGpuFrameMs = renderGpuFrameMs;
-        this.stubWarning = new EngineWarning("STUB_BACKEND", backendName + " runtime is currently a skeleton");
     }
 
     @Override
@@ -72,39 +118,77 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
             throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "config and host are required", true);
         }
 
-        onInitialize(config);
         this.host = host;
-        state = State.INITIALIZED;
-        this.host.onLog(new LogMessage(LogLevel.INFO, "LIFECYCLE", backendName + " runtime initialized", System.currentTimeMillis()));
+        this.assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
+        this.resourceCacheMaxEntries = parseIntOption(config, "resource.cache.maxEntries", 256);
+        this.resourceReloadMaxRetries = parseIntOption(config, "resource.reload.maxRetries", 2);
+        this.resourceWatchDebounceMs = parseIntOption(config, "resource.watch.debounceMs", 200);
+        this.resourceWatchEnabled = Boolean.parseBoolean(config.backendOptions().getOrDefault("resource.watch.enabled", "false"));
+        try {
+            onInitialize(config);
+            startResourceWatcherIfEnabled();
+            state = State.INITIALIZED;
+            log(LogLevel.INFO, "LIFECYCLE", backendName + " runtime initialized");
+            log(LogLevel.INFO, "SHADER", backendName + " shader subsystem initialized");
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(EngineErrorCode.INTERNAL_ERROR, "Unexpected initialize failure: " + e.getMessage(), false));
+        }
     }
 
     @Override
     public final void loadScene(SceneDescriptor scene) throws EngineException {
-        ensureInitialized();
-        if (scene == null) {
-            throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "scene is required", true);
+        try {
+            ensureInitialized();
+            if (scene == null) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "scene is required", true);
+            }
+            List<String> resourceFailures = acquireSceneResources(scene);
+            onLoadScene(scene);
+            if (!resourceFailures.isEmpty()) {
+                String reason = "Resource scan failures (" + resourceFailures.size() + "): " + String.join("; ", resourceFailures);
+                log(LogLevel.ERROR, "ERROR", "Scene load had resource failures: " + scene.sceneName());
+                if (host != null) {
+                    host.onEvent(new SceneLoadFailedEvent(scene.sceneName(), reason));
+                }
+                reportError(new EngineException(EngineErrorCode.SCENE_VALIDATION_FAILED, reason, true));
+            } else {
+                log(LogLevel.INFO, "SCENE", "Loaded scene: " + scene.sceneName());
+                host.onEvent(new SceneLoadedEvent(scene.sceneName()));
+            }
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(EngineErrorCode.INTERNAL_ERROR, "Unexpected scene load failure: " + e.getMessage(), false));
         }
-        host.onLog(new LogMessage(LogLevel.INFO, "SCENE", "Loaded scene: " + scene.sceneName(), System.currentTimeMillis()));
     }
 
     @Override
     public final EngineFrameResult update(double dtSeconds, EngineInput input) throws EngineException {
-        ensureInitialized();
-        if (dtSeconds < 0.0) {
-            throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "dtSeconds cannot be negative", true);
+        try {
+            ensureInitialized();
+            if (dtSeconds < 0.0) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "dtSeconds cannot be negative", true);
+            }
+            return new EngineFrameResult(frameIndex, dtSeconds * 1000.0, 0.0, new FrameHandle(frameIndex, false), List.of());
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(EngineErrorCode.INTERNAL_ERROR, "Unexpected update failure: " + e.getMessage(), false));
         }
-        return new EngineFrameResult(frameIndex, dtSeconds * 1000.0, 0.0, new FrameHandle(frameIndex, false), List.of());
     }
 
     @Override
     public final EngineFrameResult render() throws EngineException {
-        ensureInitialized();
-        RenderMetrics renderMetrics = onRender();
-        frameIndex++;
-        if (renderMetrics == null) {
-            renderMetrics = new RenderMetrics(renderCpuFrameMs, renderGpuFrameMs, 1, 3, 1, 0);
-        }
-        double frameMs = Math.max(renderMetrics.cpuFrameMs(), 0.0001);
+        try {
+            ensureInitialized();
+            RenderMetrics renderMetrics = onRender();
+            frameIndex++;
+            if (renderMetrics == null) {
+                renderMetrics = new RenderMetrics(renderCpuFrameMs, renderGpuFrameMs, 1, 3, 1, 0);
+            }
+            double frameMs = Math.max(renderMetrics.cpuFrameMs(), 0.0001);
         stats = new EngineStats(
                 1000.0 / frameMs,
                 renderMetrics.cpuFrameMs(),
@@ -114,19 +198,37 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
                 renderMetrics.visibleObjects(),
                 renderMetrics.gpuMemoryBytes()
         );
+        log(LogLevel.DEBUG, "RENDER", "Rendered frame " + frameIndex);
+            log(LogLevel.DEBUG, "PERF",
+                    "frame=" + frameIndex + " cpuMs=" + String.format("%.3f", stats.cpuFrameMs())
+                            + " gpuMs=" + String.format("%.3f", stats.gpuFrameMs())
+                            + " fps=" + String.format("%.1f", stats.fps()));
+        List<EngineWarning> warnings = new ArrayList<>();
+        warnings.addAll(baselineWarnings());
+        warnings.addAll(frameWarnings());
         return new EngineFrameResult(frameIndex, stats.cpuFrameMs(), stats.gpuFrameMs(), new FrameHandle(frameIndex, false),
-                List.of(stubWarning));
+                warnings);
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(EngineErrorCode.INTERNAL_ERROR, "Unexpected render failure: " + e.getMessage(), false));
+        }
     }
 
     @Override
     public final void resize(int widthPx, int heightPx, float dpiScale) throws EngineException {
-        ensureInitialized();
-        if (widthPx <= 0 || heightPx <= 0 || dpiScale <= 0f) {
-            throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "Invalid resize dimensions", true);
+        try {
+            ensureInitialized();
+            if (widthPx <= 0 || heightPx <= 0 || dpiScale <= 0f) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "Invalid resize dimensions", true);
+            }
+            onResize(widthPx, heightPx, dpiScale);
+            log(LogLevel.INFO, "RENDER", "Resize to " + widthPx + "x" + heightPx + " @ " + dpiScale);
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(EngineErrorCode.INTERNAL_ERROR, "Unexpected resize failure: " + e.getMessage(), false));
         }
-        onResize(widthPx, heightPx, dpiScale);
-        host.onLog(new LogMessage(LogLevel.INFO, "RENDER",
-                "Resize to " + widthPx + "x" + heightPx + " @ " + dpiScale, System.currentTimeMillis()));
     }
 
     @Override
@@ -140,23 +242,49 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public EngineResourceService resources() {
+        return resourceService;
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
         }
-        onShutdown();
+        stopResourceWatcher();
+        try {
+            onShutdown();
+        } catch (RuntimeException e) {
+            reportError(new EngineException(EngineErrorCode.INTERNAL_ERROR, "Unexpected shutdown failure: " + e.getMessage(), false));
+        }
         state = State.SHUTDOWN;
+        releaseResources(activeSceneResourceIds);
+        activeSceneResourceIds = new ArrayList<>();
+        resourceCache.clear();
+        resourceChecksums.clear();
+        watchedPathLastReloadMs.clear();
         if (host != null) {
-            host.onLog(new LogMessage(LogLevel.INFO, "LIFECYCLE", backendName + " runtime shut down", System.currentTimeMillis()));
+            log(LogLevel.INFO, "LIFECYCLE", backendName + " runtime shut down");
         }
     }
 
     protected void onInitialize(EngineConfig config) throws EngineException {
     }
 
+    protected void onLoadScene(SceneDescriptor scene) throws EngineException {
+    }
+
     protected RenderMetrics onRender() throws EngineException { return null; }
 
     protected void onResize(int widthPx, int heightPx, float dpiScale) throws EngineException { }
+
+    protected List<EngineWarning> frameWarnings() {
+        return List.of();
+    }
+
+    protected List<EngineWarning> baselineWarnings() {
+        return List.of();
+    }
 
     protected final RenderMetrics renderMetrics(
             double cpuFrameMs,
@@ -175,6 +303,418 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     private void ensureInitialized() throws EngineException {
         if (state != State.INITIALIZED) {
             throw new EngineException(EngineErrorCode.INVALID_STATE, "Runtime is not initialized", false);
+        }
+    }
+
+    private EngineException reportAndReturn(EngineException error) {
+        reportError(error);
+        return error;
+    }
+
+    private void reportError(EngineException error) {
+        if (host == null) {
+            return;
+        }
+        log(LogLevel.ERROR, "ERROR", error.getMessage());
+        host.onError(new EngineErrorReport(error.code(), error.getMessage(), error.recoverable(), error));
+    }
+
+    private void log(LogLevel level, String category, String message) {
+        if (host == null) {
+            return;
+        }
+        host.onLog(new LogMessage(level, category, message, System.currentTimeMillis()));
+    }
+
+    private void startResourceWatcherIfEnabled() throws EngineException {
+        if (!resourceWatchEnabled) {
+            return;
+        }
+        try {
+            resourceWatchService = java.nio.file.FileSystems.getDefault().newWatchService();
+            registerWatchTree(assetRoot);
+            resourceWatcherThread = Thread.ofVirtual().name("dle-resource-watcher").start(this::watchLoop);
+            log(LogLevel.INFO, "SCENE", "Resource watcher enabled at " + assetRoot);
+        } catch (IOException e) {
+            throw new EngineException(EngineErrorCode.RESOURCE_CREATION_FAILED,
+                    "Failed to start resource watcher at " + assetRoot + ": " + e.getMessage(), true);
+        }
+    }
+
+    private void stopResourceWatcher() {
+        if (resourceWatcherThread != null) {
+            resourceWatcherThread.interrupt();
+            resourceWatcherThread = null;
+        }
+        if (resourceWatchService != null) {
+            try {
+                resourceWatchService.close();
+            } catch (IOException ignored) {
+            }
+            resourceWatchService = null;
+        }
+    }
+
+    private void registerWatchTree(Path root) throws IOException {
+        if (root == null || !Files.exists(root)) {
+            return;
+        }
+        Files.walk(root)
+                .filter(Files::isDirectory)
+                .forEach(path -> {
+                    try {
+                        path.register(resourceWatchService, StandardWatchEventKinds.ENTRY_CREATE, StandardWatchEventKinds.ENTRY_MODIFY);
+                    } catch (IOException ignored) {
+                    }
+                });
+    }
+
+    private void watchLoop() {
+        while (resourceWatchService != null && !Thread.currentThread().isInterrupted()) {
+            try {
+                WatchKey key = resourceWatchService.poll(300, TimeUnit.MILLISECONDS);
+                if (key == null) {
+                    continue;
+                }
+                Path dir = (Path) key.watchable();
+                for (WatchEvent<?> event : key.pollEvents()) {
+                    if (!(event.context() instanceof Path changedRel)) {
+                        continue;
+                    }
+                    Path changed = dir.resolve(changedRel).normalize();
+                    if (Files.isDirectory(changed)) {
+                        registerWatchTree(changed);
+                        continue;
+                    }
+                    watcherEvents++;
+                    reloadResourcesForPath(changed);
+                }
+                key.reset();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void reloadResourcesForPath(Path changed) {
+        long now = System.currentTimeMillis();
+        long lastReload = watchedPathLastReloadMs.getOrDefault(changed, 0L);
+        if (now - lastReload < resourceWatchDebounceMs) {
+            return;
+        }
+        watchedPathLastReloadMs.put(changed, now);
+        List<ResourceId> matching = resourceCache.values().stream()
+                .filter(info -> info.resolvedPath() != null && Path.of(info.resolvedPath()).normalize().equals(changed))
+                .map(info -> info.descriptor().id())
+                .toList();
+        for (ResourceId id : matching) {
+            try {
+                resourceService.reload(id);
+            } catch (EngineException ignored) {
+            }
+        }
+    }
+
+    private int parseIntOption(EngineConfig config, String key, int defaultValue) {
+        String raw = config.backendOptions().get(key);
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    private List<String> acquireSceneResources(SceneDescriptor scene) throws EngineException {
+        List<ResourceId> nextIds = new ArrayList<>();
+        List<String> failures = new ArrayList<>();
+        for (MeshDesc mesh : scene.meshes()) {
+            String path = mesh.meshAssetPath();
+            if (isBlank(path)) {
+                continue;
+            }
+            ResourceDescriptor descriptor = descriptor(ResourceType.MESH, path, true);
+            ResourceInfo info = resourceService.acquire(descriptor);
+            nextIds.add(descriptor.id());
+            if (info.state() == ResourceState.FAILED) {
+                failures.add(info.errorMessage());
+            }
+        }
+        for (MaterialDesc material : scene.materials()) {
+            if (!isBlank(material.albedoTexturePath())) {
+                ResourceDescriptor descriptor = descriptor(ResourceType.TEXTURE, material.albedoTexturePath(), true);
+                ResourceInfo info = resourceService.acquire(descriptor);
+                nextIds.add(descriptor.id());
+                if (info.state() == ResourceState.FAILED) {
+                    failures.add(info.errorMessage());
+                }
+            }
+            if (!isBlank(material.normalTexturePath())) {
+                ResourceDescriptor descriptor = descriptor(ResourceType.TEXTURE, material.normalTexturePath(), true);
+                ResourceInfo info = resourceService.acquire(descriptor);
+                nextIds.add(descriptor.id());
+                if (info.state() == ResourceState.FAILED) {
+                    failures.add(info.errorMessage());
+                }
+            }
+        }
+        if (scene.environment() != null && !isBlank(scene.environment().skyboxAssetPath())) {
+            ResourceDescriptor descriptor = descriptor(ResourceType.TEXTURE, scene.environment().skyboxAssetPath(), true);
+            ResourceInfo info = resourceService.acquire(descriptor);
+            nextIds.add(descriptor.id());
+            if (info.state() == ResourceState.FAILED) {
+                failures.add(info.errorMessage());
+            }
+        }
+        releaseResources(activeSceneResourceIds);
+        activeSceneResourceIds = nextIds;
+        return failures;
+    }
+
+    private static ResourceDescriptor descriptor(ResourceType type, String sourcePath, boolean hotReloadable) {
+        return new ResourceDescriptor(new ResourceId(type.name().toLowerCase() + ":" + sourcePath), type, sourcePath, hotReloadable);
+    }
+
+    private void releaseResources(List<ResourceId> ids) {
+        for (ResourceId id : ids) {
+            resourceService.release(id);
+        }
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private final class RuntimeResourceService implements EngineResourceService {
+        @Override
+        public ResourceInfo acquire(ResourceDescriptor descriptor) throws EngineException {
+            if (descriptor == null || descriptor.id() == null || descriptor.type() == null || isBlank(descriptor.sourcePath())) {
+                throw reportAndReturn(new EngineException(EngineErrorCode.INVALID_ARGUMENT, "Invalid resource descriptor", true));
+            }
+
+            ResourceInfo existing = resourceCache.get(descriptor.id());
+            if (existing != null) {
+                cacheHits++;
+                long now = System.currentTimeMillis();
+                ResourceInfo next = new ResourceInfo(
+                        existing.descriptor(),
+                        existing.state(),
+                        existing.refCount() + 1,
+                        now,
+                        existing.errorMessage(),
+                        existing.resolvedPath(),
+                        existing.lastChecksum()
+                );
+                resourceCache.put(descriptor.id(), next);
+                return next;
+            }
+            cacheMisses++;
+
+            ResourceInfo created = scanResource(descriptor, 1);
+            resourceCache.put(descriptor.id(), created);
+            if (created.state() == ResourceState.LOADED) {
+                log(LogLevel.DEBUG, "SCENE", "Acquired resource " + descriptor.id().value());
+            } else {
+                log(LogLevel.ERROR, "ERROR", "Resource acquire failed " + descriptor.id().value() + ": " + created.errorMessage());
+            }
+            enforceCacheEviction();
+            return created;
+        }
+
+        @Override
+        public void release(ResourceId id) {
+            if (id == null) {
+                return;
+            }
+            ResourceInfo existing = resourceCache.get(id);
+            if (existing == null) {
+                return;
+            }
+            int nextCount = existing.refCount() - 1;
+            if (nextCount <= 0) {
+                resourceCache.put(id, new ResourceInfo(
+                        existing.descriptor(),
+                        existing.state(),
+                        0,
+                        System.currentTimeMillis(),
+                        existing.errorMessage(),
+                        existing.resolvedPath(),
+                        existing.lastChecksum()
+                ));
+                log(LogLevel.DEBUG, "SCENE", "Released resource " + id.value() + " (cached)");
+                enforceCacheEviction();
+                return;
+            }
+            resourceCache.put(id, new ResourceInfo(
+                    existing.descriptor(),
+                    existing.state(),
+                    nextCount,
+                    existing.lastLoadedEpochMs(),
+                    existing.errorMessage(),
+                    existing.resolvedPath(),
+                    existing.lastChecksum()
+            ));
+        }
+
+        @Override
+        public ResourceInfo reload(ResourceId id) throws EngineException {
+            reloadRequests++;
+            if (id == null) {
+                reloadFailures++;
+                throw reportAndReturn(new EngineException(EngineErrorCode.INVALID_ARGUMENT, "resource id is required", true));
+            }
+            ResourceInfo existing = resourceCache.get(id);
+            if (existing == null) {
+                reloadFailures++;
+                throw reportAndReturn(new EngineException(EngineErrorCode.RESOURCE_CREATION_FAILED, "resource not loaded: " + id.value(), true));
+            }
+            if (!existing.descriptor().hotReloadable()) {
+                reloadFailures++;
+                throw reportAndReturn(new EngineException(EngineErrorCode.INVALID_ARGUMENT, "resource is not hot-reloadable: " + id.value(), true));
+            }
+
+            ResourceInfo reloaded = scanWithRetry(existing.descriptor(), existing.refCount(), resourceReloadMaxRetries);
+            String previousChecksum = resourceChecksums.get(id);
+            String nextChecksum = checksumOf(reloaded);
+            resourceCache.put(id, reloaded);
+            if (reloaded.state() == ResourceState.LOADED && nextChecksum != null) {
+                resourceChecksums.put(id, nextChecksum);
+            } else {
+                resourceChecksums.remove(id);
+            }
+
+            if (reloaded.state() == ResourceState.LOADED) {
+                if (host != null) {
+                    host.onEvent(new ResourceHotReloadedEvent(id.value()));
+                }
+                if (!Objects.equals(previousChecksum, nextChecksum)) {
+                    log(LogLevel.INFO, "SCENE", "Hot reloaded resource " + id.value());
+                } else {
+                    log(LogLevel.DEBUG, "SCENE", "Resource unchanged on reload " + id.value());
+                }
+            } else {
+                reloadFailures++;
+                log(LogLevel.ERROR, "ERROR", "Resource reload failed " + id.value() + ": " + reloaded.errorMessage());
+            }
+            return reloaded;
+        }
+
+        @Override
+        public List<ResourceInfo> loadedResources() {
+            return List.copyOf(resourceCache.values());
+        }
+
+        @Override
+        public ResourceCacheStats stats() {
+            return new ResourceCacheStats(
+                    cacheHits,
+                    cacheMisses,
+                    reloadRequests,
+                    reloadFailures,
+                    evictions,
+                    watcherEvents
+            );
+        }
+
+        private ResourceInfo scanResource(ResourceDescriptor descriptor, int refCount) {
+            Path path = resolveResourcePath(descriptor.sourcePath());
+            long now = System.currentTimeMillis();
+            try {
+                if (!Files.isRegularFile(path)) {
+                    return new ResourceInfo(
+                            descriptor,
+                            ResourceState.FAILED,
+                            refCount,
+                            now,
+                            "Resource path not found: " + path,
+                            path.toString(),
+                            null
+                    );
+                }
+                String checksum = checksum(path);
+                resourceChecksums.put(descriptor.id(), checksum);
+                return new ResourceInfo(
+                        descriptor,
+                        ResourceState.LOADED,
+                        refCount,
+                        now,
+                        null,
+                        path.toString(),
+                        checksum
+                );
+            } catch (IOException e) {
+                return new ResourceInfo(
+                        descriptor,
+                        ResourceState.FAILED,
+                        refCount,
+                        now,
+                        "Failed to read resource " + path + ": " + e.getMessage(),
+                        path.toString(),
+                        null
+                );
+            }
+        }
+
+        private ResourceInfo scanWithRetry(ResourceDescriptor descriptor, int refCount, int maxRetries) {
+            ResourceInfo result = scanResource(descriptor, refCount);
+            int attempts = Math.max(0, maxRetries);
+            int retryIndex = 0;
+            while (attempts > 0 && result.state() == ResourceState.FAILED) {
+                attempts--;
+                retryIndex++;
+                try {
+                    Thread.sleep(Math.min(250L, 50L * retryIndex));
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return result;
+                }
+                result = scanResource(descriptor, refCount);
+            }
+            return result;
+        }
+
+        private String checksumOf(ResourceInfo info) {
+            return info.lastChecksum();
+        }
+
+        private String checksum(Path path) throws IOException {
+            byte[] bytes = Files.readAllBytes(path);
+            try {
+                MessageDigest digest = MessageDigest.getInstance("SHA-256");
+                return HexFormat.of().formatHex(digest.digest(bytes));
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("SHA-256 not available", e);
+            }
+        }
+
+        private Path resolveResourcePath(String sourcePath) {
+            Path raw = Path.of(sourcePath);
+            if (raw.isAbsolute()) {
+                return raw.normalize();
+            }
+            return assetRoot.resolve(raw).normalize();
+        }
+
+        private void enforceCacheEviction() {
+            if (resourceCache.size() <= resourceCacheMaxEntries) {
+                return;
+            }
+            List<ResourceInfo> evictable = resourceCache.values().stream()
+                    .filter(info -> info.refCount() == 0)
+                    .sorted(Comparator.comparingLong(ResourceInfo::lastLoadedEpochMs))
+                    .toList();
+            int toEvict = resourceCache.size() - resourceCacheMaxEntries;
+            for (int i = 0; i < toEvict && i < evictable.size(); i++) {
+                ResourceId id = evictable.get(i).descriptor().id();
+                resourceCache.remove(id);
+                resourceChecksums.remove(id);
+                evictions++;
+                log(LogLevel.DEBUG, "SCENE", "Evicted cached resource " + id.value());
+            }
         }
     }
 }

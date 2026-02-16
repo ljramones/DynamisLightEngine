@@ -7,6 +7,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.dynamislight.api.EngineInput;
 import org.dynamislight.api.KeyCode;
+import org.dynamislight.bridge.dynamisfx.model.FxInputSnapshot;
 
 public final class InputMapper {
     private static final Map<String, KeyCode> KEY_MATRIX = defaultKeyMatrix();
@@ -86,6 +87,19 @@ public final class InputMapper {
                 input.mouseDeltaX() * sensitivity,
                 input.mouseDeltaY() * sensitivity,
                 input.scrollDelta()
+        );
+    }
+
+    public EngineInput mapInput(FxInputSnapshot snapshot) {
+        return mapInput(
+                snapshot.keysDown(),
+                snapshot.mouseX(),
+                snapshot.mouseY(),
+                snapshot.mouseDeltaX(),
+                snapshot.mouseDeltaY(),
+                snapshot.mouseLeft(),
+                snapshot.mouseRight(),
+                snapshot.scrollDelta()
         );
     }
 

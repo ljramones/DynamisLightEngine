@@ -28,6 +28,13 @@ public interface EngineRuntime extends AutoCloseable {
 
     EngineCapabilities getCapabilities();
 
+    /**
+     * Returns runtime resource service for cache/ownership/hot-reload workflows.
+     */
+    default EngineResourceService resources() {
+        throw new UnsupportedOperationException("Resource service is not available for this runtime");
+    }
+
     void shutdown();
 
     @Override

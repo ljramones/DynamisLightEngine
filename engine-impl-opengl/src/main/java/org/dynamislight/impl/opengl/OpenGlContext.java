@@ -14,6 +14,7 @@ import static org.lwjgl.opengl.GL15.glBindBuffer;
 import static org.lwjgl.opengl.GL15.glBufferData;
 import static org.lwjgl.opengl.GL15.glDeleteBuffers;
 import static org.lwjgl.opengl.GL15.glGenBuffers;
+import static org.lwjgl.opengl.GL15.glGetQueryObjecti;
 import static org.lwjgl.opengl.GL20.GL_COMPILE_STATUS;
 import static org.lwjgl.opengl.GL20.GL_FRAGMENT_SHADER;
 import static org.lwjgl.opengl.GL20.GL_LINK_STATUS;
@@ -29,13 +30,25 @@ import static org.lwjgl.opengl.GL20.glGetProgramInfoLog;
 import static org.lwjgl.opengl.GL20.glGetProgrami;
 import static org.lwjgl.opengl.GL20.glGetShaderInfoLog;
 import static org.lwjgl.opengl.GL20.glGetShaderi;
+import static org.lwjgl.opengl.GL20.glGetUniformLocation;
 import static org.lwjgl.opengl.GL20.glLinkProgram;
 import static org.lwjgl.opengl.GL20.glShaderSource;
+import static org.lwjgl.opengl.GL20.glUniform1f;
+import static org.lwjgl.opengl.GL20.glUniform1i;
+import static org.lwjgl.opengl.GL20.glUniform3f;
 import static org.lwjgl.opengl.GL20.glUseProgram;
 import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
 import static org.lwjgl.opengl.GL30.glBindVertexArray;
 import static org.lwjgl.opengl.GL30.glDeleteVertexArrays;
 import static org.lwjgl.opengl.GL30.glGenVertexArrays;
+import static org.lwjgl.opengl.GL33.GL_TIME_ELAPSED;
+import static org.lwjgl.opengl.GL33.glBeginQuery;
+import static org.lwjgl.opengl.GL33.glDeleteQueries;
+import static org.lwjgl.opengl.GL33.glEndQuery;
+import static org.lwjgl.opengl.GL33.glGenQueries;
+import static org.lwjgl.opengl.GL33.glGetQueryObjecti64;
+import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT;
+import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT_AVAILABLE;
 
 import org.dynamislight.api.EngineErrorCode;
 import org.dynamislight.api.EngineException;
@@ -49,8 +62,10 @@ final class OpenGlContext {
             layout (location = 0) in vec2 aPos;
             layout (location = 1) in vec3 aColor;
             out vec3 vColor;
+            out float vHeight;
             void main() {
                 vColor = aColor;
+                vHeight = aPos.y;
                 gl_Position = vec4(aPos, 0.0, 1.0);
             }
             """;
@@ -58,9 +73,31 @@ final class OpenGlContext {
     private static final String FRAGMENT_SHADER = """
             #version 330 core
             in vec3 vColor;
+            in float vHeight;
+            uniform int uFogEnabled;
+            uniform vec3 uFogColor;
+            uniform float uFogDensity;
+            uniform int uFogSteps;
+            uniform int uSmokeEnabled;
+            uniform vec3 uSmokeColor;
+            uniform float uSmokeIntensity;
             out vec4 FragColor;
             void main() {
-                FragColor = vec4(vColor, 1.0);
+                vec3 color = vColor;
+                if (uFogEnabled == 1) {
+                    float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
+                    float fogFactor = clamp(exp(-uFogDensity * (1.0 - normalizedHeight)), 0.0, 1.0);
+                    if (uFogSteps > 0) {
+                        fogFactor = floor(fogFactor * float(uFogSteps)) / float(uFogSteps);
+                    }
+                    color = mix(uFogColor, color, fogFactor);
+                }
+                if (uSmokeEnabled == 1) {
+                    float radial = clamp(1.0 - length(gl_FragCoord.xy / vec2(1920.0, 1080.0) - vec2(0.5)), 0.0, 1.0);
+                    float smokeFactor = clamp(uSmokeIntensity * (0.35 + radial * 0.65), 0.0, 0.85);
+                    color = mix(color, uSmokeColor, smokeFactor);
+                }
+                FragColor = vec4(color, 1.0);
             }
             """;
 
@@ -70,8 +107,29 @@ final class OpenGlContext {
     private int programId;
     private int vaoId;
     private int vboId;
+    private int fogEnabledLocation;
+    private int fogColorLocation;
+    private int fogDensityLocation;
+    private int fogStepsLocation;
+    private int smokeEnabledLocation;
+    private int smokeColorLocation;
+    private int smokeIntensityLocation;
+    private boolean fogEnabled;
+    private float fogR = 0.5f;
+    private float fogG = 0.5f;
+    private float fogB = 0.5f;
+    private float fogDensity;
+    private int fogSteps;
+    private boolean smokeEnabled;
+    private float smokeR = 0.6f;
+    private float smokeG = 0.6f;
+    private float smokeB = 0.6f;
+    private float smokeIntensity;
+    private boolean gpuTimerQuerySupported;
+    private int gpuTimeQueryId;
+    private double lastGpuFrameMs;
 
-    void initialize(String appName, int width, int height, boolean vsyncEnabled) throws EngineException {
+    void initialize(String appName, int width, int height, boolean vsyncEnabled, boolean windowVisible) throws EngineException {
         GLFWErrorCallback.createPrint(System.err).set();
 
         if (!GLFW.glfwInit()) {
@@ -79,7 +137,7 @@ final class OpenGlContext {
         }
 
         GLFW.glfwDefaultWindowHints();
-        GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+        GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, windowVisible ? GLFW.GLFW_TRUE : GLFW.GLFW_FALSE);
         GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MAJOR, 3);
         GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3);
         GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE);
@@ -100,6 +158,7 @@ final class OpenGlContext {
         glViewport(0, 0, width, height);
 
         initializeTrianglePipeline();
+        initializeGpuQuerySupport();
     }
 
     void resize(int width, int height) {
@@ -115,21 +174,57 @@ final class OpenGlContext {
 
         long startNs = System.nanoTime();
 
+        beginFrame();
+        renderClearPass();
+        renderGeometryPass();
+        renderFogPass();
+        renderSmokePass();
+        endFrame();
+
+        double cpuMs = (System.nanoTime() - startNs) / 1_000_000.0;
+        return new OpenGlFrameMetrics(cpuMs, cpuMs, 2, 1, 1, 0);
+    }
+
+    void beginFrame() {
         glViewport(0, 0, width, height);
+        if (gpuTimerQuerySupported) {
+            glBeginQuery(GL_TIME_ELAPSED, gpuTimeQueryId);
+        }
+    }
+
+    void renderClearPass() {
         glClearColor(0.08f, 0.09f, 0.12f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    }
 
+    void renderGeometryPass() {
         glUseProgram(programId);
+        applyFogUniforms();
+        applySmokeUniforms();
         glBindVertexArray(vaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
         glBindVertexArray(0);
         glUseProgram(0);
+    }
 
+    void renderFogPass() {
+        // Fog is currently applied in the fragment shader during geometry pass.
+    }
+
+    void renderSmokePass() {
+        // Smoke is currently applied in the fragment shader during geometry pass.
+    }
+
+    void endFrame() {
+        if (gpuTimerQuerySupported) {
+            glEndQuery(GL_TIME_ELAPSED);
+            if (glGetQueryObjecti(gpuTimeQueryId, GL_QUERY_RESULT_AVAILABLE) == 1) {
+                long ns = glGetQueryObjecti64(gpuTimeQueryId, GL_QUERY_RESULT);
+                lastGpuFrameMs = ns / 1_000_000.0;
+            }
+        }
         GLFW.glfwSwapBuffers(window);
         GLFW.glfwPollEvents();
-
-        double cpuMs = (System.nanoTime() - startNs) / 1_000_000.0;
-        return new OpenGlFrameMetrics(cpuMs, cpuMs, 1, 1, 1, 0);
     }
 
     void shutdown() {
@@ -145,6 +240,10 @@ final class OpenGlContext {
             glDeleteProgram(programId);
             programId = 0;
         }
+        if (gpuTimeQueryId != 0) {
+            glDeleteQueries(gpuTimeQueryId);
+            gpuTimeQueryId = 0;
+        }
 
         if (window != 0) {
             GLFW.glfwDestroyWindow(window);
@@ -156,6 +255,27 @@ final class OpenGlContext {
         if (callback != null) {
             callback.free();
         }
+    }
+
+    void setFogParameters(boolean enabled, float r, float g, float b, float density, int steps) {
+        fogEnabled = enabled;
+        fogR = r;
+        fogG = g;
+        fogB = b;
+        fogDensity = Math.max(0f, density);
+        fogSteps = Math.max(0, steps);
+    }
+
+    void setSmokeParameters(boolean enabled, float r, float g, float b, float intensity) {
+        smokeEnabled = enabled;
+        smokeR = r;
+        smokeG = g;
+        smokeB = b;
+        smokeIntensity = Math.max(0f, Math.min(1f, intensity));
+    }
+
+    double lastGpuFrameMs() {
+        return lastGpuFrameMs;
     }
 
     private void initializeTrianglePipeline() throws EngineException {
@@ -176,6 +296,13 @@ final class OpenGlContext {
 
         glDeleteShader(vertexShaderId);
         glDeleteShader(fragmentShaderId);
+        fogEnabledLocation = glGetUniformLocation(programId, "uFogEnabled");
+        fogColorLocation = glGetUniformLocation(programId, "uFogColor");
+        fogDensityLocation = glGetUniformLocation(programId, "uFogDensity");
+        fogStepsLocation = glGetUniformLocation(programId, "uFogSteps");
+        smokeEnabledLocation = glGetUniformLocation(programId, "uSmokeEnabled");
+        smokeColorLocation = glGetUniformLocation(programId, "uSmokeColor");
+        smokeIntensityLocation = glGetUniformLocation(programId, "uSmokeIntensity");
 
         float[] vertices = {
                 // x, y, r, g, b
@@ -213,6 +340,27 @@ final class OpenGlContext {
         }
 
         return shaderId;
+    }
+
+    private void applyFogUniforms() {
+        glUniform1i(fogEnabledLocation, fogEnabled ? 1 : 0);
+        glUniform3f(fogColorLocation, fogR, fogG, fogB);
+        glUniform1f(fogDensityLocation, fogDensity);
+        glUniform1i(fogStepsLocation, fogSteps);
+    }
+
+    private void applySmokeUniforms() {
+        glUniform1i(smokeEnabledLocation, smokeEnabled ? 1 : 0);
+        glUniform3f(smokeColorLocation, smokeR, smokeG, smokeB);
+        glUniform1f(smokeIntensityLocation, smokeIntensity);
+    }
+
+    private void initializeGpuQuerySupport() {
+        var caps = GL.getCapabilities();
+        gpuTimerQuerySupported = caps.OpenGL33 || caps.GL_ARB_timer_query;
+        if (gpuTimerQuerySupported) {
+            gpuTimeQueryId = glGenQueries();
+        }
     }
 
     record OpenGlFrameMetrics(

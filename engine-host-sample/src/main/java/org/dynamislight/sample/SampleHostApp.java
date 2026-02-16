@@ -44,6 +44,7 @@ public final class SampleHostApp {
 
     public static void main(String[] args) throws Exception {
         String backendId = args.length > 0 ? args[0] : "opengl";
+        boolean resourceProbe = java.util.Arrays.asList(args).contains("--resources");
         EngineBackendProvider provider = resolveProvider(backendId);
         EngineConfig config = defaultConfig(backendId);
         SceneDescriptor scene = defaultScene();
@@ -53,6 +54,14 @@ public final class SampleHostApp {
         try (var runtime = provider.createRuntime()) {
             runtime.initialize(config, new ConsoleCallbacks());
             runtime.loadScene(scene);
+            if (resourceProbe) {
+                printResources(runtime.resources().loadedResources(), "loaded");
+                if (!runtime.resources().loadedResources().isEmpty()) {
+                    var first = runtime.resources().loadedResources().getFirst();
+                    var reloaded = runtime.resources().reload(first.descriptor().id());
+                    System.out.println("reloaded=" + reloaded.descriptor().id().value() + " checksum=" + reloaded.lastChecksum());
+                }
+            }
 
             for (int i = 0; i < 3; i++) {
                 EngineFrameResult updateResult = runtime.update(1.0 / 60.0, emptyInput());
@@ -68,6 +77,18 @@ public final class SampleHostApp {
 
             runtime.shutdown();
             System.out.println("Shutdown complete.");
+        }
+    }
+
+    private static void printResources(List<org.dynamislight.api.ResourceInfo> resources, String label) {
+        System.out.println("resources(" + label + ") count=" + resources.size());
+        for (var info : resources) {
+            System.out.printf("  id=%s state=%s ref=%d path=%s checksum=%s%n",
+                    info.descriptor().id().value(),
+                    info.state(),
+                    info.refCount(),
+                    info.resolvedPath(),
+                    info.lastChecksum());
         }
     }
 
