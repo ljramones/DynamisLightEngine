@@ -50,9 +50,10 @@ final class VulkanMeshAssetLoader {
     private VulkanGltfMeshParser.MeshGeometry triangleGeometry() {
         return new VulkanGltfMeshParser.MeshGeometry(
                 new float[]{
-                        0.0f, -0.6f, 0.0f,
-                        0.6f, 0.6f, 0.0f,
-                        -0.6f, 0.6f, 0.0f
+                        // pos                 // normal      // uv      // tangent
+                        0.0f, -0.6f, 0.0f,     0f, 0f, 1f,    0.5f, 0.0f, 1f, 0f, 0f,
+                        0.6f, 0.6f, 0.0f,      0f, 0f, 1f,    1.0f, 1.0f, 1f, 0f, 0f,
+                        -0.6f, 0.6f, 0.0f,     0f, 0f, 1f,    0.0f, 1.0f, 1f, 0f, 0f
                 },
                 new int[]{0, 1, 2}
         );
@@ -61,10 +62,10 @@ final class VulkanMeshAssetLoader {
     private VulkanGltfMeshParser.MeshGeometry quadGeometry() {
         return new VulkanGltfMeshParser.MeshGeometry(
                 new float[]{
-                        -0.6f, -0.6f, 0.0f,
-                        0.6f, -0.6f, 0.0f,
-                        0.6f, 0.6f, 0.0f,
-                        -0.6f, 0.6f, 0.0f
+                        -0.6f, -0.6f, 0.0f,    0f, 0f, 1f,    0f, 0f,    1f, 0f, 0f,
+                        0.6f, -0.6f, 0.0f,     0f, 0f, 1f,    1f, 0f,    1f, 0f, 0f,
+                        0.6f, 0.6f, 0.0f,      0f, 0f, 1f,    1f, 1f,    1f, 0f, 0f,
+                        -0.6f, 0.6f, 0.0f,     0f, 0f, 1f,    0f, 1f,    1f, 0f, 0f
                 },
                 new int[]{0, 1, 2, 2, 3, 0}
         );

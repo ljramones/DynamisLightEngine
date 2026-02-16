@@ -36,6 +36,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private VulkanMeshAssetLoader meshLoader = new VulkanMeshAssetLoader(assetRoot);
     private int viewportWidth = 1280;
     private int viewportHeight = 720;
+    private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
+    private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
 
     public VulkanEngineRuntime() {
         super(
@@ -82,6 +84,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         LightingConfig lighting = mapLighting(scene == null ? null : scene.lights());
         FogRenderConfig fog = mapFog(scene == null ? null : scene.fog(), qualityTier);
         SmokeRenderConfig smoke = mapSmoke(scene == null ? null : scene.smokeEmitters(), qualityTier);
+        currentFog = fog;
+        currentSmoke = smoke;
         List<VulkanContext.SceneMeshData> sceneMeshes = buildSceneMeshes(scene);
         plannedDrawCalls = sceneMeshes.size();
         plannedTriangles = sceneMeshes.stream().mapToLong(m -> m.indices().length / 3).sum();
@@ -144,6 +148,24 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return java.util.List.of(new EngineWarning("FEATURE_BASELINE", "Vulkan backend active with baseline indexed render path"));
     }
 
+    @Override
+    protected java.util.List<EngineWarning> frameWarnings() {
+        java.util.List<EngineWarning> warnings = new java.util.ArrayList<>();
+        if (currentSmoke.enabled() && currentSmoke.degraded()) {
+            warnings.add(new EngineWarning(
+                    "SMOKE_QUALITY_DEGRADED",
+                    "Smoke rendering quality reduced for tier " + qualityTier + " to maintain performance"
+            ));
+        }
+        if (currentFog.enabled() && currentFog.degraded()) {
+            warnings.add(new EngineWarning(
+                    "FOG_QUALITY_DEGRADED",
+                    "Fog sampling reduced at LOW quality tier"
+            ));
+        }
+        return warnings;
+    }
+
     private List<VulkanContext.SceneMeshData> buildSceneMeshes(SceneDescriptor scene) {
         if (scene == null || scene.meshes() == null || scene.meshes().isEmpty()) {
             return List.of(VulkanContext.SceneMeshData.defaultTriangle());
@@ -163,12 +185,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             VulkanGltfMeshParser.MeshGeometry geometry = meshLoader.loadMeshGeometry(mesh, i);
             MaterialDesc material = materials.get(mesh.materialId());
-            float[] color = materialToColor(material);
+            VulkanMaterialTextureSignal textureSignal = VulkanMaterialTextureSignal.fromMaterialTextures(
+                    assetRoot,
+                    material == null ? null : material.albedoTexturePath(),
+                    material == null ? null : material.normalTexturePath()
+            );
+            float[] color = materialToColor(material, textureSignal.albedoTint());
             float metallic = material == null ? 0.0f : clamp01(material.metallic());
-            float roughness = material == null ? 0.6f : clamp01(material.roughness());
+            float roughness = material == null ? 0.6f : clamp01(material.roughness() / textureSignal.normalStrength());
             float[] model = modelMatrixOf(transforms.get(mesh.transformId()), i);
             VulkanContext.SceneMeshData meshData = new VulkanContext.SceneMeshData(
-                    geometry.positions(),
+                    geometry.vertices(),
                     geometry.indices(),
                     model,
                     color,
@@ -180,15 +207,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return out.isEmpty() ? List.of(VulkanContext.SceneMeshData.defaultTriangle()) : List.copyOf(out);
     }
 
-    private static float[] materialToColor(MaterialDesc material) {
+    private static float[] materialToColor(MaterialDesc material, float[] textureTint) {
         Vec3 albedo = material == null ? null : material.albedo();
         if (albedo == null) {
-            return new float[]{1f, 1f, 1f, 1f};
+            return new float[]{
+                    clamp01(textureTint[0]),
+                    clamp01(textureTint[1]),
+                    clamp01(textureTint[2]),
+                    1f
+            };
         }
         return new float[]{
-                clamp01(albedo.x()),
-                clamp01(albedo.y()),
-                clamp01(albedo.z()),
+                clamp01(albedo.x() * textureTint[0]),
+                clamp01(albedo.y() * textureTint[1]),
+                clamp01(albedo.z() * textureTint[2]),
                 1f
         };
     }
@@ -197,10 +229,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return Math.max(0f, Math.min(1f, v));
     }
 
-    private record FogRenderConfig(boolean enabled, float r, float g, float b, float density, int steps) {
+    private record FogRenderConfig(boolean enabled, float r, float g, float b, float density, int steps, boolean degraded) {
     }
 
-    private record SmokeRenderConfig(boolean enabled, float r, float g, float b, float intensity) {
+    private record SmokeRenderConfig(boolean enabled, float r, float g, float b, float intensity, boolean degraded) {
     }
 
     private record CameraMatrices(float[] view, float[] proj) {
@@ -295,7 +327,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
         if (fogDesc == null || !fogDesc.enabled() || fogDesc.mode() == FogMode.NONE) {
-            return new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
+            return new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
         }
         float tierDensityScale = switch (qualityTier) {
             case LOW -> 0.55f;
@@ -316,13 +348,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 fogDesc.color() == null ? 0.5f : fogDesc.color().y(),
                 fogDesc.color() == null ? 0.5f : fogDesc.color().z(),
                 density,
-                tierSteps
+                tierSteps,
+                qualityTier == QualityTier.LOW
         );
     }
 
     private static SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
         if (emitters == null || emitters.isEmpty()) {
-            return new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f);
+            return new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
         }
         int enabledCount = 0;
         float densityAccum = 0f;
@@ -340,7 +373,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             b += emitter.albedo() == null ? 0.6f : emitter.albedo().z();
         }
         if (enabledCount == 0) {
-            return new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f);
+            return new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
         }
         float avgR = r / enabledCount;
         float avgG = g / enabledCount;
@@ -352,7 +385,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             case HIGH -> 0.9f;
             case ULTRA -> 1.0f;
         };
-        return new SmokeRenderConfig(true, avgR, avgG, avgB, Math.min(0.85f, baseIntensity * tierScale));
+        return new SmokeRenderConfig(true, avgR, avgG, avgB, Math.min(0.85f, baseIntensity * tierScale),
+                qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM);
     }
 
     private static float[] modelMatrixOf(TransformDesc transform, int meshIndex) {

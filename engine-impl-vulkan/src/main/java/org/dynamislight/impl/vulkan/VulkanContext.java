@@ -71,6 +71,8 @@ import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_B_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_G_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_R_BIT;
 import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
 import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -101,6 +103,7 @@ import static org.lwjgl.vulkan.VK10.VK_SHADER_STAGE_FRAGMENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_SHADER_STAGE_VERTEX_BIT;
 import static org.lwjgl.vulkan.VK10.VK_SHARING_MODE_EXCLUSIVE;
 import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_APPLICATION_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -146,6 +149,7 @@ import static org.lwjgl.vulkan.VK10.vkCmdBindDescriptorSets;
 import static org.lwjgl.vulkan.VK10.vkCmdBindIndexBuffer;
 import static org.lwjgl.vulkan.VK10.vkCmdBindPipeline;
 import static org.lwjgl.vulkan.VK10.vkCmdBindVertexBuffers;
+import static org.lwjgl.vulkan.VK10.vkCmdCopyBuffer;
 import static org.lwjgl.vulkan.VK10.vkCmdDraw;
 import static org.lwjgl.vulkan.VK10.vkCmdDrawIndexed;
 import static org.lwjgl.vulkan.VK10.vkCmdEndRenderPass;
@@ -179,6 +183,7 @@ import static org.lwjgl.vulkan.VK10.vkDestroySemaphore;
 import static org.lwjgl.vulkan.VK10.vkDestroyShaderModule;
 import static org.lwjgl.vulkan.VK10.vkDeviceWaitIdle;
 import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
+import static org.lwjgl.vulkan.VK10.vkFreeCommandBuffers;
 import static org.lwjgl.vulkan.VK10.vkEnumeratePhysicalDevices;
 import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
 import static org.lwjgl.vulkan.VK10.vkGetBufferMemoryRequirements;
@@ -187,6 +192,7 @@ import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceQueueFamilyProperties;
 import static org.lwjgl.vulkan.VK10.vkBindBufferMemory;
 import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkQueueSubmit;
+import static org.lwjgl.vulkan.VK10.vkQueueWaitIdle;
 import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 import static org.lwjgl.vulkan.VK10.vkUpdateDescriptorSets;
 import static org.lwjgl.vulkan.VK10.vkResetCommandBuffer;
@@ -213,6 +219,7 @@ import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkDeviceCreateInfo;
 import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
 import org.lwjgl.vulkan.VkBufferCreateInfo;
+import org.lwjgl.vulkan.VkBufferCopy;
 import org.lwjgl.vulkan.VkDescriptorBufferInfo;
 import org.lwjgl.vulkan.VkDescriptorPoolCreateInfo;
 import org.lwjgl.vulkan.VkDescriptorPoolSize;
@@ -258,6 +265,9 @@ import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
 import org.lwjgl.vulkan.VkViewport;
 
 final class VulkanContext {
+    private static final int VERTEX_STRIDE_FLOATS = 11;
+    private static final int VERTEX_STRIDE_BYTES = VERTEX_STRIDE_FLOATS * Float.BYTES;
+    private static final int MAX_FRAMES_IN_FLIGHT = 2;
     private static final int GLOBAL_UNIFORM_BYTES = 352;
     private VkInstance instance;
     private VkPhysicalDevice physicalDevice;
@@ -282,10 +292,11 @@ final class VulkanContext {
     private long globalUniformMemory = VK_NULL_HANDLE;
     private long[] framebuffers = new long[0];
     private long commandPool = VK_NULL_HANDLE;
-    private VkCommandBuffer commandBuffer;
-    private long imageAvailableSemaphore = VK_NULL_HANDLE;
-    private long renderFinishedSemaphore = VK_NULL_HANDLE;
-    private long renderFence = VK_NULL_HANDLE;
+    private VkCommandBuffer[] commandBuffers = new VkCommandBuffer[0];
+    private long[] imageAvailableSemaphores = new long[0];
+    private long[] renderFinishedSemaphores = new long[0];
+    private long[] renderFences = new long[0];
+    private int currentFrame;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
@@ -337,12 +348,14 @@ final class VulkanContext {
 
     VulkanFrameMetrics renderFrame() throws EngineException {
         long start = System.nanoTime();
-        if (device != null && graphicsQueue != null && commandBuffer != null && swapchain != VK_NULL_HANDLE) {
+        if (device != null && graphicsQueue != null && commandBuffers.length > 0 && swapchain != VK_NULL_HANDLE) {
             try (MemoryStack stack = stackPush()) {
-                int acquireResult = acquireNextImage(stack);
+                int frameIdx = currentFrame % commandBuffers.length;
+                int acquireResult = acquireNextImage(stack, frameIdx);
                 if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR || acquireResult == VK_SUBOPTIMAL_KHR) {
                     recreateSwapchainFromWindow();
                 }
+                currentFrame = (currentFrame + 1) % Math.max(1, commandBuffers.length);
             }
         }
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
@@ -438,20 +451,28 @@ final class VulkanContext {
             vkDeviceWaitIdle(device);
         }
 
-        if (renderFence != VK_NULL_HANDLE && device != null) {
-            vkDestroyFence(device, renderFence, null);
-            renderFence = VK_NULL_HANDLE;
+        if (device != null) {
+            for (long fence : renderFences) {
+                if (fence != VK_NULL_HANDLE) {
+                    vkDestroyFence(device, fence, null);
+                }
+            }
+            for (long sem : renderFinishedSemaphores) {
+                if (sem != VK_NULL_HANDLE) {
+                    vkDestroySemaphore(device, sem, null);
+                }
+            }
+            for (long sem : imageAvailableSemaphores) {
+                if (sem != VK_NULL_HANDLE) {
+                    vkDestroySemaphore(device, sem, null);
+                }
+            }
         }
-        if (renderFinishedSemaphore != VK_NULL_HANDLE && device != null) {
-            vkDestroySemaphore(device, renderFinishedSemaphore, null);
-            renderFinishedSemaphore = VK_NULL_HANDLE;
-        }
-        if (imageAvailableSemaphore != VK_NULL_HANDLE && device != null) {
-            vkDestroySemaphore(device, imageAvailableSemaphore, null);
-            imageAvailableSemaphore = VK_NULL_HANDLE;
-        }
+        renderFences = new long[0];
+        renderFinishedSemaphores = new long[0];
+        imageAvailableSemaphores = new long[0];
 
-        commandBuffer = null;
+        commandBuffers = new VkCommandBuffer[0];
         destroySceneMeshes();
         if (commandPool != VK_NULL_HANDLE && device != null) {
             vkDestroyCommandPool(device, commandPool, null);
@@ -889,9 +910,13 @@ final class VulkanContext {
         String vertexShaderSource = """
                 #version 450
                 layout(location = 0) in vec3 inPos;
+                layout(location = 1) in vec3 inNormal;
+                layout(location = 2) in vec2 inUv;
+                layout(location = 3) in vec3 inTangent;
                 layout(location = 0) out vec3 vWorldPos;
                 layout(location = 1) out vec3 vNormal;
                 layout(location = 2) out float vHeight;
+                layout(location = 3) out vec2 vUv;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -911,7 +936,11 @@ final class VulkanContext {
                     vec4 world = ubo.uModel * vec4(inPos, 1.0);
                     vWorldPos = world.xyz;
                     vHeight = world.y;
-                    vNormal = normalize(mat3(ubo.uModel) * vec3(0.0, 0.0, 1.0));
+                    vec3 tangent = normalize(mat3(ubo.uModel) * inTangent);
+                    vec3 normal = normalize(mat3(ubo.uModel) * inNormal);
+                    normal = normalize(mix(normal, tangent, 0.08));
+                    vNormal = normal;
+                    vUv = inUv;
                     gl_Position = ubo.uProj * ubo.uView * world;
                 }
                 """;
@@ -920,6 +949,7 @@ final class VulkanContext {
                 layout(location = 0) in vec3 vWorldPos;
                 layout(location = 1) in vec3 vNormal;
                 layout(location = 2) in float vHeight;
+                layout(location = 3) in vec2 vUv;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -962,6 +992,7 @@ final class VulkanContext {
                     float spec = pow(max(dot(n, halfVec), 0.0), specPow) * mix(0.08, 0.9, metallic);
 
                     vec3 color = ambient + diffuse + pointLit + vec3(spec);
+                    color *= (0.92 + 0.08 * vec3(vUv, 1.0));
                     if (ubo.uFog.x > 0.5) {
                         float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
                         float fogFactor = clamp(exp(-ubo.uFog.y * (1.0 - normalizedHeight)), 0.0, 1.0);
@@ -1003,14 +1034,29 @@ final class VulkanContext {
             var bindingDesc = org.lwjgl.vulkan.VkVertexInputBindingDescription.calloc(1, stack);
             bindingDesc.get(0)
                     .binding(0)
-                    .stride(3 * Float.BYTES)
+                    .stride(VERTEX_STRIDE_BYTES)
                     .inputRate(VK10.VK_VERTEX_INPUT_RATE_VERTEX);
-            var attrDesc = org.lwjgl.vulkan.VkVertexInputAttributeDescription.calloc(1, stack);
+            var attrDesc = org.lwjgl.vulkan.VkVertexInputAttributeDescription.calloc(4, stack);
             attrDesc.get(0)
                     .location(0)
                     .binding(0)
                     .format(VK10.VK_FORMAT_R32G32B32_SFLOAT)
                     .offset(0);
+            attrDesc.get(1)
+                    .location(1)
+                    .binding(0)
+                    .format(VK10.VK_FORMAT_R32G32B32_SFLOAT)
+                    .offset(3 * Float.BYTES);
+            attrDesc.get(2)
+                    .location(2)
+                    .binding(0)
+                    .format(VK10.VK_FORMAT_R32G32_SFLOAT)
+                    .offset(6 * Float.BYTES);
+            attrDesc.get(3)
+                    .location(3)
+                    .binding(0)
+                    .format(VK10.VK_FORMAT_R32G32B32_SFLOAT)
+                    .offset(8 * Float.BYTES);
 
             VkPipelineVertexInputStateCreateInfo vertexInput = VkPipelineVertexInputStateCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO)
@@ -1231,46 +1277,60 @@ final class VulkanContext {
                 .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
                 .commandPool(commandPool)
                 .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-                .commandBufferCount(1);
+                .commandBufferCount(MAX_FRAMES_IN_FLIGHT);
 
-        PointerBuffer pCommandBuffer = stack.mallocPointer(1);
+        PointerBuffer pCommandBuffer = stack.mallocPointer(MAX_FRAMES_IN_FLIGHT);
         int allocResult = vkAllocateCommandBuffers(device, allocInfo, pCommandBuffer);
         if (allocResult != VK_SUCCESS) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateCommandBuffers failed: " + allocResult, false);
         }
-        commandBuffer = new VkCommandBuffer(pCommandBuffer.get(0), device);
+        commandBuffers = new VkCommandBuffer[MAX_FRAMES_IN_FLIGHT];
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            commandBuffers[i] = new VkCommandBuffer(pCommandBuffer.get(i), device);
+        }
+        currentFrame = 0;
     }
 
     private void createSyncObjects(MemoryStack stack) throws EngineException {
         VkSemaphoreCreateInfo semaphoreInfo = VkSemaphoreCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
 
-        var pSemaphore = stack.longs(VK_NULL_HANDLE);
-        int semaphoreResult = vkCreateSemaphore(device, semaphoreInfo, null, pSemaphore);
-        if (semaphoreResult != VK_SUCCESS || pSemaphore.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateSemaphore(imageAvailable) failed: " + semaphoreResult, false);
-        }
-        imageAvailableSemaphore = pSemaphore.get(0);
+        imageAvailableSemaphores = new long[MAX_FRAMES_IN_FLIGHT];
+        renderFinishedSemaphores = new long[MAX_FRAMES_IN_FLIGHT];
+        renderFences = new long[MAX_FRAMES_IN_FLIGHT];
 
-        pSemaphore.put(0, VK_NULL_HANDLE);
-        semaphoreResult = vkCreateSemaphore(device, semaphoreInfo, null, pSemaphore);
-        if (semaphoreResult != VK_SUCCESS || pSemaphore.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateSemaphore(renderFinished) failed: " + semaphoreResult, false);
-        }
-        renderFinishedSemaphore = pSemaphore.get(0);
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            var pSemaphore = stack.longs(VK_NULL_HANDLE);
+            int semaphoreResult = vkCreateSemaphore(device, semaphoreInfo, null, pSemaphore);
+            if (semaphoreResult != VK_SUCCESS || pSemaphore.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateSemaphore(imageAvailable) failed: " + semaphoreResult, false);
+            }
+            imageAvailableSemaphores[i] = pSemaphore.get(0);
 
-        VkFenceCreateInfo fenceInfo = VkFenceCreateInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO)
-                .flags(VK_FENCE_CREATE_SIGNALED_BIT);
-        var pFence = stack.longs(VK_NULL_HANDLE);
-        int fenceResult = vkCreateFence(device, fenceInfo, null, pFence);
-        if (fenceResult != VK_SUCCESS || pFence.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateFence failed: " + fenceResult, false);
+            pSemaphore.put(0, VK_NULL_HANDLE);
+            semaphoreResult = vkCreateSemaphore(device, semaphoreInfo, null, pSemaphore);
+            if (semaphoreResult != VK_SUCCESS || pSemaphore.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateSemaphore(renderFinished) failed: " + semaphoreResult, false);
+            }
+            renderFinishedSemaphores[i] = pSemaphore.get(0);
+
+            VkFenceCreateInfo fenceInfo = VkFenceCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_FENCE_CREATE_INFO)
+                    .flags(VK_FENCE_CREATE_SIGNALED_BIT);
+            var pFence = stack.longs(VK_NULL_HANDLE);
+            int fenceResult = vkCreateFence(device, fenceInfo, null, pFence);
+            if (fenceResult != VK_SUCCESS || pFence.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateFence failed: " + fenceResult, false);
+            }
+            renderFences[i] = pFence.get(0);
         }
-        renderFence = pFence.get(0);
     }
 
-    private int acquireNextImage(MemoryStack stack) throws EngineException {
+    private int acquireNextImage(MemoryStack stack, int frameIdx) throws EngineException {
+        VkCommandBuffer commandBuffer = commandBuffers[frameIdx];
+        long imageAvailableSemaphore = imageAvailableSemaphores[frameIdx];
+        long renderFinishedSemaphore = renderFinishedSemaphores[frameIdx];
+        long renderFence = renderFences[frameIdx];
         var pImageIndex = stack.ints(0);
         int acquireResult = vkAcquireNextImageKHR(device, swapchain, Long.MAX_VALUE, imageAvailableSemaphore, VK_NULL_HANDLE, pImageIndex);
         if (acquireResult == VK_SUCCESS || acquireResult == VK_SUBOPTIMAL_KHR) {
@@ -1289,8 +1349,8 @@ final class VulkanContext {
                 throw vkFailure("vkResetCommandBuffer", resetCmdResult);
             }
 
-            recordCommandBuffer(stack, imageIndex);
-            return submitAndPresent(stack, imageIndex);
+            recordCommandBuffer(stack, commandBuffer, imageIndex, frameIdx);
+            return submitAndPresent(stack, commandBuffer, imageIndex, imageAvailableSemaphore, renderFinishedSemaphore, renderFence);
         }
         if (acquireResult != VK_ERROR_OUT_OF_DATE_KHR) {
             throw vkFailure("vkAcquireNextImageKHR", acquireResult);
@@ -1298,7 +1358,7 @@ final class VulkanContext {
         return acquireResult;
     }
 
-    private void recordCommandBuffer(MemoryStack stack, int imageIndex) throws EngineException {
+    private void recordCommandBuffer(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex, int frameIdx) throws EngineException {
         VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
                 .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -1350,7 +1410,14 @@ final class VulkanContext {
         }
     }
 
-    private int submitAndPresent(MemoryStack stack, int imageIndex) throws EngineException {
+    private int submitAndPresent(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            int imageIndex,
+            long imageAvailableSemaphore,
+            long renderFinishedSemaphore,
+            long renderFence
+    ) throws EngineException {
         VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
                 .pWaitSemaphores(stack.longs(imageAvailableSemaphore))
@@ -1458,21 +1525,16 @@ final class VulkanContext {
             ib.put(indices);
             indexData.limit(indices.length * Integer.BYTES);
 
-            BufferAlloc vertexAlloc = createBuffer(
+            BufferAlloc vertexAlloc = createDeviceLocalBufferWithStaging(
                     stack,
-                    vertexData.remaining(),
-                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                    vertexData,
+                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
             );
-            BufferAlloc indexAlloc = createBuffer(
+            BufferAlloc indexAlloc = createDeviceLocalBufferWithStaging(
                     stack,
-                    indexData.remaining(),
-                    VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                    indexData,
+                    VK_BUFFER_USAGE_INDEX_BUFFER_BIT
             );
-
-            uploadToMemory(vertexAlloc.memory, vertexData);
-            uploadToMemory(indexAlloc.memory, indexData);
 
             gpuMeshes.add(new GpuMesh(
                     vertexAlloc.buffer,
@@ -1587,6 +1649,80 @@ final class VulkanContext {
         return new BufferAlloc(buffer, memory);
     }
 
+    private BufferAlloc createDeviceLocalBufferWithStaging(MemoryStack stack, ByteBuffer source, int usage) throws EngineException {
+        int sizeBytes = source.remaining();
+        BufferAlloc staging = createBuffer(
+                stack,
+                sizeBytes,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+        BufferAlloc deviceLocal = createBuffer(
+                stack,
+                sizeBytes,
+                usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        );
+        try {
+            uploadToMemory(staging.memory, source);
+            copyBuffer(staging.buffer, deviceLocal.buffer, sizeBytes);
+            return deviceLocal;
+        } finally {
+            if (staging.buffer != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, staging.buffer, null);
+            }
+            if (staging.memory != VK_NULL_HANDLE) {
+                vkFreeMemory(device, staging.memory, null);
+            }
+        }
+    }
+
+    private void copyBuffer(long srcBuffer, long dstBuffer, int sizeBytes) throws EngineException {
+        try (MemoryStack stack = stackPush()) {
+            VkCommandBufferAllocateInfo allocInfo = VkCommandBufferAllocateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
+                    .commandPool(commandPool)
+                    .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
+                    .commandBufferCount(1);
+            PointerBuffer pCommandBuffer = stack.mallocPointer(1);
+            int allocResult = vkAllocateCommandBuffers(device, allocInfo, pCommandBuffer);
+            if (allocResult != VK_SUCCESS) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateCommandBuffers(copy) failed: " + allocResult, false);
+            }
+            VkCommandBuffer cmd = new VkCommandBuffer(pCommandBuffer.get(0), device);
+
+            VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
+                    .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+            int beginResult = vkBeginCommandBuffer(cmd, beginInfo);
+            if (beginResult != VK_SUCCESS) {
+                throw vkFailure("vkBeginCommandBuffer(copy)", beginResult);
+            }
+
+            VkBufferCopy.Buffer copyRegion = VkBufferCopy.calloc(1, stack);
+            copyRegion.get(0).srcOffset(0).dstOffset(0).size(sizeBytes);
+            vkCmdCopyBuffer(cmd, srcBuffer, dstBuffer, copyRegion);
+
+            int endResult = vkEndCommandBuffer(cmd);
+            if (endResult != VK_SUCCESS) {
+                throw vkFailure("vkEndCommandBuffer(copy)", endResult);
+            }
+
+            VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
+                    .pCommandBuffers(stack.pointers(cmd.address()));
+            int submitResult = vkQueueSubmit(graphicsQueue, submitInfo, VK_NULL_HANDLE);
+            if (submitResult != VK_SUCCESS) {
+                throw vkFailure("vkQueueSubmit(copy)", submitResult);
+            }
+            int waitResult = vkQueueWaitIdle(graphicsQueue);
+            if (waitResult != VK_SUCCESS) {
+                throw vkFailure("vkQueueWaitIdle(copy)", waitResult);
+            }
+            vkFreeCommandBuffers(device, commandPool, stack.pointers(cmd.address()));
+        }
+    }
+
     private void uploadToMemory(long memory, ByteBuffer source) throws EngineException {
         try (MemoryStack stack = stackPush()) {
             PointerBuffer pData = stack.mallocPointer(1);
@@ -1665,8 +1801,8 @@ final class VulkanContext {
 
     static record SceneMeshData(float[] vertices, int[] indices, float[] modelMatrix, float[] color, float metallic, float roughness) {
         SceneMeshData {
-            if (vertices == null || vertices.length < 9 || vertices.length % 3 != 0) {
-                throw new IllegalArgumentException("vertices must be xyz-packed and non-empty");
+            if (vertices == null || vertices.length < VERTEX_STRIDE_FLOATS * 3 || vertices.length % VERTEX_STRIDE_FLOATS != 0) {
+                throw new IllegalArgumentException("vertices must be interleaved as pos/normal/uv/tangent");
             }
             if (indices == null || indices.length < 3 || indices.length % 3 != 0) {
                 throw new IllegalArgumentException("indices must be non-empty triangles");
@@ -1687,9 +1823,9 @@ final class VulkanContext {
             float offsetX = (meshIndex % 2 == 0 ? -0.25f : 0.25f) * Math.min(meshIndex, 3);
             return new SceneMeshData(
                     new float[]{
-                            0.0f, -0.6f, 0.0f,
-                            0.6f, 0.6f, 0.0f,
-                            -0.6f, 0.6f, 0.0f
+                            0.0f, -0.6f, 0.0f,     0f, 0f, 1f,    0.5f, 0.0f,    1f, 0f, 0f,
+                            0.6f, 0.6f, 0.0f,      0f, 0f, 1f,    1.0f, 1.0f,    1f, 0f, 0f,
+                            -0.6f, 0.6f, 0.0f,     0f, 0f, 1f,    0.0f, 1.0f,    1f, 0f, 0f
                     },
                     new int[]{0, 1, 2},
                     new float[]{
@@ -1708,10 +1844,10 @@ final class VulkanContext {
             float offsetX = (meshIndex - 1) * 0.35f;
             return new SceneMeshData(
                     new float[]{
-                            -0.6f, -0.6f, 0.0f,
-                            0.6f, -0.6f, 0.0f,
-                            0.6f, 0.6f, 0.0f,
-                            -0.6f, 0.6f, 0.0f
+                            -0.6f, -0.6f, 0.0f,    0f, 0f, 1f,    0f, 0f,    1f, 0f, 0f,
+                            0.6f, -0.6f, 0.0f,     0f, 0f, 1f,    1f, 0f,    1f, 0f, 0f,
+                            0.6f, 0.6f, 0.0f,      0f, 0f, 1f,    1f, 1f,    1f, 0f, 0f,
+                            -0.6f, 0.6f, 0.0f,     0f, 0f, 1f,    0f, 1f,    1f, 0f, 0f
                     },
                     new int[]{0, 1, 2, 2, 3, 0},
                     new float[]{

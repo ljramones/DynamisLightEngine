@@ -84,6 +84,25 @@ class BackendParityIntegrationTest {
         assertResizeStability("vulkan");
     }
 
+    @Test
+    void qualityTierWarningsAreConsistentAcrossBackends() throws Exception {
+        SceneDescriptor scene = fogSmokeScene();
+
+        Set<String> openGlLow = renderWarningCodes("opengl", scene, QualityTier.LOW);
+        Set<String> vulkanLow = renderWarningCodes("vulkan", scene, QualityTier.LOW);
+        assertTrue(openGlLow.contains("FOG_QUALITY_DEGRADED"));
+        assertTrue(openGlLow.contains("SMOKE_QUALITY_DEGRADED"));
+        assertTrue(vulkanLow.contains("FOG_QUALITY_DEGRADED"));
+        assertTrue(vulkanLow.contains("SMOKE_QUALITY_DEGRADED"));
+
+        Set<String> openGlHigh = renderWarningCodes("opengl", scene, QualityTier.HIGH);
+        Set<String> vulkanHigh = renderWarningCodes("vulkan", scene, QualityTier.HIGH);
+        assertFalse(openGlHigh.contains("FOG_QUALITY_DEGRADED"));
+        assertFalse(openGlHigh.contains("SMOKE_QUALITY_DEGRADED"));
+        assertFalse(vulkanHigh.contains("FOG_QUALITY_DEGRADED"));
+        assertFalse(vulkanHigh.contains("SMOKE_QUALITY_DEGRADED"));
+    }
+
     private static void runParityLifecycle(String backendId) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
         RecordingCallbacks callbacks = new RecordingCallbacks();
@@ -167,7 +186,20 @@ class BackendParityIntegrationTest {
         }
     }
 
+    private static Set<String> renderWarningCodes(String backendId, SceneDescriptor scene, QualityTier qualityTier) throws Exception {
+        EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
+        try (var runtime = provider.createRuntime()) {
+            runtime.initialize(validConfig(backendId, qualityTier), new RecordingCallbacks());
+            runtime.loadScene(scene);
+            return runtime.render().warnings().stream().map(w -> w.code()).collect(Collectors.toSet());
+        }
+    }
+
     private static EngineConfig validConfig(String backendId) {
+        return validConfig(backendId, QualityTier.MEDIUM);
+    }
+
+    private static EngineConfig validConfig(String backendId, QualityTier qualityTier) {
         Map<String, String> options = "opengl".equalsIgnoreCase(backendId)
                 ? Map.of("opengl.mockContext", "true")
                 : Map.of();
@@ -180,7 +212,7 @@ class BackendParityIntegrationTest {
                 1.0f,
                 true,
                 60,
-                QualityTier.MEDIUM,
+                qualityTier,
                 Path.of(".."),
                 options
         );
@@ -233,6 +265,42 @@ class BackendParityIntegrationTest {
                 env,
                 fog,
                 List.of()
+        );
+    }
+
+    private static SceneDescriptor fogSmokeScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "meshes/quad.gltf");
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.1f, 0.6f, null, null);
+        LightDesc light = new LightDesc("light", new Vec3(0, 2, 1), new Vec3(1, 1, 1), 1.0f, 10f, false);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(true, FogMode.EXPONENTIAL, new Vec3(0.5f, 0.55f, 0.6f), 0.35f, 0f, 0f, 0f, 0f, 0f);
+        SmokeEmitterDesc smoke = new SmokeEmitterDesc(
+                "smoke",
+                new Vec3(0f, 0f, 0f),
+                new Vec3(1f, 1f, 1f),
+                10f,
+                0.8f,
+                new Vec3(0.65f, 0.65f, 0.68f),
+                0.1f,
+                new Vec3(0f, 0.1f, 0f),
+                0.2f,
+                2.0f,
+                true
+        );
+
+        return new SceneDescriptor(
+                "parity-fog-smoke-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(mat),
+                List.of(light),
+                env,
+                fog,
+                List.of(smoke)
         );
     }
 

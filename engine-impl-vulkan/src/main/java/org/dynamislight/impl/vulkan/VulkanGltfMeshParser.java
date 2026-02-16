@@ -133,45 +133,123 @@ final class VulkanGltfMeshParser {
         if (positionAccessor < 0) {
             return Optional.empty();
         }
-        float[] positions = readPositionAccessor(root, binary, positionAccessor);
+
+        float[] positions = readAccessorAsFloatArray(root, binary, positionAccessor, true);
         if (positions == null || positions.length < 9) {
             return Optional.empty();
         }
+
+        int vertexCount = positions.length / 3;
+
+        int normalAccessor = primitive.path("attributes").path("NORMAL").asInt(-1);
+        float[] normals = normalAccessor >= 0 ? readAccessorAsFloatArray(root, binary, normalAccessor, true) : null;
+
+        int uvAccessor = primitive.path("attributes").path("TEXCOORD_0").asInt(-1);
+        float[] uvs = uvAccessor >= 0 ? readAccessorAsFloatArray(root, binary, uvAccessor, false) : null;
+
+        int tangentAccessor = primitive.path("attributes").path("TANGENT").asInt(-1);
+        float[] tangents = tangentAccessor >= 0 ? readAccessorAsFloatArray(root, binary, tangentAccessor, true) : null;
 
         int indexAccessor = primitive.path("indices").asInt(-1);
         int[] indices = indexAccessor >= 0 ? readIndexAccessor(root, binary, indexAccessor) : null;
 
         if (mode == 5) {
-            indices = triangleStripToTriangles(indices, positions.length / 3);
+            indices = triangleStripToTriangles(indices, vertexCount);
         } else if (indices == null || indices.length == 0) {
-            indices = sequentialTriangles(positions.length / 3);
+            indices = sequentialTriangles(vertexCount);
         }
 
         if (indices.length < 3) {
             return Optional.empty();
         }
 
-        normalizePosition(positions);
-        return Optional.of(new MeshGeometry(positions, indices));
+        normalizePositions(positions);
+        float[] interleaved = interleaveVertexAttributes(vertexCount, positions, normals, uvs, tangents);
+        return Optional.of(new MeshGeometry(interleaved, indices));
     }
 
-    private float[] readPositionAccessor(JsonNode root, byte[] binary, int accessorIndex) {
+    private float[] interleaveVertexAttributes(
+            int vertexCount,
+            float[] positions,
+            float[] normals,
+            float[] uvs,
+            float[] tangents
+    ) {
+        float[] out = new float[vertexCount * 11];
+        for (int i = 0; i < vertexCount; i++) {
+            int outBase = i * 11;
+            int pBase = i * 3;
+            out[outBase] = positions[pBase];
+            out[outBase + 1] = positions[pBase + 1];
+            out[outBase + 2] = positions[pBase + 2];
+
+            float nx = 0f;
+            float ny = 0f;
+            float nz = 1f;
+            if (normals != null && normals.length >= pBase + 3) {
+                nx = normals[pBase];
+                ny = normals[pBase + 1];
+                nz = normals[pBase + 2];
+            }
+            out[outBase + 3] = nx;
+            out[outBase + 4] = ny;
+            out[outBase + 5] = nz;
+
+            int uvBase = i * 2;
+            float u = (positions[pBase] * 0.5f) + 0.5f;
+            float v = (positions[pBase + 1] * 0.5f) + 0.5f;
+            if (uvs != null && uvs.length >= uvBase + 2) {
+                u = uvs[uvBase];
+                v = uvs[uvBase + 1];
+            }
+            out[outBase + 6] = u;
+            out[outBase + 7] = v;
+
+            float tx = 1f;
+            float ty = 0f;
+            float tz = 0f;
+            if (tangents != null) {
+                int tangentStride = tangents.length / vertexCount;
+                int tBase = i * tangentStride;
+                if (tangents.length >= tBase + 3) {
+                    tx = tangents[tBase];
+                    ty = tangents[tBase + 1];
+                    tz = tangents[tBase + 2];
+                }
+            }
+            out[outBase + 8] = tx;
+            out[outBase + 9] = ty;
+            out[outBase + 10] = tz;
+        }
+        return out;
+    }
+
+    private float[] readAccessorAsFloatArray(JsonNode root, byte[] binary, int accessorIndex, boolean expectVec3OrVec4) {
         AccessorMeta meta = readAccessorMeta(root, accessorIndex);
-        if (meta == null || (meta.components != 2 && meta.components != 3) || binary.length == 0) {
+        if (meta == null || binary.length == 0) {
             return null;
         }
-        float[] out = new float[meta.count * 3];
+        if (expectVec3OrVec4) {
+            if (meta.components < 3 || meta.components > 4) {
+                return null;
+            }
+        } else if (meta.components != 2) {
+            return null;
+        }
+
+        int componentsOut = expectVec3OrVec4 ? 3 : 2;
+        float[] out = new float[meta.count * componentsOut];
         ByteBuffer bb = ByteBuffer.wrap(binary).order(ByteOrder.LITTLE_ENDIAN);
         for (int i = 0; i < meta.count; i++) {
             int base = meta.offset + i * meta.stride;
             if (base + meta.componentBytes * meta.components > binary.length) {
                 return null;
             }
-            out[i * 3] = readComponentAsFloat(bb, base, meta.componentType);
-            out[i * 3 + 1] = readComponentAsFloat(bb, base + meta.componentBytes, meta.componentType);
-            out[i * 3 + 2] = meta.components >= 3
-                    ? readComponentAsFloat(bb, base + 2 * meta.componentBytes, meta.componentType)
-                    : 0.0f;
+            out[i * componentsOut] = readComponentAsFloat(bb, base, meta.componentType);
+            out[i * componentsOut + 1] = readComponentAsFloat(bb, base + meta.componentBytes, meta.componentType);
+            if (componentsOut == 3) {
+                out[i * componentsOut + 2] = readComponentAsFloat(bb, base + 2 * meta.componentBytes, meta.componentType);
+            }
         }
         return out;
     }
@@ -310,23 +388,23 @@ final class VulkanGltfMeshParser {
         };
     }
 
-    private void normalizePosition(float[] positions) {
+    private void normalizePositions(float[] interleavedOrPositions) {
         float maxAbs = 0f;
-        for (int i = 0; i < positions.length; i += 3) {
-            maxAbs = Math.max(maxAbs, Math.abs(positions[i]));
-            maxAbs = Math.max(maxAbs, Math.abs(positions[i + 1]));
-            maxAbs = Math.max(maxAbs, Math.abs(positions[i + 2]));
+        for (int i = 0; i < interleavedOrPositions.length; i += 3) {
+            maxAbs = Math.max(maxAbs, Math.abs(interleavedOrPositions[i]));
+            maxAbs = Math.max(maxAbs, Math.abs(interleavedOrPositions[i + 1]));
+            maxAbs = Math.max(maxAbs, Math.abs(interleavedOrPositions[i + 2]));
         }
         if (maxAbs < 0.00001f) {
             return;
         }
         float scale = 0.8f / maxAbs;
-        for (int i = 0; i < positions.length; i++) {
-            positions[i] *= scale;
+        for (int i = 0; i < interleavedOrPositions.length; i++) {
+            interleavedOrPositions[i] *= scale;
         }
     }
 
-    record MeshGeometry(float[] positions, int[] indices) {
+    record MeshGeometry(float[] vertices, int[] indices) {
     }
 
     private record AccessorMeta(

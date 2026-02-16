@@ -18,7 +18,7 @@ class VulkanMeshAssetLoaderTest {
 
         VulkanGltfMeshParser.MeshGeometry data = loader.loadMeshGeometry(mesh, 0);
 
-        assertEquals(4, data.positions().length / 3);
+        assertEquals(4, data.vertices().length / 11);
         assertEquals(6, data.indices().length);
     }
 
@@ -65,7 +65,7 @@ class VulkanMeshAssetLoaderTest {
 
         VulkanGltfMeshParser.MeshGeometry data = loader.loadMeshGeometry(mesh, 0);
 
-        assertEquals(3, data.positions().length / 3);
+        assertEquals(3, data.vertices().length / 11);
         assertEquals(3, data.indices().length);
     }
 }
