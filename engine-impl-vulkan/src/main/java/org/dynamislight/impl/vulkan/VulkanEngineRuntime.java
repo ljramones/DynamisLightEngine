@@ -16,6 +16,7 @@ import org.dynamislight.impl.common.AbstractEngineRuntime;
 public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private final VulkanContext context = new VulkanContext();
     private boolean mockContext = true;
+    private boolean windowVisible;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
@@ -41,11 +42,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     @Override
     protected void onInitialize(EngineConfig config) throws EngineException {
         mockContext = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.mockContext", "true"));
+        windowVisible = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.windowVisible", "false"));
         if (Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.forceInitFailure", "false"))) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Forced Vulkan init failure", false);
         }
         if (!mockContext) {
-            context.initialize(config.appName());
+            context.initialize(config.appName(), config.initialWidthPx(), config.initialHeightPx(), windowVisible);
             context.setPlannedWorkload(plannedDrawCalls, plannedTriangles, plannedVisibleObjects);
         }
     }
