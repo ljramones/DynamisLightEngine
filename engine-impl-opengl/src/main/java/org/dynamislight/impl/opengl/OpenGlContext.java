@@ -2,12 +2,27 @@ package org.dynamislight.impl.opengl;
 
 import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
+import static org.lwjgl.opengl.GL11.GL_DEPTH_TEST;
 import static org.lwjgl.opengl.GL11.GL_FLOAT;
+import static org.lwjgl.opengl.GL11.GL_LINEAR;
+import static org.lwjgl.opengl.GL11.GL_RGBA;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_MAG_FILTER;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_MIN_FILTER;
 import static org.lwjgl.opengl.GL11.GL_TRIANGLES;
+import static org.lwjgl.opengl.GL11.GL_UNSIGNED_BYTE;
+import static org.lwjgl.opengl.GL11.glBindTexture;
 import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11.glClearColor;
+import static org.lwjgl.opengl.GL11.glDeleteTextures;
 import static org.lwjgl.opengl.GL11.glDrawArrays;
+import static org.lwjgl.opengl.GL11.glEnable;
+import static org.lwjgl.opengl.GL11.glGenTextures;
+import static org.lwjgl.opengl.GL11.glTexImage2D;
+import static org.lwjgl.opengl.GL11.glTexParameteri;
 import static org.lwjgl.opengl.GL11.glViewport;
+import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
+import static org.lwjgl.opengl.GL13.glActiveTexture;
 import static org.lwjgl.opengl.GL15.GL_ARRAY_BUFFER;
 import static org.lwjgl.opengl.GL15.GL_STATIC_DRAW;
 import static org.lwjgl.opengl.GL15.glBindBuffer;
@@ -36,22 +51,30 @@ import static org.lwjgl.opengl.GL20.glShaderSource;
 import static org.lwjgl.opengl.GL20.glUniform1f;
 import static org.lwjgl.opengl.GL20.glUniform1i;
 import static org.lwjgl.opengl.GL20.glUniform3f;
+import static org.lwjgl.opengl.GL20.glUniformMatrix4fv;
 import static org.lwjgl.opengl.GL20.glUseProgram;
 import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
 import static org.lwjgl.opengl.GL30.glBindVertexArray;
 import static org.lwjgl.opengl.GL30.glDeleteVertexArrays;
 import static org.lwjgl.opengl.GL30.glGenVertexArrays;
+import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT;
+import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT_AVAILABLE;
 import static org.lwjgl.opengl.GL33.GL_TIME_ELAPSED;
 import static org.lwjgl.opengl.GL33.glBeginQuery;
 import static org.lwjgl.opengl.GL33.glDeleteQueries;
 import static org.lwjgl.opengl.GL33.glEndQuery;
 import static org.lwjgl.opengl.GL33.glGenQueries;
 import static org.lwjgl.opengl.GL33.glGetQueryObjecti64;
-import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT;
-import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT_AVAILABLE;
 
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import javax.imageio.ImageIO;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.lwjgl.glfw.GLFW;
@@ -61,13 +84,27 @@ import org.lwjgl.opengl.GL;
 final class OpenGlContext {
     static record MeshGeometry(float[] vertices) {
         MeshGeometry {
-            if (vertices == null || vertices.length == 0 || vertices.length % 5 != 0) {
-                throw new IllegalArgumentException("Mesh vertices must be non-empty and packed as x,y,r,g,b");
+            if (vertices == null || vertices.length == 0 || vertices.length % 6 != 0) {
+                throw new IllegalArgumentException("Mesh vertices must be non-empty and packed as x,y,z,r,g,b");
             }
         }
 
         int vertexCount() {
-            return vertices.length / 5;
+            return vertices.length / 6;
+        }
+    }
+
+    static record SceneMesh(MeshGeometry geometry, float[] modelMatrix, float[] albedoColor, Path albedoTexturePath) {
+        SceneMesh {
+            if (geometry == null) {
+                throw new IllegalArgumentException("geometry is required");
+            }
+            if (modelMatrix == null || modelMatrix.length != 16) {
+                throw new IllegalArgumentException("modelMatrix must be 16 floats");
+            }
+            if (albedoColor == null || albedoColor.length != 3) {
+                throw new IllegalArgumentException("albedoColor must be 3 floats");
+            }
         }
     }
 
@@ -75,24 +112,36 @@ final class OpenGlContext {
         private final int vaoId;
         private final int vboId;
         private final int vertexCount;
+        private final float[] modelMatrix;
+        private final float[] albedoColor;
+        private final int textureId;
 
-        private MeshBuffer(int vaoId, int vboId, int vertexCount) {
+        private MeshBuffer(int vaoId, int vboId, int vertexCount, float[] modelMatrix, float[] albedoColor, int textureId) {
             this.vaoId = vaoId;
             this.vboId = vboId;
             this.vertexCount = vertexCount;
+            this.modelMatrix = modelMatrix;
+            this.albedoColor = albedoColor;
+            this.textureId = textureId;
         }
     }
 
     private static final String VERTEX_SHADER = """
             #version 330 core
-            layout (location = 0) in vec2 aPos;
+            layout (location = 0) in vec3 aPos;
             layout (location = 1) in vec3 aColor;
+            uniform mat4 uModel;
+            uniform mat4 uView;
+            uniform mat4 uProj;
             out vec3 vColor;
             out float vHeight;
+            out vec2 vUv;
             void main() {
+                vec4 world = uModel * vec4(aPos, 1.0);
                 vColor = aColor;
-                vHeight = aPos.y;
-                gl_Position = vec4(aPos, 0.0, 1.0);
+                vHeight = world.y;
+                vUv = aPos.xy * 0.5 + vec2(0.5);
+                gl_Position = uProj * uView * world;
             }
             """;
 
@@ -100,6 +149,10 @@ final class OpenGlContext {
             #version 330 core
             in vec3 vColor;
             in float vHeight;
+            in vec2 vUv;
+            uniform vec3 uMaterialAlbedo;
+            uniform int uUseAlbedoTexture;
+            uniform sampler2D uAlbedoTexture;
             uniform int uFogEnabled;
             uniform vec3 uFogColor;
             uniform float uFogDensity;
@@ -109,7 +162,11 @@ final class OpenGlContext {
             uniform float uSmokeIntensity;
             out vec4 FragColor;
             void main() {
-                vec3 color = vColor;
+                vec3 color = vColor * uMaterialAlbedo;
+                if (uUseAlbedoTexture == 1) {
+                    vec3 tex = texture(uAlbedoTexture, vUv).rgb;
+                    color *= tex;
+                }
                 if (uFogEnabled == 1) {
                     float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
                     float fogFactor = clamp(exp(-uFogDensity * (1.0 - normalizedHeight)), 0.0, 1.0);
@@ -132,6 +189,12 @@ final class OpenGlContext {
     private int height;
     private int programId;
     private final List<MeshBuffer> sceneMeshes = new ArrayList<>();
+    private int modelLocation;
+    private int viewLocation;
+    private int projLocation;
+    private int materialAlbedoLocation;
+    private int useAlbedoTextureLocation;
+    private int albedoTextureLocation;
     private int fogEnabledLocation;
     private int fogColorLocation;
     private int fogDensityLocation;
@@ -139,6 +202,8 @@ final class OpenGlContext {
     private int smokeEnabledLocation;
     private int smokeColorLocation;
     private int smokeIntensityLocation;
+    private float[] viewMatrix = identityMatrix();
+    private float[] projMatrix = identityMatrix();
     private boolean fogEnabled;
     private float fogR = 0.5f;
     private float fogG = 0.5f;
@@ -180,6 +245,7 @@ final class OpenGlContext {
         GLFW.glfwMakeContextCurrent(window);
         GLFW.glfwSwapInterval(vsyncEnabled ? 1 : 0);
         GL.createCapabilities();
+        glEnable(GL_DEPTH_TEST);
 
         this.width = width;
         this.height = height;
@@ -187,7 +253,7 @@ final class OpenGlContext {
 
         initializeShaderPipeline();
         initializeGpuQuerySupport();
-        setSceneMeshes(List.of(defaultTriangleGeometry()));
+        setSceneMeshes(List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, null)));
     }
 
     void resize(int width, int height) {
@@ -231,16 +297,28 @@ final class OpenGlContext {
         glUseProgram(programId);
         applyFogUniforms();
         applySmokeUniforms();
+        glUniformMatrix4fv(viewLocation, false, viewMatrix);
+        glUniformMatrix4fv(projLocation, false, projMatrix);
         lastDrawCalls = 0;
         lastTriangles = 0;
         lastVisibleObjects = sceneMeshes.size();
         for (MeshBuffer mesh : sceneMeshes) {
+            glUniformMatrix4fv(modelLocation, false, mesh.modelMatrix);
+            glUniform3f(materialAlbedoLocation, mesh.albedoColor[0], mesh.albedoColor[1], mesh.albedoColor[2]);
+            if (mesh.textureId != 0) {
+                glActiveTexture(GL_TEXTURE0);
+                glBindTexture(GL_TEXTURE_2D, mesh.textureId);
+                glUniform1i(useAlbedoTextureLocation, 1);
+            } else {
+                glUniform1i(useAlbedoTextureLocation, 0);
+            }
             glBindVertexArray(mesh.vaoId);
             glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
             lastDrawCalls++;
             lastTriangles += mesh.vertexCount / 3;
         }
         glBindVertexArray(0);
+        glBindTexture(GL_TEXTURE_2D, 0);
         glUseProgram(0);
     }
 
@@ -304,6 +382,15 @@ final class OpenGlContext {
         smokeIntensity = Math.max(0f, Math.min(1f, intensity));
     }
 
+    void setCameraMatrices(float[] view, float[] proj) {
+        if (view != null && view.length == 16) {
+            viewMatrix = view.clone();
+        }
+        if (proj != null && proj.length == 16) {
+            projMatrix = proj.clone();
+        }
+    }
+
     double lastGpuFrameMs() {
         return lastGpuFrameMs;
     }
@@ -320,10 +407,12 @@ final class OpenGlContext {
         return lastVisibleObjects;
     }
 
-    void setSceneMeshes(List<MeshGeometry> meshes) {
+    void setSceneMeshes(List<SceneMesh> meshes) {
         clearSceneMeshes();
-        List<MeshGeometry> effectiveMeshes = meshes == null || meshes.isEmpty() ? List.of(defaultTriangleGeometry()) : meshes;
-        for (MeshGeometry mesh : effectiveMeshes) {
+        List<SceneMesh> effectiveMeshes = meshes == null || meshes.isEmpty()
+                ? List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, null))
+                : meshes;
+        for (SceneMesh mesh : effectiveMeshes) {
             sceneMeshes.add(uploadMesh(mesh));
         }
     }
@@ -346,6 +435,12 @@ final class OpenGlContext {
 
         glDeleteShader(vertexShaderId);
         glDeleteShader(fragmentShaderId);
+        modelLocation = glGetUniformLocation(programId, "uModel");
+        viewLocation = glGetUniformLocation(programId, "uView");
+        projLocation = glGetUniformLocation(programId, "uProj");
+        materialAlbedoLocation = glGetUniformLocation(programId, "uMaterialAlbedo");
+        useAlbedoTextureLocation = glGetUniformLocation(programId, "uUseAlbedoTexture");
+        albedoTextureLocation = glGetUniformLocation(programId, "uAlbedoTexture");
         fogEnabledLocation = glGetUniformLocation(programId, "uFogEnabled");
         fogColorLocation = glGetUniformLocation(programId, "uFogColor");
         fogDensityLocation = glGetUniformLocation(programId, "uFogDensity");
@@ -353,29 +448,80 @@ final class OpenGlContext {
         smokeEnabledLocation = glGetUniformLocation(programId, "uSmokeEnabled");
         smokeColorLocation = glGetUniformLocation(programId, "uSmokeColor");
         smokeIntensityLocation = glGetUniformLocation(programId, "uSmokeIntensity");
+
+        glUseProgram(programId);
+        glUniform1i(albedoTextureLocation, 0);
+        glUseProgram(0);
     }
 
-    private MeshBuffer uploadMesh(MeshGeometry geometry) {
+    private MeshBuffer uploadMesh(SceneMesh mesh) {
         int vaoId = glGenVertexArrays();
         int vboId = glGenBuffers();
 
         glBindVertexArray(vaoId);
         glBindBuffer(GL_ARRAY_BUFFER, vboId);
-        glBufferData(GL_ARRAY_BUFFER, geometry.vertices(), GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, mesh.geometry().vertices(), GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 2, GL_FLOAT, false, 5 * Float.BYTES, 0L);
+        glVertexAttribPointer(0, 3, GL_FLOAT, false, 6 * Float.BYTES, 0L);
         glEnableVertexAttribArray(0);
 
-        glVertexAttribPointer(1, 3, GL_FLOAT, false, 5 * Float.BYTES, 2L * Float.BYTES);
+        glVertexAttribPointer(1, 3, GL_FLOAT, false, 6 * Float.BYTES, 3L * Float.BYTES);
         glEnableVertexAttribArray(1);
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
-        return new MeshBuffer(vaoId, vboId, geometry.vertexCount());
+
+        int textureId = loadTexture(mesh.albedoTexturePath());
+        return new MeshBuffer(
+                vaoId,
+                vboId,
+                mesh.geometry().vertexCount(),
+                mesh.modelMatrix().clone(),
+                mesh.albedoColor().clone(),
+                textureId
+        );
+    }
+
+    private int loadTexture(Path texturePath) {
+        if (texturePath == null || !Files.isRegularFile(texturePath)) {
+            return 0;
+        }
+        try {
+            BufferedImage image = ImageIO.read(texturePath.toFile());
+            if (image == null) {
+                return 0;
+            }
+            int width = image.getWidth();
+            int height = image.getHeight();
+            ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int argb = image.getRGB(x, y);
+                    rgba.put((byte) ((argb >> 16) & 0xFF));
+                    rgba.put((byte) ((argb >> 8) & 0xFF));
+                    rgba.put((byte) (argb & 0xFF));
+                    rgba.put((byte) ((argb >> 24) & 0xFF));
+                }
+            }
+            rgba.flip();
+
+            int textureId = glGenTextures();
+            glBindTexture(GL_TEXTURE_2D, textureId);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            return textureId;
+        } catch (IOException ignored) {
+            return 0;
+        }
     }
 
     private void clearSceneMeshes() {
         for (MeshBuffer mesh : sceneMeshes) {
+            if (mesh.textureId != 0) {
+                glDeleteTextures(mesh.textureId);
+            }
             glDeleteBuffers(mesh.vboId);
             glDeleteVertexArrays(mesh.vaoId);
         }
@@ -423,21 +569,30 @@ final class OpenGlContext {
 
     static MeshGeometry triangleGeometry(float r, float g, float b) {
         return new MeshGeometry(new float[]{
-                -0.6f, -0.4f, r, g, b,
-                0.6f, -0.4f, r * 0.2f + 0.2f, g * 0.9f + 0.1f, b * 0.2f + 0.2f,
-                0.0f, 0.6f, r * 0.2f + 0.2f, g * 0.3f + 0.3f, b * 0.9f + 0.1f
+                -0.6f, -0.4f, 0.0f, r, g, b,
+                0.6f, -0.4f, 0.0f, r * 0.2f + 0.2f, g * 0.9f + 0.1f, b * 0.2f + 0.2f,
+                0.0f, 0.6f, 0.0f, r * 0.2f + 0.2f, g * 0.3f + 0.3f, b * 0.9f + 0.1f
         });
     }
 
     static MeshGeometry quadGeometry(float r, float g, float b) {
         return new MeshGeometry(new float[]{
-                -0.55f, -0.55f, r, g, b,
-                0.55f, -0.55f, r, g, b,
-                0.55f, 0.55f, r, g, b,
-                -0.55f, -0.55f, r, g, b,
-                0.55f, 0.55f, r, g, b,
-                -0.55f, 0.55f, r, g, b
+                -0.55f, -0.55f, 0.0f, r, g, b,
+                0.55f, -0.55f, 0.0f, r, g, b,
+                0.55f, 0.55f, 0.0f, r, g, b,
+                -0.55f, -0.55f, 0.0f, r, g, b,
+                0.55f, 0.55f, 0.0f, r, g, b,
+                -0.55f, 0.55f, 0.0f, r, g, b
         });
+    }
+
+    private static float[] identityMatrix() {
+        return new float[]{
+                1f, 0f, 0f, 0f,
+                0f, 1f, 0f, 0f,
+                0f, 0f, 1f, 0f,
+                0f, 0f, 0f, 1f
+        };
     }
 
     record OpenGlFrameMetrics(

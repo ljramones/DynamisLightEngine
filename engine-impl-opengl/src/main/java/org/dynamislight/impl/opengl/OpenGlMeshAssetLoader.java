@@ -19,12 +19,12 @@ final class OpenGlMeshAssetLoader {
         }
         List<OpenGlContext.MeshGeometry> geometries = new ArrayList<>(meshes.size());
         for (int i = 0; i < meshes.size(); i++) {
-            geometries.add(loadGeometry(meshes.get(i), i));
+            geometries.add(loadMeshGeometry(meshes.get(i), i));
         }
         return geometries;
     }
 
-    private OpenGlContext.MeshGeometry loadGeometry(MeshDesc mesh, int index) {
+    OpenGlContext.MeshGeometry loadMeshGeometry(MeshDesc mesh, int index) {
         if (mesh == null) {
             return OpenGlContext.defaultTriangleGeometry();
         }

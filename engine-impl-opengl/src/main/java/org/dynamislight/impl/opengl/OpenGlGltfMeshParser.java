@@ -144,7 +144,7 @@ final class OpenGlGltfMeshParser {
         int[] indices = indexAccessor >= 0 ? readIndexAccessor(root, binary, indexAccessor) : null;
 
         float[] interleaved = buildInterleaved(positions, colors, indices);
-        if (interleaved.length < 15) {
+        if (interleaved.length < 18) {
             return Optional.empty();
         }
         normalizePosition(interleaved);
@@ -155,35 +155,37 @@ final class OpenGlGltfMeshParser {
         int vertexCount = positions.length / 3;
         if (indices == null || indices.length == 0) {
             int usable = vertexCount - (vertexCount % 3);
-            float[] out = new float[usable * 5];
+            float[] out = new float[usable * 6];
             for (int i = 0; i < usable; i++) {
                 int posBase = i * 3;
-                int outBase = i * 5;
+                int outBase = i * 6;
                 out[outBase] = positions[posBase];
                 out[outBase + 1] = positions[posBase + 1];
+                out[outBase + 2] = positions[posBase + 2];
                 float[] color = colorAt(colors, i);
-                out[outBase + 2] = color[0];
-                out[outBase + 3] = color[1];
-                out[outBase + 4] = color[2];
+                out[outBase + 3] = color[0];
+                out[outBase + 4] = color[1];
+                out[outBase + 5] = color[2];
             }
             return out;
         }
 
         int usable = indices.length - (indices.length % 3);
-        float[] out = new float[usable * 5];
+        float[] out = new float[usable * 6];
         for (int i = 0; i < usable; i++) {
             int idx = indices[i];
             if (idx < 0 || idx >= vertexCount) {
                 return new float[0];
             }
             int posBase = idx * 3;
-            int outBase = i * 5;
+            int outBase = i * 6;
             out[outBase] = positions[posBase];
             out[outBase + 1] = positions[posBase + 1];
+            out[outBase + 2] = positions[posBase + 2];
             float[] color = colorAt(colors, idx);
-            out[outBase + 2] = color[0];
-            out[outBase + 3] = color[1];
-            out[outBase + 4] = color[2];
+            out[outBase + 3] = color[0];
+            out[outBase + 4] = color[1];
+            out[outBase + 5] = color[2];
         }
         return out;
     }
@@ -201,17 +203,19 @@ final class OpenGlGltfMeshParser {
 
     private void normalizePosition(float[] interleaved) {
         float maxAbs = 0f;
-        for (int i = 0; i < interleaved.length; i += 5) {
+        for (int i = 0; i < interleaved.length; i += 6) {
             maxAbs = Math.max(maxAbs, Math.abs(interleaved[i]));
             maxAbs = Math.max(maxAbs, Math.abs(interleaved[i + 1]));
+            maxAbs = Math.max(maxAbs, Math.abs(interleaved[i + 2]));
         }
         if (maxAbs < 0.00001f) {
             return;
         }
         float scale = 0.8f / maxAbs;
-        for (int i = 0; i < interleaved.length; i += 5) {
+        for (int i = 0; i < interleaved.length; i += 6) {
             interleaved[i] *= scale;
             interleaved[i + 1] *= scale;
+            interleaved[i + 2] *= scale;
         }
     }
 
