@@ -56,7 +56,7 @@ class EngineApiContractTest {
                 List.of(new TransformDesc("x", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1))),
                 List.of(new MeshDesc("mesh", "x", "mat", "mesh.glb")),
                 List.of(new MaterialDesc("mat", new Vec3(1, 1, 1), 0f, 1f, null, null)),
-                List.of(new LightDesc("light", new Vec3(0, 5, 0), new Vec3(1, 1, 1), 1f, 10f, false)),
+                List.of(new LightDesc("light", new Vec3(0, 5, 0), new Vec3(1, 1, 1), 1f, 10f, false, null)),
                 new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null),
                 new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0, 0, 0, 0, 0, 0),
                 List.<SmokeEmitterDesc>of());

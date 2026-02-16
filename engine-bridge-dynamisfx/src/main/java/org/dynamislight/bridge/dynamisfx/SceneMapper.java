@@ -77,7 +77,7 @@ public final class SceneMapper {
 
     private static List<LightDesc> mapLights(List<LightDesc> lights) {
         return lights.stream()
-                .map(l -> new LightDesc(l.id(), l.position(), l.color(), l.intensity(), l.range(), l.castsShadows()))
+                .map(l -> new LightDesc(l.id(), l.position(), l.color(), l.intensity(), l.range(), l.castsShadows(), l.shadow()))
                 .toList();
     }
 

@@ -17,6 +17,7 @@ import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.FogMode;
+import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
@@ -38,6 +39,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int viewportHeight = 720;
     private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
+    private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, false);
 
     public VulkanEngineRuntime() {
         super(
@@ -82,10 +84,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         CameraDesc camera = selectActiveCamera(scene);
         CameraMatrices cameraMatrices = cameraMatricesFor(camera, safeAspect(viewportWidth, viewportHeight));
         LightingConfig lighting = mapLighting(scene == null ? null : scene.lights());
+        ShadowRenderConfig shadows = mapShadows(scene == null ? null : scene.lights(), qualityTier);
         FogRenderConfig fog = mapFog(scene == null ? null : scene.fog(), qualityTier);
         SmokeRenderConfig smoke = mapSmoke(scene == null ? null : scene.smokeEmitters(), qualityTier);
         currentFog = fog;
         currentSmoke = smoke;
+        currentShadows = shadows;
         List<VulkanContext.SceneMeshData> sceneMeshes = buildSceneMeshes(scene);
         plannedDrawCalls = sceneMeshes.size();
         plannedTriangles = sceneMeshes.stream().mapToLong(m -> m.indices().length / 3).sum();
@@ -100,6 +104,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     lighting.pointColor(),
                     lighting.pointIntensity()
             );
+            context.setShadowParameters(shadows.enabled(), shadows.strength());
             context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
             context.setSceneMeshes(sceneMeshes);
@@ -161,6 +166,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             warnings.add(new EngineWarning(
                     "FOG_QUALITY_DEGRADED",
                     "Fog sampling reduced at LOW quality tier"
+            ));
+        }
+        if (currentShadows.enabled() && currentShadows.degraded()) {
+            warnings.add(new EngineWarning(
+                    "SHADOW_QUALITY_DEGRADED",
+                    "Shadow quality reduced for tier " + qualityTier + " to maintain performance"
             ));
         }
         return warnings;
@@ -233,6 +244,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private record SmokeRenderConfig(boolean enabled, float r, float g, float b, float intensity, boolean degraded) {
+    }
+
+    private record ShadowRenderConfig(boolean enabled, float strength, boolean degraded) {
     }
 
     private record CameraMatrices(float[] view, float[] proj) {
@@ -323,6 +337,31 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
         }
         return new LightingConfig(dir, dirColor, dirIntensity, pointPos, pointColor, pointIntensity);
+    }
+
+    private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
+        if (lights == null || lights.isEmpty()) {
+            return new ShadowRenderConfig(false, 0.45f, false);
+        }
+        for (LightDesc light : lights) {
+            if (light == null || !light.castsShadows()) {
+                continue;
+            }
+            ShadowDesc shadow = light.shadow();
+            float base = shadow == null ? 0.45f : Math.min(0.85f, 0.25f + (shadow.pcfKernelSize() * 0.04f) + (shadow.cascadeCount() * 0.05f));
+            float tierScale = switch (qualityTier) {
+                case LOW -> 0.55f;
+                case MEDIUM -> 0.75f;
+                case HIGH -> 1.0f;
+                case ULTRA -> 1.15f;
+            };
+            return new ShadowRenderConfig(
+                    true,
+                    Math.max(0.2f, Math.min(0.9f, base * tierScale)),
+                    qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM
+            );
+        }
+        return new ShadowRenderConfig(false, 0.45f, false);
     }
 
     private static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {

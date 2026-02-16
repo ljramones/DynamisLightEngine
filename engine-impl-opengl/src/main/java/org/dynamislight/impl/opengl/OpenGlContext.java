@@ -202,6 +202,8 @@ final class OpenGlContext {
             uniform vec3 uPointLightPos;
             uniform vec3 uPointLightColor;
             uniform float uPointLightIntensity;
+            uniform int uShadowEnabled;
+            uniform float uShadowStrength;
             uniform int uFogEnabled;
             uniform vec3 uFogColor;
             uniform float uFogDensity;
@@ -265,6 +267,12 @@ final class OpenGlContext {
                 vec3 pointLit = (kd * albedo / 3.14159) * uPointLightColor * (pNdl * attenuation * uPointLightIntensity);
                 vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * albedo;
                 vec3 color = ambient + directional + pointLit;
+                if (uShadowEnabled == 1) {
+                    float horizon = clamp(1.0 - ndl, 0.0, 1.0);
+                    float slope = clamp(max(-normal.y, 0.0), 0.0, 1.0);
+                    float shadowFactor = clamp((horizon * 0.8 + slope * 0.2) * uShadowStrength, 0.0, 0.85);
+                    color *= (1.0 - shadowFactor);
+                }
                 if (uFogEnabled == 1) {
                     float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
                     float fogFactor = clamp(exp(-uFogDensity * (1.0 - normalizedHeight)), 0.0, 1.0);
@@ -303,6 +311,8 @@ final class OpenGlContext {
     private int pointLightPosLocation;
     private int pointLightColorLocation;
     private int pointLightIntensityLocation;
+    private int shadowEnabledLocation;
+    private int shadowStrengthLocation;
     private int fogEnabledLocation;
     private int fogColorLocation;
     private int fogDensityLocation;
@@ -337,6 +347,8 @@ final class OpenGlContext {
     private float pointLightColorG = 0.62f;
     private float pointLightColorB = 0.22f;
     private float pointLightIntensity = 1.0f;
+    private boolean shadowEnabled;
+    private float shadowStrength = 0.45f;
     private boolean gpuTimerQuerySupported;
     private int gpuTimeQueryId;
     private double lastGpuFrameMs;
@@ -436,6 +448,8 @@ final class OpenGlContext {
             glUniform3f(pointLightPosLocation, pointLightPosX, pointLightPosY, pointLightPosZ);
             glUniform3f(pointLightColorLocation, pointLightColorR, pointLightColorG, pointLightColorB);
             glUniform1f(pointLightIntensityLocation, pointLightIntensity);
+            glUniform1i(shadowEnabledLocation, shadowEnabled ? 1 : 0);
+            glUniform1f(shadowStrengthLocation, shadowStrength);
             if (mesh.textureId != 0) {
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, mesh.textureId);
@@ -564,6 +578,11 @@ final class OpenGlContext {
         pointLightIntensity = Math.max(0f, pointIntensity);
     }
 
+    void setShadowParameters(boolean enabled, float strength) {
+        shadowEnabled = enabled;
+        shadowStrength = Math.max(0f, Math.min(1f, strength));
+    }
+
     double lastGpuFrameMs() {
         return lastGpuFrameMs;
     }
@@ -629,6 +648,8 @@ final class OpenGlContext {
         pointLightPosLocation = glGetUniformLocation(programId, "uPointLightPos");
         pointLightColorLocation = glGetUniformLocation(programId, "uPointLightColor");
         pointLightIntensityLocation = glGetUniformLocation(programId, "uPointLightIntensity");
+        shadowEnabledLocation = glGetUniformLocation(programId, "uShadowEnabled");
+        shadowStrengthLocation = glGetUniformLocation(programId, "uShadowStrength");
         fogEnabledLocation = glGetUniformLocation(programId, "uFogEnabled");
         fogColorLocation = glGetUniformLocation(programId, "uFogColor");
         fogDensityLocation = glGetUniformLocation(programId, "uFogDensity");

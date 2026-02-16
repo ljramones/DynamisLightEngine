@@ -76,7 +76,7 @@ class SceneMapperTest {
         TransformDesc transform = new TransformDesc("root", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
         MeshDesc mesh = new MeshDesc("mesh-1", "root", "mat-1", "meshes/triangle.glb");
         MaterialDesc material = new MaterialDesc("mat-1", new Vec3(1, 1, 1), 0.1f, 0.7f, null, null);
-        LightDesc light = new LightDesc("sun", new Vec3(0, 10, 0), new Vec3(1, 1, 1), 1.0f, 100f, false);
+        LightDesc light = new LightDesc("sun", new Vec3(0, 10, 0), new Vec3(1, 1, 1), 1.0f, 100f, false, null);
         EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.12f), 0.25f, null);
         FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
 

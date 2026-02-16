@@ -282,7 +282,7 @@ final class VulkanContext {
     private static final int VERTEX_STRIDE_FLOATS = 11;
     private static final int VERTEX_STRIDE_BYTES = VERTEX_STRIDE_FLOATS * Float.BYTES;
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
-    private static final int GLOBAL_UNIFORM_BYTES = 352;
+    private static final int GLOBAL_UNIFORM_BYTES = 368;
     private VkInstance instance;
     private VkPhysicalDevice physicalDevice;
     private VkDevice device;
@@ -335,6 +335,8 @@ final class VulkanContext {
     private float pointLightColorG = 0.62f;
     private float pointLightColorB = 0.22f;
     private float pointLightIntensity = 1.0f;
+    private boolean shadowEnabled;
+    private float shadowStrength = 0.45f;
     private boolean fogEnabled;
     private float fogR = 0.5f;
     private float fogG = 0.5f;
@@ -443,6 +445,11 @@ final class VulkanContext {
             pointLightColorB = pointColor[2];
         }
         pointLightIntensity = Math.max(0f, pointIntensity);
+    }
+
+    void setShadowParameters(boolean enabled, float strength) {
+        shadowEnabled = enabled;
+        shadowStrength = Math.max(0f, Math.min(1f, strength));
     }
 
     void setFogParameters(boolean enabled, float r, float g, float b, float density, int steps) {
@@ -974,6 +981,7 @@ final class VulkanContext {
                     vec4 uDirLightColor;
                     vec4 uPointLightPos;
                     vec4 uPointLightColor;
+                    vec4 uShadow;
                     vec4 uFog;
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
@@ -1008,6 +1016,7 @@ final class VulkanContext {
                     vec4 uDirLightColor;
                     vec4 uPointLightPos;
                     vec4 uPointLightColor;
+                    vec4 uShadow;
                     vec4 uFog;
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
@@ -1047,6 +1056,12 @@ final class VulkanContext {
                     float spec = pow(max(dot(n, halfVec), 0.0), specPow) * mix(0.08, 0.9, metallic);
 
                     vec3 color = ambient + diffuse + pointLit + vec3(spec);
+                    if (ubo.uShadow.x > 0.5) {
+                        float horizon = clamp(1.0 - ndl, 0.0, 1.0);
+                        float slope = clamp(max(-n.y, 0.0), 0.0, 1.0);
+                        float shadowFactor = clamp((horizon * 0.8 + slope * 0.2) * ubo.uShadow.y, 0.0, 0.85);
+                        color *= (1.0 - shadowFactor);
+                    }
                     if (ubo.uFog.x > 0.5) {
                         float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
                         float fogFactor = clamp(exp(-ubo.uFog.y * (1.0 - normalizedHeight)), 0.0, 1.0);
@@ -2076,6 +2091,7 @@ final class VulkanContext {
         fb.put(new float[]{dirLightColorR, dirLightColorG, dirLightColorB, 0f});
         fb.put(new float[]{pointLightPosX, pointLightPosY, pointLightPosZ, 0f});
         fb.put(new float[]{pointLightColorR, pointLightColorG, pointLightColorB, 0f});
+        fb.put(new float[]{shadowEnabled ? 1f : 0f, shadowStrength, 0f, 0f});
         fb.put(new float[]{fogEnabled ? 1f : 0f, fogDensity, 0f, 0f});
         fb.put(new float[]{fogR, fogG, fogB, (float) fogSteps});
         fb.put(new float[]{smokeEnabled ? 1f : 0f, smokeIntensity, 0f, 0f});

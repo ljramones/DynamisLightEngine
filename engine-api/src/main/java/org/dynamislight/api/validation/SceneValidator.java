@@ -7,7 +7,9 @@ import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
+import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.TransformDesc;
 
 /**
@@ -40,6 +42,28 @@ public final class SceneValidator {
             }
             if (isBlank(mesh.materialId()) || !materialIds.contains(mesh.materialId())) {
                 throw invalid("mesh " + mesh.id() + " has unknown materialId");
+            }
+        }
+
+        if (scene.lights() != null) {
+            for (LightDesc light : scene.lights()) {
+                if (light == null) {
+                    continue;
+                }
+                if (light.castsShadows()) {
+                    ShadowDesc shadow = light.shadow();
+                    if (shadow != null) {
+                        if (shadow.mapResolution() <= 0) {
+                            throw invalid("light " + light.id() + " shadow mapResolution must be > 0");
+                        }
+                        if (shadow.pcfKernelSize() < 1) {
+                            throw invalid("light " + light.id() + " shadow pcfKernelSize must be >= 1");
+                        }
+                        if (shadow.cascadeCount() < 1) {
+                            throw invalid("light " + light.id() + " shadow cascadeCount must be >= 1");
+                        }
+                    }
+                }
             }
         }
     }

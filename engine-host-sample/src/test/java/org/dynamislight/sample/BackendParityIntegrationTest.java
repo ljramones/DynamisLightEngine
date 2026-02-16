@@ -34,6 +34,7 @@ import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.SceneLoadedEvent;
 import org.dynamislight.api.scene.SceneDescriptor;
+import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
@@ -102,6 +103,21 @@ class BackendParityIntegrationTest {
         assertFalse(openGlHigh.contains("SMOKE_QUALITY_DEGRADED"));
         assertFalse(vulkanHigh.contains("FOG_QUALITY_DEGRADED"));
         assertFalse(vulkanHigh.contains("SMOKE_QUALITY_DEGRADED"));
+    }
+
+    @Test
+    void shadowQualityWarningsAreConsistentAcrossBackends() throws Exception {
+        SceneDescriptor scene = shadowScene();
+
+        Set<String> openGlLow = renderWarningCodes("opengl", scene, QualityTier.LOW);
+        Set<String> vulkanLow = renderWarningCodes("vulkan", scene, QualityTier.LOW);
+        assertTrue(openGlLow.contains("SHADOW_QUALITY_DEGRADED"));
+        assertTrue(vulkanLow.contains("SHADOW_QUALITY_DEGRADED"));
+
+        Set<String> openGlHigh = renderWarningCodes("opengl", scene, QualityTier.HIGH);
+        Set<String> vulkanHigh = renderWarningCodes("vulkan", scene, QualityTier.HIGH);
+        assertFalse(openGlHigh.contains("SHADOW_QUALITY_DEGRADED"));
+        assertFalse(vulkanHigh.contains("SHADOW_QUALITY_DEGRADED"));
     }
 
     @Test
@@ -235,7 +251,7 @@ class BackendParityIntegrationTest {
         TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
         MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
         MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
-        LightDesc light = new LightDesc("light", new Vec3(0, 2, 0), new Vec3(1, 1, 1), 1.0f, 10f, false);
+        LightDesc light = new LightDesc("light", new Vec3(0, 2, 0), new Vec3(1, 1, 1), 1.0f, 10f, false, null);
         EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
         FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
 
@@ -261,8 +277,8 @@ class BackendParityIntegrationTest {
         MeshDesc quad = new MeshDesc("mesh-b", "xform-b", "mat-b", "meshes/quad.gltf");
         MaterialDesc matA = new MaterialDesc("mat-a", new Vec3(0.95f, 0.3f, 0.25f), 0.15f, 0.55f, "textures/a.png", "textures/a_n.png");
         MaterialDesc matB = new MaterialDesc("mat-b", new Vec3(0.25f, 0.65f, 0.95f), 0.65f, 0.35f, "textures/b.png", "textures/b_n.png");
-        LightDesc key = new LightDesc("key", new Vec3(1.2f, 2.0f, 1.8f), new Vec3(1f, 0.96f, 0.9f), 1.0f, 15f, false);
-        LightDesc fill = new LightDesc("fill", new Vec3(-1.4f, 1.2f, 1.0f), new Vec3(0.35f, 0.55f, 1f), 0.7f, 12f, false);
+        LightDesc key = new LightDesc("key", new Vec3(1.2f, 2.0f, 1.8f), new Vec3(1f, 0.96f, 0.9f), 1.0f, 15f, false, null);
+        LightDesc fill = new LightDesc("fill", new Vec3(-1.4f, 1.2f, 1.0f), new Vec3(0.35f, 0.55f, 1f), 0.7f, 12f, false, null);
         EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.1f, 0.12f), 0.2f, null);
         FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
 
@@ -285,7 +301,7 @@ class BackendParityIntegrationTest {
         TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
         MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "meshes/quad.gltf");
         MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.1f, 0.6f, null, null);
-        LightDesc light = new LightDesc("light", new Vec3(0, 2, 1), new Vec3(1, 1, 1), 1.0f, 10f, false);
+        LightDesc light = new LightDesc("light", new Vec3(0, 2, 1), new Vec3(1, 1, 1), 1.0f, 10f, false, null);
         EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
         FogDesc fog = new FogDesc(true, FogMode.EXPONENTIAL, new Vec3(0.5f, 0.55f, 0.6f), 0.35f, 0f, 0f, 0f, 0f, 0f);
         SmokeEmitterDesc smoke = new SmokeEmitterDesc(
@@ -313,6 +329,30 @@ class BackendParityIntegrationTest {
                 env,
                 fog,
                 List.of(smoke)
+        );
+    }
+
+    private static SceneDescriptor shadowScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "meshes/quad.gltf");
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.1f, 0.6f, null, null);
+        LightDesc light = new LightDesc("shadow-light", new Vec3(0, 2, 1), new Vec3(1, 1, 1), 1.0f, 10f, true,
+                new ShadowDesc(1024, 0.0008f, 3, 2));
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.55f, 0.6f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "parity-shadow-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(mat),
+                List.of(light),
+                env,
+                fog,
+                List.of()
         );
     }
 

@@ -9,6 +9,7 @@ public record LightDesc(
         Vec3 color,
         float intensity,
         float range,
-        boolean castsShadows
+        boolean castsShadows,
+        ShadowDesc shadow
 ) {
 }

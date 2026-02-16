@@ -19,6 +19,7 @@ import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
+import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
@@ -54,6 +55,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SceneDescriptor activeScene;
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
+    private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, false);
 
     public OpenGlEngineRuntime() {
         super(
@@ -100,6 +102,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         activeScene = scene;
         fog = mapFog(scene.fog(), qualityTier);
         smoke = mapSmoke(scene.smokeEmitters(), qualityTier);
+        shadows = mapShadows(scene.lights(), qualityTier);
 
         List<OpenGlContext.SceneMesh> sceneMeshes = mapSceneMeshes(scene);
         plannedDrawCalls = sceneMeshes.size();
@@ -121,6 +124,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     lighting.pointColor(),
                     lighting.pointIntensity()
             );
+            context.setShadowParameters(shadows.enabled(), shadows.strength());
             context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
             frameGraph = buildFrameGraph();
@@ -182,6 +186,12 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             warnings.add(new EngineWarning(
                     "FOG_QUALITY_DEGRADED",
                     "Fog sampling reduced at LOW quality tier"
+            ));
+        }
+        if (shadows.enabled() && shadows.degraded()) {
+            warnings.add(new EngineWarning(
+                    "SHADOW_QUALITY_DEGRADED",
+                    "Shadow quality reduced for tier " + qualityTier + " to maintain performance"
             ));
         }
         return warnings;
@@ -277,6 +287,31 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
+        if (lights == null || lights.isEmpty()) {
+            return new ShadowRenderConfig(false, 0.45f, false);
+        }
+        for (LightDesc light : lights) {
+            if (light == null || !light.castsShadows()) {
+                continue;
+            }
+            ShadowDesc shadow = light.shadow();
+            float base = shadow == null ? 0.45f : Math.min(0.85f, 0.25f + (shadow.pcfKernelSize() * 0.04f) + (shadow.cascadeCount() * 0.05f));
+            float tierScale = switch (qualityTier) {
+                case LOW -> 0.55f;
+                case MEDIUM -> 0.75f;
+                case HIGH -> 1.0f;
+                case ULTRA -> 1.15f;
+            };
+            return new ShadowRenderConfig(
+                    true,
+                    Math.max(0.2f, Math.min(0.9f, base * tierScale)),
+                    qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM
+            );
+        }
+        return new ShadowRenderConfig(false, 0.45f, false);
+    }
+
     private List<OpenGlContext.SceneMesh> mapSceneMeshes(SceneDescriptor scene) {
         if (scene.meshes() == null || scene.meshes().isEmpty()) {
             return List.of(new OpenGlContext.SceneMesh(
@@ -369,6 +404,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             float[] pointColor,
             float pointIntensity
     ) {
+    }
+
+    private record ShadowRenderConfig(boolean enabled, float strength, boolean degraded) {
     }
 
     private CameraDesc selectActiveCamera(SceneDescriptor scene) {
