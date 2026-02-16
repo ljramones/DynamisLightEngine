@@ -395,6 +395,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return context.sceneReuseStats();
     }
 
+    VulkanContext.FrameResourceProfile debugFrameResourceProfile() {
+        return context.frameResourceProfile();
+    }
+
     FrameResourceConfig debugFrameResourceConfig() {
         return new FrameResourceConfig(
                 context.configuredFramesInFlight(),

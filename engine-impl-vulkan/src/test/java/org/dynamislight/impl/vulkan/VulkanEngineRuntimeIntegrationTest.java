@@ -344,15 +344,20 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.loadScene(validReusableScene(false, false));
         runtime.render();
         var before = runtime.debugSceneReuseStats();
+        var frameBefore = runtime.debugFrameResourceProfile();
 
         runtime.loadScene(validReusableSceneWithLightingVariant(1.7f));
         runtime.render();
         var after = runtime.debugSceneReuseStats();
+        var frameAfter = runtime.debugFrameResourceProfile();
 
         assertEquals(before.fullRebuilds(), after.fullRebuilds());
         assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
         assertEquals(before.descriptorPoolBuilds(), after.descriptorPoolBuilds());
         assertEquals(before.descriptorPoolRebuilds(), after.descriptorPoolRebuilds());
+        assertTrue(frameAfter.descriptorRingReuseHits() > frameBefore.descriptorRingReuseHits());
+        assertEquals(frameBefore.descriptorRingGrowthRebuilds(), frameAfter.descriptorRingGrowthRebuilds());
+        assertEquals(frameBefore.descriptorRingSteadyRebuilds(), frameAfter.descriptorRingSteadyRebuilds());
         runtime.shutdown();
     }
 
