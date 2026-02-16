@@ -8,6 +8,7 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -449,6 +450,10 @@ final class VulkanContext {
                 : List.copyOf(sceneMeshes);
         pendingSceneMeshes = safe;
         if (device == null) {
+            return;
+        }
+        if (canReuseGpuMeshes(safe)) {
+            updateDynamicSceneState(safe);
             return;
         }
         try (MemoryStack stack = stackPush()) {
@@ -2466,6 +2471,44 @@ final class VulkanContext {
         return VkExtent2D.calloc(stack).set(clampedWidth, clampedHeight);
     }
 
+    private boolean canReuseGpuMeshes(List<SceneMeshData> sceneMeshes) {
+        if (gpuMeshes.isEmpty() || sceneMeshes.size() != gpuMeshes.size()) {
+            return false;
+        }
+        for (int i = 0; i < sceneMeshes.size(); i++) {
+            SceneMeshData sceneMesh = sceneMeshes.get(i);
+            GpuMesh gpuMesh = gpuMeshes.get(i);
+            long vertexBytes = (long) sceneMesh.vertices().length * Float.BYTES;
+            long indexBytes = (long) sceneMesh.indices().length * Integer.BYTES;
+            if (gpuMesh.vertexBytes != vertexBytes || gpuMesh.indexBytes != indexBytes || gpuMesh.indexCount != sceneMesh.indices().length) {
+                return false;
+            }
+            if (gpuMesh.vertexHash != Arrays.hashCode(sceneMesh.vertices()) || gpuMesh.indexHash != Arrays.hashCode(sceneMesh.indices())) {
+                return false;
+            }
+            String albedoKey = textureCacheKey(sceneMesh.albedoTexturePath(), false);
+            String normalKey = textureCacheKey(sceneMesh.normalTexturePath(), true);
+            if (!gpuMesh.albedoKey.equals(albedoKey) || !gpuMesh.normalKey.equals(normalKey)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void updateDynamicSceneState(List<SceneMeshData> sceneMeshes) {
+        for (int i = 0; i < sceneMeshes.size(); i++) {
+            SceneMeshData sceneMesh = sceneMeshes.get(i);
+            gpuMeshes.get(i).updateDynamicState(
+                    sceneMesh.modelMatrix().clone(),
+                    sceneMesh.color()[0],
+                    sceneMesh.color()[1],
+                    sceneMesh.color()[2],
+                    sceneMesh.metallic(),
+                    sceneMesh.roughness()
+            );
+        }
+    }
+
     private void uploadSceneMeshes(MemoryStack stack, List<SceneMeshData> sceneMeshes) throws EngineException {
         destroySceneMeshes();
         Map<String, GpuTexture> textureCache = new HashMap<>();
@@ -2494,6 +2537,10 @@ final class VulkanContext {
                     indexData,
                     VK_BUFFER_USAGE_INDEX_BUFFER_BIT
             );
+            int vertexHash = Arrays.hashCode(vertices);
+            int indexHash = Arrays.hashCode(indices);
+            String albedoKey = textureCacheKey(mesh.albedoTexturePath(), false);
+            String normalKey = textureCacheKey(mesh.normalTexturePath(), true);
             GpuTexture albedoTexture = resolveOrCreateTexture(mesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
             GpuTexture normalTexture = resolveOrCreateTexture(mesh.normalTexturePath(), textureCache, defaultNormal, true);
 
@@ -2512,7 +2559,11 @@ final class VulkanContext {
                     mesh.metallic(),
                     mesh.roughness(),
                     albedoTexture,
-                    normalTexture
+                    normalTexture,
+                    vertexHash,
+                    indexHash,
+                    albedoKey,
+                    normalKey
             ));
         }
 
@@ -2590,7 +2641,7 @@ final class VulkanContext {
         if (texturePath == null || !Files.isRegularFile(texturePath)) {
             return defaultTexture;
         }
-        String cacheKey = (normalMap ? "normal:" : "albedo:") + texturePath.toAbsolutePath().normalize();
+        String cacheKey = textureCacheKey(texturePath, normalMap);
         GpuTexture cached = cache.get(cacheKey);
         if (cached != null) {
             return cached;
@@ -2598,6 +2649,13 @@ final class VulkanContext {
         GpuTexture created = createTextureFromPath(texturePath, normalMap);
         cache.put(cacheKey, created);
         return created;
+    }
+
+    private String textureCacheKey(Path texturePath, boolean normalMap) {
+        if (texturePath == null) {
+            return normalMap ? "normal:__default__" : "albedo:__default__";
+        }
+        return (normalMap ? "normal:" : "albedo:") + texturePath.toAbsolutePath().normalize();
     }
 
     private void createTextureDescriptorSets(MemoryStack stack) throws EngineException {
@@ -3264,14 +3322,18 @@ final class VulkanContext {
         private final int indexCount;
         private final long vertexBytes;
         private final long indexBytes;
-        private final float[] modelMatrix;
-        private final float colorR;
-        private final float colorG;
-        private final float colorB;
-        private final float metallic;
-        private final float roughness;
+        private float[] modelMatrix;
+        private float colorR;
+        private float colorG;
+        private float colorB;
+        private float metallic;
+        private float roughness;
         private final GpuTexture albedoTexture;
         private final GpuTexture normalTexture;
+        private final int vertexHash;
+        private final int indexHash;
+        private final String albedoKey;
+        private final String normalKey;
         private long textureDescriptorSet = VK_NULL_HANDLE;
 
         private GpuMesh(
@@ -3289,7 +3351,11 @@ final class VulkanContext {
                 float metallic,
                 float roughness,
                 GpuTexture albedoTexture,
-                GpuTexture normalTexture
+                GpuTexture normalTexture,
+                int vertexHash,
+                int indexHash,
+                String albedoKey,
+                String normalKey
         ) {
             this.vertexBuffer = vertexBuffer;
             this.vertexMemory = vertexMemory;
@@ -3306,6 +3372,26 @@ final class VulkanContext {
             this.roughness = roughness;
             this.albedoTexture = albedoTexture;
             this.normalTexture = normalTexture;
+            this.vertexHash = vertexHash;
+            this.indexHash = indexHash;
+            this.albedoKey = albedoKey;
+            this.normalKey = normalKey;
+        }
+
+        private void updateDynamicState(
+                float[] modelMatrix,
+                float colorR,
+                float colorG,
+                float colorB,
+                float metallic,
+                float roughness
+        ) {
+            this.modelMatrix = modelMatrix;
+            this.colorR = colorR;
+            this.colorG = colorG;
+            this.colorB = colorB;
+            this.metallic = metallic;
+            this.roughness = roughness;
         }
     }
 
