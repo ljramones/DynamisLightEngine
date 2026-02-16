@@ -58,13 +58,15 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 - `org.dynamislight.impl.vulkan.shader`
   - shader source/compile helpers (`VulkanShaderSources`, `VulkanShaderCompiler`)
 - `org.dynamislight.impl.vulkan.swapchain`
-  - swapchain policy/selection/allocation, image-view lifecycle, and framebuffer/depth helpers (`VulkanSwapchainSelector`, `VulkanSwapchainAllocation`, `VulkanSwapchainImageViews`, `VulkanFramebufferResources`)
+  - swapchain policy/selection/allocation, resource coordination, image-view lifecycle, and framebuffer/depth helpers (`VulkanSwapchainSelector`, `VulkanSwapchainAllocation`, `VulkanSwapchainResourceCoordinator`, `VulkanSwapchainImageViews`, `VulkanFramebufferResources`)
 - `org.dynamislight.impl.vulkan.descriptor`
   - descriptor-ring sizing + descriptor resource lifecycle + texture descriptor pool/ring manager + descriptor-set coordination/writes (`VulkanDescriptorRingPolicy`, `VulkanDescriptorResources`, `VulkanTextureDescriptorPoolManager`, `VulkanTextureDescriptorSetCoordinator`, `VulkanTextureDescriptorWriter`)
 - `org.dynamislight.impl.vulkan.command`
-  - frame-sync allocation/teardown, acquire+submit/present orchestration, frame-command orchestration, and command recording helpers (`VulkanFrameSyncResources`, `VulkanCommandSubmitter`, `VulkanFrameCommandOrchestrator`, `VulkanRenderCommandRecorder`)
+  - frame-sync allocation/teardown, acquire+submit/present orchestration, frame-command orchestration/input-factory, and command recording helpers (`VulkanFrameSyncResources`, `VulkanCommandSubmitter`, `VulkanFrameCommandOrchestrator`, `VulkanFrameCommandInputsFactory`, `VulkanRenderCommandRecorder`)
+- `org.dynamislight.impl.vulkan.bootstrap`
+  - Vulkan startup/bootstrap helpers for window, instance, surface, and logical-device creation (`VulkanBootstrap`)
 - `org.dynamislight.impl.vulkan.scene`
-  - scene mesh-reuse, dynamic-update, dirty-range tracking, and mesh lifecycle/teardown helpers (`VulkanSceneReusePolicy`, `VulkanDynamicSceneUpdater`, `VulkanDirtyRangeTrackerOps`, `VulkanSceneMeshLifecycle`)
+  - scene mesh-reuse, dynamic-update/upload orchestration, dirty-range tracking, and mesh lifecycle/teardown helpers (`VulkanSceneReusePolicy`, `VulkanDynamicSceneUpdater`, `VulkanSceneUploadCoordinator`, `VulkanDirtyRangeTrackerOps`, `VulkanSceneMeshLifecycle`)
 - `org.dynamislight.impl.vulkan.math`
   - matrix/vector math helpers extracted from context (`VulkanMath`)
 - `org.dynamislight.impl.vulkan.shadow`

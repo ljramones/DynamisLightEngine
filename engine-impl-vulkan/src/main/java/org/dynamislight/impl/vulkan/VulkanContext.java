@@ -15,9 +15,11 @@ import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
 import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.command.VulkanCommandSubmitter;
+import org.dynamislight.impl.vulkan.command.VulkanFrameCommandInputsFactory;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
 import org.dynamislight.impl.vulkan.command.VulkanFrameSyncResources;
 import org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder;
+import org.dynamislight.impl.vulkan.bootstrap.VulkanBootstrap;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorResources;
 import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorSetCoordinator;
 import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorWriter;
@@ -34,14 +36,15 @@ import org.dynamislight.impl.vulkan.scene.VulkanDynamicSceneUpdater;
 import org.dynamislight.impl.vulkan.scene.VulkanDirtyRangeTrackerOps;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshLifecycle;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneReusePolicy;
+import org.dynamislight.impl.vulkan.scene.VulkanSceneUploadCoordinator;
 import org.dynamislight.impl.vulkan.shader.VulkanShaderCompiler;
 import org.dynamislight.impl.vulkan.shader.VulkanShaderSources;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixBuilder;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowResources;
 import org.dynamislight.impl.vulkan.swapchain.VulkanFramebufferResources;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainAllocation;
-import org.dynamislight.impl.vulkan.swapchain.VulkanDeviceSelector;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainImageViews;
+import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainResourceCoordinator;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainSelector;
 import org.dynamislight.impl.vulkan.texture.VulkanTextureResourceOps;
 import org.dynamislight.impl.vulkan.uniform.VulkanFrameUniformCoordinator;
@@ -537,12 +540,16 @@ final class VulkanContext {
     }
 
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
-        initWindow(appName, width, height, windowVisible);
+        window = VulkanBootstrap.initWindow(appName, width, height, windowVisible);
         try (MemoryStack stack = stackPush()) {
-            createInstance(stack, appName);
-            createSurface(stack);
-            selectPhysicalDevice(stack);
-            createLogicalDevice(stack);
+            instance = VulkanBootstrap.createInstance(stack, appName);
+            surface = VulkanBootstrap.createSurface(instance, window, stack);
+            var selection = VulkanBootstrap.selectPhysicalDevice(instance, surface, stack);
+            physicalDevice = selection.physicalDevice();
+            graphicsQueueFamilyIndex = selection.graphicsQueueFamilyIndex();
+            var deviceAndQueue = VulkanBootstrap.createLogicalDevice(physicalDevice, graphicsQueueFamilyIndex, stack);
+            device = deviceAndQueue.device();
+            graphicsQueue = deviceAndQueue.graphicsQueue();
             createDescriptorResources(stack);
             createSwapchainResources(stack, width, height);
             createFrameSyncResources(stack);
@@ -1016,102 +1023,6 @@ final class VulkanContext {
         }
     }
 
-    private void initWindow(String appName, int width, int height, boolean windowVisible) throws EngineException {
-        GLFWErrorCallback.createPrint(System.err).set();
-        if (!glfwInit()) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "GLFW initialization failed", false);
-        }
-        if (!glfwVulkanSupported()) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "GLFW Vulkan not supported", false);
-        }
-        glfwDefaultWindowHints();
-        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-        glfwWindowHint(GLFW_VISIBLE, windowVisible ? GLFW_TRUE : GLFW_FALSE);
-        window = glfwCreateWindow(Math.max(1, width), Math.max(1, height), appName, VK_NULL_HANDLE, VK_NULL_HANDLE);
-        if (window == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Failed to create Vulkan window", false);
-        }
-    }
-
-    private void createInstance(MemoryStack stack, String appName) throws EngineException {
-        VkApplicationInfo appInfo = VkApplicationInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_APPLICATION_INFO)
-                .pApplicationName(stack.UTF8(appName))
-                .applicationVersion(VK10.VK_MAKE_API_VERSION(0, 0, 1, 0))
-                .pEngineName(stack.UTF8("DynamicLightEngine"))
-                .engineVersion(VK10.VK_MAKE_API_VERSION(0, 0, 1, 0))
-                .apiVersion(VK10.VK_MAKE_API_VERSION(0, 1, 1, 0));
-
-        PointerBuffer requiredExtensions = glfwGetRequiredInstanceExtensions();
-        if (requiredExtensions == null) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "No required Vulkan instance extensions from GLFW", false);
-        }
-
-        VkInstanceCreateInfo createInfo = VkInstanceCreateInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
-                .pApplicationInfo(appInfo)
-                .ppEnabledExtensionNames(requiredExtensions);
-
-        PointerBuffer pInstance = stack.mallocPointer(1);
-        int result = vkCreateInstance(createInfo, null, pInstance);
-        if (result != VK_SUCCESS) {
-            throw new EngineException(
-                    EngineErrorCode.BACKEND_INIT_FAILED,
-                    "vkCreateInstance failed: " + result,
-                    result == VK_ERROR_INITIALIZATION_FAILED
-            );
-        }
-        instance = new VkInstance(pInstance.get(0), createInfo);
-    }
-
-    private void createSurface(MemoryStack stack) throws EngineException {
-        var pSurface = stack.longs(VK_NULL_HANDLE);
-        int result = glfwCreateWindowSurface(instance, window, null, pSurface);
-        if (result != VK_SUCCESS || pSurface.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "glfwCreateWindowSurface failed: " + result, false);
-        }
-        surface = pSurface.get(0);
-    }
-
-    private void selectPhysicalDevice(MemoryStack stack) throws EngineException {
-        VulkanDeviceSelector.Selection selection = VulkanDeviceSelector.select(instance, surface, stack);
-        physicalDevice = selection.physicalDevice();
-        graphicsQueueFamilyIndex = selection.graphicsQueueFamilyIndex();
-    }
-
-    private void createLogicalDevice(MemoryStack stack) throws EngineException {
-        if (physicalDevice == null || graphicsQueueFamilyIndex < 0) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Vulkan physical device not selected", false);
-        }
-
-        var queuePriority = stack.floats(1.0f);
-        VkDeviceQueueCreateInfo.Buffer queueCreateInfo = VkDeviceQueueCreateInfo.calloc(1, stack)
-                .sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO)
-                .queueFamilyIndex(graphicsQueueFamilyIndex)
-                .pQueuePriorities(queuePriority);
-
-        PointerBuffer extensions = stack.pointers(stack.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME));
-        VkDeviceCreateInfo deviceCreateInfo = VkDeviceCreateInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO)
-                .pQueueCreateInfos(queueCreateInfo)
-                .ppEnabledExtensionNames(extensions);
-
-        PointerBuffer pDevice = stack.mallocPointer(1);
-        int createResult = vkCreateDevice(physicalDevice, deviceCreateInfo, null, pDevice);
-        if (createResult != VK_SUCCESS || pDevice.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(
-                    EngineErrorCode.BACKEND_INIT_FAILED,
-                    "vkCreateDevice failed: " + createResult,
-                    createResult == VK_ERROR_INITIALIZATION_FAILED
-            );
-        }
-
-        device = new VkDevice(pDevice.get(0), physicalDevice, deviceCreateInfo);
-        PointerBuffer pQueue = stack.mallocPointer(1);
-        vkGetDeviceQueue(device, graphicsQueueFamilyIndex, 0, pQueue);
-        graphicsQueue = new VkQueue(pQueue.get(0), device);
-    }
-
     private void createDescriptorResources(MemoryStack stack) throws EngineException {
         VulkanDescriptorResources.Allocation descriptorResources = VulkanDescriptorResources.create(
                 device,
@@ -1223,66 +1134,48 @@ final class VulkanContext {
     }
 
     private void createSwapchainResources(MemoryStack stack, int requestedWidth, int requestedHeight) throws EngineException {
-        VulkanSwapchainAllocation.Allocation swapchainAllocation = VulkanSwapchainAllocation.create(
-                physicalDevice,
-                device,
-                stack,
-                surface,
-                requestedWidth,
-                requestedHeight
+        postIntermediateInitialized = false;
+        VulkanSwapchainResourceCoordinator.Allocation allocation = VulkanSwapchainResourceCoordinator.create(
+                new VulkanSwapchainResourceCoordinator.CreateInputs(
+                        physicalDevice,
+                        device,
+                        stack,
+                        surface,
+                        requestedWidth,
+                        requestedHeight,
+                        depthFormat,
+                        VERTEX_STRIDE_BYTES,
+                        descriptorSetLayout,
+                        textureDescriptorSetLayout,
+                        postOffscreenRequested
+                )
         );
-        swapchain = swapchainAllocation.swapchain();
-        swapchainImageFormat = swapchainAllocation.swapchainImageFormat();
-        swapchainWidth = swapchainAllocation.swapchainWidth();
-        swapchainHeight = swapchainAllocation.swapchainHeight();
-        swapchainImages = swapchainAllocation.swapchainImages();
-
-        createImageViews(stack);
-        createDepthResources(stack);
-        VulkanMainPipelineBuilder.Result mainPipeline = VulkanMainPipelineBuilder.create(
-                device,
-                stack,
-                swapchainImageFormat,
-                depthFormat,
-                swapchainWidth,
-                swapchainHeight,
-                VERTEX_STRIDE_BYTES,
-                descriptorSetLayout,
-                textureDescriptorSetLayout
-        );
-        renderPass = mainPipeline.renderPass();
-        pipelineLayout = mainPipeline.pipelineLayout();
-        graphicsPipeline = mainPipeline.graphicsPipeline();
-        createFramebuffers(stack);
-        postOffscreenActive = false;
-        if (postOffscreenRequested) {
-            try {
-                createPostProcessResources(stack);
-                postOffscreenActive = true;
-            } catch (EngineException ex) {
-                destroyPostProcessResources();
-                postOffscreenActive = false;
-            }
-        }
-    }
-
-    private void createImageViews(MemoryStack stack) throws EngineException {
-        swapchainImageViews = VulkanSwapchainImageViews.create(device, stack, swapchainImages, swapchainImageFormat);
-    }
-
-    private void createDepthResources(MemoryStack stack) throws EngineException {
-        VulkanFramebufferResources.DepthResources depthResources = VulkanFramebufferResources.createDepthResources(
-                device,
-                physicalDevice,
-                stack,
-                swapchainImages.length,
-                swapchainWidth,
-                swapchainHeight,
-                depthFormat
-        );
-        depthImages = depthResources.depthImages();
-        depthMemories = depthResources.depthMemories();
-        depthImageViews = depthResources.depthImageViews();
+        swapchain = allocation.swapchain();
+        swapchainImageFormat = allocation.swapchainImageFormat();
+        swapchainWidth = allocation.swapchainWidth();
+        swapchainHeight = allocation.swapchainHeight();
+        swapchainImages = allocation.swapchainImages();
+        swapchainImageViews = allocation.swapchainImageViews();
+        depthImages = allocation.depthImages();
+        depthMemories = allocation.depthMemories();
+        depthImageViews = allocation.depthImageViews();
+        renderPass = allocation.renderPass();
+        pipelineLayout = allocation.pipelineLayout();
+        graphicsPipeline = allocation.graphicsPipeline();
+        framebuffers = allocation.framebuffers();
+        postOffscreenActive = allocation.postOffscreenActive();
+        VulkanPostProcessResources.Allocation postResources = allocation.postProcessResources();
+        offscreenColorImage = postResources.offscreenColorImage();
+        offscreenColorMemory = postResources.offscreenColorMemory();
+        offscreenColorImageView = postResources.offscreenColorImageView();
+        offscreenColorSampler = postResources.offscreenColorSampler();
+        postDescriptorSetLayout = postResources.postDescriptorSetLayout();
+        postDescriptorPool = postResources.postDescriptorPool();
+        postDescriptorSet = postResources.postDescriptorSet();
+        postRenderPass = postResources.postRenderPass();
+        postPipelineLayout = postResources.postPipelineLayout();
+        postGraphicsPipeline = postResources.postGraphicsPipeline();
+        postFramebuffers = postResources.postFramebuffers();
     }
 
     private void createShadowResources(MemoryStack stack) throws EngineException {
@@ -1305,42 +1198,6 @@ final class VulkanContext {
         shadowPipelineLayout = shadowResources.shadowPipelineLayout();
         shadowPipeline = shadowResources.shadowPipeline();
         shadowFramebuffers = shadowResources.shadowFramebuffers();
-    }
-
-    private void createFramebuffers(MemoryStack stack) throws EngineException {
-        framebuffers = VulkanFramebufferResources.createMainFramebuffers(
-                device,
-                stack,
-                renderPass,
-                swapchainImageViews,
-                depthImageViews,
-                swapchainWidth,
-                swapchainHeight
-        );
-    }
-
-    private void createPostProcessResources(MemoryStack stack) throws EngineException {
-        postIntermediateInitialized = false;
-        VulkanPostProcessResources.Allocation postResources = VulkanPostProcessResources.create(
-                device,
-                physicalDevice,
-                stack,
-                swapchainImageFormat,
-                swapchainWidth,
-                swapchainHeight,
-                swapchainImageViews
-        );
-        offscreenColorImage = postResources.offscreenColorImage();
-        offscreenColorMemory = postResources.offscreenColorMemory();
-        offscreenColorImageView = postResources.offscreenColorImageView();
-        offscreenColorSampler = postResources.offscreenColorSampler();
-        postDescriptorSetLayout = postResources.postDescriptorSetLayout();
-        postDescriptorPool = postResources.postDescriptorPool();
-        postDescriptorSet = postResources.postDescriptorSet();
-        postRenderPass = postResources.postRenderPass();
-        postPipelineLayout = postResources.postPipelineLayout();
-        postGraphicsPipeline = postResources.postGraphicsPipeline();
-        postFramebuffers = postResources.postFramebuffers();
     }
 
     private void destroyShadowResources() {
@@ -1470,18 +1327,8 @@ final class VulkanContext {
     }
 
     private void recordCommandBuffer(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex, int frameIdx) throws EngineException {
-        VulkanFrameCommandOrchestrator.record(
-                stack,
-                commandBuffer,
-                imageIndex,
-                frameIdx,
-                new VulkanFrameCommandOrchestrator.FrameHooks(
-                        this::updateShadowLightViewProjMatrices,
-                        () -> prepareFrameUniforms(frameIdx),
-                        () -> uploadFrameUniforms(commandBuffer, frameIdx),
-                        value -> postIntermediateInitialized = value
-                ),
-                new VulkanFrameCommandOrchestrator.Inputs(
+        VulkanFrameCommandOrchestrator.Inputs commandInputs = VulkanFrameCommandInputsFactory.create(
+                new VulkanFrameCommandInputsFactory.Inputs(
                         gpuMeshes,
                         maxDynamicSceneObjects,
                         swapchainWidth,
@@ -1520,6 +1367,19 @@ final class VulkanContext {
                         meshIndex -> dynamicUniformOffset(frameIdx, meshIndex),
                         this::vkFailure
                 )
+        );
+        VulkanFrameCommandOrchestrator.record(
+                stack,
+                commandBuffer,
+                imageIndex,
+                frameIdx,
+                new VulkanFrameCommandOrchestrator.FrameHooks(
+                        this::updateShadowLightViewProjMatrices,
+                        () -> prepareFrameUniforms(frameIdx),
+                        () -> uploadFrameUniforms(commandBuffer, frameIdx),
+                        value -> postIntermediateInitialized = value
+                ),
+                commandInputs
         );
     }
 
@@ -1592,27 +1452,30 @@ final class VulkanContext {
     }
 
     private void uploadSceneMeshes(MemoryStack stack, List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
-        meshBufferRebuildCount++;
-        destroySceneMeshes();
-        VulkanSceneMeshLifecycle.UploadResult result = VulkanSceneMeshLifecycle.uploadMeshes(
-                device,
-                physicalDevice,
-                commandPool,
-                graphicsQueue,
-                stack,
-                sceneMeshes,
-                gpuMeshes,
-                iblIrradiancePath,
-                iblRadiancePath,
-                iblBrdfLutPath,
-                uniformFrameSpanBytes,
-                framesInFlight,
-                this::createTextureFromPath,
-                this::resolveOrCreateTexture,
-                this::textureCacheKey,
-                this::createTextureDescriptorSets,
-                this::vkFailure
+        VulkanSceneUploadCoordinator.UploadResult result = VulkanSceneUploadCoordinator.upload(
+                new VulkanSceneUploadCoordinator.UploadInputs(
+                        meshBufferRebuildCount,
+                        this::destroySceneMeshes,
+                        device,
+                        physicalDevice,
+                        commandPool,
+                        graphicsQueue,
+                        stack,
+                        sceneMeshes,
+                        gpuMeshes,
+                        iblIrradiancePath,
+                        iblRadiancePath,
+                        iblBrdfLutPath,
+                        uniformFrameSpanBytes,
+                        framesInFlight,
+                        this::createTextureFromPath,
+                        this::resolveOrCreateTexture,
+                        this::textureCacheKey,
+                        this::createTextureDescriptorSets,
+                        this::vkFailure
+                )
         );
+        meshBufferRebuildCount = result.meshBufferRebuildCount();
         iblIrradianceTexture = result.iblIrradianceTexture();
         iblRadianceTexture = result.iblRadianceTexture();
         iblBrdfLutTexture = result.iblBrdfLutTexture();
@@ -1620,27 +1483,27 @@ final class VulkanContext {
     }
 
     private void rebindSceneTexturesAndDynamicState(List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
-        VulkanSceneMeshLifecycle.RebindResult result = VulkanSceneMeshLifecycle.rebindSceneTextures(
-                sceneMeshes,
-                gpuMeshes,
-                iblIrradianceTexture,
-                iblRadianceTexture,
-                iblBrdfLutTexture,
-                iblIrradiancePath,
-                iblRadiancePath,
-                iblBrdfLutPath,
-                this::createTextureFromPath,
-                this::resolveOrCreateTexture,
-                this::textureCacheKey
+        VulkanSceneUploadCoordinator.RebindResult result = VulkanSceneUploadCoordinator.rebind(
+                new VulkanSceneUploadCoordinator.RebindInputs(
+                        device,
+                        sceneMeshes,
+                        gpuMeshes,
+                        iblIrradianceTexture,
+                        iblRadianceTexture,
+                        iblBrdfLutTexture,
+                        iblIrradiancePath,
+                        iblRadiancePath,
+                        iblBrdfLutPath,
+                        this::createTextureFromPath,
+                        this::resolveOrCreateTexture,
+                        this::textureCacheKey,
+                        this::refreshTextureDescriptorSets,
+                        this::markSceneStateDirty
+                )
         );
         iblIrradianceTexture = result.iblIrradianceTexture();
         iblRadianceTexture = result.iblRadianceTexture();
         iblBrdfLutTexture = result.iblBrdfLutTexture();
-        try (MemoryStack stack = stackPush()) {
-            createTextureDescriptorSets(stack);
-        }
-        VulkanTextureResourceOps.destroyTextures(device, result.staleTextures());
-        markSceneStateDirty(0, Math.max(0, sceneMeshes.size() - 1));
     }
 
     private void destroySceneMeshes() {
@@ -1734,6 +1597,12 @@ final class VulkanContext {
                 normalMap,
                 new VulkanTextureResourceOps.Context(device, physicalDevice, commandPool, graphicsQueue, this::vkFailure)
         );
+    }
+
+    private void refreshTextureDescriptorSets() throws EngineException {
+        try (MemoryStack stack = stackPush()) {
+            createTextureDescriptorSets(stack);
+        }
     }
 
     private void markGlobalStateDirty() {
@@ -1967,4 +1836,3 @@ final class VulkanContext {
     }
 
 }
-

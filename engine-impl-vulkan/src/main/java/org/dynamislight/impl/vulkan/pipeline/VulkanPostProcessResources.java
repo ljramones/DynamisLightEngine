@@ -111,6 +111,22 @@ public final class VulkanPostProcessResources {
         );
     }
 
+    public static Allocation empty() {
+        return new Allocation(
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                new long[0]
+        );
+    }
+
     public static void destroy(VkDevice device, Allocation resources) {
         if (device == null || resources == null) {
             return;
