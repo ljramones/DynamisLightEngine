@@ -42,9 +42,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int descriptorRingWasteWarnMinFrames = 8;
     private int descriptorRingWasteWarnMinCapacity = 64;
     private int descriptorRingWasteHighStreak;
+    private int descriptorRingWasteWarnCooldownFrames = 120;
+    private int descriptorRingWasteWarnCooldownRemaining;
     private long descriptorRingCapPressureWarnMinBypasses = 4;
     private int descriptorRingCapPressureWarnMinFrames = 2;
     private int descriptorRingCapPressureStreak;
+    private int descriptorRingCapPressureWarnCooldownFrames = 120;
+    private int descriptorRingCapPressureWarnCooldownRemaining;
     private QualityTier qualityTier = QualityTier.MEDIUM;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
@@ -126,6 +130,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 1,
                 65536
         );
+        descriptorRingWasteWarnCooldownFrames = parseIntOption(
+                backendOptions,
+                "vulkan.descriptorRingWasteWarnCooldownFrames",
+                120,
+                0,
+                10000
+        );
         descriptorRingCapPressureWarnMinBypasses = parseLongOption(
                 backendOptions,
                 "vulkan.descriptorRingCapPressureWarnMinBypasses",
@@ -140,6 +151,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 1,
                 600
         );
+        descriptorRingCapPressureWarnCooldownFrames = parseIntOption(
+                backendOptions,
+                "vulkan.descriptorRingCapPressureWarnCooldownFrames",
+                120,
+                0,
+                10000
+        );
         context.configureFrameResources(framesInFlight, maxDynamicSceneObjects, maxPendingUploadRanges);
         context.configureDescriptorRing(descriptorRingMaxSetCapacity);
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
@@ -150,6 +168,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         deviceLostRaised = false;
         descriptorRingWasteHighStreak = 0;
         descriptorRingCapPressureStreak = 0;
+        descriptorRingWasteWarnCooldownRemaining = 0;
+        descriptorRingCapPressureWarnCooldownRemaining = 0;
         if (Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.forceInitFailure", "false"))) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Forced Vulkan init failure", false);
         }
@@ -387,15 +407,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         && wasteRatio >= descriptorRingWasteWarnRatio;
                 descriptorRingWasteHighStreak = highWaste ? (descriptorRingWasteHighStreak + 1) : 0;
                 if (descriptorRingWasteHighStreak >= descriptorRingWasteWarnMinFrames) {
-                    warnings.add(new EngineWarning(
-                            "DESCRIPTOR_RING_WASTE_HIGH",
-                            "Descriptor ring waste ratio "
-                                    + String.format(java.util.Locale.ROOT, "%.3f", wasteRatio)
-                                    + " sustained for " + descriptorRingWasteHighStreak
-                                    + " frames (active=" + frameResources.descriptorRingActiveSetCount()
-                                    + ", capacity=" + frameResources.descriptorRingSetCapacity()
-                                    + ", threshold=" + descriptorRingWasteWarnRatio + ")"
-                    ));
+                    if (descriptorRingWasteWarnCooldownRemaining <= 0) {
+                        warnings.add(new EngineWarning(
+                                "DESCRIPTOR_RING_WASTE_HIGH",
+                                "Descriptor ring waste ratio "
+                                        + String.format(java.util.Locale.ROOT, "%.3f", wasteRatio)
+                                        + " sustained for " + descriptorRingWasteHighStreak
+                                        + " frames (active=" + frameResources.descriptorRingActiveSetCount()
+                                        + ", capacity=" + frameResources.descriptorRingSetCapacity()
+                                        + ", threshold=" + descriptorRingWasteWarnRatio + ")"
+                        ));
+                        descriptorRingWasteWarnCooldownRemaining = descriptorRingWasteWarnCooldownFrames;
+                    }
                 }
             } else {
                 descriptorRingWasteHighStreak = 0;
@@ -403,16 +426,25 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             if (frameResources.descriptorRingCapBypasses() >= descriptorRingCapPressureWarnMinBypasses) {
                 descriptorRingCapPressureStreak++;
                 if (descriptorRingCapPressureStreak >= descriptorRingCapPressureWarnMinFrames) {
-                    warnings.add(new EngineWarning(
-                            "DESCRIPTOR_RING_CAP_PRESSURE",
-                            "Descriptor ring cap bypasses=" + frameResources.descriptorRingCapBypasses()
-                                    + " (maxSetCapacity=" + frameResources.descriptorRingMaxSetCapacity()
-                                    + ", active=" + frameResources.descriptorRingActiveSetCount()
-                                    + ", capacity=" + frameResources.descriptorRingSetCapacity() + ")"
-                    ));
+                    if (descriptorRingCapPressureWarnCooldownRemaining <= 0) {
+                        warnings.add(new EngineWarning(
+                                "DESCRIPTOR_RING_CAP_PRESSURE",
+                                "Descriptor ring cap bypasses=" + frameResources.descriptorRingCapBypasses()
+                                        + " (maxSetCapacity=" + frameResources.descriptorRingMaxSetCapacity()
+                                        + ", active=" + frameResources.descriptorRingActiveSetCount()
+                                        + ", capacity=" + frameResources.descriptorRingSetCapacity() + ")"
+                        ));
+                        descriptorRingCapPressureWarnCooldownRemaining = descriptorRingCapPressureWarnCooldownFrames;
+                    }
                 }
             } else {
                 descriptorRingCapPressureStreak = 0;
+            }
+            if (descriptorRingWasteWarnCooldownRemaining > 0) {
+                descriptorRingWasteWarnCooldownRemaining--;
+            }
+            if (descriptorRingCapPressureWarnCooldownRemaining > 0) {
+                descriptorRingCapPressureWarnCooldownRemaining--;
             }
             if (currentShadows.enabled()) {
                 VulkanContext.ShadowCascadeProfile shadow = context.shadowCascadeProfile();

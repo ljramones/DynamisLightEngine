@@ -234,8 +234,10 @@ Vulkan options:
 - `vulkan.descriptorRingWasteWarnRatio` (default `0.85`, clamped `0.1..0.99`)
 - `vulkan.descriptorRingWasteWarnMinFrames` (default `8`, clamped `1..600`)
 - `vulkan.descriptorRingWasteWarnMinCapacity` (default `64`, clamped `1..65536`)
+- `vulkan.descriptorRingWasteWarnCooldownFrames` (default `120`, clamped `0..10000`)
 - `vulkan.descriptorRingCapPressureWarnMinBypasses` (default `4`, clamped `1..1000000`)
 - `vulkan.descriptorRingCapPressureWarnMinFrames` (default `2`, clamped `1..600`)
+- `vulkan.descriptorRingCapPressureWarnCooldownFrames` (default `120`, clamped `0..10000`)
 
 ## 11) Test-backed confidence areas
 The repository includes automated tests validating:

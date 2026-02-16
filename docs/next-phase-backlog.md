@@ -63,6 +63,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
     - ring growth now uses capacity targeting (growth + power-of-two rounding) with configurable soft cap (`vulkan.maxTextureDescriptorSets`)
     - sustained high-waste warning added: `DESCRIPTOR_RING_WASTE_HIGH` with configurable ratio/frame/capacity thresholds
     - cap-pressure warning added: `DESCRIPTOR_RING_CAP_PRESSURE` with configurable bypass/frame thresholds
+    - warning cooldowns added for both `DESCRIPTOR_RING_WASTE_HIGH` and `DESCRIPTOR_RING_CAP_PRESSURE` to limit repeated-frame log spam
 - Added Vulkan mesh-geometry cache in asset loader:
   - glTF/fallback geometry is cached by stable key
   - loader returns defensive copies to preserve cache integrity

@@ -563,6 +563,28 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void realVulkanDescriptorWasteWarningCooldownSuppressesEveryFrameEmission() throws Exception {
+        assumeRealVulkanReady("real Vulkan descriptor waste warning cooldown integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "false",
+                "vulkan.descriptorRingWasteWarnRatio", "0.90",
+                "vulkan.descriptorRingWasteWarnMinFrames", "1",
+                "vulkan.descriptorRingWasteWarnMinCapacity", "64",
+                "vulkan.descriptorRingWasteWarnCooldownFrames", "5"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReusableScene(false, false));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "DESCRIPTOR_RING_WASTE_HIGH".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "DESCRIPTOR_RING_WASTE_HIGH".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
     void realVulkanDescriptorCapPressureEmitsWarning() throws Exception {
         assumeRealVulkanReady("real Vulkan descriptor cap pressure warning integration test");
 
@@ -578,6 +600,28 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "DESCRIPTOR_RING_CAP_PRESSURE".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void realVulkanDescriptorCapPressureWarningCooldownSuppressesEveryFrameEmission() throws Exception {
+        assumeRealVulkanReady("real Vulkan descriptor cap pressure cooldown integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "false",
+                "vulkan.maxTextureDescriptorSets", "256",
+                "vulkan.descriptorRingCapPressureWarnMinBypasses", "1",
+                "vulkan.descriptorRingCapPressureWarnMinFrames", "1",
+                "vulkan.descriptorRingCapPressureWarnCooldownFrames", "5"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validLargeMeshScene(300));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "DESCRIPTOR_RING_CAP_PRESSURE".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "DESCRIPTOR_RING_CAP_PRESSURE".equals(w.code())));
         runtime.shutdown();
     }
 
