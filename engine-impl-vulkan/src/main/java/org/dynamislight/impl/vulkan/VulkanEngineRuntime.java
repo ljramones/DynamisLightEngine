@@ -1,8 +1,8 @@
 package org.dynamislight.impl.vulkan;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.nio.file.Path;
 import java.util.Set;
 import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.config.EngineConfig;
@@ -185,14 +185,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             VulkanGltfMeshParser.MeshGeometry geometry = meshLoader.loadMeshGeometry(mesh, i);
             MaterialDesc material = materials.get(mesh.materialId());
-            VulkanMaterialTextureSignal textureSignal = VulkanMaterialTextureSignal.fromMaterialTextures(
-                    assetRoot,
-                    material == null ? null : material.albedoTexturePath(),
-                    material == null ? null : material.normalTexturePath()
-            );
-            float[] color = materialToColor(material, textureSignal.albedoTint());
+            float[] color = materialToColor(material);
             float metallic = material == null ? 0.0f : clamp01(material.metallic());
-            float roughness = material == null ? 0.6f : clamp01(material.roughness() / textureSignal.normalStrength());
+            float roughness = material == null ? 0.6f : clamp01(material.roughness());
             float[] model = modelMatrixOf(transforms.get(mesh.transformId()), i);
             VulkanContext.SceneMeshData meshData = new VulkanContext.SceneMeshData(
                     geometry.vertices(),
@@ -200,29 +195,33 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     model,
                     color,
                     metallic,
-                    roughness
+                    roughness,
+                    resolveTexturePath(material == null ? null : material.albedoTexturePath())
             );
             out.add(meshData);
         }
         return out.isEmpty() ? List.of(VulkanContext.SceneMeshData.defaultTriangle()) : List.copyOf(out);
     }
 
-    private static float[] materialToColor(MaterialDesc material, float[] textureTint) {
+    private float[] materialToColor(MaterialDesc material) {
         Vec3 albedo = material == null ? null : material.albedo();
         if (albedo == null) {
-            return new float[]{
-                    clamp01(textureTint[0]),
-                    clamp01(textureTint[1]),
-                    clamp01(textureTint[2]),
-                    1f
-            };
+            return new float[]{1f, 1f, 1f, 1f};
         }
         return new float[]{
-                clamp01(albedo.x() * textureTint[0]),
-                clamp01(albedo.y() * textureTint[1]),
-                clamp01(albedo.z() * textureTint[2]),
+                clamp01(albedo.x()),
+                clamp01(albedo.y()),
+                clamp01(albedo.z()),
                 1f
         };
+    }
+
+    private Path resolveTexturePath(String texturePath) {
+        if (texturePath == null || texturePath.isBlank()) {
+            return null;
+        }
+        Path path = Path.of(texturePath);
+        return path.isAbsolute() ? path.normalize() : assetRoot.resolve(path).normalize();
     }
 
     private static float clamp01(float v) {

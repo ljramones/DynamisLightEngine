@@ -1,11 +1,20 @@
 package org.dynamislight.impl.vulkan;
 
+import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import javax.imageio.ImageIO;
 
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_FALSE;
@@ -221,6 +230,7 @@ import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
 import org.lwjgl.vulkan.VkBufferCreateInfo;
 import org.lwjgl.vulkan.VkBufferCopy;
 import org.lwjgl.vulkan.VkDescriptorBufferInfo;
+import org.lwjgl.vulkan.VkDescriptorImageInfo;
 import org.lwjgl.vulkan.VkDescriptorPoolCreateInfo;
 import org.lwjgl.vulkan.VkDescriptorPoolSize;
 import org.lwjgl.vulkan.VkDescriptorSetAllocateInfo;
@@ -233,6 +243,8 @@ import org.lwjgl.vulkan.VkWriteDescriptorSet;
 import org.lwjgl.vulkan.VkExtent2D;
 import org.lwjgl.vulkan.VkFenceCreateInfo;
 import org.lwjgl.vulkan.VkFramebufferCreateInfo;
+import org.lwjgl.vulkan.VkImageCreateInfo;
+import org.lwjgl.vulkan.VkImageMemoryBarrier;
 import org.lwjgl.vulkan.VkImageSubresourceRange;
 import org.lwjgl.vulkan.VkImageViewCreateInfo;
 import org.lwjgl.vulkan.VkInstance;
@@ -255,6 +267,8 @@ import org.lwjgl.vulkan.VkRect2D;
 import org.lwjgl.vulkan.VkRenderPassBeginInfo;
 import org.lwjgl.vulkan.VkRenderPassCreateInfo;
 import org.lwjgl.vulkan.VkSemaphoreCreateInfo;
+import org.lwjgl.vulkan.VkBufferImageCopy;
+import org.lwjgl.vulkan.VkSamplerCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
 import org.lwjgl.vulkan.VkSubpassDependency;
 import org.lwjgl.vulkan.VkSubpassDescription;
@@ -286,8 +300,10 @@ final class VulkanContext {
     private long pipelineLayout = VK_NULL_HANDLE;
     private long graphicsPipeline = VK_NULL_HANDLE;
     private long descriptorSetLayout = VK_NULL_HANDLE;
+    private long textureDescriptorSetLayout = VK_NULL_HANDLE;
     private long descriptorPool = VK_NULL_HANDLE;
     private long descriptorSet = VK_NULL_HANDLE;
+    private long textureDescriptorPool = VK_NULL_HANDLE;
     private long globalUniformBuffer = VK_NULL_HANDLE;
     private long globalUniformMemory = VK_NULL_HANDLE;
     private long[] framebuffers = new long[0];
@@ -696,6 +712,27 @@ final class VulkanContext {
         }
         descriptorSetLayout = pLayout.get(0);
 
+        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(1, stack);
+        textureBindings.get(0)
+                .binding(0)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
+
+        VkDescriptorSetLayoutCreateInfo textureLayoutInfo = VkDescriptorSetLayoutCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO)
+                .pBindings(textureBindings);
+        var pTextureLayout = stack.longs(VK_NULL_HANDLE);
+        int textureLayoutResult = vkCreateDescriptorSetLayout(device, textureLayoutInfo, null, pTextureLayout);
+        if (textureLayoutResult != VK_SUCCESS || pTextureLayout.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkCreateDescriptorSetLayout(texture) failed: " + textureLayoutResult,
+                    false
+            );
+        }
+        textureDescriptorSetLayout = pTextureLayout.get(0);
+
         BufferAlloc uniformAlloc = createBuffer(
                 stack,
                 GLOBAL_UNIFORM_BYTES,
@@ -768,6 +805,10 @@ final class VulkanContext {
         if (descriptorSetLayout != VK_NULL_HANDLE) {
             vkDestroyDescriptorSetLayout(device, descriptorSetLayout, null);
             descriptorSetLayout = VK_NULL_HANDLE;
+        }
+        if (textureDescriptorSetLayout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, textureDescriptorSetLayout, null);
+            textureDescriptorSetLayout = VK_NULL_HANDLE;
         }
     }
 
@@ -965,10 +1006,12 @@ final class VulkanContext {
                     vec4 uSmoke;
                     vec4 uSmokeColor;
                 } ubo;
+                layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
                 layout(location = 0) out vec4 outColor;
                 void main() {
                     vec3 n = normalize(vNormal);
-                    vec3 baseColor = ubo.uBaseColor.rgb;
+                    vec3 sampledAlbedo = texture(uAlbedoTexture, vUv).rgb;
+                    vec3 baseColor = ubo.uBaseColor.rgb * sampledAlbedo;
                     float metallic = clamp(ubo.uMaterial.x, 0.0, 1.0);
                     float roughness = clamp(ubo.uMaterial.y, 0.04, 1.0);
                     float dirIntensity = max(0.0, ubo.uMaterial.z);
@@ -992,7 +1035,6 @@ final class VulkanContext {
                     float spec = pow(max(dot(n, halfVec), 0.0), specPow) * mix(0.08, 0.9, metallic);
 
                     vec3 color = ambient + diffuse + pointLit + vec3(spec);
-                    color *= (0.92 + 0.08 * vec3(vUv, 1.0));
                     if (ubo.uFog.x > 0.5) {
                         float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
                         float fogFactor = clamp(exp(-ubo.uFog.y * (1.0 - normalizedHeight)), 0.0, 1.0);
@@ -1118,7 +1160,7 @@ final class VulkanContext {
 
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
-                    .pSetLayouts(stack.longs(descriptorSetLayout));
+                    .pSetLayouts(stack.longs(descriptorSetLayout, textureDescriptorSetLayout));
             var pPipelineLayout = stack.longs(VK_NULL_HANDLE);
             int layoutResult = vkCreatePipelineLayout(device, pipelineLayoutInfo, null, pPipelineLayout);
             if (layoutResult != VK_SUCCESS || pPipelineLayout.get(0) == VK_NULL_HANDLE) {
@@ -1384,18 +1426,18 @@ final class VulkanContext {
 
         vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-        if (descriptorSet != VK_NULL_HANDLE) {
-            vkCmdBindDescriptorSets(
-                    commandBuffer,
-                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    pipelineLayout,
-                    0,
-                    stack.longs(descriptorSet),
-                    null
-            );
-        }
         for (GpuMesh mesh : gpuMeshes) {
             updateGlobalUniform(mesh);
+            if (descriptorSet != VK_NULL_HANDLE && mesh.textureDescriptorSet != VK_NULL_HANDLE) {
+                vkCmdBindDescriptorSets(
+                        commandBuffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        pipelineLayout,
+                        0,
+                        stack.longs(descriptorSet, mesh.textureDescriptorSet),
+                        null
+                );
+            }
             vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer), stack.longs(0));
             vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
             vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
@@ -1512,6 +1554,8 @@ final class VulkanContext {
 
     private void uploadSceneMeshes(MemoryStack stack, List<SceneMeshData> sceneMeshes) throws EngineException {
         destroySceneMeshes();
+        Map<Path, GpuTexture> textureCache = new HashMap<>();
+        GpuTexture defaultTexture = createTextureFromPath(null);
         for (SceneMeshData mesh : sceneMeshes) {
             float[] vertices = mesh.vertices();
             int[] indices = mesh.indices();
@@ -1535,6 +1579,7 @@ final class VulkanContext {
                     indexData,
                     VK_BUFFER_USAGE_INDEX_BUFFER_BIT
             );
+            GpuTexture albedoTexture = resolveOrCreateTexture(mesh.albedoTexturePath(), textureCache, defaultTexture);
 
             gpuMeshes.add(new GpuMesh(
                     vertexAlloc.buffer,
@@ -1549,14 +1594,23 @@ final class VulkanContext {
                     mesh.color()[1],
                     mesh.color()[2],
                     mesh.metallic(),
-                    mesh.roughness()
+                    mesh.roughness(),
+                    albedoTexture
             ));
         }
+
+        createTextureDescriptorSets(stack);
+
         long meshBytes = 0;
+        long textureBytes = 0;
+        Set<GpuTexture> uniqueTextures = new HashSet<>();
         for (GpuMesh mesh : gpuMeshes) {
             meshBytes += mesh.vertexBytes + mesh.indexBytes;
+            if (uniqueTextures.add(mesh.albedoTexture)) {
+                textureBytes += mesh.albedoTexture.bytes();
+            }
         }
-        estimatedGpuMemoryBytes = GLOBAL_UNIFORM_BYTES + meshBytes;
+        estimatedGpuMemoryBytes = GLOBAL_UNIFORM_BYTES + meshBytes + textureBytes;
     }
 
     private void destroySceneMeshes() {
@@ -1564,6 +1618,7 @@ final class VulkanContext {
             gpuMeshes.clear();
             return;
         }
+        Set<GpuTexture> uniqueTextures = new HashSet<>();
         for (GpuMesh mesh : gpuMeshes) {
             if (mesh.vertexBuffer != VK_NULL_HANDLE) {
                 vkDestroyBuffer(device, mesh.vertexBuffer, null);
@@ -1577,8 +1632,392 @@ final class VulkanContext {
             if (mesh.indexMemory != VK_NULL_HANDLE) {
                 vkFreeMemory(device, mesh.indexMemory, null);
             }
+            uniqueTextures.add(mesh.albedoTexture);
+        }
+        for (GpuTexture texture : uniqueTextures) {
+            if (texture == null) {
+                continue;
+            }
+            if (texture.sampler() != VK_NULL_HANDLE) {
+                VK10.vkDestroySampler(device, texture.sampler(), null);
+            }
+            if (texture.view() != VK_NULL_HANDLE) {
+                vkDestroyImageView(device, texture.view(), null);
+            }
+            if (texture.image() != VK_NULL_HANDLE) {
+                VK10.vkDestroyImage(device, texture.image(), null);
+            }
+            if (texture.memory() != VK_NULL_HANDLE) {
+                vkFreeMemory(device, texture.memory(), null);
+            }
+        }
+        if (textureDescriptorPool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device, textureDescriptorPool, null);
+            textureDescriptorPool = VK_NULL_HANDLE;
         }
         gpuMeshes.clear();
+    }
+
+    private GpuTexture resolveOrCreateTexture(Path texturePath, Map<Path, GpuTexture> cache, GpuTexture defaultTexture) throws EngineException {
+        if (texturePath == null || !Files.isRegularFile(texturePath)) {
+            return defaultTexture;
+        }
+        GpuTexture cached = cache.get(texturePath);
+        if (cached != null) {
+            return cached;
+        }
+        GpuTexture created = createTextureFromPath(texturePath);
+        cache.put(texturePath, created);
+        return created;
+    }
+
+    private void createTextureDescriptorSets(MemoryStack stack) throws EngineException {
+        if (gpuMeshes.isEmpty() || textureDescriptorSetLayout == VK_NULL_HANDLE) {
+            return;
+        }
+        if (textureDescriptorPool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device, textureDescriptorPool, null);
+            textureDescriptorPool = VK_NULL_HANDLE;
+        }
+
+        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
+        poolSizes.get(0)
+                .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(gpuMeshes.size());
+
+        VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
+                .maxSets(gpuMeshes.size())
+                .pPoolSizes(poolSizes);
+        var pPool = stack.longs(VK_NULL_HANDLE);
+        int poolResult = vkCreateDescriptorPool(device, poolInfo, null, pPool);
+        if (poolResult != VK_SUCCESS || pPool.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkCreateDescriptorPool(texture) failed: " + poolResult,
+                    false
+            );
+        }
+        textureDescriptorPool = pPool.get(0);
+
+        VkDescriptorSetAllocateInfo allocInfo = VkDescriptorSetAllocateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO)
+                .descriptorPool(textureDescriptorPool);
+        LongBufferWrapper setLayouts = LongBufferWrapper.allocate(stack, gpuMeshes.size());
+        for (int i = 0; i < gpuMeshes.size(); i++) {
+            setLayouts.buffer().put(i, textureDescriptorSetLayout);
+        }
+        allocInfo.pSetLayouts(setLayouts.buffer());
+
+        LongBufferWrapper allocatedSets = LongBufferWrapper.allocate(stack, gpuMeshes.size());
+        int setResult = vkAllocateDescriptorSets(device, allocInfo, allocatedSets.buffer());
+        if (setResult != VK_SUCCESS) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkAllocateDescriptorSets(texture) failed: " + setResult,
+                    false
+            );
+        }
+
+        for (int i = 0; i < gpuMeshes.size(); i++) {
+            GpuMesh mesh = gpuMeshes.get(i);
+            mesh.textureDescriptorSet = allocatedSets.buffer().get(i);
+
+            VkDescriptorImageInfo.Buffer imageInfo = VkDescriptorImageInfo.calloc(1, stack);
+            imageInfo.get(0)
+                    .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .imageView(mesh.albedoTexture.view())
+                    .sampler(mesh.albedoTexture.sampler());
+            VkWriteDescriptorSet.Buffer write = VkWriteDescriptorSet.calloc(1, stack);
+            write.get(0)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(0)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(imageInfo);
+            vkUpdateDescriptorSets(device, write, null);
+        }
+    }
+
+    private GpuTexture createTextureFromPath(Path texturePath) throws EngineException {
+        TexturePixelData pixels = loadTexturePixels(texturePath);
+        if (pixels == null) {
+            ByteBuffer data = memAlloc(4);
+            data.put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).flip();
+            pixels = new TexturePixelData(data, 1, 1);
+        }
+        try {
+            return createTextureFromPixels(pixels);
+        } finally {
+            memFree(pixels.data());
+        }
+    }
+
+    private TexturePixelData loadTexturePixels(Path texturePath) {
+        if (texturePath == null || !Files.isRegularFile(texturePath)) {
+            return null;
+        }
+        try {
+            BufferedImage image = ImageIO.read(texturePath.toFile());
+            if (image == null) {
+                return null;
+            }
+            int width = image.getWidth();
+            int height = image.getHeight();
+            ByteBuffer buffer = memAlloc(width * height * 4);
+            for (int y = 0; y < height; y++) {
+                int srcY = height - 1 - y;
+                for (int x = 0; x < width; x++) {
+                    int argb = image.getRGB(x, srcY);
+                    buffer.put((byte) ((argb >> 16) & 0xFF));
+                    buffer.put((byte) ((argb >> 8) & 0xFF));
+                    buffer.put((byte) (argb & 0xFF));
+                    buffer.put((byte) ((argb >> 24) & 0xFF));
+                }
+            }
+            buffer.flip();
+            return new TexturePixelData(buffer, width, height);
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private GpuTexture createTextureFromPixels(TexturePixelData pixels) throws EngineException {
+        try (MemoryStack stack = stackPush()) {
+            BufferAlloc staging = createBuffer(
+                    stack,
+                    pixels.data().remaining(),
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            );
+            try {
+                uploadToMemory(staging.memory, pixels.data());
+                ImageAlloc imageAlloc = createImage(
+                        stack,
+                        pixels.width(),
+                        pixels.height(),
+                        VK10.VK_FORMAT_R8G8B8A8_SRGB,
+                        VK10.VK_IMAGE_TILING_OPTIMAL,
+                        VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+                );
+                transitionImageLayout(imageAlloc.image(), VK_IMAGE_LAYOUT_UNDEFINED, VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                copyBufferToImage(staging.buffer, imageAlloc.image(), pixels.width(), pixels.height());
+                transitionImageLayout(imageAlloc.image(), VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+                long imageView = createImageView(stack, imageAlloc.image(), VK10.VK_FORMAT_R8G8B8A8_SRGB);
+                long sampler = createSampler(stack);
+                return new GpuTexture(imageAlloc.image(), imageAlloc.memory(), imageView, sampler, (long) pixels.width() * pixels.height() * 4L);
+            } finally {
+                if (staging.buffer != VK_NULL_HANDLE) {
+                    vkDestroyBuffer(device, staging.buffer, null);
+                }
+                if (staging.memory != VK_NULL_HANDLE) {
+                    vkFreeMemory(device, staging.memory, null);
+                }
+            }
+        }
+    }
+
+    private ImageAlloc createImage(MemoryStack stack, int width, int height, int format, int tiling, int usage, int properties)
+            throws EngineException {
+        VkImageCreateInfo imageInfo = VkImageCreateInfo.calloc(stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO)
+                .imageType(VK10.VK_IMAGE_TYPE_2D)
+                .extent(e -> e.width(width).height(height).depth(1))
+                .mipLevels(1)
+                .arrayLayers(1)
+                .format(format)
+                .tiling(tiling)
+                .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
+                .usage(usage)
+                .samples(VK_SAMPLE_COUNT_1_BIT)
+                .sharingMode(VK_SHARING_MODE_EXCLUSIVE);
+
+        var pImage = stack.longs(VK_NULL_HANDLE);
+        int createImageResult = VK10.vkCreateImage(device, imageInfo, null, pImage);
+        if (createImageResult != VK_SUCCESS || pImage.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateImage failed: " + createImageResult, false);
+        }
+        long image = pImage.get(0);
+
+        VkMemoryRequirements memReq = VkMemoryRequirements.calloc(stack);
+        VK10.vkGetImageMemoryRequirements(device, image, memReq);
+
+        VkMemoryAllocateInfo allocInfo = VkMemoryAllocateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
+                .allocationSize(memReq.size())
+                .memoryTypeIndex(findMemoryType(memReq.memoryTypeBits(), properties));
+
+        var pMemory = stack.longs(VK_NULL_HANDLE);
+        int allocResult = vkAllocateMemory(device, allocInfo, null, pMemory);
+        if (allocResult != VK_SUCCESS || pMemory.get(0) == VK_NULL_HANDLE) {
+            VK10.vkDestroyImage(device, image, null);
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateMemory(image) failed: " + allocResult, false);
+        }
+        long memory = pMemory.get(0);
+        int bindResult = VK10.vkBindImageMemory(device, image, memory, 0);
+        if (bindResult != VK_SUCCESS) {
+            vkFreeMemory(device, memory, null);
+            VK10.vkDestroyImage(device, image, null);
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkBindImageMemory failed: " + bindResult, false);
+        }
+        return new ImageAlloc(image, memory);
+    }
+
+    private void transitionImageLayout(long image, int oldLayout, int newLayout) throws EngineException {
+        try (MemoryStack stack = stackPush()) {
+            VkCommandBuffer cmd = beginSingleTimeCommands(stack);
+            VkImageMemoryBarrier.Buffer barrier = VkImageMemoryBarrier.calloc(1, stack)
+                    .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                    .oldLayout(oldLayout)
+                    .newLayout(newLayout)
+                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .image(image);
+            barrier.get(0).subresourceRange()
+                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                    .baseMipLevel(0)
+                    .levelCount(1)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+
+            int sourceStage;
+            int destinationStage;
+            if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+                barrier.get(0).srcAccessMask(0);
+                barrier.get(0).dstAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT);
+                sourceStage = VK10.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+                destinationStage = VK10.VK_PIPELINE_STAGE_TRANSFER_BIT;
+            } else if (oldLayout == VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+                    && newLayout == VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+                barrier.get(0).srcAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT);
+                barrier.get(0).dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT);
+                sourceStage = VK10.VK_PIPELINE_STAGE_TRANSFER_BIT;
+                destinationStage = VK10.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+            } else {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Unsupported image layout transition", false);
+            }
+
+            VK10.vkCmdPipelineBarrier(
+                    cmd,
+                    sourceStage,
+                    destinationStage,
+                    0,
+                    null,
+                    null,
+                    barrier
+            );
+            endSingleTimeCommands(stack, cmd);
+        }
+    }
+
+    private void copyBufferToImage(long buffer, long image, int width, int height) throws EngineException {
+        try (MemoryStack stack = stackPush()) {
+            VkCommandBuffer cmd = beginSingleTimeCommands(stack);
+            VkBufferImageCopy.Buffer region = VkBufferImageCopy.calloc(1, stack);
+            region.get(0)
+                    .bufferOffset(0)
+                    .bufferRowLength(0)
+                    .bufferImageHeight(0);
+            region.get(0).imageSubresource()
+                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                    .mipLevel(0)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            region.get(0).imageOffset().set(0, 0, 0);
+            region.get(0).imageExtent().set(width, height, 1);
+            VK10.vkCmdCopyBufferToImage(cmd, buffer, image, VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region);
+            endSingleTimeCommands(stack, cmd);
+        }
+    }
+
+    private VkCommandBuffer beginSingleTimeCommands(MemoryStack stack) throws EngineException {
+        VkCommandBufferAllocateInfo allocInfo = VkCommandBufferAllocateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
+                .commandPool(commandPool)
+                .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
+                .commandBufferCount(1);
+        PointerBuffer pCommandBuffer = stack.mallocPointer(1);
+        int allocResult = vkAllocateCommandBuffers(device, allocInfo, pCommandBuffer);
+        if (allocResult != VK_SUCCESS) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateCommandBuffers(one-shot) failed: " + allocResult, false);
+        }
+        VkCommandBuffer cmd = new VkCommandBuffer(pCommandBuffer.get(0), device);
+        VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
+                .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        int beginResult = vkBeginCommandBuffer(cmd, beginInfo);
+        if (beginResult != VK_SUCCESS) {
+            throw vkFailure("vkBeginCommandBuffer(one-shot)", beginResult);
+        }
+        return cmd;
+    }
+
+    private void endSingleTimeCommands(MemoryStack stack, VkCommandBuffer cmd) throws EngineException {
+        int endResult = vkEndCommandBuffer(cmd);
+        if (endResult != VK_SUCCESS) {
+            throw vkFailure("vkEndCommandBuffer(one-shot)", endResult);
+        }
+        VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
+                .pCommandBuffers(stack.pointers(cmd.address()));
+        int submitResult = vkQueueSubmit(graphicsQueue, submitInfo, VK_NULL_HANDLE);
+        if (submitResult != VK_SUCCESS) {
+            throw vkFailure("vkQueueSubmit(one-shot)", submitResult);
+        }
+        int waitResult = vkQueueWaitIdle(graphicsQueue);
+        if (waitResult != VK_SUCCESS) {
+            throw vkFailure("vkQueueWaitIdle(one-shot)", waitResult);
+        }
+        vkFreeCommandBuffers(device, commandPool, stack.pointers(cmd.address()));
+    }
+
+    private long createImageView(MemoryStack stack, long image, int format) throws EngineException {
+        VkImageViewCreateInfo viewInfo = VkImageViewCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
+                .image(image)
+                .viewType(VK_IMAGE_VIEW_TYPE_2D)
+                .format(format);
+        viewInfo.subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        var pView = stack.longs(VK_NULL_HANDLE);
+        int result = vkCreateImageView(device, viewInfo, null, pView);
+        if (result != VK_SUCCESS || pView.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateImageView(texture) failed: " + result, false);
+        }
+        return pView.get(0);
+    }
+
+    private long createSampler(MemoryStack stack) throws EngineException {
+        VkSamplerCreateInfo samplerInfo = VkSamplerCreateInfo.calloc(stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO)
+                .magFilter(VK10.VK_FILTER_LINEAR)
+                .minFilter(VK10.VK_FILTER_LINEAR)
+                .addressModeU(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT)
+                .addressModeV(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT)
+                .addressModeW(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT)
+                .anisotropyEnable(false)
+                .maxAnisotropy(1.0f)
+                .borderColor(VK10.VK_BORDER_COLOR_INT_OPAQUE_BLACK)
+                .unnormalizedCoordinates(false)
+                .compareEnable(false)
+                .compareOp(VK10.VK_COMPARE_OP_ALWAYS)
+                .mipmapMode(VK10.VK_SAMPLER_MIPMAP_MODE_LINEAR)
+                .mipLodBias(0.0f)
+                .minLod(0.0f)
+                .maxLod(0.0f);
+        var pSampler = stack.longs(VK_NULL_HANDLE);
+        int result = VK10.vkCreateSampler(device, samplerInfo, null, pSampler);
+        if (result != VK_SUCCESS || pSampler.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateSampler failed: " + result, false);
+        }
+        return pSampler.get(0);
     }
 
     private void updateGlobalUniform(GpuMesh mesh) throws EngineException {
@@ -1767,6 +2206,8 @@ final class VulkanContext {
         private final float colorB;
         private final float metallic;
         private final float roughness;
+        private final GpuTexture albedoTexture;
+        private long textureDescriptorSet = VK_NULL_HANDLE;
 
         private GpuMesh(
                 long vertexBuffer,
@@ -1781,7 +2222,8 @@ final class VulkanContext {
                 float colorG,
                 float colorB,
                 float metallic,
-                float roughness
+                float roughness,
+                GpuTexture albedoTexture
         ) {
             this.vertexBuffer = vertexBuffer;
             this.vertexMemory = vertexMemory;
@@ -1796,10 +2238,28 @@ final class VulkanContext {
             this.colorB = colorB;
             this.metallic = metallic;
             this.roughness = roughness;
+            this.albedoTexture = albedoTexture;
         }
     }
 
-    static record SceneMeshData(float[] vertices, int[] indices, float[] modelMatrix, float[] color, float metallic, float roughness) {
+    private record GpuTexture(long image, long memory, long view, long sampler, long bytes) {
+    }
+
+    private record ImageAlloc(long image, long memory) {
+    }
+
+    private record TexturePixelData(ByteBuffer data, int width, int height) {
+    }
+
+    static record SceneMeshData(
+            float[] vertices,
+            int[] indices,
+            float[] modelMatrix,
+            float[] color,
+            float metallic,
+            float roughness,
+            Path albedoTexturePath
+    ) {
         SceneMeshData {
             if (vertices == null || vertices.length < VERTEX_STRIDE_FLOATS * 3 || vertices.length % VERTEX_STRIDE_FLOATS != 0) {
                 throw new IllegalArgumentException("vertices must be interleaved as pos/normal/uv/tangent");
@@ -1836,7 +2296,8 @@ final class VulkanContext {
                     },
                     color,
                     0.0f,
-                    0.6f
+                    0.6f,
+                    null
             );
         }
 
@@ -1858,7 +2319,8 @@ final class VulkanContext {
                     },
                     color,
                     0.0f,
-                    0.6f
+                    0.6f,
+                    null
             );
         }
     }
