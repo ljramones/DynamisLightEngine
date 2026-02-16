@@ -91,6 +91,25 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void mockVulkanBackendOptionsClampAndFallbackWhenInvalid() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.framesInFlight", "99",
+                "vulkan.maxDynamicSceneObjects", "10",
+                "vulkan.maxPendingUploadRanges", "-1",
+                "vulkan.meshGeometryCacheEntries", "nope"
+        )), new RecordingCallbacks());
+
+        VulkanEngineRuntime.FrameResourceConfig config = runtime.debugFrameResourceConfig();
+        assertEquals(4, config.framesInFlight());
+        assertEquals(256, config.maxDynamicSceneObjects());
+        assertEquals(8, config.maxPendingUploadRanges());
+        assertEquals(256, config.meshGeometryCacheEntries());
+        runtime.shutdown();
+    }
+
+    @Test
     void forcedInitFailureMapsToBackendInitFailed() {
         var runtime = new VulkanEngineRuntime();
         var callbacks = new RecordingCallbacks();
