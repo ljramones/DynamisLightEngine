@@ -89,6 +89,8 @@ final class VulkanContext {
     private final VulkanFrameUploadStats frameUploadStats = new VulkanFrameUploadStats();
     private float[] viewMatrix = identityMatrix();
     private float[] projMatrix = identityMatrix();
+    private float[] projBaseMatrix = identityMatrix();
+    private int taaJitterFrameIndex;
     private final VulkanRenderState renderState = new VulkanRenderState();
     private VulkanLightingParameterMutator.LightingState lightingState = new VulkanLightingParameterMutator.LightingState(
             0.35f, -1.0f, 0.25f,
@@ -175,6 +177,7 @@ final class VulkanContext {
 
     VulkanFrameMetrics renderFrame() throws EngineException {
         long start = System.nanoTime();
+        updateTemporalJitterState();
         if (backendResources.device != null && backendResources.graphicsQueue != null && backendResources.commandBuffers.length > 0 && backendResources.swapchain != VK_NULL_HANDLE) {
             try (MemoryStack stack = stackPush()) {
                 int frameIdx = backendResources.currentFrame % backendResources.commandBuffers.length;
@@ -303,8 +306,14 @@ final class VulkanContext {
                 new VulkanRenderParameterMutator.CameraUpdate(view, proj)
         );
         viewMatrix = result.state().view();
-        projMatrix = result.state().proj();
-        if (result.changed()) {
+        if (proj != null && proj.length == 16) {
+            projBaseMatrix = proj.clone();
+            projMatrix = applyProjectionJitter(projBaseMatrix, renderState.taaJitterNdcX, renderState.taaJitterNdcY);
+            renderState.postTaaHistoryInitialized = false;
+        } else {
+            projMatrix = result.state().proj();
+        }
+        if (result.changed() || proj != null) {
             markGlobalStateDirty();
         }
     }
@@ -494,6 +503,8 @@ final class VulkanContext {
         this.renderState.taaBlend = state.taaBlend();
         if (!this.renderState.taaEnabled) {
             this.renderState.postTaaHistoryInitialized = false;
+            resetTemporalJitterState();
+            projMatrix = projBaseMatrix.clone();
         }
         if (result.changed()) {
             markGlobalStateDirty();
@@ -750,6 +761,8 @@ final class VulkanContext {
                         renderState.taaEnabled,
                         renderState.taaBlend,
                         renderState.postTaaHistoryInitialized,
+                        taaJitterUvDeltaX(),
+                        taaJitterUvDeltaY(),
                         backendResources.postRenderPass,
                         backendResources.postGraphicsPipeline,
                         backendResources.postPipelineLayout,
@@ -998,6 +1011,61 @@ final class VulkanContext {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private void updateTemporalJitterState() {
+        renderState.taaPrevJitterNdcX = renderState.taaJitterNdcX;
+        renderState.taaPrevJitterNdcY = renderState.taaJitterNdcY;
+        if (!renderState.taaEnabled) {
+            return;
+        }
+        int frame = ++taaJitterFrameIndex;
+        float width = Math.max(1, backendResources.swapchainWidth);
+        float height = Math.max(1, backendResources.swapchainHeight);
+        float jitterX = (float) (((halton(frame, 2) - 0.5) * 2.0) / width);
+        float jitterY = (float) (((halton(frame, 3) - 0.5) * 2.0) / height);
+        boolean changed = Math.abs(jitterX - renderState.taaJitterNdcX) > 1e-9f || Math.abs(jitterY - renderState.taaJitterNdcY) > 1e-9f;
+        renderState.taaJitterNdcX = jitterX;
+        renderState.taaJitterNdcY = jitterY;
+        if (changed) {
+            projMatrix = applyProjectionJitter(projBaseMatrix, renderState.taaJitterNdcX, renderState.taaJitterNdcY);
+            markGlobalStateDirty();
+        }
+    }
+
+    private void resetTemporalJitterState() {
+        taaJitterFrameIndex = 0;
+        renderState.taaJitterNdcX = 0f;
+        renderState.taaJitterNdcY = 0f;
+        renderState.taaPrevJitterNdcX = 0f;
+        renderState.taaPrevJitterNdcY = 0f;
+    }
+
+    private float taaJitterUvDeltaX() {
+        return (renderState.taaPrevJitterNdcX - renderState.taaJitterNdcX) * 0.5f;
+    }
+
+    private float taaJitterUvDeltaY() {
+        return (renderState.taaPrevJitterNdcY - renderState.taaJitterNdcY) * 0.5f;
+    }
+
+    private static float[] applyProjectionJitter(float[] baseProjection, float jitterNdcX, float jitterNdcY) {
+        float[] jittered = baseProjection.clone();
+        jittered[8] += jitterNdcX;
+        jittered[9] += jitterNdcY;
+        return jittered;
+    }
+
+    private static double halton(int index, int base) {
+        double result = 0.0;
+        double f = 1.0;
+        int i = index;
+        while (i > 0) {
+            f /= base;
+            result += f * (i % base);
+            i /= base;
+        }
+        return result;
     }
 
 }

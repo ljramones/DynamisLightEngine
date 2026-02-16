@@ -460,6 +460,7 @@ public final class VulkanShaderSources {
                     vec4 tonemap;
                     vec4 bloom;
                     vec4 ssao;
+                    vec4 smaa;
                     vec4 taa;
                 } pc;
                 vec3 smaaLite(vec2 uv, vec3 color) {
@@ -474,7 +475,7 @@ public final class VulkanShaderSources {
                     float le = dot(cE, vec3(0.2126, 0.7152, 0.0722));
                     float lw = dot(cW, vec3(0.2126, 0.7152, 0.0722));
                     float edge = clamp(max(abs(l - le) + abs(l - lw), abs(l - ln) + abs(l - ls)), 0.0, 1.0);
-                    float blend = edge * clamp(pc.ssao.w, 0.0, 1.0) * 0.55;
+                    float blend = edge * clamp(pc.smaa.y, 0.0, 1.0) * 0.55;
                     vec3 neighborhood = (cN + cS + cE + cW) * 0.25;
                     return mix(color, neighborhood, blend);
                 }
@@ -521,11 +522,12 @@ public final class VulkanShaderSources {
                         float occlusion = pow(clamp(shapedEdge * ssaoStrength, 0.0, 0.92), max(0.60, 1.18 - (ssaoPower * 0.30)));
                         color *= (1.0 - occlusion * 0.82);
                     }
-                    if (pc.ssao.w > 0.0) {
+                    if (pc.smaa.x > 0.5) {
                         color = smaaLite(vUv, color);
                     }
                     if (pc.taa.x > 0.5 && pc.taa.z > 0.5) {
-                        vec3 history = texture(uHistoryColor, vUv).rgb;
+                        vec2 historyUv = clamp(vUv + pc.smaa.zw, vec2(0.0), vec2(1.0));
+                        vec3 history = texture(uHistoryColor, historyUv).rgb;
                         float blend = clamp(pc.taa.y, 0.0, 0.95);
                         vec3 minN = min(color, history);
                         vec3 maxN = max(color, history);

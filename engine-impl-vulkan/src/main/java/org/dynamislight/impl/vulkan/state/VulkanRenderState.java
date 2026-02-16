@@ -45,6 +45,10 @@ public final class VulkanRenderState {
     public float smaaStrength;
     public boolean taaEnabled;
     public float taaBlend;
+    public float taaJitterNdcX;
+    public float taaJitterNdcY;
+    public float taaPrevJitterNdcX;
+    public float taaPrevJitterNdcY;
     public boolean postTaaHistoryInitialized;
     public boolean postOffscreenRequested;
     public boolean postOffscreenActive;

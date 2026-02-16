@@ -341,11 +341,12 @@ public final class VulkanRenderCommandRecorder {
                 stack.longs(in.postDescriptorSet()),
                 null
         );
-        ByteBuffer postPush = stack.malloc(16 * Float.BYTES);
+        ByteBuffer postPush = stack.malloc(20 * Float.BYTES);
         postPush.asFloatBuffer().put(new float[]{
                 in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), in.ssaoEnabled() ? 1f : 0f,
                 in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength(),
-                in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), in.smaaEnabled() ? in.smaaStrength() : 0f,
+                in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), 0f,
+                in.smaaEnabled() ? 1f : 0f, in.smaaStrength(), in.taaJitterUvDeltaX(), in.taaJitterUvDeltaY(),
                 in.taaEnabled() ? 1f : 0f, in.taaBlend(), in.taaHistoryInitialized() ? 1f : 0f, 0f
         });
         vkCmdPushConstants(commandBuffer, in.postPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
@@ -513,6 +514,8 @@ public final class VulkanRenderCommandRecorder {
             boolean taaEnabled,
             float taaBlend,
             boolean taaHistoryInitialized,
+            float taaJitterUvDeltaX,
+            float taaJitterUvDeltaY,
             long postRenderPass,
             long postGraphicsPipeline,
             long postPipelineLayout,

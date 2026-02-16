@@ -145,7 +145,7 @@ public final class VulkanPostPipelineBuilder {
                 pushRanges.get(0)
                         .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT)
                         .offset(0)
-                        .size(16 * Float.BYTES);
+                        .size(20 * Float.BYTES);
                 VkPipelineLayoutCreateInfo layoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
                         .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
                         .pSetLayouts(stack.longs(postDescriptorSetLayout))

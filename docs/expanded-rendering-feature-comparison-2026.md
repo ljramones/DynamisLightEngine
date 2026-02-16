@@ -13,7 +13,7 @@ Last updated: February 16, 2026.
 | Global Illumination | IBL baseline + environment-driven ambient; no full dynamic GI system yet | SVOGI | Lumen | Baked probes + RTGI/SSGI variants | SDFGI/VoxelGI |
 | Shadows | Cascaded directional shadows, spot/point baseline, PCF + tier controls | Advanced shadow stack | VSM + RT paths | Cascaded + RT options | Clustered shadows + CSM |
 | Reflections | IBL + roughness-aware prefilter baseline; no full SSR/RT reflection suite | SSR | Lumen/SSR/RT | SSR/planar/RT options | SSR + RTR (renderer-dependent) |
-| Anti-Aliasing | SMAA-lite + baseline TAA temporal-history blend in both OpenGL and Vulkan post paths (full motion-vector/jitter-grade TAA still pending) | TAA | TSR/TAA | TAAU (+ upscalers) | TAA/MSAA |
+| Anti-Aliasing | SMAA-lite + jitter-aware baseline TAA temporal-history blend in both OpenGL and Vulkan post paths (full motion-vector-grade reprojection still pending) | TAA | TSR/TAA | TAAU (+ upscalers) | TAA/MSAA |
 | Geometry/Detail | glTF mesh path with normals/UV/tangents; no Nanite-class virtual geometry | Tessellation/POM | Nanite | LOD + GPU-driven options | LOD + compute-assisted paths |
 | Post-Processing | Tonemap + bloom + SSAO-lite + SMAA-lite baseline (OpenGL FBO chain, Vulkan post path with fallback) | Mature cinematic stack | Extensive post suite | Extensive HDRP post suite | Compositor-driven post |
 | VFX/Water | Fog/smoke baseline; no full Niagara/VFX-Graph-class stack | Strong GPU FX | Niagara + advanced water | VFX Graph + water stacks | Particles + compute FX baseline |

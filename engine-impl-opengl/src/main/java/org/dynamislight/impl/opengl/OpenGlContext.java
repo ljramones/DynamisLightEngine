@@ -609,6 +609,7 @@ final class OpenGlContext {
             uniform int uTaaEnabled;
             uniform float uTaaBlend;
             uniform int uTaaHistoryValid;
+            uniform vec2 uTaaJitterDelta;
             uniform sampler2D uTaaHistory;
             out vec4 FragColor;
             float ssaoLite(vec2 uv) {
@@ -678,7 +679,8 @@ final class OpenGlContext {
                     color = smaaLite(vUv, color);
                 }
                 if (uTaaEnabled == 1 && uTaaHistoryValid == 1) {
-                    vec3 history = texture(uTaaHistory, vUv).rgb;
+                    vec2 historyUv = clamp(vUv + uTaaJitterDelta, vec2(0.0), vec2(1.0));
+                    vec3 history = texture(uTaaHistory, historyUv).rgb;
                     float blend = clamp(uTaaBlend, 0.0, 0.95);
                     vec3 minN = min(color, history);
                     vec3 maxN = max(color, history);
@@ -774,6 +776,7 @@ final class OpenGlContext {
     private int postTaaEnabledLocation;
     private int postTaaBlendLocation;
     private int postTaaHistoryValidLocation;
+    private int postTaaJitterDeltaLocation;
     private int postTaaHistoryLocation;
     private int postVaoId;
     private int sceneFramebufferId;
@@ -784,6 +787,12 @@ final class OpenGlContext {
     private boolean postProcessPipelineAvailable;
     private float[] viewMatrix = identityMatrix();
     private float[] projMatrix = identityMatrix();
+    private float[] projBaseMatrix = identityMatrix();
+    private int taaJitterFrameIndex;
+    private float taaJitterNdcX;
+    private float taaJitterNdcY;
+    private float taaPrevJitterNdcX;
+    private float taaPrevJitterNdcY;
     private boolean fogEnabled;
     private float fogR = 0.5f;
     private float fogG = 0.5f;
@@ -930,6 +939,7 @@ final class OpenGlContext {
     }
 
     void beginFrame() {
+        updateTemporalJitterState();
         glViewport(0, 0, width, height);
         if (gpuTimerQuerySupported) {
             glBeginQuery(GL_TIME_ELAPSED, gpuTimeQueryId);
@@ -1150,6 +1160,7 @@ final class OpenGlContext {
         glUniform1i(postTaaEnabledLocation, taaEnabled ? 1 : 0);
         glUniform1f(postTaaBlendLocation, taaBlend);
         glUniform1i(postTaaHistoryValidLocation, taaHistoryValid ? 1 : 0);
+        glUniform2f(postTaaJitterDeltaLocation, taaJitterUvDeltaX(), taaJitterUvDeltaY());
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1293,6 +1304,10 @@ final class OpenGlContext {
         this.smaaStrength = Math.max(0f, Math.min(1.0f, smaaStrength));
         this.taaEnabled = taaEnabled;
         this.taaBlend = Math.max(0f, Math.min(0.95f, taaBlend));
+        if (!this.taaEnabled) {
+            resetTemporalJitterState();
+            projMatrix = projBaseMatrix.clone();
+        }
     }
 
     void setCameraMatrices(float[] view, float[] proj) {
@@ -1300,7 +1315,9 @@ final class OpenGlContext {
             viewMatrix = view.clone();
         }
         if (proj != null && proj.length == 16) {
-            projMatrix = proj.clone();
+            projBaseMatrix = proj.clone();
+            projMatrix = applyProjectionJitter(projBaseMatrix, taaJitterNdcX, taaJitterNdcY);
+            taaHistoryValid = false;
         }
     }
 
@@ -1528,6 +1545,7 @@ final class OpenGlContext {
         postTaaEnabledLocation = glGetUniformLocation(postProgramId, "uTaaEnabled");
         postTaaBlendLocation = glGetUniformLocation(postProgramId, "uTaaBlend");
         postTaaHistoryValidLocation = glGetUniformLocation(postProgramId, "uTaaHistoryValid");
+        postTaaJitterDeltaLocation = glGetUniformLocation(postProgramId, "uTaaJitterDelta");
         postTaaHistoryLocation = glGetUniformLocation(postProgramId, "uTaaHistory");
         postVaoId = glGenVertexArrays();
         glUseProgram(postProgramId);
@@ -1887,6 +1905,60 @@ final class OpenGlContext {
 
     private boolean useDedicatedPostPass() {
         return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled || ssaoEnabled || smaaEnabled || taaEnabled);
+    }
+
+    private void updateTemporalJitterState() {
+        taaPrevJitterNdcX = taaJitterNdcX;
+        taaPrevJitterNdcY = taaJitterNdcY;
+        if (!taaEnabled) {
+            if (taaJitterNdcX != 0f || taaJitterNdcY != 0f) {
+                taaJitterNdcX = 0f;
+                taaJitterNdcY = 0f;
+                projMatrix = projBaseMatrix.clone();
+            }
+            return;
+        }
+        int frame = ++taaJitterFrameIndex;
+        float widthPx = Math.max(1, width);
+        float heightPx = Math.max(1, height);
+        taaJitterNdcX = (float) (((halton(frame, 2) - 0.5) * 2.0) / widthPx);
+        taaJitterNdcY = (float) (((halton(frame, 3) - 0.5) * 2.0) / heightPx);
+        projMatrix = applyProjectionJitter(projBaseMatrix, taaJitterNdcX, taaJitterNdcY);
+    }
+
+    private void resetTemporalJitterState() {
+        taaJitterFrameIndex = 0;
+        taaJitterNdcX = 0f;
+        taaJitterNdcY = 0f;
+        taaPrevJitterNdcX = 0f;
+        taaPrevJitterNdcY = 0f;
+    }
+
+    private float taaJitterUvDeltaX() {
+        return (taaPrevJitterNdcX - taaJitterNdcX) * 0.5f;
+    }
+
+    private float taaJitterUvDeltaY() {
+        return (taaPrevJitterNdcY - taaJitterNdcY) * 0.5f;
+    }
+
+    private static float[] applyProjectionJitter(float[] baseProjection, float jitterNdcX, float jitterNdcY) {
+        float[] jittered = baseProjection.clone();
+        jittered[8] += jitterNdcX;
+        jittered[9] += jitterNdcY;
+        return jittered;
+    }
+
+    private static double halton(int index, int base) {
+        double result = 0.0;
+        double f = 1.0;
+        int i = index;
+        while (i > 0) {
+            f /= base;
+            result += f * (i % base);
+            i /= base;
+        }
+        return result;
     }
 
     private boolean useShaderDrivenPost() {
