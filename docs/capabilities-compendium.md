@@ -121,6 +121,7 @@ OpenGL backend provides a real forward render baseline:
 - TAA reprojection maturity:
   - OpenGL and Vulkan both include per-pixel motion-vector reprojection via dedicated velocity render targets sampled in post.
   - Global camera-motion UV reprojection remains layered as a stabilizing baseline term.
+  - Reactive-mask + neighborhood-clipping pass is enabled in both backends to reduce ghosting under high-contrast motion.
 - Dedicated post-pass architecture:
   - offscreen scene target (FBO color + depth/stencil) then fullscreen post shader composite
   - shader-driven post remains as fallback if offscreen resources are unavailable

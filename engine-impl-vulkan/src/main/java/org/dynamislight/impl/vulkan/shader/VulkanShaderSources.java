@@ -540,13 +540,22 @@ public final class VulkanShaderSources {
                         color = smaaLite(vUv, color);
                     }
                     if (pc.taa.x > 0.5 && pc.taa.z > 0.5) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
                         vec2 velocityUv = texture(uVelocityColor, vUv).rg * 2.0 - 1.0;
                         vec2 historyUv = clamp(vUv + pc.smaa.zw + pc.motion.xy + (velocityUv * 0.5), vec2(0.0), vec2(1.0));
                         vec3 history = texture(uHistoryColor, historyUv).rgb;
-                        float blend = clamp(pc.taa.y, 0.0, 0.95);
-                        vec3 minN = min(color, history);
-                        vec3 maxN = max(color, history);
-                        vec3 clampedHistory = clamp(history, minN - vec3(0.05), maxN + vec3(0.05));
+                        vec3 n1 = texture(uSceneColor, clamp(vUv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 n2 = texture(uSceneColor, clamp(vUv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 n3 = texture(uSceneColor, clamp(vUv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 n4 = texture(uSceneColor, clamp(vUv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 neighMin = min(min(min(color, n1), min(n2, n3)), n4);
+                        vec3 neighMax = max(max(max(color, n1), max(n2, n3)), n4);
+                        float lCurr = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                        float lHist = dot(history, vec3(0.2126, 0.7152, 0.0722));
+                        float reactive = clamp(abs(lCurr - lHist) * 2.6 + length(velocityUv) * 1.25, 0.0, 1.0);
+                        float clipExpand = mix(0.08, 0.02, reactive);
+                        vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand), neighMax + vec3(clipExpand));
+                        float blend = clamp(pc.taa.y, 0.0, 0.95) * (1.0 - reactive * 0.75);
                         color = mix(color, clampedHistory, blend);
                     }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
