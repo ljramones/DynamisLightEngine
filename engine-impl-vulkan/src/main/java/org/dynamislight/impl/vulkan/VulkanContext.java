@@ -1154,20 +1154,32 @@ final class VulkanContext {
     private void createSwapchainResources(MemoryStack stack, int requestedWidth, int requestedHeight) throws EngineException {
         postIntermediateInitialized = false;
         VulkanSwapchainResourceCoordinator.Allocation allocation = VulkanSwapchainResourceCoordinator.create(
-                new VulkanSwapchainResourceCoordinator.CreateInputs(
-                        physicalDevice,
-                        device,
-                        stack,
-                        surface,
-                        requestedWidth,
-                        requestedHeight,
-                        depthFormat,
-                        VERTEX_STRIDE_BYTES,
-                        descriptorSetLayout,
-                        textureDescriptorSetLayout,
-                        postOffscreenRequested
-                )
+                createSwapchainResourceInputs(stack, requestedWidth, requestedHeight)
         );
+        applySwapchainAllocation(allocation);
+    }
+
+    private VulkanSwapchainResourceCoordinator.CreateInputs createSwapchainResourceInputs(
+            MemoryStack stack,
+            int requestedWidth,
+            int requestedHeight
+    ) {
+        return new VulkanSwapchainResourceCoordinator.CreateInputs(
+                physicalDevice,
+                device,
+                stack,
+                surface,
+                requestedWidth,
+                requestedHeight,
+                depthFormat,
+                VERTEX_STRIDE_BYTES,
+                descriptorSetLayout,
+                textureDescriptorSetLayout,
+                postOffscreenRequested
+        );
+    }
+
+    private void applySwapchainAllocation(VulkanSwapchainResourceCoordinator.Allocation allocation) {
         swapchain = allocation.swapchain();
         swapchainImageFormat = allocation.swapchainImageFormat();
         swapchainWidth = allocation.swapchainWidth();
@@ -1246,32 +1258,43 @@ final class VulkanContext {
 
     private void destroySwapchainResources() {
         VulkanSwapchainDestroyCoordinator.Result result = VulkanSwapchainDestroyCoordinator.destroy(
-                new VulkanSwapchainDestroyCoordinator.DestroyInputs(
-                        device,
-                        framebuffers,
-                        graphicsPipeline,
-                        pipelineLayout,
-                        renderPass,
-                        swapchainImageViews,
-                        depthImages,
-                        depthMemories,
-                        depthImageViews,
-                        swapchain,
-                        new VulkanPostProcessResources.Allocation(
-                                offscreenColorImage,
-                                offscreenColorMemory,
-                                offscreenColorImageView,
-                                offscreenColorSampler,
-                                postDescriptorSetLayout,
-                                postDescriptorPool,
-                                postDescriptorSet,
-                                postRenderPass,
-                                postPipelineLayout,
-                                postGraphicsPipeline,
-                                postFramebuffers
-                        )
+                createSwapchainDestroyInputs()
+        );
+        applySwapchainDestroyResult(result);
+    }
+
+    private VulkanSwapchainDestroyCoordinator.DestroyInputs createSwapchainDestroyInputs() {
+        return new VulkanSwapchainDestroyCoordinator.DestroyInputs(
+                device,
+                framebuffers,
+                graphicsPipeline,
+                pipelineLayout,
+                renderPass,
+                swapchainImageViews,
+                depthImages,
+                depthMemories,
+                depthImageViews,
+                swapchain,
+                new VulkanPostProcessResources.Allocation(
+                        offscreenColorImage,
+                        offscreenColorMemory,
+                        offscreenColorImageView,
+                        offscreenColorSampler,
+                        postDescriptorSetLayout,
+                        postDescriptorPool,
+                        postDescriptorSet,
+                        postRenderPass,
+                        postPipelineLayout,
+                        postGraphicsPipeline,
+                        postFramebuffers
                 )
         );
+    }
+
+    private void applySwapchainDestroyResult(VulkanSwapchainDestroyCoordinator.Result result) {
+        if (result == null) {
+            return;
+        }
         framebuffers = result.framebuffers();
         graphicsPipeline = result.graphicsPipeline();
         pipelineLayout = result.pipelineLayout();
@@ -1331,7 +1354,24 @@ final class VulkanContext {
     }
 
     private void recordCommandBuffer(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex, int frameIdx) throws EngineException {
-        VulkanFrameCommandOrchestrator.Inputs commandInputs = VulkanFrameCommandInputsFactory.create(
+        VulkanFrameCommandOrchestrator.Inputs commandInputs = buildCommandInputs(frameIdx);
+        VulkanFrameCommandOrchestrator.record(
+                stack,
+                commandBuffer,
+                imageIndex,
+                frameIdx,
+                new VulkanFrameCommandOrchestrator.FrameHooks(
+                        this::updateShadowLightViewProjMatrices,
+                        () -> prepareFrameUniforms(frameIdx),
+                        () -> uploadFrameUniforms(commandBuffer, frameIdx),
+                        value -> postIntermediateInitialized = value
+                ),
+                commandInputs
+        );
+    }
+
+    private VulkanFrameCommandOrchestrator.Inputs buildCommandInputs(int frameIdx) {
+        return VulkanFrameCommandInputsFactory.create(
                 new VulkanFrameCommandInputsFactory.Inputs(
                         gpuMeshes,
                         maxDynamicSceneObjects,
@@ -1371,19 +1411,6 @@ final class VulkanContext {
                         meshIndex -> dynamicUniformOffset(frameIdx, meshIndex),
                         this::vkFailure
                 )
-        );
-        VulkanFrameCommandOrchestrator.record(
-                stack,
-                commandBuffer,
-                imageIndex,
-                frameIdx,
-                new VulkanFrameCommandOrchestrator.FrameHooks(
-                        this::updateShadowLightViewProjMatrices,
-                        () -> prepareFrameUniforms(frameIdx),
-                        () -> uploadFrameUniforms(commandBuffer, frameIdx),
-                        value -> postIntermediateInitialized = value
-                ),
-                commandInputs
         );
     }
 
@@ -1557,29 +1584,37 @@ final class VulkanContext {
             return;
         }
         VulkanTextureDescriptorSetCoordinator.Result state = VulkanTextureDescriptorSetCoordinator.createOrReuse(
-                new VulkanTextureDescriptorSetCoordinator.Inputs(
-                        device,
-                        stack,
-                        gpuMeshes,
-                        textureDescriptorSetLayout,
-                        textureDescriptorPool,
-                        descriptorRingSetCapacity,
-                        descriptorRingPeakSetCapacity,
-                        descriptorRingPeakWasteSetCount,
-                        descriptorPoolBuildCount,
-                        descriptorPoolRebuildCount,
-                        descriptorRingGrowthRebuildCount,
-                        descriptorRingSteadyRebuildCount,
-                        descriptorRingPoolReuseCount,
-                        descriptorRingPoolResetFailureCount,
-                        descriptorRingMaxSetCapacity,
-                        shadowDepthImageView,
-                        shadowSampler,
-                        iblIrradianceTexture,
-                        iblRadianceTexture,
-                        iblBrdfLutTexture
-                )
+                textureDescriptorCoordinatorInputs(stack)
         );
+        applyTextureDescriptorCoordinatorState(state);
+    }
+
+    private VulkanTextureDescriptorSetCoordinator.Inputs textureDescriptorCoordinatorInputs(MemoryStack stack) {
+        return new VulkanTextureDescriptorSetCoordinator.Inputs(
+                device,
+                stack,
+                gpuMeshes,
+                textureDescriptorSetLayout,
+                textureDescriptorPool,
+                descriptorRingSetCapacity,
+                descriptorRingPeakSetCapacity,
+                descriptorRingPeakWasteSetCount,
+                descriptorPoolBuildCount,
+                descriptorPoolRebuildCount,
+                descriptorRingGrowthRebuildCount,
+                descriptorRingSteadyRebuildCount,
+                descriptorRingPoolReuseCount,
+                descriptorRingPoolResetFailureCount,
+                descriptorRingMaxSetCapacity,
+                shadowDepthImageView,
+                shadowSampler,
+                iblIrradianceTexture,
+                iblRadianceTexture,
+                iblBrdfLutTexture
+        );
+    }
+
+    private void applyTextureDescriptorCoordinatorState(VulkanTextureDescriptorSetCoordinator.Result state) {
         textureDescriptorPool = state.textureDescriptorPool();
         descriptorPoolBuildCount = state.descriptorPoolBuildCount();
         descriptorPoolRebuildCount = state.descriptorPoolRebuildCount();
@@ -1687,6 +1722,10 @@ final class VulkanContext {
                         this::vkFailure
                 )
         );
+        applyFrameUniformPrepareResult(result);
+    }
+
+    private void applyFrameUniformPrepareResult(VulkanFrameUniformCoordinator.Result result) {
         maxObservedDynamicObjects = result.maxObservedDynamicObjects();
         if (result.clearPendingOnly()) {
             clearPendingUploads();
