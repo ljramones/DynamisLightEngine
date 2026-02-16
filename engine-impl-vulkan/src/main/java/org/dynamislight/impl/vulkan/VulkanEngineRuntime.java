@@ -17,6 +17,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private final VulkanContext context = new VulkanContext();
     private boolean mockContext = true;
     private boolean windowVisible;
+    private boolean forceDeviceLostOnRender;
+    private boolean deviceLostRaised;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
@@ -43,6 +45,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     protected void onInitialize(EngineConfig config) throws EngineException {
         mockContext = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.mockContext", "true"));
         windowVisible = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.windowVisible", "false"));
+        forceDeviceLostOnRender = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.forceDeviceLostOnRender", "false"));
+        deviceLostRaised = false;
         if (Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.forceInitFailure", "false"))) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Forced Vulkan init failure", false);
         }
@@ -63,8 +67,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
-    protected RenderMetrics onRender() {
+    protected RenderMetrics onRender() throws EngineException {
         if (mockContext) {
+            if (forceDeviceLostOnRender && !deviceLostRaised) {
+                deviceLostRaised = true;
+                throw new EngineException(EngineErrorCode.DEVICE_LOST, "Forced Vulkan device loss on render", false);
+            }
             return renderMetrics(0.2, 0.1, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, 0);
         }
         VulkanContext.VulkanFrameMetrics frame = context.renderFrame();

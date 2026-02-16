@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,6 +31,7 @@ import org.dynamislight.api.error.EngineErrorReport;
 import org.dynamislight.api.resource.EngineResourceService;
 import org.dynamislight.api.runtime.EngineRuntime;
 import org.dynamislight.api.runtime.EngineStats;
+import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.FrameHandle;
 import org.dynamislight.api.logging.LogLevel;
@@ -316,6 +318,9 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
             return;
         }
         log(LogLevel.ERROR, "ERROR", error.getMessage());
+        if (error.code() == EngineErrorCode.DEVICE_LOST) {
+            host.onEvent(new DeviceLostEvent(backendName.toLowerCase(Locale.ROOT)));
+        }
         host.onError(new EngineErrorReport(error.code(), error.getMessage(), error.recoverable(), error));
     }
 

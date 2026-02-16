@@ -43,6 +43,7 @@ import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 import static org.lwjgl.vulkan.VK10.VK_ERROR_INITIALIZATION_FAILED;
+import static org.lwjgl.vulkan.VK10.VK_ERROR_DEVICE_LOST;
 import static org.lwjgl.vulkan.VK10.VK_FENCE_CREATE_SIGNALED_BIT;
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_B8G8R8A8_SRGB;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
@@ -183,7 +184,7 @@ final class VulkanContext {
         }
     }
 
-    VulkanFrameMetrics renderFrame() {
+    VulkanFrameMetrics renderFrame() throws EngineException {
         long start = System.nanoTime();
         if (device != null && graphicsQueue != null && commandBuffer != null && swapchain != VK_NULL_HANDLE) {
             try (MemoryStack stack = stackPush()) {
@@ -668,27 +669,42 @@ final class VulkanContext {
         renderFence = pFence.get(0);
     }
 
-    private int acquireNextImage(MemoryStack stack) {
+    private int acquireNextImage(MemoryStack stack) throws EngineException {
         var pImageIndex = stack.ints(0);
         int acquireResult = vkAcquireNextImageKHR(device, swapchain, Long.MAX_VALUE, imageAvailableSemaphore, VK_NULL_HANDLE, pImageIndex);
         if (acquireResult == VK_SUCCESS || acquireResult == VK_SUBOPTIMAL_KHR) {
             int imageIndex = pImageIndex.get(0);
 
-            vkWaitForFences(device, stack.longs(renderFence), true, Long.MAX_VALUE);
-            vkResetFences(device, stack.longs(renderFence));
-            vkResetCommandBuffer(commandBuffer, 0);
+            int waitResult = vkWaitForFences(device, stack.longs(renderFence), true, Long.MAX_VALUE);
+            if (waitResult != VK_SUCCESS) {
+                throw vkFailure("vkWaitForFences", waitResult);
+            }
+            int resetFenceResult = vkResetFences(device, stack.longs(renderFence));
+            if (resetFenceResult != VK_SUCCESS) {
+                throw vkFailure("vkResetFences", resetFenceResult);
+            }
+            int resetCmdResult = vkResetCommandBuffer(commandBuffer, 0);
+            if (resetCmdResult != VK_SUCCESS) {
+                throw vkFailure("vkResetCommandBuffer", resetCmdResult);
+            }
 
             recordCommandBuffer(stack, imageIndex);
             return submitAndPresent(stack, imageIndex);
         }
+        if (acquireResult != VK_ERROR_OUT_OF_DATE_KHR) {
+            throw vkFailure("vkAcquireNextImageKHR", acquireResult);
+        }
         return acquireResult;
     }
 
-    private void recordCommandBuffer(MemoryStack stack, int imageIndex) {
+    private void recordCommandBuffer(MemoryStack stack, int imageIndex) throws EngineException {
         VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
                 .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-        vkBeginCommandBuffer(commandBuffer, beginInfo);
+        int beginResult = vkBeginCommandBuffer(commandBuffer, beginInfo);
+        if (beginResult != VK_SUCCESS) {
+            throw vkFailure("vkBeginCommandBuffer", beginResult);
+        }
 
         VkClearValue.Buffer clearValues = VkClearValue.calloc(1, stack);
         clearValues.color().float32(0, 0.08f);
@@ -707,10 +723,13 @@ final class VulkanContext {
 
         vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdEndRenderPass(commandBuffer);
-        vkEndCommandBuffer(commandBuffer);
+        int endResult = vkEndCommandBuffer(commandBuffer);
+        if (endResult != VK_SUCCESS) {
+            throw vkFailure("vkEndCommandBuffer", endResult);
+        }
     }
 
-    private int submitAndPresent(MemoryStack stack, int imageIndex) {
+    private int submitAndPresent(MemoryStack stack, int imageIndex) throws EngineException {
         VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
                 .pWaitSemaphores(stack.longs(imageAvailableSemaphore))
@@ -719,7 +738,7 @@ final class VulkanContext {
                 .pSignalSemaphores(stack.longs(renderFinishedSemaphore));
         int submitResult = vkQueueSubmit(graphicsQueue, submitInfo, renderFence);
         if (submitResult != VK_SUCCESS) {
-            return submitResult;
+            throw vkFailure("vkQueueSubmit", submitResult);
         }
 
         VkPresentInfoKHR presentInfo = VkPresentInfoKHR.calloc(stack)
@@ -730,10 +749,13 @@ final class VulkanContext {
                 .pImageIndices(stack.ints(imageIndex));
         int presentResult = vkQueuePresentKHR(graphicsQueue, presentInfo);
         glfwPollEvents();
+        if (presentResult != VK_SUCCESS && presentResult != VK_SUBOPTIMAL_KHR && presentResult != VK_ERROR_OUT_OF_DATE_KHR) {
+            throw vkFailure("vkQueuePresentKHR", presentResult);
+        }
         return presentResult;
     }
 
-    private void recreateSwapchainFromWindow() {
+    private void recreateSwapchainFromWindow() throws EngineException {
         if (window == VK_NULL_HANDLE) {
             return;
         }
@@ -744,8 +766,6 @@ final class VulkanContext {
             int width = Math.max(1, pW.get(0));
             int height = Math.max(1, pH.get(0));
             recreateSwapchain(width, height);
-        } catch (EngineException ignored) {
-            // Keep runtime alive; next frame can retry recreation.
         }
     }
 
@@ -758,6 +778,11 @@ final class VulkanContext {
         try (MemoryStack stack = stackPush()) {
             createSwapchainResources(stack, width, height);
         }
+    }
+
+    private EngineException vkFailure(String operation, int result) {
+        EngineErrorCode code = result == VK_ERROR_DEVICE_LOST ? EngineErrorCode.DEVICE_LOST : EngineErrorCode.BACKEND_INIT_FAILED;
+        return new EngineException(code, operation + " failed: " + result, false);
     }
 
     private VkSurfaceFormatKHR chooseSurfaceFormat(VkSurfaceFormatKHR.Buffer formats) {

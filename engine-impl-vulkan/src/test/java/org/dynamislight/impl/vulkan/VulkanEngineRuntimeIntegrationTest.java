@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.config.EngineConfig;
+import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineErrorReport;
 import org.dynamislight.api.event.EngineEvent;
@@ -92,6 +93,25 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(2, runtime.getStats().drawCalls());
         assertEquals(3, runtime.getStats().triangles());
         assertEquals(2, runtime.getStats().visibleObjects());
+        runtime.shutdown();
+    }
+
+    @Test
+    void forcedDeviceLostOnRenderPropagatesErrorAndEvent() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.forceDeviceLostOnRender", "true"
+        )), callbacks);
+        runtime.loadScene(validScene());
+
+        EngineException ex = org.junit.jupiter.api.Assertions.assertThrows(EngineException.class, runtime::render);
+
+        assertEquals(EngineErrorCode.DEVICE_LOST, ex.code());
+        assertFalse(callbacks.errors.isEmpty());
+        assertTrue(callbacks.errors.stream().anyMatch(err -> err.code() == EngineErrorCode.DEVICE_LOST));
+        assertTrue(callbacks.events.stream().anyMatch(DeviceLostEvent.class::isInstance));
         runtime.shutdown();
     }
 
