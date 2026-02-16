@@ -7,14 +7,17 @@ import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+import static org.lwjgl.vulkan.VK10.VK_FENCE_CREATE_SIGNALED_BIT;
 import static org.lwjgl.vulkan.VK10.VK_QUEUE_GRAPHICS_BIT;
 import static org.lwjgl.vulkan.VK10.vkAllocateCommandBuffers;
 import static org.lwjgl.vulkan.VK10.vkBeginCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkCreateCommandPool;
 import static org.lwjgl.vulkan.VK10.vkCreateDevice;
+import static org.lwjgl.vulkan.VK10.vkCreateFence;
 import static org.lwjgl.vulkan.VK10.vkCreateInstance;
 import static org.lwjgl.vulkan.VK10.vkDestroyCommandPool;
 import static org.lwjgl.vulkan.VK10.vkDestroyDevice;
+import static org.lwjgl.vulkan.VK10.vkDestroyFence;
 import static org.lwjgl.vulkan.VK10.vkDestroyInstance;
 import static org.lwjgl.vulkan.VK10.vkDeviceWaitIdle;
 import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
@@ -22,7 +25,8 @@ import static org.lwjgl.vulkan.VK10.vkEnumeratePhysicalDevices;
 import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
 import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceQueueFamilyProperties;
 import static org.lwjgl.vulkan.VK10.vkQueueSubmit;
-import static org.lwjgl.vulkan.VK10.vkQueueWaitIdle;
+import static org.lwjgl.vulkan.VK10.vkResetFences;
+import static org.lwjgl.vulkan.VK10.vkWaitForFences;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -41,6 +45,7 @@ import org.lwjgl.vulkan.VkInstance;
 import org.lwjgl.vulkan.VkInstanceCreateInfo;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueue;
+import org.lwjgl.vulkan.VkFenceCreateInfo;
 import org.lwjgl.vulkan.VkSubmitInfo;
 
 final class VulkanContext {
@@ -51,6 +56,7 @@ final class VulkanContext {
     private int graphicsQueueFamilyIndex = -1;
     private long commandPool = VK_NULL_HANDLE;
     private VkCommandBuffer commandBuffer;
+    private long renderFence = VK_NULL_HANDLE;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
@@ -90,13 +96,16 @@ final class VulkanContext {
         long start = System.nanoTime();
         if (device != null && graphicsQueue != null && commandBuffer != null) {
             try (MemoryStack stack = stackPush()) {
+                if (renderFence != VK_NULL_HANDLE) {
+                    int waitResult = vkWaitForFences(device, stack.longs(renderFence), true, 1_000_000_000L);
+                    if (waitResult == VK_SUCCESS) {
+                        vkResetFences(device, stack.longs(renderFence));
+                    }
+                }
                 VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
                         .sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO)
                         .pCommandBuffers(stack.pointers(commandBuffer.address()));
-                int submitResult = vkQueueSubmit(graphicsQueue, submitInfo, VK_NULL_HANDLE);
-                if (submitResult == VK_SUCCESS) {
-                    vkQueueWaitIdle(graphicsQueue);
-                }
+                vkQueueSubmit(graphicsQueue, submitInfo, renderFence);
             }
         }
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
@@ -114,6 +123,10 @@ final class VulkanContext {
             vkDeviceWaitIdle(device);
         }
         commandBuffer = null;
+        if (renderFence != VK_NULL_HANDLE && device != null) {
+            vkDestroyFence(device, renderFence, null);
+            renderFence = VK_NULL_HANDLE;
+        }
         if (commandPool != VK_NULL_HANDLE && device != null) {
             vkDestroyCommandPool(device, commandPool, null);
             commandPool = VK_NULL_HANDLE;
@@ -260,6 +273,16 @@ final class VulkanContext {
         if (endResult != VK_SUCCESS) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkEndCommandBuffer failed: " + endResult, false);
         }
+
+        VkFenceCreateInfo fenceCreateInfo = VkFenceCreateInfo.calloc(stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO)
+                .flags(VK_FENCE_CREATE_SIGNALED_BIT);
+        var pFence = stack.longs(VK_NULL_HANDLE);
+        int fenceResult = vkCreateFence(device, fenceCreateInfo, null, pFence);
+        if (fenceResult != VK_SUCCESS || pFence.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateFence failed: " + fenceResult, false);
+        }
+        renderFence = pFence.get(0);
     }
 
     record VulkanFrameMetrics(
