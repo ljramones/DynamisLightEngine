@@ -406,7 +406,51 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
-    void iblSupercompressedKtx2EmitsVariantUnsupportedWarning() throws Exception {
+    void iblZstdSupercompressedKtx2DoesNotEmitDecodeUnavailableWarning() throws Exception {
+        Path irr = Files.createTempFile("dle-vk-irr-zstd-", ".ktx2");
+        Path rad = Files.createTempFile("dle-vk-rad-zstd-", ".ktx2");
+        try {
+            writeKtx2ZstdRgba8(irr, 2, 2, (byte) 170, (byte) 150, (byte) 110, (byte) 255);
+            writeKtx2ZstdRgba8(rad, 2, 2, (byte) 210, (byte) 190, (byte) 170, (byte) 255);
+            Path brdf = Path.of("..", "assets", "textures", "albedo.png").toAbsolutePath().normalize();
+
+            SceneDescriptor base = validScene();
+            EnvironmentDesc env = new EnvironmentDesc(
+                    base.environment().ambientColor(),
+                    base.environment().ambientIntensity(),
+                    null,
+                    irr.toString(),
+                    rad.toString(),
+                    brdf.toString()
+            );
+            var runtime = new VulkanEngineRuntime();
+            runtime.initialize(validConfig(true), new RecordingCallbacks());
+            runtime.loadScene(new SceneDescriptor(
+                    "vulkan-ibl-ktx-zstd-decode-available-scene",
+                    base.cameras(),
+                    base.activeCameraId(),
+                    base.transforms(),
+                    base.meshes(),
+                    base.materials(),
+                    base.lights(),
+                    env,
+                    base.fog(),
+                    base.smokeEmitters(),
+                    base.postProcess()
+            ));
+
+            var frame = runtime.render();
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
+            runtime.shutdown();
+        } finally {
+            Files.deleteIfExists(irr);
+            Files.deleteIfExists(rad);
+        }
+    }
+
+    @Test
+    void iblBasisLzKtx2EmitsTranscodeRequiredWarning() throws Exception {
         Path irr = Files.createTempFile("dle-vk-irr-super-", ".ktx2");
         Path rad = Files.createTempFile("dle-vk-rad-super-", ".ktx2");
         try {
@@ -440,7 +484,55 @@ class VulkanEngineRuntimeIntegrationTest {
             ));
 
             var frame = runtime.render();
-            assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_TRANSCODE_REQUIRED".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
+            runtime.shutdown();
+        } finally {
+            Files.deleteIfExists(irr);
+            Files.deleteIfExists(rad);
+        }
+    }
+
+    @Test
+    void iblKtxContainerDecodableViaStbDoesNotEmitDecodeUnavailableWarning() throws Exception {
+        Path irr = Files.createTempFile("dle-vk-irr-stb-", ".ktx2");
+        Path rad = Files.createTempFile("dle-vk-rad-stb-", ".ktx2");
+        try {
+            Path png = Path.of("..", "assets", "textures", "albedo.png").toAbsolutePath().normalize();
+            Files.copy(png, irr, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(png, rad, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            assumeTrue(canDecodeViaStb(irr) && canDecodeViaStb(rad), "STB cannot decode this container payload on this environment");
+            Path brdf = png;
+
+            SceneDescriptor base = validScene();
+            EnvironmentDesc env = new EnvironmentDesc(
+                    base.environment().ambientColor(),
+                    base.environment().ambientIntensity(),
+                    null,
+                    irr.toString(),
+                    rad.toString(),
+                    brdf.toString()
+            );
+            var runtime = new VulkanEngineRuntime();
+            runtime.initialize(validConfig(true), new RecordingCallbacks());
+            runtime.loadScene(new SceneDescriptor(
+                    "vulkan-ibl-ktx-stb-decode-available-scene",
+                    base.cameras(),
+                    base.activeCameraId(),
+                    base.transforms(),
+                    base.meshes(),
+                    base.materials(),
+                    base.lights(),
+                    env,
+                    base.fog(),
+                    base.smokeEmitters(),
+                    base.postProcess()
+            ));
+
+            var frame = runtime.render();
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
             runtime.shutdown();
         } finally {
             Files.deleteIfExists(irr);
@@ -601,6 +693,26 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void realVulkanTextureOnlySceneChangeUsesTextureRebindPathWithoutMeshRebuild() throws Exception {
+        assumeRealVulkanReady("real Vulkan texture-only rebind integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), new RecordingCallbacks());
+        runtime.loadScene(validReusableSceneWithTextureVariant(false));
+        runtime.render();
+        var before = runtime.debugSceneReuseStats();
+
+        runtime.loadScene(validReusableSceneWithTextureVariant(true));
+        runtime.render();
+        var after = runtime.debugSceneReuseStats();
+
+        assertEquals(before.fullRebuilds(), after.fullRebuilds());
+        assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
+        assertTrue(after.textureRebindHits() > before.textureRebindHits());
+        runtime.shutdown();
+    }
+
+    @Test
     void mockVulkanLightingOnlySceneChangeReusesBuffersWithoutDescriptorRebuild() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
@@ -655,6 +767,27 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frame.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())
                         && w.message().contains("lastUniformUploadRanges=2")));
+        runtime.shutdown();
+    }
+
+    @Test
+    void realVulkanPendingUploadRangeSoftLimitWarningEmitsOnSparseDynamicUpdates() throws Exception {
+        assumeRealVulkanReady("real Vulkan pending-upload-range soft-limit warning integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "false"),
+                Map.entry("vulkan.pendingUploadRangeSoftLimit", "1"),
+                Map.entry("vulkan.pendingUploadRangeWarnCooldownFrames", "0")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validSparseReusableScene(false));
+        runtime.render();
+
+        runtime.loadScene(validSparseReusableScene(true));
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "PENDING_UPLOAD_RANGE_SOFT_LIMIT_EXCEEDED".equals(w.code())));
         runtime.shutdown();
     }
 
@@ -950,6 +1083,60 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void realVulkanLongEnduranceMatrixMaintainsProfilesAndErrorPathStability() throws Exception {
+        assumeRealVulkanLongReady("real Vulkan long endurance matrix integration test");
+
+        var callbacks = new RecordingCallbacks();
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), callbacks);
+        runtime.loadScene(validShadowSmokeScene(new ShadowDesc(2048, 0.0012f, 5, 4)));
+
+        int resourceProfileFrames = 0;
+        int reuseProfileFrames = 0;
+        for (int i = 0; i < 96; i++) {
+            int width = 1200 + ((i * 17) % 640);
+            int height = 700 + ((i * 11) % 360);
+            runtime.resize(width, height, 1.0f);
+            runtime.update(1.0 / 60.0, emptyInput());
+
+            if ((i % 4) == 0) {
+                runtime.loadScene(validReusableScene((i % 2) == 0, (i % 3) == 0));
+            } else if ((i % 4) == 1) {
+                runtime.loadScene(validShadowSmokeScene(new ShadowDesc(1024, 0.0015f, 3, 2)));
+            } else if ((i % 4) == 2) {
+                runtime.loadScene(validReusableSceneWithPostFogVariant(0.08f + (0.01f * (i % 8)), 1.0f + (0.03f * (i % 6))));
+            } else {
+                runtime.loadScene(validReusableSceneWithTextureVariant((i % 2) == 0));
+            }
+
+            var frame = runtime.render();
+            if (frame.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()))) {
+                resourceProfileFrames++;
+            }
+            if (frame.warnings().stream().anyMatch(w -> "SCENE_REUSE_PROFILE".equals(w.code()))) {
+                reuseProfileFrames++;
+            }
+        }
+
+        assertTrue(resourceProfileFrames > 0, "expected frame-resource profile warnings during long endurance loop");
+        assertTrue(reuseProfileFrames > 0, "expected scene-reuse profile warnings during long endurance loop");
+        assertTrue(callbacks.errors.isEmpty(), "expected no host callback errors during long endurance loop");
+        runtime.shutdown();
+
+        var forcedCallbacks = new RecordingCallbacks();
+        var forcedRuntime = new VulkanEngineRuntime();
+        forcedRuntime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "false",
+                "vulkan.forceDeviceLostOnRender", "true"
+        )), forcedCallbacks);
+        forcedRuntime.loadScene(validShadowSmokeScene(new ShadowDesc(1024, 0.0015f, 3, 2)));
+        EngineException ex = org.junit.jupiter.api.Assertions.assertThrows(EngineException.class, forcedRuntime::render);
+        assertEquals(EngineErrorCode.DEVICE_LOST, ex.code());
+        assertTrue(forcedCallbacks.errors.stream().anyMatch(err -> err.code() == EngineErrorCode.DEVICE_LOST));
+        forcedRuntime.shutdown();
+    }
+
+    @Test
     void realVulkanForcedDeviceLostPathPropagatesErrorsAndEvent() throws Exception {
         assumeRealVulkanReady("real Vulkan forced-device-lost integration test");
 
@@ -1181,6 +1368,32 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.meshes(),
                 base.materials(),
                 List.of(light),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validReusableSceneWithTextureVariant(boolean textured) {
+        SceneDescriptor base = validReusableScene(false, false);
+        MaterialDesc matA = new MaterialDesc(
+                "mat-a",
+                new Vec3(0.9f, 0.35f, 0.3f),
+                0.2f,
+                0.55f,
+                textured ? "assets/textures/albedo.png" : null,
+                textured ? "assets/textures/normal.png" : null
+        );
+        MaterialDesc matB = new MaterialDesc("mat-b", new Vec3(0.3f, 0.7f, 0.9f), 0.5f, 0.35f, null, null);
+        return new SceneDescriptor(
+                textured ? "vulkan-reuse-texture-variant-on" : "vulkan-reuse-texture-variant-off",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(matA, matB),
+                base.lights(),
                 base.environment(),
                 base.fog(),
                 base.smokeEmitters(),
@@ -1523,7 +1736,7 @@ class VulkanEngineRuntimeIntegrationTest {
         putIntLE(header, 32, 0);
         putIntLE(header, 36, 1);
         putIntLE(header, 40, 1);
-        putIntLE(header, 44, 1);
+        putIntLE(header, 44, 1); // BasisLZ supercompression
         Files.write(path, header);
     }
 
@@ -1565,7 +1778,48 @@ class VulkanEngineRuntimeIntegrationTest {
         putIntLE(out, 32, 0);
         putIntLE(out, 36, 1);
         putIntLE(out, 40, 1);
-        putIntLE(out, 44, 1);
+        putIntLE(out, 44, 3);
+        putIntLE(out, 48, 0);
+        putIntLE(out, 52, 0);
+        putIntLE(out, 56, 0);
+        putIntLE(out, 60, 0);
+        putLongLE(out, 64, 0L);
+        putLongLE(out, 72, 0L);
+        putLongLE(out, 80, dataOffset);
+        putLongLE(out, 88, compressed.length);
+        putLongLE(out, 96, rgba.length);
+        System.arraycopy(compressed, 0, out, dataOffset, compressed.length);
+        Files.write(path, out);
+    }
+
+    private static void writeKtx2ZstdRgba8(Path path, int width, int height, byte r, byte g, byte b, byte a) throws Exception {
+        int pixels = Math.max(1, width) * Math.max(1, height);
+        byte[] rgba = new byte[pixels * 4];
+        for (int i = 0; i < pixels; i++) {
+            int idx = i * 4;
+            rgba[idx] = r;
+            rgba[idx + 1] = g;
+            rgba[idx + 2] = b;
+            rgba[idx + 3] = a;
+        }
+        byte[] compressed = com.github.luben.zstd.Zstd.compress(rgba, 3);
+        int headerSize = 80;
+        int levelIndexSize = 24;
+        int dataOffset = headerSize + levelIndexSize;
+        byte[] out = new byte[dataOffset + compressed.length];
+        byte[] identifier = new byte[]{
+                (byte) 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, (byte) 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
+        };
+        System.arraycopy(identifier, 0, out, 0, identifier.length);
+        putIntLE(out, 12, 37);
+        putIntLE(out, 16, 1);
+        putIntLE(out, 20, Math.max(1, width));
+        putIntLE(out, 24, Math.max(1, height));
+        putIntLE(out, 28, 0);
+        putIntLE(out, 32, 0);
+        putIntLE(out, 36, 1);
+        putIntLE(out, 40, 1);
+        putIntLE(out, 44, 2);
         putIntLE(out, 48, 0);
         putIntLE(out, 52, 0);
         putIntLE(out, 56, 0);
@@ -1601,6 +1855,34 @@ class VulkanEngineRuntimeIntegrationTest {
             GLFW.glfwTerminate();
         } catch (Throwable t) {
             assumeTrue(false, "Skipping " + testLabel + ": LWJGL native runtime unavailable (" + t.getClass().getSimpleName() + ")");
+        }
+    }
+
+    private static void assumeRealVulkanLongReady(String testLabel) {
+        assumeRealVulkanReady(testLabel);
+        assumeTrue(Boolean.getBoolean("dle.test.vulkan.real.long"),
+                "Set -Ddle.test.vulkan.real.long=true to run " + testLabel);
+    }
+
+    private static boolean canDecodeViaStb(Path path) {
+        try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            var x = stack.mallocInt(1);
+            var y = stack.mallocInt(1);
+            var channels = stack.mallocInt(1);
+            java.nio.ByteBuffer pixels = org.lwjgl.stb.STBImage.stbi_load(
+                    path.toAbsolutePath().toString(),
+                    x,
+                    y,
+                    channels,
+                    4
+            );
+            if (pixels == null || x.get(0) <= 0 || y.get(0) <= 0) {
+                return false;
+            }
+            org.lwjgl.stb.STBImage.stbi_image_free(pixels);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 

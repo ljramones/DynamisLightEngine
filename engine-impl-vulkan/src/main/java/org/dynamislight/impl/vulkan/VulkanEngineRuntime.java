@@ -54,6 +54,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int uniformUploadSoftLimitBytes = 2 * 1024 * 1024;
     private int uniformUploadWarnCooldownFrames = 120;
     private int uniformUploadWarnCooldownRemaining;
+    private int pendingUploadRangeSoftLimit = 48;
+    private int pendingUploadRangeWarnCooldownFrames = 120;
+    private int pendingUploadRangeWarnCooldownRemaining;
     private int descriptorRingActiveSoftLimit = 2048;
     private int descriptorRingActiveWarnCooldownFrames = 120;
     private int descriptorRingActiveWarnCooldownRemaining;
@@ -72,7 +75,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0f, false, 0, null, null, null);
+    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public VulkanEngineRuntime() {
@@ -194,6 +197,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 0,
                 10000
         );
+        pendingUploadRangeSoftLimit = parseIntOption(
+                backendOptions,
+                "vulkan.pendingUploadRangeSoftLimit",
+                48,
+                1,
+                2048
+        );
+        pendingUploadRangeWarnCooldownFrames = parseIntOption(
+                backendOptions,
+                "vulkan.pendingUploadRangeWarnCooldownFrames",
+                120,
+                0,
+                10000
+        );
         descriptorRingActiveSoftLimit = parseIntOption(
                 backendOptions,
                 "vulkan.descriptorRingActiveSoftLimit",
@@ -223,6 +240,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         descriptorRingWasteWarnCooldownRemaining = 0;
         descriptorRingCapPressureWarnCooldownRemaining = 0;
         uniformUploadWarnCooldownRemaining = 0;
+        pendingUploadRangeWarnCooldownRemaining = 0;
         descriptorRingActiveWarnCooldownRemaining = 0;
         if (Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.forceInitFailure", "false"))) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Forced Vulkan init failure", false);
@@ -419,6 +437,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + "); runtime used sidecar/derived/default fallback inputs"
                 ));
             }
+            if (currentIbl.ktxTranscodeRequiredCount() > 0) {
+                warnings.add(new EngineWarning(
+                        "IBL_KTX_TRANSCODE_REQUIRED",
+                        "KTX2 IBL assets require BasisLZ/UASTC transcoding not yet enabled in this build (channels="
+                                + currentIbl.ktxTranscodeRequiredCount()
+                                + "); runtime used sidecar/derived/default fallback inputs"
+                ));
+            }
             if (currentIbl.ktxUnsupportedVariantCount() > 0) {
                 warnings.add(new EngineWarning(
                         "IBL_KTX_VARIANT_UNSUPPORTED",
@@ -460,6 +486,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     "SCENE_REUSE_PROFILE",
                     "reuseHits=" + reuse.reuseHits()
                             + " reorderReuseHits=" + reuse.reorderReuseHits()
+                            + " textureRebindHits=" + reuse.textureRebindHits()
                             + " fullRebuilds=" + reuse.fullRebuilds()
                             + " meshBufferRebuilds=" + reuse.meshBufferRebuilds()
                             + " descriptorPoolBuilds=" + reuse.descriptorPoolBuilds()
@@ -499,6 +526,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " maxObservedDynamicObjects=" + frameResources.maxObservedDynamicObjects()
                             + " uniformUploadSoftLimitBytes=" + uniformUploadSoftLimitBytes
                             + " uniformUploadWarnCooldownRemaining=" + uniformUploadWarnCooldownRemaining
+                            + " pendingUploadRangeSoftLimit=" + pendingUploadRangeSoftLimit
+                            + " pendingUploadRangeWarnCooldownRemaining=" + pendingUploadRangeWarnCooldownRemaining
                             + " descriptorRingActiveSoftLimit=" + descriptorRingActiveSoftLimit
                             + " descriptorRingActiveWarnCooldownRemaining=" + descriptorRingActiveWarnCooldownRemaining
                             + " descriptorRingWasteWarnCooldownRemaining=" + descriptorRingWasteWarnCooldownRemaining
@@ -571,6 +600,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     uniformUploadWarnCooldownRemaining = uniformUploadWarnCooldownFrames;
                 }
             }
+            if (frameResources.lastFrameUniformUploadRanges() > pendingUploadRangeSoftLimit) {
+                if (pendingUploadRangeWarnCooldownRemaining <= 0) {
+                    warnings.add(new EngineWarning(
+                            "PENDING_UPLOAD_RANGE_SOFT_LIMIT_EXCEEDED",
+                            "Frame uniform upload ranges " + frameResources.lastFrameUniformUploadRanges()
+                                    + " exceed soft limit " + pendingUploadRangeSoftLimit
+                                    + " (capacity=" + frameResources.pendingUploadRangeCapacity() + ")"
+                    ));
+                    pendingUploadRangeWarnCooldownRemaining = pendingUploadRangeWarnCooldownFrames;
+                }
+            }
             if (frameResources.descriptorRingActiveSetCount() > descriptorRingActiveSoftLimit) {
                 if (descriptorRingActiveWarnCooldownRemaining <= 0) {
                     warnings.add(new EngineWarning(
@@ -584,6 +624,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             if (uniformUploadWarnCooldownRemaining > 0) {
                 uniformUploadWarnCooldownRemaining--;
+            }
+            if (pendingUploadRangeWarnCooldownRemaining > 0) {
+                pendingUploadRangeWarnCooldownRemaining--;
             }
             if (descriptorRingActiveWarnCooldownRemaining > 0) {
                 descriptorRingActiveWarnCooldownRemaining--;
@@ -786,6 +829,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean ktxContainerRequested,
             boolean ktxSkyboxFallback,
             int ktxDecodeUnavailableCount,
+            int ktxTranscodeRequiredCount,
             int ktxUnsupportedVariantCount,
             float prefilterStrength,
             boolean degraded,
@@ -827,14 +871,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 || !isBlank(environment.iblRadiancePath())
                 || !isBlank(environment.iblBrdfLutPath())
                 || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -887,6 +931,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         ktxDecodeUnavailableCount += decodeUnavailableChannelCount(irrSource, irr);
         ktxDecodeUnavailableCount += decodeUnavailableChannelCount(radSource, rad);
         ktxDecodeUnavailableCount += decodeUnavailableChannelCount(brdfSource, brdf);
+        int ktxTranscodeRequiredCount = 0;
+        ktxTranscodeRequiredCount += transcodeRequiredChannelCount(irrSource);
+        ktxTranscodeRequiredCount += transcodeRequiredChannelCount(radSource);
+        ktxTranscodeRequiredCount += transcodeRequiredChannelCount(brdfSource);
         int ktxUnsupportedVariantCount = 0;
         ktxUnsupportedVariantCount += unsupportedVariantChannelCount(irrSource);
         ktxUnsupportedVariantCount += unsupportedVariantChannelCount(radSource);
@@ -916,6 +964,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 ktxContainerRequested,
                 ktxSkyboxFallback,
                 ktxDecodeUnavailableCount,
+                ktxTranscodeRequiredCount,
                 ktxUnsupportedVariantCount,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,
@@ -947,14 +996,61 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (!Objects.equals(requestedPath, resolvedPath)) {
             return 0;
         }
-        return KtxDecodeUtil.canDecodeSupported(requestedPath) ? 0 : 1;
+        if (KtxDecodeUtil.canDecodeSupported(requestedPath)) {
+            return 0;
+        }
+        if (KtxDecodeUtil.requiresTranscode(requestedPath)) {
+            return 0;
+        }
+        return canDecodeViaStb(requestedPath) ? 0 : 1;
+    }
+
+    private static int transcodeRequiredChannelCount(Path requestedPath) {
+        if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
+            return 0;
+        }
+        if (!KtxDecodeUtil.requiresTranscode(requestedPath)) {
+            return 0;
+        }
+        return canDecodeViaStb(requestedPath) ? 0 : 1;
     }
 
     private static int unsupportedVariantChannelCount(Path requestedPath) {
         if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
             return 0;
         }
-        return KtxDecodeUtil.isKnownUnsupportedVariant(requestedPath) ? 1 : 0;
+        if (KtxDecodeUtil.requiresTranscode(requestedPath)) {
+            return 0;
+        }
+        if (!KtxDecodeUtil.isKnownUnsupportedVariant(requestedPath)) {
+            return 0;
+        }
+        return canDecodeViaStb(requestedPath) ? 0 : 1;
+    }
+
+    private static boolean canDecodeViaStb(Path path) {
+        if (path == null || !Files.isRegularFile(path)) {
+            return false;
+        }
+        try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            var x = stack.mallocInt(1);
+            var y = stack.mallocInt(1);
+            var channels = stack.mallocInt(1);
+            java.nio.ByteBuffer pixels = org.lwjgl.stb.STBImage.stbi_load(
+                    path.toAbsolutePath().toString(),
+                    x,
+                    y,
+                    channels,
+                    4
+            );
+            if (pixels == null || x.get(0) <= 0 || y.get(0) <= 0) {
+                return false;
+            }
+            org.lwjgl.stb.STBImage.stbi_image_free(pixels);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private record ShadowRenderConfig(

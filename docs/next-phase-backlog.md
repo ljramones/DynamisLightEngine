@@ -11,6 +11,33 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - `post-process-bloom (HIGH)` `0.36 -> 0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29 -> 0.28 -> 0.27 -> 0.26 -> 0.25 -> 0.24 -> 0.23 -> 0.22 -> 0.21 -> 0.20 -> 0.19 -> 0.18 -> 0.17 -> 0.16 -> 0.15 -> 0.14 -> 0.13 -> 0.12 -> 0.11 -> 0.10 -> 0.09 -> 0.08 -> 0.07 -> 0.06`
   - practical floor detected at attempted `fog-smoke-shadow-post-stress=0.04` (`diff=0.04049019607843137`); envelopes frozen at `0.05` / `0.06`.
 - Added tiered `texture-heavy` parity envelopes (`LOW/MEDIUM/HIGH/ULTRA`) in compare-harness tests.
+- Expanded Vulkan dynamic-scene reuse path with texture-only rebind support:
+  - geometry/buffer-stable scene edits that change only material texture bindings now avoid full mesh-buffer rebuilds
+  - texture descriptors are refreshed in-place and scene reuse telemetry now reports `textureRebindHits`
+  - guarded Vulkan integration test added to assert texture-only updates keep `meshBufferRebuilds` stable
+- Expanded native KTX decode coverage:
+  - added 16-bit uncompressed KTX2 format family support (`R16_UNORM`, `R16G16_UNORM`, `R16G16B16A16_UNORM`) with 16-bit -> 8-bit normalization for baseline ingestion
+  - added decoder tests for `R16`/`RG16` KTX2 payloads
+- Backend KTX ingestion now prefers native container decode first and only falls back to sidecar assets when decode is unavailable.
+- Added KTX2 Zstd supercompression decode path (scheme `2`) for baseline decodable format families.
+- OpenGL smoke parity tightened by replacing hardcoded `1920x1080` shader scaling with runtime viewport-sized smoke radial scaling.
+- Vulkan smoke parity tightened to runtime swapchain viewport scaling (removes fixed-size radial assumption).
+- BRDF tier-extreme consistency polish applied in both backends:
+  - added roughness-edge attenuation on diffuse/specular IBL contribution at very glossy/very rough extremes.
+- Expanded Vulkan dynamic staging guardrails:
+  - configurable upload-range soft limit warning path (`vulkan.pendingUploadRangeSoftLimit`, `vulkan.pendingUploadRangeWarnCooldownFrames`)
+  - runtime warning: `PENDING_UPLOAD_RANGE_SOFT_LIMIT_EXCEEDED`
+  - frame-resource profile now includes pending-range soft-limit config and cooldown counters.
+- Expanded parity harness with deterministic `brdf-tier-extremes` profile and tiered + stress-golden bounds.
+  - tightened ULTRA envelope `0.31 -> 0.30` after BRDF/staging parity pass remained green.
+- Expanded KTX2 transcode-gap classification for BasisLZ/UASTC families:
+  - KTX2 supercompression scheme `1` is now treated as BasisLZ (transcode-required), not zlib.
+  - decode-unavailable and variant-unsupported counters now exclude transcode-required KTX2 paths.
+  - new runtime warning emitted in both backends: `IBL_KTX_TRANSCODE_REQUIRED`.
+  - zlib KTX2 decode path now aligns to scheme `3`; zstd remains scheme `2`.
+- Expanded guarded real-device matrix coverage:
+  - new long-endurance Vulkan integration test path gated by `-Ddle.test.vulkan.real.long=true`
+  - CI matrix now includes dedicated guarded long-endurance Vulkan job on macOS/Linux/Windows.
 - Added deterministic `material-fog-smoke-shadow-cascade-stress` compare profile:
   - combines textured materials with fog + smoke + cascaded shadows
   - includes tiered envelope assertions (`LOW/MEDIUM/HIGH/ULTRA`)

@@ -62,6 +62,7 @@ import static org.lwjgl.opengl.GL20.glLinkProgram;
 import static org.lwjgl.opengl.GL20.glShaderSource;
 import static org.lwjgl.opengl.GL20.glUniform1f;
 import static org.lwjgl.opengl.GL20.glUniform1i;
+import static org.lwjgl.opengl.GL20.glUniform2f;
 import static org.lwjgl.opengl.GL20.glUniform3f;
 import static org.lwjgl.opengl.GL20.glUniform4f;
 import static org.lwjgl.opengl.GL20.glUniformMatrix4fv;
@@ -303,6 +304,7 @@ final class OpenGlContext {
             uniform int uSmokeEnabled;
             uniform vec3 uSmokeColor;
             uniform float uSmokeIntensity;
+            uniform vec2 uViewportSize;
             uniform vec4 uIblParams;
             uniform int uTonemapEnabled;
             uniform float uTonemapExposure;
@@ -474,10 +476,12 @@ final class OpenGlContext {
                     float energyComp = 1.0 + (1.0 - roughness) * 0.35 * (1.0 - ndv);
                     float roughEnergy = mix(1.15, 0.72, roughness);
                     float brdfDiffuseLift = mix(0.82, 1.18, brdf.y);
+                    float roughEdge = smoothstep(0.02, 0.10, roughness) * (1.0 - smoothstep(0.90, 0.99, roughness));
                     vec3 iblDiffuse = kD * albedo * ao * irr
                             * (0.22 + 0.58 * (1.0 - roughness))
                             * iblDiffuseWeight
-                            * brdfDiffuseLift;
+                            * brdfDiffuseLift
+                            * mix(0.90, 1.00, roughEdge);
                     float specLobe = mix(1.08, 0.64, roughness * roughness);
                     vec3 iblSpecBase = rad * (kS * (0.34 + 0.66 * brdf.x) + vec3(0.18 + 0.28 * brdf.y));
                     vec3 iblSpec = iblSpecBase
@@ -487,7 +491,8 @@ final class OpenGlContext {
                             * horizon
                             * roughEnergy
                             * specLobe
-                            * mix(0.9, 1.1, prefilter);
+                            * mix(0.9, 1.1, prefilter)
+                            * mix(0.82, 1.00, roughEdge);
                     ambient += iblDiffuse + iblSpec;
                 }
                 vec3 color = ambient + directional + pointLit;
@@ -506,7 +511,8 @@ final class OpenGlContext {
                     color = mix(uFogColor, color, fogFactor);
                 }
                 if (uSmokeEnabled == 1) {
-                    float radial = clamp(1.0 - length(gl_FragCoord.xy / vec2(1920.0, 1080.0) - vec2(0.5)), 0.0, 1.0);
+                    vec2 safeViewport = max(uViewportSize, vec2(1.0));
+                    float radial = clamp(1.0 - length(gl_FragCoord.xy / safeViewport - vec2(0.5)), 0.0, 1.0);
                     float smokeFactor = clamp(uSmokeIntensity * (0.35 + radial * 0.65), 0.0, 0.85);
                     color = mix(color, uSmokeColor, smokeFactor);
                 }
@@ -624,6 +630,7 @@ final class OpenGlContext {
     private int smokeEnabledLocation;
     private int smokeColorLocation;
     private int smokeIntensityLocation;
+    private int viewportSizeLocation;
     private int iblParamsLocation;
     private int tonemapEnabledLocation;
     private int tonemapExposureLocation;
@@ -1279,6 +1286,7 @@ final class OpenGlContext {
         smokeEnabledLocation = glGetUniformLocation(programId, "uSmokeEnabled");
         smokeColorLocation = glGetUniformLocation(programId, "uSmokeColor");
         smokeIntensityLocation = glGetUniformLocation(programId, "uSmokeIntensity");
+        viewportSizeLocation = glGetUniformLocation(programId, "uViewportSize");
         iblParamsLocation = glGetUniformLocation(programId, "uIblParams");
         tonemapEnabledLocation = glGetUniformLocation(programId, "uTonemapEnabled");
         tonemapExposureLocation = glGetUniformLocation(programId, "uTonemapExposure");
@@ -1419,7 +1427,7 @@ final class OpenGlContext {
     }
 
     private TextureData loadTexture(Path texturePath) {
-        Path sourcePath = resolveContainerSourcePath(texturePath);
+        Path sourcePath = texturePath;
         if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
             return new TextureData(0, 0, 0);
         }
@@ -1427,6 +1435,10 @@ final class OpenGlContext {
             TextureData decoded = loadTextureFromKtx(sourcePath);
             if (decoded.id() != 0) {
                 return decoded;
+            }
+            sourcePath = resolveContainerSourcePath(sourcePath);
+            if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
+                return new TextureData(0, 0, 0);
             }
         }
         try {
@@ -1641,6 +1653,7 @@ final class OpenGlContext {
         glUniform1i(smokeEnabledLocation, smokeEnabled ? 1 : 0);
         glUniform3f(smokeColorLocation, smokeR, smokeG, smokeB);
         glUniform1f(smokeIntensityLocation, smokeIntensity);
+        glUniform2f(viewportSizeLocation, Math.max(1, width), Math.max(1, height));
     }
 
     private void applyPostProcessUniforms(boolean shaderDrivenEnabled) {

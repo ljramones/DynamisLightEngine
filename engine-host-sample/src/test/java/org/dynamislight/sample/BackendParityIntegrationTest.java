@@ -206,6 +206,23 @@ class BackendParityIntegrationTest {
 
     @Test
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessBrdfTierExtremeSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("brdf-tier-extremes");
+        var report = BackendCompareHarness.run(
+                outDir,
+                brdfTierExtremesScene(),
+                QualityTier.ULTRA,
+                "brdf-tier-extremes-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.30, "brdf-tier-extremes diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessPostProcessSceneHasBoundedDiff() throws Exception {
         Path outDir = compareOutputDir("post-process");
         var report = BackendCompareHarness.run(
@@ -296,6 +313,12 @@ class BackendParityIntegrationTest {
                 QualityTier.HIGH, 0.34,
                 QualityTier.ULTRA, 0.32
         );
+        Map<QualityTier, Double> brdfTierExtremeMaxDiff = Map.of(
+                QualityTier.LOW, 0.55,
+                QualityTier.MEDIUM, 0.45,
+                QualityTier.HIGH, 0.35,
+                QualityTier.ULTRA, 0.30
+        );
         Map<QualityTier, Double> postProcessMaxDiff = Map.of(
                 QualityTier.LOW, 0.42,
                 QualityTier.MEDIUM, 0.37,
@@ -353,6 +376,19 @@ class BackendParityIntegrationTest {
                             + " exceeded " + textureHeavyMaxDiff.get(tier) + " at " + tier
             );
 
+            Path brdfTierExtremeDir = compareOutputDir("brdf-tier-extremes-" + tier.name().toLowerCase());
+            var brdfTierExtremeReport = BackendCompareHarness.run(
+                    brdfTierExtremeDir,
+                    brdfTierExtremesScene(),
+                    tier,
+                    "brdf-tier-extremes-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    brdfTierExtremeReport.diffMetric() <= brdfTierExtremeMaxDiff.get(tier),
+                    "brdf-tier-extremes diff " + brdfTierExtremeReport.diffMetric()
+                            + " exceeded " + brdfTierExtremeMaxDiff.get(tier) + " at " + tier
+            );
+
             Path postDir = compareOutputDir("post-process-" + tier.name().toLowerCase());
             var postReport = BackendCompareHarness.run(
                     postDir,
@@ -402,6 +438,7 @@ class BackendParityIntegrationTest {
                 "fog-shadow-cascade-stress", 0.25,
                 "smoke-shadow-cascade-stress", 0.25,
                 "texture-heavy", 0.32,
+                "brdf-tier-extremes", 0.30,
                 "fog-smoke-shadow-post-stress", 0.05,
                 "material-fog-smoke-shadow-cascade-stress", 0.30
         );
@@ -430,6 +467,12 @@ class BackendParityIntegrationTest {
                         textureHeavyScene(),
                         QualityTier.ULTRA,
                         "texture-heavy-golden-ultra"
+                ),
+                "brdf-tier-extremes", BackendCompareHarness.run(
+                        compareOutputDir("brdf-tier-extremes-golden"),
+                        brdfTierExtremesScene(),
+                        QualityTier.ULTRA,
+                        "brdf-tier-extremes-golden-ultra"
                 ),
                 "fog-smoke-shadow-post-stress", BackendCompareHarness.run(
                         compareOutputDir("fog-smoke-shadow-post-stress-golden"),
@@ -808,6 +851,84 @@ class BackendParityIntegrationTest {
                 env,
                 fog,
                 List.of()
+        );
+    }
+
+    private static SceneDescriptor brdfTierExtremesScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0f, 0f, 7f), new Vec3(0f, 0f, 0f), 58f, 0.1f, 150f);
+        TransformDesc t1 = new TransformDesc("x1", new Vec3(-1.25f, 0f, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f));
+        TransformDesc t2 = new TransformDesc("x2", new Vec3(0f, 0f, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f));
+        TransformDesc t3 = new TransformDesc("x3", new Vec3(1.25f, 0f, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f));
+        MeshDesc m1 = new MeshDesc("m1", "x1", "mat-gloss", "meshes/quad.glb");
+        MeshDesc m2 = new MeshDesc("m2", "x2", "mat-mid", "meshes/quad.glb");
+        MeshDesc m3 = new MeshDesc("m3", "x3", "mat-rough", "meshes/quad.glb");
+        MaterialDesc matGloss = new MaterialDesc(
+                "mat-gloss",
+                new Vec3(0.95f, 0.93f, 0.90f),
+                1.0f,
+                0.04f,
+                "assets/textures/albedo.png",
+                "assets/textures/normal.png"
+        );
+        MaterialDesc matMid = new MaterialDesc(
+                "mat-mid",
+                new Vec3(0.65f, 0.72f, 0.92f),
+                0.55f,
+                0.35f,
+                "assets/textures/albedo.png",
+                "assets/textures/normal.png"
+        );
+        MaterialDesc matRough = new MaterialDesc(
+                "mat-rough",
+                new Vec3(0.38f, 0.42f, 0.48f),
+                0.05f,
+                1.0f,
+                "assets/textures/albedo.png",
+                null
+        );
+        LightDesc light = new LightDesc(
+                "sun",
+                new Vec3(2.0f, 4.0f, 2.5f),
+                new Vec3(1.0f, 0.98f, 0.95f),
+                1.2f,
+                22f,
+                true,
+                new ShadowDesc(2048, 0.0012f, 5, 3)
+        );
+        EnvironmentDesc env = new EnvironmentDesc(
+                new Vec3(0.18f, 0.20f, 0.24f),
+                0.35f,
+                null,
+                "assets/textures/albedo.png",
+                "assets/textures/albedo.png",
+                "assets/textures/albedo.png"
+        );
+        FogDesc fog = new FogDesc(true, FogMode.HEIGHT_EXPONENTIAL, new Vec3(0.55f, 0.58f, 0.62f), 0.08f, 0.0f, 0.65f, 0f, 0f, 0f);
+        SmokeEmitterDesc smoke = new SmokeEmitterDesc(
+                "smoke",
+                new Vec3(0f, 0.3f, 0f),
+                new Vec3(1.5f, 0.6f, 1.0f),
+                12f,
+                0.6f,
+                new Vec3(0.55f, 0.57f, 0.60f),
+                0.3f,
+                new Vec3(0.0f, 0.3f, 0.0f),
+                0.2f,
+                2.5f,
+                true
+        );
+
+        return new SceneDescriptor(
+                "brdf-tier-extremes-scene",
+                List.of(camera),
+                "cam",
+                List.of(t1, t2, t3),
+                List.of(m1, m2, m3),
+                List.of(matGloss, matMid, matRough),
+                List.of(light),
+                env,
+                fog,
+                List.of(smoke)
         );
     }
 

@@ -1,5 +1,6 @@
 package org.dynamislight.impl.common.texture;
 
+import com.github.luben.zstd.Zstd;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -28,8 +29,13 @@ public final class KtxDecodeUtil {
     private static final int VK_FORMAT_R8G8B8_UNORM = 23;
     private static final int VK_FORMAT_R8G8_UNORM = 16;
     private static final int VK_FORMAT_R8_UNORM = 9;
+    private static final int VK_FORMAT_R16_UNORM = 70;
+    private static final int VK_FORMAT_R16G16_UNORM = 77;
+    private static final int VK_FORMAT_R16G16B16A16_UNORM = 91;
     private static final int KTX2_SUPERCOMPRESSION_NONE = 0;
-    private static final int KTX2_SUPERCOMPRESSION_ZLIB = 1;
+    private static final int KTX2_SUPERCOMPRESSION_BASIS_LZ = 1;
+    private static final int KTX2_SUPERCOMPRESSION_ZSTD = 2;
+    private static final int KTX2_SUPERCOMPRESSION_ZLIB = 3;
     private static final int GL_UNSIGNED_BYTE = 0x1401;
     private static final int GL_RED = 0x1903;
     private static final int GL_RG = 0x8227;
@@ -128,6 +134,18 @@ public final class KtxDecodeUtil {
         return false;
     }
 
+    public static boolean requiresTranscode(Path containerPath) {
+        if (containerPath == null || !Files.isRegularFile(containerPath)) {
+            return false;
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(containerPath.toAbsolutePath().normalize());
+            return startsWith(bytes, KTX2_IDENTIFIER) && isBasisOrUndefinedFormatKtx2(bytes);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     private static String stableName(Path source, long size, long modified) {
         String base = Integer.toHexString(source.toString().hashCode());
         return "ktx_" + base + "_" + Long.toHexString(size) + "_" + Long.toHexString(modified);
@@ -170,7 +188,8 @@ public final class KtxDecodeUtil {
                 || pixelWidth <= 0
                 || pixelHeight <= 0
                 || faceCount != 1
-                || (supercompression != KTX2_SUPERCOMPRESSION_NONE && supercompression != KTX2_SUPERCOMPRESSION_ZLIB)
+                || isBasisOrUndefinedFormatKtx2(bytes)
+                || !isSupportedKtx2Supercompression(supercompression)
                 || levelCount <= 0
                 || layerCount > 1) {
             return null;
@@ -194,11 +213,18 @@ public final class KtxDecodeUtil {
             }
             rawBytes = new byte[(int) expected];
             System.arraycopy(bytes, (int) byteOffset, rawBytes, 0, rawBytes.length);
-        } else {
+        } else if (supercompression == KTX2_SUPERCOMPRESSION_ZLIB) {
             rawBytes = inflateZlib(bytes, (int) byteOffset, (int) byteLength, (int) expectedUncompressed);
             if (rawBytes == null || rawBytes.length < expected) {
                 return null;
             }
+        } else if (supercompression == KTX2_SUPERCOMPRESSION_ZSTD) {
+            rawBytes = inflateZstd(bytes, (int) byteOffset, (int) byteLength, (int) expectedUncompressed);
+            if (rawBytes == null || rawBytes.length < expected) {
+                return null;
+            }
+        } else {
+            return null;
         }
         return toRgba(rawBytes, 0, pixelWidth, pixelHeight, bytesPerPixel, layout);
     }
@@ -210,10 +236,29 @@ public final class KtxDecodeUtil {
         ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         int vkFormat = bb.getInt(12);
         int supercompression = bb.getInt(44);
-        if (supercompression != KTX2_SUPERCOMPRESSION_NONE && supercompression != KTX2_SUPERCOMPRESSION_ZLIB) {
+        if (isBasisOrUndefinedFormatKtx2(bytes)) {
+            return false;
+        }
+        if (!isSupportedKtx2Supercompression(supercompression)) {
             return true;
         }
         return bytesPerPixelForVkFormat(vkFormat) <= 0 || layoutForVkFormat(vkFormat) == null;
+    }
+
+    private static boolean isBasisOrUndefinedFormatKtx2(byte[] bytes) {
+        if (bytes.length < 104) {
+            return false;
+        }
+        ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        int vkFormat = bb.getInt(12);
+        int supercompression = bb.getInt(44);
+        return supercompression == KTX2_SUPERCOMPRESSION_BASIS_LZ || vkFormat == 0;
+    }
+
+    private static boolean isSupportedKtx2Supercompression(int supercompression) {
+        return supercompression == KTX2_SUPERCOMPRESSION_NONE
+                || supercompression == KTX2_SUPERCOMPRESSION_ZLIB
+                || supercompression == KTX2_SUPERCOMPRESSION_ZSTD;
     }
 
     private static DecodedRgba decodeKtx1(byte[] bytes) {
@@ -303,6 +348,25 @@ public final class KtxDecodeUtil {
                     g = bytes[idx++] & 0xFF;
                     r = bytes[idx++] & 0xFF;
                     a = bytes[idx++] & 0xFF;
+                } else if (layout == ChannelLayout.R16) {
+                    r = readU16To8(bytes, idx);
+                    idx += 2;
+                    g = r;
+                    b = r;
+                } else if (layout == ChannelLayout.RG16) {
+                    r = readU16To8(bytes, idx);
+                    idx += 2;
+                    g = readU16To8(bytes, idx);
+                    idx += 2;
+                } else if (layout == ChannelLayout.RGBA16) {
+                    r = readU16To8(bytes, idx);
+                    idx += 2;
+                    g = readU16To8(bytes, idx);
+                    idx += 2;
+                    b = readU16To8(bytes, idx);
+                    idx += 2;
+                    a = readU16To8(bytes, idx);
+                    idx += 2;
                 } else {
                     idx += bytesPerPixel;
                 }
@@ -353,11 +417,31 @@ public final class KtxDecodeUtil {
         }
     }
 
+    private static byte[] inflateZstd(byte[] source, int offset, int length, int expectedLength) {
+        if (expectedLength <= 0 || offset < 0 || length <= 0 || offset + length > source.length) {
+            return null;
+        }
+        byte[] compressed = new byte[length];
+        System.arraycopy(source, offset, compressed, 0, length);
+        try {
+            byte[] decompressed = Zstd.decompress(compressed, expectedLength);
+            if (decompressed == null || decompressed.length <= 0) {
+                return null;
+            }
+            return decompressed;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     private static int bytesPerPixelForVkFormat(int vkFormat) {
         return switch (vkFormat) {
             case VK_FORMAT_R8_UNORM -> 1;
             case VK_FORMAT_R8G8_UNORM -> 2;
             case VK_FORMAT_R8G8B8_UNORM -> 3;
+            case VK_FORMAT_R16_UNORM -> 2;
+            case VK_FORMAT_R16G16_UNORM -> 4;
+            case VK_FORMAT_R16G16B16A16_UNORM -> 8;
             case VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SRGB -> 4;
             default -> -1;
         };
@@ -368,10 +452,20 @@ public final class KtxDecodeUtil {
             case VK_FORMAT_R8_UNORM -> ChannelLayout.R;
             case VK_FORMAT_R8G8_UNORM -> ChannelLayout.RG;
             case VK_FORMAT_R8G8B8_UNORM -> ChannelLayout.RGB;
+            case VK_FORMAT_R16_UNORM -> ChannelLayout.R16;
+            case VK_FORMAT_R16G16_UNORM -> ChannelLayout.RG16;
+            case VK_FORMAT_R16G16B16A16_UNORM -> ChannelLayout.RGBA16;
             case VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_SRGB -> ChannelLayout.RGBA;
             case VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SRGB -> ChannelLayout.BGRA;
             default -> null;
         };
+    }
+
+    private static int readU16To8(byte[] bytes, int idx) {
+        int lo = bytes[idx] & 0xFF;
+        int hi = bytes[idx + 1] & 0xFF;
+        int u16 = (hi << 8) | lo;
+        return u16 >>> 8;
     }
 
     private static int bytesPerPixelForGlFormat(int glFormat) {
@@ -400,7 +494,10 @@ public final class KtxDecodeUtil {
         RG,
         RGB,
         RGBA,
-        BGRA
+        BGRA,
+        R16,
+        RG16,
+        RGBA16
     }
 
     private static boolean startsWith(byte[] source, byte[] prefix) {

@@ -380,6 +380,7 @@ final class VulkanContext {
     private long plannedVisibleObjects = 1;
     private long sceneReuseHitCount;
     private long sceneReorderReuseCount;
+    private long sceneTextureRebindCount;
     private long sceneFullRebuildCount;
     private long meshBufferRebuildCount;
     private long descriptorPoolBuildCount;
@@ -606,6 +607,7 @@ final class VulkanContext {
         return new SceneReuseStats(
                 sceneReuseHitCount,
                 sceneReorderReuseCount,
+                sceneTextureRebindCount,
                 sceneFullRebuildCount,
                 meshBufferRebuildCount,
                 descriptorPoolBuildCount,
@@ -678,6 +680,13 @@ final class VulkanContext {
             sceneReuseHitCount++;
             descriptorRingReuseHitCount++;
             updateDynamicSceneState(safe);
+            return;
+        }
+        if (canReuseGeometryBuffers(safe)) {
+            sceneReuseHitCount++;
+            sceneTextureRebindCount++;
+            descriptorRingReuseHitCount++;
+            rebindSceneTexturesAndDynamicState(safe);
             return;
         }
         sceneFullRebuildCount++;
@@ -2196,7 +2205,8 @@ final class VulkanContext {
                         color = mix(ubo.uFogColorSteps.rgb, color, fogFactor);
                     }
                     if (ubo.uSmoke.x > 0.5) {
-                        float radial = clamp(1.0 - length(gl_FragCoord.xy / vec2(1920.0, 1080.0) - vec2(0.5)), 0.0, 1.0);
+                        vec2 safeViewport = max(ubo.uSmoke.zw, vec2(1.0));
+                        float radial = clamp(1.0 - length(gl_FragCoord.xy / safeViewport - vec2(0.5)), 0.0, 1.0);
                         float smokeFactor = clamp(ubo.uSmoke.y * (0.35 + radial * 0.65), 0.0, 0.85);
                         color = mix(color, ubo.uSmokeColor.rgb, smokeFactor);
                     }
@@ -2218,10 +2228,12 @@ final class VulkanContext {
                     float energyComp = 1.0 + (1.0 - roughness) * 0.35 * (1.0 - ndv);
                     float roughEnergy = mix(1.15, 0.72, roughness);
                     float brdfDiffuseLift = mix(0.82, 1.18, brdf.y);
+                    float roughEdge = smoothstep(0.02, 0.10, roughness) * (1.0 - smoothstep(0.90, 0.99, roughness));
                     vec3 iblDiffuse = kD * baseColor * ao * irr
                             * (0.22 + 0.58 * (1.0 - roughness))
                             * iblDiffuseWeight
-                            * brdfDiffuseLift;
+                            * brdfDiffuseLift
+                            * mix(0.90, 1.00, roughEdge);
                     float specLobe = mix(1.08, 0.64, roughness * roughness);
                     vec3 iblSpecBase = rad * (kS * (0.34 + 0.66 * brdf.x) + vec3(0.18 + 0.28 * brdf.y));
                     vec3 iblSpec = iblSpecBase
@@ -2231,7 +2243,8 @@ final class VulkanContext {
                             * horizon
                             * roughEnergy
                             * specLobe
-                            * mix(0.9, 1.1, prefilter);
+                            * mix(0.9, 1.1, prefilter)
+                            * mix(0.82, 1.00, roughEdge);
                     color += iblDiffuse + iblSpec;
                 }
                     if (ubo.uPostProcess.x > 0.5) {
@@ -3793,6 +3806,33 @@ final class VulkanContext {
         return true;
     }
 
+    private boolean canReuseGeometryBuffers(List<SceneMeshData> sceneMeshes) {
+        if (gpuMeshes.isEmpty() || sceneMeshes.size() != gpuMeshes.size()) {
+            return false;
+        }
+        Map<String, GpuMesh> byId = new HashMap<>();
+        for (GpuMesh gpuMesh : gpuMeshes) {
+            if (byId.put(gpuMesh.meshId, gpuMesh) != null) {
+                return false;
+            }
+        }
+        for (SceneMeshData sceneMesh : sceneMeshes) {
+            GpuMesh gpuMesh = byId.get(sceneMesh.meshId());
+            if (gpuMesh == null) {
+                return false;
+            }
+            long vertexBytes = (long) sceneMesh.vertices().length * Float.BYTES;
+            long indexBytes = (long) sceneMesh.indices().length * Integer.BYTES;
+            if (gpuMesh.vertexBytes != vertexBytes || gpuMesh.indexBytes != indexBytes || gpuMesh.indexCount != sceneMesh.indices().length) {
+                return false;
+            }
+            if (gpuMesh.vertexHash != Arrays.hashCode(sceneMesh.vertices()) || gpuMesh.indexHash != Arrays.hashCode(sceneMesh.indices())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void updateDynamicSceneState(List<SceneMeshData> sceneMeshes) {
         Map<String, GpuMesh> byId = new HashMap<>();
         for (GpuMesh mesh : gpuMeshes) {
@@ -3950,6 +3990,84 @@ final class VulkanContext {
         estimatedGpuMemoryBytes = uniformBytes + meshBytes + textureBytes;
     }
 
+    private void rebindSceneTexturesAndDynamicState(List<SceneMeshData> sceneMeshes) throws EngineException {
+        Map<String, GpuMesh> byId = new HashMap<>();
+        for (GpuMesh mesh : gpuMeshes) {
+            byId.put(mesh.meshId, mesh);
+        }
+        Set<GpuTexture> oldTextures = collectLiveTextures(gpuMeshes, iblIrradianceTexture, iblRadianceTexture, iblBrdfLutTexture);
+        List<GpuMesh> rebound = new ArrayList<>(sceneMeshes.size());
+        Map<String, GpuTexture> textureCache = new HashMap<>();
+        GpuTexture defaultAlbedo = createTextureFromPath(null, false);
+        GpuTexture defaultNormal = createTextureFromPath(null, true);
+        GpuTexture defaultMetallicRoughness = createTextureFromPath(null, false);
+        GpuTexture defaultOcclusion = createTextureFromPath(null, false);
+        GpuTexture newIblIrradiance = resolveOrCreateTexture(iblIrradiancePath, textureCache, defaultAlbedo, false);
+        GpuTexture newIblRadiance = resolveOrCreateTexture(iblRadiancePath, textureCache, defaultAlbedo, false);
+        GpuTexture newIblBrdfLut = resolveOrCreateTexture(iblBrdfLutPath, textureCache, defaultAlbedo, false);
+        for (SceneMeshData sceneMesh : sceneMeshes) {
+            GpuMesh mesh = byId.get(sceneMesh.meshId());
+            if (mesh == null) {
+                throw new EngineException(
+                        EngineErrorCode.RESOURCE_CREATION_FAILED,
+                        "Unable to resolve reusable mesh '" + sceneMesh.meshId() + "' for texture rebind path",
+                        false
+                );
+            }
+            String albedoKey = textureCacheKey(sceneMesh.albedoTexturePath(), false);
+            String normalKey = textureCacheKey(sceneMesh.normalTexturePath(), true);
+            String metallicRoughnessKey = textureCacheKey(sceneMesh.metallicRoughnessTexturePath(), false);
+            String occlusionKey = textureCacheKey(sceneMesh.occlusionTexturePath(), false);
+            GpuTexture albedoTexture = resolveOrCreateTexture(sceneMesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
+            GpuTexture normalTexture = resolveOrCreateTexture(sceneMesh.normalTexturePath(), textureCache, defaultNormal, true);
+            GpuTexture metallicRoughnessTexture = resolveOrCreateTexture(
+                    sceneMesh.metallicRoughnessTexturePath(),
+                    textureCache,
+                    defaultMetallicRoughness,
+                    false
+            );
+            GpuTexture occlusionTexture = resolveOrCreateTexture(sceneMesh.occlusionTexturePath(), textureCache, defaultOcclusion, false);
+            rebound.add(new GpuMesh(
+                    mesh.vertexBuffer,
+                    mesh.vertexMemory,
+                    mesh.indexBuffer,
+                    mesh.indexMemory,
+                    mesh.indexCount,
+                    mesh.vertexBytes,
+                    mesh.indexBytes,
+                    sceneMesh.modelMatrix().clone(),
+                    sceneMesh.color()[0],
+                    sceneMesh.color()[1],
+                    sceneMesh.color()[2],
+                    sceneMesh.metallic(),
+                    sceneMesh.roughness(),
+                    albedoTexture,
+                    normalTexture,
+                    metallicRoughnessTexture,
+                    occlusionTexture,
+                    mesh.meshId,
+                    mesh.vertexHash,
+                    mesh.indexHash,
+                    albedoKey,
+                    normalKey,
+                    metallicRoughnessKey,
+                    occlusionKey
+            ));
+        }
+        gpuMeshes.clear();
+        gpuMeshes.addAll(rebound);
+        iblIrradianceTexture = newIblIrradiance;
+        iblRadianceTexture = newIblRadiance;
+        iblBrdfLutTexture = newIblBrdfLut;
+        try (MemoryStack stack = stackPush()) {
+            createTextureDescriptorSets(stack);
+        }
+        Set<GpuTexture> newTextures = collectLiveTextures(gpuMeshes, iblIrradianceTexture, iblRadianceTexture, iblBrdfLutTexture);
+        oldTextures.removeAll(newTextures);
+        destroyTextures(oldTextures);
+        markSceneStateDirty(0, Math.max(0, sceneMeshes.size() - 1));
+    }
+
     private void destroySceneMeshes() {
         if (device == null) {
             gpuMeshes.clear();
@@ -3977,7 +4095,36 @@ final class VulkanContext {
         uniqueTextures.add(iblIrradianceTexture);
         uniqueTextures.add(iblRadianceTexture);
         uniqueTextures.add(iblBrdfLutTexture);
-        for (GpuTexture texture : uniqueTextures) {
+        destroyTextures(uniqueTextures);
+        if (textureDescriptorPool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device, textureDescriptorPool, null);
+            textureDescriptorPool = VK_NULL_HANDLE;
+        }
+        iblIrradianceTexture = null;
+        iblRadianceTexture = null;
+        iblBrdfLutTexture = null;
+        gpuMeshes.clear();
+    }
+
+    private Set<GpuTexture> collectLiveTextures(List<GpuMesh> meshes, GpuTexture iblIrr, GpuTexture iblRad, GpuTexture iblBrdf) {
+        Set<GpuTexture> textures = new HashSet<>();
+        for (GpuMesh mesh : meshes) {
+            textures.add(mesh.albedoTexture);
+            textures.add(mesh.normalTexture);
+            textures.add(mesh.metallicRoughnessTexture);
+            textures.add(mesh.occlusionTexture);
+        }
+        textures.add(iblIrr);
+        textures.add(iblRad);
+        textures.add(iblBrdf);
+        return textures;
+    }
+
+    private void destroyTextures(Set<GpuTexture> textures) {
+        if (device == null || textures == null || textures.isEmpty()) {
+            return;
+        }
+        for (GpuTexture texture : textures) {
             if (texture == null) {
                 continue;
             }
@@ -3994,14 +4141,6 @@ final class VulkanContext {
                 vkFreeMemory(device, texture.memory(), null);
             }
         }
-        if (textureDescriptorPool != VK_NULL_HANDLE) {
-            vkDestroyDescriptorPool(device, textureDescriptorPool, null);
-            textureDescriptorPool = VK_NULL_HANDLE;
-        }
-        iblIrradianceTexture = null;
-        iblRadianceTexture = null;
-        iblBrdfLutTexture = null;
-        gpuMeshes.clear();
     }
 
     private GpuTexture resolveOrCreateTexture(
@@ -4231,7 +4370,7 @@ final class VulkanContext {
     }
 
     private TexturePixelData loadTexturePixels(Path texturePath) {
-        Path sourcePath = resolveContainerSourcePath(texturePath);
+        Path sourcePath = texturePath;
         if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
             return null;
         }
@@ -4239,6 +4378,10 @@ final class VulkanContext {
             TexturePixelData decoded = loadTexturePixelsFromKtx(sourcePath);
             if (decoded != null) {
                 return decoded;
+            }
+            sourcePath = resolveContainerSourcePath(sourcePath);
+            if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
+                return null;
             }
         }
         try {
@@ -4865,7 +5008,9 @@ final class VulkanContext {
         fb.put(new float[]{0f, split3, 0f, 0f});
         fb.put(new float[]{fogEnabled ? 1f : 0f, fogDensity, 0f, 0f});
         fb.put(new float[]{fogR, fogG, fogB, (float) fogSteps});
-        fb.put(new float[]{smokeEnabled ? 1f : 0f, smokeIntensity, 0f, 0f});
+        float viewportW = (float) Math.max(1, swapchainWidth);
+        float viewportH = (float) Math.max(1, swapchainHeight);
+        fb.put(new float[]{smokeEnabled ? 1f : 0f, smokeIntensity, viewportW, viewportH});
         fb.put(new float[]{smokeR, smokeG, smokeB, 0f});
         fb.put(new float[]{iblEnabled ? 1f : 0f, iblDiffuseStrength, iblSpecularStrength, iblPrefilterStrength});
         boolean scenePostEnabled = !postOffscreenActive;
@@ -5329,6 +5474,7 @@ final class VulkanContext {
     record SceneReuseStats(
             long reuseHits,
             long reorderReuseHits,
+            long textureRebindHits,
             long fullRebuilds,
             long meshBufferRebuilds,
             long descriptorPoolBuilds,

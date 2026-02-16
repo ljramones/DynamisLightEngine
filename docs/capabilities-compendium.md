@@ -98,14 +98,19 @@ OpenGL backend provides a real forward render baseline:
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
   - baseline native container decode path added for uncompressed KTX/KTX2 channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`) (resolved to runtime PNG cache when needed)
   - native KTX2 zlib supercompression decode is supported for baseline decodable channel families
+  - native KTX2 Zstd supercompression decode is supported for baseline decodable channel families
+  - baseline uncompressed 16-bit KTX2 families are supported (`R16_UNORM`, `R16G16_UNORM`, `R16G16B16A16_UNORM`) via 16-bit-to-8-bit normalization for runtime ingestion
   - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory via raw RGBA extraction (no PNG transcode dependency for GPU upload)
+  - backend texture ingestion now prefers native KTX/KTX2 decode first; sidecar assets are used only as fallback when native decode is unavailable
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when KTX containers exist but remain undecodable in current build: `IBL_KTX_DECODE_UNAVAILABLE`
+  - explicit runtime warning when KTX2 assets require BasisLZ/UASTC transcoding that is not yet enabled: `IBL_KTX_TRANSCODE_REQUIRED`
   - explicit runtime warning when KTX variants are outside baseline decoder support (compressed/supercompressed/non-RGBA8): `IBL_KTX_VARIANT_UNSUPPORTED`
   - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`
   - OpenGL/Vulkan parity update: AO now modulates IBL diffuse ambient in both backends for closer cross-backend material response
 - Fog support (`FogDesc`) with quality-tier behavior.
 - Smoke support (`SmokeEmitterDesc`) with quality degradation warnings at lower tiers.
+- Smoke radial falloff now uses runtime viewport dimensions (instead of fixed 1080p constants) for stronger OpenGL/Vulkan parity across window sizes.
 - Tonemap + bloom post-process baseline (scene-driven exposure/gamma/threshold/strength).
 - Dedicated post-pass architecture:
   - offscreen scene target (FBO color + depth/stencil) then fullscreen post shader composite
@@ -160,13 +165,18 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
   - baseline native container decode path added for uncompressed KTX/KTX2 channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`) (resolved to runtime PNG cache when needed)
   - native KTX2 zlib supercompression decode is supported for baseline decodable channel families
+  - native KTX2 Zstd supercompression decode is supported for baseline decodable channel families
+  - baseline uncompressed 16-bit KTX2 families are supported (`R16_UNORM`, `R16G16_UNORM`, `R16G16B16A16_UNORM`) via 16-bit-to-8-bit normalization for runtime ingestion
   - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory via raw RGBA extraction (no PNG transcode dependency for GPU upload)
+  - backend texture ingestion now prefers native KTX/KTX2 decode first; sidecar assets are used only as fallback when native decode is unavailable
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when KTX containers exist but remain undecodable in current build: `IBL_KTX_DECODE_UNAVAILABLE`
+  - explicit runtime warning when KTX2 assets require BasisLZ/UASTC transcoding that is not yet enabled: `IBL_KTX_TRANSCODE_REQUIRED`
   - explicit runtime warning when KTX variants are outside baseline decoder support (compressed/supercompressed/non-RGBA8): `IBL_KTX_VARIANT_UNSUPPORTED`
   - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`
 - Device-local vertex/index buffer uploads via staging copy path.
 - Render loop clear + scene-driven indexed draws with quality-tier-dependent fog/smoke behavior.
+- Smoke radial falloff now uses runtime swapchain viewport dimensions (instead of fixed 1080p constants) for stronger OpenGL/Vulkan parity across window sizes.
 - Dedicated post-process pass path:
   - Vulkan can run a dedicated post composite pass (`vulkan.postOffscreen=true`) using an intermediate sampled scene image.
   - Runtime automatically falls back to shader-driven post if post resources are unavailable.
@@ -210,10 +220,12 @@ Implemented event classes in active flow:
 
 Vulkan runtime emits profiling warnings (real-context mode) for:
 - `SCENE_REUSE_PROFILE`
+  - includes `textureRebindHits` to track texture-only scene updates that reused geometry buffers
 - `VULKAN_FRAME_RESOURCE_PROFILE`
 - `SHADOW_CASCADE_PROFILE`
 - `DESCRIPTOR_RING_WASTE_HIGH` (when descriptor-ring waste ratio stays above configured threshold for configured consecutive frames)
 - `DESCRIPTOR_RING_CAP_PRESSURE` (when descriptor-ring cap bypass count reaches configured threshold for configured consecutive frames)
+- `PENDING_UPLOAD_RANGE_SOFT_LIMIT_EXCEEDED` (when dynamic sparse-upload range count exceeds configured soft limit)
 
 `VULKAN_FRAME_RESOURCE_PROFILE` now includes per-frame ring diagnostics:
 - `framesInFlight`
@@ -260,6 +272,8 @@ Vulkan options:
 - `vulkan.dynamicObjectSoftLimit` (default `1536`, clamped `128..8192`)
 - `vulkan.uniformUploadSoftLimitBytes` (default `2097152`, clamped `4096..67108864`)
 - `vulkan.uniformUploadWarnCooldownFrames` (default `120`, clamped `0..10000`)
+- `vulkan.pendingUploadRangeSoftLimit` (default `48`, clamped `1..2048`)
+- `vulkan.pendingUploadRangeWarnCooldownFrames` (default `120`, clamped `0..10000`)
 - `vulkan.descriptorRingActiveSoftLimit` (default `2048`, clamped `64..32768`)
 - `vulkan.descriptorRingActiveWarnCooldownFrames` (default `120`, clamped `0..10000`)
 - `vulkan.maxTextureDescriptorSets` (default `4096`, clamped `256..32768`)
@@ -285,10 +299,12 @@ The repository includes automated tests validating:
 - Cross-backend parity checks in sample host integration tests (material/lighting scene, resize stability, quality-tier warning parity).
 - Guarded compare-harness image diff checks (`-Ddle.compare.tests=true`) including tiered fog/smoke/shadow thresholds.
 - Guarded compare-harness includes `shadow-cascade-stress`, `fog-shadow-cascade-stress`, `smoke-shadow-cascade-stress`, and `texture-heavy` profiles for deeper split/bias/fog/smoke/material interaction regression coverage.
+- Guarded compare-harness includes `brdf-tier-extremes` for glossy/rough material edge-case parity coverage.
 - Guarded compare-harness includes `post-process` and `post-process-bloom` profiles.
 - Guarded compare-harness includes `fog-smoke-shadow-post-stress` for combined volumetric+shadow+post regression coverage.
 - Guarded compare-harness includes `material-fog-smoke-shadow-cascade-stress` for mixed material+fog+smoke+cascaded-shadow coverage.
 - Tiered golden envelopes also include `texture-heavy` (`LOW/MEDIUM/HIGH/ULTRA`) alongside existing fog/smoke and shadow tier checks.
+- Tiered golden envelopes also include `brdf-tier-extremes` (`LOW/MEDIUM/HIGH/ULTRA`).
 - Tiered golden envelopes now include `post-process` and `post-process-bloom` (`LOW/MEDIUM/HIGH/ULTRA`).
 - Tiered golden envelopes now include `material-fog-smoke-shadow-cascade-stress` (`LOW/MEDIUM/HIGH/ULTRA`).
 - Current ULTRA `shadow-cascade-stress` bound: `<= 0.25`.
@@ -296,6 +312,7 @@ The repository includes automated tests validating:
 - Current ULTRA `smoke-shadow-cascade-stress` bound: `<= 0.25`.
 - Current ULTRA `fog-smoke-shadow-post-stress` bound: `<= 0.05`.
 - Current ULTRA `material-fog-smoke-shadow-cascade-stress` bound: `<= 0.30`.
+- Current ULTRA `brdf-tier-extremes` bound: `<= 0.30`.
 - Current HIGH `post-process` bound: `<= 0.32`.
 - Current HIGH `post-process-bloom` bound: `<= 0.06`.
 - Vulkan frame-resource profile now also reports:
@@ -320,3 +337,4 @@ The repository includes automated tests validating:
   - `macos-latest`
   - `windows-latest`
 - CI also runs a dedicated guarded parity compare job on `ubuntu-latest` with `dle.compare.tests=true`.
+- CI also runs a dedicated guarded long-endurance Vulkan real test matrix on macOS/Linux/Windows (guarded by runtime availability).

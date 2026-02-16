@@ -406,7 +406,50 @@ class OpenGlEngineRuntimeLifecycleTest {
     }
 
     @Test
-    void iblSupercompressedKtx2EmitsVariantUnsupportedWarning() throws Exception {
+    void iblZstdSupercompressedKtx2DoesNotEmitDecodeUnavailableWarning() throws Exception {
+        Path irr = Files.createTempFile("dle-irr-zstd-", ".ktx2");
+        Path rad = Files.createTempFile("dle-rad-zstd-", ".ktx2");
+        try {
+            writeKtx2ZstdRgba8(irr, 2, 2, (byte) 170, (byte) 150, (byte) 110, (byte) 255);
+            writeKtx2ZstdRgba8(rad, 2, 2, (byte) 210, (byte) 190, (byte) 170, (byte) 255);
+            Path brdf = Path.of("..", "assets", "textures", "albedo.png").toAbsolutePath().normalize();
+
+            SceneDescriptor base = validScene();
+            EnvironmentDesc env = new EnvironmentDesc(
+                    base.environment().ambientColor(),
+                    base.environment().ambientIntensity(),
+                    null,
+                    irr.toString(),
+                    rad.toString(),
+                    brdf.toString()
+            );
+            var runtime = new OpenGlEngineRuntime();
+            runtime.initialize(validConfig(), new RecordingCallbacks());
+            runtime.loadScene(new SceneDescriptor(
+                    "ibl-ktx-zstd-decode-available-scene",
+                    base.cameras(),
+                    base.activeCameraId(),
+                    base.transforms(),
+                    base.meshes(),
+                    base.materials(),
+                    base.lights(),
+                    env,
+                    base.fog(),
+                    base.smokeEmitters(),
+                    base.postProcess()
+            ));
+
+            EngineFrameResult frame = runtime.render();
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
+        } finally {
+            Files.deleteIfExists(irr);
+            Files.deleteIfExists(rad);
+        }
+    }
+
+    @Test
+    void iblBasisLzKtx2EmitsTranscodeRequiredWarning() throws Exception {
         Path irr = Files.createTempFile("dle-irr-super-", ".ktx2");
         Path rad = Files.createTempFile("dle-rad-super-", ".ktx2");
         try {
@@ -440,10 +483,79 @@ class OpenGlEngineRuntimeLifecycleTest {
             ));
 
             EngineFrameResult frame = runtime.render();
-            assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_TRANSCODE_REQUIRED".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
         } finally {
             Files.deleteIfExists(irr);
             Files.deleteIfExists(rad);
+        }
+    }
+
+    @Test
+    void iblKtxContainerDecodableViaStbDoesNotEmitDecodeUnavailableWarning() throws Exception {
+        Path irr = Files.createTempFile("dle-irr-stb-", ".ktx2");
+        Path rad = Files.createTempFile("dle-rad-stb-", ".ktx2");
+        try {
+            Path png = Path.of("..", "assets", "textures", "albedo.png").toAbsolutePath().normalize();
+            Files.copy(png, irr, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(png, rad, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            assumeTrue(canDecodeViaStb(irr) && canDecodeViaStb(rad), "STB cannot decode this container payload on this environment");
+            Path brdf = png;
+
+            SceneDescriptor base = validScene();
+            EnvironmentDesc env = new EnvironmentDesc(
+                    base.environment().ambientColor(),
+                    base.environment().ambientIntensity(),
+                    null,
+                    irr.toString(),
+                    rad.toString(),
+                    brdf.toString()
+            );
+            var runtime = new OpenGlEngineRuntime();
+            runtime.initialize(validConfig(), new RecordingCallbacks());
+            runtime.loadScene(new SceneDescriptor(
+                    "ibl-ktx-stb-decode-available-scene",
+                    base.cameras(),
+                    base.activeCameraId(),
+                    base.transforms(),
+                    base.meshes(),
+                    base.materials(),
+                    base.lights(),
+                    env,
+                    base.fog(),
+                    base.smokeEmitters(),
+                    base.postProcess()
+            ));
+
+            EngineFrameResult frame = runtime.render();
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
+        } finally {
+            Files.deleteIfExists(irr);
+            Files.deleteIfExists(rad);
+        }
+    }
+
+    private static boolean canDecodeViaStb(Path path) {
+        try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            var x = stack.mallocInt(1);
+            var y = stack.mallocInt(1);
+            var channels = stack.mallocInt(1);
+            java.nio.ByteBuffer pixels = org.lwjgl.stb.STBImage.stbi_load(
+                    path.toAbsolutePath().toString(),
+                    x,
+                    y,
+                    channels,
+                    4
+            );
+            if (pixels == null || x.get(0) <= 0 || y.get(0) <= 0) {
+                return false;
+            }
+            org.lwjgl.stb.STBImage.stbi_image_free(pixels);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 
@@ -1062,7 +1174,7 @@ class OpenGlEngineRuntimeLifecycleTest {
                 (byte) 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, (byte) 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
         };
         System.arraycopy(identifier, 0, header, 0, identifier.length);
-        putIntLE(header, 12, 0); // unknown compressed format
+        putIntLE(header, 12, 0); // undefined vkFormat (BasisLZ/UASTC transcode-required family)
         putIntLE(header, 16, 1);
         putIntLE(header, 20, Math.max(1, width));
         putIntLE(header, 24, Math.max(1, height));
@@ -1070,7 +1182,7 @@ class OpenGlEngineRuntimeLifecycleTest {
         putIntLE(header, 32, 0);
         putIntLE(header, 36, 1);
         putIntLE(header, 40, 1);
-        putIntLE(header, 44, 1); // supercompression scheme set
+        putIntLE(header, 44, 1); // BasisLZ supercompression
         Files.write(path, header);
     }
 
@@ -1112,7 +1224,48 @@ class OpenGlEngineRuntimeLifecycleTest {
         putIntLE(out, 32, 0);
         putIntLE(out, 36, 1);
         putIntLE(out, 40, 1);
-        putIntLE(out, 44, 1);
+        putIntLE(out, 44, 3);
+        putIntLE(out, 48, 0);
+        putIntLE(out, 52, 0);
+        putIntLE(out, 56, 0);
+        putIntLE(out, 60, 0);
+        putLongLE(out, 64, 0L);
+        putLongLE(out, 72, 0L);
+        putLongLE(out, 80, dataOffset);
+        putLongLE(out, 88, compressed.length);
+        putLongLE(out, 96, rgba.length);
+        System.arraycopy(compressed, 0, out, dataOffset, compressed.length);
+        Files.write(path, out);
+    }
+
+    private static void writeKtx2ZstdRgba8(Path path, int width, int height, byte r, byte g, byte b, byte a) throws Exception {
+        int pixels = Math.max(1, width) * Math.max(1, height);
+        byte[] rgba = new byte[pixels * 4];
+        for (int i = 0; i < pixels; i++) {
+            int idx = i * 4;
+            rgba[idx] = r;
+            rgba[idx + 1] = g;
+            rgba[idx + 2] = b;
+            rgba[idx + 3] = a;
+        }
+        byte[] compressed = com.github.luben.zstd.Zstd.compress(rgba, 3);
+        int headerSize = 80;
+        int levelIndexSize = 24;
+        int dataOffset = headerSize + levelIndexSize;
+        byte[] out = new byte[dataOffset + compressed.length];
+        byte[] identifier = new byte[]{
+                (byte) 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, (byte) 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
+        };
+        System.arraycopy(identifier, 0, out, 0, identifier.length);
+        putIntLE(out, 12, 37);
+        putIntLE(out, 16, 1);
+        putIntLE(out, 20, Math.max(1, width));
+        putIntLE(out, 24, Math.max(1, height));
+        putIntLE(out, 28, 0);
+        putIntLE(out, 32, 0);
+        putIntLE(out, 36, 1);
+        putIntLE(out, 40, 1);
+        putIntLE(out, 44, 2);
         putIntLE(out, 48, 0);
         putIntLE(out, 52, 0);
         putIntLE(out, 56, 0);

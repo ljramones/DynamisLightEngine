@@ -64,6 +64,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean ktxContainerRequested,
             boolean ktxSkyboxFallback,
             int ktxDecodeUnavailableCount,
+            int ktxTranscodeRequiredCount,
             int ktxUnsupportedVariantCount,
             float prefilterStrength,
             boolean degraded,
@@ -95,7 +96,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0f, false, 0, null, null, null);
+    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public OpenGlEngineRuntime() {
@@ -323,6 +324,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                                 + "); runtime used sidecar/derived/default fallback inputs"
                 ));
             }
+            if (ibl.ktxTranscodeRequiredCount() > 0) {
+                warnings.add(new EngineWarning(
+                        "IBL_KTX_TRANSCODE_REQUIRED",
+                        "KTX2 IBL assets require BasisLZ/UASTC transcoding not yet enabled in this build (channels="
+                                + ibl.ktxTranscodeRequiredCount()
+                                + "); runtime used sidecar/derived/default fallback inputs"
+                ));
+            }
             if (ibl.ktxUnsupportedVariantCount() > 0) {
                 warnings.add(new EngineWarning(
                         "IBL_KTX_VARIANT_UNSUPPORTED",
@@ -470,14 +479,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 || !isBlank(environment.iblRadiancePath())
                 || !isBlank(environment.iblBrdfLutPath())
                 || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -528,6 +537,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         ktxDecodeUnavailableCount += decodeUnavailableChannelCount(irrSource, irr);
         ktxDecodeUnavailableCount += decodeUnavailableChannelCount(radSource, rad);
         ktxDecodeUnavailableCount += decodeUnavailableChannelCount(brdfSource, brdf);
+        int ktxTranscodeRequiredCount = 0;
+        ktxTranscodeRequiredCount += transcodeRequiredChannelCount(irrSource);
+        ktxTranscodeRequiredCount += transcodeRequiredChannelCount(radSource);
+        ktxTranscodeRequiredCount += transcodeRequiredChannelCount(brdfSource);
         int ktxUnsupportedVariantCount = 0;
         ktxUnsupportedVariantCount += unsupportedVariantChannelCount(irrSource);
         ktxUnsupportedVariantCount += unsupportedVariantChannelCount(radSource);
@@ -557,6 +570,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 ktxContainerRequested,
                 ktxSkyboxFallback,
                 ktxDecodeUnavailableCount,
+                ktxTranscodeRequiredCount,
                 ktxUnsupportedVariantCount,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,
@@ -588,14 +602,61 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         if (!Objects.equals(requestedPath, resolvedPath)) {
             return 0;
         }
-        return KtxDecodeUtil.canDecodeSupported(requestedPath) ? 0 : 1;
+        if (KtxDecodeUtil.canDecodeSupported(requestedPath)) {
+            return 0;
+        }
+        if (KtxDecodeUtil.requiresTranscode(requestedPath)) {
+            return 0;
+        }
+        return canDecodeViaStb(requestedPath) ? 0 : 1;
+    }
+
+    private static int transcodeRequiredChannelCount(Path requestedPath) {
+        if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
+            return 0;
+        }
+        if (!KtxDecodeUtil.requiresTranscode(requestedPath)) {
+            return 0;
+        }
+        return canDecodeViaStb(requestedPath) ? 0 : 1;
     }
 
     private static int unsupportedVariantChannelCount(Path requestedPath) {
         if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
             return 0;
         }
-        return KtxDecodeUtil.isKnownUnsupportedVariant(requestedPath) ? 1 : 0;
+        if (KtxDecodeUtil.requiresTranscode(requestedPath)) {
+            return 0;
+        }
+        if (!KtxDecodeUtil.isKnownUnsupportedVariant(requestedPath)) {
+            return 0;
+        }
+        return canDecodeViaStb(requestedPath) ? 0 : 1;
+    }
+
+    private static boolean canDecodeViaStb(Path path) {
+        if (path == null || !Files.isRegularFile(path)) {
+            return false;
+        }
+        try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            var x = stack.mallocInt(1);
+            var y = stack.mallocInt(1);
+            var channels = stack.mallocInt(1);
+            java.nio.ByteBuffer pixels = org.lwjgl.stb.STBImage.stbi_load(
+                    path.toAbsolutePath().toString(),
+                    x,
+                    y,
+                    channels,
+                    4
+            );
+            if (pixels == null || x.get(0) <= 0 || y.get(0) <= 0) {
+                return false;
+            }
+            org.lwjgl.stb.STBImage.stbi_image_free(pixels);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {

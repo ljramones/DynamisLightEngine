@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.github.luben.zstd.Zstd;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -41,6 +42,26 @@ class KtxDecodeUtilTest {
     }
 
     @Test
+    void decodesKtx2R16AndRg16() throws Exception {
+        Path r16 = Files.createTempFile("dle-ktx2-r16-", ".ktx2");
+        Path rg16 = Files.createTempFile("dle-ktx2-rg16-", ".ktx2");
+        try {
+            writeKtx2(r16, 70, 1, 1, 0, new byte[]{0x00, (byte) 0x80}, 2);
+            writeKtx2(rg16, 77, 1, 1, 0, new byte[]{(byte) 0xFF, (byte) 0xFF, 0x00, (byte) 0x80}, 4);
+
+            BufferedImage r16Image = KtxDecodeUtil.decodeToImageIfSupported(r16);
+            BufferedImage rg16Image = KtxDecodeUtil.decodeToImageIfSupported(rg16);
+            assertNotNull(r16Image);
+            assertNotNull(rg16Image);
+            assertEquals(0xFF808080, r16Image.getRGB(0, 0));
+            assertEquals(0xFFFF8000, rg16Image.getRGB(0, 0));
+        } finally {
+            Files.deleteIfExists(r16);
+            Files.deleteIfExists(rg16);
+        }
+    }
+
+    @Test
     void decodesKtx1RedAndBgra() throws Exception {
         Path red = Files.createTempFile("dle-ktx1-red-", ".ktx");
         Path bgra = Files.createTempFile("dle-ktx1-bgra-", ".ktx");
@@ -64,7 +85,7 @@ class KtxDecodeUtilTest {
     void marksSupercompressedKtx2AsUnsupportedVariant() throws Exception {
         Path file = Files.createTempFile("dle-ktx2-super-", ".ktx2");
         try {
-            writeKtx2(file, 37, 2, 2, 2, new byte[16], 16);
+            writeKtx2(file, 37, 2, 2, 99, new byte[16], 16);
             assertTrue(KtxDecodeUtil.isKnownUnsupportedVariant(file));
             assertNull(KtxDecodeUtil.decodeToImageIfSupported(file));
         } finally {
@@ -83,7 +104,59 @@ class KtxDecodeUtilTest {
                     (byte) 255, (byte) 255, 0, (byte) 255
             };
             byte[] compressed = deflate(raw);
-            writeKtx2(file, 37, 2, 2, 1, compressed, raw.length);
+            writeKtx2(file, 37, 2, 2, 3, compressed, raw.length);
+            KtxDecodeUtil.DecodedRgba decoded = KtxDecodeUtil.decodeToRgbaIfSupported(file);
+            assertNotNull(decoded);
+            assertEquals(2, decoded.width());
+            assertEquals(2, decoded.height());
+            assertEquals(raw.length, decoded.rgbaBytes().length);
+            assertEquals((byte) 255, decoded.rgbaBytes()[0]);
+            assertEquals((byte) 255, decoded.rgbaBytes()[15]);
+            assertTrue(KtxDecodeUtil.canDecodeSupported(file));
+            assertTrue(!KtxDecodeUtil.isKnownUnsupportedVariant(file));
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    @Test
+    void marksBasisLzKtx2AsTranscodeRequired() throws Exception {
+        Path file = Files.createTempFile("dle-ktx2-basislz-", ".ktx2");
+        try {
+            writeKtx2(file, 0, 2, 2, 1, new byte[16], 16);
+            assertTrue(KtxDecodeUtil.requiresTranscode(file));
+            assertNull(KtxDecodeUtil.decodeToRgbaIfSupported(file));
+            assertTrue(!KtxDecodeUtil.isKnownUnsupportedVariant(file));
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    @Test
+    void marksUndefinedFormatKtx2AsTranscodeRequired() throws Exception {
+        Path file = Files.createTempFile("dle-ktx2-undefined-format-", ".ktx2");
+        try {
+            writeKtx2(file, 0, 2, 2, 0, new byte[16], 16);
+            assertTrue(KtxDecodeUtil.requiresTranscode(file));
+            assertNull(KtxDecodeUtil.decodeToRgbaIfSupported(file));
+            assertTrue(!KtxDecodeUtil.isKnownUnsupportedVariant(file));
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    @Test
+    void decodesKtx2ZstdSupercompressedRgba8() throws Exception {
+        Path file = Files.createTempFile("dle-ktx2-zstd-", ".ktx2");
+        try {
+            byte[] raw = new byte[]{
+                    (byte) 255, (byte) 10, (byte) 20, (byte) 255,
+                    (byte) 40, (byte) 255, (byte) 60, (byte) 255,
+                    (byte) 80, (byte) 90, (byte) 255, (byte) 255,
+                    (byte) 255, (byte) 140, (byte) 120, (byte) 255
+            };
+            byte[] compressed = Zstd.compress(raw, 3);
+            writeKtx2(file, 37, 2, 2, 2, compressed, raw.length);
             KtxDecodeUtil.DecodedRgba decoded = KtxDecodeUtil.decodeToRgbaIfSupported(file);
             assertNotNull(decoded);
             assertEquals(2, decoded.width());
