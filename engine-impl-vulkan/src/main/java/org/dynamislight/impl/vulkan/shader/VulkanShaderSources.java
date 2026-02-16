@@ -364,10 +364,13 @@ public final class VulkanShaderSources {
                         vec3 fView = mix(vec3(0.03), f0, fresnel);
                         vec3 kS = clamp(fView, vec3(0.0), vec3(1.0));
                         vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+                        float ndvEdge = 1.0 - ndv;
+                        float grazing = ndvEdge * ndvEdge;
                         float horizon = clamp(0.35 + 0.65 * ndv, 0.0, 1.0);
-                        float energyComp = 1.0 + (1.0 - roughness) * 0.35 * (1.0 - ndv);
-                        float roughEnergy = mix(1.15, 0.72, roughness);
-                        float brdfDiffuseLift = mix(0.82, 1.18, brdf.y);
+                        float energyComp = 1.0 + (1.0 - roughness) * (0.30 + 0.20 * grazing) * ndvEdge;
+                        float roughEnergy = mix(1.12, 0.74, roughness);
+                        float brdfDiffuseLift = mix(0.84, 1.16, brdf.y);
+                        float brdfSpecLift = mix(0.88, 1.12, brdf.x);
                         float roughEdge = smoothstep(0.02, 0.10, roughness) * (1.0 - smoothstep(0.90, 0.99, roughness));
                         vec3 iblDiffuse = kD * baseColor * ao * irr
                                 * (0.22 + 0.58 * (1.0 - roughness))
@@ -375,7 +378,7 @@ public final class VulkanShaderSources {
                                 * brdfDiffuseLift
                                 * mix(0.90, 1.00, roughEdge);
                         float specLobe = mix(1.08, 0.64, roughness * roughness);
-                        vec3 iblSpecBase = rad * (kS * (0.34 + 0.66 * brdf.x) + vec3(0.18 + 0.28 * brdf.y));
+                        vec3 iblSpecBase = rad * ((kS * (0.30 + 0.70 * brdf.x) + vec3(0.16 + 0.30 * brdf.y)) * brdfSpecLift);
                         vec3 iblSpec = iblSpecBase
                                 * (0.10 + 0.66 * (1.0 - roughness))
                                 * iblSpecWeight
@@ -383,7 +386,7 @@ public final class VulkanShaderSources {
                                 * horizon
                                 * roughEnergy
                                 * specLobe
-                                * mix(0.9, 1.1, prefilter)
+                                * mix(0.92, 1.08, prefilter)
                                 * mix(0.82, 1.00, roughEdge);
                         color += iblDiffuse + iblSpec;
                     }

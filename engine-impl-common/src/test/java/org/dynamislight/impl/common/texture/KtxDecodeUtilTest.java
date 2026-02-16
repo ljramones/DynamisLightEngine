@@ -52,19 +52,29 @@ class KtxDecodeUtilTest {
     void decodesKtx2R16AndRg16() throws Exception {
         Path r16 = Files.createTempFile("dle-ktx2-r16-", ".ktx2");
         Path rg16 = Files.createTempFile("dle-ktx2-rg16-", ".ktx2");
+        Path rgb16 = Files.createTempFile("dle-ktx2-rgb16-", ".ktx2");
         try {
             writeKtx2(r16, 70, 1, 1, 0, new byte[]{0x00, (byte) 0x80}, 2);
             writeKtx2(rg16, 77, 1, 1, 0, new byte[]{(byte) 0xFF, (byte) 0xFF, 0x00, (byte) 0x80}, 4);
+            writeKtx2(rgb16, 84, 1, 1, 0, new byte[]{
+                    (byte) 0xFF, (byte) 0xFF, // R -> 255
+                    0x00, (byte) 0x80,        // G -> 128
+                    0x00, 0x00                // B -> 0
+            }, 6);
 
             BufferedImage r16Image = KtxDecodeUtil.decodeToImageIfSupported(r16);
             BufferedImage rg16Image = KtxDecodeUtil.decodeToImageIfSupported(rg16);
+            BufferedImage rgb16Image = KtxDecodeUtil.decodeToImageIfSupported(rgb16);
             assertNotNull(r16Image);
             assertNotNull(rg16Image);
+            assertNotNull(rgb16Image);
             assertEquals(0xFF808080, r16Image.getRGB(0, 0));
             assertEquals(0xFFFF8000, rg16Image.getRGB(0, 0));
+            assertEquals(0xFFFF8000, rgb16Image.getRGB(0, 0));
         } finally {
             Files.deleteIfExists(r16);
             Files.deleteIfExists(rg16);
+            Files.deleteIfExists(rgb16);
         }
     }
 

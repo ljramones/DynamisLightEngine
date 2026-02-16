@@ -55,6 +55,9 @@ Exit criteria:
 - Status addendum: roughness-aware radiance prefilter approximation is active in both backends with tier-driven prefilter strength.
 - Status addendum: LOW/MEDIUM quality tiers now explicitly degrade IBL diffuse/specular/prefilter response with runtime warning `IBL_QUALITY_DEGRADED`; ULTRA retains full-strength policy.
 - Status addendum: both backends now apply roughness-aware multi-tap specular radiance filtering (`IBL_MULTI_TAP_SPEC_ACTIVE`) and use view-space camera direction for more stable IBL highlights.
+- Status addendum: native container support now includes uncompressed + zlib + zstd + BasisLZ/UASTC transcode families with direct in-memory decode/upload ingestion.
+- Status addendum: uncompressed 16-bit KTX2 support includes `R16`, `RG16`, `RGB16`, and `RGBA16` normalized ingestion.
+- Status addendum: final BRDF tier-extreme parity polish applied in both backends (grazing-energy compensation + tighter LUT/spec weighting alignment).
 
 2. Point/spot shadow baseline
 - Add shadow type expansion in light model.
@@ -69,6 +72,7 @@ Exit criteria:
 
 Exit criteria:
 - Major realism gain in material/lighting scenes with stable parity thresholds.
+- Status: achieved for current Phase 2 scope. Optional SSAO remains deferred as a non-blocking enhancement.
 
 ## Phase 3 (2-4 months): Performance and Scalability
 1. Async resource loading/streaming

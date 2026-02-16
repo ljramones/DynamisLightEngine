@@ -122,14 +122,12 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 ## Active Next Steps
 - Threshold tightening lane complete for current stress profiles; keep envelopes frozen at established floor and revisit only after major lighting/post changes.
 - Expand deterministic golden scenes for additional fog/smoke/shadow material interactions.
-- Expand IBL beyond baseline (native `.ktx/.ktx2` decode/prefilter and deeper BRDF/roughness integration).
-  - baseline native `.ktx/.ktx2` decode is now in place for uncompressed channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`)
-  - native KTX2 zlib-supercompressed decode is now supported for baseline decodable channel families
-  - direct GPU ingestion path now decodes supported KTX/KTX2 in-memory (no PNG transcode dependency)
-  - BRDF/roughness integration has been deepened in both backends with stronger roughness-aware prefilter weighting and BRDF LUT energy shaping
-  - prefilter path now includes roughness-driven mip/LOD sampling for IBL radiance (`IBL_MIP_LOD_PREFILTER_ACTIVE`)
-  - unsupported compressed/supercompressed/non-RGBA8 variants are surfaced explicitly via `IBL_KTX_VARIANT_UNSUPPORTED`
-  - remaining: broader compressed/supercompressed native decode/upload coverage beyond zlib + baseline uncompressed families
+- Phase 2 IBL maturity lane is now functionally complete:
+  - native `.ktx/.ktx2` decode/transcode path is active for baseline uncompressed + zlib + zstd + BasisLZ/UASTC families
+  - 16-bit uncompressed family support includes `R16/RG16/RGB16/RGBA16` normalization
+  - fallback decode path now attempts `libktx` decode/transcode when baseline header-path decoding is unavailable
+  - tier-extreme BRDF parity pass applied consistently in OpenGL and Vulkan shaders
+  - remaining in this lane is parity tuning/regression observation only (not core missing functionality)
 - Shadow fidelity tune: radius/cascade-aware depth-bias scaling now applied in both backends to reduce acne/flicker at higher PCF/cascade settings.
 - Extend Vulkan dynamic-update staging strategy to more scene data beyond current global/object uniform split:
   - material/instance-class staging paths

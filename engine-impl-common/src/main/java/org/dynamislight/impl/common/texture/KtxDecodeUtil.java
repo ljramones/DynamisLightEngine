@@ -37,6 +37,7 @@ public final class KtxDecodeUtil {
     private static final int VK_FORMAT_R8_UNORM = 9;
     private static final int VK_FORMAT_R16_UNORM = 70;
     private static final int VK_FORMAT_R16G16_UNORM = 77;
+    private static final int VK_FORMAT_R16G16B16_UNORM = 84;
     private static final int VK_FORMAT_R16G16B16A16_UNORM = 91;
     private static final int KTX2_SUPERCOMPRESSION_NONE = 0;
     private static final int KTX2_SUPERCOMPRESSION_BASIS_LZ = 1;
@@ -146,7 +147,14 @@ public final class KtxDecodeUtil {
         }
         try {
             byte[] bytes = Files.readAllBytes(containerPath.toAbsolutePath().normalize());
-            return startsWith(bytes, KTX2_IDENTIFIER) && isBasisOrUndefinedFormatKtx2(bytes);
+            if (!startsWith(bytes, KTX2_IDENTIFIER)) {
+                return false;
+            }
+            Boolean needsTranscoding = requiresLibKtxTranscode(bytes);
+            if (needsTranscoding != null) {
+                return needsTranscoding;
+            }
+            return isBasisOrUndefinedFormatKtx2(bytes);
         } catch (Throwable ignored) {
             return false;
         }
@@ -189,7 +197,15 @@ public final class KtxDecodeUtil {
         int faceCount = bb.getInt(36);
         int levelCount = bb.getInt(40);
         int supercompression = bb.getInt(44);
-        if (isBasisOrUndefinedFormatKtx2(bytes)) {
+        boolean baselineDecodable = bytesPerPixel > 0
+                && layout != null
+                && pixelWidth > 0
+                && pixelHeight > 0
+                && faceCount == 1
+                && isSupportedKtx2Supercompression(supercompression)
+                && levelCount > 0
+                && layerCount <= 1;
+        if (!baselineDecodable) {
             return decodeKtx2ViaLibKtxTranscode(bytes);
         }
         if (bytesPerPixel <= 0
@@ -331,10 +347,13 @@ public final class KtxDecodeUtil {
         if (isBasisOrUndefinedFormatKtx2(bytes)) {
             return false;
         }
-        if (!isSupportedKtx2Supercompression(supercompression)) {
-            return true;
+        boolean unsupportedByBaseline = !isSupportedKtx2Supercompression(supercompression)
+                || bytesPerPixelForVkFormat(vkFormat) <= 0
+                || layoutForVkFormat(vkFormat) == null;
+        if (!unsupportedByBaseline) {
+            return false;
         }
-        return bytesPerPixelForVkFormat(vkFormat) <= 0 || layoutForVkFormat(vkFormat) == null;
+        return decodeKtx2ViaLibKtxTranscode(bytes) == null;
     }
 
     private static boolean isBasisOrUndefinedFormatKtx2(byte[] bytes) {
@@ -450,6 +469,13 @@ public final class KtxDecodeUtil {
                     idx += 2;
                     g = readU16To8(bytes, idx);
                     idx += 2;
+                } else if (layout == ChannelLayout.RGB16) {
+                    r = readU16To8(bytes, idx);
+                    idx += 2;
+                    g = readU16To8(bytes, idx);
+                    idx += 2;
+                    b = readU16To8(bytes, idx);
+                    idx += 2;
                 } else if (layout == ChannelLayout.RGBA16) {
                     r = readU16To8(bytes, idx);
                     idx += 2;
@@ -533,6 +559,7 @@ public final class KtxDecodeUtil {
             case VK_FORMAT_R8G8B8_UNORM -> 3;
             case VK_FORMAT_R16_UNORM -> 2;
             case VK_FORMAT_R16G16_UNORM -> 4;
+            case VK_FORMAT_R16G16B16_UNORM -> 6;
             case VK_FORMAT_R16G16B16A16_UNORM -> 8;
             case VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SRGB -> 4;
             default -> -1;
@@ -546,6 +573,7 @@ public final class KtxDecodeUtil {
             case VK_FORMAT_R8G8B8_UNORM -> ChannelLayout.RGB;
             case VK_FORMAT_R16_UNORM -> ChannelLayout.R16;
             case VK_FORMAT_R16G16_UNORM -> ChannelLayout.RG16;
+            case VK_FORMAT_R16G16B16_UNORM -> ChannelLayout.RGB16;
             case VK_FORMAT_R16G16B16A16_UNORM -> ChannelLayout.RGBA16;
             case VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_SRGB -> ChannelLayout.RGBA;
             case VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SRGB -> ChannelLayout.BGRA;
@@ -589,7 +617,45 @@ public final class KtxDecodeUtil {
         BGRA,
         R16,
         RG16,
+        RGB16,
         RGBA16
+    }
+
+    private static Boolean requiresLibKtxTranscode(byte[] bytes) {
+        long texturePtr = 0L;
+        ByteBuffer nativeBytes = null;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            nativeBytes = MemoryUtil.memAlloc(bytes.length);
+            nativeBytes.put(bytes).flip();
+            PointerBuffer textureOut = stack.mallocPointer(1);
+            int createResult = KTX.ktxTexture2_CreateFromMemory(
+                    nativeBytes,
+                    KTX.KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT,
+                    textureOut
+            );
+            if (createResult != KTX.KTX_SUCCESS) {
+                return null;
+            }
+            texturePtr = textureOut.get(0);
+            if (texturePtr == 0L) {
+                return null;
+            }
+            ktxTexture2 texture2 = ktxTexture2.create(texturePtr);
+            return texture2 != null && KTX.ktxTexture2_NeedsTranscoding(texture2);
+        } catch (Throwable ignored) {
+            return null;
+        } finally {
+            if (texturePtr != 0L) {
+                try {
+                    KTX.ktxTexture_Destroy(ktxTexture.create(texturePtr));
+                } catch (Throwable ignored) {
+                    // ignore
+                }
+            }
+            if (nativeBytes != null) {
+                MemoryUtil.memFree(nativeBytes);
+            }
+        }
     }
 
     private static boolean startsWith(byte[] source, byte[] prefix) {

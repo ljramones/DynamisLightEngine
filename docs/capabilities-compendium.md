@@ -88,6 +88,7 @@ OpenGL backend provides a real forward render baseline:
 - roughness-driven mip/LOD prefilter sampling path for IBL radiance with runtime signal `IBL_MIP_LOD_PREFILTER_ACTIVE`
 - BRDF energy-compensation + horizon-weighted IBL response with runtime signal `IBL_BRDF_ENERGY_COMP_ACTIVE`
 - deeper roughness/BRDF integration: prefilter weighting and BRDF-LUT shaping tuned to improve energy balance on glossy vs rough materials
+- final tier-extreme BRDF polish pass applied in both backends (grazing-angle energy compensation + tighter LUT/spec weighting parity)
 - view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
   - explicit LOW/MEDIUM tier quality policy with attenuation + warning: `IBL_QUALITY_DEGRADED`
   - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
@@ -100,7 +101,8 @@ OpenGL backend provides a real forward render baseline:
   - native KTX2 zlib supercompression decode is supported for baseline decodable channel families
   - native KTX2 Zstd supercompression decode is supported for baseline decodable channel families
   - native KTX2 BasisLZ/UASTC transcode path is supported via `libktx` (`ktxTexture2_TranscodeBasis -> RGBA32`) for direct runtime ingestion
-  - baseline uncompressed 16-bit KTX2 families are supported (`R16_UNORM`, `R16G16_UNORM`, `R16G16B16A16_UNORM`) via 16-bit-to-8-bit normalization for runtime ingestion
+  - baseline uncompressed 16-bit KTX2 families are supported (`R16_UNORM`, `R16G16_UNORM`, `R16G16B16_UNORM`, `R16G16B16A16_UNORM`) via 16-bit-to-8-bit normalization for runtime ingestion
+  - broader KTX2 variant fallback now attempts native `libktx` decode/transcode when baseline header-path decode is not available
   - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory via raw RGBA extraction (no PNG transcode dependency for GPU upload)
   - backend texture ingestion now prefers native KTX/KTX2 decode first; sidecar assets are used only as fallback when native decode is unavailable
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
@@ -155,7 +157,8 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - roughness-aware multi-tap IBL specular radiance filtering with runtime signal `IBL_MULTI_TAP_SPEC_ACTIVE`
   - roughness-driven mip/LOD prefilter sampling path for IBL radiance with runtime signal `IBL_MIP_LOD_PREFILTER_ACTIVE`
   - BRDF energy-compensation + horizon-weighted IBL response with runtime signal `IBL_BRDF_ENERGY_COMP_ACTIVE`
-  - deeper roughness/BRDF integration: prefilter weighting and BRDF-LUT shaping tuned to improve energy balance on glossy vs rough materials
+- deeper roughness/BRDF integration: prefilter weighting and BRDF-LUT shaping tuned to improve energy balance on glossy vs rough materials
+  - final tier-extreme BRDF polish pass applied in both backends (grazing-angle energy compensation + tighter LUT/spec weighting parity)
   - view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
   - explicit LOW/MEDIUM tier quality policy with attenuation + warning: `IBL_QUALITY_DEGRADED`
   - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
@@ -168,7 +171,8 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - native KTX2 zlib supercompression decode is supported for baseline decodable channel families
   - native KTX2 Zstd supercompression decode is supported for baseline decodable channel families
   - native KTX2 BasisLZ/UASTC transcode path is supported via `libktx` (`ktxTexture2_TranscodeBasis -> RGBA32`) for direct runtime ingestion
-  - baseline uncompressed 16-bit KTX2 families are supported (`R16_UNORM`, `R16G16_UNORM`, `R16G16B16A16_UNORM`) via 16-bit-to-8-bit normalization for runtime ingestion
+  - baseline uncompressed 16-bit KTX2 families are supported (`R16_UNORM`, `R16G16_UNORM`, `R16G16B16_UNORM`, `R16G16B16A16_UNORM`) via 16-bit-to-8-bit normalization for runtime ingestion
+  - broader KTX2 variant fallback now attempts native `libktx` decode/transcode when baseline header-path decode is not available
   - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory via raw RGBA extraction (no PNG transcode dependency for GPU upload)
   - backend texture ingestion now prefers native KTX/KTX2 decode first; sidecar assets are used only as fallback when native decode is unavailable
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
