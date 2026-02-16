@@ -41,3 +41,31 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 | `EngineRuntime` | `OpenGlEngineRuntime` (`engine-impl-opengl`), `VulkanEngineRuntime` (`engine-impl-vulkan`) | OpenGL: advanced baseline, Vulkan: advanced baseline |
 | `EngineBackendProvider` (SPI) | `OpenGlBackendProvider`, `VulkanBackendProvider` | OpenGL: production path for v1, Vulkan: production-grade baseline path |
 | Host bridge/session | `DynamisFxEngineBridge`, `DynamisFxEngineSession` (`engine-bridge-dynamisfx`) | Active integration layer |
+
+## Vulkan Package Layout
+
+`engine-impl-vulkan` is now split to reduce monolithic class growth:
+
+- `org.dynamislight.impl.vulkan`
+  - runtime/provider orchestration (`VulkanEngineRuntime`, `VulkanBackendProvider`)
+  - low-level render context execution (`VulkanContext`)
+- `org.dynamislight.impl.vulkan.asset`
+  - mesh ingestion/parsing (`VulkanMeshAssetLoader`, `VulkanGltfMeshParser`)
+- `org.dynamislight.impl.vulkan.model`
+  - scene ingestion DTOs used by the backend (`VulkanSceneMeshData`)
+- `org.dynamislight.impl.vulkan.profile`
+  - runtime telemetry/profile DTOs (`VulkanFrameMetrics`, `SceneReuseStats`, `FrameResourceProfile`, `ShadowCascadeProfile`, `PostProcessPipelineProfile`)
+- `org.dynamislight.impl.vulkan.shader`
+  - shader source/compile helpers (`VulkanShaderSources`, `VulkanShaderCompiler`)
+- `org.dynamislight.impl.vulkan.swapchain`
+  - swapchain policy/selection helpers (`VulkanSwapchainSelector`)
+- `org.dynamislight.impl.vulkan.descriptor`
+  - descriptor-ring sizing policy (`VulkanDescriptorRingPolicy`)
+- `org.dynamislight.impl.vulkan.command`
+  - submit/present + command recording helpers (`VulkanCommandSubmitter`, `VulkanRenderCommandRecorder`)
+- `org.dynamislight.impl.vulkan.math`
+  - matrix/vector math helpers extracted from context (`VulkanMath`)
+- `org.dynamislight.impl.vulkan.shadow`
+  - shadow/cascade matrix builder (`VulkanShadowMatrixBuilder`)
+
+Design rule: keep render orchestration/state transitions in `VulkanContext`, and place data carriers/parsers in subpackages. New Vulkan features should default to subpackage classes first; only core command submission/state mutation belongs in `VulkanContext`.

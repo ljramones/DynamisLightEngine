@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.asset;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,7 +12,7 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.Optional;
 
-final class VulkanGltfMeshParser {
+public final class VulkanGltfMeshParser {
     private static final int GLB_HEADER_SIZE = 12;
     private static final int GLB_CHUNK_HEADER_SIZE = 8;
     private static final int GLB_MAGIC = 0x46546C67;
@@ -22,7 +22,7 @@ final class VulkanGltfMeshParser {
 
     private final Path assetRoot;
 
-    VulkanGltfMeshParser(Path assetRoot) {
+    public VulkanGltfMeshParser(Path assetRoot) {
         this.assetRoot = assetRoot == null ? Path.of(".") : assetRoot;
     }
 
@@ -404,7 +404,7 @@ final class VulkanGltfMeshParser {
         }
     }
 
-    record MeshGeometry(float[] vertices, int[] indices) {
+    public record MeshGeometry(float[] vertices, int[] indices) {
     }
 
     private record AccessorMeta(

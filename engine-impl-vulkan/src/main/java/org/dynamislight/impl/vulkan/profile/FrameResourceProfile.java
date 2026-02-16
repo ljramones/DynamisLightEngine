@@ -1,0 +1,38 @@
+package org.dynamislight.impl.vulkan.profile;
+
+public record FrameResourceProfile(
+        int framesInFlight,
+        int descriptorSetsInRing,
+        int uniformStrideBytes,
+        int uniformFrameSpanBytes,
+        int globalUniformFrameSpanBytes,
+        int dynamicSceneCapacity,
+        int pendingUploadRangeCapacity,
+        int lastFrameGlobalUploadBytes,
+        int maxFrameGlobalUploadBytes,
+        int lastFrameUniformUploadBytes,
+        int maxFrameUniformUploadBytes,
+        int lastFrameUniformObjectCount,
+        int maxFrameUniformObjectCount,
+        int lastFrameUniformUploadRanges,
+        int maxFrameUniformUploadRanges,
+        int lastFrameUniformUploadStartObject,
+        long pendingUploadRangeOverflows,
+        int descriptorRingSetCapacity,
+        int descriptorRingPeakSetCapacity,
+        int descriptorRingActiveSetCount,
+        int descriptorRingWasteSetCount,
+        int descriptorRingPeakWasteSetCount,
+        int descriptorRingMaxSetCapacity,
+        long descriptorRingReuseHits,
+        long descriptorRingGrowthRebuilds,
+        long descriptorRingSteadyRebuilds,
+        long descriptorRingPoolReuses,
+        long descriptorRingPoolResetFailures,
+        long descriptorRingCapBypasses,
+        int dynamicUploadMergeGapObjects,
+        int dynamicObjectSoftLimit,
+        int maxObservedDynamicObjects,
+        boolean persistentStagingMapped
+) {
+}

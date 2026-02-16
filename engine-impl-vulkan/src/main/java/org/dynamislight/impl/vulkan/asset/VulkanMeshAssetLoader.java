@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.asset;
 
 import java.nio.file.Path;
 import java.util.Iterator;
@@ -7,7 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.dynamislight.api.scene.MeshDesc;
 
-final class VulkanMeshAssetLoader {
+public final class VulkanMeshAssetLoader {
     private static final int DEFAULT_MAX_GEOMETRY_CACHE_ENTRIES = 256;
     private final Path assetRoot;
     private final VulkanGltfMeshParser gltfParser;
@@ -18,17 +18,17 @@ final class VulkanMeshAssetLoader {
     private long geometryCacheMisses;
     private long geometryCacheEvictions;
 
-    VulkanMeshAssetLoader(Path assetRoot) {
+    public VulkanMeshAssetLoader(Path assetRoot) {
         this(assetRoot, DEFAULT_MAX_GEOMETRY_CACHE_ENTRIES);
     }
 
-    VulkanMeshAssetLoader(Path assetRoot, int maxGeometryCacheEntries) {
+    public VulkanMeshAssetLoader(Path assetRoot, int maxGeometryCacheEntries) {
         this.assetRoot = assetRoot == null ? Path.of(".") : assetRoot;
         this.gltfParser = new VulkanGltfMeshParser(this.assetRoot);
         this.maxGeometryCacheEntries = Math.max(1, maxGeometryCacheEntries);
     }
 
-    VulkanGltfMeshParser.MeshGeometry loadMeshGeometry(MeshDesc mesh, int meshIndex) {
+    public VulkanGltfMeshParser.MeshGeometry loadMeshGeometry(MeshDesc mesh, int meshIndex) {
         if (mesh == null) {
             return cloneGeometry(triangleGeometry());
         }
@@ -58,7 +58,7 @@ final class VulkanMeshAssetLoader {
         return cloneGeometry(resolvedGeometry);
     }
 
-    CacheProfile cacheProfile() {
+    public CacheProfile cacheProfile() {
         return new CacheProfile(geometryCacheHits, geometryCacheMisses, geometryCacheEvictions, geometryCache.size(), maxGeometryCacheEntries);
     }
 
@@ -106,7 +106,7 @@ final class VulkanMeshAssetLoader {
         }
     }
 
-    record CacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
+    public record CacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
     }
 
     private VulkanGltfMeshParser.MeshGeometry triangleGeometry() {

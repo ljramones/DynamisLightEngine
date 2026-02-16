@@ -31,6 +31,14 @@ import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
 import org.dynamislight.impl.common.texture.KtxDecodeUtil;
+import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
+import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
+import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
+import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
+import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
+import org.dynamislight.impl.vulkan.profile.SceneReuseStats;
+import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
+import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
 
 public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static final int DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES = 256;
@@ -268,7 +276,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         currentPost = post;
         currentIbl = ibl;
         nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene == null ? null : scene.lights());
-        List<VulkanContext.SceneMeshData> sceneMeshes = buildSceneMeshes(scene);
+        List<VulkanSceneMeshData> sceneMeshes = buildSceneMeshes(scene);
         VulkanMeshAssetLoader.CacheProfile cache = meshLoader.cacheProfile();
         meshGeometryCacheProfile = new MeshGeometryCacheProfile(
                 cache.hits(),
@@ -334,7 +342,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (mockContext) {
             return renderMetrics(0.2, 0.1, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, 0);
         }
-        VulkanContext.VulkanFrameMetrics frame = context.renderFrame();
+        VulkanFrameMetrics frame = context.renderFrame();
         return renderMetrics(
                 frame.cpuFrameMs(),
                 frame.gpuFrameMs(),
@@ -481,7 +489,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " entries=" + meshGeometryCacheProfile.entries()
                             + " maxEntries=" + meshGeometryCacheProfile.maxEntries()
             ));
-            VulkanContext.SceneReuseStats reuse = context.sceneReuseStats();
+            SceneReuseStats reuse = context.sceneReuseStats();
             warnings.add(new EngineWarning(
                     "SCENE_REUSE_PROFILE",
                     "reuseHits=" + reuse.reuseHits()
@@ -492,7 +500,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " descriptorPoolBuilds=" + reuse.descriptorPoolBuilds()
                             + " descriptorPoolRebuilds=" + reuse.descriptorPoolRebuilds()
             ));
-            VulkanContext.FrameResourceProfile frameResources = context.frameResourceProfile();
+            FrameResourceProfile frameResources = context.frameResourceProfile();
             warnings.add(new EngineWarning(
                     "VULKAN_FRAME_RESOURCE_PROFILE",
                     "framesInFlight=" + frameResources.framesInFlight()
@@ -638,7 +646,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 descriptorRingActiveWarnCooldownRemaining--;
             }
             if (currentShadows.enabled()) {
-                VulkanContext.ShadowCascadeProfile shadow = context.shadowCascadeProfile();
+                ShadowCascadeProfile shadow = context.shadowCascadeProfile();
                 warnings.add(new EngineWarning(
                         "SHADOW_CASCADE_PROFILE",
                         "enabled=" + shadow.enabled()
@@ -649,7 +657,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + " splitNdc=[" + shadow.split1Ndc() + "," + shadow.split2Ndc() + "," + shadow.split3Ndc() + "]"
                 ));
             }
-            VulkanContext.PostProcessPipelineProfile postProfile = context.postProcessPipelineProfile();
+            PostProcessPipelineProfile postProfile = context.postProcessPipelineProfile();
             warnings.add(new EngineWarning(
                     "VULKAN_POST_PROCESS_PIPELINE",
                     "offscreenRequested=" + postProfile.offscreenRequested()
@@ -665,9 +673,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return warnings;
     }
 
-    private List<VulkanContext.SceneMeshData> buildSceneMeshes(SceneDescriptor scene) {
+    private List<VulkanSceneMeshData> buildSceneMeshes(SceneDescriptor scene) {
         if (scene == null || scene.meshes() == null || scene.meshes().isEmpty()) {
-            return List.of(VulkanContext.SceneMeshData.defaultTriangle());
+            return List.of(VulkanSceneMeshData.defaultTriangle());
         }
         Map<String, MaterialDesc> materials = scene.materials() == null ? Map.of() : scene.materials().stream()
                 .filter(m -> m != null && m.id() != null)
@@ -676,7 +684,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 .filter(t -> t != null && t.id() != null)
                 .collect(java.util.stream.Collectors.toMap(TransformDesc::id, t -> t, (a, b) -> a));
 
-        List<VulkanContext.SceneMeshData> out = new java.util.ArrayList<>(scene.meshes().size());
+        List<VulkanSceneMeshData> out = new java.util.ArrayList<>(scene.meshes().size());
         for (int i = 0; i < scene.meshes().size(); i++) {
             MeshDesc mesh = scene.meshes().get(i);
             if (mesh == null) {
@@ -689,7 +697,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float roughness = material == null ? 0.6f : clamp01(material.roughness());
             float[] model = modelMatrixOf(transforms.get(mesh.transformId()), i);
             String stableMeshId = (mesh.id() == null || mesh.id().isBlank()) ? ("mesh-index-" + i) : mesh.id();
-            VulkanContext.SceneMeshData meshData = new VulkanContext.SceneMeshData(
+            VulkanSceneMeshData meshData = new VulkanSceneMeshData(
                     stableMeshId,
                     geometry.vertices(),
                     geometry.indices(),
@@ -704,14 +712,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             );
             out.add(meshData);
         }
-        return out.isEmpty() ? List.of(VulkanContext.SceneMeshData.defaultTriangle()) : List.copyOf(out);
+        return out.isEmpty() ? List.of(VulkanSceneMeshData.defaultTriangle()) : List.copyOf(out);
     }
 
-    VulkanContext.SceneReuseStats debugSceneReuseStats() {
+    SceneReuseStats debugSceneReuseStats() {
         return context.sceneReuseStats();
     }
 
-    VulkanContext.FrameResourceProfile debugFrameResourceProfile() {
+    FrameResourceProfile debugFrameResourceProfile() {
         return context.frameResourceProfile();
     }
 

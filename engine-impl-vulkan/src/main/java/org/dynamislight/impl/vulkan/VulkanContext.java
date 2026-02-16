@@ -16,7 +16,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.imageio.ImageIO;
+import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
+import org.dynamislight.impl.vulkan.command.VulkanCommandSubmitter;
+import org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder;
+import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorRingPolicy;
+import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
+import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
+import org.dynamislight.impl.vulkan.profile.SceneReuseStats;
+import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
+import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
+import org.dynamislight.impl.vulkan.shader.VulkanShaderCompiler;
+import org.dynamislight.impl.vulkan.shader.VulkanShaderSources;
+import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixBuilder;
+import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainSelector;
 
+import static org.dynamislight.impl.vulkan.math.VulkanMath.clamp01;
+import static org.dynamislight.impl.vulkan.math.VulkanMath.floatEquals;
+import static org.dynamislight.impl.vulkan.math.VulkanMath.identityMatrix;
+import static org.dynamislight.impl.vulkan.math.VulkanMath.normalize3;
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_FALSE;
 import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
@@ -27,7 +44,6 @@ import static org.lwjgl.glfw.GLFW.glfwDefaultWindowHints;
 import static org.lwjgl.glfw.GLFW.glfwDestroyWindow;
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.glfw.GLFW.glfwInit;
-import static org.lwjgl.glfw.GLFW.glfwPollEvents;
 import static org.lwjgl.glfw.GLFW.glfwTerminate;
 import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
@@ -40,27 +56,14 @@ import static org.lwjgl.system.MemoryUtil.memByteBuffer;
 import static org.lwjgl.system.MemoryUtil.memFree;
 import static org.lwjgl.system.MemoryUtil.memAddress;
 import static org.lwjgl.system.MemoryUtil.memCopy;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_into_spv;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_initialize;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_release;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_initialize;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_release;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_fragment_shader;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_vertex_shader;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_bytes;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_compilation_status;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_error_message;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_release;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_compilation_status_success;
 import static org.lwjgl.stb.STBImage.stbi_image_free;
 import static org.lwjgl.stb.STBImage.stbi_info;
 import static org.lwjgl.stb.STBImage.stbi_is_hdr;
 import static org.lwjgl.stb.STBImage.stbi_load;
 import static org.lwjgl.stb.STBImage.stbi_loadf;
-import static org.lwjgl.vulkan.KHRSurface.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-import static org.lwjgl.vulkan.KHRSurface.VK_PRESENT_MODE_FIFO_KHR;
-import static org.lwjgl.vulkan.KHRSurface.VK_PRESENT_MODE_MAILBOX_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
@@ -75,7 +78,6 @@ import static org.lwjgl.vulkan.KHRSwapchain.vkAcquireNextImageKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.vkCreateSwapchainKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.vkDestroySwapchainKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.vkGetSwapchainImagesKHR;
-import static org.lwjgl.vulkan.KHRSwapchain.vkQueuePresentKHR;
 import static org.lwjgl.vulkan.VK10.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_ACCESS_TRANSFER_WRITE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_ACCESS_UNIFORM_READ_BIT;
@@ -289,7 +291,6 @@ import org.lwjgl.vulkan.VkPipelineVertexInputStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineViewportStateCreateInfo;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkPhysicalDeviceProperties;
-import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkQueue;
 import org.lwjgl.vulkan.VkQueueFamilyProperties;
 import org.lwjgl.vulkan.VkRect2D;
@@ -304,7 +305,6 @@ import org.lwjgl.vulkan.VkSubpassDescription;
 import org.lwjgl.vulkan.VkSurfaceCapabilitiesKHR;
 import org.lwjgl.vulkan.VkSurfaceFormatKHR;
 import org.lwjgl.vulkan.VkSwapchainCreateInfoKHR;
-import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
 import org.lwjgl.vulkan.VkViewport;
 
 final class VulkanContext {
@@ -435,7 +435,7 @@ final class VulkanContext {
     private long pendingGlobalUploadDstOffset = -1L;
     private int pendingGlobalUploadByteCount;
     private final List<GpuMesh> gpuMeshes = new ArrayList<>();
-    private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
+    private List<VulkanSceneMeshData> pendingSceneMeshes = List.of(VulkanSceneMeshData.defaultTriangle());
     private float[] viewMatrix = identityMatrix();
     private float[] projMatrix = identityMatrix();
     private float dirLightDirX = 0.35f;
@@ -683,9 +683,9 @@ final class VulkanContext {
         return new PostProcessPipelineProfile(postOffscreenRequested, postOffscreenActive, mode);
     }
 
-    void setSceneMeshes(List<SceneMeshData> sceneMeshes) throws EngineException {
-        List<SceneMeshData> safe = (sceneMeshes == null || sceneMeshes.isEmpty())
-                ? List.of(SceneMeshData.defaultTriangle())
+    void setSceneMeshes(List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
+        List<VulkanSceneMeshData> safe = (sceneMeshes == null || sceneMeshes.isEmpty())
+                ? List.of(VulkanSceneMeshData.defaultTriangle())
                 : List.copyOf(sceneMeshes);
         pendingSceneMeshes = safe;
         if (device == null) {
@@ -1549,7 +1549,7 @@ final class VulkanContext {
         }
         VkSurfaceFormatKHR.Buffer formats = VkSurfaceFormatKHR.calloc(formatCount.get(0), stack);
         vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, formatCount, formats);
-        VkSurfaceFormatKHR chosenFormat = chooseSurfaceFormat(formats);
+        VkSurfaceFormatKHR chosenFormat = VulkanSwapchainSelector.chooseSurfaceFormat(formats);
 
         var presentModeCount = stack.ints(0);
         vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, presentModeCount, null);
@@ -1557,9 +1557,9 @@ final class VulkanContext {
         if (presentModeCount.get(0) > 0) {
             vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface, presentModeCount, presentModes);
         }
-        int presentMode = choosePresentMode(presentModes, presentModeCount.get(0));
+        int presentMode = VulkanSwapchainSelector.choosePresentMode(presentModes, presentModeCount.get(0));
 
-        VkExtent2D extent = chooseExtent(capabilities, requestedWidth, requestedHeight, stack);
+        VkExtent2D extent = VulkanSwapchainSelector.chooseExtent(capabilities, requestedWidth, requestedHeight, stack);
         int imageCount = capabilities.minImageCount() + 1;
         if (capabilities.maxImageCount() > 0 && imageCount > capabilities.maxImageCount()) {
             imageCount = capabilities.maxImageCount();
@@ -1775,56 +1775,16 @@ final class VulkanContext {
     }
 
     private void createShadowPipeline(MemoryStack stack) throws EngineException {
-        String shadowVertSource = """
-                #version 450
-                layout(location = 0) in vec3 inPos;
-                layout(set = 0, binding = 0) uniform GlobalData {
-                    mat4 uView;
-                    mat4 uProj;
-                    vec4 uDirLightDir;
-                    vec4 uDirLightColor;
-                    vec4 uPointLightPos;
-                    vec4 uPointLightColor;
-                    vec4 uPointLightDir;
-                    vec4 uPointLightCone;
-                    vec4 uLightIntensity;
-                    vec4 uShadow;
-                    vec4 uShadowCascade;
-                    vec4 uShadowCascadeExt;
-                    vec4 uFog;
-                    vec4 uFogColorSteps;
-                    vec4 uSmoke;
-                    vec4 uSmokeColor;
-                    vec4 uIbl;
-                    vec4 uPostProcess;
-                    vec4 uBloom;
-                    mat4 uShadowLightViewProj[6];
-                } gbo;
-                layout(set = 0, binding = 1) uniform ObjectData {
-                    mat4 uModel;
-                    vec4 uBaseColor;
-                    vec4 uMaterial;
-                } obj;
-                layout(push_constant) uniform ShadowPush {
-                    int uCascadeIndex;
-                } pc;
-                void main() {
-                    int cascadeIndex = clamp(pc.uCascadeIndex, 0, 5);
-                    gl_Position = gbo.uShadowLightViewProj[cascadeIndex] * obj.uModel * vec4(inPos, 1.0);
-                }
-                """;
-        String shadowFragSource = """
-                #version 450
-                void main() { }
-                """;
+        String shadowVertSource = VulkanShaderSources.shadowVertex();
+        String shadowFragSource = VulkanShaderSources.shadowFragment();
 
-        ByteBuffer vertSpv = compileGlslToSpv(shadowVertSource, shaderc_glsl_vertex_shader, "shadow.vert");
-        ByteBuffer fragSpv = compileGlslToSpv(shadowFragSource, shaderc_fragment_shader, "shadow.frag");
+        ByteBuffer vertSpv = VulkanShaderCompiler.compileGlslToSpv(shadowVertSource, shaderc_glsl_vertex_shader, "shadow.vert");
+        ByteBuffer fragSpv = VulkanShaderCompiler.compileGlslToSpv(shadowFragSource, shaderc_fragment_shader, "shadow.frag");
         long vertModule = VK_NULL_HANDLE;
         long fragModule = VK_NULL_HANDLE;
         try {
-            vertModule = createShaderModule(stack, vertSpv);
-            fragModule = createShaderModule(stack, fragSpv);
+            vertModule = VulkanShaderCompiler.createShaderModule(device, stack, vertSpv);
+            fragModule = VulkanShaderCompiler.createShaderModule(device, stack, fragSpv);
             VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
             shaderStages.get(0)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
@@ -2016,363 +1976,17 @@ final class VulkanContext {
     }
 
     private void createGraphicsPipeline(MemoryStack stack) throws EngineException {
-        String vertexShaderSource = """
-                #version 450
-                layout(location = 0) in vec3 inPos;
-                layout(location = 1) in vec3 inNormal;
-                layout(location = 2) in vec2 inUv;
-                layout(location = 3) in vec3 inTangent;
-                layout(location = 0) out vec3 vWorldPos;
-                layout(location = 1) out vec3 vNormal;
-                layout(location = 2) out float vHeight;
-                layout(location = 3) out vec2 vUv;
-                layout(location = 4) out vec3 vTangent;
-                layout(set = 0, binding = 0) uniform GlobalData {
-                    mat4 uView;
-                    mat4 uProj;
-                    vec4 uDirLightDir;
-                    vec4 uDirLightColor;
-                    vec4 uPointLightPos;
-                    vec4 uPointLightColor;
-                    vec4 uPointLightDir;
-                    vec4 uPointLightCone;
-                    vec4 uLightIntensity;
-                    vec4 uShadow;
-                    vec4 uShadowCascade;
-                    vec4 uShadowCascadeExt;
-                    vec4 uFog;
-                    vec4 uFogColorSteps;
-                    vec4 uSmoke;
-                    vec4 uSmokeColor;
-                    vec4 uIbl;
-                    vec4 uPostProcess;
-                    vec4 uBloom;
-                    mat4 uShadowLightViewProj[6];
-                } gbo;
-                layout(set = 0, binding = 1) uniform ObjectData {
-                    mat4 uModel;
-                    vec4 uBaseColor;
-                    vec4 uMaterial;
-                } obj;
-                void main() {
-                    vec4 world = obj.uModel * vec4(inPos, 1.0);
-                    vWorldPos = world.xyz;
-                    vHeight = world.y;
-                    vec3 tangent = normalize(mat3(obj.uModel) * inTangent);
-                    vec3 normal = normalize(mat3(obj.uModel) * inNormal);
-                    vNormal = normal;
-                    vTangent = tangent;
-                    vUv = inUv;
-                    gl_Position = gbo.uProj * gbo.uView * world;
-                }
-                """;
-        String fragmentShaderSource = """
-                #version 450
-                layout(location = 0) in vec3 vWorldPos;
-                layout(location = 1) in vec3 vNormal;
-                layout(location = 2) in float vHeight;
-                layout(location = 3) in vec2 vUv;
-                layout(location = 4) in vec3 vTangent;
-                layout(set = 0, binding = 0) uniform GlobalData {
-                    mat4 uView;
-                    mat4 uProj;
-                    vec4 uDirLightDir;
-                    vec4 uDirLightColor;
-                    vec4 uPointLightPos;
-                    vec4 uPointLightColor;
-                    vec4 uPointLightDir;
-                    vec4 uPointLightCone;
-                    vec4 uLightIntensity;
-                    vec4 uShadow;
-                    vec4 uShadowCascade;
-                    vec4 uShadowCascadeExt;
-                    vec4 uFog;
-                    vec4 uFogColorSteps;
-                    vec4 uSmoke;
-                    vec4 uSmokeColor;
-                    vec4 uIbl;
-                    vec4 uPostProcess;
-                    vec4 uBloom;
-                    mat4 uShadowLightViewProj[6];
-                } gbo;
-                layout(set = 0, binding = 1) uniform ObjectData {
-                    mat4 uModel;
-                    vec4 uBaseColor;
-                    vec4 uMaterial;
-                } obj;
-                layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
-                layout(set = 1, binding = 1) uniform sampler2D uNormalTexture;
-                layout(set = 1, binding = 2) uniform sampler2D uMetallicRoughnessTexture;
-                layout(set = 1, binding = 3) uniform sampler2D uOcclusionTexture;
-                layout(set = 1, binding = 4) uniform sampler2DArrayShadow uShadowMap;
-                layout(set = 1, binding = 5) uniform sampler2D uIblIrradianceTexture;
-                layout(set = 1, binding = 6) uniform sampler2D uIblRadianceTexture;
-                layout(set = 1, binding = 7) uniform sampler2D uIblBrdfLutTexture;
-                layout(location = 0) out vec4 outColor;
-                float distributionGGX(float ndh, float roughness) {
-                    float a = roughness * roughness;
-                    float a2 = a * a;
-                    float d = (ndh * ndh) * (a2 - 1.0) + 1.0;
-                    return a2 / max(3.14159 * d * d, 0.0001);
-                }
-                float geometrySchlickGGX(float ndv, float roughness) {
-                    float r = roughness + 1.0;
-                    float k = (r * r) / 8.0;
-                    return ndv / max(ndv * (1.0 - k) + k, 0.0001);
-                }
-                float geometrySmith(float ndv, float ndl, float roughness) {
-                    return geometrySchlickGGX(ndv, roughness) * geometrySchlickGGX(ndl, roughness);
-                }
-                vec3 fresnelSchlick(float cosTheta, vec3 f0) {
-                    return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
-                }
-                vec3 sampleIblRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter) {
-                    float roughMix = clamp(roughness * (0.45 + 0.55 * prefilter), 0.0, 1.0);
-                    vec2 roughUv = mix(specUv, baseUv, roughMix);
-                    float maxLod = float(max(textureQueryLevels(uIblRadianceTexture) - 1, 0));
-                    float lod = roughMix * maxLod;
-                    vec2 texel = 1.0 / vec2(textureSize(uIblRadianceTexture, 0));
-                    vec2 axis = normalize(vec2(0.37, 0.93) + vec2(roughMix, 1.0 - roughMix) * 0.45);
-                    vec2 side = vec2(-axis.y, axis.x);
-                    float spread = mix(0.5, 3.0, roughMix);
-                    vec3 c0 = textureLod(uIblRadianceTexture, roughUv, lod).rgb;
-                    vec3 c1 = textureLod(uIblRadianceTexture, clamp(roughUv + axis * texel * spread, vec2(0.0), vec2(1.0)), lod).rgb;
-                    vec3 c2 = textureLod(uIblRadianceTexture, clamp(roughUv - axis * texel * spread, vec2(0.0), vec2(1.0)), lod).rgb;
-                    vec3 c3 = textureLod(uIblRadianceTexture, clamp(roughUv + side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
-                    vec3 c4 = textureLod(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
-                    return (c0 * 0.44) + (c1 * 0.18) + (c2 * 0.18) + (c3 * 0.10) + (c4 * 0.10);
-                }
-                void main() {
-                    vec3 n0 = normalize(vNormal);
-                    vec3 t = normalize(vTangent - dot(vTangent, n0) * n0);
-                    vec3 b = normalize(cross(n0, t));
-                    vec3 normalTex = texture(uNormalTexture, vUv).xyz * 2.0 - 1.0;
-                    vec3 n = normalize(mat3(t, b, n0) * normalTex);
-                    vec3 sampledAlbedo = texture(uAlbedoTexture, vUv).rgb;
-                    vec3 baseColor = obj.uBaseColor.rgb * sampledAlbedo;
-                    vec3 mrTex = texture(uMetallicRoughnessTexture, vUv).rgb;
-                    float metallic = clamp(obj.uMaterial.x * mrTex.b, 0.0, 1.0);
-                    float roughness = clamp(obj.uMaterial.y * max(mrTex.g, 0.04), 0.04, 1.0);
-                    float dirIntensity = max(0.0, gbo.uLightIntensity.x);
-                    float pointIntensity = max(0.0, gbo.uLightIntensity.y);
+        String vertexShaderSource = VulkanShaderSources.mainVertex();
+        String fragmentShaderSource = VulkanShaderSources.mainFragment();
 
-                    float ao = clamp(texture(uOcclusionTexture, vUv).r, 0.0, 1.0);
-                    vec3 lDir = normalize(-gbo.uDirLightDir.xyz);
-                    vec3 pDir = normalize(gbo.uPointLightPos.xyz - vWorldPos);
-                    float dist = max(length(gbo.uPointLightPos.xyz - vWorldPos), 0.1);
-                    float attenuation = 1.0 / (1.0 + 0.35 * dist + 0.1 * dist * dist);
-                    float spotAttenuation = 1.0;
-                    if (gbo.uPointLightCone.z > 0.5) {
-                        vec3 lightToFrag = normalize(vWorldPos - gbo.uPointLightPos.xyz);
-                        float cosTheta = dot(normalize(gbo.uPointLightDir.xyz), lightToFrag);
-                        float coneRange = max(gbo.uPointLightCone.x - gbo.uPointLightCone.y, 0.0001);
-                        spotAttenuation = clamp((cosTheta - gbo.uPointLightCone.y) / coneRange, 0.0, 1.0);
-                        spotAttenuation *= spotAttenuation;
-                    }
-                    vec3 viewPos = (gbo.uView * vec4(vWorldPos, 1.0)).xyz;
-                    vec3 viewDir = normalize(-viewPos);
-
-                    float ndl = max(dot(n, lDir), 0.0);
-                    float ndv = max(dot(n, viewDir), 0.0);
-                    vec3 halfVec = normalize(lDir + viewDir);
-                    float ndh = max(dot(n, halfVec), 0.0);
-                    float vdh = max(dot(viewDir, halfVec), 0.0);
-                    vec3 f0 = mix(vec3(0.04), baseColor, metallic);
-                    vec3 f = fresnelSchlick(vdh, f0);
-                    float d = distributionGGX(ndh, roughness);
-                    float g = geometrySmith(ndv, ndl, roughness);
-                    vec3 numerator = d * g * f;
-                    float denominator = max(4.0 * ndv * ndl, 0.0001);
-                    vec3 specular = numerator / denominator;
-                    vec3 kd = (1.0 - f) * (1.0 - metallic);
-                    vec3 diffuse = kd * baseColor / 3.14159;
-                    vec3 directional = (diffuse + specular) * gbo.uDirLightColor.rgb * (ndl * dirIntensity);
-
-                    float pNdl = max(dot(n, pDir), 0.0);
-                    vec3 pointLit = (kd * baseColor / 3.14159)
-                            * gbo.uPointLightColor.rgb
-                            * (pNdl * attenuation * spotAttenuation * pointIntensity);
-                    vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * baseColor * ao;
-
-                    vec3 color = ambient + directional + pointLit;
-                    if (gbo.uShadow.x > 0.5 && gbo.uPointLightCone.w < 0.5) {
-                        int cascadeCount = clamp(int(gbo.uShadowCascade.x + 0.5), 1, 4);
-                        int cascadeIndex = 0;
-                        float depthNdc = clamp(gl_FragCoord.z, 0.0, 1.0);
-                        if (cascadeCount >= 2 && depthNdc > gbo.uShadowCascade.z) {
-                            cascadeIndex = 1;
-                        }
-                        if (cascadeCount >= 3 && depthNdc > gbo.uShadowCascade.w) {
-                            cascadeIndex = 2;
-                        }
-                        if (cascadeCount >= 4 && depthNdc > gbo.uShadowCascadeExt.y) {
-                            cascadeIndex = 3;
-                        }
-                        vec4 shadowPos = gbo.uShadowLightViewProj[cascadeIndex] * vec4(vWorldPos, 1.0);
-                        vec3 shadowCoord = shadowPos.xyz / max(shadowPos.w, 0.0001);
-                        shadowCoord = shadowCoord * 0.5 + 0.5;
-                        float shadowVisibility = 1.0;
-                        if (shadowCoord.z > 0.0
-                                && shadowCoord.z < 1.0
-                                && shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0
-                                && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0) {
-                            float cascadeT = float(cascadeIndex) / max(float(cascadeCount - 1), 1.0);
-                            int radius = clamp(int(gbo.uShadow.w + 0.5) + (cascadeIndex / 2), 0, 4);
-                            float texel = (1.0 / max(gbo.uShadowCascade.y, 1.0)) * mix(1.0, 2.25, cascadeT);
-                            float compareBias = gbo.uShadow.z * mix(0.7, 1.8, cascadeT);
-                            float compareDepth = clamp(shadowCoord.z - compareBias, 0.0, 1.0);
-                            float total = 0.0;
-                            float taps = 0.0;
-                            for (int y = -4; y <= 4; y++) {
-                                for (int x = -4; x <= 4; x++) {
-                                    if (abs(x) > radius || abs(y) > radius) {
-                                        continue;
-                                    }
-                                    vec2 offset = vec2(float(x), float(y)) * texel;
-                                    total += texture(uShadowMap, vec4(shadowCoord.xy + offset, float(cascadeIndex), compareDepth));
-                                    taps += 1.0;
-                                }
-                            }
-                            shadowVisibility = (taps > 0.0) ? (total / taps) : 1.0;
-                        }
-                        float shadowOcclusion = 1.0 - shadowVisibility;
-                        float shadowFactor = clamp(shadowOcclusion * clamp(gbo.uShadow.y, 0.0, 1.0), 0.0, 0.9);
-                        color *= (1.0 - shadowFactor);
-                    }
-                    if (gbo.uPointLightCone.w > 0.5) {
-                        int pointLayerCount = clamp(int(gbo.uShadowCascade.x + 0.5), 1, 6);
-                        vec3 pointVec = normalize(vWorldPos - gbo.uPointLightPos.xyz);
-                        int pointLayer = 0;
-                        if (pointLayerCount >= 6) {
-                            vec3 absVec = abs(pointVec);
-                            if (absVec.x >= absVec.y && absVec.x >= absVec.z) {
-                                pointLayer = pointVec.x >= 0.0 ? 0 : 1;
-                            } else if (absVec.y >= absVec.z) {
-                                pointLayer = pointVec.y >= 0.0 ? 2 : 3;
-                            } else {
-                                pointLayer = pointVec.z >= 0.0 ? 4 : 5;
-                            }
-                        } else if (pointLayerCount >= 4) {
-                            if (abs(pointVec.x) >= abs(pointVec.z)) {
-                                pointLayer = pointVec.x >= 0.0 ? 0 : 1;
-                            } else {
-                                pointLayer = pointVec.z >= 0.0 ? 2 : 3;
-                            }
-                        } else if (pointLayerCount == 3) {
-                            if (abs(pointVec.x) >= abs(pointVec.z)) {
-                                pointLayer = pointVec.x >= 0.0 ? 0 : 1;
-                            } else {
-                                pointLayer = 2;
-                            }
-                        } else if (pointLayerCount == 2) {
-                            pointLayer = pointVec.x >= 0.0 ? 0 : 1;
-                        }
-                        vec4 pointShadowPos = gbo.uShadowLightViewProj[pointLayer] * vec4(vWorldPos, 1.0);
-                        vec3 pointShadowCoord = pointShadowPos.xyz / max(pointShadowPos.w, 0.0001);
-                        pointShadowCoord = pointShadowCoord * 0.5 + 0.5;
-                        if (pointShadowCoord.z > 0.0
-                                && pointShadowCoord.z < 1.0
-                                && pointShadowCoord.x >= 0.0 && pointShadowCoord.x <= 1.0
-                                && pointShadowCoord.y >= 0.0 && pointShadowCoord.y <= 1.0) {
-                            float pointDepthRatio = clamp(dist / max(gbo.uPointLightPos.w, 0.0001), 0.0, 1.0);
-                            int pointRadius = clamp(int(gbo.uShadow.w + 0.5), 0, 4);
-                            float texel = (1.0 / max(gbo.uShadowCascade.y, 1.0)) * mix(0.85, 2.0, pointDepthRatio);
-                            float compareBias = gbo.uShadow.z * mix(0.85, 1.65, pointDepthRatio) * (1.0 + (1.0 - pNdl) * 0.6);
-                            float compareDepth = clamp(pointShadowCoord.z - compareBias, 0.0, 1.0);
-                            float visibility = 0.0;
-                            float taps = 0.0;
-                            for (int y = -4; y <= 4; y++) {
-                                for (int x = -4; x <= 4; x++) {
-                                    if (abs(x) > pointRadius || abs(y) > pointRadius) {
-                                        continue;
-                                    }
-                                    vec2 offset = vec2(float(x), float(y)) * texel;
-                                    visibility += texture(uShadowMap, vec4(pointShadowCoord.xy + offset, float(pointLayer), compareDepth));
-                                    taps += 1.0;
-                                }
-                            }
-                            float pointOcclusion = 1.0 - ((taps > 0.0) ? (visibility / taps) : 1.0);
-                            float pointShadowFactor = clamp(pointOcclusion * min(clamp(gbo.uShadow.y, 0.0, 1.0), 0.85), 0.0, 0.9);
-                            color *= (1.0 - pointShadowFactor);
-                        }
-                    }
-                    if (gbo.uFog.x > 0.5) {
-                        float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
-                        float fogFactor = clamp(exp(-gbo.uFog.y * (1.0 - normalizedHeight)), 0.0, 1.0);
-                        if (gbo.uFogColorSteps.w > 0.0) {
-                            fogFactor = floor(fogFactor * gbo.uFogColorSteps.w) / gbo.uFogColorSteps.w;
-                        }
-                        color = mix(gbo.uFogColorSteps.rgb, color, fogFactor);
-                    }
-                    if (gbo.uSmoke.x > 0.5) {
-                        vec2 safeViewport = max(gbo.uSmoke.zw, vec2(1.0));
-                        float radial = clamp(1.0 - length(gl_FragCoord.xy / safeViewport - vec2(0.5)), 0.0, 1.0);
-                        float smokeFactor = clamp(gbo.uSmoke.y * (0.35 + radial * 0.65), 0.0, 0.85);
-                        color = mix(color, gbo.uSmokeColor.rgb, smokeFactor);
-                    }
-                    if (gbo.uIbl.x > 0.5) {
-                        float iblDiffuseWeight = clamp(gbo.uIbl.y, 0.0, 2.0);
-                        float iblSpecWeight = clamp(gbo.uIbl.z, 0.0, 2.0);
-                        float prefilter = clamp(gbo.uIbl.w, 0.0, 1.0);
-                        vec3 irr = texture(uIblIrradianceTexture, vUv).rgb;
-                        vec3 reflectDir = reflect(-viewDir, n);
-                        vec2 specUv = clamp(reflectDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
-                        vec3 rad = sampleIblRadiance(specUv, vUv, roughness, prefilter);
-                    vec2 brdfUv = vec2(clamp(ndv, 0.0, 1.0), clamp(roughness, 0.0, 1.0));
-                    vec2 brdf = texture(uIblBrdfLutTexture, brdfUv).rg;
-                    float fresnel = pow(1.0 - ndv, 5.0);
-                    vec3 fView = mix(vec3(0.03), f0, fresnel);
-                    vec3 kS = clamp(fView, vec3(0.0), vec3(1.0));
-                    vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
-                    float horizon = clamp(0.35 + 0.65 * ndv, 0.0, 1.0);
-                    float energyComp = 1.0 + (1.0 - roughness) * 0.35 * (1.0 - ndv);
-                    float roughEnergy = mix(1.15, 0.72, roughness);
-                    float brdfDiffuseLift = mix(0.82, 1.18, brdf.y);
-                    float roughEdge = smoothstep(0.02, 0.10, roughness) * (1.0 - smoothstep(0.90, 0.99, roughness));
-                    vec3 iblDiffuse = kD * baseColor * ao * irr
-                            * (0.22 + 0.58 * (1.0 - roughness))
-                            * iblDiffuseWeight
-                            * brdfDiffuseLift
-                            * mix(0.90, 1.00, roughEdge);
-                    float specLobe = mix(1.08, 0.64, roughness * roughness);
-                    vec3 iblSpecBase = rad * (kS * (0.34 + 0.66 * brdf.x) + vec3(0.18 + 0.28 * brdf.y));
-                    vec3 iblSpec = iblSpecBase
-                            * (0.10 + 0.66 * (1.0 - roughness))
-                            * iblSpecWeight
-                            * energyComp
-                            * horizon
-                            * roughEnergy
-                            * specLobe
-                            * mix(0.9, 1.1, prefilter)
-                            * mix(0.82, 1.00, roughEdge);
-                    color += iblDiffuse + iblSpec;
-                }
-                    if (gbo.uPostProcess.x > 0.5) {
-                        float exposure = max(gbo.uPostProcess.y, 0.0001);
-                        float gamma = max(gbo.uPostProcess.z, 0.0001);
-                        color = vec3(1.0) - exp(-color * exposure);
-                        color = pow(max(color, vec3(0.0)), vec3(1.0 / gamma));
-                    }
-                    if (gbo.uBloom.x > 0.5) {
-                        float threshold = clamp(gbo.uBloom.y, 0.0, 4.0);
-                        float strength = clamp(gbo.uBloom.z, 0.0, 2.0);
-                        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
-                        float bright = max(0.0, luma - threshold);
-                        float bloom = bright * strength;
-                        color += color * bloom;
-                    }
-                    outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
-                }
-                """;
-
-        ByteBuffer vertSpv = compileGlslToSpv(vertexShaderSource, shaderc_glsl_vertex_shader, "triangle.vert");
-        ByteBuffer fragSpv = compileGlslToSpv(fragmentShaderSource, shaderc_fragment_shader, "triangle.frag");
+        ByteBuffer vertSpv = VulkanShaderCompiler.compileGlslToSpv(vertexShaderSource, shaderc_glsl_vertex_shader, "triangle.vert");
+        ByteBuffer fragSpv = VulkanShaderCompiler.compileGlslToSpv(fragmentShaderSource, shaderc_fragment_shader, "triangle.frag");
 
         long vertModule = VK_NULL_HANDLE;
         long fragModule = VK_NULL_HANDLE;
         try {
-            vertModule = createShaderModule(stack, vertSpv);
-            fragModule = createShaderModule(stack, fragSpv);
+            vertModule = VulkanShaderCompiler.createShaderModule(device, stack, vertSpv);
+            fragModule = VulkanShaderCompiler.createShaderModule(device, stack, fragSpv);
 
             VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
             shaderStages.get(0)
@@ -2519,56 +2133,6 @@ final class VulkanContext {
         }
     }
 
-    private long createShaderModule(MemoryStack stack, ByteBuffer code) throws EngineException {
-        VkShaderModuleCreateInfo moduleInfo = VkShaderModuleCreateInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
-                .pCode(code);
-        var pShaderModule = stack.longs(VK_NULL_HANDLE);
-        int result = vkCreateShaderModule(device, moduleInfo, null, pShaderModule);
-        if (result != VK_SUCCESS || pShaderModule.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateShaderModule failed: " + result, false);
-        }
-        return pShaderModule.get(0);
-    }
-
-    private ByteBuffer compileGlslToSpv(String source, int shaderKind, String sourceName) throws EngineException {
-        long compiler = shaderc_compiler_initialize();
-        if (compiler == 0L) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "shaderc_compiler_initialize failed", false);
-        }
-        long options = shaderc_compile_options_initialize();
-        if (options == 0L) {
-            shaderc_compiler_release(compiler);
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "shaderc_compile_options_initialize failed", false);
-        }
-        long result = 0L;
-        try {
-            result = shaderc_compile_into_spv(compiler, source, shaderKind, sourceName, "main", options);
-            if (result == 0L) {
-                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "shaderc_compile_into_spv failed", false);
-            }
-            int status = shaderc_result_get_compilation_status(result);
-            if (status != shaderc_compilation_status_success) {
-                throw new EngineException(
-                        EngineErrorCode.BACKEND_INIT_FAILED,
-                        "Shader compile failed for " + sourceName + ": " + shaderc_result_get_error_message(result),
-                        false
-                );
-            }
-            ByteBuffer bytes = shaderc_result_get_bytes(result);
-            ByteBuffer out = ByteBuffer.allocateDirect(bytes.remaining());
-            out.put(bytes);
-            out.flip();
-            return out;
-        } finally {
-            if (result != 0L) {
-                shaderc_result_release(result);
-            }
-            shaderc_compile_options_release(options);
-            shaderc_compiler_release(compiler);
-        }
-    }
-
     private void createFramebuffers(MemoryStack stack) throws EngineException {
         framebuffers = new long[swapchainImageViews.length];
         for (int i = 0; i < swapchainImageViews.length; i++) {
@@ -2708,50 +2272,15 @@ final class VulkanContext {
     }
 
     private void createPostPipeline(MemoryStack stack) throws EngineException {
-        String vertexShaderSource = """
-                #version 450
-                layout(location = 0) out vec2 vUv;
-                vec2 POS[3] = vec2[](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
-                void main() {
-                    vec2 p = POS[gl_VertexIndex];
-                    vUv = p * 0.5 + vec2(0.5);
-                    gl_Position = vec4(p, 0.0, 1.0);
-                }
-                """;
-        String fragmentShaderSource = """
-                #version 450
-                layout(location = 0) in vec2 vUv;
-                layout(location = 0) out vec4 outColor;
-                layout(set = 0, binding = 0) uniform sampler2D uSceneColor;
-                layout(push_constant) uniform PostPush {
-                    vec4 tonemap;
-                    vec4 bloom;
-                } pc;
-                void main() {
-                    vec3 color = texture(uSceneColor, vUv).rgb;
-                    if (pc.tonemap.x > 0.5) {
-                        float exposure = max(pc.tonemap.y, 0.0001);
-                        float gamma = max(pc.tonemap.z, 0.0001);
-                        color = vec3(1.0) - exp(-color * exposure);
-                        color = pow(max(color, vec3(0.0)), vec3(1.0 / gamma));
-                    }
-                    if (pc.bloom.x > 0.5) {
-                        float threshold = clamp(pc.bloom.y, 0.0, 4.0);
-                        float strength = clamp(pc.bloom.z, 0.0, 2.0);
-                        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
-                        float bright = max(0.0, luma - threshold);
-                        color += color * (bright * strength);
-                    }
-                    outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
-                }
-                """;
-        ByteBuffer vertSpv = compileGlslToSpv(vertexShaderSource, shaderc_glsl_vertex_shader, "post.vert");
-        ByteBuffer fragSpv = compileGlslToSpv(fragmentShaderSource, shaderc_fragment_shader, "post.frag");
+        String vertexShaderSource = VulkanShaderSources.postVertex();
+        String fragmentShaderSource = VulkanShaderSources.postFragment();
+        ByteBuffer vertSpv = VulkanShaderCompiler.compileGlslToSpv(vertexShaderSource, shaderc_glsl_vertex_shader, "post.vert");
+        ByteBuffer fragSpv = VulkanShaderCompiler.compileGlslToSpv(fragmentShaderSource, shaderc_fragment_shader, "post.frag");
         long vertModule = VK_NULL_HANDLE;
         long fragModule = VK_NULL_HANDLE;
         try {
-            vertModule = createShaderModule(stack, vertSpv);
-            fragModule = createShaderModule(stack, fragSpv);
+            vertModule = VulkanShaderCompiler.createShaderModule(device, stack, vertSpv);
+            fragModule = VulkanShaderCompiler.createShaderModule(device, stack, fragSpv);
             VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
             shaderStages.get(0).sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
                     .stage(VK_SHADER_STAGE_VERTEX_BIT).module(vertModule).pName(stack.UTF8("main"));
@@ -3097,7 +2626,16 @@ final class VulkanContext {
             }
 
             recordCommandBuffer(stack, commandBuffer, imageIndex, frameIdx);
-            return submitAndPresent(stack, commandBuffer, imageIndex, imageAvailableSemaphore, renderFinishedSemaphore, renderFence);
+            return VulkanCommandSubmitter.submitAndPresent(
+                    stack,
+                    graphicsQueue,
+                    swapchain,
+                    commandBuffer,
+                    imageIndex,
+                    imageAvailableSemaphore,
+                    renderFinishedSemaphore,
+                    renderFence
+            );
         }
         if (acquireResult != VK_ERROR_OUT_OF_DATE_KHR) {
             throw vkFailure("vkAcquireNextImageKHR", acquireResult);
@@ -3106,10 +2644,7 @@ final class VulkanContext {
     }
 
     private void recordCommandBuffer(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex, int frameIdx) throws EngineException {
-        VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
-                .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-        int beginResult = vkBeginCommandBuffer(commandBuffer, beginInfo);
+        int beginResult = VulkanRenderCommandRecorder.beginOneShot(commandBuffer, stack);
         if (beginResult != VK_SUCCESS) {
             throw vkFailure("vkBeginCommandBuffer", beginResult);
         }
@@ -3119,302 +2654,75 @@ final class VulkanContext {
         uploadFrameUniforms(commandBuffer, frameIdx);
         long frameDescriptorSet = descriptorSetForFrame(frameIdx);
         int drawCount = gpuMeshes.isEmpty() ? 1 : Math.min(maxDynamicSceneObjects, gpuMeshes.size());
-        if (shadowEnabled
-                && shadowRenderPass != VK_NULL_HANDLE
-                && shadowFramebuffers.length >= Math.min(MAX_SHADOW_MATRICES, Math.max(1, shadowCascadeCount))
-                && shadowPipeline != VK_NULL_HANDLE
-                && frameDescriptorSet != VK_NULL_HANDLE
-                && !gpuMeshes.isEmpty()) {
-            int cascades = pointShadowEnabled
-                    ? POINT_SHADOW_FACES
-                    : Math.min(MAX_SHADOW_CASCADES, Math.max(1, shadowCascadeCount));
-            for (int cascadeIndex = 0; cascadeIndex < cascades; cascadeIndex++) {
-                VkClearValue.Buffer shadowClearValues = VkClearValue.calloc(1, stack);
-                shadowClearValues.get(0).depthStencil().depth(1.0f).stencil(0);
-                VkRenderPassBeginInfo shadowPassInfo = VkRenderPassBeginInfo.calloc(stack)
-                        .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
-                        .renderPass(shadowRenderPass)
-                        .framebuffer(shadowFramebuffers[cascadeIndex])
-                        .pClearValues(shadowClearValues);
-                shadowPassInfo.renderArea()
-                        .offset(it -> it.set(0, 0))
-                        .extent(VkExtent2D.calloc(stack).set(shadowMapResolution, shadowMapResolution));
-                vkCmdBeginRenderPass(commandBuffer, shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
-                vkCmdBindDescriptorSets(
-                        commandBuffer,
-                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        shadowPipelineLayout,
-                        0,
-                        stack.longs(frameDescriptorSet),
-                        stack.ints(dynamicUniformOffset(frameIdx, 0))
-                );
-                ByteBuffer cascadePush = stack.malloc(Integer.BYTES);
-                cascadePush.putInt(0, cascadeIndex);
-                vkCmdPushConstants(commandBuffer, shadowPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, cascadePush);
-                for (int meshIndex = 0; meshIndex < drawCount; meshIndex++) {
-                    GpuMesh mesh = gpuMeshes.get(meshIndex);
-                    vkCmdBindDescriptorSets(
-                            commandBuffer,
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            shadowPipelineLayout,
-                            0,
-                            stack.longs(frameDescriptorSet),
-                            stack.ints(dynamicUniformOffset(frameIdx, meshIndex))
-                    );
-                    vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer), stack.longs(0));
-                    vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-                    vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
-                }
-                vkCmdEndRenderPass(commandBuffer);
-            }
+        List<VulkanRenderCommandRecorder.MeshDrawCmd> meshes = new ArrayList<>(Math.min(drawCount, gpuMeshes.size()));
+        for (int i = 0; i < drawCount && i < gpuMeshes.size(); i++) {
+            GpuMesh mesh = gpuMeshes.get(i);
+            meshes.add(new VulkanRenderCommandRecorder.MeshDrawCmd(
+                    mesh.vertexBuffer,
+                    mesh.indexBuffer,
+                    mesh.indexCount,
+                    mesh.textureDescriptorSet
+            ));
         }
 
-        VkClearValue.Buffer clearValues = VkClearValue.calloc(2, stack);
-        clearValues.get(0).color().float32(0, 0.08f);
-        clearValues.get(0).color().float32(1, 0.09f);
-        clearValues.get(0).color().float32(2, 0.12f);
-        clearValues.get(0).color().float32(3, 1.0f);
-        clearValues.get(1).depthStencil().depth(1.0f).stencil(0);
-
-        VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
-                .renderPass(renderPass)
-                .framebuffer(framebuffers[imageIndex])
-                .pClearValues(clearValues);
-        renderPassInfo.renderArea()
-                .offset(it -> it.set(0, 0))
-                .extent(VkExtent2D.calloc(stack).set(swapchainWidth, swapchainHeight));
-
-        vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-        for (int meshIndex = 0; meshIndex < drawCount && meshIndex < gpuMeshes.size(); meshIndex++) {
-            GpuMesh mesh = gpuMeshes.get(meshIndex);
-            if (frameDescriptorSet != VK_NULL_HANDLE && mesh.textureDescriptorSet != VK_NULL_HANDLE) {
-                vkCmdBindDescriptorSets(
-                        commandBuffer,
-                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        VulkanRenderCommandRecorder.recordShadowAndMainPasses(
+                stack,
+                commandBuffer,
+                new VulkanRenderCommandRecorder.RenderPassInputs(
+                        drawCount,
+                        swapchainWidth,
+                        swapchainHeight,
+                        shadowMapResolution,
+                        shadowEnabled,
+                        pointShadowEnabled,
+                        shadowCascadeCount,
+                        MAX_SHADOW_MATRICES,
+                        MAX_SHADOW_CASCADES,
+                        POINT_SHADOW_FACES,
+                        frameDescriptorSet,
+                        renderPass,
+                        framebuffers[imageIndex],
+                        graphicsPipeline,
                         pipelineLayout,
-                        0,
-                        stack.longs(frameDescriptorSet, mesh.textureDescriptorSet),
-                        stack.ints(dynamicUniformOffset(frameIdx, meshIndex))
-                );
-            }
-            vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer), stack.longs(0));
-            vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
-        }
-        if (gpuMeshes.isEmpty()) {
-            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-        }
-        vkCmdEndRenderPass(commandBuffer);
+                        shadowRenderPass,
+                        shadowPipeline,
+                        shadowPipelineLayout,
+                        shadowFramebuffers
+                ),
+                meshes,
+                meshIndex -> dynamicUniformOffset(frameIdx, meshIndex)
+        );
 
         if (postOffscreenActive) {
-            executePostCompositePass(stack, commandBuffer, imageIndex);
+            postIntermediateInitialized = VulkanRenderCommandRecorder.executePostCompositePass(
+                    stack,
+                    commandBuffer,
+                    new VulkanRenderCommandRecorder.PostCompositeInputs(
+                            imageIndex,
+                            swapchainWidth,
+                            swapchainHeight,
+                            postIntermediateInitialized,
+                            tonemapEnabled,
+                            tonemapExposure,
+                            tonemapGamma,
+                            bloomEnabled,
+                            bloomThreshold,
+                            bloomStrength,
+                            postRenderPass,
+                            postGraphicsPipeline,
+                            postPipelineLayout,
+                            postDescriptorSet,
+                            offscreenColorImage,
+                            swapchainImages[imageIndex],
+                            postFramebuffers
+                    )
+            );
         }
 
-        int endResult = vkEndCommandBuffer(commandBuffer);
+        int endResult = VulkanRenderCommandRecorder.end(commandBuffer);
         if (endResult != VK_SUCCESS) {
             throw vkFailure("vkEndCommandBuffer", endResult);
         }
-    }
-
-    private void executePostCompositePass(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex) {
-        if (postRenderPass == VK_NULL_HANDLE
-                || postGraphicsPipeline == VK_NULL_HANDLE
-                || postPipelineLayout == VK_NULL_HANDLE
-                || postDescriptorSet == VK_NULL_HANDLE
-                || postFramebuffers.length <= imageIndex
-                || offscreenColorImage == VK_NULL_HANDLE) {
-            return;
-        }
-
-        // Transition the rendered swapchain image for transfer-src copy.
-        VkImageMemoryBarrier.Buffer swapToTransferSrc = VkImageMemoryBarrier.calloc(1, stack)
-                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
-                .srcAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
-                .dstAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
-                .oldLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
-                .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .image(swapchainImages[imageIndex]);
-        swapToTransferSrc.get(0).subresourceRange()
-                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
-                .baseMipLevel(0)
-                .levelCount(1)
-                .baseArrayLayer(0)
-                .layerCount(1);
-        vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                0,
-                null,
-                null,
-                swapToTransferSrc
-        );
-
-        int intermediateOldLayout = postIntermediateInitialized
-                ? VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                : VK_IMAGE_LAYOUT_UNDEFINED;
-        VkImageMemoryBarrier.Buffer intermediateToTransferDst = VkImageMemoryBarrier.calloc(1, stack)
-                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
-                .srcAccessMask(postIntermediateInitialized ? VK10.VK_ACCESS_SHADER_READ_BIT : 0)
-                .dstAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT)
-                .oldLayout(intermediateOldLayout)
-                .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .image(offscreenColorImage);
-        intermediateToTransferDst.get(0).subresourceRange()
-                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
-                .baseMipLevel(0)
-                .levelCount(1)
-                .baseArrayLayer(0)
-                .layerCount(1);
-        vkCmdPipelineBarrier(
-                commandBuffer,
-                postIntermediateInitialized ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK10.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                0,
-                null,
-                null,
-                intermediateToTransferDst
-        );
-
-        VkImageCopy.Buffer copyRegion = VkImageCopy.calloc(1, stack);
-        copyRegion.get(0)
-                .srcSubresource(it -> it.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1))
-                .srcOffset(it -> it.set(0, 0, 0))
-                .dstSubresource(it -> it.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1))
-                .dstOffset(it -> it.set(0, 0, 0))
-                .extent(it -> it.set(swapchainWidth, swapchainHeight, 1));
-        VK10.vkCmdCopyImage(
-                commandBuffer,
-                swapchainImages[imageIndex],
-                VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                offscreenColorImage,
-                VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                copyRegion
-        );
-
-        VkImageMemoryBarrier.Buffer intermediateToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
-                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
-                .srcAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT)
-                .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
-                .oldLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-                .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .image(offscreenColorImage);
-        intermediateToShaderRead.get(0).subresourceRange()
-                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
-                .baseMipLevel(0)
-                .levelCount(1)
-                .baseArrayLayer(0)
-                .layerCount(1);
-        vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                0,
-                null,
-                null,
-                intermediateToShaderRead
-        );
-        postIntermediateInitialized = true;
-
-        VkImageMemoryBarrier.Buffer swapToColorAttachment = VkImageMemoryBarrier.calloc(1, stack)
-                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
-                .srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
-                .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
-                .oldLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-                .newLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
-                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .image(swapchainImages[imageIndex]);
-        swapToColorAttachment.get(0).subresourceRange()
-                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
-                .baseMipLevel(0)
-                .levelCount(1)
-                .baseArrayLayer(0)
-                .layerCount(1);
-        vkCmdPipelineBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                0,
-                null,
-                null,
-                swapToColorAttachment
-        );
-
-        VkClearValue.Buffer clear = VkClearValue.calloc(1, stack);
-        clear.get(0).color().float32(0, 0.08f);
-        clear.get(0).color().float32(1, 0.09f);
-        clear.get(0).color().float32(2, 0.12f);
-        clear.get(0).color().float32(3, 1.0f);
-        VkRenderPassBeginInfo postPassInfo = VkRenderPassBeginInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
-                .renderPass(postRenderPass)
-                .framebuffer(postFramebuffers[imageIndex])
-                .pClearValues(clear);
-        postPassInfo.renderArea()
-                .offset(it -> it.set(0, 0))
-                .extent(VkExtent2D.calloc(stack).set(swapchainWidth, swapchainHeight));
-
-        vkCmdBeginRenderPass(commandBuffer, postPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postGraphicsPipeline);
-        vkCmdBindDescriptorSets(
-                commandBuffer,
-                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                postPipelineLayout,
-                0,
-                stack.longs(postDescriptorSet),
-                null
-        );
-        ByteBuffer postPush = stack.malloc(8 * Float.BYTES);
-        postPush.asFloatBuffer().put(new float[]{
-                tonemapEnabled ? 1f : 0f, tonemapExposure, tonemapGamma, 0f,
-                bloomEnabled ? 1f : 0f, bloomThreshold, bloomStrength, 0f
-        });
-        vkCmdPushConstants(commandBuffer, postPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
-        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-        vkCmdEndRenderPass(commandBuffer);
-    }
-
-    private int submitAndPresent(
-            MemoryStack stack,
-            VkCommandBuffer commandBuffer,
-            int imageIndex,
-            long imageAvailableSemaphore,
-            long renderFinishedSemaphore,
-            long renderFence
-    ) throws EngineException {
-        VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
-                .pWaitSemaphores(stack.longs(imageAvailableSemaphore))
-                .pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT))
-                .pCommandBuffers(stack.pointers(commandBuffer.address()))
-                .pSignalSemaphores(stack.longs(renderFinishedSemaphore));
-        int submitResult = vkQueueSubmit(graphicsQueue, submitInfo, renderFence);
-        if (submitResult != VK_SUCCESS) {
-            throw vkFailure("vkQueueSubmit", submitResult);
-        }
-
-        VkPresentInfoKHR presentInfo = VkPresentInfoKHR.calloc(stack)
-                .sType(KHRSwapchain.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR)
-                .pWaitSemaphores(stack.longs(renderFinishedSemaphore))
-                .swapchainCount(1)
-                .pSwapchains(stack.longs(swapchain))
-                .pImageIndices(stack.ints(imageIndex));
-        int presentResult = vkQueuePresentKHR(graphicsQueue, presentInfo);
-        glfwPollEvents();
-        if (presentResult != VK_SUCCESS && presentResult != VK_SUBOPTIMAL_KHR && presentResult != VK_ERROR_OUT_OF_DATE_KHR) {
-            throw vkFailure("vkQueuePresentKHR", presentResult);
-        }
-        return presentResult;
     }
 
     private void recreateSwapchainFromWindow() throws EngineException {
@@ -3447,25 +2755,6 @@ final class VulkanContext {
         return new EngineException(code, operation + " failed: " + result, false);
     }
 
-    private VkSurfaceFormatKHR chooseSurfaceFormat(VkSurfaceFormatKHR.Buffer formats) {
-        for (int i = 0; i < formats.capacity(); i++) {
-            VkSurfaceFormatKHR format = formats.get(i);
-            if (format.format() == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace() == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
-                return format;
-            }
-        }
-        return formats.get(0);
-    }
-
-    private int choosePresentMode(java.nio.IntBuffer presentModes, int count) {
-        for (int i = 0; i < count; i++) {
-            if (presentModes.get(i) == VK_PRESENT_MODE_MAILBOX_KHR) {
-                return VK_PRESENT_MODE_MAILBOX_KHR;
-            }
-        }
-        return VK_PRESENT_MODE_FIFO_KHR;
-    }
-
     private static int alignUp(int value, int alignment) {
         int safeAlignment = Math.max(1, alignment);
         int remainder = value % safeAlignment;
@@ -3475,401 +2764,35 @@ final class VulkanContext {
         return value + (safeAlignment - remainder);
     }
 
-    private static float clamp01(float value) {
-        return Math.max(0f, Math.min(1f, value));
-    }
-
-    private static boolean floatEquals(float a, float b) {
-        return Math.abs(a - b) <= 1.0e-6f;
-    }
-
-    private static float[] normalize3(float x, float y, float z) {
-        float len = (float) Math.sqrt(x * x + y * y + z * z);
-        if (len < 1.0e-6f) {
-            return new float[]{0f, -1f, 0f};
-        }
-        return new float[]{x / len, y / len, z / len};
-    }
-
-    private static float[] identityMatrix() {
-        return new float[]{
-                1f, 0f, 0f, 0f,
-                0f, 1f, 0f, 0f,
-                0f, 0f, 1f, 0f,
-                0f, 0f, 0f, 1f
-        };
-    }
-
-    private static float projectionNear(float[] proj) {
-        float a = proj[10];
-        float b = proj[14];
-        return b / (a - 1f);
-    }
-
-    private static float projectionFar(float[] proj) {
-        float a = proj[10];
-        float b = proj[14];
-        return b / (a + 1f);
-    }
-
-    private static float viewDistanceToNdcDepth(float[] proj, float distance) {
-        float clipZ = proj[10] * (-distance) + proj[14];
-        float clipW = proj[11] * (-distance) + proj[15];
-        if (Math.abs(clipW) < 0.000001f) {
-            return 1f;
-        }
-        return clipZ / clipW;
-    }
-
-    private static float[] transformPoint(float[] m, float x, float y, float z) {
-        float tx = m[0] * x + m[4] * y + m[8] * z + m[12];
-        float ty = m[1] * x + m[5] * y + m[9] * z + m[13];
-        float tz = m[2] * x + m[6] * y + m[10] * z + m[14];
-        float tw = m[3] * x + m[7] * y + m[11] * z + m[15];
-        if (Math.abs(tw) > 0.000001f) {
-            return new float[]{tx / tw, ty / tw, tz / tw};
-        }
-        return new float[]{tx, ty, tz};
-    }
-
-    private static float[] unproject(float[] invViewProj, float ndcX, float ndcY, float ndcZ) {
-        float x = invViewProj[0] * ndcX + invViewProj[4] * ndcY + invViewProj[8] * ndcZ + invViewProj[12];
-        float y = invViewProj[1] * ndcX + invViewProj[5] * ndcY + invViewProj[9] * ndcZ + invViewProj[13];
-        float z = invViewProj[2] * ndcX + invViewProj[6] * ndcY + invViewProj[10] * ndcZ + invViewProj[14];
-        float w = invViewProj[3] * ndcX + invViewProj[7] * ndcY + invViewProj[11] * ndcZ + invViewProj[15];
-        if (Math.abs(w) < 0.000001f) {
-            return new float[]{x, y, z};
-        }
-        return new float[]{x / w, y / w, z / w};
-    }
-
-    private static float[] invert(float[] m) {
-        float[] inv = new float[16];
-        inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15]
-                + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
-        inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15]
-                - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
-        inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15]
-                + m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
-        inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14]
-                - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
-        inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15]
-                - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
-        inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15]
-                + m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
-        inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15]
-                - m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
-        inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14]
-                + m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
-        inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15]
-                + m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
-        inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15]
-                - m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
-        inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15]
-                + m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
-        inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14]
-                - m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
-        inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11]
-                - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
-        inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11]
-                + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
-        inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11]
-                - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
-        inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10]
-                + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
-
-        float det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
-        if (Math.abs(det) < 0.0000001f) {
-            return null;
-        }
-        float invDet = 1.0f / det;
-        for (int i = 0; i < 16; i++) {
-            inv[i] *= invDet;
-        }
-        return inv;
-    }
-
     private void updateShadowLightViewProjMatrices() {
-        if (pointLightIsSpot > 0.5f) {
-            float[] spotDir = normalize3(pointLightDirX, pointLightDirY, pointLightDirZ);
-            float targetX = pointLightPosX + spotDir[0];
-            float targetY = pointLightPosY + spotDir[1];
-            float targetZ = pointLightPosZ + spotDir[2];
-            float upX = 0f;
-            float upY = 1f;
-            float upZ = 0f;
-            if (Math.abs(spotDir[1]) > 0.95f) {
-                upX = 0f;
-                upY = 0f;
-                upZ = 1f;
-            }
-            float[] lightView = lookAt(pointLightPosX, pointLightPosY, pointLightPosZ, targetX, targetY, targetZ, upX, upY, upZ);
-            float outerCos = Math.max(0.0001f, Math.min(1f, pointLightOuterCos));
-            float coneHalfAngle = (float) Math.acos(outerCos);
-            float fov = Math.max((float) Math.toRadians(20.0), Math.min((float) Math.toRadians(120.0), coneHalfAngle * 2.0f));
-            float[] lightProj = perspective(fov, 1f, 0.1f, 30f);
-            shadowLightViewProjMatrices[0] = mul(lightProj, lightView);
-            for (int i = 1; i < MAX_SHADOW_MATRICES; i++) {
-                shadowLightViewProjMatrices[i] = shadowLightViewProjMatrices[0];
-            }
-            shadowCascadeSplitNdc[0] = 1f;
-            shadowCascadeSplitNdc[1] = 1f;
-            shadowCascadeSplitNdc[2] = 1f;
-            return;
-        }
-        if (pointShadowEnabled) {
-            float[][] pointDirs = new float[][]{
-                    {1f, 0f, 0f},
-                    {-1f, 0f, 0f},
-                    {0f, 1f, 0f},
-                    {0f, -1f, 0f},
-                    {0f, 0f, 1f},
-                    {0f, 0f, -1f}
-            };
-            float[][] pointUp = new float[][]{
-                    {0f, -1f, 0f},
-                    {0f, -1f, 0f},
-                    {0f, 0f, 1f},
-                    {0f, 0f, -1f},
-                    {0f, -1f, 0f},
-                    {0f, -1f, 0f}
-            };
-            float[] lightProj = perspective((float) Math.toRadians(90.0), 1f, 0.1f, pointShadowFarPlane);
-            int availableLayers = Math.max(1, Math.min(POINT_SHADOW_FACES, shadowCascadeCount));
-            for (int i = 0; i < MAX_SHADOW_MATRICES; i++) {
-                int dirIndex = Math.min(i, pointDirs.length - 1);
-                if (i >= availableLayers) {
-                    shadowLightViewProjMatrices[i] = shadowLightViewProjMatrices[availableLayers - 1];
-                    continue;
-                }
-                float[] dir = pointDirs[dirIndex];
-                float[] lightView = lookAt(
+        VulkanShadowMatrixBuilder.updateMatrices(
+                new VulkanShadowMatrixBuilder.ShadowInputs(
+                        pointLightIsSpot,
+                        pointLightDirX,
+                        pointLightDirY,
+                        pointLightDirZ,
                         pointLightPosX,
                         pointLightPosY,
                         pointLightPosZ,
-                        pointLightPosX + dir[0],
-                        pointLightPosY + dir[1],
-                        pointLightPosZ + dir[2],
-                        pointUp[dirIndex][0], pointUp[dirIndex][1], pointUp[dirIndex][2]
-                );
-                shadowLightViewProjMatrices[i] = mul(lightProj, lightView);
-            }
-            shadowCascadeSplitNdc[0] = 1f;
-            shadowCascadeSplitNdc[1] = 1f;
-            shadowCascadeSplitNdc[2] = 1f;
-            return;
-        }
-        float[] viewProj = mul(projMatrix, viewMatrix);
-        float[] invViewProj = invert(viewProj);
-        if (invViewProj == null) {
-            for (int i = 0; i < MAX_SHADOW_MATRICES; i++) {
-                shadowLightViewProjMatrices[i] = identityMatrix();
-            }
-            shadowCascadeSplitNdc[0] = 1f;
-            shadowCascadeSplitNdc[1] = 1f;
-            shadowCascadeSplitNdc[2] = 1f;
-            return;
-        }
-
-        float near = projectionNear(projMatrix);
-        float far = projectionFar(projMatrix);
-        if (!(near > 0f) || !(far > near)) {
-            near = 0.1f;
-            far = 100f;
-        }
-
-        int cascades = Math.max(1, Math.min(MAX_SHADOW_CASCADES, shadowCascadeCount));
-        float lambda = 0.7f;
-        float prevSplitDist = near;
-        float[] splitDist = new float[MAX_SHADOW_CASCADES];
-        for (int i = 0; i < cascades; i++) {
-            float p = (i + 1f) / cascades;
-            float log = near * (float) Math.pow(far / near, p);
-            float lin = near + (far - near) * p;
-            splitDist[i] = log * lambda + lin * (1f - lambda);
-        }
-
-        float len = (float) Math.sqrt(dirLightDirX * dirLightDirX + dirLightDirY * dirLightDirY + dirLightDirZ * dirLightDirZ);
-        if (len < 0.0001f) {
-            len = 1f;
-        }
-        float lx = dirLightDirX / len;
-        float ly = dirLightDirY / len;
-        float lz = dirLightDirZ / len;
-        float upX = 0f;
-        float upY = 1f;
-        float upZ = 0f;
-        if (Math.abs(ly) > 0.95f) {
-            upX = 0f;
-            upY = 0f;
-            upZ = 1f;
-        }
-
-        shadowCascadeSplitNdc[0] = 1f;
-        shadowCascadeSplitNdc[1] = 1f;
-        shadowCascadeSplitNdc[2] = 1f;
-        for (int cascade = 0; cascade < MAX_SHADOW_CASCADES; cascade++) {
-            if (cascade >= cascades) {
-                shadowLightViewProjMatrices[cascade] = shadowLightViewProjMatrices[Math.max(0, cascades - 1)];
-                continue;
-            }
-            float nearDist = prevSplitDist;
-            float farDist = splitDist[cascade];
-            prevSplitDist = farDist;
-            float nearNdc = viewDistanceToNdcDepth(projMatrix, nearDist);
-            float farNdc = viewDistanceToNdcDepth(projMatrix, farDist);
-            if (cascade < 3) {
-                shadowCascadeSplitNdc[cascade] = farNdc * 0.5f + 0.5f;
-            }
-
-            float[][] corners = new float[8][3];
-            int idx = 0;
-            for (int z = 0; z < 2; z++) {
-                float ndcZ = z == 0 ? nearNdc : farNdc;
-                for (int y = 0; y < 2; y++) {
-                    float ndcY = y == 0 ? -1f : 1f;
-                    for (int x = 0; x < 2; x++) {
-                        float ndcX = x == 0 ? -1f : 1f;
-                        float[] world = unproject(invViewProj, ndcX, ndcY, ndcZ);
-                        corners[idx][0] = world[0];
-                        corners[idx][1] = world[1];
-                        corners[idx][2] = world[2];
-                        idx++;
-                    }
-                }
-            }
-
-            float centerX = 0f;
-            float centerY = 0f;
-            float centerZ = 0f;
-            for (float[] c : corners) {
-                centerX += c[0];
-                centerY += c[1];
-                centerZ += c[2];
-            }
-            centerX /= 8f;
-            centerY /= 8f;
-            centerZ /= 8f;
-
-            float radius = 0f;
-            for (float[] c : corners) {
-                float dx = c[0] - centerX;
-                float dy = c[1] - centerY;
-                float dz = c[2] - centerZ;
-                radius = Math.max(radius, (float) Math.sqrt(dx * dx + dy * dy + dz * dz));
-            }
-            radius = Math.max(radius, 1f);
-            float eyeX = centerX - lx * (radius * 2.0f);
-            float eyeY = centerY - ly * (radius * 2.0f);
-            float eyeZ = centerZ - lz * (radius * 2.0f);
-            float[] lightView = lookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
-
-            float minX = Float.POSITIVE_INFINITY;
-            float minY = Float.POSITIVE_INFINITY;
-            float minZ = Float.POSITIVE_INFINITY;
-            float maxX = Float.NEGATIVE_INFINITY;
-            float maxY = Float.NEGATIVE_INFINITY;
-            float maxZ = Float.NEGATIVE_INFINITY;
-            for (float[] c : corners) {
-                float[] l = transformPoint(lightView, c[0], c[1], c[2]);
-                minX = Math.min(minX, l[0]);
-                minY = Math.min(minY, l[1]);
-                minZ = Math.min(minZ, l[2]);
-                maxX = Math.max(maxX, l[0]);
-                maxY = Math.max(maxY, l[1]);
-                maxZ = Math.max(maxZ, l[2]);
-            }
-            float zPad = Math.max(10f, radius);
-            float[] lightProj = ortho(minX, maxX, minY, maxY, minZ - zPad, maxZ + zPad);
-            shadowLightViewProjMatrices[cascade] = mul(lightProj, lightView);
-        }
+                        pointLightOuterCos,
+                        pointShadowEnabled,
+                        pointShadowFarPlane,
+                        shadowCascadeCount,
+                        viewMatrix,
+                        projMatrix,
+                        dirLightDirX,
+                        dirLightDirY,
+                        dirLightDirZ,
+                        MAX_SHADOW_MATRICES,
+                        MAX_SHADOW_CASCADES,
+                        POINT_SHADOW_FACES
+                ),
+                shadowLightViewProjMatrices,
+                shadowCascadeSplitNdc
+        );
     }
 
-    private static float[] lookAt(float eyeX, float eyeY, float eyeZ, float targetX, float targetY, float targetZ,
-                                  float upX, float upY, float upZ) {
-        float fx = targetX - eyeX;
-        float fy = targetY - eyeY;
-        float fz = targetZ - eyeZ;
-        float fLen = (float) Math.sqrt(fx * fx + fy * fy + fz * fz);
-        if (fLen < 0.00001f) {
-            return identityMatrix();
-        }
-        fx /= fLen;
-        fy /= fLen;
-        fz /= fLen;
-
-        float sx = fy * upZ - fz * upY;
-        float sy = fz * upX - fx * upZ;
-        float sz = fx * upY - fy * upX;
-        float sLen = (float) Math.sqrt(sx * sx + sy * sy + sz * sz);
-        if (sLen < 0.00001f) {
-            return identityMatrix();
-        }
-        sx /= sLen;
-        sy /= sLen;
-        sz /= sLen;
-
-        float ux = sy * fz - sz * fy;
-        float uy = sz * fx - sx * fz;
-        float uz = sx * fy - sy * fx;
-
-        return new float[]{
-                sx, ux, -fx, 0f,
-                sy, uy, -fy, 0f,
-                sz, uz, -fz, 0f,
-                -(sx * eyeX + sy * eyeY + sz * eyeZ),
-                -(ux * eyeX + uy * eyeY + uz * eyeZ),
-                (fx * eyeX + fy * eyeY + fz * eyeZ),
-                1f
-        };
-    }
-
-    private static float[] ortho(float left, float right, float bottom, float top, float near, float far) {
-        float rl = right - left;
-        float tb = top - bottom;
-        float fn = far - near;
-        return new float[]{
-                2f / rl, 0f, 0f, 0f,
-                0f, 2f / tb, 0f, 0f,
-                0f, 0f, -2f / fn, 0f,
-                -(right + left) / rl, -(top + bottom) / tb, -(far + near) / fn, 1f
-        };
-    }
-
-    private static float[] perspective(float fovRad, float aspect, float near, float far) {
-        float f = 1.0f / (float) Math.tan(fovRad * 0.5f);
-        float nf = 1.0f / (near - far);
-        return new float[]{
-                f / aspect, 0f, 0f, 0f,
-                0f, f, 0f, 0f,
-                0f, 0f, (far + near) * nf, -1f,
-                0f, 0f, (2f * far * near) * nf, 0f
-        };
-    }
-
-    private static float[] mul(float[] a, float[] b) {
-        float[] out = new float[16];
-        for (int c = 0; c < 4; c++) {
-            for (int r = 0; r < 4; r++) {
-                out[c * 4 + r] = a[r] * b[c * 4]
-                        + a[4 + r] * b[c * 4 + 1]
-                        + a[8 + r] * b[c * 4 + 2]
-                        + a[12 + r] * b[c * 4 + 3];
-            }
-        }
-        return out;
-    }
-
-    private VkExtent2D chooseExtent(VkSurfaceCapabilitiesKHR capabilities, int width, int height, MemoryStack stack) {
-        if (capabilities.currentExtent().width() != 0xFFFFFFFF) {
-            return VkExtent2D.calloc(stack).set(capabilities.currentExtent());
-        }
-        int clampedWidth = Math.max(capabilities.minImageExtent().width(), Math.min(capabilities.maxImageExtent().width(), width));
-        int clampedHeight = Math.max(capabilities.minImageExtent().height(), Math.min(capabilities.maxImageExtent().height(), height));
-        return VkExtent2D.calloc(stack).set(clampedWidth, clampedHeight);
-    }
-
-    private boolean canReuseGpuMeshes(List<SceneMeshData> sceneMeshes) {
+    private boolean canReuseGpuMeshes(List<VulkanSceneMeshData> sceneMeshes) {
         if (gpuMeshes.isEmpty() || sceneMeshes.size() != gpuMeshes.size()) {
             return false;
         }
@@ -3879,7 +2802,7 @@ final class VulkanContext {
                 return false;
             }
         }
-        for (SceneMeshData sceneMesh : sceneMeshes) {
+        for (VulkanSceneMeshData sceneMesh : sceneMeshes) {
             GpuMesh gpuMesh = byId.get(sceneMesh.meshId());
             if (gpuMesh == null) {
                 return false;
@@ -3906,7 +2829,7 @@ final class VulkanContext {
         return true;
     }
 
-    private boolean canReuseGeometryBuffers(List<SceneMeshData> sceneMeshes) {
+    private boolean canReuseGeometryBuffers(List<VulkanSceneMeshData> sceneMeshes) {
         if (gpuMeshes.isEmpty() || sceneMeshes.size() != gpuMeshes.size()) {
             return false;
         }
@@ -3916,7 +2839,7 @@ final class VulkanContext {
                 return false;
             }
         }
-        for (SceneMeshData sceneMesh : sceneMeshes) {
+        for (VulkanSceneMeshData sceneMesh : sceneMeshes) {
             GpuMesh gpuMesh = byId.get(sceneMesh.meshId());
             if (gpuMesh == null) {
                 return false;
@@ -3933,7 +2856,7 @@ final class VulkanContext {
         return true;
     }
 
-    private void updateDynamicSceneState(List<SceneMeshData> sceneMeshes) {
+    private void updateDynamicSceneState(List<VulkanSceneMeshData> sceneMeshes) {
         Map<String, GpuMesh> byId = new HashMap<>();
         for (GpuMesh mesh : gpuMeshes) {
             byId.put(mesh.meshId, mesh);
@@ -3943,7 +2866,7 @@ final class VulkanContext {
         int dirtyStart = Integer.MAX_VALUE;
         int dirtyEnd = -1;
         for (int i = 0; i < sceneMeshes.size(); i++) {
-            SceneMeshData sceneMesh = sceneMeshes.get(i);
+            VulkanSceneMeshData sceneMesh = sceneMeshes.get(i);
             GpuMesh mesh = byId.get(sceneMesh.meshId());
             if (mesh == null) {
                 continue;
@@ -3979,7 +2902,7 @@ final class VulkanContext {
         }
     }
 
-    private void uploadSceneMeshes(MemoryStack stack, List<SceneMeshData> sceneMeshes) throws EngineException {
+    private void uploadSceneMeshes(MemoryStack stack, List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
         meshBufferRebuildCount++;
         destroySceneMeshes();
         Map<String, GpuTexture> textureCache = new HashMap<>();
@@ -3990,7 +2913,7 @@ final class VulkanContext {
         iblIrradianceTexture = resolveOrCreateTexture(iblIrradiancePath, textureCache, defaultAlbedo, false);
         iblRadianceTexture = resolveOrCreateTexture(iblRadiancePath, textureCache, defaultAlbedo, false);
         iblBrdfLutTexture = resolveOrCreateTexture(iblBrdfLutPath, textureCache, defaultAlbedo, false);
-        for (SceneMeshData mesh : sceneMeshes) {
+        for (VulkanSceneMeshData mesh : sceneMeshes) {
             float[] vertices = mesh.vertices();
             int[] indices = mesh.indices();
             ByteBuffer vertexData = ByteBuffer.allocateDirect(vertices.length * Float.BYTES).order(ByteOrder.nativeOrder());
@@ -4090,7 +3013,7 @@ final class VulkanContext {
         estimatedGpuMemoryBytes = uniformBytes + meshBytes + textureBytes;
     }
 
-    private void rebindSceneTexturesAndDynamicState(List<SceneMeshData> sceneMeshes) throws EngineException {
+    private void rebindSceneTexturesAndDynamicState(List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
         Map<String, GpuMesh> byId = new HashMap<>();
         for (GpuMesh mesh : gpuMeshes) {
             byId.put(mesh.meshId, mesh);
@@ -4105,7 +3028,7 @@ final class VulkanContext {
         GpuTexture newIblIrradiance = resolveOrCreateTexture(iblIrradiancePath, textureCache, defaultAlbedo, false);
         GpuTexture newIblRadiance = resolveOrCreateTexture(iblRadiancePath, textureCache, defaultAlbedo, false);
         GpuTexture newIblBrdfLut = resolveOrCreateTexture(iblBrdfLutPath, textureCache, defaultAlbedo, false);
-        for (SceneMeshData sceneMesh : sceneMeshes) {
+        for (VulkanSceneMeshData sceneMesh : sceneMeshes) {
             GpuMesh mesh = byId.get(sceneMesh.meshId());
             if (mesh == null) {
                 throw new EngineException(
@@ -5517,195 +4440,16 @@ final class VulkanContext {
     private record TexturePixelData(ByteBuffer data, int width, int height) {
     }
 
-    static record SceneMeshData(
-            String meshId,
-            float[] vertices,
-            int[] indices,
-            float[] modelMatrix,
-            float[] color,
-            float metallic,
-            float roughness,
-            Path albedoTexturePath,
-            Path normalTexturePath,
-            Path metallicRoughnessTexturePath,
-            Path occlusionTexturePath
-    ) {
-        SceneMeshData {
-            if (meshId == null || meshId.isBlank()) {
-                throw new IllegalArgumentException("meshId is required");
-            }
-            if (vertices == null || vertices.length < VERTEX_STRIDE_FLOATS * 3 || vertices.length % VERTEX_STRIDE_FLOATS != 0) {
-                throw new IllegalArgumentException("vertices must be interleaved as pos/normal/uv/tangent");
-            }
-            if (indices == null || indices.length < 3 || indices.length % 3 != 0) {
-                throw new IllegalArgumentException("indices must be non-empty triangles");
-            }
-            if (modelMatrix == null || modelMatrix.length != 16) {
-                throw new IllegalArgumentException("modelMatrix must be 16 floats");
-            }
-            if (color == null || color.length != 4) {
-                throw new IllegalArgumentException("color must be rgba");
-            }
-        }
-
-        static SceneMeshData defaultTriangle() {
-            return triangle(new float[]{1f, 1f, 1f, 1f}, 0);
-        }
-
-        static SceneMeshData triangle(float[] color, int meshIndex) {
-            float offsetX = (meshIndex % 2 == 0 ? -0.25f : 0.25f) * Math.min(meshIndex, 3);
-            return new SceneMeshData(
-                    "default-triangle-" + meshIndex,
-                    new float[]{
-                            0.0f, -0.6f, 0.0f,     0f, 0f, 1f,    0.5f, 0.0f,    1f, 0f, 0f,
-                            0.6f, 0.6f, 0.0f,      0f, 0f, 1f,    1.0f, 1.0f,    1f, 0f, 0f,
-                            -0.6f, 0.6f, 0.0f,     0f, 0f, 1f,    0.0f, 1.0f,    1f, 0f, 0f
-                    },
-                    new int[]{0, 1, 2},
-                    new float[]{
-                            1f, 0f, 0f, 0f,
-                            0f, 1f, 0f, 0f,
-                            0f, 0f, 1f, 0f,
-                            offsetX, 0f, 0f, 1f
-                    },
-                    color,
-                    0.0f,
-                    0.6f,
-                    null,
-                    null,
-                    null,
-                    null
-            );
-        }
-
-        static SceneMeshData quad(float[] color, int meshIndex) {
-            float offsetX = (meshIndex - 1) * 0.35f;
-            return new SceneMeshData(
-                    "default-quad-" + meshIndex,
-                    new float[]{
-                            -0.6f, -0.6f, 0.0f,    0f, 0f, 1f,    0f, 0f,    1f, 0f, 0f,
-                            0.6f, -0.6f, 0.0f,     0f, 0f, 1f,    1f, 0f,    1f, 0f, 0f,
-                            0.6f, 0.6f, 0.0f,      0f, 0f, 1f,    1f, 1f,    1f, 0f, 0f,
-                            -0.6f, 0.6f, 0.0f,     0f, 0f, 1f,    0f, 1f,    1f, 0f, 0f
-                    },
-                    new int[]{0, 1, 2, 2, 3, 0},
-                    new float[]{
-                            1f, 0f, 0f, 0f,
-                            0f, 1f, 0f, 0f,
-                            0f, 0f, 1f, 0f,
-                            offsetX, 0f, 0f, 1f
-                    },
-                    color,
-                    0.0f,
-                    0.6f,
-                    null,
-                    null,
-                    null,
-                    null
-            );
-        }
-    }
-
     private int targetDescriptorRingCapacity(int requiredSetCount) {
-        int growthBase = descriptorRingSetCapacity <= 0 ? 64 : descriptorRingSetCapacity;
-        int grown = Math.max(requiredSetCount, growthBase + Math.max(16, growthBase / 2));
-        int rounded = roundUpToPowerOfTwo(grown);
-        int capped = Math.min(rounded, descriptorRingMaxSetCapacity);
-        if (capped < requiredSetCount) {
+        VulkanDescriptorRingPolicy.Decision decision = VulkanDescriptorRingPolicy.decide(
+                descriptorRingSetCapacity,
+                requiredSetCount,
+                descriptorRingMaxSetCapacity
+        );
+        if (decision.capBypass()) {
             descriptorRingCapBypassCount++;
-            return requiredSetCount;
         }
-        return capped;
-    }
-
-    private static int roundUpToPowerOfTwo(int value) {
-        int x = Math.max(1, value - 1);
-        x |= x >> 1;
-        x |= x >> 2;
-        x |= x >> 4;
-        x |= x >> 8;
-        x |= x >> 16;
-        if (x == Integer.MAX_VALUE) {
-            return Integer.MAX_VALUE;
-        }
-        return x + 1;
-    }
-
-    record VulkanFrameMetrics(
-            double cpuFrameMs,
-            double gpuFrameMs,
-            long drawCalls,
-            long triangles,
-            long visibleObjects,
-            long gpuMemoryBytes
-    ) {
-    }
-
-    record SceneReuseStats(
-            long reuseHits,
-            long reorderReuseHits,
-            long textureRebindHits,
-            long fullRebuilds,
-            long meshBufferRebuilds,
-            long descriptorPoolBuilds,
-            long descriptorPoolRebuilds
-    ) {
-    }
-
-    record FrameResourceProfile(
-            int framesInFlight,
-            int descriptorSetsInRing,
-            int uniformStrideBytes,
-            int uniformFrameSpanBytes,
-            int globalUniformFrameSpanBytes,
-            int dynamicSceneCapacity,
-            int pendingUploadRangeCapacity,
-            int lastFrameGlobalUploadBytes,
-            int maxFrameGlobalUploadBytes,
-            int lastFrameUniformUploadBytes,
-            int maxFrameUniformUploadBytes,
-            int lastFrameUniformObjectCount,
-            int maxFrameUniformObjectCount,
-            int lastFrameUniformUploadRanges,
-            int maxFrameUniformUploadRanges,
-            int lastFrameUniformUploadStartObject,
-            long pendingUploadRangeOverflows,
-            int descriptorRingSetCapacity,
-            int descriptorRingPeakSetCapacity,
-            int descriptorRingActiveSetCount,
-            int descriptorRingWasteSetCount,
-            int descriptorRingPeakWasteSetCount,
-            int descriptorRingMaxSetCapacity,
-            long descriptorRingReuseHits,
-            long descriptorRingGrowthRebuilds,
-            long descriptorRingSteadyRebuilds,
-            long descriptorRingPoolReuses,
-            long descriptorRingPoolResetFailures,
-            long descriptorRingCapBypasses,
-            int dynamicUploadMergeGapObjects,
-            int dynamicObjectSoftLimit,
-            int maxObservedDynamicObjects,
-            boolean persistentStagingMapped
-    ) {
-    }
-
-    record ShadowCascadeProfile(
-            boolean enabled,
-            int cascadeCount,
-            int mapResolution,
-            int pcfRadius,
-            float bias,
-            float split1Ndc,
-            float split2Ndc,
-            float split3Ndc
-    ) {
-    }
-
-    record PostProcessPipelineProfile(
-            boolean offscreenRequested,
-            boolean offscreenActive,
-            String mode
-    ) {
+        return decision.targetCapacity();
     }
 
     private void reallocateFrameTracking() {

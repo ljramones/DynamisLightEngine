@@ -9,6 +9,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Base64;
 import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
+import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.junit.jupiter.api.Test;
 
 class VulkanMeshAssetLoaderTest {
