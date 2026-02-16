@@ -32,6 +32,7 @@ import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
+import org.dynamislight.impl.common.texture.KtxDecodeUtil;
 import org.dynamislight.impl.common.framegraph.FrameGraph;
 import org.dynamislight.impl.common.framegraph.FrameGraphBuilder;
 import org.dynamislight.impl.common.framegraph.FrameGraphExecutor;
@@ -985,7 +986,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 return candidate;
             }
         }
-        return requestedPath;
+        Path decoded = KtxDecodeUtil.decodeToPngIfSupported(requestedPath);
+        return decoded == null ? requestedPath : decoded;
     }
 
     private static boolean isKtxContainerPath(Path path) {

@@ -300,6 +300,50 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void iblDecodableKtx2DoesNotEmitDecodeUnavailableWarning() throws Exception {
+        Path irr = Files.createTempFile("dle-vk-irr-decode-", ".ktx2");
+        Path rad = Files.createTempFile("dle-vk-rad-decode-", ".ktx2");
+        try {
+            writeKtx2Rgba8(irr, 2, 2, (byte) 210, (byte) 170, (byte) 120, (byte) 255);
+            writeKtx2Rgba8(rad, 2, 2, (byte) 220, (byte) 200, (byte) 180, (byte) 255);
+            Path brdf = Path.of("..", "assets", "textures", "albedo.png").toAbsolutePath().normalize();
+
+            SceneDescriptor base = validScene();
+            EnvironmentDesc env = new EnvironmentDesc(
+                    base.environment().ambientColor(),
+                    base.environment().ambientIntensity(),
+                    null,
+                    irr.toString(),
+                    rad.toString(),
+                    brdf.toString()
+            );
+            var runtime = new VulkanEngineRuntime();
+            runtime.initialize(validConfig(true), new RecordingCallbacks());
+            runtime.loadScene(new SceneDescriptor(
+                    "vulkan-ibl-ktx-decode-available-scene",
+                    base.cameras(),
+                    base.activeCameraId(),
+                    base.transforms(),
+                    base.meshes(),
+                    base.materials(),
+                    base.lights(),
+                    env,
+                    base.fog(),
+                    base.smokeEmitters(),
+                    base.postProcess()
+            ));
+
+            var frame = runtime.render();
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_ASSET_FALLBACK_ACTIVE".equals(w.code())));
+            runtime.shutdown();
+        } finally {
+            Files.deleteIfExists(irr);
+            Files.deleteIfExists(rad);
+        }
+    }
+
+    @Test
     void iblLowTierEmitsQualityDegradedWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.LOW), new RecordingCallbacks());
@@ -1305,11 +1349,58 @@ class VulkanEngineRuntimeIntegrationTest {
         Files.write(path, header);
     }
 
+    private static void writeKtx2Rgba8(Path path, int width, int height, byte r, byte g, byte b, byte a) throws Exception {
+        int pixels = Math.max(1, width) * Math.max(1, height);
+        byte[] rgba = new byte[pixels * 4];
+        for (int i = 0; i < pixels; i++) {
+            int idx = i * 4;
+            rgba[idx] = r;
+            rgba[idx + 1] = g;
+            rgba[idx + 2] = b;
+            rgba[idx + 3] = a;
+        }
+
+        int headerSize = 80;
+        int levelIndexSize = 24;
+        int dataOffset = headerSize + levelIndexSize;
+        byte[] out = new byte[dataOffset + rgba.length];
+        byte[] identifier = new byte[]{
+                (byte) 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, (byte) 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
+        };
+        System.arraycopy(identifier, 0, out, 0, identifier.length);
+        putIntLE(out, 12, 37);
+        putIntLE(out, 16, 1);
+        putIntLE(out, 20, Math.max(1, width));
+        putIntLE(out, 24, Math.max(1, height));
+        putIntLE(out, 28, 0);
+        putIntLE(out, 32, 0);
+        putIntLE(out, 36, 1);
+        putIntLE(out, 40, 1);
+        putIntLE(out, 44, 0);
+        putIntLE(out, 48, 0);
+        putIntLE(out, 52, 0);
+        putIntLE(out, 56, 0);
+        putIntLE(out, 60, 0);
+        putLongLE(out, 64, 0L);
+        putLongLE(out, 72, 0L);
+        putLongLE(out, 80, dataOffset);
+        putLongLE(out, 88, rgba.length);
+        putLongLE(out, 96, rgba.length);
+        System.arraycopy(rgba, 0, out, dataOffset, rgba.length);
+        Files.write(path, out);
+    }
+
     private static void putIntLE(byte[] buffer, int offset, int value) {
         buffer[offset] = (byte) (value & 0xFF);
         buffer[offset + 1] = (byte) ((value >>> 8) & 0xFF);
         buffer[offset + 2] = (byte) ((value >>> 16) & 0xFF);
         buffer[offset + 3] = (byte) ((value >>> 24) & 0xFF);
+    }
+
+    private static void putLongLE(byte[] buffer, int offset, long value) {
+        for (int i = 0; i < 8; i++) {
+            buffer[offset + i] = (byte) ((value >>> (8 * i)) & 0xFF);
+        }
     }
 
     private static void assumeRealVulkanReady(String testLabel) {

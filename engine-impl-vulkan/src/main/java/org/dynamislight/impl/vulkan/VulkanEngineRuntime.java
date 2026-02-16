@@ -30,6 +30,7 @@ import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
+import org.dynamislight.impl.common.texture.KtxDecodeUtil;
 
 public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static final int DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES = 256;
@@ -1277,7 +1278,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 return candidate;
             }
         }
-        return requestedPath;
+        Path decoded = KtxDecodeUtil.decodeToPngIfSupported(requestedPath);
+        return decoded == null ? requestedPath : decoded;
     }
 
     private static boolean isKtxContainerPath(Path path) {

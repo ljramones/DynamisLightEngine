@@ -88,6 +88,8 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 - Threshold tightening lane complete for current stress profiles; keep envelopes frozen at established floor and revisit only after major lighting/post changes.
 - Expand deterministic golden scenes for additional fog/smoke/shadow material interactions.
 - Expand IBL beyond baseline (native `.ktx/.ktx2` decode/prefilter and deeper BRDF/roughness integration).
+  - baseline native `.ktx/.ktx2` decode is now in place for uncompressed RGBA8 payloads (runtime PNG cache path)
+  - remaining: broader format/supercompression coverage and direct GPU upload path without PNG transcode
 - Extend Vulkan dynamic-update staging strategy to more scene data beyond current uniform path.
 - Add more real-device validation coverage across multiple machine/driver profiles.
 

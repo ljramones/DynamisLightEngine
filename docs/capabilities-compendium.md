@@ -93,6 +93,7 @@ OpenGL backend provides a real forward render baseline:
   - explicit runtime signal when skybox-derived IBL inputs are active: `IBL_SKYBOX_DERIVED_ACTIVE`
   - when KTX irradiance/radiance assets are configured but unresolved, runtime can fallback those channels to skybox-derived inputs (`IBL_KTX_SKYBOX_FALLBACK_ACTIVE`)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
+  - baseline native container decode path added for uncompressed RGBA8 KTX/KTX2 payloads (resolved to runtime PNG cache)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when KTX containers exist but remain undecodable in current build: `IBL_KTX_DECODE_UNAVAILABLE`
   - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`
@@ -147,6 +148,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - explicit runtime signal when skybox-derived IBL inputs are active: `IBL_SKYBOX_DERIVED_ACTIVE`
   - when KTX irradiance/radiance assets are configured but unresolved, runtime can fallback those channels to skybox-derived inputs (`IBL_KTX_SKYBOX_FALLBACK_ACTIVE`)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
+  - baseline native container decode path added for uncompressed RGBA8 KTX/KTX2 payloads (resolved to runtime PNG cache)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when KTX containers exist but remain undecodable in current build: `IBL_KTX_DECODE_UNAVAILABLE`
   - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`
