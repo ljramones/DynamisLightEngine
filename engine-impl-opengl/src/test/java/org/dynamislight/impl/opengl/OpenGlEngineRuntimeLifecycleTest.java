@@ -239,6 +239,17 @@ class OpenGlEngineRuntimeLifecycleTest {
     }
 
     @Test
+    void iblMissingAssetsEmitFallbackWarning() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(), new RecordingCallbacks());
+        runtime.loadScene(validMissingIblScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_ASSET_FALLBACK_ACTIVE".equals(w.code())));
+    }
+
+    @Test
     void iblLowTierEmitsQualityDegradedWarning() throws Exception {
         var runtime = new OpenGlEngineRuntime();
         runtime.initialize(validLowQualityConfig(), new RecordingCallbacks());
@@ -642,6 +653,31 @@ class OpenGlEngineRuntimeLifecycleTest {
         );
         return new SceneDescriptor(
                 "ibl-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                env,
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validMissingIblScene() {
+        SceneDescriptor base = validScene();
+        EnvironmentDesc env = new EnvironmentDesc(
+                base.environment().ambientColor(),
+                base.environment().ambientIntensity(),
+                base.environment().skyboxAssetPath(),
+                "textures/missing_ibl_irradiance.ktx2",
+                "textures/missing_ibl_radiance.ktx2",
+                "textures/missing_ibl_brdf_lut.png"
+        );
+        return new SceneDescriptor(
+                "ibl-missing-scene",
                 base.cameras(),
                 base.activeCameraId(),
                 base.transforms(),

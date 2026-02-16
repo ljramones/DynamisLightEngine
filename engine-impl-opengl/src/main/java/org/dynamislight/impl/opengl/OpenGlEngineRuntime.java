@@ -60,7 +60,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean textureDriven,
             boolean ktxContainerRequested,
             float prefilterStrength,
-            boolean degraded
+            boolean degraded,
+            int missingAssetCount
     ) {
     }
 
@@ -85,7 +86,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, 0f, false);
+    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0);
     private boolean nonDirectionalShadowRequested;
 
     public OpenGlEngineRuntime() {
@@ -290,6 +291,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     "IBL_BRDF_ENERGY_COMP_ACTIVE",
                     "IBL diffuse/specular response uses BRDF energy-compensation and horizon weighting for improved roughness realism"
             ));
+            if (ibl.missingAssetCount() > 0) {
+                warnings.add(new EngineWarning(
+                        "IBL_ASSET_FALLBACK_ACTIVE",
+                        "IBL configured assets missing/unreadable (" + ibl.missingAssetCount()
+                                + "); runtime used fallback/default lighting signals"
+                ));
+            }
             if (ibl.degraded()) {
                 warnings.add(new EngineWarning(
                         "IBL_QUALITY_DEGRADED",
@@ -423,13 +431,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false);
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 && !isBlank(environment.iblRadiancePath())
                 && !isBlank(environment.iblBrdfLutPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false);
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -458,6 +466,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         Path irr = resolveContainerSourcePath(irrSource);
         Path rad = resolveContainerSourcePath(radSource);
         Path brdf = resolveContainerSourcePath(brdfSource);
+        int missingAssetCount = countMissingFiles(irr, rad, brdf);
         float irrSignal = imageLuminanceSignal(irr);
         float radSignal = imageLuminanceSignal(rad);
         float brdfSignal = imageLuminanceSignal(brdf);
@@ -480,8 +489,19 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 textureDriven,
                 ktxContainerRequested,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
-                degraded
+                degraded,
+                missingAssetCount
         );
+    }
+
+    private static int countMissingFiles(Path... paths) {
+        int missing = 0;
+        for (Path path : paths) {
+            if (path == null || !Files.isRegularFile(path)) {
+                missing++;
+            }
+        }
+        return missing;
     }
 
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {

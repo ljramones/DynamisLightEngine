@@ -91,6 +91,7 @@ OpenGL backend provides a real forward render baseline:
   - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
+  - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`
   - OpenGL/Vulkan parity update: AO now modulates IBL diffuse ambient in both backends for closer cross-backend material response
 - Fog support (`FogDesc`) with quality-tier behavior.
 - Smoke support (`SmokeEmitterDesc`) with quality degradation warnings at lower tiers.
@@ -140,6 +141,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
+  - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`
 - Device-local vertex/index buffer uploads via staging copy path.
 - Render loop clear + scene-driven indexed draws with quality-tier-dependent fog/smoke behavior.
 - Dedicated post-process pass path:
