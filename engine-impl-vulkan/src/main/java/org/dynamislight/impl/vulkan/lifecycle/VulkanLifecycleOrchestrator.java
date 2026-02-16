@@ -95,6 +95,10 @@ public final class VulkanLifecycleOrchestrator {
                         request.backendResources().offscreenColorMemory,
                         request.backendResources().offscreenColorImageView,
                         request.backendResources().offscreenColorSampler,
+                        request.backendResources().postTaaHistoryImage,
+                        request.backendResources().postTaaHistoryMemory,
+                        request.backendResources().postTaaHistoryImageView,
+                        request.backendResources().postTaaHistorySampler,
                         request.backendResources().postDescriptorSetLayout,
                         request.backendResources().postDescriptorPool,
                         request.backendResources().postDescriptorSet,
@@ -132,6 +136,10 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.offscreenColorMemory = state.offscreenColorMemory();
         backendResources.offscreenColorImageView = state.offscreenColorImageView();
         backendResources.offscreenColorSampler = state.offscreenColorSampler();
+        backendResources.postTaaHistoryImage = state.postTaaHistoryImage();
+        backendResources.postTaaHistoryMemory = state.postTaaHistoryMemory();
+        backendResources.postTaaHistoryImageView = state.postTaaHistoryImageView();
+        backendResources.postTaaHistorySampler = state.postTaaHistorySampler();
         backendResources.postDescriptorSetLayout = state.postDescriptorSetLayout();
         backendResources.postDescriptorPool = state.postDescriptorPool();
         backendResources.postDescriptorSet = state.postDescriptorSet();
@@ -140,6 +148,7 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.postGraphicsPipeline = state.postGraphicsPipeline();
         backendResources.postFramebuffers = state.postFramebuffers();
         renderState.postIntermediateInitialized = state.postIntermediateInitialized();
+        renderState.postTaaHistoryInitialized = state.postTaaHistoryInitialized();
     }
 
     public static VulkanShadowLifecycleCoordinator.State createShadow(CreateShadowRequest request) throws EngineException {

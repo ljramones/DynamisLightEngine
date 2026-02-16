@@ -455,10 +455,12 @@ public final class VulkanShaderSources {
                 layout(location = 0) in vec2 vUv;
                 layout(location = 0) out vec4 outColor;
                 layout(set = 0, binding = 0) uniform sampler2D uSceneColor;
+                layout(set = 0, binding = 1) uniform sampler2D uHistoryColor;
                 layout(push_constant) uniform PostPush {
                     vec4 tonemap;
                     vec4 bloom;
                     vec4 ssao;
+                    vec4 taa;
                 } pc;
                 vec3 smaaLite(vec2 uv, vec3 color) {
                     vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
@@ -521,6 +523,14 @@ public final class VulkanShaderSources {
                     }
                     if (pc.ssao.w > 0.0) {
                         color = smaaLite(vUv, color);
+                    }
+                    if (pc.taa.x > 0.5 && pc.taa.z > 0.5) {
+                        vec3 history = texture(uHistoryColor, vUv).rgb;
+                        float blend = clamp(pc.taa.y, 0.0, 0.95);
+                        vec3 minN = min(color, history);
+                        vec3 maxN = max(color, history);
+                        vec3 clampedHistory = clamp(history, minN - vec3(0.05), maxN + vec3(0.05));
+                        color = mix(color, clampedHistory, blend);
                     }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 }

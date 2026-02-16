@@ -157,7 +157,7 @@ public final class VulkanRenderCommandRecorder {
         vkCmdEndRenderPass(commandBuffer);
     }
 
-    public static boolean executePostCompositePass(
+    public static PostCompositeState executePostCompositePass(
             MemoryStack stack,
             VkCommandBuffer commandBuffer,
             PostCompositeInputs in
@@ -168,7 +168,7 @@ public final class VulkanRenderCommandRecorder {
                 || in.postDescriptorSet() == VK_NULL_HANDLE
                 || in.postFramebuffers().length <= in.imageIndex()
                 || in.offscreenColorImage() == VK_NULL_HANDLE) {
-            return in.postIntermediateInitialized();
+            return new PostCompositeState(in.postIntermediateInitialized(), in.taaHistoryInitialized());
         }
 
         VkImageMemoryBarrier.Buffer swapToTransferSrc = VkImageMemoryBarrier.calloc(1, stack)
@@ -265,6 +265,33 @@ public final class VulkanRenderCommandRecorder {
                 intermediateToShaderRead
         );
 
+        if (in.taaEnabled() && in.taaHistoryImage() != VK_NULL_HANDLE) {
+            VkImageMemoryBarrier.Buffer historyToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                    .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                    .srcAccessMask(0)
+                    .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                    .oldLayout(in.taaHistoryInitialized() ? VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED)
+                    .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .image(in.taaHistoryImage());
+            historyToShaderRead.get(0).subresourceRange()
+                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                    .baseMipLevel(0)
+                    .levelCount(1)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            vkCmdPipelineBarrier(
+                    commandBuffer,
+                    in.taaHistoryInitialized() ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK10.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    0,
+                    null,
+                    null,
+                    historyToShaderRead
+            );
+        }
+
         VkImageMemoryBarrier.Buffer swapToColorAttachment = VkImageMemoryBarrier.calloc(1, stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
                 .srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
@@ -314,16 +341,129 @@ public final class VulkanRenderCommandRecorder {
                 stack.longs(in.postDescriptorSet()),
                 null
         );
-        ByteBuffer postPush = stack.malloc(12 * Float.BYTES);
+        ByteBuffer postPush = stack.malloc(16 * Float.BYTES);
         postPush.asFloatBuffer().put(new float[]{
                 in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), in.ssaoEnabled() ? 1f : 0f,
                 in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength(),
-                in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), in.smaaEnabled() ? in.smaaStrength() : 0f
+                in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), in.smaaEnabled() ? in.smaaStrength() : 0f,
+                in.taaEnabled() ? 1f : 0f, in.taaBlend(), in.taaHistoryInitialized() ? 1f : 0f, 0f
         });
         vkCmdPushConstants(commandBuffer, in.postPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         vkCmdEndRenderPass(commandBuffer);
-        return true;
+        boolean taaHistoryInitialized = in.taaHistoryInitialized();
+        if (in.taaEnabled() && in.taaHistoryImage() != VK_NULL_HANDLE) {
+            VkImageMemoryBarrier.Buffer historyToTransferDst = VkImageMemoryBarrier.calloc(1, stack)
+                    .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                    .srcAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                    .dstAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT)
+                    .oldLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .image(in.taaHistoryImage());
+            historyToTransferDst.get(0).subresourceRange()
+                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                    .baseMipLevel(0)
+                    .levelCount(1)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            vkCmdPipelineBarrier(
+                    commandBuffer,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    0,
+                    null,
+                    null,
+                    historyToTransferDst
+            );
+
+            VkImageMemoryBarrier.Buffer intermediateToTransferSrc = VkImageMemoryBarrier.calloc(1, stack)
+                    .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                    .srcAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                    .dstAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                    .oldLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .image(in.offscreenColorImage());
+            intermediateToTransferSrc.get(0).subresourceRange()
+                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                    .baseMipLevel(0)
+                    .levelCount(1)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            vkCmdPipelineBarrier(
+                    commandBuffer,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    0,
+                    null,
+                    null,
+                    intermediateToTransferSrc
+            );
+
+            vkCmdCopyImage(
+                    commandBuffer,
+                    in.offscreenColorImage(),
+                    VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    in.taaHistoryImage(),
+                    VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    copyRegion
+            );
+
+            VkImageMemoryBarrier.Buffer historyBackToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                    .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                    .srcAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT)
+                    .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                    .oldLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                    .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .image(in.taaHistoryImage());
+            historyBackToShaderRead.get(0).subresourceRange()
+                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                    .baseMipLevel(0)
+                    .levelCount(1)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            vkCmdPipelineBarrier(
+                    commandBuffer,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    0,
+                    null,
+                    null,
+                    historyBackToShaderRead
+            );
+
+            VkImageMemoryBarrier.Buffer intermediateBackToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                    .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                    .srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                    .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                    .oldLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                    .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .image(in.offscreenColorImage());
+            intermediateBackToShaderRead.get(0).subresourceRange()
+                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                    .baseMipLevel(0)
+                    .levelCount(1)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            vkCmdPipelineBarrier(
+                    commandBuffer,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    0,
+                    null,
+                    null,
+                    intermediateBackToShaderRead
+            );
+            taaHistoryInitialized = true;
+        }
+        return new PostCompositeState(true, taaHistoryInitialized);
     }
 
     public record MeshDrawCmd(long vertexBuffer, long indexBuffer, int indexCount, long textureDescriptorSet) {
@@ -370,13 +510,23 @@ public final class VulkanRenderCommandRecorder {
             float ssaoPower,
             boolean smaaEnabled,
             float smaaStrength,
+            boolean taaEnabled,
+            float taaBlend,
+            boolean taaHistoryInitialized,
             long postRenderPass,
             long postGraphicsPipeline,
             long postPipelineLayout,
             long postDescriptorSet,
             long offscreenColorImage,
+            long taaHistoryImage,
             long swapchainImage,
             long[] postFramebuffers
+    ) {
+    }
+
+    public record PostCompositeState(
+            boolean postIntermediateInitialized,
+            boolean taaHistoryInitialized
     ) {
     }
 }

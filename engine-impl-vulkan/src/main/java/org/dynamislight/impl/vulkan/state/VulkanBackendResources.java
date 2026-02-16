@@ -56,6 +56,10 @@ public final class VulkanBackendResources {
     public long offscreenColorMemory = VK_NULL_HANDLE;
     public long offscreenColorImageView = VK_NULL_HANDLE;
     public long offscreenColorSampler = VK_NULL_HANDLE;
+    public long postTaaHistoryImage = VK_NULL_HANDLE;
+    public long postTaaHistoryMemory = VK_NULL_HANDLE;
+    public long postTaaHistoryImageView = VK_NULL_HANDLE;
+    public long postTaaHistorySampler = VK_NULL_HANDLE;
     public long postRenderPass = VK_NULL_HANDLE;
     public long postPipelineLayout = VK_NULL_HANDLE;
     public long postGraphicsPipeline = VK_NULL_HANDLE;

@@ -48,6 +48,10 @@ public final class VulkanSwapchainLifecycleCoordinator {
                 postResources.offscreenColorMemory(),
                 postResources.offscreenColorImageView(),
                 postResources.offscreenColorSampler(),
+                postResources.taaHistoryImage(),
+                postResources.taaHistoryMemory(),
+                postResources.taaHistoryImageView(),
+                postResources.taaHistorySampler(),
                 postResources.postDescriptorSetLayout(),
                 postResources.postDescriptorPool(),
                 postResources.postDescriptorSet(),
@@ -55,6 +59,7 @@ public final class VulkanSwapchainLifecycleCoordinator {
                 postResources.postPipelineLayout(),
                 postResources.postGraphicsPipeline(),
                 postResources.postFramebuffers(),
+                false,
                 false
         );
     }
@@ -77,6 +82,10 @@ public final class VulkanSwapchainLifecycleCoordinator {
                                 request.offscreenColorMemory(),
                                 request.offscreenColorImageView(),
                                 request.offscreenColorSampler(),
+                                request.postTaaHistoryImage(),
+                                request.postTaaHistoryMemory(),
+                                request.postTaaHistoryImageView(),
+                                request.postTaaHistorySampler(),
                                 request.postDescriptorSetLayout(),
                                 request.postDescriptorPool(),
                                 request.postDescriptorSet(),
@@ -109,6 +118,10 @@ public final class VulkanSwapchainLifecycleCoordinator {
                 result.offscreenColorMemory(),
                 result.offscreenColorImageView(),
                 result.offscreenColorSampler(),
+                result.postTaaHistoryImage(),
+                result.postTaaHistoryMemory(),
+                result.postTaaHistoryImageView(),
+                result.postTaaHistorySampler(),
                 result.postDescriptorSetLayout(),
                 result.postDescriptorPool(),
                 result.postDescriptorSet(),
@@ -116,7 +129,8 @@ public final class VulkanSwapchainLifecycleCoordinator {
                 result.postPipelineLayout(),
                 result.postGraphicsPipeline(),
                 result.postFramebuffers(),
-                result.postIntermediateInitialized()
+                result.postIntermediateInitialized(),
+                result.postTaaHistoryInitialized()
         );
     }
 
@@ -153,6 +167,10 @@ public final class VulkanSwapchainLifecycleCoordinator {
             long offscreenColorMemory,
             long offscreenColorImageView,
             long offscreenColorSampler,
+            long postTaaHistoryImage,
+            long postTaaHistoryMemory,
+            long postTaaHistoryImageView,
+            long postTaaHistorySampler,
             long postDescriptorSetLayout,
             long postDescriptorPool,
             long postDescriptorSet,
@@ -182,6 +200,10 @@ public final class VulkanSwapchainLifecycleCoordinator {
             long offscreenColorMemory,
             long offscreenColorImageView,
             long offscreenColorSampler,
+            long postTaaHistoryImage,
+            long postTaaHistoryMemory,
+            long postTaaHistoryImageView,
+            long postTaaHistorySampler,
             long postDescriptorSetLayout,
             long postDescriptorPool,
             long postDescriptorSet,
@@ -189,7 +211,8 @@ public final class VulkanSwapchainLifecycleCoordinator {
             long postPipelineLayout,
             long postGraphicsPipeline,
             long[] postFramebuffers,
-            boolean postIntermediateInitialized
+            boolean postIntermediateInitialized,
+            boolean postTaaHistoryInitialized
     ) {
         public static State empty() {
             return new State(
@@ -217,7 +240,12 @@ public final class VulkanSwapchainLifecycleCoordinator {
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
                     new long[0],
+                    false,
                     false
             );
         }

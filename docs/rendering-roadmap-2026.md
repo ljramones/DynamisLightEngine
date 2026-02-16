@@ -22,7 +22,7 @@ In progress:
 - SSAO quality upgrade from edge-only approximation toward stronger kernel shaping.
 - SSAO controls expansion with `radius`/`bias`/`power` shaping across both backends.
 - SMAA-lite baseline implemented in both backends (shader-driven fallback + dedicated post-pass path).
-- TAA baseline started with temporal history blend in OpenGL post-pass; Vulkan parity path remains next.
+- TAA baseline temporal-history blend is now active in both OpenGL and Vulkan post paths.
 - Tighten post-process parity envelopes after each shader-quality upgrade.
 
 Next:

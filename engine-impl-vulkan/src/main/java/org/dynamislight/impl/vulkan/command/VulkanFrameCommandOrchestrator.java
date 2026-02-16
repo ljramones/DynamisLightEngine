@@ -77,7 +77,7 @@ public final class VulkanFrameCommandOrchestrator {
         );
 
         if (inputs.postOffscreenActive()) {
-            boolean postInitialized = VulkanRenderCommandRecorder.executePostCompositePass(
+            VulkanRenderCommandRecorder.PostCompositeState postInitialized = VulkanRenderCommandRecorder.executePostCompositePass(
                     stack,
                     commandBuffer,
                     new VulkanRenderCommandRecorder.PostCompositeInputs(
@@ -98,16 +98,21 @@ public final class VulkanFrameCommandOrchestrator {
                             inputs.ssaoPower(),
                             inputs.smaaEnabled(),
                             inputs.smaaStrength(),
+                            inputs.taaEnabled(),
+                            inputs.taaBlend(),
+                            inputs.taaHistoryInitialized(),
                             inputs.postRenderPass(),
                             inputs.postGraphicsPipeline(),
                             inputs.postPipelineLayout(),
                             inputs.postDescriptorSet(),
                             inputs.offscreenColorImage(),
+                            inputs.taaHistoryImage(),
                             inputs.swapchainImages()[imageIndex],
                             inputs.postFramebuffers()
                     )
             );
-            hooks.postIntermediateInitializedSink().accept(postInitialized);
+            hooks.postIntermediateInitializedSink().accept(postInitialized.postIntermediateInitialized());
+            hooks.postTaaHistoryInitializedSink().accept(postInitialized.taaHistoryInitialized());
         }
 
         int endResult = VulkanRenderCommandRecorder.end(commandBuffer);
@@ -135,7 +140,8 @@ public final class VulkanFrameCommandOrchestrator {
             ThrowingRunnable updateShadowMatrices,
             ThrowingRunnable prepareUniforms,
             ThrowingRunnable uploadUniforms,
-            BooleanSink postIntermediateInitializedSink
+            BooleanSink postIntermediateInitializedSink,
+            BooleanSink postTaaHistoryInitializedSink
     ) {
     }
 
@@ -174,11 +180,15 @@ public final class VulkanFrameCommandOrchestrator {
             float ssaoPower,
             boolean smaaEnabled,
             float smaaStrength,
+            boolean taaEnabled,
+            float taaBlend,
+            boolean taaHistoryInitialized,
             long postRenderPass,
             long postGraphicsPipeline,
             long postPipelineLayout,
             long postDescriptorSet,
             long offscreenColorImage,
+            long taaHistoryImage,
             long[] swapchainImages,
             long[] postFramebuffers,
             LongByInt descriptorSetForFrame,

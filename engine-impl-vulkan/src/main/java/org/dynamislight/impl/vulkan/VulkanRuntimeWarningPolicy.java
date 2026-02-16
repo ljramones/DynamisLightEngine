@@ -80,6 +80,18 @@ final class VulkanRuntimeWarningPolicy {
                     "SMAA-lite strength reduced at MEDIUM tier to maintain stable frame cost"
             ));
         }
+        if (in.currentPost().taaEnabled() && in.qualityTier() == QualityTier.MEDIUM) {
+            warnings.add(new EngineWarning(
+                    "TAA_QUALITY_DEGRADED",
+                    "TAA blend reduced at MEDIUM tier to maintain stable frame cost"
+            ));
+        }
+        if (in.currentPost().taaEnabled()) {
+            warnings.add(new EngineWarning(
+                    "TAA_BASELINE_ACTIVE",
+                    "TAA baseline temporal blend path is active"
+            ));
+        }
         if (in.nonDirectionalShadowRequested()) {
             warnings.add(new EngineWarning(
                     "SHADOW_TYPE_UNSUPPORTED",

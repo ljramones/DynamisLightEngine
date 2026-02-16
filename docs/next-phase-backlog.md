@@ -11,8 +11,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 ## Latest Completed Batch (February 2026)
 - Phase A TAA baseline started:
   - added `taaEnabled` + `taaBlend` controls to `PostProcessDesc` with backward-compatible overloads
-  - OpenGL post-pass now performs temporal blend against a history texture (with resize/reset-safe lifecycle)
-  - Vulkan TAA path remains pending for full parity
+  - OpenGL and Vulkan post-pass paths perform temporal blend against a history texture (with resize/reset-safe lifecycle)
 - Phase A AA baseline landed:
   - added SMAA-lite controls (`smaaEnabled`, `smaaStrength`) to `PostProcessDesc` with backward-compatible constructors
   - wired OpenGL + Vulkan SMAA-lite paths (scene fallback + post pass)

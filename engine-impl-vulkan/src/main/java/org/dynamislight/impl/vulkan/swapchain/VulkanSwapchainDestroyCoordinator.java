@@ -80,7 +80,12 @@ public final class VulkanSwapchainDestroyCoordinator {
             long offscreenColorImageView,
             long offscreenColorImage,
             long offscreenColorMemory,
+            long postTaaHistorySampler,
+            long postTaaHistoryImageView,
+            long postTaaHistoryImage,
+            long postTaaHistoryMemory,
             boolean postIntermediateInitialized,
+            boolean postTaaHistoryInitialized,
             boolean postOffscreenActive
     ) {
         public static Result empty() {
@@ -106,6 +111,11 @@ public final class VulkanSwapchainDestroyCoordinator {
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    false,
                     false,
                     false
             );

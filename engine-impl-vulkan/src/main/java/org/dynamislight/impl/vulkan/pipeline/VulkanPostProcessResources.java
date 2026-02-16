@@ -73,11 +73,35 @@ public final class VulkanPostProcessResources {
         long offscreenColorMemory = intermediate.memory();
         long offscreenColorImageView = createImageView(device, stack, offscreenColorImage, swapchainImageFormat);
         long offscreenColorSampler = createSampler(device, stack);
+        VulkanImageAlloc history = VulkanMemoryOps.createImage(
+                device,
+                physicalDevice,
+                stack,
+                swapchainWidth,
+                swapchainHeight,
+                swapchainImageFormat,
+                VK10.VK_IMAGE_TILING_OPTIMAL,
+                VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                1
+        );
+        long taaHistoryImage = history.image();
+        long taaHistoryMemory = history.memory();
+        long taaHistoryImageView = createImageView(device, stack, taaHistoryImage, swapchainImageFormat);
+        long taaHistorySampler = createSampler(device, stack);
 
         long postDescriptorSetLayout = createPostDescriptorSetLayout(device, stack);
         long postDescriptorPool = createPostDescriptorPool(device, stack);
         long postDescriptorSet = allocatePostDescriptorSet(device, stack, postDescriptorPool, postDescriptorSetLayout);
-        writePostDescriptorSet(device, stack, postDescriptorSet, offscreenColorImageView, offscreenColorSampler);
+        writePostDescriptorSet(
+                device,
+                stack,
+                postDescriptorSet,
+                offscreenColorImageView,
+                offscreenColorSampler,
+                taaHistoryImageView,
+                taaHistorySampler
+        );
 
         VulkanPostPipelineBuilder.Result postPipeline = VulkanPostPipelineBuilder.create(
                 device,
@@ -101,6 +125,10 @@ public final class VulkanPostProcessResources {
                 offscreenColorMemory,
                 offscreenColorImageView,
                 offscreenColorSampler,
+                taaHistoryImage,
+                taaHistoryMemory,
+                taaHistoryImageView,
+                taaHistorySampler,
                 postDescriptorSetLayout,
                 postDescriptorPool,
                 postDescriptorSet,
@@ -113,6 +141,10 @@ public final class VulkanPostProcessResources {
 
     public static Allocation empty() {
         return new Allocation(
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
                 VK_NULL_HANDLE,
                 VK_NULL_HANDLE,
                 VK_NULL_HANDLE,
@@ -154,14 +186,26 @@ public final class VulkanPostProcessResources {
         if (resources.offscreenColorSampler() != VK_NULL_HANDLE) {
             VK10.vkDestroySampler(device, resources.offscreenColorSampler(), null);
         }
+        if (resources.taaHistorySampler() != VK_NULL_HANDLE) {
+            VK10.vkDestroySampler(device, resources.taaHistorySampler(), null);
+        }
         if (resources.offscreenColorImageView() != VK_NULL_HANDLE) {
             vkDestroyImageView(device, resources.offscreenColorImageView(), null);
+        }
+        if (resources.taaHistoryImageView() != VK_NULL_HANDLE) {
+            vkDestroyImageView(device, resources.taaHistoryImageView(), null);
         }
         if (resources.offscreenColorImage() != VK_NULL_HANDLE) {
             VK10.vkDestroyImage(device, resources.offscreenColorImage(), null);
         }
+        if (resources.taaHistoryImage() != VK_NULL_HANDLE) {
+            VK10.vkDestroyImage(device, resources.taaHistoryImage(), null);
+        }
         if (resources.offscreenColorMemory() != VK_NULL_HANDLE) {
             vkFreeMemory(device, resources.offscreenColorMemory(), null);
+        }
+        if (resources.taaHistoryMemory() != VK_NULL_HANDLE) {
+            vkFreeMemory(device, resources.taaHistoryMemory(), null);
         }
     }
 
@@ -212,9 +256,14 @@ public final class VulkanPostProcessResources {
     }
 
     private static long createPostDescriptorSetLayout(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(1, stack);
+        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(2, stack);
         bindings.get(0)
                 .binding(0)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
+        bindings.get(1)
+                .binding(1)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -233,7 +282,7 @@ public final class VulkanPostProcessResources {
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1);
+                .descriptorCount(2);
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
                 .maxSets(1)
@@ -269,14 +318,21 @@ public final class VulkanPostProcessResources {
             MemoryStack stack,
             long postDescriptorSet,
             long offscreenColorImageView,
-            long offscreenColorSampler
+            long offscreenColorSampler,
+            long taaHistoryImageView,
+            long taaHistorySampler
     ) {
         VkDescriptorImageInfo.Buffer imageInfo = VkDescriptorImageInfo.calloc(1, stack);
         imageInfo.get(0)
                 .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
                 .imageView(offscreenColorImageView)
                 .sampler(offscreenColorSampler);
-        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(1, stack);
+        VkDescriptorImageInfo.Buffer historyInfo = VkDescriptorImageInfo.calloc(1, stack);
+        historyInfo.get(0)
+                .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                .imageView(taaHistoryImageView)
+                .sampler(taaHistorySampler);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(2, stack);
         writes.get(0)
                 .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                 .dstSet(postDescriptorSet)
@@ -284,6 +340,13 @@ public final class VulkanPostProcessResources {
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .pImageInfo(imageInfo);
+        writes.get(1)
+                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                .dstSet(postDescriptorSet)
+                .dstBinding(1)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .pImageInfo(historyInfo);
         vkUpdateDescriptorSets(device, writes, null);
     }
 
@@ -319,6 +382,10 @@ public final class VulkanPostProcessResources {
             long offscreenColorMemory,
             long offscreenColorImageView,
             long offscreenColorSampler,
+            long taaHistoryImage,
+            long taaHistoryMemory,
+            long taaHistoryImageView,
+            long taaHistorySampler,
             long postDescriptorSetLayout,
             long postDescriptorPool,
             long postDescriptorSet,

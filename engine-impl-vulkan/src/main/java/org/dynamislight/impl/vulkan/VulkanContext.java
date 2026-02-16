@@ -436,7 +436,9 @@ final class VulkanContext {
             float ssaoBias,
             float ssaoPower,
             boolean smaaEnabled,
-            float smaaStrength
+            float smaaStrength,
+            boolean taaEnabled,
+            float taaBlend
     ) {
         var result = VulkanRenderParameterMutator.applyPost(
                 new VulkanRenderParameterMutator.PostState(
@@ -452,7 +454,9 @@ final class VulkanContext {
                         this.renderState.ssaoBias,
                         this.renderState.ssaoPower,
                         this.renderState.smaaEnabled,
-                        this.renderState.smaaStrength
+                        this.renderState.smaaStrength,
+                        this.renderState.taaEnabled,
+                        this.renderState.taaBlend
                 ),
                 new VulkanRenderParameterMutator.PostUpdate(
                         tonemapEnabled,
@@ -467,7 +471,9 @@ final class VulkanContext {
                         ssaoBias,
                         ssaoPower,
                         smaaEnabled,
-                        smaaStrength
+                        smaaStrength,
+                        taaEnabled,
+                        taaBlend
                 )
         );
         var state = result.state();
@@ -484,16 +490,19 @@ final class VulkanContext {
         this.renderState.ssaoPower = state.ssaoPower();
         this.renderState.smaaEnabled = state.smaaEnabled();
         this.renderState.smaaStrength = state.smaaStrength();
+        this.renderState.taaEnabled = state.taaEnabled();
+        this.renderState.taaBlend = state.taaBlend();
+        if (!this.renderState.taaEnabled) {
+            this.renderState.postTaaHistoryInitialized = false;
+        }
         if (result.changed()) {
             markGlobalStateDirty();
         }
     }
 
     void configurePostProcessMode(boolean requestOffscreen) {
-        boolean changed = renderState.postOffscreenRequested != requestOffscreen || renderState.postOffscreenActive;
+        boolean changed = renderState.postOffscreenRequested != requestOffscreen;
         renderState.postOffscreenRequested = requestOffscreen;
-        // Keep existing shader-driven post as safe fallback until Vulkan offscreen chain is fully wired.
-        renderState.postOffscreenActive = false;
         if (changed) {
             markGlobalStateDirty();
         }
@@ -694,7 +703,8 @@ final class VulkanContext {
                         this::updateShadowLightViewProjMatrices,
                         () -> prepareFrameUniforms(frameIdx),
                         () -> uploadFrameUniforms(commandBuffer),
-                        value -> renderState.postIntermediateInitialized = value
+                        value -> renderState.postIntermediateInitialized = value,
+                        value -> renderState.postTaaHistoryInitialized = value
                 ),
                 commandInputs
         );
@@ -737,11 +747,15 @@ final class VulkanContext {
                         renderState.ssaoPower,
                         renderState.smaaEnabled,
                         renderState.smaaStrength,
+                        renderState.taaEnabled,
+                        renderState.taaBlend,
+                        renderState.postTaaHistoryInitialized,
                         backendResources.postRenderPass,
                         backendResources.postGraphicsPipeline,
                         backendResources.postPipelineLayout,
                         backendResources.postDescriptorSet,
                         backendResources.offscreenColorImage,
+                        backendResources.postTaaHistoryImage,
                         backendResources.swapchainImages,
                         backendResources.postFramebuffers,
                         frame -> VulkanUniformFrameCoordinator.descriptorSetForFrame(
