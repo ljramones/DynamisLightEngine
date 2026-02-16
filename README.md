@@ -63,7 +63,22 @@ mvn clean compile
 mvn test
 ```
 
-GitHub Actions CI runs the same test command on `main` and pull requests using JDK 25 across Linux, macOS, and Windows:
+Run backend compare-harness parity tests explicitly:
+
+```bash
+mvn -pl engine-host-sample -am test -Ddle.compare.tests=true -Dtest=BackendParityIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+Write compare outputs to a stable folder for inspection/artifacts:
+
+```bash
+mvn -pl engine-host-sample -am test -Ddle.compare.tests=true -Ddle.compare.outputDir=artifacts/compare -Dtest=BackendParityIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false
+```
+This includes tiered fog/smoke, shadow, and texture-heavy checks plus `shadow-cascade-stress`, `fog-shadow-cascade-stress`, `smoke-shadow-cascade-stress`, and `texture-heavy` compare profiles.
+
+GitHub Actions CI runs:
+- matrix build/test (`mvn test`) on `main` and pull requests using JDK 25 across Linux, macOS, and Windows
+- guarded backend parity compare harness tests on Ubuntu (`dle.compare.tests=true`)
 - `.github/workflows/ci.yml`
 
 ## Run sample host
@@ -85,6 +100,12 @@ Inspect and hot-reload resources in sample host:
 
 ```bash
 mvn -f engine-host-sample/pom.xml exec:java -Dexec.args="opengl --resources"
+```
+
+Run compare harness from sample host (writes images under `artifacts/compare`):
+
+```bash
+mvn -f engine-host-sample/pom.xml exec:java -Dexec.args="--compare --compare-tier=HIGH --compare-tag=shadow-high"
 ```
 
 OpenGL backend options (via `EngineConfig.backendOptions`):
@@ -151,6 +172,7 @@ Resource telemetry is available via `EngineRuntime.resources().stats()`:
 Optional integration-test flags:
 - `-Ddle.test.resource.watch=true` enables watcher auto-reload integration test.
 - `-Ddle.test.vulkan.real=true` enables real Vulkan init integration test.
+- `-Ddle.compare.tests=true` enables compare-harness image diff integration tests.
 
 ## Planning
 

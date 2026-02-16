@@ -41,6 +41,7 @@ import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.spi.EngineBackendProvider;
 import org.dynamislight.spi.registry.BackendRegistry;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 class BackendParityIntegrationTest {
     private static final EngineApiVersion HOST_REQUIRED_API = new EngineApiVersion(1, 0, 0);
@@ -121,9 +122,10 @@ class BackendParityIntegrationTest {
     }
 
     @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessProducesImagesWithBoundedDiff() throws Exception {
-        Path outDir = Files.createTempDirectory("dle-compare");
-        var report = BackendCompareHarness.run(outDir, materialLightingScene(), QualityTier.MEDIUM);
+        Path outDir = compareOutputDir("material-lighting");
+        var report = BackendCompareHarness.run(outDir, materialLightingScene(), QualityTier.MEDIUM, "material-lighting-medium");
 
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
@@ -132,46 +134,188 @@ class BackendParityIntegrationTest {
     }
 
     @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessShadowSceneHasBoundedDiff() throws Exception {
-        Path outDir = Files.createTempDirectory("dle-compare-shadow");
-        var report = BackendCompareHarness.run(outDir, shadowScene(), QualityTier.HIGH);
+        Path outDir = compareOutputDir("shadow-single");
+        var report = BackendCompareHarness.run(outDir, shadowScene(), QualityTier.HIGH, "shadow-high");
 
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.35, "shadow diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.33, "shadow diff was " + report.diffMetric());
     }
 
     @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessShadowCascadeStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("shadow-cascade-stress");
+        var report = BackendCompareHarness.run(outDir, shadowCascadeStressScene(), QualityTier.ULTRA, "shadow-cascade-stress-ultra");
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.35, "shadow cascade stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessFogShadowStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("fog-shadow-cascade-stress");
+        var report = BackendCompareHarness.run(outDir, fogShadowCascadeStressScene(), QualityTier.ULTRA, "fog-shadow-cascade-stress-ultra");
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.39, "fog+shadow cascade stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessSmokeShadowStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("smoke-shadow-cascade-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                smokeShadowCascadeStressScene(),
+                QualityTier.ULTRA,
+                "smoke-shadow-cascade-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.39, "smoke+shadow cascade stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTextureHeavySceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("texture-heavy");
+        var report = BackendCompareHarness.run(
+                outDir,
+                textureHeavyScene(),
+                QualityTier.ULTRA,
+                "texture-heavy-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.32, "texture-heavy diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessTieredGoldenProfilesStayBounded() throws Exception {
         Map<QualityTier, Double> fogSmokeMaxDiff = Map.of(
                 QualityTier.LOW, 0.45,
-                QualityTier.MEDIUM, 0.36,
-                QualityTier.HIGH, 0.31,
-                QualityTier.ULTRA, 0.31
+                QualityTier.MEDIUM, 0.35,
+                QualityTier.HIGH, 0.29,
+                QualityTier.ULTRA, 0.29
         );
         Map<QualityTier, Double> shadowMaxDiff = Map.of(
                 QualityTier.LOW, 0.50,
+                QualityTier.MEDIUM, 0.40,
+                QualityTier.HIGH, 0.33,
+                QualityTier.ULTRA, 0.33
+        );
+        Map<QualityTier, Double> textureHeavyMaxDiff = Map.of(
+                QualityTier.LOW, 0.52,
                 QualityTier.MEDIUM, 0.42,
-                QualityTier.HIGH, 0.35,
-                QualityTier.ULTRA, 0.35
+                QualityTier.HIGH, 0.34,
+                QualityTier.ULTRA, 0.32
         );
 
         for (QualityTier tier : QualityTier.values()) {
-            Path fogSmokeDir = Files.createTempDirectory("dle-compare-fog-smoke-" + tier.name().toLowerCase());
-            var fogSmokeReport = BackendCompareHarness.run(fogSmokeDir, fogSmokeScene(), tier);
+            Path fogSmokeDir = compareOutputDir("fog-smoke-" + tier.name().toLowerCase());
+            var fogSmokeReport = BackendCompareHarness.run(
+                    fogSmokeDir,
+                    fogSmokeScene(),
+                    tier,
+                    "fog-smoke-" + tier.name().toLowerCase()
+            );
             assertTrue(
                     fogSmokeReport.diffMetric() <= fogSmokeMaxDiff.get(tier),
                     "fog/smoke diff " + fogSmokeReport.diffMetric() + " exceeded " + fogSmokeMaxDiff.get(tier) + " at " + tier
             );
 
-            Path shadowDir = Files.createTempDirectory("dle-compare-shadow-" + tier.name().toLowerCase());
-            var shadowReport = BackendCompareHarness.run(shadowDir, shadowScene(), tier);
+            Path shadowDir = compareOutputDir("shadow-" + tier.name().toLowerCase());
+            var shadowReport = BackendCompareHarness.run(
+                    shadowDir,
+                    shadowScene(),
+                    tier,
+                    "shadow-" + tier.name().toLowerCase()
+            );
             assertTrue(
                     shadowReport.diffMetric() <= shadowMaxDiff.get(tier),
                     "shadow diff " + shadowReport.diffMetric() + " exceeded " + shadowMaxDiff.get(tier) + " at " + tier
             );
+
+            Path textureHeavyDir = compareOutputDir("texture-heavy-" + tier.name().toLowerCase());
+            var textureHeavyReport = BackendCompareHarness.run(
+                    textureHeavyDir,
+                    textureHeavyScene(),
+                    tier,
+                    "texture-heavy-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    textureHeavyReport.diffMetric() <= textureHeavyMaxDiff.get(tier),
+                    "texture-heavy diff " + textureHeavyReport.diffMetric()
+                            + " exceeded " + textureHeavyMaxDiff.get(tier) + " at " + tier
+            );
         }
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessStressGoldenProfilesStayBounded() throws Exception {
+        Map<String, Double> stressMaxDiff = Map.of(
+                "shadow-cascade-stress", 0.35,
+                "fog-shadow-cascade-stress", 0.39,
+                "smoke-shadow-cascade-stress", 0.39,
+                "texture-heavy", 0.32
+        );
+
+        var reports = Map.of(
+                "shadow-cascade-stress", BackendCompareHarness.run(
+                        compareOutputDir("shadow-cascade-stress-golden"),
+                        shadowCascadeStressScene(),
+                        QualityTier.ULTRA,
+                        "shadow-cascade-stress-golden-ultra"
+                ),
+                "fog-shadow-cascade-stress", BackendCompareHarness.run(
+                        compareOutputDir("fog-shadow-cascade-stress-golden"),
+                        fogShadowCascadeStressScene(),
+                        QualityTier.ULTRA,
+                        "fog-shadow-cascade-stress-golden-ultra"
+                ),
+                "smoke-shadow-cascade-stress", BackendCompareHarness.run(
+                        compareOutputDir("smoke-shadow-cascade-stress-golden"),
+                        smokeShadowCascadeStressScene(),
+                        QualityTier.ULTRA,
+                        "smoke-shadow-cascade-stress-golden-ultra"
+                ),
+                "texture-heavy", BackendCompareHarness.run(
+                        compareOutputDir("texture-heavy-golden"),
+                        textureHeavyScene(),
+                        QualityTier.ULTRA,
+                        "texture-heavy-golden-ultra"
+                )
+        );
+
+        reports.forEach((profile, report) -> assertTrue(
+                report.diffMetric() <= stressMaxDiff.get(profile),
+                profile + " diff " + report.diffMetric() + " exceeded " + stressMaxDiff.get(profile)
+        ));
+    }
+
+    private static Path compareOutputDir(String label) throws Exception {
+        String base = System.getProperty("dle.compare.outputDir", "").trim();
+        if (base.isEmpty()) {
+            return Files.createTempDirectory("dle-compare-" + label);
+        }
+        Path dir = Path.of(base, label);
+        Files.createDirectories(dir);
+        return dir;
     }
 
     private static void runParityLifecycle(String backendId) throws Exception {
@@ -396,6 +540,247 @@ class BackendParityIntegrationTest {
                 env,
                 fog,
                 List.of()
+        );
+    }
+
+    private static SceneDescriptor shadowCascadeStressScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.2f, 1.2f, 8.5f), new Vec3(-6f, 12f, 0f), 72f, 0.1f, 180f);
+        TransformDesc near = new TransformDesc("xform-near", new Vec3(-1.2f, -0.1f, 1.0f), new Vec3(0, 20, 0), new Vec3(1, 1, 1));
+        TransformDesc mid = new TransformDesc("xform-mid", new Vec3(0.3f, -0.2f, -9.0f), new Vec3(0, -15, 0), new Vec3(1.2f, 1.2f, 1.2f));
+        TransformDesc far = new TransformDesc("xform-far", new Vec3(1.8f, -0.35f, -36.0f), new Vec3(0, 5, 0), new Vec3(2.2f, 2.2f, 2.2f));
+        TransformDesc ground = new TransformDesc("xform-ground", new Vec3(0f, -1.1f, -15f), new Vec3(0, 0, 0), new Vec3(6.5f, 1f, 6.5f));
+
+        MeshDesc meshNear = new MeshDesc("mesh-near", "xform-near", "mat-near", "meshes/quad.gltf");
+        MeshDesc meshMid = new MeshDesc("mesh-mid", "xform-mid", "mat-mid", "meshes/quad.gltf");
+        MeshDesc meshFar = new MeshDesc("mesh-far", "xform-far", "mat-far", "meshes/quad.gltf");
+        MeshDesc meshGround = new MeshDesc("mesh-ground", "xform-ground", "mat-ground", "meshes/quad.gltf");
+
+        MaterialDesc matNear = new MaterialDesc("mat-near", new Vec3(0.95f, 0.55f, 0.45f), 0.2f, 0.45f, null, null);
+        MaterialDesc matMid = new MaterialDesc("mat-mid", new Vec3(0.55f, 0.85f, 0.95f), 0.35f, 0.5f, null, null);
+        MaterialDesc matFar = new MaterialDesc("mat-far", new Vec3(0.75f, 0.75f, 0.78f), 0.1f, 0.75f, null, null);
+        MaterialDesc matGround = new MaterialDesc("mat-ground", new Vec3(0.62f, 0.64f, 0.58f), 0.0f, 0.9f, null, null);
+
+        LightDesc shadowLight = new LightDesc(
+                "shadow-light",
+                new Vec3(7f, 18f, 6f),
+                new Vec3(1f, 0.98f, 0.95f),
+                1.1f,
+                220f,
+                true,
+                new ShadowDesc(2048, 0.0006f, 5, 4)
+        );
+        LightDesc fill = new LightDesc("fill", new Vec3(-4f, 6f, -3f), new Vec3(0.35f, 0.45f, 0.65f), 0.45f, 80f, false, null);
+
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.09f, 0.10f, 0.12f), 0.18f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.55f, 0.6f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "parity-shadow-cascade-stress-scene",
+                List.of(camera),
+                "cam",
+                List.of(near, mid, far, ground),
+                List.of(meshNear, meshMid, meshFar, meshGround),
+                List.of(matNear, matMid, matFar, matGround),
+                List.of(shadowLight, fill),
+                env,
+                fog,
+                List.of()
+        );
+    }
+
+    private static SceneDescriptor textureHeavyScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.3f, 0.7f, 7.2f), new Vec3(0f, 0f, -6f), 68f, 0.1f, 180f);
+        TransformDesc near = new TransformDesc("xform-near", new Vec3(-1.4f, -0.1f, 1.2f), new Vec3(0, 18, 0), new Vec3(1, 1, 1));
+        TransformDesc mid = new TransformDesc("xform-mid", new Vec3(0.1f, -0.2f, -8.5f), new Vec3(0, -20, 0), new Vec3(1.4f, 1.4f, 1.4f));
+        TransformDesc far = new TransformDesc("xform-far", new Vec3(1.8f, -0.4f, -33.0f), new Vec3(0, 6, 0), new Vec3(2.2f, 2.2f, 2.2f));
+        TransformDesc ground = new TransformDesc("xform-ground", new Vec3(0f, -1.2f, -14f), new Vec3(0, 0, 0), new Vec3(7.6f, 1f, 7.6f));
+
+        MeshDesc meshNear = new MeshDesc("mesh-near", "xform-near", "mat-near", "meshes/quad.gltf");
+        MeshDesc meshMid = new MeshDesc("mesh-mid", "xform-mid", "mat-mid", "meshes/quad.gltf");
+        MeshDesc meshFar = new MeshDesc("mesh-far", "xform-far", "mat-far", "meshes/quad.gltf");
+        MeshDesc meshGround = new MeshDesc("mesh-ground", "xform-ground", "mat-ground", "meshes/quad.gltf");
+
+        MaterialDesc matNear = new MaterialDesc(
+                "mat-near",
+                new Vec3(0.9f, 0.48f, 0.42f),
+                0.28f,
+                0.42f,
+                "textures/a.png",
+                "textures/a_n.png",
+                "textures/a_mr.png",
+                "textures/a_ao.png"
+        );
+        MaterialDesc matMid = new MaterialDesc(
+                "mat-mid",
+                new Vec3(0.45f, 0.8f, 0.95f),
+                0.64f,
+                0.34f,
+                "textures/b.png",
+                "textures/b_n.png",
+                "textures/b_mr.png",
+                "textures/b_ao.png"
+        );
+        MaterialDesc matFar = new MaterialDesc(
+                "mat-far",
+                new Vec3(0.76f, 0.78f, 0.82f),
+                0.18f,
+                0.74f,
+                "textures/c.png",
+                "textures/c_n.png",
+                "textures/c_mr.png",
+                "textures/c_ao.png"
+        );
+        MaterialDesc matGround = new MaterialDesc(
+                "mat-ground",
+                new Vec3(0.58f, 0.6f, 0.55f),
+                0.08f,
+                0.9f,
+                "textures/d.png",
+                "textures/d_n.png",
+                "textures/d_mr.png",
+                "textures/d_ao.png"
+        );
+
+        LightDesc shadowLight = new LightDesc(
+                "shadow-light",
+                new Vec3(7f, 18f, 8f),
+                new Vec3(1f, 0.98f, 0.95f),
+                1.12f,
+                260f,
+                true,
+                new ShadowDesc(2048, 0.0006f, 5, 4)
+        );
+        LightDesc fill = new LightDesc("fill", new Vec3(-4f, 7f, -3f), new Vec3(0.32f, 0.45f, 0.68f), 0.5f, 95f, false, null);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.09f, 0.11f), 0.18f, null);
+        FogDesc fog = new FogDesc(true, FogMode.HEIGHT_EXPONENTIAL, new Vec3(0.50f, 0.54f, 0.6f), 0.3f, 0.35f, 0.68f, 0.08f, 0.95f, 0.18f);
+
+        return new SceneDescriptor(
+                "parity-texture-heavy-scene",
+                List.of(camera),
+                "cam",
+                List.of(near, mid, far, ground),
+                List.of(meshNear, meshMid, meshFar, meshGround),
+                List.of(matNear, matMid, matFar, matGround),
+                List.of(shadowLight, fill),
+                env,
+                fog,
+                List.of()
+        );
+    }
+
+    private static SceneDescriptor fogShadowCascadeStressScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.1f, 1.4f, 8.8f), new Vec3(-8f, 10f, 0f), 74f, 0.1f, 220f);
+        TransformDesc near = new TransformDesc("xform-near", new Vec3(-1.0f, -0.15f, 0.8f), new Vec3(0, 18, 0), new Vec3(1, 1, 1));
+        TransformDesc mid = new TransformDesc("xform-mid", new Vec3(0.4f, -0.25f, -10.5f), new Vec3(0, -12, 0), new Vec3(1.3f, 1.3f, 1.3f));
+        TransformDesc far = new TransformDesc("xform-far", new Vec3(2.0f, -0.45f, -42.0f), new Vec3(0, 8, 0), new Vec3(2.4f, 2.4f, 2.4f));
+        TransformDesc ground = new TransformDesc("xform-ground", new Vec3(0f, -1.2f, -18f), new Vec3(0, 0, 0), new Vec3(7.0f, 1f, 7.0f));
+
+        MeshDesc meshNear = new MeshDesc("mesh-near", "xform-near", "mat-near", "meshes/quad.gltf");
+        MeshDesc meshMid = new MeshDesc("mesh-mid", "xform-mid", "mat-mid", "meshes/quad.gltf");
+        MeshDesc meshFar = new MeshDesc("mesh-far", "xform-far", "mat-far", "meshes/quad.gltf");
+        MeshDesc meshGround = new MeshDesc("mesh-ground", "xform-ground", "mat-ground", "meshes/quad.gltf");
+
+        MaterialDesc matNear = new MaterialDesc("mat-near", new Vec3(0.92f, 0.52f, 0.42f), 0.18f, 0.46f, null, null);
+        MaterialDesc matMid = new MaterialDesc("mat-mid", new Vec3(0.52f, 0.82f, 0.92f), 0.32f, 0.52f, null, null);
+        MaterialDesc matFar = new MaterialDesc("mat-far", new Vec3(0.72f, 0.74f, 0.78f), 0.08f, 0.78f, null, null);
+        MaterialDesc matGround = new MaterialDesc("mat-ground", new Vec3(0.60f, 0.62f, 0.56f), 0.0f, 0.92f, null, null);
+
+        LightDesc shadowLight = new LightDesc(
+                "shadow-light",
+                new Vec3(8f, 20f, 7f),
+                new Vec3(1f, 0.98f, 0.95f),
+                1.1f,
+                250f,
+                true,
+                new ShadowDesc(2048, 0.0006f, 5, 4)
+        );
+        LightDesc fill = new LightDesc("fill", new Vec3(-5f, 7f, -4f), new Vec3(0.32f, 0.45f, 0.66f), 0.5f, 90f, false, null);
+
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.16f, null);
+        FogDesc fog = new FogDesc(true, FogMode.HEIGHT_EXPONENTIAL, new Vec3(0.52f, 0.56f, 0.62f), 0.42f, 0.38f, 0.75f, 0.12f, 1.1f, 0.25f);
+
+        return new SceneDescriptor(
+                "parity-fog-shadow-cascade-stress-scene",
+                List.of(camera),
+                "cam",
+                List.of(near, mid, far, ground),
+                List.of(meshNear, meshMid, meshFar, meshGround),
+                List.of(matNear, matMid, matFar, matGround),
+                List.of(shadowLight, fill),
+                env,
+                fog,
+                List.of()
+        );
+    }
+
+    private static SceneDescriptor smokeShadowCascadeStressScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.0f, 1.6f, 8.9f), new Vec3(-7f, 11f, 0f), 73f, 0.1f, 220f);
+        TransformDesc near = new TransformDesc("xform-near", new Vec3(-1.1f, -0.1f, 1.1f), new Vec3(0, 16, 0), new Vec3(1, 1, 1));
+        TransformDesc mid = new TransformDesc("xform-mid", new Vec3(0.5f, -0.2f, -11.0f), new Vec3(0, -10, 0), new Vec3(1.35f, 1.35f, 1.35f));
+        TransformDesc far = new TransformDesc("xform-far", new Vec3(2.1f, -0.4f, -41.0f), new Vec3(0, 10, 0), new Vec3(2.35f, 2.35f, 2.35f));
+        TransformDesc ground = new TransformDesc("xform-ground", new Vec3(0f, -1.2f, -18f), new Vec3(0, 0, 0), new Vec3(7.2f, 1f, 7.2f));
+
+        MeshDesc meshNear = new MeshDesc("mesh-near", "xform-near", "mat-near", "meshes/quad.gltf");
+        MeshDesc meshMid = new MeshDesc("mesh-mid", "xform-mid", "mat-mid", "meshes/quad.gltf");
+        MeshDesc meshFar = new MeshDesc("mesh-far", "xform-far", "mat-far", "meshes/quad.gltf");
+        MeshDesc meshGround = new MeshDesc("mesh-ground", "xform-ground", "mat-ground", "meshes/quad.gltf");
+
+        MaterialDesc matNear = new MaterialDesc("mat-near", new Vec3(0.92f, 0.54f, 0.44f), 0.18f, 0.44f, null, null);
+        MaterialDesc matMid = new MaterialDesc("mat-mid", new Vec3(0.54f, 0.84f, 0.94f), 0.34f, 0.5f, null, null);
+        MaterialDesc matFar = new MaterialDesc("mat-far", new Vec3(0.72f, 0.75f, 0.79f), 0.08f, 0.77f, null, null);
+        MaterialDesc matGround = new MaterialDesc("mat-ground", new Vec3(0.61f, 0.63f, 0.57f), 0.0f, 0.92f, null, null);
+
+        LightDesc shadowLight = new LightDesc(
+                "shadow-light",
+                new Vec3(8f, 20f, 8f),
+                new Vec3(1f, 0.98f, 0.95f),
+                1.1f,
+                250f,
+                true,
+                new ShadowDesc(2048, 0.0006f, 5, 4)
+        );
+        LightDesc fill = new LightDesc("fill", new Vec3(-5f, 7f, -4f), new Vec3(0.34f, 0.46f, 0.68f), 0.48f, 90f, false, null);
+
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.16f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.55f, 0.6f), 0f, 0f, 0f, 0f, 0f, 0f);
+        SmokeEmitterDesc smokeA = new SmokeEmitterDesc(
+                "smoke-a",
+                new Vec3(-0.7f, -0.2f, -4.5f),
+                new Vec3(2.0f, 1.2f, 2.0f),
+                22f,
+                0.9f,
+                new Vec3(0.68f, 0.68f, 0.72f),
+                0.18f,
+                new Vec3(0.04f, 0.16f, -0.03f),
+                0.3f,
+                3.6f,
+                true
+        );
+        SmokeEmitterDesc smokeB = new SmokeEmitterDesc(
+                "smoke-b",
+                new Vec3(1.1f, -0.25f, -17.0f),
+                new Vec3(2.8f, 1.4f, 2.8f),
+                19f,
+                0.78f,
+                new Vec3(0.62f, 0.64f, 0.66f),
+                0.16f,
+                new Vec3(-0.02f, 0.14f, 0.01f),
+                0.26f,
+                3.2f,
+                true
+        );
+
+        return new SceneDescriptor(
+                "parity-smoke-shadow-cascade-stress-scene",
+                List.of(camera),
+                "cam",
+                List.of(near, mid, far, ground),
+                List.of(meshNear, meshMid, meshFar, meshGround),
+                List.of(matNear, matMid, matFar, matGround),
+                List.of(shadowLight, fill),
+                env,
+                fog,
+                List.of(smokeA, smokeB)
         );
     }
 

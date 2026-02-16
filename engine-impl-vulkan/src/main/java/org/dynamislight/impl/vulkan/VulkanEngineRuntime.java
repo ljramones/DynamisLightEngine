@@ -121,11 +121,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected RenderMetrics onRender() throws EngineException {
+        if (forceDeviceLostOnRender && !deviceLostRaised) {
+            deviceLostRaised = true;
+            throw new EngineException(EngineErrorCode.DEVICE_LOST, "Forced Vulkan device loss on render", false);
+        }
         if (mockContext) {
-            if (forceDeviceLostOnRender && !deviceLostRaised) {
-                deviceLostRaised = true;
-                throw new EngineException(EngineErrorCode.DEVICE_LOST, "Forced Vulkan device loss on render", false);
-            }
             return renderMetrics(0.2, 0.1, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, 0);
         }
         VulkanContext.VulkanFrameMetrics frame = context.renderFrame();
@@ -192,6 +192,31 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " descriptorPoolBuilds=" + reuse.descriptorPoolBuilds()
                             + " descriptorPoolRebuilds=" + reuse.descriptorPoolRebuilds()
             ));
+            VulkanContext.FrameResourceProfile frameResources = context.frameResourceProfile();
+            warnings.add(new EngineWarning(
+                    "VULKAN_FRAME_RESOURCE_PROFILE",
+                    "framesInFlight=" + frameResources.framesInFlight()
+                            + " descriptorSetsInRing=" + frameResources.descriptorSetsInRing()
+                            + " uniformStrideBytes=" + frameResources.uniformStrideBytes()
+                            + " uniformFrameSpanBytes=" + frameResources.uniformFrameSpanBytes()
+                            + " lastUniformUploadBytes=" + frameResources.lastFrameUniformUploadBytes()
+                            + " maxUniformUploadBytes=" + frameResources.maxFrameUniformUploadBytes()
+                            + " lastUniformObjectCount=" + frameResources.lastFrameUniformObjectCount()
+                            + " maxUniformObjectCount=" + frameResources.maxFrameUniformObjectCount()
+                            + " persistentStagingMapped=" + frameResources.persistentStagingMapped()
+            ));
+            if (currentShadows.enabled()) {
+                VulkanContext.ShadowCascadeProfile shadow = context.shadowCascadeProfile();
+                warnings.add(new EngineWarning(
+                        "SHADOW_CASCADE_PROFILE",
+                        "enabled=" + shadow.enabled()
+                                + " cascades=" + shadow.cascadeCount()
+                                + " mapRes=" + shadow.mapResolution()
+                                + " pcfRadius=" + shadow.pcfRadius()
+                                + " bias=" + shadow.bias()
+                                + " splitNdc=[" + shadow.split1Ndc() + "," + shadow.split2Ndc() + "," + shadow.split3Ndc() + "]"
+                ));
+            }
         }
         return warnings;
     }
@@ -229,7 +254,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     metallic,
                     roughness,
                     resolveTexturePath(material == null ? null : material.albedoTexturePath()),
-                    resolveTexturePath(material == null ? null : material.normalTexturePath())
+                    resolveTexturePath(material == null ? null : material.normalTexturePath()),
+                    resolveTexturePath(material == null ? null : material.metallicRoughnessTexturePath()),
+                    resolveTexturePath(material == null ? null : material.occlusionTexturePath())
             );
             out.add(meshData);
         }

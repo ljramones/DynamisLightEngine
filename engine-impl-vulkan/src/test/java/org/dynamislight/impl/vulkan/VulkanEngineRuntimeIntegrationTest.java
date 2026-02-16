@@ -34,13 +34,13 @@ import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
+import org.lwjgl.glfw.GLFW;
 import org.junit.jupiter.api.Test;
 
 class VulkanEngineRuntimeIntegrationTest {
     @Test
     void guardedRealVulkanInitPath() {
-        assumeTrue(Boolean.getBoolean("dle.test.vulkan.real"),
-                "Set -Ddle.test.vulkan.real=true to run real Vulkan init integration test");
+        assumeRealVulkanReady("real Vulkan init integration test");
 
         var runtime = new VulkanEngineRuntime();
         var callbacks = new RecordingCallbacks();
@@ -144,8 +144,7 @@ class VulkanEngineRuntimeIntegrationTest {
 
     @Test
     void realVulkanDynamicSceneUpdateReusesBuffersWithoutRebuild() throws Exception {
-        assumeTrue(Boolean.getBoolean("dle.test.vulkan.real"),
-                "Set -Ddle.test.vulkan.real=true to run real Vulkan reuse integration test");
+        assumeRealVulkanReady("real Vulkan reuse integration test");
 
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(false), new RecordingCallbacks());
@@ -167,8 +166,7 @@ class VulkanEngineRuntimeIntegrationTest {
 
     @Test
     void realVulkanMeshReorderStillHitsReusePath() throws Exception {
-        assumeTrue(Boolean.getBoolean("dle.test.vulkan.real"),
-                "Set -Ddle.test.vulkan.real=true to run real Vulkan reorder reuse integration test");
+        assumeRealVulkanReady("real Vulkan reorder reuse integration test");
 
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(false), new RecordingCallbacks());
@@ -184,6 +182,81 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(after.reorderReuseHits() > before.reorderReuseHits());
         assertEquals(before.fullRebuilds(), after.fullRebuilds());
         assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
+        runtime.shutdown();
+    }
+
+    @Test
+    void realVulkanResizeAndSceneSwitchEmitsResourceProfiles() throws Exception {
+        assumeRealVulkanReady("real Vulkan resize/scene-switch integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), new RecordingCallbacks());
+        runtime.loadScene(validShadowSmokeScene(new ShadowDesc(2048, 0.0012f, 5, 4)));
+        var frameA = runtime.render();
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorSetsInRing=3")));
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "SHADOW_CASCADE_PROFILE".equals(w.code())));
+
+        runtime.resize(1600, 900, 1.0f);
+        runtime.loadScene(validReusableScene(true, false));
+        var frameB = runtime.render();
+        assertTrue(frameB.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())));
+        assertTrue(frameB.warnings().stream().anyMatch(w -> "SCENE_REUSE_PROFILE".equals(w.code())));
+
+        runtime.loadScene(validShadowSmokeScene(new ShadowDesc(1024, 0.0015f, 3, 2)));
+        var frameC = runtime.render();
+        assertTrue(frameC.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void realVulkanEnduranceResizeAndSceneSwitchMaintainsHealthyProfiles() throws Exception {
+        assumeRealVulkanReady("real Vulkan endurance integration test");
+
+        var callbacks = new RecordingCallbacks();
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), callbacks);
+        runtime.loadScene(validShadowSmokeScene(new ShadowDesc(2048, 0.0012f, 5, 4)));
+
+        for (int i = 0; i < 24; i++) {
+            int width = 1280 + (i * 37);
+            int height = 720 + (i * 23);
+            runtime.resize(width, height, 1.0f);
+            runtime.update(1.0 / 60.0, emptyInput());
+
+            if ((i % 2) == 0) {
+                runtime.loadScene(validReusableScene((i % 4) == 0, (i % 3) == 0));
+            } else {
+                runtime.loadScene(validShadowSmokeScene(new ShadowDesc(1024, 0.0015f, 3, 2)));
+            }
+
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w ->
+                    "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("persistentStagingMapped=true")));
+        }
+
+        assertTrue(callbacks.errors.isEmpty(), "expected no host callback errors during endurance loop");
+        runtime.shutdown();
+    }
+
+    @Test
+    void realVulkanForcedDeviceLostPathPropagatesErrorsAndEvent() throws Exception {
+        assumeRealVulkanReady("real Vulkan forced-device-lost integration test");
+
+        var callbacks = new RecordingCallbacks();
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "false",
+                "vulkan.forceDeviceLostOnRender", "true"
+        )), callbacks);
+        runtime.loadScene(validShadowSmokeScene(new ShadowDesc(1024, 0.0015f, 3, 2)));
+
+        EngineException ex = org.junit.jupiter.api.Assertions.assertThrows(EngineException.class, runtime::render);
+        assertEquals(EngineErrorCode.DEVICE_LOST, ex.code());
+        assertTrue(callbacks.events.stream().anyMatch(DeviceLostEvent.class::isInstance));
+        assertTrue(callbacks.errors.stream().anyMatch(err -> err.code() == EngineErrorCode.DEVICE_LOST));
         runtime.shutdown();
     }
 
@@ -333,6 +406,18 @@ class VulkanEngineRuntimeIntegrationTest {
 
     private static EngineInput emptyInput() {
         return new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
+    }
+
+    private static void assumeRealVulkanReady(String testLabel) {
+        assumeTrue(Boolean.getBoolean("dle.test.vulkan.real"),
+                "Set -Ddle.test.vulkan.real=true to run " + testLabel);
+        try {
+            boolean init = GLFW.glfwInit();
+            assumeTrue(init, "Skipping " + testLabel + ": GLFW init failed on this machine");
+            GLFW.glfwTerminate();
+        } catch (Throwable t) {
+            assumeTrue(false, "Skipping " + testLabel + ": LWJGL native runtime unavailable (" + t.getClass().getSimpleName() + ")");
+        }
     }
 
     private static final class RecordingCallbacks implements EngineHostCallbacks {

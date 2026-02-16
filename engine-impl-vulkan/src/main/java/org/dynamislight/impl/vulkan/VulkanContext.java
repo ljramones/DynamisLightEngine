@@ -36,6 +36,7 @@ import static org.lwjgl.glfw.GLFWVulkan.glfwVulkanSupported;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.memAlloc;
 import static org.lwjgl.system.MemoryUtil.memAllocPointer;
+import static org.lwjgl.system.MemoryUtil.memByteBuffer;
 import static org.lwjgl.system.MemoryUtil.memFree;
 import static org.lwjgl.system.MemoryUtil.memAddress;
 import static org.lwjgl.system.MemoryUtil.memCopy;
@@ -301,7 +302,7 @@ import org.lwjgl.vulkan.VkViewport;
 final class VulkanContext {
     private static final int VERTEX_STRIDE_FLOATS = 11;
     private static final int VERTEX_STRIDE_BYTES = VERTEX_STRIDE_FLOATS * Float.BYTES;
-    private static final int MAX_FRAMES_IN_FLIGHT = 2;
+    private static final int MAX_FRAMES_IN_FLIGHT = 3;
     private static final int MAX_DYNAMIC_SCENE_OBJECTS = 2048;
     private static final int MAX_SHADOW_CASCADES = 4;
     private static final int GLOBAL_UNIFORM_BYTES = 656;
@@ -338,11 +339,13 @@ final class VulkanContext {
     private long textureDescriptorSetLayout = VK_NULL_HANDLE;
     private long descriptorPool = VK_NULL_HANDLE;
     private long descriptorSet = VK_NULL_HANDLE;
+    private long[] frameDescriptorSets = new long[0];
     private long textureDescriptorPool = VK_NULL_HANDLE;
     private long globalUniformBuffer = VK_NULL_HANDLE;
     private long globalUniformMemory = VK_NULL_HANDLE;
     private long globalUniformStagingBuffer = VK_NULL_HANDLE;
     private long globalUniformStagingMemory = VK_NULL_HANDLE;
+    private long globalUniformStagingMappedAddress;
     private int uniformStrideBytes = GLOBAL_UNIFORM_BYTES;
     private int uniformFrameSpanBytes = GLOBAL_UNIFORM_BYTES;
     private long[] framebuffers = new long[0];
@@ -362,6 +365,10 @@ final class VulkanContext {
     private long descriptorPoolBuildCount;
     private long descriptorPoolRebuildCount;
     private long estimatedGpuMemoryBytes;
+    private int lastFrameUniformUploadBytes;
+    private int maxFrameUniformUploadBytes;
+    private int lastFrameUniformObjectCount;
+    private int maxFrameUniformObjectCount;
     private final List<GpuMesh> gpuMeshes = new ArrayList<>();
     private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
     private float[] viewMatrix = identityMatrix();
@@ -458,6 +465,33 @@ final class VulkanContext {
                 meshBufferRebuildCount,
                 descriptorPoolBuildCount,
                 descriptorPoolRebuildCount
+        );
+    }
+
+    FrameResourceProfile frameResourceProfile() {
+        return new FrameResourceProfile(
+                MAX_FRAMES_IN_FLIGHT,
+                frameDescriptorSets.length,
+                uniformStrideBytes,
+                uniformFrameSpanBytes,
+                lastFrameUniformUploadBytes,
+                maxFrameUniformUploadBytes,
+                lastFrameUniformObjectCount,
+                maxFrameUniformObjectCount,
+                globalUniformStagingMappedAddress != 0L
+        );
+    }
+
+    ShadowCascadeProfile shadowCascadeProfile() {
+        return new ShadowCascadeProfile(
+                shadowEnabled,
+                shadowCascadeCount,
+                shadowMapResolution,
+                shadowPcfRadius,
+                shadowBias,
+                shadowCascadeSplitNdc[0],
+                shadowCascadeSplitNdc[1],
+                shadowCascadeSplitNdc[2]
         );
     }
 
@@ -812,7 +846,7 @@ final class VulkanContext {
         }
         descriptorSetLayout = pLayout.get(0);
 
-        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(3, stack);
+        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(5, stack);
         textureBindings.get(0)
                 .binding(0)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
@@ -825,6 +859,16 @@ final class VulkanContext {
                 .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
         textureBindings.get(2)
                 .binding(2)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
+        textureBindings.get(3)
+                .binding(3)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
+        textureBindings.get(4)
+                .binding(4)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -867,15 +911,25 @@ final class VulkanContext {
         );
         globalUniformStagingBuffer = uniformStagingAlloc.buffer;
         globalUniformStagingMemory = uniformStagingAlloc.memory;
+        PointerBuffer pMapped = stack.mallocPointer(1);
+        int mapStagingResult = vkMapMemory(device, globalUniformStagingMemory, 0, totalUniformBytes, 0, pMapped);
+        if (mapStagingResult != VK_SUCCESS || pMapped.get(0) == 0L) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkMapMemory(stagingPersistent) failed: " + mapStagingResult,
+                    false
+            );
+        }
+        globalUniformStagingMappedAddress = pMapped.get(0);
         estimatedGpuMemoryBytes = (long) totalUniformBytes * 2L;
 
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
-                .descriptorCount(1);
+                .descriptorCount(MAX_FRAMES_IN_FLIGHT);
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
-                .maxSets(1)
+                .maxSets(MAX_FRAMES_IN_FLIGHT)
                 .pPoolSizes(poolSizes);
         var pPool = stack.longs(VK_NULL_HANDLE);
         int poolResult = vkCreateDescriptorPool(device, poolInfo, null, pPool);
@@ -884,30 +938,41 @@ final class VulkanContext {
         }
         descriptorPool = pPool.get(0);
 
+        java.nio.LongBuffer layouts = stack.mallocLong(MAX_FRAMES_IN_FLIGHT);
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            layouts.put(i, descriptorSetLayout);
+        }
         VkDescriptorSetAllocateInfo allocInfo = VkDescriptorSetAllocateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO)
                 .descriptorPool(descriptorPool)
-                .pSetLayouts(stack.longs(descriptorSetLayout));
-        var pSet = stack.longs(VK_NULL_HANDLE);
+                .pSetLayouts(layouts);
+        java.nio.LongBuffer pSet = stack.mallocLong(MAX_FRAMES_IN_FLIGHT);
         int setResult = vkAllocateDescriptorSets(device, allocInfo, pSet);
-        if (setResult != VK_SUCCESS || pSet.get(0) == VK_NULL_HANDLE) {
+        if (setResult != VK_SUCCESS) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateDescriptorSets failed: " + setResult, false);
         }
-        descriptorSet = pSet.get(0);
+        frameDescriptorSets = new long[MAX_FRAMES_IN_FLIGHT];
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            frameDescriptorSets[i] = pSet.get(i);
+        }
+        descriptorSet = frameDescriptorSets[0];
 
-        VkDescriptorBufferInfo.Buffer bufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
-        bufferInfo.get(0)
-                .buffer(globalUniformBuffer)
-                .offset(0)
-                .range(GLOBAL_UNIFORM_BYTES);
-        VkWriteDescriptorSet.Buffer write = VkWriteDescriptorSet.calloc(1, stack);
-        write.get(0)
-                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
-                .dstSet(descriptorSet)
-                .dstBinding(0)
-                .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
-                .pBufferInfo(bufferInfo);
-        vkUpdateDescriptorSets(device, write, null);
+        VkDescriptorBufferInfo.Buffer bufferInfos = VkDescriptorBufferInfo.calloc(MAX_FRAMES_IN_FLIGHT, stack);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(MAX_FRAMES_IN_FLIGHT, stack);
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            long frameBase = (long) i * uniformFrameSpanBytes;
+            bufferInfos.get(i)
+                    .buffer(globalUniformBuffer)
+                    .offset(frameBase)
+                    .range(GLOBAL_UNIFORM_BYTES);
+            writes.get(i)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(frameDescriptorSets[i])
+                    .dstBinding(0)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+                    .pBufferInfo(VkDescriptorBufferInfo.calloc(1, stack).put(0, bufferInfos.get(i)));
+        }
+        vkUpdateDescriptorSets(device, writes, null);
     }
 
     private void destroyDescriptorResources() {
@@ -926,6 +991,10 @@ final class VulkanContext {
             vkDestroyBuffer(device, globalUniformStagingBuffer, null);
             globalUniformStagingBuffer = VK_NULL_HANDLE;
         }
+        if (globalUniformStagingMappedAddress != 0L && globalUniformStagingMemory != VK_NULL_HANDLE) {
+            vkUnmapMemory(device, globalUniformStagingMemory);
+            globalUniformStagingMappedAddress = 0L;
+        }
         if (globalUniformStagingMemory != VK_NULL_HANDLE) {
             vkFreeMemory(device, globalUniformStagingMemory, null);
             globalUniformStagingMemory = VK_NULL_HANDLE;
@@ -933,6 +1002,7 @@ final class VulkanContext {
         uniformStrideBytes = GLOBAL_UNIFORM_BYTES;
         uniformFrameSpanBytes = GLOBAL_UNIFORM_BYTES;
         estimatedGpuMemoryBytes = 0;
+        frameDescriptorSets = new long[0];
         descriptorSet = VK_NULL_HANDLE;
         if (descriptorPool != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device, descriptorPool, null);
@@ -1481,8 +1551,27 @@ final class VulkanContext {
                 } ubo;
                 layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
                 layout(set = 1, binding = 1) uniform sampler2D uNormalTexture;
-                layout(set = 1, binding = 2) uniform sampler2DArrayShadow uShadowMap;
+                layout(set = 1, binding = 2) uniform sampler2D uMetallicRoughnessTexture;
+                layout(set = 1, binding = 3) uniform sampler2D uOcclusionTexture;
+                layout(set = 1, binding = 4) uniform sampler2DArrayShadow uShadowMap;
                 layout(location = 0) out vec4 outColor;
+                float distributionGGX(float ndh, float roughness) {
+                    float a = roughness * roughness;
+                    float a2 = a * a;
+                    float d = (ndh * ndh) * (a2 - 1.0) + 1.0;
+                    return a2 / max(3.14159 * d * d, 0.0001);
+                }
+                float geometrySchlickGGX(float ndv, float roughness) {
+                    float r = roughness + 1.0;
+                    float k = (r * r) / 8.0;
+                    return ndv / max(ndv * (1.0 - k) + k, 0.0001);
+                }
+                float geometrySmith(float ndv, float ndl, float roughness) {
+                    return geometrySchlickGGX(ndv, roughness) * geometrySchlickGGX(ndl, roughness);
+                }
+                vec3 fresnelSchlick(float cosTheta, vec3 f0) {
+                    return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
+                }
                 void main() {
                     vec3 n0 = normalize(vNormal);
                     vec3 t = normalize(vTangent - dot(vTangent, n0) * n0);
@@ -1491,29 +1580,40 @@ final class VulkanContext {
                     vec3 n = normalize(mat3(t, b, n0) * normalTex);
                     vec3 sampledAlbedo = texture(uAlbedoTexture, vUv).rgb;
                     vec3 baseColor = ubo.uBaseColor.rgb * sampledAlbedo;
-                    float metallic = clamp(ubo.uMaterial.x, 0.0, 1.0);
-                    float roughness = clamp(ubo.uMaterial.y, 0.04, 1.0);
+                    vec3 mrTex = texture(uMetallicRoughnessTexture, vUv).rgb;
+                    float metallic = clamp(ubo.uMaterial.x * mrTex.b, 0.0, 1.0);
+                    float roughness = clamp(ubo.uMaterial.y * max(mrTex.g, 0.04), 0.04, 1.0);
                     float dirIntensity = max(0.0, ubo.uMaterial.z);
                     float pointIntensity = max(0.0, ubo.uMaterial.w);
 
-                    vec3 ambient = 0.18 * baseColor;
+                    float ao = clamp(texture(uOcclusionTexture, vUv).r, 0.0, 1.0);
                     vec3 lDir = normalize(-ubo.uDirLightDir.xyz);
-                    float ndl = max(dot(n, lDir), 0.0);
-                    vec3 diffuse = baseColor * ubo.uDirLightColor.rgb * (ndl * dirIntensity);
-
                     vec3 pDir = normalize(ubo.uPointLightPos.xyz - vWorldPos);
-                    float pNdl = max(dot(n, pDir), 0.0);
                     float dist = max(length(ubo.uPointLightPos.xyz - vWorldPos), 0.1);
                     float attenuation = 1.0 / (1.0 + 0.35 * dist + 0.1 * dist * dist);
-                    vec3 pointLit = baseColor * ubo.uPointLightColor.rgb * (pNdl * attenuation * pointIntensity);
-
                     vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
-                    vec3 halfVec = normalize(lDir + viewDir);
-                    float gloss = 1.0 - roughness;
-                    float specPow = mix(8.0, 96.0, gloss);
-                    float spec = pow(max(dot(n, halfVec), 0.0), specPow) * mix(0.08, 0.9, metallic);
 
-                    vec3 color = ambient + diffuse + pointLit + vec3(spec);
+                    float ndl = max(dot(n, lDir), 0.0);
+                    float ndv = max(dot(n, viewDir), 0.0);
+                    vec3 halfVec = normalize(lDir + viewDir);
+                    float ndh = max(dot(n, halfVec), 0.0);
+                    float vdh = max(dot(viewDir, halfVec), 0.0);
+                    vec3 f0 = mix(vec3(0.04), baseColor, metallic);
+                    vec3 f = fresnelSchlick(vdh, f0);
+                    float d = distributionGGX(ndh, roughness);
+                    float g = geometrySmith(ndv, ndl, roughness);
+                    vec3 numerator = d * g * f;
+                    float denominator = max(4.0 * ndv * ndl, 0.0001);
+                    vec3 specular = numerator / denominator;
+                    vec3 kd = (1.0 - f) * (1.0 - metallic);
+                    vec3 diffuse = kd * baseColor / 3.14159;
+                    vec3 directional = (diffuse + specular) * ubo.uDirLightColor.rgb * (ndl * dirIntensity);
+
+                    float pNdl = max(dot(n, pDir), 0.0);
+                    vec3 pointLit = (kd * baseColor / 3.14159) * ubo.uPointLightColor.rgb * (pNdl * attenuation * pointIntensity);
+                    vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * baseColor * ao;
+
+                    vec3 color = ambient + directional + pointLit;
                     if (ubo.uShadow.x > 0.5) {
                         int cascadeCount = clamp(int(ubo.uShadowCascade.x + 0.5), 1, 4);
                         int cascadeIndex = 0;
@@ -2007,12 +2107,13 @@ final class VulkanContext {
         updateShadowLightViewProjMatrices();
         prepareFrameUniforms(frameIdx);
         uploadFrameUniforms(commandBuffer, frameIdx);
+        long frameDescriptorSet = descriptorSetForFrame(frameIdx);
         int drawCount = gpuMeshes.isEmpty() ? 1 : Math.min(MAX_DYNAMIC_SCENE_OBJECTS, gpuMeshes.size());
         if (shadowEnabled
                 && shadowRenderPass != VK_NULL_HANDLE
                 && shadowFramebuffers.length >= Math.min(MAX_SHADOW_CASCADES, Math.max(1, shadowCascadeCount))
                 && shadowPipeline != VK_NULL_HANDLE
-                && descriptorSet != VK_NULL_HANDLE
+                && frameDescriptorSet != VK_NULL_HANDLE
                 && !gpuMeshes.isEmpty()) {
             int cascades = Math.min(MAX_SHADOW_CASCADES, Math.max(1, shadowCascadeCount));
             for (int cascadeIndex = 0; cascadeIndex < cascades; cascadeIndex++) {
@@ -2033,7 +2134,7 @@ final class VulkanContext {
                         VK_PIPELINE_BIND_POINT_GRAPHICS,
                         shadowPipelineLayout,
                         0,
-                        stack.longs(descriptorSet),
+                        stack.longs(frameDescriptorSet),
                         stack.ints(dynamicUniformOffset(frameIdx, 0))
                 );
                 ByteBuffer cascadePush = stack.malloc(Integer.BYTES);
@@ -2046,7 +2147,7 @@ final class VulkanContext {
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
                             shadowPipelineLayout,
                             0,
-                            stack.longs(descriptorSet),
+                            stack.longs(frameDescriptorSet),
                             stack.ints(dynamicUniformOffset(frameIdx, meshIndex))
                     );
                     vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer), stack.longs(0));
@@ -2077,13 +2178,13 @@ final class VulkanContext {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
         for (int meshIndex = 0; meshIndex < drawCount && meshIndex < gpuMeshes.size(); meshIndex++) {
             GpuMesh mesh = gpuMeshes.get(meshIndex);
-            if (descriptorSet != VK_NULL_HANDLE && mesh.textureDescriptorSet != VK_NULL_HANDLE) {
+            if (frameDescriptorSet != VK_NULL_HANDLE && mesh.textureDescriptorSet != VK_NULL_HANDLE) {
                 vkCmdBindDescriptorSets(
                         commandBuffer,
                         VK_PIPELINE_BIND_POINT_GRAPHICS,
                         pipelineLayout,
                         0,
-                        stack.longs(descriptorSet, mesh.textureDescriptorSet),
+                        stack.longs(frameDescriptorSet, mesh.textureDescriptorSet),
                         stack.ints(dynamicUniformOffset(frameIdx, meshIndex))
                 );
             }
@@ -2515,7 +2616,12 @@ final class VulkanContext {
             }
             String albedoKey = textureCacheKey(sceneMesh.albedoTexturePath(), false);
             String normalKey = textureCacheKey(sceneMesh.normalTexturePath(), true);
-            if (!gpuMesh.albedoKey.equals(albedoKey) || !gpuMesh.normalKey.equals(normalKey)) {
+            String metallicRoughnessKey = textureCacheKey(sceneMesh.metallicRoughnessTexturePath(), false);
+            String occlusionKey = textureCacheKey(sceneMesh.occlusionTexturePath(), false);
+            if (!gpuMesh.albedoKey.equals(albedoKey)
+                    || !gpuMesh.normalKey.equals(normalKey)
+                    || !gpuMesh.metallicRoughnessKey.equals(metallicRoughnessKey)
+                    || !gpuMesh.occlusionKey.equals(occlusionKey)) {
                 return false;
             }
         }
@@ -2563,6 +2669,8 @@ final class VulkanContext {
         Map<String, GpuTexture> textureCache = new HashMap<>();
         GpuTexture defaultAlbedo = createTextureFromPath(null, false);
         GpuTexture defaultNormal = createTextureFromPath(null, true);
+        GpuTexture defaultMetallicRoughness = createTextureFromPath(null, false);
+        GpuTexture defaultOcclusion = createTextureFromPath(null, false);
         for (SceneMeshData mesh : sceneMeshes) {
             float[] vertices = mesh.vertices();
             int[] indices = mesh.indices();
@@ -2590,8 +2698,17 @@ final class VulkanContext {
             int indexHash = Arrays.hashCode(indices);
             String albedoKey = textureCacheKey(mesh.albedoTexturePath(), false);
             String normalKey = textureCacheKey(mesh.normalTexturePath(), true);
+            String metallicRoughnessKey = textureCacheKey(mesh.metallicRoughnessTexturePath(), false);
+            String occlusionKey = textureCacheKey(mesh.occlusionTexturePath(), false);
             GpuTexture albedoTexture = resolveOrCreateTexture(mesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
             GpuTexture normalTexture = resolveOrCreateTexture(mesh.normalTexturePath(), textureCache, defaultNormal, true);
+            GpuTexture metallicRoughnessTexture = resolveOrCreateTexture(
+                    mesh.metallicRoughnessTexturePath(),
+                    textureCache,
+                    defaultMetallicRoughness,
+                    false
+            );
+            GpuTexture occlusionTexture = resolveOrCreateTexture(mesh.occlusionTexturePath(), textureCache, defaultOcclusion, false);
 
             gpuMeshes.add(new GpuMesh(
                     vertexAlloc.buffer,
@@ -2609,11 +2726,15 @@ final class VulkanContext {
                     mesh.roughness(),
                     albedoTexture,
                     normalTexture,
+                    metallicRoughnessTexture,
+                    occlusionTexture,
                     mesh.meshId(),
                     vertexHash,
                     indexHash,
                     albedoKey,
-                    normalKey
+                    normalKey,
+                    metallicRoughnessKey,
+                    occlusionKey
             ));
         }
 
@@ -2629,6 +2750,12 @@ final class VulkanContext {
             }
             if (uniqueTextures.add(mesh.normalTexture)) {
                 textureBytes += mesh.normalTexture.bytes();
+            }
+            if (uniqueTextures.add(mesh.metallicRoughnessTexture)) {
+                textureBytes += mesh.metallicRoughnessTexture.bytes();
+            }
+            if (uniqueTextures.add(mesh.occlusionTexture)) {
+                textureBytes += mesh.occlusionTexture.bytes();
             }
         }
         long uniformBytes = (long) uniformFrameSpanBytes * MAX_FRAMES_IN_FLIGHT * 2L;
@@ -2656,6 +2783,8 @@ final class VulkanContext {
             }
             uniqueTextures.add(mesh.albedoTexture);
             uniqueTextures.add(mesh.normalTexture);
+            uniqueTextures.add(mesh.metallicRoughnessTexture);
+            uniqueTextures.add(mesh.occlusionTexture);
         }
         for (GpuTexture texture : uniqueTextures) {
             if (texture == null) {
@@ -2722,7 +2851,7 @@ final class VulkanContext {
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(gpuMeshes.size() * 3);
+                .descriptorCount(gpuMeshes.size() * 5);
 
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
@@ -2772,13 +2901,23 @@ final class VulkanContext {
                     .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
                     .imageView(mesh.normalTexture.view())
                     .sampler(mesh.normalTexture.sampler());
+            VkDescriptorImageInfo.Buffer metallicRoughnessInfo = VkDescriptorImageInfo.calloc(1, stack);
+            metallicRoughnessInfo.get(0)
+                    .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .imageView(mesh.metallicRoughnessTexture.view())
+                    .sampler(mesh.metallicRoughnessTexture.sampler());
+            VkDescriptorImageInfo.Buffer occlusionInfo = VkDescriptorImageInfo.calloc(1, stack);
+            occlusionInfo.get(0)
+                    .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .imageView(mesh.occlusionTexture.view())
+                    .sampler(mesh.occlusionTexture.sampler());
             VkDescriptorImageInfo.Buffer shadowInfo = VkDescriptorImageInfo.calloc(1, stack);
             shadowInfo.get(0)
                     .imageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
                     .imageView(shadowDepthImageView)
                     .sampler(shadowSampler);
 
-            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(3, stack);
+            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(5, stack);
             writes.get(0)
                     .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                     .dstSet(mesh.textureDescriptorSet)
@@ -2797,6 +2936,20 @@ final class VulkanContext {
                     .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                     .dstSet(mesh.textureDescriptorSet)
                     .dstBinding(2)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(metallicRoughnessInfo);
+            writes.get(3)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(3)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(occlusionInfo);
+            writes.get(4)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(4)
                     .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
                     .pImageInfo(shadowInfo);
@@ -3129,25 +3282,34 @@ final class VulkanContext {
                     false
             );
         }
-
-        ByteBuffer mapped = memAlloc(meshCount * uniformStrideBytes);
-        mapped.order(ByteOrder.nativeOrder());
-        for (int meshIndex = 0; meshIndex < meshCount; meshIndex++) {
-            GpuMesh mesh = gpuMeshes.isEmpty() ? null : gpuMeshes.get(meshIndex);
-            writeSceneUniform(mapped, meshIndex * uniformStrideBytes, mesh);
-        }
-
         int frameBase = frameIdx * uniformFrameSpanBytes;
-        try (MemoryStack stack = stackPush()) {
-            PointerBuffer pData = stack.mallocPointer(1);
-            int mapResult = vkMapMemory(device, globalUniformStagingMemory, frameBase, mapped.limit(), 0, pData);
-            if (mapResult != VK_SUCCESS) {
-                throw vkFailure("vkMapMemory(staging)", mapResult);
+        ByteBuffer mapped;
+        if (globalUniformStagingMappedAddress != 0L) {
+            mapped = memByteBuffer(globalUniformStagingMappedAddress + frameBase, meshCount * uniformStrideBytes);
+        } else {
+            mapped = memAlloc(meshCount * uniformStrideBytes);
+        }
+        mapped.order(ByteOrder.nativeOrder());
+        try {
+            for (int meshIndex = 0; meshIndex < meshCount; meshIndex++) {
+                GpuMesh mesh = gpuMeshes.isEmpty() ? null : gpuMeshes.get(meshIndex);
+                writeSceneUniform(mapped, meshIndex * uniformStrideBytes, mesh);
             }
-            memCopy(memAddress(mapped), pData.get(0), mapped.limit());
-            vkUnmapMemory(device, globalUniformStagingMemory);
+            if (globalUniformStagingMappedAddress == 0L) {
+                try (MemoryStack stack = stackPush()) {
+                    PointerBuffer pData = stack.mallocPointer(1);
+                    int mapResult = vkMapMemory(device, globalUniformStagingMemory, frameBase, mapped.limit(), 0, pData);
+                    if (mapResult != VK_SUCCESS) {
+                        throw vkFailure("vkMapMemory(staging)", mapResult);
+                    }
+                    memCopy(memAddress(mapped), pData.get(0), mapped.limit());
+                    vkUnmapMemory(device, globalUniformStagingMemory);
+                }
+            }
         } finally {
-            memFree(mapped);
+            if (globalUniformStagingMappedAddress == 0L) {
+                memFree(mapped);
+            }
         }
     }
 
@@ -3191,6 +3353,10 @@ final class VulkanContext {
     private void uploadFrameUniforms(VkCommandBuffer commandBuffer, int frameIdx) {
         int meshCount = Math.max(1, gpuMeshes.size());
         int byteCount = meshCount * uniformStrideBytes;
+        lastFrameUniformUploadBytes = byteCount;
+        maxFrameUniformUploadBytes = Math.max(maxFrameUniformUploadBytes, byteCount);
+        lastFrameUniformObjectCount = meshCount;
+        maxFrameUniformObjectCount = Math.max(maxFrameUniformObjectCount, meshCount);
         long frameBase = (long) frameIdx * uniformFrameSpanBytes;
 
         VkBufferCopy.Buffer copy = VkBufferCopy.calloc(1)
@@ -3222,7 +3388,15 @@ final class VulkanContext {
     }
 
     private int dynamicUniformOffset(int frameIdx, int meshIndex) {
-        return frameIdx * uniformFrameSpanBytes + meshIndex * uniformStrideBytes;
+        return meshIndex * uniformStrideBytes;
+    }
+
+    private long descriptorSetForFrame(int frameIdx) {
+        if (frameDescriptorSets.length == 0) {
+            return descriptorSet;
+        }
+        int normalizedFrame = Math.floorMod(frameIdx, frameDescriptorSets.length);
+        return frameDescriptorSets[normalizedFrame];
     }
 
     private BufferAlloc createBuffer(MemoryStack stack, int sizeBytes, int usage, int memoryProperties) throws EngineException {
@@ -3383,10 +3557,14 @@ final class VulkanContext {
         private float roughness;
         private final GpuTexture albedoTexture;
         private final GpuTexture normalTexture;
+        private final GpuTexture metallicRoughnessTexture;
+        private final GpuTexture occlusionTexture;
         private final int vertexHash;
         private final int indexHash;
         private final String albedoKey;
         private final String normalKey;
+        private final String metallicRoughnessKey;
+        private final String occlusionKey;
         private long textureDescriptorSet = VK_NULL_HANDLE;
 
         private GpuMesh(
@@ -3405,11 +3583,15 @@ final class VulkanContext {
                 float roughness,
                 GpuTexture albedoTexture,
                 GpuTexture normalTexture,
+                GpuTexture metallicRoughnessTexture,
+                GpuTexture occlusionTexture,
                 String meshId,
                 int vertexHash,
                 int indexHash,
                 String albedoKey,
-                String normalKey
+                String normalKey,
+                String metallicRoughnessKey,
+                String occlusionKey
         ) {
             this.vertexBuffer = vertexBuffer;
             this.vertexMemory = vertexMemory;
@@ -3427,10 +3609,14 @@ final class VulkanContext {
             this.roughness = roughness;
             this.albedoTexture = albedoTexture;
             this.normalTexture = normalTexture;
+            this.metallicRoughnessTexture = metallicRoughnessTexture;
+            this.occlusionTexture = occlusionTexture;
             this.vertexHash = vertexHash;
             this.indexHash = indexHash;
             this.albedoKey = albedoKey;
             this.normalKey = normalKey;
+            this.metallicRoughnessKey = metallicRoughnessKey;
+            this.occlusionKey = occlusionKey;
         }
 
         private void updateDynamicState(
@@ -3468,7 +3654,9 @@ final class VulkanContext {
             float metallic,
             float roughness,
             Path albedoTexturePath,
-            Path normalTexturePath
+            Path normalTexturePath,
+            Path metallicRoughnessTexturePath,
+            Path occlusionTexturePath
     ) {
         SceneMeshData {
             if (meshId == null || meshId.isBlank()) {
@@ -3512,6 +3700,8 @@ final class VulkanContext {
                     0.0f,
                     0.6f,
                     null,
+                    null,
+                    null,
                     null
             );
         }
@@ -3537,6 +3727,8 @@ final class VulkanContext {
                     0.0f,
                     0.6f,
                     null,
+                    null,
+                    null,
                     null
             );
         }
@@ -3559,6 +3751,31 @@ final class VulkanContext {
             long meshBufferRebuilds,
             long descriptorPoolBuilds,
             long descriptorPoolRebuilds
+    ) {
+    }
+
+    record FrameResourceProfile(
+            int framesInFlight,
+            int descriptorSetsInRing,
+            int uniformStrideBytes,
+            int uniformFrameSpanBytes,
+            int lastFrameUniformUploadBytes,
+            int maxFrameUniformUploadBytes,
+            int lastFrameUniformObjectCount,
+            int maxFrameUniformObjectCount,
+            boolean persistentStagingMapped
+    ) {
+    }
+
+    record ShadowCascadeProfile(
+            boolean enabled,
+            int cascadeCount,
+            int mapResolution,
+            int pcfRadius,
+            float bias,
+            float split1Ndc,
+            float split2Ndc,
+            float split3Ndc
     ) {
     }
 

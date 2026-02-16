@@ -68,6 +68,8 @@ OpenGL backend provides a real forward render baseline:
   - metallic + roughness inputs
   - albedo texture sampling
   - normal texture sampling (baseline influence)
+  - metallic-roughness texture modulation (`G`/`B` channels)
+  - occlusion texture modulation (`R` channel)
 - Lighting baseline:
   - directional + point light uniforms
   - diffuse + specular-style response
@@ -92,7 +94,9 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - Shader compilation at runtime via `shaderc` (GLSL -> SPIR-V).
 - Graphics pipeline + pipeline layout creation.
 - Descriptor set path with uniform buffer binding for model/view/proj + material + lighting + fog/smoke parameters.
+- Per-mesh sampled textures for albedo, normal, metallic-roughness, and occlusion.
 - Attribute-rich vertex path (`position`, `normal`, `uv`, `tangent`) from `.gltf/.glb` mesh ingestion.
+- GGX-style PBR-leaning lighting response aligned with OpenGL baseline (directional + point light path).
 - Device-local vertex/index buffer uploads via staging copy path.
 - Render loop clear + scene-driven indexed draws with quality-tier-dependent fog/smoke behavior.
 - Resize/out-of-date/suboptimal handling with swapchain recreation.
@@ -100,7 +104,6 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - Approximate GPU memory telemetry exposed via runtime stats.
 
 ### Vulkan limitations (current)
-- Material texture handling is currently signal-based (texture-derived influence), not full Vulkan sampled-texture descriptor binding parity with OpenGL.
 - glTF support is pragmatic baseline, not full spec coverage.
 - Feature set remains intentionally lean compared to production Vulkan engines (no full deferred path, no advanced framegraph composition, etc.).
 
@@ -129,6 +132,19 @@ Implemented event classes in active flow:
 - `DeviceLostEvent`
 - `PerformanceWarningEvent` (type exists; backend usage can be expanded)
 
+Vulkan runtime emits profiling warnings (real-context mode) for:
+- `SCENE_REUSE_PROFILE`
+- `VULKAN_FRAME_RESOURCE_PROFILE`
+- `SHADOW_CASCADE_PROFILE`
+
+`VULKAN_FRAME_RESOURCE_PROFILE` now includes per-frame ring diagnostics:
+- `framesInFlight`
+- `descriptorSetsInRing`
+- `uniformStrideBytes` / `uniformFrameSpanBytes`
+- `lastUniformUploadBytes` / `maxUniformUploadBytes`
+- `lastUniformObjectCount` / `maxUniformObjectCount`
+- `persistentStagingMapped`
+
 ## 10) Backend/runtime options
 Configured through `EngineConfig.backendOptions`.
 
@@ -155,7 +171,14 @@ The repository includes automated tests validating:
 - SPI discovery and backend resolution failure modes.
 - OpenGL lifecycle/error/resource/hot-reload behavior.
 - Vulkan lifecycle, initialization guards, workload stats parity, and device-loss propagation.
+- Guarded real-device Vulkan endurance integration (`-Ddle.test.vulkan.real=true`) covering repeated resize + scene-switch loops with frame-resource profile assertions.
 - Cross-backend parity checks in sample host integration tests (material/lighting scene, resize stability, quality-tier warning parity).
+- Guarded compare-harness image diff checks (`-Ddle.compare.tests=true`) including tiered fog/smoke/shadow thresholds.
+- Guarded compare-harness includes `shadow-cascade-stress`, `fog-shadow-cascade-stress`, `smoke-shadow-cascade-stress`, and `texture-heavy` profiles for deeper split/bias/fog/smoke/material interaction regression coverage.
+- Tiered golden envelopes also include `texture-heavy` (`LOW/MEDIUM/HIGH/ULTRA`) alongside existing fog/smoke and shadow tier checks.
+- Current ULTRA `shadow-cascade-stress` bound: `<= 0.35`.
+- Current ULTRA `fog-shadow-cascade-stress` bound: `<= 0.39`.
+- Current ULTRA `smoke-shadow-cascade-stress` bound: `<= 0.39`.
 
 ## 12) Platform and CI coverage
 - Backend modules include LWJGL runtime natives for macOS (arm64), Linux, and Windows.
@@ -163,3 +186,4 @@ The repository includes automated tests validating:
   - `ubuntu-latest`
   - `macos-latest`
   - `windows-latest`
+- CI also runs a dedicated guarded parity compare job on `ubuntu-latest` with `dle.compare.tests=true`.
