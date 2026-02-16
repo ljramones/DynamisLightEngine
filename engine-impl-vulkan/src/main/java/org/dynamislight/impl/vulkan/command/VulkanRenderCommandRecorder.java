@@ -378,7 +378,7 @@ public final class VulkanRenderCommandRecorder {
                 in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), 0f,
                 in.smaaEnabled() ? 1f : 0f, in.smaaStrength(), in.taaJitterUvDeltaX(), in.taaJitterUvDeltaY(),
                 in.taaMotionUvX(), in.taaMotionUvY(), 0f, 0f,
-                in.taaEnabled() ? 1f : 0f, in.taaBlend(), in.taaHistoryInitialized() ? 1f : 0f, 0f
+                in.taaEnabled() ? 1f : 0f, in.taaBlend(), in.taaHistoryInitialized() ? 1f : 0f, (float) in.taaDebugView()
         });
         vkCmdPushConstants(commandBuffer, in.postPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -549,6 +549,7 @@ public final class VulkanRenderCommandRecorder {
             float taaJitterUvDeltaY,
             float taaMotionUvX,
             float taaMotionUvY,
+            int taaDebugView,
             long postRenderPass,
             long postGraphicsPipeline,
             long postPipelineLayout,

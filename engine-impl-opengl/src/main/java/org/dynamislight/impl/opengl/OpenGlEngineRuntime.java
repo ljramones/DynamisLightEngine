@@ -107,6 +107,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f);
     private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
+    private int taaDebugView;
 
     public OpenGlEngineRuntime() {
         super(
@@ -131,6 +132,11 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         String mock = config.backendOptions().getOrDefault("opengl.mockContext", "false");
         mockContext = Boolean.parseBoolean(mock);
         windowVisible = Boolean.parseBoolean(config.backendOptions().getOrDefault("opengl.windowVisible", "false"));
+        try {
+            taaDebugView = Math.max(0, Math.min(3, Integer.parseInt(config.backendOptions().getOrDefault("opengl.taaDebugView", "0"))));
+        } catch (NumberFormatException ignored) {
+            taaDebugView = 0;
+        }
         qualityTier = config.qualityTier();
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new OpenGlMeshAssetLoader(assetRoot);
@@ -164,6 +170,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 postProcess.taaEnabled(),
                 postProcess.taaBlend()
         );
+        context.setTaaDebugView(taaDebugView);
         frameGraph = buildFrameGraph();
     }
 
@@ -236,6 +243,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     postProcess.taaEnabled(),
                     postProcess.taaBlend()
             );
+            context.setTaaDebugView(taaDebugView);
             frameGraph = buildFrameGraph();
         }
     }

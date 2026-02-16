@@ -102,6 +102,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         warningConfig.pendingUploadRangeWarnCooldownFrames = options.pendingUploadRangeWarnCooldownFrames();
         warningConfig.descriptorRingActiveSoftLimit = options.descriptorRingActiveSoftLimit();
         warningConfig.descriptorRingActiveWarnCooldownFrames = options.descriptorRingActiveWarnCooldownFrames();
+        context.setTaaDebugView(options.taaDebugView());
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
         qualityTier = config.qualityTier();

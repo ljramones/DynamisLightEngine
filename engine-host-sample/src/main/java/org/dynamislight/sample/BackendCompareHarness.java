@@ -78,11 +78,13 @@ final class BackendCompareHarness {
     private static EngineConfig configFor(String backendId, QualityTier qualityTier) {
         Map<String, String> options = switch (backendId) {
             case "opengl" -> Map.of(
-                    "opengl.mockContext", System.getProperty("dle.compare.opengl.mockContext", "true")
+                    "opengl.mockContext", System.getProperty("dle.compare.opengl.mockContext", "true"),
+                    "opengl.taaDebugView", System.getProperty("dle.taa.debugView", "0")
             );
             case "vulkan" -> Map.of(
                     "vulkan.mockContext", System.getProperty("dle.compare.vulkan.mockContext", "true"),
-                    "vulkan.postOffscreen", System.getProperty("dle.compare.vulkan.postOffscreen", "true")
+                    "vulkan.postOffscreen", System.getProperty("dle.compare.vulkan.postOffscreen", "true"),
+                    "vulkan.taaDebugView", System.getProperty("dle.taa.debugView", "0")
             );
             default -> Map.of();
         };

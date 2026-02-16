@@ -33,7 +33,8 @@ final class VulkanRuntimeOptions {
                 parseIntOption(safe, "vulkan.pendingUploadRangeSoftLimit", 48, 1, 2048),
                 parseIntOption(safe, "vulkan.pendingUploadRangeWarnCooldownFrames", 120, 0, 10000),
                 parseIntOption(safe, "vulkan.descriptorRingActiveSoftLimit", 2048, 64, 32768),
-                parseIntOption(safe, "vulkan.descriptorRingActiveWarnCooldownFrames", 120, 0, 10000)
+                parseIntOption(safe, "vulkan.descriptorRingActiveWarnCooldownFrames", 120, 0, 10000),
+                parseIntOption(safe, "vulkan.taaDebugView", 0, 0, 3)
         );
     }
 
@@ -106,7 +107,8 @@ final class VulkanRuntimeOptions {
             int pendingUploadRangeSoftLimit,
             int pendingUploadRangeWarnCooldownFrames,
             int descriptorRingActiveSoftLimit,
-            int descriptorRingActiveWarnCooldownFrames
+            int descriptorRingActiveWarnCooldownFrames,
+            int taaDebugView
     ) {
     }
 }

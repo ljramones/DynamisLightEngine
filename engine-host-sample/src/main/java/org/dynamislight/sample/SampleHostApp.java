@@ -55,6 +55,7 @@ public final class SampleHostApp {
         boolean interactive = java.util.Arrays.asList(args).contains("--interactive");
         boolean overlay = java.util.Arrays.asList(args).contains("--overlay") || interactive;
         int maxFrames = parseIntArg(args, "--frames=", interactive ? Integer.MAX_VALUE : 3, 1, Integer.MAX_VALUE);
+        int taaDebugView = parseTaaDebugViewArg(args);
         if (compareMode) {
             QualityTier compareTier = parseCompareTier(args);
             String compareTag = parseCompareTag(args, compareTier);
@@ -73,6 +74,7 @@ public final class SampleHostApp {
                     "--compare-vulkan-offscreen=",
                     Boolean.parseBoolean(System.getProperty("dle.compare.vulkan.postOffscreen", "true"))
             );
+            System.setProperty("dle.taa.debugView", Integer.toString(taaDebugView));
             System.setProperty("dle.compare.opengl.mockContext", Boolean.toString(compareOpenGlMock));
             System.setProperty("dle.compare.vulkan.mockContext", Boolean.toString(compareVulkanMock));
             System.setProperty("dle.compare.vulkan.postOffscreen", Boolean.toString(compareVulkanOffscreen));
@@ -92,7 +94,7 @@ public final class SampleHostApp {
             return;
         }
         EngineBackendProvider provider = resolveProvider(backendId);
-        EngineConfig config = defaultConfig(backendId, sceneOptions.qualityTier());
+        EngineConfig config = defaultConfig(backendId, sceneOptions.qualityTier(), taaDebugView);
         SceneDescriptor scene = defaultScene(sceneOptions);
         EngineConfigValidator.validate(config);
         SceneValidator.validate(scene);
@@ -173,10 +175,16 @@ public final class SampleHostApp {
         return BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
     }
 
-    private static EngineConfig defaultConfig(String backendId, QualityTier qualityTier) {
+    private static EngineConfig defaultConfig(String backendId, QualityTier qualityTier, int taaDebugView) {
         Map<String, String> backendOptions = switch (backendId.toLowerCase()) {
-            case "opengl" -> Map.of("opengl.mockContext", System.getProperty("dle.opengl.mockContext", "true"));
-            case "vulkan" -> Map.of("vulkan.mockContext", System.getProperty("dle.vulkan.mockContext", "true"));
+            case "opengl" -> Map.of(
+                    "opengl.mockContext", System.getProperty("dle.opengl.mockContext", "true"),
+                    "opengl.taaDebugView", Integer.toString(taaDebugView)
+            );
+            case "vulkan" -> Map.of(
+                    "vulkan.mockContext", System.getProperty("dle.vulkan.mockContext", "true"),
+                    "vulkan.taaDebugView", Integer.toString(taaDebugView)
+            );
             default -> Map.of();
         };
         return new EngineConfig(
@@ -191,6 +199,27 @@ public final class SampleHostApp {
                 Path.of("assets"),
                 backendOptions
         );
+    }
+
+    private static int parseTaaDebugViewArg(String[] args) {
+        for (String arg : args) {
+            if (arg.startsWith("--taa-debug=")) {
+                String mode = arg.substring("--taa-debug=".length()).trim().toLowerCase();
+                return switch (mode) {
+                    case "off", "0" -> 0;
+                    case "reactive", "1" -> 1;
+                    case "weight", "2" -> 2;
+                    case "velocity", "3" -> 3;
+                    default -> 0;
+                };
+            }
+        }
+        String raw = System.getProperty("dle.taa.debugView", "0");
+        try {
+            return Math.max(0, Math.min(3, Integer.parseInt(raw)));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private static SceneDescriptor defaultScene(SceneOptions options) {

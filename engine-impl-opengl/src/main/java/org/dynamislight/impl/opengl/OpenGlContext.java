@@ -624,6 +624,7 @@ final class OpenGlContext {
             uniform int uTaaHistoryValid;
             uniform vec2 uTaaJitterDelta;
             uniform vec2 uTaaMotionUv;
+            uniform int uTaaDebugView;
             uniform sampler2D uTaaHistory;
             out vec4 FragColor;
             float ssaoLite(vec2 uv) {
@@ -710,6 +711,13 @@ final class OpenGlContext {
                     vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand), neighMax + vec3(clipExpand));
                     float blend = clamp(uTaaBlend, 0.0, 0.95) * (1.0 - reactive * 0.75);
                     color = mix(color, clampedHistory, blend);
+                    if (uTaaDebugView == 1) {
+                        color = vec3(reactive);
+                    } else if (uTaaDebugView == 2) {
+                        color = vec3(blend);
+                    } else if (uTaaDebugView == 3) {
+                        color = vec3(abs(velocityUv.x), abs(velocityUv.y), length(velocityUv) * 0.5);
+                    }
                 }
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
             }
@@ -805,6 +813,7 @@ final class OpenGlContext {
     private int postTaaHistoryValidLocation;
     private int postTaaJitterDeltaLocation;
     private int postTaaMotionUvLocation;
+    private int postTaaDebugViewLocation;
     private int postTaaHistoryLocation;
     private int postVaoId;
     private int sceneFramebufferId;
@@ -857,6 +866,7 @@ final class OpenGlContext {
     private float smaaStrength;
     private boolean taaEnabled;
     private float taaBlend;
+    private int taaDebugView;
     private float dirLightDirX = 0.3f;
     private float dirLightDirY = -1.0f;
     private float dirLightDirZ = 0.25f;
@@ -1199,6 +1209,7 @@ final class OpenGlContext {
         glUniform1i(postTaaHistoryValidLocation, taaHistoryValid ? 1 : 0);
         glUniform2f(postTaaJitterDeltaLocation, taaJitterUvDeltaX(), taaJitterUvDeltaY());
         glUniform2f(postTaaMotionUvLocation, taaMotionUvX, taaMotionUvY);
+        glUniform1i(postTaaDebugViewLocation, taaDebugView);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1362,6 +1373,10 @@ final class OpenGlContext {
             taaHistoryValid = false;
             taaPrevViewProjValid = false;
         }
+    }
+
+    void setTaaDebugView(int debugView) {
+        taaDebugView = Math.max(0, Math.min(3, debugView));
     }
 
     void setLightingParameters(
@@ -1593,6 +1608,7 @@ final class OpenGlContext {
         postTaaHistoryValidLocation = glGetUniformLocation(postProgramId, "uTaaHistoryValid");
         postTaaJitterDeltaLocation = glGetUniformLocation(postProgramId, "uTaaJitterDelta");
         postTaaMotionUvLocation = glGetUniformLocation(postProgramId, "uTaaMotionUv");
+        postTaaDebugViewLocation = glGetUniformLocation(postProgramId, "uTaaDebugView");
         postTaaHistoryLocation = glGetUniformLocation(postProgramId, "uTaaHistory");
         postVaoId = glGenVertexArrays();
         glUseProgram(postProgramId);

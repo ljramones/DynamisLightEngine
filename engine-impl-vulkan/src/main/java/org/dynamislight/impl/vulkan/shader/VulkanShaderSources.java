@@ -557,6 +557,14 @@ public final class VulkanShaderSources {
                         vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand), neighMax + vec3(clipExpand));
                         float blend = clamp(pc.taa.y, 0.0, 0.95) * (1.0 - reactive * 0.75);
                         color = mix(color, clampedHistory, blend);
+                        int debugView = int(pc.taa.w + 0.5);
+                        if (debugView == 1) {
+                            color = vec3(reactive);
+                        } else if (debugView == 2) {
+                            color = vec3(blend);
+                        } else if (debugView == 3) {
+                            color = vec3(abs(velocityUv.x), abs(velocityUv.y), length(velocityUv) * 0.5);
+                        }
                     }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 }
