@@ -219,6 +219,7 @@ Optional integration-test flags:
 
 - Rendering roadmap (2026): `docs/rendering-roadmap-2026.md`
 - Capabilities compendium: `docs/capabilities-compendium.md`
+- Expanded rendering feature comparison (2026): `docs/expanded-rendering-feature-comparison-2026.md`
 - API reference: `docs/api-reference.md`
 - Release workflow: `docs/release-workflow.md`
 - Milestone and issue backlog: `docs/github-milestones.md`
