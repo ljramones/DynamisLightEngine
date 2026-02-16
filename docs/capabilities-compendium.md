@@ -122,6 +122,9 @@ OpenGL backend provides a real forward render baseline:
   - OpenGL and Vulkan both include per-pixel motion-vector reprojection via dedicated velocity render targets sampled in post.
   - Global camera-motion UV reprojection remains layered as a stabilizing baseline term.
   - Reactive-mask + neighborhood-clipping pass is enabled in both backends to reduce ghosting under high-contrast motion.
+  - History validation includes depth/disocclusion rejection and thin-edge depth neighborhood checks.
+  - Temporal pass applies mild contrast-aware sharpen after blend to recover detail.
+  - SMAA path upgraded with explicit edge-mask + blend-weight phases (shader-stage implementation).
   - Debug output modes are available via backend options (`opengl.taaDebugView` / `vulkan.taaDebugView`: `0=off`, `1=reactive`, `2=weight`, `3=velocity`).
 - Dedicated post-pass architecture:
   - offscreen scene target (FBO color + depth/stencil) then fullscreen post shader composite

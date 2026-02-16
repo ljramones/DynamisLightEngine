@@ -666,13 +666,33 @@ final class OpenGlContext {
                 float ls = dot(cS, vec3(0.2126, 0.7152, 0.0722));
                 float le = dot(cE, vec3(0.2126, 0.7152, 0.0722));
                 float lw = dot(cW, vec3(0.2126, 0.7152, 0.0722));
-                float edge = clamp(max(abs(l - le) + abs(l - lw), abs(l - ln) + abs(l - ls)), 0.0, 1.0);
-                float blend = edge * clamp(uSmaaStrength, 0.0, 1.0) * 0.55;
-                vec3 neighborhood = (cN + cS + cE + cW) * 0.25;
+                vec2 edgeMask = vec2(
+                    clamp(abs(l - le) + abs(l - lw), 0.0, 1.0),
+                    clamp(abs(l - ln) + abs(l - ls), 0.0, 1.0)
+                );
+                float edge = max(edgeMask.x, edgeMask.y);
+                float strength = clamp(uSmaaStrength, 0.0, 1.0);
+                float horizW = edgeMask.x / (edgeMask.x + edgeMask.y + 0.0001);
+                float vertW = edgeMask.y / (edgeMask.x + edgeMask.y + 0.0001);
+                vec3 horiz = (cE + cW) * 0.5;
+                vec3 vert = (cN + cS) * 0.5;
+                vec3 neighborhood = mix(horiz, vert, vertW);
+                float blend = edge * strength * 0.62;
                 return mix(color, neighborhood, blend);
+            }
+            vec3 taaSharpen(vec2 uv, vec3 color, float amount) {
+                vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                vec3 cN = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                vec3 cS = texture(uSceneColor, clamp(uv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                vec3 cE = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                vec3 cW = texture(uSceneColor, clamp(uv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                vec3 blur = (cN + cS + cE + cW) * 0.25;
+                vec3 sharpened = color + (color - blur) * amount;
+                return clamp(sharpened, vec3(0.0), vec3(1.0));
             }
             void main() {
                 vec3 color = texture(uSceneColor, vUv).rgb;
+                float currentDepth = texture(uSceneVelocity, vUv).b;
                 if (uTonemapEnabled == 1) {
                     float exposure = max(uTonemapExposure, 0.0001);
                     float gamma = max(uTonemapGamma, 0.0001);
@@ -697,20 +717,29 @@ final class OpenGlContext {
                     vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
                     vec2 velocityUv = texture(uSceneVelocity, vUv).rg * 2.0 - 1.0;
                     vec2 historyUv = clamp(vUv + uTaaJitterDelta + uTaaMotionUv + (velocityUv * 0.5), vec2(0.0), vec2(1.0));
-                    vec3 history = texture(uTaaHistory, historyUv).rgb;
+                    vec4 historySample = texture(uTaaHistory, historyUv);
+                    vec3 history = historySample.rgb;
+                    float historyDepth = historySample.a;
                     vec3 n1 = texture(uSceneColor, clamp(vUv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
                     vec3 n2 = texture(uSceneColor, clamp(vUv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
                     vec3 n3 = texture(uSceneColor, clamp(vUv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
                     vec3 n4 = texture(uSceneColor, clamp(vUv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
                     vec3 neighMin = min(min(min(color, n1), min(n2, n3)), n4);
                     vec3 neighMax = max(max(max(color, n1), max(n2, n3)), n4);
+                    float d1 = texture(uSceneVelocity, clamp(vUv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).b;
+                    float d2 = texture(uSceneVelocity, clamp(vUv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).b;
+                    float d3 = texture(uSceneVelocity, clamp(vUv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).b;
+                    float d4 = texture(uSceneVelocity, clamp(vUv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).b;
+                    float depthEdge = max(max(abs(currentDepth - d1), abs(currentDepth - d2)), max(abs(currentDepth - d3), abs(currentDepth - d4)));
                     float lCurr = dot(color, vec3(0.2126, 0.7152, 0.0722));
                     float lHist = dot(history, vec3(0.2126, 0.7152, 0.0722));
-                    float reactive = clamp(abs(lCurr - lHist) * 2.6 + length(velocityUv) * 1.25, 0.0, 1.0);
-                    float clipExpand = mix(0.08, 0.02, reactive);
+                    float depthReject = smoothstep(0.002, 0.02, abs(historyDepth - currentDepth) + depthEdge * 0.8);
+                    float reactive = clamp(abs(lCurr - lHist) * 2.6 + length(velocityUv) * 1.25 + depthReject * 1.2, 0.0, 1.0);
+                    float clipExpand = mix(0.06, 0.015, reactive);
                     vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand), neighMax + vec3(clipExpand));
-                    float blend = clamp(uTaaBlend, 0.0, 0.95) * (1.0 - reactive * 0.75);
+                    float blend = clamp(uTaaBlend, 0.0, 0.95) * (1.0 - reactive * 0.85);
                     color = mix(color, clampedHistory, blend);
+                    color = taaSharpen(vUv, color, 0.16 * (1.0 - reactive));
                     if (uTaaDebugView == 1) {
                         color = vec3(reactive);
                     } else if (uTaaDebugView == 2) {
@@ -719,7 +748,7 @@ final class OpenGlContext {
                         color = vec3(abs(velocityUv.x), abs(velocityUv.y), length(velocityUv) * 0.5);
                     }
                 }
-                FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+                FragColor = vec4(clamp(color, 0.0, 1.0), clamp(currentDepth, 0.0, 1.0));
             }
             """;
 
