@@ -76,11 +76,16 @@ OpenGL backend provides a real forward render baseline:
   - directional + point light uniforms
   - diffuse + specular-style response
   - per-material roughness/metallic modulation
+  - typed light selection baseline (`LightType`: directional/point/spot) with cone-attenuated spot-light shading path
+  - directional + spot + point shadow path support (point via cubemap depth sampling baseline)
 - IBL baseline hook:
   - environment-driven enablement via `EnvironmentDesc` IBL asset paths
   - lightweight diffuse/specular ambient contribution (`IBL_BASELINE_ACTIVE` warning signal)
   - shader-side IBL texture sampling path (irradiance/radiance/BRDF-LUT samplers in render shader)
   - roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
+  - roughness-aware multi-tap IBL specular radiance filtering with runtime signal `IBL_MULTI_TAP_SPEC_ACTIVE`
+  - view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
+  - explicit LOW/MEDIUM tier quality policy with attenuation + warning: `IBL_QUALITY_DEGRADED`
   - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
   - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
@@ -113,11 +118,16 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - Per-mesh sampled textures for albedo, normal, metallic-roughness, and occlusion.
 - Attribute-rich vertex path (`position`, `normal`, `uv`, `tangent`) from `.gltf/.glb` mesh ingestion.
 - GGX-style PBR-leaning lighting response aligned with OpenGL baseline (directional + point light path).
+- Typed light selection baseline (`LightType`: directional/point/spot) with cone-attenuated spot-light shading path.
+- Directional + spot + point shadow path support in baseline form (OpenGL cubemap baseline; Vulkan 6-face layered point-shadow path aligned to cubemap face directions).
 - IBL baseline hook:
   - environment-driven enablement via `EnvironmentDesc` IBL asset paths
   - lightweight diffuse/specular ambient contribution (`IBL_BASELINE_ACTIVE` warning signal)
   - shader-side IBL texture sampling path (irradiance/radiance/BRDF-LUT samplers in render shader)
   - roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
+  - roughness-aware multi-tap IBL specular radiance filtering with runtime signal `IBL_MULTI_TAP_SPEC_ACTIVE`
+  - view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
+  - explicit LOW/MEDIUM tier quality policy with attenuation + warning: `IBL_QUALITY_DEGRADED`
   - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
   - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
@@ -215,12 +225,13 @@ The repository includes automated tests validating:
 - Guarded compare-harness includes `fog-smoke-shadow-post-stress` for combined volumetric+shadow+post regression coverage.
 - Tiered golden envelopes also include `texture-heavy` (`LOW/MEDIUM/HIGH/ULTRA`) alongside existing fog/smoke and shadow tier checks.
 - Tiered golden envelopes now include `post-process` and `post-process-bloom` (`LOW/MEDIUM/HIGH/ULTRA`).
-- Current ULTRA `shadow-cascade-stress` bound: `<= 0.29`.
-- Current ULTRA `fog-shadow-cascade-stress` bound: `<= 0.30`.
-- Current ULTRA `smoke-shadow-cascade-stress` bound: `<= 0.30`.
-- Current ULTRA `fog-smoke-shadow-post-stress` bound: `<= 0.32`.
+- Current ULTRA `shadow-cascade-stress` bound: `<= 0.25`.
+- Current ULTRA `fog-shadow-cascade-stress` bound: `<= 0.25`.
+- Current ULTRA `smoke-shadow-cascade-stress` bound: `<= 0.25`.
+- Current ULTRA `fog-smoke-shadow-post-stress` bound: `<= 0.05`.
 - Current HIGH `post-process` bound: `<= 0.32`.
-- Current HIGH `post-process-bloom` bound: `<= 0.33`.
+- Current HIGH `post-process-bloom` bound: `<= 0.06`.
+- Practical floor note: attempted `fog-smoke-shadow-post-stress <= 0.04` failed (`diff=0.04049019607843137`), so stress envelopes are frozen at `0.05` / `0.06`.
 - Compare harness backend toggles:
   - `dle.compare.opengl.mockContext`
   - `dle.compare.vulkan.mockContext`

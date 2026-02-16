@@ -155,7 +155,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.29, "shadow cascade stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.25, "shadow cascade stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -167,7 +167,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.30, "fog+shadow cascade stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.25, "fog+shadow cascade stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -184,7 +184,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.30, "smoke+shadow cascade stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.25, "smoke+shadow cascade stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -237,7 +237,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.33, "post-process bloom diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.06, "post-process bloom diff was " + report.diffMetric());
     }
 
     @Test
@@ -255,7 +255,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.32, "fog+smoke+shadow+post stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.05, "fog+smoke+shadow+post stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -362,11 +362,11 @@ class BackendParityIntegrationTest {
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessStressGoldenProfilesStayBounded() throws Exception {
         Map<String, Double> stressMaxDiff = Map.of(
-                "shadow-cascade-stress", 0.29,
-                "fog-shadow-cascade-stress", 0.30,
-                "smoke-shadow-cascade-stress", 0.30,
+                "shadow-cascade-stress", 0.25,
+                "fog-shadow-cascade-stress", 0.25,
+                "smoke-shadow-cascade-stress", 0.25,
                 "texture-heavy", 0.32,
-                "fog-smoke-shadow-post-stress", 0.32
+                "fog-smoke-shadow-post-stress", 0.05
         );
 
         var reports = Map.of(

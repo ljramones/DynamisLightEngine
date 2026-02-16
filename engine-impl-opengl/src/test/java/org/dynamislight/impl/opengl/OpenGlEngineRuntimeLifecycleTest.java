@@ -27,6 +27,7 @@ import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.FogMode;
 import org.dynamislight.api.input.KeyCode;
 import org.dynamislight.api.scene.LightDesc;
+import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.logging.LogMessage;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
@@ -36,6 +37,7 @@ import org.dynamislight.api.event.ResourceHotReloadedEvent;
 import org.dynamislight.api.resource.ResourceState;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.event.SceneLoadFailedEvent;
+import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
@@ -231,7 +233,52 @@ class OpenGlEngineRuntimeLifecycleTest {
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_BASELINE_ACTIVE".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_PREFILTER_APPROX_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_MULTI_TAP_SPEC_ACTIVE".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_CONTAINER_FALLBACK".equals(w.code())));
+    }
+
+    @Test
+    void iblLowTierEmitsQualityDegradedWarning() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validLowQualityConfig(), new RecordingCallbacks());
+        runtime.loadScene(validIblScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_QUALITY_DEGRADED".equals(w.code())));
+    }
+
+    @Test
+    void iblUltraTierDoesNotEmitQualityDegradedWarning() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validUltraQualityConfig(), new RecordingCallbacks());
+        runtime.loadScene(validIblScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_QUALITY_DEGRADED".equals(w.code())));
+    }
+
+    @Test
+    void pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(), new RecordingCallbacks());
+        runtime.loadScene(validPointShadowScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_TYPE_UNSUPPORTED".equals(w.code())));
+    }
+
+    @Test
+    void spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_TYPE_UNSUPPORTED".equals(w.code())));
     }
 
     @Test
@@ -601,6 +648,63 @@ class OpenGlEngineRuntimeLifecycleTest {
                 base.materials(),
                 base.lights(),
                 env,
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validPointShadowScene() {
+        SceneDescriptor base = validScene();
+        LightDesc pointShadow = new LightDesc(
+                "point-shadow",
+                new Vec3(0.5f, 1.5f, 1.8f),
+                new Vec3(1f, 0.9f, 0.8f),
+                1.2f,
+                14f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.POINT
+        );
+        return new SceneDescriptor(
+                "point-shadow-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(pointShadow),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validSpotShadowScene() {
+        SceneDescriptor base = validScene();
+        LightDesc spotShadow = new LightDesc(
+                "spot-shadow",
+                new Vec3(0.4f, 1.6f, 1.5f),
+                new Vec3(0.9f, 0.9f, 1f),
+                1.1f,
+                12f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.SPOT,
+                new Vec3(0f, -1f, 0f),
+                18f,
+                32f
+        );
+        return new SceneDescriptor(
+                "spot-shadow-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(spotShadow),
+                base.environment(),
                 base.fog(),
                 base.smokeEmitters(),
                 base.postProcess()

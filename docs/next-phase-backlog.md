@@ -4,21 +4,35 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 
 ## Latest Completed Batch (February 2026)
 - Tightened parity stress thresholds:
-  - `shadow-cascade-stress` `0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29`
-  - `fog-shadow-cascade-stress` `0.40 -> 0.39 -> 0.38 -> 0.37 -> 0.36 -> 0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30`
-  - `smoke-shadow-cascade-stress` `0.40 -> 0.39 -> 0.38 -> 0.37 -> 0.36 -> 0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30`
-  - `fog-smoke-shadow-post-stress` `0.37 -> 0.35 -> 0.34 -> 0.33 -> 0.32`
-  - `post-process-bloom (HIGH)` `0.36 -> 0.35 -> 0.34 -> 0.33`
+  - `shadow-cascade-stress` `0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29 -> 0.28 -> 0.27 -> 0.26 -> 0.25`
+  - `fog-shadow-cascade-stress` `0.40 -> 0.39 -> 0.38 -> 0.37 -> 0.36 -> 0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29 -> 0.28 -> 0.27 -> 0.26 -> 0.25`
+  - `smoke-shadow-cascade-stress` `0.40 -> 0.39 -> 0.38 -> 0.37 -> 0.36 -> 0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29 -> 0.28 -> 0.27 -> 0.26 -> 0.25`
+  - `fog-smoke-shadow-post-stress` `0.37 -> 0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29 -> 0.28 -> 0.27 -> 0.26 -> 0.25 -> 0.24 -> 0.23 -> 0.22 -> 0.21 -> 0.20 -> 0.19 -> 0.18 -> 0.17 -> 0.16 -> 0.15 -> 0.14 -> 0.13 -> 0.12 -> 0.11 -> 0.10 -> 0.09 -> 0.08 -> 0.07 -> 0.06 -> 0.05`
+  - `post-process-bloom (HIGH)` `0.36 -> 0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29 -> 0.28 -> 0.27 -> 0.26 -> 0.25 -> 0.24 -> 0.23 -> 0.22 -> 0.21 -> 0.20 -> 0.19 -> 0.18 -> 0.17 -> 0.16 -> 0.15 -> 0.14 -> 0.13 -> 0.12 -> 0.11 -> 0.10 -> 0.09 -> 0.08 -> 0.07 -> 0.06`
+  - practical floor detected at attempted `fog-smoke-shadow-post-stress=0.04` (`diff=0.04049019607843137`); envelopes frozen at `0.05` / `0.06`.
 - Added tiered `texture-heavy` parity envelopes (`LOW/MEDIUM/HIGH/ULTRA`) in compare-harness tests.
 - Implemented Phase 2 Item 1 baseline hook:
   - environment-driven IBL baseline in OpenGL and Vulkan
   - shader-side IBL texture sampling baseline in OpenGL and Vulkan (irradiance/radiance/BRDF-LUT)
   - roughness-aware radiance prefilter approximation in OpenGL and Vulkan (tier-driven prefilter strength)
+  - roughness-aware multi-tap specular radiance filtering in OpenGL and Vulkan (`IBL_MULTI_TAP_SPEC_ACTIVE`)
+  - view-space camera-direction IBL response in both backends (replaces fixed forward-view assumption)
   - texture ingestion + calibration support for configured IBL assets (`png/jpg/jpeg/.hdr`)
   - `.ktx/.ktx2` IBL container paths now resolve through sidecar decode sources when available (`.png/.hdr/.jpg/.jpeg`)
   - explicit `IBL_KTX_CONTAINER_FALLBACK` and `IBL_PREFILTER_APPROX_ACTIVE` warnings emitted for IBL runtime mode visibility
   - bridge mapping preserves `EnvironmentDesc` IBL fields and `PostProcessDesc`
   - new backend tests assert `IBL_BASELINE_ACTIVE` signal
+  - IBL quality-tier policy tightened in OpenGL + Vulkan:
+    - stronger LOW/MEDIUM tier attenuation for diffuse/specular/prefilter strengths
+    - explicit runtime warning when tier-driven IBL degradation is active: `IBL_QUALITY_DEGRADED`
+    - backend tests now assert `IBL_QUALITY_DEGRADED` on LOW and no degradation warning on ULTRA
+- Phase 2 Item 2 baseline started:
+  - API light-type expansion added (`LightType`: `DIRECTIONAL`, `POINT`, `SPOT`) with backward-compatible `LightDesc` constructors.
+  - OpenGL/Vulkan lighting selection now prefers typed directional + point/spot lights instead of pure list-position assumptions.
+  - Spot lights now use cone-attenuated shading (direction + inner/outer cone) in OpenGL and Vulkan.
+  - OpenGL shadow-map execution now supports directional + spot + point lights (point via cubemap depth sampling baseline).
+  - Vulkan point-light shadows now run through a 6-face layered path aligned to cubemap directions (+X/-X/+Y/-Y/+Z/-Z).
+  - Backend tests ensure legacy `SPOT_LIGHT_APPROX_ACTIVE` warning remains absent and verify point/spot shadow warning behavior.
 - Hardened Vulkan frame-resource architecture:
   - expanded to `MAX_FRAMES_IN_FLIGHT=3`
   - per-frame descriptor-set ring for global uniforms
@@ -28,11 +42,12 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - longer resize/scene-switch endurance loop
   - forced device-loss error-path test
   - native-runtime readiness guard to skip cleanly when LWJGL natives are unavailable
+  - added targeted reuse assertions for lighting-only and post/fog-only scene updates (no full rebuilds or descriptor pool rebuilds on real-device path)
 
 ## Active Next Steps
-- Continue controlled threshold tightening on remaining stress profiles where signal remains stable.
+- Threshold tightening lane complete for current stress profiles; keep envelopes frozen at established floor and revisit only after major lighting/post changes.
 - Expand deterministic golden scenes for additional fog/smoke/shadow material interactions.
-- Expand IBL beyond baseline (native `.ktx/.ktx2` decode/prefilter, stronger BRDF/roughness integration, quality-tier policy).
+- Expand IBL beyond baseline (native `.ktx/.ktx2` decode/prefilter and deeper BRDF/roughness integration).
 - Extend Vulkan dynamic-update staging strategy to more scene data beyond current uniform path.
 - Add more real-device validation coverage across multiple machine/driver profiles.
 

@@ -8,6 +8,7 @@ import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.LightDesc;
+import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.TransformDesc;
@@ -63,6 +64,18 @@ public final class SceneValidator {
                             throw invalid("light " + light.id() + " shadow cascadeCount must be >= 1");
                         }
                     }
+                }
+                LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
+                if (type == LightType.SPOT) {
+                    if (light.innerConeDegrees() < 0f || light.outerConeDegrees() < 0f) {
+                        throw invalid("light " + light.id() + " spot cone angles must be >= 0");
+                    }
+                    if (light.outerConeDegrees() < light.innerConeDegrees()) {
+                        throw invalid("light " + light.id() + " outerConeDegrees must be >= innerConeDegrees");
+                    }
+                }
+                if (type != LightType.DIRECTIONAL && light.range() <= 0f) {
+                    throw invalid("light " + light.id() + " non-directional lights must have range > 0");
                 }
             }
         }

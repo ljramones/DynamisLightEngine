@@ -25,6 +25,7 @@ import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.FogMode;
 import org.dynamislight.api.input.KeyCode;
 import org.dynamislight.api.scene.LightDesc;
+import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.logging.LogMessage;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
@@ -165,7 +166,58 @@ class VulkanEngineRuntimeIntegrationTest {
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_BASELINE_ACTIVE".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_PREFILTER_APPROX_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_MULTI_TAP_SPEC_ACTIVE".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_CONTAINER_FALLBACK".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void iblLowTierEmitsQualityDegradedWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.LOW), new RecordingCallbacks());
+        runtime.loadScene(validIblScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_QUALITY_DEGRADED".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void iblUltraTierDoesNotEmitQualityDegradedWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.ULTRA), new RecordingCallbacks());
+        runtime.loadScene(validIblScene());
+
+        var frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_QUALITY_DEGRADED".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validPointShadowScene());
+
+        var frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_TYPE_UNSUPPORTED".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "POINT_SHADOW_APPROX_ACTIVE".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        var frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_TYPE_UNSUPPORTED".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "POINT_SHADOW_APPROX_ACTIVE".equals(w.code())));
         runtime.shutdown();
     }
 
@@ -243,6 +295,50 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(after.reorderReuseHits() > before.reorderReuseHits());
         assertEquals(before.fullRebuilds(), after.fullRebuilds());
         assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
+        runtime.shutdown();
+    }
+
+    @Test
+    void realVulkanLightingOnlySceneChangeReusesBuffersWithoutDescriptorRebuild() throws Exception {
+        assumeRealVulkanReady("real Vulkan lighting-only reuse integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), new RecordingCallbacks());
+        runtime.loadScene(validReusableScene(false, false));
+        runtime.render();
+        var before = runtime.debugSceneReuseStats();
+
+        runtime.loadScene(validReusableSceneWithLightingVariant(1.7f));
+        runtime.render();
+        var after = runtime.debugSceneReuseStats();
+
+        assertTrue(after.reuseHits() > before.reuseHits());
+        assertEquals(before.fullRebuilds(), after.fullRebuilds());
+        assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
+        assertEquals(before.descriptorPoolBuilds(), after.descriptorPoolBuilds());
+        assertEquals(before.descriptorPoolRebuilds(), after.descriptorPoolRebuilds());
+        runtime.shutdown();
+    }
+
+    @Test
+    void realVulkanPostFogOnlySceneChangeReusesBuffersWithoutDescriptorRebuild() throws Exception {
+        assumeRealVulkanReady("real Vulkan post/fog-only reuse integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), new RecordingCallbacks());
+        runtime.loadScene(validReusableSceneWithPostFogVariant(0.12f, 1.0f));
+        runtime.render();
+        var before = runtime.debugSceneReuseStats();
+
+        runtime.loadScene(validReusableSceneWithPostFogVariant(0.22f, 1.18f));
+        runtime.render();
+        var after = runtime.debugSceneReuseStats();
+
+        assertTrue(after.reuseHits() > before.reuseHits());
+        assertEquals(before.fullRebuilds(), after.fullRebuilds());
+        assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
+        assertEquals(before.descriptorPoolBuilds(), after.descriptorPoolBuilds());
+        assertEquals(before.descriptorPoolRebuilds(), after.descriptorPoolRebuilds());
         runtime.shutdown();
     }
 
@@ -491,6 +587,69 @@ class VulkanEngineRuntimeIntegrationTest {
         );
     }
 
+    private static SceneDescriptor validReusableSceneWithLightingVariant(float lightIntensity) {
+        SceneDescriptor base = validReusableScene(false, false);
+        LightDesc light = new LightDesc(
+                "light",
+                new Vec3(1, 3, 2),
+                new Vec3(0.95f, 0.92f, 1.0f),
+                lightIntensity,
+                15f,
+                false,
+                null
+        );
+        return new SceneDescriptor(
+                "vulkan-reuse-lighting-variant",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(light),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validReusableSceneWithPostFogVariant(float fogDensity, float exposure) {
+        SceneDescriptor base = validReusableScene(false, false);
+        FogDesc fog = new FogDesc(
+                true,
+                FogMode.EXPONENTIAL,
+                new Vec3(0.52f, 0.57f, 0.64f),
+                fogDensity,
+                0f,
+                0.7f,
+                0f,
+                0f,
+                0f
+        );
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                exposure,
+                2.2f,
+                true,
+                1.0f,
+                0.75f
+        );
+        return new SceneDescriptor(
+                "vulkan-reuse-post-fog-variant",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                fog,
+                base.smokeEmitters(),
+                post
+        );
+    }
+
     private static SceneDescriptor validIblScene() {
         SceneDescriptor base = validScene();
         EnvironmentDesc env = new EnvironmentDesc(
@@ -510,6 +669,63 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.materials(),
                 base.lights(),
                 env,
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validPointShadowScene() {
+        SceneDescriptor base = validScene();
+        LightDesc pointShadow = new LightDesc(
+                "point-shadow",
+                new Vec3(0.5f, 1.5f, 1.8f),
+                new Vec3(1f, 0.9f, 0.8f),
+                1.2f,
+                14f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.POINT
+        );
+        return new SceneDescriptor(
+                "vulkan-point-shadow-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(pointShadow),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validSpotShadowScene() {
+        SceneDescriptor base = validScene();
+        LightDesc spotShadow = new LightDesc(
+                "spot-shadow",
+                new Vec3(0.4f, 1.6f, 1.5f),
+                new Vec3(0.9f, 0.9f, 1f),
+                1.1f,
+                12f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.SPOT,
+                new Vec3(0f, -1f, 0f),
+                18f,
+                32f
+        );
+        return new SceneDescriptor(
+                "vulkan-spot-shadow-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(spotShadow),
+                base.environment(),
                 base.fog(),
                 base.smokeEmitters(),
                 base.postProcess()

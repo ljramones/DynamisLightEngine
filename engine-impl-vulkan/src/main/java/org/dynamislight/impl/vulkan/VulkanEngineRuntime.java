@@ -17,6 +17,7 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
 import org.dynamislight.api.scene.LightDesc;
+import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
@@ -48,7 +49,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, 0f);
+    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, 0f, false);
+    private boolean nonDirectionalShadowRequested;
 
     public VulkanEngineRuntime() {
         super(
@@ -105,6 +107,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         currentShadows = shadows;
         currentPost = post;
         currentIbl = ibl;
+        nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene == null ? null : scene.lights());
         List<VulkanContext.SceneMeshData> sceneMeshes = buildSceneMeshes(scene);
         plannedDrawCalls = sceneMeshes.size();
         plannedTriangles = sceneMeshes.stream().mapToLong(m -> m.indices().length / 3).sum();
@@ -117,7 +120,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     lighting.directionalIntensity(),
                     lighting.pointPosition(),
                     lighting.pointColor(),
-                    lighting.pointIntensity()
+                    lighting.pointIntensity(),
+                    lighting.pointDirection(),
+                    lighting.pointInnerCos(),
+                    lighting.pointOuterCos(),
+                    lighting.pointIsSpot(),
+                    lighting.pointRange(),
+                    lighting.pointCastsShadows()
             );
             context.setShadowParameters(
                     shadows.enabled(),
@@ -210,6 +219,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     "Shadow quality reduced for tier " + qualityTier + " to maintain performance"
             ));
         }
+        if (nonDirectionalShadowRequested) {
+            warnings.add(new EngineWarning(
+                    "SHADOW_TYPE_UNSUPPORTED",
+                    "Point shadow maps are not implemented yet; current shadow-map path supports directional and spot lights"
+            ));
+        }
         if (currentIbl.enabled()) {
             warnings.add(new EngineWarning(
                     "IBL_BASELINE_ACTIVE",
@@ -222,6 +237,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     "IBL roughness-aware radiance prefilter approximation active (strength="
                             + currentIbl.prefilterStrength() + ")"
             ));
+            warnings.add(new EngineWarning(
+                    "IBL_MULTI_TAP_SPEC_ACTIVE",
+                    "IBL specular radiance uses roughness-aware multi-tap filtering for improved highlight stability"
+            ));
+            if (currentIbl.degraded()) {
+                warnings.add(new EngineWarning(
+                        "IBL_QUALITY_DEGRADED",
+                        "IBL diffuse/specular quality reduced for tier " + qualityTier + " to maintain stable frame cost"
+                ));
+            }
             if (currentIbl.ktxContainerRequested()) {
                 warnings.add(new EngineWarning(
                         "IBL_KTX_CONTAINER_FALLBACK",
@@ -374,7 +399,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float specularStrength,
             boolean textureDriven,
             boolean ktxContainerRequested,
-            float prefilterStrength
+            float prefilterStrength,
+            boolean degraded
     ) {
     }
 
@@ -409,28 +435,29 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f);
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 && !isBlank(environment.iblRadiancePath())
                 && !isBlank(environment.iblBrdfLutPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f);
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false);
         }
         float tierScale = switch (qualityTier) {
-            case LOW -> 0.75f;
-            case MEDIUM -> 0.9f;
+            case LOW -> 0.62f;
+            case MEDIUM -> 0.82f;
             case HIGH -> 1.0f;
-            case ULTRA -> 1.1f;
+            case ULTRA -> 1.15f;
         };
         float diffuse = 0.42f * tierScale;
         float specular = 0.30f * tierScale;
         float prefilterStrength = switch (qualityTier) {
-            case LOW -> 0.5f;
-            case MEDIUM -> 0.7f;
+            case LOW -> 0.38f;
+            case MEDIUM -> 0.62f;
             case HIGH -> 0.85f;
             case ULTRA -> 1.0f;
         };
+        boolean degraded = qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
         boolean textureDriven = false;
 
         Path irrSource = resolveScenePath(environment.iblIrradiancePath(), assetRoot);
@@ -464,7 +491,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 Math.max(0f, Math.min(2.0f, specular)),
                 textureDriven,
                 ktxContainerRequested,
-                Math.max(0f, Math.min(1f, prefilterStrength))
+                Math.max(0f, Math.min(1f, prefilterStrength)),
+                degraded
         );
     }
 
@@ -488,7 +516,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float directionalIntensity,
             float[] pointPosition,
             float[] pointColor,
-            float pointIntensity
+            float pointIntensity,
+            float[] pointDirection,
+            float pointInnerCos,
+            float pointOuterCos,
+            boolean pointIsSpot,
+            float pointRange,
+            boolean pointCastsShadows
     ) {
     }
 
@@ -541,32 +575,111 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         float[] pointPos = new float[]{0f, 1.3f, 1.8f};
         float[] pointColor = new float[]{0.95f, 0.62f, 0.22f};
         float pointIntensity = 1.0f;
+        float[] pointDir = new float[]{0f, -1f, 0f};
+        float pointInnerCos = 1.0f;
+        float pointOuterCos = 1.0f;
+        boolean pointIsSpot = false;
+        float pointRange = 15f;
+        boolean pointCastsShadows = false;
         if (lights == null || lights.isEmpty()) {
-            return new LightingConfig(dir, dirColor, dirIntensity, pointPos, pointColor, pointIntensity);
+            return new LightingConfig(
+                    dir, dirColor, dirIntensity,
+                    pointPos, pointColor, pointIntensity,
+                    pointDir, pointInnerCos, pointOuterCos, pointIsSpot, pointRange, pointCastsShadows
+            );
         }
-        LightDesc first = lights.getFirst();
-        if (first != null && first.color() != null) {
-            dirColor = new float[]{clamp01(first.color().x()), clamp01(first.color().y()), clamp01(first.color().z())};
-        }
-        if (first != null) {
-            dirIntensity = Math.max(0f, first.intensity());
-            if (first.position() != null) {
-                pointPos = new float[]{first.position().x(), first.position().y(), first.position().z()};
+        LightDesc directional = null;
+        LightDesc pointLike = null;
+        for (LightDesc light : lights) {
+            if (light == null) {
+                continue;
+            }
+            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
+            if (directional == null && type == LightType.DIRECTIONAL) {
+                directional = light;
+            }
+            if (pointLike == null && (type == LightType.POINT || type == LightType.SPOT)) {
+                pointLike = light;
             }
         }
-        if (lights.size() > 1) {
-            LightDesc second = lights.get(1);
-            if (second != null && second.color() != null) {
-                pointColor = new float[]{clamp01(second.color().x()), clamp01(second.color().y()), clamp01(second.color().z())};
+        if (directional == null) {
+            directional = lights.getFirst();
+        }
+        if (pointLike == null && lights.size() > 1) {
+            pointLike = lights.get(1);
+        }
+        if (directional != null && directional.color() != null) {
+            dirColor = new float[]{
+                    clamp01(directional.color().x()),
+                    clamp01(directional.color().y()),
+                    clamp01(directional.color().z())
+            };
+        }
+        if (directional != null) {
+            dirIntensity = Math.max(0f, directional.intensity());
+            if (directional.direction() != null) {
+                dir = normalize3(new float[]{
+                        directional.direction().x(),
+                        directional.direction().y(),
+                        directional.direction().z()
+                });
             }
-            if (second != null) {
-                pointIntensity = Math.max(0f, second.intensity());
-                if (second.position() != null) {
-                    pointPos = new float[]{second.position().x(), second.position().y(), second.position().z()};
+        }
+        if (pointLike != null && pointLike.color() != null) {
+            pointColor = new float[]{
+                    clamp01(pointLike.color().x()),
+                    clamp01(pointLike.color().y()),
+                    clamp01(pointLike.color().z())
+            };
+        }
+        if (pointLike != null) {
+            pointIntensity = Math.max(0f, pointLike.intensity());
+            pointRange = pointLike.range() > 0f ? pointLike.range() : 15f;
+            if (pointLike.position() != null) {
+                pointPos = new float[]{pointLike.position().x(), pointLike.position().y(), pointLike.position().z()};
+            }
+            LightType pointType = pointLike.type() == null ? LightType.DIRECTIONAL : pointLike.type();
+            if (pointType == LightType.SPOT) {
+                pointIsSpot = true;
+                if (pointLike.direction() != null) {
+                    pointDir = normalize3(new float[]{
+                            pointLike.direction().x(),
+                            pointLike.direction().y(),
+                            pointLike.direction().z()
+                    });
                 }
+                float inner = cosFromDegrees(pointLike.innerConeDegrees());
+                float outer = cosFromDegrees(pointLike.outerConeDegrees());
+                pointInnerCos = Math.max(inner, outer);
+                pointOuterCos = Math.min(inner, outer);
             }
+            pointCastsShadows = pointType == LightType.POINT && pointLike.castsShadows();
         }
-        return new LightingConfig(dir, dirColor, dirIntensity, pointPos, pointColor, pointIntensity);
+        return new LightingConfig(
+                dir, dirColor, dirIntensity,
+                pointPos, pointColor, pointIntensity,
+                pointDir, pointInnerCos, pointOuterCos, pointIsSpot, pointRange, pointCastsShadows
+        );
+    }
+
+    private static boolean hasNonDirectionalShadowRequest(List<LightDesc> lights) {
+        return false;
+    }
+
+    private static float[] normalize3(float[] v) {
+        if (v == null || v.length != 3) {
+            return new float[]{0f, -1f, 0f};
+        }
+        float len = (float) Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        if (len < 1.0e-6f) {
+            return new float[]{0f, -1f, 0f};
+        }
+        return new float[]{v[0] / len, v[1] / len, v[2] / len};
+    }
+
+    private static float cosFromDegrees(float degrees) {
+        float clamped = Math.max(0f, Math.min(89.9f, degrees));
+        return (float) Math.cos(Math.toRadians(clamped));
     }
 
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
@@ -577,9 +690,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             if (light == null || !light.castsShadows()) {
                 continue;
             }
+            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
             ShadowDesc shadow = light.shadow();
             int kernel = shadow == null ? 3 : Math.max(1, shadow.pcfKernelSize());
             int cascades = shadow == null ? 1 : Math.max(1, shadow.cascadeCount());
+            if (type == LightType.SPOT) {
+                cascades = 1;
+            } else if (type == LightType.POINT) {
+                cascades = 6;
+            }
             int resolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));
             float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
             int maxKernel = switch (qualityTier) {
@@ -591,10 +710,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int kernelClamped = Math.min(kernel, maxKernel);
             int radius = Math.max(0, (kernelClamped - 1) / 2);
             int maxCascades = switch (qualityTier) {
-                case LOW -> 1;
-                case MEDIUM -> 2;
-                case HIGH -> 3;
-                case ULTRA -> 4;
+                case LOW -> type == LightType.POINT ? 6 : 1;
+                case MEDIUM -> type == LightType.POINT ? 6 : 2;
+                case HIGH -> type == LightType.POINT ? 6 : 3;
+                case ULTRA -> type == LightType.POINT ? 6 : 4;
             };
             int cascadesClamped = Math.min(cascades, maxCascades);
             float base = Math.min(0.9f, 0.25f + (kernelClamped * 0.04f) + (cascadesClamped * 0.05f));

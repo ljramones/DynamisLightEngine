@@ -311,7 +311,9 @@ final class VulkanContext {
     private static final int MAX_FRAMES_IN_FLIGHT = 3;
     private static final int MAX_DYNAMIC_SCENE_OBJECTS = 2048;
     private static final int MAX_SHADOW_CASCADES = 4;
-    private static final int GLOBAL_UNIFORM_BYTES = 704;
+    private static final int POINT_SHADOW_FACES = 6;
+    private static final int MAX_SHADOW_MATRICES = 6;
+    private static final int GLOBAL_UNIFORM_BYTES = 864;
     private VkInstance instance;
     private VkPhysicalDevice physicalDevice;
     private VkDevice device;
@@ -393,6 +395,14 @@ final class VulkanContext {
     private float pointLightColorG = 0.62f;
     private float pointLightColorB = 0.22f;
     private float pointLightIntensity = 1.0f;
+    private float pointLightDirX = 0.0f;
+    private float pointLightDirY = -1.0f;
+    private float pointLightDirZ = 0.0f;
+    private float pointLightInnerCos = 1.0f;
+    private float pointLightOuterCos = 1.0f;
+    private float pointLightIsSpot;
+    private boolean pointShadowEnabled;
+    private float pointShadowFarPlane = 15f;
     private boolean shadowEnabled;
     private float shadowStrength = 0.45f;
     private float shadowBias = 0.0015f;
@@ -401,6 +411,8 @@ final class VulkanContext {
     private int shadowMapResolution = 1024;
     private final float[] shadowCascadeSplitNdc = new float[]{1f, 1f, 1f};
     private final float[][] shadowLightViewProjMatrices = new float[][]{
+            identityMatrix(),
+            identityMatrix(),
             identityMatrix(),
             identityMatrix(),
             identityMatrix(),
@@ -570,7 +582,13 @@ final class VulkanContext {
             float dirIntensity,
             float[] pointPos,
             float[] pointColor,
-            float pointIntensity
+            float pointIntensity,
+            float[] pointDirection,
+            float pointInnerCos,
+            float pointOuterCos,
+            boolean pointIsSpot,
+            float pointRange,
+            boolean pointCastsShadows
     ) {
         if (dirDir != null && dirDir.length == 3) {
             dirLightDirX = dirDir[0];
@@ -594,6 +612,20 @@ final class VulkanContext {
             pointLightColorB = pointColor[2];
         }
         pointLightIntensity = Math.max(0f, pointIntensity);
+        if (pointDirection != null && pointDirection.length == 3) {
+            float[] normalized = normalize3(pointDirection[0], pointDirection[1], pointDirection[2]);
+            pointLightDirX = normalized[0];
+            pointLightDirY = normalized[1];
+            pointLightDirZ = normalized[2];
+        }
+        pointLightInnerCos = clamp01(pointInnerCos);
+        pointLightOuterCos = clamp01(pointOuterCos);
+        if (pointLightOuterCos > pointLightInnerCos) {
+            pointLightOuterCos = pointLightInnerCos;
+        }
+        pointLightIsSpot = pointIsSpot ? 1f : 0f;
+        pointShadowFarPlane = Math.max(1.0f, pointRange);
+        pointShadowEnabled = pointCastsShadows;
     }
 
     void setShadowParameters(boolean enabled, float strength, float bias, int pcfRadius, int cascadeCount, int mapResolution)
@@ -602,7 +634,7 @@ final class VulkanContext {
         shadowStrength = Math.max(0f, Math.min(1f, strength));
         shadowBias = Math.max(0.00002f, bias);
         shadowPcfRadius = Math.max(0, pcfRadius);
-        shadowCascadeCount = Math.max(1, Math.min(MAX_SHADOW_CASCADES, cascadeCount));
+        shadowCascadeCount = Math.max(1, Math.min(MAX_SHADOW_MATRICES, cascadeCount));
         int clampedResolution = Math.max(256, Math.min(4096, mapResolution));
         if (shadowMapResolution != clampedResolution) {
             shadowMapResolution = clampedResolution;
@@ -1243,7 +1275,7 @@ final class VulkanContext {
                 VK10.VK_IMAGE_TILING_OPTIMAL,
                 VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                MAX_SHADOW_CASCADES
+                MAX_SHADOW_MATRICES
         );
         shadowDepthImage = shadowDepth.image();
         shadowDepthMemory = shadowDepth.memory();
@@ -1254,10 +1286,10 @@ final class VulkanContext {
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 VK10.VK_IMAGE_VIEW_TYPE_2D_ARRAY,
                 0,
-                MAX_SHADOW_CASCADES
+                MAX_SHADOW_MATRICES
         );
-        shadowDepthLayerImageViews = new long[MAX_SHADOW_CASCADES];
-        for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
+        shadowDepthLayerImageViews = new long[MAX_SHADOW_MATRICES];
+        for (int i = 0; i < MAX_SHADOW_MATRICES; i++) {
             shadowDepthLayerImageViews[i] = createImageView(
                     stack,
                     shadowDepthImage,
@@ -1362,6 +1394,8 @@ final class VulkanContext {
                     vec4 uDirLightColor;
                     vec4 uPointLightPos;
                     vec4 uPointLightColor;
+                    vec4 uPointLightDir;
+                    vec4 uPointLightCone;
                     vec4 uShadow;
                     vec4 uShadowCascade;
                     vec4 uShadowCascadeExt;
@@ -1372,13 +1406,13 @@ final class VulkanContext {
                     vec4 uIbl;
                     vec4 uPostProcess;
                     vec4 uBloom;
-                    mat4 uShadowLightViewProj[4];
+                    mat4 uShadowLightViewProj[6];
                 } ubo;
                 layout(push_constant) uniform ShadowPush {
                     int uCascadeIndex;
                 } pc;
                 void main() {
-                    int cascadeIndex = clamp(pc.uCascadeIndex, 0, 3);
+                    int cascadeIndex = clamp(pc.uCascadeIndex, 0, 5);
                     gl_Position = ubo.uShadowLightViewProj[cascadeIndex] * ubo.uModel * vec4(inPos, 1.0);
                 }
                 """;
@@ -1511,8 +1545,8 @@ final class VulkanContext {
     }
 
     private void createShadowFramebuffers(MemoryStack stack) throws EngineException {
-        shadowFramebuffers = new long[MAX_SHADOW_CASCADES];
-        for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
+        shadowFramebuffers = new long[MAX_SHADOW_MATRICES];
+        for (int i = 0; i < MAX_SHADOW_MATRICES; i++) {
             VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
                     .renderPass(shadowRenderPass)
@@ -1606,6 +1640,8 @@ final class VulkanContext {
                     vec4 uDirLightColor;
                     vec4 uPointLightPos;
                     vec4 uPointLightColor;
+                    vec4 uPointLightDir;
+                    vec4 uPointLightCone;
                     vec4 uShadow;
                     vec4 uShadowCascade;
                     vec4 uShadowCascadeExt;
@@ -1616,7 +1652,7 @@ final class VulkanContext {
                     vec4 uIbl;
                     vec4 uPostProcess;
                     vec4 uBloom;
-                    mat4 uShadowLightViewProj[4];
+                    mat4 uShadowLightViewProj[6];
                 } ubo;
                 void main() {
                     vec4 world = ubo.uModel * vec4(inPos, 1.0);
@@ -1647,6 +1683,8 @@ final class VulkanContext {
                     vec4 uDirLightColor;
                     vec4 uPointLightPos;
                     vec4 uPointLightColor;
+                    vec4 uPointLightDir;
+                    vec4 uPointLightCone;
                     vec4 uShadow;
                     vec4 uShadowCascade;
                     vec4 uShadowCascadeExt;
@@ -1657,7 +1695,7 @@ final class VulkanContext {
                     vec4 uIbl;
                     vec4 uPostProcess;
                     vec4 uBloom;
-                    mat4 uShadowLightViewProj[4];
+                    mat4 uShadowLightViewProj[6];
                 } ubo;
                 layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
                 layout(set = 1, binding = 1) uniform sampler2D uNormalTexture;
@@ -1685,6 +1723,20 @@ final class VulkanContext {
                 vec3 fresnelSchlick(float cosTheta, vec3 f0) {
                     return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
                 }
+                vec3 sampleIblRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter) {
+                    float roughMix = clamp(roughness * (0.45 + 0.55 * prefilter), 0.0, 1.0);
+                    vec2 roughUv = mix(specUv, baseUv, roughMix);
+                    vec2 texel = 1.0 / vec2(textureSize(uIblRadianceTexture, 0));
+                    vec2 axis = normalize(vec2(0.37, 0.93) + vec2(roughMix, 1.0 - roughMix) * 0.45);
+                    vec2 side = vec2(-axis.y, axis.x);
+                    float spread = mix(0.75, 7.5, roughMix);
+                    vec3 c0 = texture(uIblRadianceTexture, roughUv).rgb;
+                    vec3 c1 = texture(uIblRadianceTexture, clamp(roughUv + axis * texel * spread, vec2(0.0), vec2(1.0))).rgb;
+                    vec3 c2 = texture(uIblRadianceTexture, clamp(roughUv - axis * texel * spread, vec2(0.0), vec2(1.0))).rgb;
+                    vec3 c3 = texture(uIblRadianceTexture, clamp(roughUv + side * texel * spread * 0.65, vec2(0.0), vec2(1.0))).rgb;
+                    vec3 c4 = texture(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 0.65, vec2(0.0), vec2(1.0))).rgb;
+                    return (c0 * 0.38) + (c1 * 0.19) + (c2 * 0.19) + (c3 * 0.12) + (c4 * 0.12);
+                }
                 void main() {
                     vec3 n0 = normalize(vNormal);
                     vec3 t = normalize(vTangent - dot(vTangent, n0) * n0);
@@ -1704,7 +1756,16 @@ final class VulkanContext {
                     vec3 pDir = normalize(ubo.uPointLightPos.xyz - vWorldPos);
                     float dist = max(length(ubo.uPointLightPos.xyz - vWorldPos), 0.1);
                     float attenuation = 1.0 / (1.0 + 0.35 * dist + 0.1 * dist * dist);
-                    vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
+                    float spotAttenuation = 1.0;
+                    if (ubo.uPointLightCone.z > 0.5) {
+                        vec3 lightToFrag = normalize(vWorldPos - ubo.uPointLightPos.xyz);
+                        float cosTheta = dot(normalize(ubo.uPointLightDir.xyz), lightToFrag);
+                        float coneRange = max(ubo.uPointLightCone.x - ubo.uPointLightCone.y, 0.0001);
+                        spotAttenuation = clamp((cosTheta - ubo.uPointLightCone.y) / coneRange, 0.0, 1.0);
+                        spotAttenuation *= spotAttenuation;
+                    }
+                    vec3 viewPos = (ubo.uView * vec4(vWorldPos, 1.0)).xyz;
+                    vec3 viewDir = normalize(-viewPos);
 
                     float ndl = max(dot(n, lDir), 0.0);
                     float ndv = max(dot(n, viewDir), 0.0);
@@ -1723,11 +1784,13 @@ final class VulkanContext {
                     vec3 directional = (diffuse + specular) * ubo.uDirLightColor.rgb * (ndl * dirIntensity);
 
                     float pNdl = max(dot(n, pDir), 0.0);
-                    vec3 pointLit = (kd * baseColor / 3.14159) * ubo.uPointLightColor.rgb * (pNdl * attenuation * pointIntensity);
+                    vec3 pointLit = (kd * baseColor / 3.14159)
+                            * ubo.uPointLightColor.rgb
+                            * (pNdl * attenuation * spotAttenuation * pointIntensity);
                     vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * baseColor * ao;
 
                     vec3 color = ambient + directional + pointLit;
-                    if (ubo.uShadow.x > 0.5) {
+                    if (ubo.uShadow.x > 0.5 && ubo.uPointLightCone.w < 0.5) {
                         int cascadeCount = clamp(int(ubo.uShadowCascade.x + 0.5), 1, 4);
                         int cascadeIndex = 0;
                         float depthNdc = clamp(gl_FragCoord.z, 0.0, 1.0);
@@ -1771,6 +1834,58 @@ final class VulkanContext {
                         float shadowFactor = clamp(shadowOcclusion * clamp(ubo.uShadow.y, 0.0, 1.0), 0.0, 0.9);
                         color *= (1.0 - shadowFactor);
                     }
+                    if (ubo.uPointLightCone.w > 0.5) {
+                        int pointLayerCount = clamp(int(ubo.uShadowCascade.x + 0.5), 1, 6);
+                        vec3 pointVec = normalize(vWorldPos - ubo.uPointLightPos.xyz);
+                        int pointLayer = 0;
+                        if (pointLayerCount >= 6) {
+                            vec3 absVec = abs(pointVec);
+                            if (absVec.x >= absVec.y && absVec.x >= absVec.z) {
+                                pointLayer = pointVec.x >= 0.0 ? 0 : 1;
+                            } else if (absVec.y >= absVec.z) {
+                                pointLayer = pointVec.y >= 0.0 ? 2 : 3;
+                            } else {
+                                pointLayer = pointVec.z >= 0.0 ? 4 : 5;
+                            }
+                        } else if (pointLayerCount >= 4) {
+                            if (abs(pointVec.x) >= abs(pointVec.z)) {
+                                pointLayer = pointVec.x >= 0.0 ? 0 : 1;
+                            } else {
+                                pointLayer = pointVec.z >= 0.0 ? 2 : 3;
+                            }
+                        } else if (pointLayerCount == 3) {
+                            if (abs(pointVec.x) >= abs(pointVec.z)) {
+                                pointLayer = pointVec.x >= 0.0 ? 0 : 1;
+                            } else {
+                                pointLayer = 2;
+                            }
+                        } else if (pointLayerCount == 2) {
+                            pointLayer = pointVec.x >= 0.0 ? 0 : 1;
+                        }
+                        vec4 pointShadowPos = ubo.uShadowLightViewProj[pointLayer] * vec4(vWorldPos, 1.0);
+                        vec3 pointShadowCoord = pointShadowPos.xyz / max(pointShadowPos.w, 0.0001);
+                        pointShadowCoord = pointShadowCoord * 0.5 + 0.5;
+                        if (pointShadowCoord.z > 0.0
+                                && pointShadowCoord.z < 1.0
+                                && pointShadowCoord.x >= 0.0 && pointShadowCoord.x <= 1.0
+                                && pointShadowCoord.y >= 0.0 && pointShadowCoord.y <= 1.0) {
+                            float texel = 1.0 / max(ubo.uShadowCascade.y, 1.0);
+                            float compareBias = ubo.uShadow.z * 1.35;
+                            float compareDepth = clamp(pointShadowCoord.z - compareBias, 0.0, 1.0);
+                            float visibility = 0.0;
+                            float taps = 0.0;
+                            for (int y = -1; y <= 1; y++) {
+                                for (int x = -1; x <= 1; x++) {
+                                    vec2 offset = vec2(float(x), float(y)) * texel;
+                                    visibility += texture(uShadowMap, vec4(pointShadowCoord.xy + offset, float(pointLayer), compareDepth));
+                                    taps += 1.0;
+                                }
+                            }
+                            float pointOcclusion = 1.0 - ((taps > 0.0) ? (visibility / taps) : 1.0);
+                            float pointShadowFactor = clamp(pointOcclusion * min(clamp(ubo.uShadow.y, 0.0, 1.0), 0.85), 0.0, 0.9);
+                            color *= (1.0 - pointShadowFactor);
+                        }
+                    }
                     if (ubo.uFog.x > 0.5) {
                         float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
                         float fogFactor = clamp(exp(-ubo.uFog.y * (1.0 - normalizedHeight)), 0.0, 1.0);
@@ -1789,13 +1904,9 @@ final class VulkanContext {
                         float iblSpecWeight = clamp(ubo.uIbl.z, 0.0, 2.0);
                         float prefilter = clamp(ubo.uIbl.w, 0.0, 1.0);
                         vec3 irr = texture(uIblIrradianceTexture, vUv).rgb;
-                        vec3 reflectDir = reflect(-viewDir, normal);
+                        vec3 reflectDir = reflect(-viewDir, n);
                         vec2 specUv = clamp(reflectDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
-                        float roughMix = clamp(roughness * (0.5 + 0.5 * prefilter), 0.0, 1.0);
-                        vec2 roughUv = mix(specUv, vUv, roughMix);
-                        vec3 radSharp = texture(uIblRadianceTexture, specUv).rgb;
-                        vec3 radRough = texture(uIblRadianceTexture, roughUv).rgb;
-                        vec3 rad = mix(radSharp, radRough, roughMix);
+                        vec3 rad = sampleIblRadiance(specUv, vUv, roughness, prefilter);
                         vec2 brdfUv = vec2(clamp(ndv, 0.0, 1.0), clamp(roughness, 0.0, 1.0));
                         vec2 brdf = texture(uIblBrdfLutTexture, brdfUv).rg;
                         float fresnel = pow(1.0 - ndv, 5.0);
@@ -2578,11 +2689,13 @@ final class VulkanContext {
         int drawCount = gpuMeshes.isEmpty() ? 1 : Math.min(MAX_DYNAMIC_SCENE_OBJECTS, gpuMeshes.size());
         if (shadowEnabled
                 && shadowRenderPass != VK_NULL_HANDLE
-                && shadowFramebuffers.length >= Math.min(MAX_SHADOW_CASCADES, Math.max(1, shadowCascadeCount))
+                && shadowFramebuffers.length >= Math.min(MAX_SHADOW_MATRICES, Math.max(1, shadowCascadeCount))
                 && shadowPipeline != VK_NULL_HANDLE
                 && frameDescriptorSet != VK_NULL_HANDLE
                 && !gpuMeshes.isEmpty()) {
-            int cascades = Math.min(MAX_SHADOW_CASCADES, Math.max(1, shadowCascadeCount));
+            int cascades = pointShadowEnabled
+                    ? POINT_SHADOW_FACES
+                    : Math.min(MAX_SHADOW_CASCADES, Math.max(1, shadowCascadeCount));
             for (int cascadeIndex = 0; cascadeIndex < cascades; cascadeIndex++) {
                 VkClearValue.Buffer shadowClearValues = VkClearValue.calloc(1, stack);
                 shadowClearValues.get(0).depthStencil().depth(1.0f).stencil(0);
@@ -2930,6 +3043,18 @@ final class VulkanContext {
         return value + (safeAlignment - remainder);
     }
 
+    private static float clamp01(float value) {
+        return Math.max(0f, Math.min(1f, value));
+    }
+
+    private static float[] normalize3(float x, float y, float z) {
+        float len = (float) Math.sqrt(x * x + y * y + z * z);
+        if (len < 1.0e-6f) {
+            return new float[]{0f, -1f, 0f};
+        }
+        return new float[]{x / len, y / len, z / len};
+    }
+
     private static float[] identityMatrix() {
         return new float[]{
                 1f, 0f, 0f, 0f,
@@ -3029,10 +3154,79 @@ final class VulkanContext {
     }
 
     private void updateShadowLightViewProjMatrices() {
+        if (pointLightIsSpot > 0.5f) {
+            float[] spotDir = normalize3(pointLightDirX, pointLightDirY, pointLightDirZ);
+            float targetX = pointLightPosX + spotDir[0];
+            float targetY = pointLightPosY + spotDir[1];
+            float targetZ = pointLightPosZ + spotDir[2];
+            float upX = 0f;
+            float upY = 1f;
+            float upZ = 0f;
+            if (Math.abs(spotDir[1]) > 0.95f) {
+                upX = 0f;
+                upY = 0f;
+                upZ = 1f;
+            }
+            float[] lightView = lookAt(pointLightPosX, pointLightPosY, pointLightPosZ, targetX, targetY, targetZ, upX, upY, upZ);
+            float outerCos = Math.max(0.0001f, Math.min(1f, pointLightOuterCos));
+            float coneHalfAngle = (float) Math.acos(outerCos);
+            float fov = Math.max((float) Math.toRadians(20.0), Math.min((float) Math.toRadians(120.0), coneHalfAngle * 2.0f));
+            float[] lightProj = perspective(fov, 1f, 0.1f, 30f);
+            shadowLightViewProjMatrices[0] = mul(lightProj, lightView);
+            for (int i = 1; i < MAX_SHADOW_MATRICES; i++) {
+                shadowLightViewProjMatrices[i] = shadowLightViewProjMatrices[0];
+            }
+            shadowCascadeSplitNdc[0] = 1f;
+            shadowCascadeSplitNdc[1] = 1f;
+            shadowCascadeSplitNdc[2] = 1f;
+            return;
+        }
+        if (pointShadowEnabled) {
+            float[][] pointDirs = new float[][]{
+                    {1f, 0f, 0f},
+                    {-1f, 0f, 0f},
+                    {0f, 1f, 0f},
+                    {0f, -1f, 0f},
+                    {0f, 0f, 1f},
+                    {0f, 0f, -1f}
+            };
+            float[][] pointUp = new float[][]{
+                    {0f, -1f, 0f},
+                    {0f, -1f, 0f},
+                    {0f, 0f, 1f},
+                    {0f, 0f, -1f},
+                    {0f, -1f, 0f},
+                    {0f, -1f, 0f}
+            };
+            float[] lightProj = perspective((float) Math.toRadians(90.0), 1f, 0.1f, pointShadowFarPlane);
+            int availableLayers = Math.max(1, Math.min(POINT_SHADOW_FACES, shadowCascadeCount));
+            for (int i = 0; i < MAX_SHADOW_MATRICES; i++) {
+                int dirIndex = Math.min(i, pointDirs.length - 1);
+                if (i >= availableLayers) {
+                    shadowLightViewProjMatrices[i] = shadowLightViewProjMatrices[availableLayers - 1];
+                    continue;
+                }
+                float[] dir = pointDirs[dirIndex];
+                float[] lightView = lookAt(
+                        pointLightPosX,
+                        pointLightPosY,
+                        pointLightPosZ,
+                        pointLightPosX + dir[0],
+                        pointLightPosY + dir[1],
+                        pointLightPosZ + dir[2],
+                        pointUp[dirIndex][0], pointUp[dirIndex][1], pointUp[dirIndex][2]
+                );
+                shadowLightViewProjMatrices[i] = mul(lightProj, lightView);
+            }
+            shadowCascadeSplitNdc[0] = 1f;
+            shadowCascadeSplitNdc[1] = 1f;
+            shadowCascadeSplitNdc[2] = 1f;
+            return;
+        }
         float[] viewProj = mul(projMatrix, viewMatrix);
         float[] invViewProj = invert(viewProj);
         if (invViewProj == null) {
-            for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
+            for (int i = 0; i < MAX_SHADOW_MATRICES; i++) {
                 shadowLightViewProjMatrices[i] = identityMatrix();
             }
             shadowCascadeSplitNdc[0] = 1f;
@@ -3203,6 +3397,17 @@ final class VulkanContext {
                 0f, 2f / tb, 0f, 0f,
                 0f, 0f, -2f / fn, 0f,
                 -(right + left) / rl, -(top + bottom) / tb, -(far + near) / fn, 1f
+        };
+    }
+
+    private static float[] perspective(float fovRad, float aspect, float near, float far) {
+        float f = 1.0f / (float) Math.tan(fovRad * 0.5f);
+        float nf = 1.0f / (near - far);
+        return new float[]{
+                f / aspect, 0f, 0f, 0f,
+                0f, f, 0f, 0f,
+                0f, 0f, (far + near) * nf, -1f,
+                0f, 0f, (2f * far * near) * nf, 0f
         };
     }
 
@@ -4115,8 +4320,10 @@ final class VulkanContext {
         }
         fb.put(new float[]{dirLightDirX, dirLightDirY, dirLightDirZ, 0f});
         fb.put(new float[]{dirLightColorR, dirLightColorG, dirLightColorB, 0f});
-        fb.put(new float[]{pointLightPosX, pointLightPosY, pointLightPosZ, 0f});
+        fb.put(new float[]{pointLightPosX, pointLightPosY, pointLightPosZ, pointShadowFarPlane});
         fb.put(new float[]{pointLightColorR, pointLightColorG, pointLightColorB, 0f});
+        fb.put(new float[]{pointLightDirX, pointLightDirY, pointLightDirZ, 0f});
+        fb.put(new float[]{pointLightInnerCos, pointLightOuterCos, pointLightIsSpot, pointShadowEnabled ? 1f : 0f});
         fb.put(new float[]{shadowEnabled ? 1f : 0f, shadowStrength, shadowBias, (float) shadowPcfRadius});
         float split1 = shadowCascadeSplitNdc[0];
         float split2 = shadowCascadeSplitNdc[1];
@@ -4131,7 +4338,7 @@ final class VulkanContext {
         boolean scenePostEnabled = !postOffscreenActive;
         fb.put(new float[]{scenePostEnabled && tonemapEnabled ? 1f : 0f, tonemapExposure, tonemapGamma, 0f});
         fb.put(new float[]{scenePostEnabled && bloomEnabled ? 1f : 0f, bloomThreshold, bloomStrength, 0f});
-        for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
+        for (int i = 0; i < MAX_SHADOW_MATRICES; i++) {
             fb.put(shadowLightViewProjMatrices[i]);
         }
     }

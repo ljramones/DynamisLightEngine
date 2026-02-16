@@ -18,8 +18,33 @@ import org.dynamislight.api.scene.SceneDescriptor;
  * back into this runtime.</p>
  */
 public interface EngineRuntime extends AutoCloseable {
+    /**
+     * Retrieves the API version of the engine.
+     *
+     * The API version specifies the major, minor, and patch levels of the engine's
+     * interface. This information can be used to determine compatibility between
+     * the runtime engine and the host environment.
+     *
+     * @return the version of the engine API as an {@code EngineApiVersion} record, which
+     *         contains the major, minor, and patch version numbers.
+     */
     EngineApiVersion apiVersion();
 
+    /**
+     * Initializes the engine runtime with the specified configuration and host callbacks.
+     *
+     * This method prepares the engine for operation by applying the provided configuration
+     * and associating the host callbacks that will handle engine events, logging, and errors.
+     * Initialization must be called once before using other methods of the engine runtime.
+     * Re-initialization after shutdown is not supported in version 1 of the runtime.
+     *
+     * @param config the configuration parameters for engine setup; must not be null.
+     *               Includes information such as rendering backend, application name,
+     *               initial dimensions, target frame rate, DPI scale, and asset root path.
+     * @param host   the callback interface implemented by the host application to handle
+     *               engine lifecycle events, log messages, and errors; must not be null.
+     * @throws EngineException if an error occurs during initialization, such as invalid
+     *                         configuration parameters or issues*/
     void initialize(EngineConfig config, EngineHostCallbacks host) throws EngineException;
 
     void loadScene(SceneDescriptor scene) throws EngineException;

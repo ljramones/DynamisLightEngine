@@ -53,10 +53,15 @@ Exit criteria:
 - Status: baseline hook + texture-driven shader sampling implemented (`EnvironmentDesc` IBL paths + backend baseline signal + irradiance/radiance/BRDF-LUT shader samplers).
 - Status addendum: `.ktx/.ktx2` container paths now resolve via sidecar decode sources when present (`.png/.hdr/.jpg/.jpeg`) with explicit fallback warning signaling.
 - Status addendum: roughness-aware radiance prefilter approximation is active in both backends with tier-driven prefilter strength.
+- Status addendum: LOW/MEDIUM quality tiers now explicitly degrade IBL diffuse/specular/prefilter response with runtime warning `IBL_QUALITY_DEGRADED`; ULTRA retains full-strength policy.
+- Status addendum: both backends now apply roughness-aware multi-tap specular radiance filtering (`IBL_MULTI_TAP_SPEC_ACTIVE`) and use view-space camera direction for more stable IBL highlights.
 
 2. Point/spot shadow baseline
 - Add shadow type expansion in light model.
 - Start with point-light cubemap shadows (tier-gated).
+- Status: API/runtime light-type expansion delivered (`DIRECTIONAL`/`POINT`/`SPOT`) with backend lighting selection wiring.
+- Status addendum: spot-light cone attenuation is now implemented in OpenGL and Vulkan shading paths (direction + inner/outer cone).
+- Status addendum: OpenGL includes a point-light cubemap baseline; Vulkan now runs a 6-face layered point-shadow path aligned to cubemap face directions for baseline parity.
 
 3. Optional SSAO pass
 - Add basic SSAO/HBAO-lite as post pass before bloom/tonemap.
