@@ -63,15 +63,18 @@ final class BackendCompareHarness {
         boolean taaStress = profileTag.contains("taa-disocclusion-stress")
                 || profileTag.contains("taa-reactive-authored-stress")
                 || profileTag.contains("taa-thin-geometry-shimmer")
-                || profileTag.contains("taa-specular-flicker");
-        EngineInput input = taaStress
+                || profileTag.contains("taa-specular-flicker")
+                || profileTag.contains("taa-history-confidence-stress")
+                || profileTag.contains("taa-specular-aa-stress");
+        boolean smaaStress = profileTag.contains("smaa-full-edge-crawl");
+        EngineInput input = (taaStress || smaaStress)
                 ? new EngineInput(540, 360, 96, -48, false, false, Set.of(KeyCode.A, KeyCode.D), 0.0)
                 : new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
         try (var runtime = provider.createRuntime()) {
             runtime.initialize(config, new NoopCallbacks());
             runtime.loadScene(scene);
             EngineFrameResult frame = null;
-            int frames = taaStress ? 5 : 1;
+            int frames = taaStress ? 5 : (smaaStress ? 3 : 1);
             for (int i = 0; i < frames; i++) {
                 runtime.update(1.0 / 60.0, input);
                 frame = runtime.render();

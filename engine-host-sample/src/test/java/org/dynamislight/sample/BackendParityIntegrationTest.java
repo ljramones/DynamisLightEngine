@@ -416,6 +416,57 @@ class BackendParityIntegrationTest {
 
     @Test
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaHistoryConfidenceStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-history-confidence-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaHistoryConfidenceStressScene(),
+                QualityTier.ULTRA,
+                "taa-history-confidence-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.33, "taa history confidence stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaSpecularAaStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-specular-aa-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaSpecularAaStressScene(),
+                QualityTier.ULTRA,
+                "taa-specular-aa-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.33, "taa specular aa stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessSmaaFullEdgeCrawlHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("smaa-full-edge-crawl");
+        var report = BackendCompareHarness.run(
+                outDir,
+                smaaFullEdgeCrawlScene(),
+                QualityTier.ULTRA,
+                "smaa-full-edge-crawl-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.34, "smaa full edge crawl diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessTieredGoldenProfilesStayBounded() throws Exception {
         Map<QualityTier, Double> fogSmokeMaxDiff = Map.of(
                 QualityTier.LOW, 0.45,
@@ -500,6 +551,24 @@ class BackendParityIntegrationTest {
                 QualityTier.MEDIUM, 0.46,
                 QualityTier.HIGH, 0.38,
                 QualityTier.ULTRA, 0.32
+        );
+        Map<QualityTier, Double> taaHistoryConfidenceMaxDiff = Map.of(
+                QualityTier.LOW, 0.56,
+                QualityTier.MEDIUM, 0.48,
+                QualityTier.HIGH, 0.40,
+                QualityTier.ULTRA, 0.33
+        );
+        Map<QualityTier, Double> taaSpecularAaMaxDiff = Map.of(
+                QualityTier.LOW, 0.56,
+                QualityTier.MEDIUM, 0.48,
+                QualityTier.HIGH, 0.40,
+                QualityTier.ULTRA, 0.33
+        );
+        Map<QualityTier, Double> smaaFullEdgeCrawlMaxDiff = Map.of(
+                QualityTier.LOW, 0.57,
+                QualityTier.MEDIUM, 0.49,
+                QualityTier.HIGH, 0.40,
+                QualityTier.ULTRA, 0.34
         );
 
         for (QualityTier tier : QualityTier.values()) {
@@ -682,6 +751,45 @@ class BackendParityIntegrationTest {
                     "taa-specular-flicker diff " + taaSpecReport.diffMetric()
                             + " exceeded " + taaSpecularFlickerMaxDiff.get(tier) + " at " + tier
             );
+
+            Path taaHistoryConfidenceDir = compareOutputDir("taa-history-confidence-stress-" + tier.name().toLowerCase());
+            var taaHistoryConfidenceReport = BackendCompareHarness.run(
+                    taaHistoryConfidenceDir,
+                    taaHistoryConfidenceStressScene(),
+                    tier,
+                    "taa-history-confidence-stress-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaHistoryConfidenceReport.diffMetric() <= taaHistoryConfidenceMaxDiff.get(tier),
+                    "taa-history-confidence-stress diff " + taaHistoryConfidenceReport.diffMetric()
+                            + " exceeded " + taaHistoryConfidenceMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path taaSpecAaDir = compareOutputDir("taa-specular-aa-stress-" + tier.name().toLowerCase());
+            var taaSpecAaReport = BackendCompareHarness.run(
+                    taaSpecAaDir,
+                    taaSpecularAaStressScene(),
+                    tier,
+                    "taa-specular-aa-stress-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaSpecAaReport.diffMetric() <= taaSpecularAaMaxDiff.get(tier),
+                    "taa-specular-aa-stress diff " + taaSpecAaReport.diffMetric()
+                            + " exceeded " + taaSpecularAaMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path smaaFullDir = compareOutputDir("smaa-full-edge-crawl-" + tier.name().toLowerCase());
+            var smaaFullReport = BackendCompareHarness.run(
+                    smaaFullDir,
+                    smaaFullEdgeCrawlScene(),
+                    tier,
+                    "smaa-full-edge-crawl-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    smaaFullReport.diffMetric() <= smaaFullEdgeCrawlMaxDiff.get(tier),
+                    "smaa-full-edge-crawl diff " + smaaFullReport.diffMetric()
+                            + " exceeded " + smaaFullEdgeCrawlMaxDiff.get(tier) + " at " + tier
+            );
         }
     }
 
@@ -700,6 +808,9 @@ class BackendParityIntegrationTest {
                 Map.entry("taa-reactive-authored-stress", 0.32),
                 Map.entry("taa-thin-geometry-shimmer", 0.32),
                 Map.entry("taa-specular-flicker", 0.32),
+                Map.entry("taa-history-confidence-stress", 0.33),
+                Map.entry("taa-specular-aa-stress", 0.33),
+                Map.entry("smaa-full-edge-crawl", 0.34),
                 Map.entry("post-process-ssao", 0.35),
                 Map.entry("post-process-ssao-stress", 0.37),
                 Map.entry("post-process-smaa", 0.36)
@@ -771,6 +882,24 @@ class BackendParityIntegrationTest {
                         taaSpecularFlickerScene(),
                         QualityTier.ULTRA,
                         "taa-specular-flicker-golden-ultra"
+                )),
+                Map.entry("taa-history-confidence-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-history-confidence-stress-golden"),
+                        taaHistoryConfidenceStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-history-confidence-stress-golden-ultra"
+                )),
+                Map.entry("taa-specular-aa-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-specular-aa-stress-golden"),
+                        taaSpecularAaStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-specular-aa-stress-golden-ultra"
+                )),
+                Map.entry("smaa-full-edge-crawl", BackendCompareHarness.run(
+                        compareOutputDir("smaa-full-edge-crawl-golden"),
+                        smaaFullEdgeCrawlScene(),
+                        QualityTier.ULTRA,
+                        "smaa-full-edge-crawl-golden-ultra"
                 )),
                 Map.entry("post-process-ssao", BackendCompareHarness.run(
                         compareOutputDir("post-process-ssao-golden"),
@@ -1766,6 +1895,94 @@ class BackendParityIntegrationTest {
                 env,
                 fog,
                 List.of(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaHistoryConfidenceStressScene() {
+        SceneDescriptor base = taaDisocclusionStressScene();
+        MaterialDesc near = new MaterialDesc("mat-near", new Vec3(0.92f, 0.52f, 0.44f), 0.18f, 0.42f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 1.0f, true, false);
+        MaterialDesc mid = new MaterialDesc("mat-mid", new Vec3(0.46f, 0.86f, 0.48f), 0.34f, 0.38f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 1.0f, false, true);
+        MaterialDesc far = new MaterialDesc("mat-far", new Vec3(0.74f, 0.76f, 0.80f), 0.14f, 0.74f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 0.96f, true, true);
+        MaterialDesc occ = new MaterialDesc("mat-occ", new Vec3(0.60f, 0.66f, 0.60f), 0.06f, 0.86f, "textures/d.png", "textures/d_n.png", "textures/d_mr.png", "textures/d_ao.png", 1.0f, true, true);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.12f, 2.2f, true, 0.94f, 0.86f, true, 0.62f, 1.18f, 0.02f, 1.35f, true, 0.72f, true, 0.72f);
+        return new SceneDescriptor(
+                "parity-taa-history-confidence-stress-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(near, mid, far, occ),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaSpecularAaStressScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.25f, 1.1f, 9.1f), new Vec3(-7f, 24f, 0f), 72f, 0.1f, 260f);
+        TransformDesc n = new TransformDesc("x-near", new Vec3(-1.0f, -0.2f, -0.8f), new Vec3(0, 20, 0), new Vec3(1.0f, 1.0f, 1.0f));
+        TransformDesc m = new TransformDesc("x-mid", new Vec3(0.45f, -0.25f, -11.0f), new Vec3(0, -24, 0), new Vec3(1.5f, 1.5f, 1.5f));
+        TransformDesc f = new TransformDesc("x-far", new Vec3(2.2f, -0.45f, -35.0f), new Vec3(0, 12, 0), new Vec3(2.4f, 2.4f, 2.4f));
+        MeshDesc meshN = new MeshDesc("mesh-near", "x-near", "mat-near", "meshes/quad.gltf");
+        MeshDesc meshM = new MeshDesc("mesh-mid", "x-mid", "mat-mid", "meshes/quad.gltf");
+        MeshDesc meshF = new MeshDesc("mesh-far", "x-far", "mat-far", "meshes/quad.gltf");
+        MaterialDesc matNear = new MaterialDesc("mat-near", new Vec3(0.96f, 0.62f, 0.52f), 0.94f, 0.07f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 0.92f, true, false);
+        MaterialDesc matMid = new MaterialDesc("mat-mid", new Vec3(0.54f, 0.84f, 0.96f), 0.90f, 0.06f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 0.92f, false, true);
+        MaterialDesc matFar = new MaterialDesc("mat-far", new Vec3(0.74f, 0.76f, 0.80f), 0.88f, 0.05f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 0.90f, true, true);
+        LightDesc key = new LightDesc("key", new Vec3(10f, 24f, 12f), new Vec3(1f, 0.98f, 0.95f), 1.22f, 320f, true, new ShadowDesc(2048, 0.0006f, 5, 4));
+        LightDesc fill = new LightDesc("fill", new Vec3(-6f, 8f, -5f), new Vec3(0.34f, 0.48f, 0.72f), 0.52f, 120f, false, null);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.22f, null);
+        FogDesc fog = new FogDesc(true, FogMode.HEIGHT_EXPONENTIAL, new Vec3(0.51f, 0.56f, 0.63f), 0.32f, 0.28f, 0.68f, 0.07f, 0.94f, 0.17f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.12f, 2.2f, true, 0.90f, 0.88f, true, 0.60f, 1.08f, 0.02f, 1.24f, true, 0.70f, true, 0.72f);
+        return new SceneDescriptor(
+                "parity-taa-specular-aa-stress-scene",
+                List.of(camera),
+                "cam",
+                List.of(n, m, f),
+                List.of(meshN, meshM, meshF),
+                List.of(matNear, matMid, matFar),
+                List.of(key, fill),
+                env,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
+    private static SceneDescriptor smaaFullEdgeCrawlScene() {
+        SceneDescriptor base = taaThinGeometryShimmerScene();
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.06f,
+                2.2f,
+                true,
+                0.96f,
+                0.78f,
+                true,
+                0.54f,
+                1.0f,
+                0.02f,
+                1.18f,
+                true,
+                0.84f,
+                false,
+                0.0f
+        );
+        return new SceneDescriptor(
+                "parity-smaa-full-edge-crawl-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
                 post
         );
     }

@@ -116,15 +116,15 @@ OpenGL backend provides a real forward render baseline:
 - Smoke radial falloff now uses runtime viewport dimensions (instead of fixed 1080p constants) for stronger OpenGL/Vulkan parity across window sizes.
 - Tonemap + bloom post-process baseline (scene-driven exposure/gamma/threshold/strength).
 - SSAO-lite post baseline (edge-aware screen-space approximation with tier-aware attenuation), upgraded with multi-sample kernel shaping in both backends for improved stability.
-- SMAA-lite anti-aliasing baseline in both backends with configurable strength and tier-aware degradation.
+- SMAA baseline in both backends with explicit edge-detect, blend-weight, and neighborhood-resolve stages plus configurable strength.
 - TAA baseline controls (`taaEnabled`, `taaBlend`) with temporal-history blend + Halton jitter reprojection in both backends.
 - TAA reprojection maturity:
   - OpenGL and Vulkan both include per-pixel motion-vector reprojection via dedicated velocity render targets sampled in post.
   - Global camera-motion UV reprojection remains layered as a stabilizing baseline term.
   - Reactive-mask + neighborhood-clipping pass is enabled in both backends to reduce ghosting under high-contrast motion.
   - Per-material reactive masking is now authored via `MaterialDesc` (`reactiveStrength`, `alphaTested`, `foliage`) and emitted from geometry (velocity alpha).
-  - Specular anti-aliasing baseline is enabled in both backends via roughness filtering from normal variance (`dFdx/dFdy`) to reduce highlight shimmer.
-  - Temporal history alpha now stores confidence (not depth), with confidence decay/recovery driven by reactive signals and depth-edge instability.
+  - Specular anti-aliasing is enabled in both backends with Toksvig-style roughness filtering (`normalMapVariance + dFdx/dFdy` normal variance) to reduce glossy shimmer.
+  - Temporal history alpha stores confidence with explicit decay/recovery policy driven by instability/disocclusion, then modulates TAA blend acceptance.
   - History validation includes explicit previous-frame depth rejection (history-velocity depth sample) plus thin-edge depth neighborhood checks.
   - Temporal pass applies mild contrast-aware sharpen after blend to recover detail.
   - SMAA path upgraded with explicit edge-mask + blend-weight phases (shader-stage implementation).

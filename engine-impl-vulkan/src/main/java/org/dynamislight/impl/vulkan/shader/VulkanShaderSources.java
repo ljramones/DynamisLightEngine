@@ -207,7 +207,9 @@ public final class VulkanShaderSources {
                     bool alphaTested = mod(reactiveFlags, 2.0) >= 1.0;
                     bool foliage = mod(floor(reactiveFlags / 2.0), 2.0) >= 1.0;
                     float normalVariance = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.30, 0.0, 1.0);
-                    roughness = clamp(sqrt(roughness * roughness + normalVariance * 0.36), 0.04, 1.0);
+                    float normalMapVariance = clamp((1.0 - clamp(length(normalTex), 0.0, 1.0)) * 1.55, 0.0, 1.0);
+                    float toksvigVariance = clamp(normalVariance * 0.70 + normalMapVariance * 0.65, 0.0, 1.0);
+                    roughness = clamp(sqrt(roughness * roughness + toksvigVariance * 0.52), 0.04, 1.0);
                     float dirIntensity = max(0.0, gbo.uLightIntensity.x);
                     float pointIntensity = max(0.0, gbo.uLightIntensity.y);
 
@@ -498,29 +500,69 @@ public final class VulkanShaderSources {
                     vec4 motion;
                     vec4 taa;
                 } pc;
-                vec3 smaaLite(vec2 uv, vec3 color) {
+                float smaaLuma(vec3 c) {
+                    return dot(c, vec3(0.2126, 0.7152, 0.0722));
+                }
+                vec2 smaaEdge(vec2 uv, vec3 color) {
                     vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
                     vec3 cN = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
                     vec3 cS = texture(uSceneColor, clamp(uv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
                     vec3 cE = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
                     vec3 cW = texture(uSceneColor, clamp(uv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
-                    float l = dot(color, vec3(0.2126, 0.7152, 0.0722));
-                    float ln = dot(cN, vec3(0.2126, 0.7152, 0.0722));
-                    float ls = dot(cS, vec3(0.2126, 0.7152, 0.0722));
-                    float le = dot(cE, vec3(0.2126, 0.7152, 0.0722));
-                    float lw = dot(cW, vec3(0.2126, 0.7152, 0.0722));
-                    vec2 edgeMask = vec2(
+                    float l = smaaLuma(color);
+                    float ln = smaaLuma(cN);
+                    float ls = smaaLuma(cS);
+                    float le = smaaLuma(cE);
+                    float lw = smaaLuma(cW);
+                    return vec2(
                         clamp(abs(l - le) + abs(l - lw), 0.0, 1.0),
                         clamp(abs(l - ln) + abs(l - ls), 0.0, 1.0)
                     );
-                    float edge = max(edgeMask.x, edgeMask.y);
-                    float strength = clamp(pc.smaa.y, 0.0, 1.0);
-                    float vertW = edgeMask.y / (edgeMask.x + edgeMask.y + 0.0001);
+                }
+                vec4 smaaBlendWeights(vec2 uv, vec2 edgeMask) {
+                    vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                    float ex = edgeMask.x;
+                    float ey = edgeMask.y;
+                    vec2 diagA = uv + vec2(texel.x, texel.y);
+                    vec2 diagB = uv + vec2(-texel.x, texel.y);
+                    vec2 diagC = uv + vec2(texel.x, -texel.y);
+                    vec2 diagD = uv + vec2(-texel.x, -texel.y);
+                    float center = smaaLuma(texture(uSceneColor, uv).rgb);
+                    float dA = abs(smaaLuma(texture(uSceneColor, clamp(diagA, vec2(0.0), vec2(1.0))).rgb) - center);
+                    float dB = abs(smaaLuma(texture(uSceneColor, clamp(diagB, vec2(0.0), vec2(1.0))).rgb) - center);
+                    float dC = abs(smaaLuma(texture(uSceneColor, clamp(diagC, vec2(0.0), vec2(1.0))).rgb) - center);
+                    float dD = abs(smaaLuma(texture(uSceneColor, clamp(diagD, vec2(0.0), vec2(1.0))).rgb) - center);
+                    float diag = clamp((dA + dB + dC + dD) * 0.5, 0.0, 1.0);
+                    float wH = ex * (1.0 - ey * 0.55);
+                    float wV = ey * (1.0 - ex * 0.55);
+                    float wDiag = diag * max(ex, ey) * 0.65;
+                    float sum = wH + wV + wDiag + 0.0001;
+                    return vec4(wH / sum, wV / sum, wDiag / sum, clamp(max(ex, ey), 0.0, 1.0));
+                }
+                vec3 smaaNeighborhoodResolve(vec2 uv, vec3 color, vec4 weights) {
+                    vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                    vec3 cN = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                    vec3 cS = texture(uSceneColor, clamp(uv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                    vec3 cE = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                    vec3 cW = texture(uSceneColor, clamp(uv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                    vec3 cNE = texture(uSceneColor, clamp(uv + texel, vec2(0.0), vec2(1.0))).rgb;
+                    vec3 cSW = texture(uSceneColor, clamp(uv - texel, vec2(0.0), vec2(1.0))).rgb;
                     vec3 horiz = (cE + cW) * 0.5;
                     vec3 vert = (cN + cS) * 0.5;
-                    vec3 neighborhood = mix(horiz, vert, vertW);
-                    float blend = edge * strength * 0.62;
-                    return mix(color, neighborhood, blend);
+                    vec3 diag = (cNE + cSW) * 0.5;
+                    return clamp(
+                        (horiz * weights.x) + (vert * weights.y) + (diag * weights.z) + (color * (1.0 - weights.w)),
+                        vec3(0.0),
+                        vec3(1.0)
+                    );
+                }
+                vec3 smaaFull(vec2 uv, vec3 color) {
+                    vec2 edgeMask = smaaEdge(uv, color);
+                    vec4 weights = smaaBlendWeights(uv, edgeMask);
+                    float strength = clamp(pc.smaa.y, 0.0, 1.0);
+                    vec3 resolved = smaaNeighborhoodResolve(uv, color, weights);
+                    float blend = weights.w * strength * 0.68;
+                    return mix(color, resolved, blend);
                 }
                 vec3 taaSharpen(vec2 uv, vec3 color, float amount) {
                     vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
@@ -578,7 +620,7 @@ public final class VulkanShaderSources {
                         color *= (1.0 - occlusion * 0.82);
                     }
                     if (pc.smaa.x > 0.5) {
-                        color = smaaLite(vUv, color);
+                        color = smaaFull(vUv, color);
                     }
                     if (pc.taa.x > 0.5 && pc.taa.z > 0.5) {
                         vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
@@ -628,11 +670,26 @@ public final class VulkanShaderSources {
                         );
                         float clipExpand = mix(0.06, 0.015, reactive);
                         vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand), neighMax + vec3(clipExpand));
-                        float historyTrust = clamp(historyConfidence * (1.0 - reactive * 0.65), 0.0, 1.0);
+                        float disocclusionReject = smoothstep(0.0012, 0.0095, abs(historyDepth - currentDepth) + depthEdge * 0.9);
+                        float instability = clamp(
+                                abs(lCurr - lHist) * 1.9 +
+                                        varianceReject * 1.15 +
+                                        length(velocityUv) * 0.78,
+                                0.0,
+                                1.0
+                        );
+                        float confidenceDecay = clamp(max(disocclusionReject, instability * 0.72), 0.0, 1.0);
+                        float confidenceRecover = clamp((1.0 - confidenceDecay) * (1.0 - varianceReject) * (1.0 - depthReject), 0.0, 1.0);
+                        float confidenceState = clamp(
+                                historyConfidence + confidenceRecover * 0.13 - confidenceDecay * 0.30,
+                                0.02,
+                                1.0
+                        );
+                        float historyTrust = clamp(confidenceState * (1.0 - reactive * 0.65), 0.0, 1.0);
                         float blend = clamp(pc.taa.y, 0.0, 0.95) * historyTrust * (1.0 - reactive * 0.88);
                         color = mix(color, clampedHistory, blend);
                         color = taaSharpen(vUv, color, 0.16 * (1.0 - reactive));
-                        historyConfidenceOut = clamp(max(historyTrust * 0.92, 1.0 - reactive * 0.85), 0.02, 1.0);
+                        historyConfidenceOut = clamp(max(confidenceState * 0.94, 1.0 - reactive * 0.86), 0.02, 1.0);
                         int debugView = int(pc.taa.w + 0.5);
                         if (debugView == 1) {
                             color = vec3(reactive);
