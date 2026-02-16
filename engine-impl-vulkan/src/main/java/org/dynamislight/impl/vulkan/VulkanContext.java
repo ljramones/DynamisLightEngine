@@ -4,20 +4,35 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.VK10.VK_ERROR_INITIALIZATION_FAILED;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
+import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+import static org.lwjgl.vulkan.VK10.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 import static org.lwjgl.vulkan.VK10.VK_QUEUE_GRAPHICS_BIT;
+import static org.lwjgl.vulkan.VK10.vkAllocateCommandBuffers;
+import static org.lwjgl.vulkan.VK10.vkBeginCommandBuffer;
+import static org.lwjgl.vulkan.VK10.vkCreateCommandPool;
 import static org.lwjgl.vulkan.VK10.vkCreateDevice;
 import static org.lwjgl.vulkan.VK10.vkCreateInstance;
+import static org.lwjgl.vulkan.VK10.vkDestroyCommandPool;
 import static org.lwjgl.vulkan.VK10.vkDestroyDevice;
 import static org.lwjgl.vulkan.VK10.vkDestroyInstance;
+import static org.lwjgl.vulkan.VK10.vkDeviceWaitIdle;
+import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkEnumeratePhysicalDevices;
 import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
 import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceQueueFamilyProperties;
+import static org.lwjgl.vulkan.VK10.vkQueueSubmit;
+import static org.lwjgl.vulkan.VK10.vkQueueWaitIdle;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
+import org.lwjgl.vulkan.VkCommandBuffer;
+import org.lwjgl.vulkan.VkCommandBufferAllocateInfo;
+import org.lwjgl.vulkan.VkCommandBufferBeginInfo;
+import org.lwjgl.vulkan.VkCommandPoolCreateInfo;
 import org.lwjgl.vulkan.VkApplicationInfo;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkDeviceCreateInfo;
@@ -26,6 +41,7 @@ import org.lwjgl.vulkan.VkInstance;
 import org.lwjgl.vulkan.VkInstanceCreateInfo;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueue;
+import org.lwjgl.vulkan.VkSubmitInfo;
 
 final class VulkanContext {
     private VkInstance instance;
@@ -33,6 +49,8 @@ final class VulkanContext {
     private VkDevice device;
     private VkQueue graphicsQueue;
     private int graphicsQueueFamilyIndex = -1;
+    private long commandPool = VK_NULL_HANDLE;
+    private VkCommandBuffer commandBuffer;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
@@ -64,11 +82,23 @@ final class VulkanContext {
             instance = new VkInstance(pInstance.get(0), createInfo);
             selectPhysicalDevice(stack);
             createLogicalDevice(stack);
+            createCommandResources(stack);
         }
     }
 
     VulkanFrameMetrics renderFrame() {
         long start = System.nanoTime();
+        if (device != null && graphicsQueue != null && commandBuffer != null) {
+            try (MemoryStack stack = stackPush()) {
+                VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO)
+                        .pCommandBuffers(stack.pointers(commandBuffer.address()));
+                int submitResult = vkQueueSubmit(graphicsQueue, submitInfo, VK_NULL_HANDLE);
+                if (submitResult == VK_SUCCESS) {
+                    vkQueueWaitIdle(graphicsQueue);
+                }
+            }
+        }
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
         return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, 0);
     }
@@ -80,6 +110,14 @@ final class VulkanContext {
     }
 
     void shutdown() {
+        if (device != null) {
+            vkDeviceWaitIdle(device);
+        }
+        commandBuffer = null;
+        if (commandPool != VK_NULL_HANDLE && device != null) {
+            vkDestroyCommandPool(device, commandPool, null);
+            commandPool = VK_NULL_HANDLE;
+        }
         if (device != null) {
             vkDestroyDevice(device, null);
             device = null;
@@ -177,6 +215,51 @@ final class VulkanContext {
         PointerBuffer pQueue = stack.mallocPointer(1);
         vkGetDeviceQueue(device, graphicsQueueFamilyIndex, 0, pQueue);
         graphicsQueue = new VkQueue(pQueue.get(0), device);
+    }
+
+    private void createCommandResources(MemoryStack stack) throws EngineException {
+        if (device == null || graphicsQueueFamilyIndex < 0) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Vulkan device not ready for command resources", false);
+        }
+
+        VkCommandPoolCreateInfo poolInfo = VkCommandPoolCreateInfo.calloc(stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO)
+                .flags(VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT)
+                .queueFamilyIndex(graphicsQueueFamilyIndex);
+
+        var pPool = stack.longs(VK_NULL_HANDLE);
+        int poolResult = vkCreateCommandPool(device, poolInfo, null, pPool);
+        if (poolResult != VK_SUCCESS || pPool.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateCommandPool failed: " + poolResult, false);
+        }
+        commandPool = pPool.get(0);
+
+        VkCommandBufferAllocateInfo allocInfo = VkCommandBufferAllocateInfo.calloc(stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
+                .commandPool(commandPool)
+                .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
+                .commandBufferCount(1);
+
+        PointerBuffer pCommandBuffer = stack.mallocPointer(1);
+        int allocResult = vkAllocateCommandBuffers(device, allocInfo, pCommandBuffer);
+        if (allocResult != VK_SUCCESS) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateCommandBuffers failed: " + allocResult, false);
+        }
+
+        commandBuffer = new VkCommandBuffer(pCommandBuffer.get(0), device);
+        VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO)
+                .flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+        int beginResult = vkBeginCommandBuffer(commandBuffer, beginInfo);
+        if (beginResult != VK_SUCCESS) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkBeginCommandBuffer failed: " + beginResult, false);
+        }
+
+        int endResult = vkEndCommandBuffer(commandBuffer);
+        if (endResult != VK_SUCCESS) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkEndCommandBuffer failed: " + endResult, false);
+        }
     }
 
     record VulkanFrameMetrics(
