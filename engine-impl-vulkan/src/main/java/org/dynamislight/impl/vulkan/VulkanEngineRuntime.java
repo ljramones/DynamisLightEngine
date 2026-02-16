@@ -102,7 +102,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected java.util.List<EngineWarning> baselineWarnings() {
-        return java.util.List.of(new EngineWarning("FEATURE_LIMITED", "Vulkan backend currently runs without presentation surface"));
+        return java.util.List.of(new EngineWarning("FEATURE_LIMITED", "Vulkan backend currently renders baseline clear + triangle path"));
     }
 
     private static long estimateTriangles(List<MeshDesc> meshes) {

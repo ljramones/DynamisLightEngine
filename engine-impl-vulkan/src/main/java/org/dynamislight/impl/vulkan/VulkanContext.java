@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import java.nio.ByteBuffer;
+
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_FALSE;
 import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
@@ -17,6 +19,18 @@ import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
 import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
 import static org.lwjgl.glfw.GLFWVulkan.glfwVulkanSupported;
 import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_into_spv;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_initialize;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_release;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_initialize;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_release;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_fragment_shader;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_vertex_shader;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_bytes;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_compilation_status;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_error_message;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_release;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_compilation_status_success;
 import static org.lwjgl.vulkan.KHRSurface.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_PRESENT_MODE_FIFO_KHR;
@@ -39,23 +53,37 @@ import static org.lwjgl.vulkan.KHRSwapchain.vkQueuePresentKHR;
 import static org.lwjgl.vulkan.VK10.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_ATTACHMENT_LOAD_OP_CLEAR;
 import static org.lwjgl.vulkan.VK10.VK_ATTACHMENT_STORE_OP_STORE;
+import static org.lwjgl.vulkan.VK10.VK_BLEND_FACTOR_ONE;
+import static org.lwjgl.vulkan.VK10.VK_BLEND_FACTOR_ZERO;
+import static org.lwjgl.vulkan.VK10.VK_BLEND_OP_ADD;
+import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_A_BIT;
+import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_B_BIT;
+import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_G_BIT;
+import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_R_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+import static org.lwjgl.vulkan.VK10.VK_CULL_MODE_NONE;
 import static org.lwjgl.vulkan.VK10.VK_ERROR_INITIALIZATION_FAILED;
 import static org.lwjgl.vulkan.VK10.VK_ERROR_DEVICE_LOST;
 import static org.lwjgl.vulkan.VK10.VK_FENCE_CREATE_SIGNALED_BIT;
+import static org.lwjgl.vulkan.VK10.VK_FALSE;
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_B8G8R8A8_SRGB;
+import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_BIND_POINT_GRAPHICS;
+import static org.lwjgl.vulkan.VK10.VK_POLYGON_MODE_FILL;
+import static org.lwjgl.vulkan.VK10.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_QUEUE_GRAPHICS_BIT;
 import static org.lwjgl.vulkan.VK10.VK_QUEUE_FAMILY_IGNORED;
 import static org.lwjgl.vulkan.VK10.VK_SAMPLE_COUNT_1_BIT;
+import static org.lwjgl.vulkan.VK10.VK_SHADER_STAGE_FRAGMENT_BIT;
+import static org.lwjgl.vulkan.VK10.VK_SHADER_STAGE_VERTEX_BIT;
 import static org.lwjgl.vulkan.VK10.VK_SHARING_MODE_EXCLUSIVE;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_APPLICATION_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -67,9 +95,19 @@ import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO;
 import static org.lwjgl.vulkan.VK10.VK_SUBPASS_CONTENTS_INLINE;
 import static org.lwjgl.vulkan.VK10.VK_SUBPASS_EXTERNAL;
@@ -79,23 +117,31 @@ import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_2D;
 import static org.lwjgl.vulkan.VK10.vkAllocateCommandBuffers;
 import static org.lwjgl.vulkan.VK10.vkBeginCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkCmdBeginRenderPass;
+import static org.lwjgl.vulkan.VK10.vkCmdBindPipeline;
+import static org.lwjgl.vulkan.VK10.vkCmdDraw;
 import static org.lwjgl.vulkan.VK10.vkCmdEndRenderPass;
 import static org.lwjgl.vulkan.VK10.vkCreateCommandPool;
 import static org.lwjgl.vulkan.VK10.vkCreateDevice;
 import static org.lwjgl.vulkan.VK10.vkCreateFence;
 import static org.lwjgl.vulkan.VK10.vkCreateFramebuffer;
+import static org.lwjgl.vulkan.VK10.vkCreateGraphicsPipelines;
 import static org.lwjgl.vulkan.VK10.vkCreateImageView;
 import static org.lwjgl.vulkan.VK10.vkCreateInstance;
+import static org.lwjgl.vulkan.VK10.vkCreatePipelineLayout;
 import static org.lwjgl.vulkan.VK10.vkCreateRenderPass;
 import static org.lwjgl.vulkan.VK10.vkCreateSemaphore;
+import static org.lwjgl.vulkan.VK10.vkCreateShaderModule;
 import static org.lwjgl.vulkan.VK10.vkDestroyCommandPool;
 import static org.lwjgl.vulkan.VK10.vkDestroyDevice;
 import static org.lwjgl.vulkan.VK10.vkDestroyFence;
 import static org.lwjgl.vulkan.VK10.vkDestroyFramebuffer;
 import static org.lwjgl.vulkan.VK10.vkDestroyImageView;
 import static org.lwjgl.vulkan.VK10.vkDestroyInstance;
+import static org.lwjgl.vulkan.VK10.vkDestroyPipeline;
+import static org.lwjgl.vulkan.VK10.vkDestroyPipelineLayout;
 import static org.lwjgl.vulkan.VK10.vkDestroyRenderPass;
 import static org.lwjgl.vulkan.VK10.vkDestroySemaphore;
+import static org.lwjgl.vulkan.VK10.vkDestroyShaderModule;
 import static org.lwjgl.vulkan.VK10.vkDeviceWaitIdle;
 import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkEnumeratePhysicalDevices;
@@ -131,6 +177,16 @@ import org.lwjgl.vulkan.VkImageSubresourceRange;
 import org.lwjgl.vulkan.VkImageViewCreateInfo;
 import org.lwjgl.vulkan.VkInstance;
 import org.lwjgl.vulkan.VkInstanceCreateInfo;
+import org.lwjgl.vulkan.VkGraphicsPipelineCreateInfo;
+import org.lwjgl.vulkan.VkPipelineColorBlendAttachmentState;
+import org.lwjgl.vulkan.VkPipelineColorBlendStateCreateInfo;
+import org.lwjgl.vulkan.VkPipelineInputAssemblyStateCreateInfo;
+import org.lwjgl.vulkan.VkPipelineLayoutCreateInfo;
+import org.lwjgl.vulkan.VkPipelineMultisampleStateCreateInfo;
+import org.lwjgl.vulkan.VkPipelineRasterizationStateCreateInfo;
+import org.lwjgl.vulkan.VkPipelineShaderStageCreateInfo;
+import org.lwjgl.vulkan.VkPipelineVertexInputStateCreateInfo;
+import org.lwjgl.vulkan.VkPipelineViewportStateCreateInfo;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkPresentInfoKHR;
 import org.lwjgl.vulkan.VkQueue;
@@ -145,6 +201,8 @@ import org.lwjgl.vulkan.VkSubpassDescription;
 import org.lwjgl.vulkan.VkSurfaceCapabilitiesKHR;
 import org.lwjgl.vulkan.VkSurfaceFormatKHR;
 import org.lwjgl.vulkan.VkSwapchainCreateInfoKHR;
+import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
+import org.lwjgl.vulkan.VkViewport;
 
 final class VulkanContext {
     private VkInstance instance;
@@ -161,6 +219,8 @@ final class VulkanContext {
     private long[] swapchainImages = new long[0];
     private long[] swapchainImageViews = new long[0];
     private long renderPass = VK_NULL_HANDLE;
+    private long pipelineLayout = VK_NULL_HANDLE;
+    private long graphicsPipeline = VK_NULL_HANDLE;
     private long[] framebuffers = new long[0];
     private long commandPool = VK_NULL_HANDLE;
     private VkCommandBuffer commandBuffer;
@@ -499,6 +559,7 @@ final class VulkanContext {
 
         createImageViews(stack);
         createRenderPass(stack);
+        createGraphicsPipeline(stack);
         createFramebuffers(stack);
     }
 
@@ -567,6 +628,192 @@ final class VulkanContext {
         renderPass = pRenderPass.get(0);
     }
 
+    private void createGraphicsPipeline(MemoryStack stack) throws EngineException {
+        String vertexShaderSource = """
+                #version 450
+                vec2 positions[3] = vec2[](
+                    vec2(0.0, -0.6),
+                    vec2(0.6, 0.6),
+                    vec2(-0.6, 0.6)
+                );
+                void main() {
+                    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+                }
+                """;
+        String fragmentShaderSource = """
+                #version 450
+                layout(location = 0) out vec4 outColor;
+                void main() {
+                    outColor = vec4(0.93, 0.52, 0.14, 1.0);
+                }
+                """;
+
+        ByteBuffer vertSpv = compileGlslToSpv(vertexShaderSource, shaderc_glsl_vertex_shader, "triangle.vert");
+        ByteBuffer fragSpv = compileGlslToSpv(fragmentShaderSource, shaderc_fragment_shader, "triangle.frag");
+
+        long vertModule = VK_NULL_HANDLE;
+        long fragModule = VK_NULL_HANDLE;
+        try {
+            vertModule = createShaderModule(stack, vertSpv);
+            fragModule = createShaderModule(stack, fragSpv);
+
+            VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
+            shaderStages.get(0)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_VERTEX_BIT)
+                    .module(vertModule)
+                    .pName(stack.UTF8("main"));
+            shaderStages.get(1)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_FRAGMENT_BIT)
+                    .module(fragModule)
+                    .pName(stack.UTF8("main"));
+
+            VkPipelineVertexInputStateCreateInfo vertexInput = VkPipelineVertexInputStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
+            VkPipelineInputAssemblyStateCreateInfo inputAssembly = VkPipelineInputAssemblyStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
+                    .topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+                    .primitiveRestartEnable(false);
+
+            VkViewport.Buffer viewport = VkViewport.calloc(1, stack)
+                    .x(0f)
+                    .y(0f)
+                    .width((float) swapchainWidth)
+                    .height((float) swapchainHeight)
+                    .minDepth(0f)
+                    .maxDepth(1f);
+            VkRect2D.Buffer scissor = VkRect2D.calloc(1, stack);
+            scissor.get(0).offset(it -> it.set(0, 0));
+            scissor.get(0).extent(VkExtent2D.calloc(stack).set(swapchainWidth, swapchainHeight));
+
+            VkPipelineViewportStateCreateInfo viewportState = VkPipelineViewportStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO)
+                    .viewportCount(1)
+                    .pViewports(viewport)
+                    .scissorCount(1)
+                    .pScissors(scissor);
+
+            VkPipelineRasterizationStateCreateInfo rasterizer = VkPipelineRasterizationStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO)
+                    .depthClampEnable(false)
+                    .rasterizerDiscardEnable(false)
+                    .polygonMode(VK_POLYGON_MODE_FILL)
+                    .lineWidth(1.0f)
+                    .cullMode(VK_CULL_MODE_NONE)
+                    .frontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE)
+                    .depthBiasEnable(false);
+
+            VkPipelineMultisampleStateCreateInfo multisampling = VkPipelineMultisampleStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
+                    .sampleShadingEnable(false)
+                    .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT);
+
+            VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(1, stack);
+            colorBlendAttachment.get(0)
+                    .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                    .blendEnable(false)
+                    .srcColorBlendFactor(VK_BLEND_FACTOR_ONE)
+                    .dstColorBlendFactor(VK_BLEND_FACTOR_ZERO)
+                    .colorBlendOp(VK_BLEND_OP_ADD)
+                    .srcAlphaBlendFactor(VK_BLEND_FACTOR_ONE)
+                    .dstAlphaBlendFactor(VK_BLEND_FACTOR_ZERO)
+                    .alphaBlendOp(VK_BLEND_OP_ADD);
+
+            VkPipelineColorBlendStateCreateInfo colorBlending = VkPipelineColorBlendStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO)
+                    .logicOpEnable(false)
+                    .pAttachments(colorBlendAttachment);
+
+            VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);
+            var pPipelineLayout = stack.longs(VK_NULL_HANDLE);
+            int layoutResult = vkCreatePipelineLayout(device, pipelineLayoutInfo, null, pPipelineLayout);
+            if (layoutResult != VK_SUCCESS || pPipelineLayout.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreatePipelineLayout failed: " + layoutResult, false);
+            }
+            pipelineLayout = pPipelineLayout.get(0);
+
+            VkGraphicsPipelineCreateInfo.Buffer pipelineInfo = VkGraphicsPipelineCreateInfo.calloc(1, stack)
+                    .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+                    .pStages(shaderStages)
+                    .pVertexInputState(vertexInput)
+                    .pInputAssemblyState(inputAssembly)
+                    .pViewportState(viewportState)
+                    .pRasterizationState(rasterizer)
+                    .pMultisampleState(multisampling)
+                    .pColorBlendState(colorBlending)
+                    .layout(pipelineLayout)
+                    .renderPass(renderPass)
+                    .subpass(0)
+                    .basePipelineHandle(VK_NULL_HANDLE);
+
+            var pPipeline = stack.longs(VK_NULL_HANDLE);
+            int pipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, pipelineInfo, null, pPipeline);
+            if (pipelineResult != VK_SUCCESS || pPipeline.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateGraphicsPipelines failed: " + pipelineResult, false);
+            }
+            graphicsPipeline = pPipeline.get(0);
+        } finally {
+            if (vertModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(device, vertModule, null);
+            }
+            if (fragModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(device, fragModule, null);
+            }
+        }
+    }
+
+    private long createShaderModule(MemoryStack stack, ByteBuffer code) throws EngineException {
+        VkShaderModuleCreateInfo moduleInfo = VkShaderModuleCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO)
+                .pCode(code);
+        var pShaderModule = stack.longs(VK_NULL_HANDLE);
+        int result = vkCreateShaderModule(device, moduleInfo, null, pShaderModule);
+        if (result != VK_SUCCESS || pShaderModule.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateShaderModule failed: " + result, false);
+        }
+        return pShaderModule.get(0);
+    }
+
+    private ByteBuffer compileGlslToSpv(String source, int shaderKind, String sourceName) throws EngineException {
+        long compiler = shaderc_compiler_initialize();
+        if (compiler == 0L) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "shaderc_compiler_initialize failed", false);
+        }
+        long options = shaderc_compile_options_initialize();
+        if (options == 0L) {
+            shaderc_compiler_release(compiler);
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "shaderc_compile_options_initialize failed", false);
+        }
+        long result = 0L;
+        try {
+            result = shaderc_compile_into_spv(compiler, source, shaderKind, sourceName, "main", options);
+            if (result == 0L) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "shaderc_compile_into_spv failed", false);
+            }
+            int status = shaderc_result_get_compilation_status(result);
+            if (status != shaderc_compilation_status_success) {
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "Shader compile failed for " + sourceName + ": " + shaderc_result_get_error_message(result),
+                        false
+                );
+            }
+            ByteBuffer bytes = shaderc_result_get_bytes(result);
+            ByteBuffer out = ByteBuffer.allocateDirect(bytes.remaining());
+            out.put(bytes);
+            out.flip();
+            return out;
+        } finally {
+            if (result != 0L) {
+                shaderc_result_release(result);
+            }
+            shaderc_compile_options_release(options);
+            shaderc_compiler_release(compiler);
+        }
+    }
+
     private void createFramebuffers(MemoryStack stack) throws EngineException {
         framebuffers = new long[swapchainImageViews.length];
         for (int i = 0; i < swapchainImageViews.length; i++) {
@@ -596,6 +843,14 @@ final class VulkanContext {
             }
         }
         framebuffers = new long[0];
+        if (graphicsPipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, graphicsPipeline, null);
+            graphicsPipeline = VK_NULL_HANDLE;
+        }
+        if (pipelineLayout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device, pipelineLayout, null);
+            pipelineLayout = VK_NULL_HANDLE;
+        }
         if (renderPass != VK_NULL_HANDLE) {
             vkDestroyRenderPass(device, renderPass, null);
             renderPass = VK_NULL_HANDLE;
@@ -722,6 +977,8 @@ final class VulkanContext {
                 .extent(VkExtent2D.calloc(stack).set(swapchainWidth, swapchainHeight));
 
         vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         vkCmdEndRenderPass(commandBuffer);
         int endResult = vkEndCommandBuffer(commandBuffer);
         if (endResult != VK_SUCCESS) {
