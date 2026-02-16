@@ -400,6 +400,7 @@ final class VulkanContext {
     private long[] pendingUploadDstOffsets = new long[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
     private int[] pendingUploadByteCounts = new int[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
     private int pendingUploadRangeCount;
+    private long pendingUploadRangeOverflowCount;
     private final List<GpuMesh> gpuMeshes = new ArrayList<>();
     private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
     private float[] viewMatrix = identityMatrix();
@@ -582,6 +583,7 @@ final class VulkanContext {
                 lastFrameUniformUploadRanges,
                 maxFrameUniformUploadRanges,
                 lastFrameUniformUploadStartObject,
+                pendingUploadRangeOverflowCount,
                 globalUniformStagingMappedAddress != 0L
         );
     }
@@ -4519,6 +4521,7 @@ final class VulkanContext {
             return;
         }
         if (pendingSceneDirtyRangeCount >= maxPendingUploadRanges) {
+            pendingUploadRangeOverflowCount++;
             pendingSceneDirtyRangeCount = 1;
             pendingSceneDirtyStarts[0] = 0;
             pendingSceneDirtyEnds[0] = Math.max(start, end);
@@ -5177,6 +5180,7 @@ final class VulkanContext {
             int lastFrameUniformUploadRanges,
             int maxFrameUniformUploadRanges,
             int lastFrameUniformUploadStartObject,
+            long pendingUploadRangeOverflows,
             boolean persistentStagingMapped
     ) {
     }

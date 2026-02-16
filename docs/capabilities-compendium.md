@@ -196,6 +196,7 @@ Vulkan runtime emits profiling warnings (real-context mode) for:
 - `lastUniformObjectCount` / `maxUniformObjectCount`
 - `lastUniformUploadRanges` / `maxUniformUploadRanges`
 - `lastUniformUploadStartObject`
+- `pendingRangeOverflows`
 - `persistentStagingMapped`
 
 ## 10) Backend/runtime options
