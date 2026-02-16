@@ -1416,9 +1416,25 @@ final class VulkanContext {
                                 && shadowCoord.z < 1.0
                                 && shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0
                                 && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0) {
-                            int radius = clamp(int(ubo.uShadow.w + 0.5), 0, 4);
-                            float texel = 1.0 / max(ubo.uShadowCascade.y, 1.0);
-                            float compareDepth = clamp(shadowCoord.z - ubo.uShadow.z, 0.0, 1.0);
+                            int cascadeCount = clamp(int(ubo.uShadowCascade.x + 0.5), 1, 4);
+                            int cascadeIndex = 0;
+                            float depthNdc = clamp(gl_FragCoord.z, 0.0, 1.0);
+                            if (cascadeCount >= 2 && depthNdc > ubo.uShadowCascade.z) {
+                                cascadeIndex = 1;
+                            }
+                            if (cascadeCount >= 3 && depthNdc > ubo.uShadowCascade.w) {
+                                cascadeIndex = 2;
+                            }
+                            float split3 = mix(ubo.uShadowCascade.w, 1.0, 0.75);
+                            if (cascadeCount >= 4 && depthNdc > split3) {
+                                cascadeIndex = 3;
+                            }
+
+                            float cascadeT = float(cascadeIndex) / max(float(cascadeCount - 1), 1.0);
+                            int radius = clamp(int(ubo.uShadow.w + 0.5) + (cascadeIndex / 2), 0, 4);
+                            float texel = (1.0 / max(ubo.uShadowCascade.y, 1.0)) * mix(1.0, 2.25, cascadeT);
+                            float compareBias = ubo.uShadow.z * mix(0.7, 1.8, cascadeT);
+                            float compareDepth = clamp(shadowCoord.z - compareBias, 0.0, 1.0);
                             float total = 0.0;
                             float taps = 0.0;
                             for (int y = -4; y <= 4; y++) {
@@ -2658,7 +2674,9 @@ final class VulkanContext {
         fb.put(new float[]{pointLightPosX, pointLightPosY, pointLightPosZ, 0f});
         fb.put(new float[]{pointLightColorR, pointLightColorG, pointLightColorB, 0f});
         fb.put(new float[]{shadowEnabled ? 1f : 0f, shadowStrength, shadowBias, (float) shadowPcfRadius});
-        fb.put(new float[]{(float) shadowCascadeCount, (float) shadowMapResolution, 0f, 0f});
+        float split1 = shadowCascadeCount <= 1 ? 1.0f : 0.28f;
+        float split2 = shadowCascadeCount <= 2 ? 1.0f : 0.62f;
+        fb.put(new float[]{(float) shadowCascadeCount, (float) shadowMapResolution, split1, split2});
         fb.put(new float[]{fogEnabled ? 1f : 0f, fogDensity, 0f, 0f});
         fb.put(new float[]{fogR, fogG, fogB, (float) fogSteps});
         fb.put(new float[]{smokeEnabled ? 1f : 0f, smokeIntensity, 0f, 0f});

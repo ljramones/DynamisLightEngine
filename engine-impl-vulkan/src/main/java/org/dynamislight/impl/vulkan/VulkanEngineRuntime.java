@@ -364,25 +364,40 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             ShadowDesc shadow = light.shadow();
             int kernel = shadow == null ? 3 : Math.max(1, shadow.pcfKernelSize());
-            int radius = Math.max(0, (kernel - 1) / 2);
             int cascades = shadow == null ? 1 : Math.max(1, shadow.cascadeCount());
             int resolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));
             float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
-            float base = Math.min(0.9f, 0.25f + (kernel * 0.04f) + (cascades * 0.05f));
+            int maxKernel = switch (qualityTier) {
+                case LOW -> 3;
+                case MEDIUM -> 5;
+                case HIGH -> 7;
+                case ULTRA -> 9;
+            };
+            int kernelClamped = Math.min(kernel, maxKernel);
+            int radius = Math.max(0, (kernelClamped - 1) / 2);
+            int maxCascades = switch (qualityTier) {
+                case LOW -> 1;
+                case MEDIUM -> 2;
+                case HIGH -> 3;
+                case ULTRA -> 4;
+            };
+            int cascadesClamped = Math.min(cascades, maxCascades);
+            float base = Math.min(0.9f, 0.25f + (kernelClamped * 0.04f) + (cascadesClamped * 0.05f));
             float tierScale = switch (qualityTier) {
                 case LOW -> 0.55f;
                 case MEDIUM -> 0.75f;
                 case HIGH -> 1.0f;
                 case ULTRA -> 1.15f;
             };
+            boolean degraded = kernelClamped != kernel || cascadesClamped != cascades || qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
             return new ShadowRenderConfig(
                     true,
                     Math.max(0.2f, Math.min(0.9f, base * tierScale)),
                     bias,
                     radius,
-                    cascades,
+                    cascadesClamped,
                     resolution,
-                    qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM
+                    degraded
             );
         }
         return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
