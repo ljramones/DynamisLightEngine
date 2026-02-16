@@ -58,6 +58,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             float diffuseStrength,
             float specularStrength,
             boolean textureDriven,
+            boolean skyboxDerived,
             boolean ktxContainerRequested,
             float prefilterStrength,
             boolean degraded,
@@ -89,7 +90,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
+    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public OpenGlEngineRuntime() {
@@ -294,6 +295,12 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     "IBL_BRDF_ENERGY_COMP_ACTIVE",
                     "IBL diffuse/specular response uses BRDF energy-compensation and horizon weighting for improved roughness realism"
             ));
+            if (ibl.skyboxDerived()) {
+                warnings.add(new EngineWarning(
+                        "IBL_SKYBOX_DERIVED_ACTIVE",
+                        "IBL irradiance/radiance inputs are derived from EnvironmentDesc.skyboxAssetPath"
+                ));
+            }
             if (ibl.missingAssetCount() > 0) {
                 warnings.add(new EngineWarning(
                         "IBL_ASSET_FALLBACK_ACTIVE",
@@ -434,14 +441,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 || !isBlank(environment.iblRadiancePath())
                 || !isBlank(environment.iblBrdfLutPath())
                 || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -461,6 +468,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         boolean textureDriven = false;
 
         String fallbackSkyboxPath = environment.skyboxAssetPath();
+        boolean skyboxDerived = !isBlank(fallbackSkyboxPath)
+                && (isBlank(environment.iblIrradiancePath()) || isBlank(environment.iblRadiancePath()));
         Path irrSource = resolveTexturePath(
                 isBlank(environment.iblIrradiancePath()) ? fallbackSkyboxPath : environment.iblIrradiancePath()
         );
@@ -496,6 +505,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 Math.max(0f, Math.min(2.0f, diffuse)),
                 Math.max(0f, Math.min(2.0f, specular)),
                 textureDriven,
+                skyboxDerived,
                 ktxContainerRequested,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,

@@ -90,6 +90,7 @@ OpenGL backend provides a real forward render baseline:
   - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
   - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
   - when irradiance/radiance IBL paths are absent, runtime can derive those inputs from `EnvironmentDesc.skyboxAssetPath`
+  - explicit runtime signal when skybox-derived IBL inputs are active: `IBL_SKYBOX_DERIVED_ACTIVE`
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`
@@ -141,6 +142,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
   - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
   - when irradiance/radiance IBL paths are absent, runtime can derive those inputs from `EnvironmentDesc.skyboxAssetPath`
+  - explicit runtime signal when skybox-derived IBL inputs are active: `IBL_SKYBOX_DERIVED_ACTIVE`
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`

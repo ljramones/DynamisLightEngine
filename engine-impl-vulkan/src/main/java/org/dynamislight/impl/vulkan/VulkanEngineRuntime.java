@@ -64,7 +64,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
+    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public VulkanEngineRuntime() {
@@ -341,6 +341,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     "IBL_BRDF_ENERGY_COMP_ACTIVE",
                     "IBL diffuse/specular response uses BRDF energy-compensation and horizon weighting for improved roughness realism"
             ));
+            if (currentIbl.skyboxDerived()) {
+                warnings.add(new EngineWarning(
+                        "IBL_SKYBOX_DERIVED_ACTIVE",
+                        "IBL irradiance/radiance inputs are derived from EnvironmentDesc.skyboxAssetPath"
+                ));
+            }
             if (currentIbl.missingAssetCount() > 0) {
                 warnings.add(new EngineWarning(
                         "IBL_ASSET_FALLBACK_ACTIVE",
@@ -653,6 +659,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float diffuseStrength,
             float specularStrength,
             boolean textureDriven,
+            boolean skyboxDerived,
             boolean ktxContainerRequested,
             float prefilterStrength,
             boolean degraded,
@@ -694,14 +701,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 || !isBlank(environment.iblRadiancePath())
                 || !isBlank(environment.iblBrdfLutPath())
                 || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -721,6 +728,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         boolean textureDriven = false;
 
         String fallbackSkyboxPath = environment.skyboxAssetPath();
+        boolean skyboxDerived = !isBlank(fallbackSkyboxPath)
+                && (isBlank(environment.iblIrradiancePath()) || isBlank(environment.iblRadiancePath()));
         Path irrSource = resolveScenePath(
                 isBlank(environment.iblIrradiancePath()) ? fallbackSkyboxPath : environment.iblIrradiancePath(),
                 assetRoot
@@ -758,6 +767,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 Math.max(0f, Math.min(2.0f, diffuse)),
                 Math.max(0f, Math.min(2.0f, specular)),
                 textureDriven,
+                skyboxDerived,
                 ktxContainerRequested,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,
