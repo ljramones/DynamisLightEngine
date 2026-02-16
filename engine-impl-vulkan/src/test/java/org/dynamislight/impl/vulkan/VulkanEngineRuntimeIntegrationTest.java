@@ -1,6 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -66,7 +67,39 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.shutdown();
     }
 
+    @Test
+    void forcedInitFailureMapsToBackendInitFailed() {
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+
+        EngineException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                EngineException.class,
+                () -> runtime.initialize(validConfig(Map.of("vulkan.forceInitFailure", "true")), callbacks)
+        );
+
+        assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, ex.code());
+        assertFalse(callbacks.errors.isEmpty());
+        assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, callbacks.errors.getFirst().code());
+    }
+
+    @Test
+    void mockVulkanStatsReflectSceneMeshWorkload() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validMultiMeshScene());
+        runtime.render();
+
+        assertEquals(2, runtime.getStats().drawCalls());
+        assertEquals(3, runtime.getStats().triangles());
+        assertEquals(2, runtime.getStats().visibleObjects());
+        runtime.shutdown();
+    }
+
     private static EngineConfig validConfig(boolean mock) {
+        return validConfig(Map.of("vulkan.mockContext", Boolean.toString(mock)));
+    }
+
+    private static EngineConfig validConfig(Map<String, String> backendOptions) {
         return new EngineConfig(
                 "vulkan",
                 "vulkan-test",
@@ -77,7 +110,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 60,
                 QualityTier.MEDIUM,
                 Path.of("."),
-                Map.of("vulkan.mockContext", Boolean.toString(mock))
+                backendOptions
         );
     }
 
@@ -96,6 +129,30 @@ class VulkanEngineRuntimeIntegrationTest {
                 "cam",
                 List.of(transform),
                 List.of(mesh),
+                List.of(mat),
+                List.of(light),
+                env,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validMultiMeshScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc meshTriangle = new MeshDesc("mesh-triangle", "xform", "mat", "meshes/triangle.glb");
+        MeshDesc meshQuad = new MeshDesc("mesh-quad", "xform", "mat", "meshes/quad.glb");
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        LightDesc light = new LightDesc("light", new Vec3(0, 2, 0), new Vec3(1, 1, 1), 1.0f, 10f, false);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "vulkan-multi-mesh-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(meshTriangle, meshQuad),
                 List.of(mat),
                 List.of(light),
                 env,

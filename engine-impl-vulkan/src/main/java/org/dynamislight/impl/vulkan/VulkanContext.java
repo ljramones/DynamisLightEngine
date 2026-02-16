@@ -17,6 +17,9 @@ import org.lwjgl.vulkan.VkInstanceCreateInfo;
 
 final class VulkanContext {
     private VkInstance instance;
+    private long plannedDrawCalls = 1;
+    private long plannedTriangles = 1;
+    private long plannedVisibleObjects = 1;
 
     void initialize(String appName) throws EngineException {
         try (MemoryStack stack = stackPush()) {
@@ -49,7 +52,13 @@ final class VulkanContext {
     VulkanFrameMetrics renderFrame() {
         long start = System.nanoTime();
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
-        return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, 2, 1, 1, 0);
+        return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, 0);
+    }
+
+    void setPlannedWorkload(long drawCalls, long triangles, long visibleObjects) {
+        plannedDrawCalls = Math.max(1, drawCalls);
+        plannedTriangles = Math.max(1, triangles);
+        plannedVisibleObjects = Math.max(1, visibleObjects);
     }
 
     void shutdown() {
