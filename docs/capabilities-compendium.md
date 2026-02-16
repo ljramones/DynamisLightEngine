@@ -78,6 +78,7 @@ OpenGL backend provides a real forward render baseline:
   - per-material roughness/metallic modulation
   - typed light selection baseline (`LightType`: directional/point/spot) with cone-attenuated spot-light shading path
   - directional + spot + point shadow path support (point via cubemap depth sampling baseline)
+  - shadow fidelity tuning: depth bias scales with effective PCF radius/cascade count to reduce acne/flicker under higher shadow quality settings
 - IBL baseline hook:
   - environment-driven enablement via `EnvironmentDesc` IBL asset paths
   - lightweight diffuse/specular ambient contribution (`IBL_BASELINE_ACTIVE` warning signal)
@@ -94,8 +95,10 @@ OpenGL backend provides a real forward render baseline:
   - when KTX irradiance/radiance assets are configured but unresolved, runtime can fallback those channels to skybox-derived inputs (`IBL_KTX_SKYBOX_FALLBACK_ACTIVE`)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
   - baseline native container decode path added for uncompressed RGBA8 KTX/KTX2 payloads (resolved to runtime PNG cache)
+  - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory (no PNG transcode dependency for GPU upload)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when KTX containers exist but remain undecodable in current build: `IBL_KTX_DECODE_UNAVAILABLE`
+  - explicit runtime warning when KTX variants are outside baseline decoder support (compressed/supercompressed/non-RGBA8): `IBL_KTX_VARIANT_UNSUPPORTED`
   - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`
   - OpenGL/Vulkan parity update: AO now modulates IBL diffuse ambient in both backends for closer cross-backend material response
 - Fog support (`FogDesc`) with quality-tier behavior.
@@ -133,6 +136,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - GGX-style PBR-leaning lighting response aligned with OpenGL baseline (directional + point light path).
 - Typed light selection baseline (`LightType`: directional/point/spot) with cone-attenuated spot-light shading path.
 - Directional + spot + point shadow path support in baseline form (OpenGL cubemap baseline; Vulkan 6-face layered point-shadow path aligned to cubemap face directions).
+ - shadow fidelity tuning: depth bias scales with effective PCF radius/cascade count to reduce acne/flicker under higher shadow quality settings.
 - Adaptive point-shadow filtering/bias behavior in both backends (PCF kernel scales with configured radius and depth-from-light to reduce near/far acne and shimmer).
 - IBL baseline hook:
   - environment-driven enablement via `EnvironmentDesc` IBL asset paths
@@ -149,8 +153,10 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - when KTX irradiance/radiance assets are configured but unresolved, runtime can fallback those channels to skybox-derived inputs (`IBL_KTX_SKYBOX_FALLBACK_ACTIVE`)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
   - baseline native container decode path added for uncompressed RGBA8 KTX/KTX2 payloads (resolved to runtime PNG cache)
+  - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory (no PNG transcode dependency for GPU upload)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when KTX containers exist but remain undecodable in current build: `IBL_KTX_DECODE_UNAVAILABLE`
+  - explicit runtime warning when KTX variants are outside baseline decoder support (compressed/supercompressed/non-RGBA8): `IBL_KTX_VARIANT_UNSUPPORTED`
   - explicit runtime warning when configured IBL assets are missing/unreadable: `IBL_ASSET_FALLBACK_ACTIVE`
 - Device-local vertex/index buffer uploads via staging copy path.
 - Render loop clear + scene-driven indexed draws with quality-tier-dependent fog/smoke behavior.

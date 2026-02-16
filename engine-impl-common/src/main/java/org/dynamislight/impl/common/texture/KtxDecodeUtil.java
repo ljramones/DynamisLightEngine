@@ -69,6 +69,40 @@ public final class KtxDecodeUtil {
         }
     }
 
+    public static BufferedImage decodeToImageIfSupported(Path containerPath) {
+        if (containerPath == null || !Files.isRegularFile(containerPath)) {
+            return null;
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(containerPath.toAbsolutePath().normalize());
+            return decodeImage(bytes);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    public static boolean canDecodeSupported(Path containerPath) {
+        return decodeToImageIfSupported(containerPath) != null;
+    }
+
+    public static boolean isKnownUnsupportedVariant(Path containerPath) {
+        if (containerPath == null || !Files.isRegularFile(containerPath)) {
+            return false;
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(containerPath.toAbsolutePath().normalize());
+            if (startsWith(bytes, KTX2_IDENTIFIER)) {
+                return isUnsupportedKtx2(bytes);
+            }
+            if (startsWith(bytes, KTX1_IDENTIFIER)) {
+                return isUnsupportedKtx1(bytes);
+            }
+        } catch (Throwable ignored) {
+            return false;
+        }
+        return false;
+    }
+
     private static String stableName(Path source, long size, long modified) {
         String base = Integer.toHexString(source.toString().hashCode());
         return "ktx_" + base + "_" + Long.toHexString(size) + "_" + Long.toHexString(modified);
@@ -120,6 +154,16 @@ public final class KtxDecodeUtil {
         return rgbaToImage(bytes, (int) byteOffset, pixelWidth, pixelHeight);
     }
 
+    private static boolean isUnsupportedKtx2(byte[] bytes) {
+        if (bytes.length < 104) {
+            return false;
+        }
+        ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        int vkFormat = bb.getInt(12);
+        int supercompression = bb.getInt(44);
+        return supercompression != 0 || vkFormat != VK_FORMAT_R8G8B8A8_UNORM;
+    }
+
     private static BufferedImage decodeKtx1(byte[] bytes) {
         if (bytes.length < 68) {
             return null;
@@ -151,6 +195,16 @@ public final class KtxDecodeUtil {
             return null;
         }
         return rgbaToImage(bytes, imageOffset, pixelWidth, pixelHeight);
+    }
+
+    private static boolean isUnsupportedKtx1(byte[] bytes) {
+        if (bytes.length < 68) {
+            return false;
+        }
+        ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
+        int glType = bb.getInt(16);
+        int glFormat = bb.getInt(24);
+        return glType != GL_UNSIGNED_BYTE || glFormat != GL_RGBA;
     }
 
     private static BufferedImage rgbaToImage(byte[] bytes, int offset, int width, int height) {

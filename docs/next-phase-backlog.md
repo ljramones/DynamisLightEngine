@@ -88,8 +88,11 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 - Threshold tightening lane complete for current stress profiles; keep envelopes frozen at established floor and revisit only after major lighting/post changes.
 - Expand deterministic golden scenes for additional fog/smoke/shadow material interactions.
 - Expand IBL beyond baseline (native `.ktx/.ktx2` decode/prefilter and deeper BRDF/roughness integration).
-  - baseline native `.ktx/.ktx2` decode is now in place for uncompressed RGBA8 payloads (runtime PNG cache path)
-  - remaining: broader format/supercompression coverage and direct GPU upload path without PNG transcode
+  - baseline native `.ktx/.ktx2` decode is now in place for uncompressed RGBA8 payloads
+  - direct GPU ingestion path now decodes supported KTX/KTX2 in-memory (no PNG transcode dependency)
+  - unsupported compressed/supercompressed/non-RGBA8 variants are surfaced explicitly via `IBL_KTX_VARIANT_UNSUPPORTED`
+  - remaining: broader KTX format/supercompression decode coverage + richer IBL prefilter usage
+- Shadow fidelity tune: radius/cascade-aware depth-bias scaling now applied in both backends to reduce acne/flicker at higher PCF/cascade settings.
 - Extend Vulkan dynamic-update staging strategy to more scene data beyond current uniform path.
 - Add more real-device validation coverage across multiple machine/driver profiles.
 

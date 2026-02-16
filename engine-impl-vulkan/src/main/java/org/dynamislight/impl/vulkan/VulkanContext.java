@@ -234,6 +234,7 @@ import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.impl.common.texture.KtxDecodeUtil;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.system.MemoryStack;
@@ -4197,29 +4198,47 @@ final class VulkanContext {
         if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
             return null;
         }
+        if (isKtxContainerPath(sourcePath)) {
+            TexturePixelData decoded = loadTexturePixelsFromKtx(sourcePath);
+            if (decoded != null) {
+                return decoded;
+            }
+        }
         try {
             BufferedImage image = ImageIO.read(sourcePath.toFile());
             if (image != null) {
-                int width = image.getWidth();
-                int height = image.getHeight();
-                ByteBuffer buffer = memAlloc(width * height * 4);
-                for (int y = 0; y < height; y++) {
-                    int srcY = height - 1 - y;
-                    for (int x = 0; x < width; x++) {
-                        int argb = image.getRGB(x, srcY);
-                        buffer.put((byte) ((argb >> 16) & 0xFF));
-                        buffer.put((byte) ((argb >> 8) & 0xFF));
-                        buffer.put((byte) (argb & 0xFF));
-                        buffer.put((byte) ((argb >> 24) & 0xFF));
-                    }
-                }
-                buffer.flip();
-                return new TexturePixelData(buffer, width, height);
+                return bufferedImageToPixels(image);
             }
         } catch (IOException ignored) {
             // Fall through to stb path.
         }
         return loadTexturePixelsViaStb(sourcePath);
+    }
+
+    private TexturePixelData loadTexturePixelsFromKtx(Path containerPath) {
+        BufferedImage image = KtxDecodeUtil.decodeToImageIfSupported(containerPath);
+        if (image == null) {
+            return null;
+        }
+        return bufferedImageToPixels(image);
+    }
+
+    private TexturePixelData bufferedImageToPixels(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        ByteBuffer buffer = memAlloc(width * height * 4);
+        for (int y = 0; y < height; y++) {
+            int srcY = height - 1 - y;
+            for (int x = 0; x < width; x++) {
+                int argb = image.getRGB(x, srcY);
+                buffer.put((byte) ((argb >> 16) & 0xFF));
+                buffer.put((byte) ((argb >> 8) & 0xFF));
+                buffer.put((byte) (argb & 0xFF));
+                buffer.put((byte) ((argb >> 24) & 0xFF));
+            }
+        }
+        buffer.flip();
+        return new TexturePixelData(buffer, width, height);
     }
 
     private TexturePixelData loadTexturePixelsViaStb(Path texturePath) {

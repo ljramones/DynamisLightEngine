@@ -114,6 +114,7 @@ import java.util.List;
 import javax.imageio.ImageIO;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.impl.common.texture.KtxDecodeUtil;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
@@ -1398,28 +1399,46 @@ final class OpenGlContext {
         if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
             return new TextureData(0, 0);
         }
+        if (isKtxContainerPath(sourcePath)) {
+            TextureData decoded = loadTextureFromKtx(sourcePath);
+            if (decoded.id() != 0) {
+                return decoded;
+            }
+        }
         try {
             BufferedImage image = ImageIO.read(sourcePath.toFile());
             if (image != null) {
-                int width = image.getWidth();
-                int height = image.getHeight();
-                ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        int argb = image.getRGB(x, y);
-                        rgba.put((byte) ((argb >> 16) & 0xFF));
-                        rgba.put((byte) ((argb >> 8) & 0xFF));
-                        rgba.put((byte) (argb & 0xFF));
-                        rgba.put((byte) ((argb >> 24) & 0xFF));
-                    }
-                }
-                rgba.flip();
-                return uploadRgbaTexture(rgba, width, height);
+                return uploadBufferedImageTexture(image);
             }
         } catch (IOException ignored) {
             // Fall through to stb path.
         }
         return loadTextureViaStb(sourcePath);
+    }
+
+    private TextureData loadTextureFromKtx(Path containerPath) {
+        BufferedImage image = KtxDecodeUtil.decodeToImageIfSupported(containerPath);
+        if (image == null) {
+            return new TextureData(0, 0);
+        }
+        return uploadBufferedImageTexture(image);
+    }
+
+    private TextureData uploadBufferedImageTexture(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int argb = image.getRGB(x, y);
+                rgba.put((byte) ((argb >> 16) & 0xFF));
+                rgba.put((byte) ((argb >> 8) & 0xFF));
+                rgba.put((byte) (argb & 0xFF));
+                rgba.put((byte) ((argb >> 24) & 0xFF));
+            }
+        }
+        rgba.flip();
+        return uploadRgbaTexture(rgba, width, height);
     }
 
     private TextureData loadTextureViaStb(Path texturePath) {

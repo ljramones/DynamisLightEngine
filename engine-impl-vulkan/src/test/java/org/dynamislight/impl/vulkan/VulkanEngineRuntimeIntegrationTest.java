@@ -344,6 +344,49 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void iblSupercompressedKtx2EmitsVariantUnsupportedWarning() throws Exception {
+        Path irr = Files.createTempFile("dle-vk-irr-super-", ".ktx2");
+        Path rad = Files.createTempFile("dle-vk-rad-super-", ".ktx2");
+        try {
+            writeKtx2SupercompressedStub(irr, 8, 8);
+            writeKtx2SupercompressedStub(rad, 8, 8);
+            Path brdf = Path.of("..", "assets", "textures", "albedo.png").toAbsolutePath().normalize();
+
+            SceneDescriptor base = validScene();
+            EnvironmentDesc env = new EnvironmentDesc(
+                    base.environment().ambientColor(),
+                    base.environment().ambientIntensity(),
+                    null,
+                    irr.toString(),
+                    rad.toString(),
+                    brdf.toString()
+            );
+            var runtime = new VulkanEngineRuntime();
+            runtime.initialize(validConfig(true), new RecordingCallbacks());
+            runtime.loadScene(new SceneDescriptor(
+                    "vulkan-ibl-ktx-supercompressed-scene",
+                    base.cameras(),
+                    base.activeCameraId(),
+                    base.transforms(),
+                    base.meshes(),
+                    base.materials(),
+                    base.lights(),
+                    env,
+                    base.fog(),
+                    base.smokeEmitters(),
+                    base.postProcess()
+            ));
+
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
+            runtime.shutdown();
+        } finally {
+            Files.deleteIfExists(irr);
+            Files.deleteIfExists(rad);
+        }
+    }
+
+    @Test
     void iblLowTierEmitsQualityDegradedWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.LOW), new RecordingCallbacks());
@@ -1388,6 +1431,24 @@ class VulkanEngineRuntimeIntegrationTest {
         putLongLE(out, 96, rgba.length);
         System.arraycopy(rgba, 0, out, dataOffset, rgba.length);
         Files.write(path, out);
+    }
+
+    private static void writeKtx2SupercompressedStub(Path path, int width, int height) throws Exception {
+        byte[] header = new byte[104];
+        byte[] identifier = new byte[]{
+                (byte) 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, (byte) 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
+        };
+        System.arraycopy(identifier, 0, header, 0, identifier.length);
+        putIntLE(header, 12, 0);
+        putIntLE(header, 16, 1);
+        putIntLE(header, 20, Math.max(1, width));
+        putIntLE(header, 24, Math.max(1, height));
+        putIntLE(header, 28, 0);
+        putIntLE(header, 32, 0);
+        putIntLE(header, 36, 1);
+        putIntLE(header, 40, 1);
+        putIntLE(header, 44, 1);
+        Files.write(path, header);
     }
 
     private static void putIntLE(byte[] buffer, int offset, int value) {

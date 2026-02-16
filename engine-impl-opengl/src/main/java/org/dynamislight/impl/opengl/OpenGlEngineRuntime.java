@@ -64,6 +64,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean ktxContainerRequested,
             boolean ktxSkyboxFallback,
             int ktxDecodeUnavailableCount,
+            int ktxUnsupportedVariantCount,
             float prefilterStrength,
             boolean degraded,
             int missingAssetCount,
@@ -94,7 +95,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0f, false, 0, null, null, null);
+    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public OpenGlEngineRuntime() {
@@ -314,8 +315,15 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             if (ibl.ktxDecodeUnavailableCount() > 0) {
                 warnings.add(new EngineWarning(
                         "IBL_KTX_DECODE_UNAVAILABLE",
-                        "KTX/KTX2 IBL assets detected but no native decode path is active (channels=" + ibl.ktxDecodeUnavailableCount()
+                        "KTX/KTX2 IBL assets detected but could not be decoded by current baseline path (channels=" + ibl.ktxDecodeUnavailableCount()
                                 + "); runtime used sidecar/derived/default fallback inputs"
+                ));
+            }
+            if (ibl.ktxUnsupportedVariantCount() > 0) {
+                warnings.add(new EngineWarning(
+                        "IBL_KTX_VARIANT_UNSUPPORTED",
+                        "KTX/KTX2 IBL assets use unsupported compressed/supercompressed/format variants in baseline decoder (channels="
+                                + ibl.ktxUnsupportedVariantCount() + ")"
                 ));
             }
             if (ibl.missingAssetCount() > 0) {
@@ -458,14 +466,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 || !isBlank(environment.iblRadiancePath())
                 || !isBlank(environment.iblBrdfLutPath())
                 || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -516,6 +524,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         ktxDecodeUnavailableCount += decodeUnavailableChannelCount(irrSource, irr);
         ktxDecodeUnavailableCount += decodeUnavailableChannelCount(radSource, rad);
         ktxDecodeUnavailableCount += decodeUnavailableChannelCount(brdfSource, brdf);
+        int ktxUnsupportedVariantCount = 0;
+        ktxUnsupportedVariantCount += unsupportedVariantChannelCount(irrSource);
+        ktxUnsupportedVariantCount += unsupportedVariantChannelCount(radSource);
+        ktxUnsupportedVariantCount += unsupportedVariantChannelCount(brdfSource);
         int missingAssetCount = countMissingFiles(irr, rad, brdf);
         float irrSignal = imageLuminanceSignal(irr);
         float radSignal = imageLuminanceSignal(rad);
@@ -541,6 +553,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 ktxContainerRequested,
                 ktxSkyboxFallback,
                 ktxDecodeUnavailableCount,
+                ktxUnsupportedVariantCount,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,
                 missingAssetCount,
@@ -568,7 +581,17 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
             return 0;
         }
-        return Objects.equals(requestedPath, resolvedPath) ? 1 : 0;
+        if (!Objects.equals(requestedPath, resolvedPath)) {
+            return 0;
+        }
+        return KtxDecodeUtil.canDecodeSupported(requestedPath) ? 0 : 1;
+    }
+
+    private static int unsupportedVariantChannelCount(Path requestedPath) {
+        if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
+            return 0;
+        }
+        return KtxDecodeUtil.isKnownUnsupportedVariant(requestedPath) ? 1 : 0;
     }
 
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
@@ -589,6 +612,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             }
             int resolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));
             float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
+            float biasScale = 1.0f + (radius * 0.15f) + (Math.max(0, cascades - 1) * 0.05f);
+            bias = Math.max(0.00002f, Math.min(0.02f, bias * biasScale));
             float base = Math.min(0.9f, 0.25f + (kernel * 0.04f) + (cascades * 0.05f));
             float tierScale = switch (qualityTier) {
                 case LOW -> 0.55f;
@@ -897,7 +922,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         boolean imageIoSupported = name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg");
         boolean hdrSupported = name.endsWith(".hdr");
         if (!imageIoSupported && !hdrSupported) {
-            return -1f;
+            BufferedImage ktxImage = KtxDecodeUtil.decodeToImageIfSupported(sourcePath);
+            return ktxImage == null ? -1f : bufferedImageLuminanceSignal(ktxImage);
         }
         if (hdrSupported) {
             try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
@@ -941,30 +967,34 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         }
         try {
             BufferedImage image = javax.imageio.ImageIO.read(sourcePath.toFile());
-            if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) {
-                return -1f;
-            }
-            int stepX = Math.max(1, image.getWidth() / 64);
-            int stepY = Math.max(1, image.getHeight() / 64);
-            double sum = 0.0;
-            int count = 0;
-            for (int y = 0; y < image.getHeight(); y += stepY) {
-                for (int x = 0; x < image.getWidth(); x += stepX) {
-                    int argb = image.getRGB(x, y);
-                    float r = ((argb >> 16) & 0xFF) / 255f;
-                    float g = ((argb >> 8) & 0xFF) / 255f;
-                    float b = (argb & 0xFF) / 255f;
-                    sum += (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
-                    count++;
-                }
-            }
-            if (count == 0) {
-                return -1f;
-            }
-            return (float) Math.max(0.0, Math.min(1.0, sum / count));
+            return bufferedImageLuminanceSignal(image);
         } catch (IOException ignored) {
             return -1f;
         }
+    }
+
+    private static float bufferedImageLuminanceSignal(BufferedImage image) {
+        if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) {
+            return -1f;
+        }
+        int stepX = Math.max(1, image.getWidth() / 64);
+        int stepY = Math.max(1, image.getHeight() / 64);
+        double sum = 0.0;
+        int count = 0;
+        for (int y = 0; y < image.getHeight(); y += stepY) {
+            for (int x = 0; x < image.getWidth(); x += stepX) {
+                int argb = image.getRGB(x, y);
+                float r = ((argb >> 16) & 0xFF) / 255f;
+                float g = ((argb >> 8) & 0xFF) / 255f;
+                float b = (argb & 0xFF) / 255f;
+                sum += (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+                count++;
+            }
+        }
+        if (count == 0) {
+            return -1f;
+        }
+        return (float) Math.max(0.0, Math.min(1.0, sum / count));
     }
 
     private static Path resolveContainerSourcePath(Path requestedPath) {
@@ -986,8 +1016,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 return candidate;
             }
         }
-        Path decoded = KtxDecodeUtil.decodeToPngIfSupported(requestedPath);
-        return decoded == null ? requestedPath : decoded;
+        return requestedPath;
     }
 
     private static boolean isKtxContainerPath(Path path) {
