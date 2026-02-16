@@ -398,6 +398,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " descriptorRingPoolReuses=" + frameResources.descriptorRingPoolReuses()
                             + " descriptorRingPoolResetFailures=" + frameResources.descriptorRingPoolResetFailures()
                             + " descriptorRingCapBypasses=" + frameResources.descriptorRingCapBypasses()
+                            + " descriptorRingWasteWarnCooldownRemaining=" + descriptorRingWasteWarnCooldownRemaining
+                            + " descriptorRingCapPressureWarnCooldownRemaining=" + descriptorRingCapPressureWarnCooldownRemaining
                             + " persistentStagingMapped=" + frameResources.persistentStagingMapped()
             ));
             if (frameResources.descriptorRingSetCapacity() > 0) {
