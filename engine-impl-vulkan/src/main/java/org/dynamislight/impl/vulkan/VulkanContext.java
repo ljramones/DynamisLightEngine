@@ -8,6 +8,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_VISIBLE;
 import static org.lwjgl.glfw.GLFW.glfwCreateWindow;
 import static org.lwjgl.glfw.GLFW.glfwDefaultWindowHints;
 import static org.lwjgl.glfw.GLFW.glfwDestroyWindow;
+import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.glfw.GLFW.glfwInit;
 import static org.lwjgl.glfw.GLFW.glfwPollEvents;
 import static org.lwjgl.glfw.GLFW.glfwTerminate;
@@ -187,13 +188,20 @@ final class VulkanContext {
         if (device != null && graphicsQueue != null && commandBuffer != null && swapchain != VK_NULL_HANDLE) {
             try (MemoryStack stack = stackPush()) {
                 int acquireResult = acquireNextImage(stack);
-                if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR) {
-                    // Resize/recreate path will be added in a follow-up slice.
+                if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR || acquireResult == VK_SUBOPTIMAL_KHR) {
+                    recreateSwapchainFromWindow();
                 }
             }
         }
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
         return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, 0);
+    }
+
+    void resize(int width, int height) throws EngineException {
+        if (device == null || swapchain == VK_NULL_HANDLE) {
+            return;
+        }
+        recreateSwapchain(Math.max(1, width), Math.max(1, height));
     }
 
     void setPlannedWorkload(long drawCalls, long triangles, long visibleObjects) {
@@ -671,7 +679,7 @@ final class VulkanContext {
             vkResetCommandBuffer(commandBuffer, 0);
 
             recordCommandBuffer(stack, imageIndex);
-            submitAndPresent(stack, imageIndex);
+            return submitAndPresent(stack, imageIndex);
         }
         return acquireResult;
     }
@@ -702,14 +710,17 @@ final class VulkanContext {
         vkEndCommandBuffer(commandBuffer);
     }
 
-    private void submitAndPresent(MemoryStack stack, int imageIndex) {
+    private int submitAndPresent(MemoryStack stack, int imageIndex) {
         VkSubmitInfo submitInfo = VkSubmitInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_SUBMIT_INFO)
                 .pWaitSemaphores(stack.longs(imageAvailableSemaphore))
                 .pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT))
                 .pCommandBuffers(stack.pointers(commandBuffer.address()))
                 .pSignalSemaphores(stack.longs(renderFinishedSemaphore));
-        vkQueueSubmit(graphicsQueue, submitInfo, renderFence);
+        int submitResult = vkQueueSubmit(graphicsQueue, submitInfo, renderFence);
+        if (submitResult != VK_SUCCESS) {
+            return submitResult;
+        }
 
         VkPresentInfoKHR presentInfo = VkPresentInfoKHR.calloc(stack)
                 .sType(KHRSwapchain.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR)
@@ -717,8 +728,36 @@ final class VulkanContext {
                 .swapchainCount(1)
                 .pSwapchains(stack.longs(swapchain))
                 .pImageIndices(stack.ints(imageIndex));
-        vkQueuePresentKHR(graphicsQueue, presentInfo);
+        int presentResult = vkQueuePresentKHR(graphicsQueue, presentInfo);
         glfwPollEvents();
+        return presentResult;
+    }
+
+    private void recreateSwapchainFromWindow() {
+        if (window == VK_NULL_HANDLE) {
+            return;
+        }
+        try (MemoryStack stack = stackPush()) {
+            var pW = stack.ints(1);
+            var pH = stack.ints(1);
+            glfwGetFramebufferSize(window, pW, pH);
+            int width = Math.max(1, pW.get(0));
+            int height = Math.max(1, pH.get(0));
+            recreateSwapchain(width, height);
+        } catch (EngineException ignored) {
+            // Keep runtime alive; next frame can retry recreation.
+        }
+    }
+
+    private void recreateSwapchain(int width, int height) throws EngineException {
+        if (device == null || physicalDevice == null || surface == VK_NULL_HANDLE) {
+            return;
+        }
+        vkDeviceWaitIdle(device);
+        destroySwapchainResources();
+        try (MemoryStack stack = stackPush()) {
+            createSwapchainResources(stack, width, height);
+        }
     }
 
     private VkSurfaceFormatKHR chooseSurfaceFormat(VkSurfaceFormatKHR.Buffer formats) {

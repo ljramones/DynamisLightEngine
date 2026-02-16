@@ -79,6 +79,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
+    protected void onResize(int widthPx, int heightPx, float dpiScale) throws EngineException {
+        if (!mockContext) {
+            context.resize(widthPx, heightPx);
+        }
+    }
+
+    @Override
     protected void onShutdown() {
         if (!mockContext) {
             context.shutdown();
