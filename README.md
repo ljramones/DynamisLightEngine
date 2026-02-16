@@ -155,6 +155,7 @@ Optional integration-test flags:
 ## Planning
 
 - Capabilities compendium: `docs/capabilities-compendium.md`
+- API reference: `docs/api-reference.md`
 - Release workflow: `docs/release-workflow.md`
 - Milestone and issue backlog: `docs/github-milestones.md`
 - Architecture note: `docs/architecture/backend-strategy.md`
