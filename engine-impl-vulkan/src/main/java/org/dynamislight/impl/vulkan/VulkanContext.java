@@ -93,18 +93,23 @@ import static org.lwjgl.vulkan.VK10.VK_ERROR_DEVICE_LOST;
 import static org.lwjgl.vulkan.VK10.VK_FENCE_CREATE_SIGNALED_BIT;
 import static org.lwjgl.vulkan.VK10.VK_FALSE;
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_B8G8R8A8_SRGB;
+import static org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT;
 import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
 import static org.lwjgl.vulkan.VK10.VK_INDEX_TYPE_UINT32;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_BIND_POINT_GRAPHICS;
 import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 import static org.lwjgl.vulkan.VK10.VK_POLYGON_MODE_FILL;
 import static org.lwjgl.vulkan.VK10.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 import static org.lwjgl.vulkan.VK10.VK_QUEUE_GRAPHICS_BIT;
 import static org.lwjgl.vulkan.VK10.VK_QUEUE_FAMILY_IGNORED;
 import static org.lwjgl.vulkan.VK10.VK_SAMPLE_COUNT_1_BIT;
@@ -135,6 +140,7 @@ import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -255,6 +261,7 @@ import org.lwjgl.vulkan.VkPipelineColorBlendStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineInputAssemblyStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineLayoutCreateInfo;
 import org.lwjgl.vulkan.VkPipelineMultisampleStateCreateInfo;
+import org.lwjgl.vulkan.VkPipelineDepthStencilStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineRasterizationStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineShaderStageCreateInfo;
 import org.lwjgl.vulkan.VkPipelineVertexInputStateCreateInfo;
@@ -296,6 +303,10 @@ final class VulkanContext {
     private int swapchainHeight = 1;
     private long[] swapchainImages = new long[0];
     private long[] swapchainImageViews = new long[0];
+    private int depthFormat = VK_FORMAT_D32_SFLOAT;
+    private long[] depthImages = new long[0];
+    private long[] depthMemories = new long[0];
+    private long[] depthImageViews = new long[0];
     private long renderPass = VK_NULL_HANDLE;
     private long pipelineLayout = VK_NULL_HANDLE;
     private long graphicsPipeline = VK_NULL_HANDLE;
@@ -889,6 +900,7 @@ final class VulkanContext {
         swapchainImages = imageHandles.toArray();
 
         createImageViews(stack);
+        createDepthResources(stack);
         createRenderPass(stack);
         createGraphicsPipeline(stack);
         createFramebuffers(stack);
@@ -918,8 +930,29 @@ final class VulkanContext {
         }
     }
 
+    private void createDepthResources(MemoryStack stack) throws EngineException {
+        depthImages = new long[swapchainImages.length];
+        depthMemories = new long[swapchainImages.length];
+        depthImageViews = new long[swapchainImages.length];
+        for (int i = 0; i < swapchainImages.length; i++) {
+            ImageAlloc depth = createImage(
+                    stack,
+                    swapchainWidth,
+                    swapchainHeight,
+                    depthFormat,
+                    VK10.VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+            );
+            depthImages[i] = depth.image();
+            depthMemories[i] = depth.memory();
+            depthImageViews[i] = createImageView(stack, depth.image(), depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        }
+    }
+
     private void createRenderPass(MemoryStack stack) throws EngineException {
-        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(1, stack)
+        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(2, stack);
+        attachments.get(0)
                 .format(swapchainImageFormat)
                 .samples(VK_SAMPLE_COUNT_1_BIT)
                 .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
@@ -928,22 +961,35 @@ final class VulkanContext {
                 .stencilStoreOp(VK10.VK_ATTACHMENT_STORE_OP_DONT_CARE)
                 .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
                 .finalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        attachments.get(1)
+                .format(depthFormat)
+                .samples(VK_SAMPLE_COUNT_1_BIT)
+                .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
+                .storeOp(VK10.VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                .stencilLoadOp(VK10.VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                .stencilStoreOp(VK10.VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
+                .finalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
         VkAttachmentReference.Buffer colorRef = VkAttachmentReference.calloc(1, stack)
                 .attachment(0)
                 .layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        VkAttachmentReference.Buffer depthRef = VkAttachmentReference.calloc(1, stack)
+                .attachment(1)
+                .layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
         VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack)
                 .pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS)
                 .colorAttachmentCount(1)
-                .pColorAttachments(colorRef);
+                .pColorAttachments(colorRef)
+                .pDepthStencilAttachment(depthRef.get(0));
 
         VkSubpassDependency.Buffer dependency = VkSubpassDependency.calloc(1, stack)
                 .srcSubpass(VK_SUBPASS_EXTERNAL)
                 .dstSubpass(0)
                 .srcStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
-                .dstStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
-                .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+                .dstStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT)
+                .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK10.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
 
         VkRenderPassCreateInfo renderPassInfo = VkRenderPassCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO)
@@ -1168,6 +1214,13 @@ final class VulkanContext {
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
                     .sampleShadingEnable(false)
                     .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT);
+            VkPipelineDepthStencilStateCreateInfo depthStencil = VkPipelineDepthStencilStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
+                    .depthTestEnable(true)
+                    .depthWriteEnable(true)
+                    .depthCompareOp(VK10.VK_COMPARE_OP_LESS)
+                    .depthBoundsTestEnable(false)
+                    .stencilTestEnable(false);
 
             VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(1, stack);
             colorBlendAttachment.get(0)
@@ -1203,6 +1256,7 @@ final class VulkanContext {
                     .pViewportState(viewportState)
                     .pRasterizationState(rasterizer)
                     .pMultisampleState(multisampling)
+                    .pDepthStencilState(depthStencil)
                     .pColorBlendState(colorBlending)
                     .layout(pipelineLayout)
                     .renderPass(renderPass)
@@ -1281,7 +1335,7 @@ final class VulkanContext {
             VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
                     .renderPass(renderPass)
-                    .pAttachments(stack.longs(swapchainImageViews[i]))
+                    .pAttachments(stack.longs(swapchainImageViews[i], depthImageViews[i]))
                     .width(swapchainWidth)
                     .height(swapchainHeight)
                     .layers(1);
@@ -1321,6 +1375,24 @@ final class VulkanContext {
                 vkDestroyImageView(device, view, null);
             }
         }
+        for (long view : depthImageViews) {
+            if (view != VK_NULL_HANDLE) {
+                vkDestroyImageView(device, view, null);
+            }
+        }
+        for (long image : depthImages) {
+            if (image != VK_NULL_HANDLE) {
+                VK10.vkDestroyImage(device, image, null);
+            }
+        }
+        for (long memory : depthMemories) {
+            if (memory != VK_NULL_HANDLE) {
+                vkFreeMemory(device, memory, null);
+            }
+        }
+        depthImageViews = new long[0];
+        depthImages = new long[0];
+        depthMemories = new long[0];
         swapchainImageViews = new long[0];
         swapchainImages = new long[0];
         if (swapchain != VK_NULL_HANDLE) {
@@ -1436,11 +1508,12 @@ final class VulkanContext {
             throw vkFailure("vkBeginCommandBuffer", beginResult);
         }
 
-        VkClearValue.Buffer clearValues = VkClearValue.calloc(1, stack);
-        clearValues.color().float32(0, 0.08f);
-        clearValues.color().float32(1, 0.09f);
-        clearValues.color().float32(2, 0.12f);
-        clearValues.color().float32(3, 1.0f);
+        VkClearValue.Buffer clearValues = VkClearValue.calloc(2, stack);
+        clearValues.get(0).color().float32(0, 0.08f);
+        clearValues.get(0).color().float32(1, 0.09f);
+        clearValues.get(0).color().float32(2, 0.12f);
+        clearValues.get(0).color().float32(3, 1.0f);
+        clearValues.get(1).depthStencil().depth(1.0f).stencil(0);
 
         VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
@@ -1864,7 +1937,7 @@ final class VulkanContext {
                 copyBufferToImage(staging.buffer, imageAlloc.image(), pixels.width(), pixels.height());
                 transitionImageLayout(imageAlloc.image(), VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-                long imageView = createImageView(stack, imageAlloc.image(), VK10.VK_FORMAT_R8G8B8A8_SRGB);
+                long imageView = createImageView(stack, imageAlloc.image(), VK10.VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
                 long sampler = createSampler(stack);
                 return new GpuTexture(imageAlloc.image(), imageAlloc.memory(), imageView, sampler, (long) pixels.width() * pixels.height() * 4L);
             } finally {
@@ -2032,14 +2105,14 @@ final class VulkanContext {
         vkFreeCommandBuffers(device, commandPool, stack.pointers(cmd.address()));
     }
 
-    private long createImageView(MemoryStack stack, long image, int format) throws EngineException {
+    private long createImageView(MemoryStack stack, long image, int format, int aspectMask) throws EngineException {
         VkImageViewCreateInfo viewInfo = VkImageViewCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
                 .image(image)
                 .viewType(VK_IMAGE_VIEW_TYPE_2D)
                 .format(format);
         viewInfo.subresourceRange()
-                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .aspectMask(aspectMask)
                 .baseMipLevel(0)
                 .levelCount(1)
                 .baseArrayLayer(0)
