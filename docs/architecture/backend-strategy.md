@@ -64,7 +64,7 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 - `org.dynamislight.impl.vulkan.command`
   - frame-sync allocation/teardown, acquire+submit/present orchestration, frame-command orchestration, and command recording helpers (`VulkanFrameSyncResources`, `VulkanCommandSubmitter`, `VulkanFrameCommandOrchestrator`, `VulkanRenderCommandRecorder`)
 - `org.dynamislight.impl.vulkan.scene`
-  - scene mesh-reuse, dynamic-update, and mesh lifecycle/teardown helpers (`VulkanSceneReusePolicy`, `VulkanDynamicSceneUpdater`, `VulkanSceneMeshLifecycle`)
+  - scene mesh-reuse, dynamic-update, dirty-range tracking, and mesh lifecycle/teardown helpers (`VulkanSceneReusePolicy`, `VulkanDynamicSceneUpdater`, `VulkanDirtyRangeTrackerOps`, `VulkanSceneMeshLifecycle`)
 - `org.dynamislight.impl.vulkan.math`
   - matrix/vector math helpers extracted from context (`VulkanMath`)
 - `org.dynamislight.impl.vulkan.shadow`

@@ -31,6 +31,7 @@ import org.dynamislight.impl.vulkan.profile.SceneReuseStats;
 import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
 import org.dynamislight.impl.vulkan.scene.VulkanDynamicSceneUpdater;
+import org.dynamislight.impl.vulkan.scene.VulkanDirtyRangeTrackerOps;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshLifecycle;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneReusePolicy;
 import org.dynamislight.impl.vulkan.shader.VulkanShaderCompiler;
@@ -1748,52 +1749,36 @@ final class VulkanContext {
     }
 
     private void addPendingSceneDirtyRange(int start, int end) {
-        if (end < start) {
-            return;
+        int previousCapacity = pendingSceneDirtyStarts.length;
+        VulkanDirtyRangeTrackerOps.AddResult result = VulkanDirtyRangeTrackerOps.addRange(
+                pendingSceneDirtyStarts,
+                pendingSceneDirtyEnds,
+                pendingSceneDirtyRangeCount,
+                start,
+                end,
+                MAX_PENDING_UPLOAD_RANGES_HARD_CAP
+        );
+        pendingSceneDirtyStarts = result.starts();
+        pendingSceneDirtyEnds = result.ends();
+        if (pendingSceneDirtyStarts.length != previousCapacity) {
+            pendingUploadSrcOffsets = Arrays.copyOf(pendingUploadSrcOffsets, pendingSceneDirtyStarts.length);
+            pendingUploadDstOffsets = Arrays.copyOf(pendingUploadDstOffsets, pendingSceneDirtyStarts.length);
+            pendingUploadByteCounts = Arrays.copyOf(pendingUploadByteCounts, pendingSceneDirtyStarts.length);
         }
-        if (pendingSceneDirtyRangeCount >= pendingSceneDirtyStarts.length && !tryGrowUploadRangeTracking()) {
+        pendingSceneDirtyRangeCount = result.count();
+        if (result.overflowed()) {
             pendingUploadRangeOverflowCount++;
-            pendingSceneDirtyRangeCount = 1;
-            pendingSceneDirtyStarts[0] = 0;
-            pendingSceneDirtyEnds[0] = Math.max(start, end);
-            return;
         }
-        pendingSceneDirtyStarts[pendingSceneDirtyRangeCount] = start;
-        pendingSceneDirtyEnds[pendingSceneDirtyRangeCount] = end;
-        pendingSceneDirtyRangeCount++;
         normalizePendingSceneDirtyRanges();
     }
 
     private void normalizePendingSceneDirtyRanges() {
-        if (pendingSceneDirtyRangeCount <= 1) {
-            return;
-        }
-        for (int i = 1; i < pendingSceneDirtyRangeCount; i++) {
-            int start = pendingSceneDirtyStarts[i];
-            int end = pendingSceneDirtyEnds[i];
-            int j = i - 1;
-            while (j >= 0 && pendingSceneDirtyStarts[j] > start) {
-                pendingSceneDirtyStarts[j + 1] = pendingSceneDirtyStarts[j];
-                pendingSceneDirtyEnds[j + 1] = pendingSceneDirtyEnds[j];
-                j--;
-            }
-            pendingSceneDirtyStarts[j + 1] = start;
-            pendingSceneDirtyEnds[j + 1] = end;
-        }
-        int write = 0;
-        for (int read = 1; read < pendingSceneDirtyRangeCount; read++) {
-            int currStart = pendingSceneDirtyStarts[read];
-            int currEnd = pendingSceneDirtyEnds[read];
-            int prevEnd = pendingSceneDirtyEnds[write];
-            if (currStart <= (prevEnd + 1 + dynamicUploadMergeGapObjects)) {
-                pendingSceneDirtyEnds[write] = Math.max(prevEnd, currEnd);
-            } else {
-                write++;
-                pendingSceneDirtyStarts[write] = currStart;
-                pendingSceneDirtyEnds[write] = currEnd;
-            }
-        }
-        pendingSceneDirtyRangeCount = write + 1;
+        pendingSceneDirtyRangeCount = VulkanDirtyRangeTrackerOps.normalizeRanges(
+                pendingSceneDirtyStarts,
+                pendingSceneDirtyEnds,
+                pendingSceneDirtyRangeCount,
+                dynamicUploadMergeGapObjects
+        );
     }
 
     private void prepareFrameUniforms(int frameIdx) throws EngineException {
@@ -1977,22 +1962,9 @@ final class VulkanContext {
         pendingUploadByteCounts = new int[capacity];
     }
 
-    private boolean tryGrowUploadRangeTracking() {
-        int current = pendingSceneDirtyStarts.length;
-        if (current >= MAX_PENDING_UPLOAD_RANGES_HARD_CAP) {
-            return false;
-        }
-        int target = Math.min(MAX_PENDING_UPLOAD_RANGES_HARD_CAP, Math.max(current + 1, current * 2));
-        pendingSceneDirtyStarts = Arrays.copyOf(pendingSceneDirtyStarts, target);
-        pendingSceneDirtyEnds = Arrays.copyOf(pendingSceneDirtyEnds, target);
-        pendingUploadSrcOffsets = Arrays.copyOf(pendingUploadSrcOffsets, target);
-        pendingUploadDstOffsets = Arrays.copyOf(pendingUploadDstOffsets, target);
-        pendingUploadByteCounts = Arrays.copyOf(pendingUploadByteCounts, target);
-        return true;
-    }
-
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
     }
 
 }
+
