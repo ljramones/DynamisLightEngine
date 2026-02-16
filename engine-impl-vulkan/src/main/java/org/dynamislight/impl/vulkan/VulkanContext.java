@@ -1482,7 +1482,9 @@ final class VulkanContext {
                             }
                             shadowVisibility = (taps > 0.0) ? (total / taps) : 1.0;
                         }
-                        color *= mix(1.0, shadowVisibility, clamp(ubo.uShadow.y, 0.0, 1.0));
+                        float shadowOcclusion = 1.0 - shadowVisibility;
+                        float shadowFactor = clamp(shadowOcclusion * clamp(ubo.uShadow.y, 0.0, 1.0), 0.0, 0.9);
+                        color *= (1.0 - shadowFactor);
                     }
                     if (ubo.uFog.x > 0.5) {
                         float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);

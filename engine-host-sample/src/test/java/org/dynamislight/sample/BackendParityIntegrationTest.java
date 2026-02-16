@@ -139,7 +139,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.42, "shadow diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.35, "shadow diff was " + report.diffMetric());
     }
 
     private static void runParityLifecycle(String backendId) throws Exception {
