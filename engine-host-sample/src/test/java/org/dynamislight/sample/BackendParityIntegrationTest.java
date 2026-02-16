@@ -394,7 +394,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.32, "taa thin-geometry shimmer diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.31, "taa thin-geometry shimmer diff was " + report.diffMetric());
     }
 
     @Test
@@ -411,7 +411,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.32, "taa specular flicker diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.31, "taa specular flicker diff was " + report.diffMetric());
     }
 
     @Test
@@ -544,13 +544,13 @@ class BackendParityIntegrationTest {
                 QualityTier.LOW, 0.54,
                 QualityTier.MEDIUM, 0.46,
                 QualityTier.HIGH, 0.38,
-                QualityTier.ULTRA, 0.32
+                QualityTier.ULTRA, 0.31
         );
         Map<QualityTier, Double> taaSpecularFlickerMaxDiff = Map.of(
                 QualityTier.LOW, 0.54,
                 QualityTier.MEDIUM, 0.46,
                 QualityTier.HIGH, 0.38,
-                QualityTier.ULTRA, 0.32
+                QualityTier.ULTRA, 0.31
         );
         Map<QualityTier, Double> taaHistoryConfidenceMaxDiff = Map.of(
                 QualityTier.LOW, 0.56,
@@ -806,8 +806,8 @@ class BackendParityIntegrationTest {
                 Map.entry("material-fog-smoke-shadow-cascade-stress", 0.30),
                 Map.entry("taa-disocclusion-stress", 0.32),
                 Map.entry("taa-reactive-authored-stress", 0.32),
-                Map.entry("taa-thin-geometry-shimmer", 0.32),
-                Map.entry("taa-specular-flicker", 0.32),
+                Map.entry("taa-thin-geometry-shimmer", 0.31),
+                Map.entry("taa-specular-flicker", 0.31),
                 Map.entry("taa-history-confidence-stress", 0.33),
                 Map.entry("taa-specular-aa-stress", 0.33),
                 Map.entry("smaa-full-edge-crawl", 0.34),
