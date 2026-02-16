@@ -38,6 +38,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean forceDeviceLostOnRender;
     private boolean deviceLostRaised;
     private boolean postOffscreenRequested;
+    private double descriptorRingWasteWarnRatio = 0.85;
+    private int descriptorRingWasteWarnMinFrames = 8;
+    private int descriptorRingWasteWarnMinCapacity = 64;
+    private int descriptorRingWasteHighStreak;
     private QualityTier qualityTier = QualityTier.MEDIUM;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
@@ -98,6 +102,27 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 256,
                 32768
         );
+        descriptorRingWasteWarnRatio = parseDoubleOption(
+                backendOptions,
+                "vulkan.descriptorRingWasteWarnRatio",
+                0.85,
+                0.1,
+                0.99
+        );
+        descriptorRingWasteWarnMinFrames = parseIntOption(
+                backendOptions,
+                "vulkan.descriptorRingWasteWarnMinFrames",
+                8,
+                1,
+                600
+        );
+        descriptorRingWasteWarnMinCapacity = parseIntOption(
+                backendOptions,
+                "vulkan.descriptorRingWasteWarnMinCapacity",
+                64,
+                1,
+                65536
+        );
         context.configureFrameResources(framesInFlight, maxDynamicSceneObjects, maxPendingUploadRanges);
         context.configureDescriptorRing(descriptorRingMaxSetCapacity);
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
@@ -106,6 +131,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         viewportWidth = config.initialWidthPx();
         viewportHeight = config.initialHeightPx();
         deviceLostRaised = false;
+        descriptorRingWasteHighStreak = 0;
         if (Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.forceInitFailure", "false"))) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Forced Vulkan init failure", false);
         }
@@ -336,6 +362,26 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " descriptorRingCapBypasses=" + frameResources.descriptorRingCapBypasses()
                             + " persistentStagingMapped=" + frameResources.persistentStagingMapped()
             ));
+            if (frameResources.descriptorRingSetCapacity() > 0) {
+                double wasteRatio = (double) frameResources.descriptorRingWasteSetCount()
+                        / (double) frameResources.descriptorRingSetCapacity();
+                boolean highWaste = frameResources.descriptorRingSetCapacity() >= descriptorRingWasteWarnMinCapacity
+                        && wasteRatio >= descriptorRingWasteWarnRatio;
+                descriptorRingWasteHighStreak = highWaste ? (descriptorRingWasteHighStreak + 1) : 0;
+                if (descriptorRingWasteHighStreak >= descriptorRingWasteWarnMinFrames) {
+                    warnings.add(new EngineWarning(
+                            "DESCRIPTOR_RING_WASTE_HIGH",
+                            "Descriptor ring waste ratio "
+                                    + String.format(java.util.Locale.ROOT, "%.3f", wasteRatio)
+                                    + " sustained for " + descriptorRingWasteHighStreak
+                                    + " frames (active=" + frameResources.descriptorRingActiveSetCount()
+                                    + ", capacity=" + frameResources.descriptorRingSetCapacity()
+                                    + ", threshold=" + descriptorRingWasteWarnRatio + ")"
+                    ));
+                }
+            } else {
+                descriptorRingWasteHighStreak = 0;
+            }
             if (currentShadows.enabled()) {
                 VulkanContext.ShadowCascadeProfile shadow = context.shadowCascadeProfile();
                 warnings.add(new EngineWarning(
@@ -461,7 +507,23 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         }
     }
 
+    private static double parseDoubleOption(Map<String, String> options, String key, double fallback, double min, double max) {
+        String raw = options.get(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return clampDouble(Double.parseDouble(raw.trim()), min, max);
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
     private static int clampInt(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static double clampDouble(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
 

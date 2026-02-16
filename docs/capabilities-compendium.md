@@ -186,6 +186,7 @@ Vulkan runtime emits profiling warnings (real-context mode) for:
 - `SCENE_REUSE_PROFILE`
 - `VULKAN_FRAME_RESOURCE_PROFILE`
 - `SHADOW_CASCADE_PROFILE`
+- `DESCRIPTOR_RING_WASTE_HIGH` (when descriptor-ring waste ratio stays above configured threshold for configured consecutive frames)
 
 `VULKAN_FRAME_RESOURCE_PROFILE` now includes per-frame ring diagnostics:
 - `framesInFlight`
@@ -229,6 +230,9 @@ Vulkan options:
 - `vulkan.maxPendingUploadRanges` (default `64`, clamped `8..512`)
 - `vulkan.maxTextureDescriptorSets` (default `4096`, clamped `256..32768`)
 - `vulkan.meshGeometryCacheEntries` (default `256`, clamped `16..4096`)
+- `vulkan.descriptorRingWasteWarnRatio` (default `0.85`, clamped `0.1..0.99`)
+- `vulkan.descriptorRingWasteWarnMinFrames` (default `8`, clamped `1..600`)
+- `vulkan.descriptorRingWasteWarnMinCapacity` (default `64`, clamped `1..65536`)
 
 ## 11) Test-backed confidence areas
 The repository includes automated tests validating:

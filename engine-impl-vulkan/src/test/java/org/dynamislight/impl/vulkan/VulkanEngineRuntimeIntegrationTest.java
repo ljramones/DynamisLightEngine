@@ -542,6 +542,27 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void realVulkanSustainedDescriptorWasteEmitsWarning() throws Exception {
+        assumeRealVulkanReady("real Vulkan descriptor waste warning integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "false",
+                "vulkan.descriptorRingWasteWarnRatio", "0.90",
+                "vulkan.descriptorRingWasteWarnMinFrames", "3",
+                "vulkan.descriptorRingWasteWarnMinCapacity", "64"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReusableScene(false, false)); // small active set against ring capacity
+
+        runtime.render();
+        runtime.render();
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "DESCRIPTOR_RING_WASTE_HIGH".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
     void realVulkanEnduranceResizeAndSceneSwitchMaintainsHealthyProfiles() throws Exception {
         assumeRealVulkanReady("real Vulkan endurance integration test");
 

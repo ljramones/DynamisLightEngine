@@ -61,6 +61,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
     - descriptor-pool reset/reuse path active when descriptor capacity is sufficient
     - `descriptorRingPoolReuses` / `descriptorRingPoolResetFailures`
     - ring growth now uses capacity targeting (growth + power-of-two rounding) with configurable soft cap (`vulkan.maxTextureDescriptorSets`)
+    - sustained high-waste warning added: `DESCRIPTOR_RING_WASTE_HIGH` with configurable ratio/frame/capacity thresholds
 - Added Vulkan mesh-geometry cache in asset loader:
   - glTF/fallback geometry is cached by stable key
   - loader returns defensive copies to preserve cache integrity
