@@ -363,6 +363,7 @@ final class VulkanContext {
     private int shadowPcfRadius = 1;
     private int shadowCascadeCount = 1;
     private int shadowMapResolution = 1024;
+    private final float[] shadowCascadeSplitNdc = new float[]{1f, 1f, 1f};
     private final float[][] shadowLightViewProjMatrices = new float[][]{
             identityMatrix(),
             identityMatrix(),
@@ -2105,7 +2106,126 @@ final class VulkanContext {
         };
     }
 
+    private static float projectionNear(float[] proj) {
+        float a = proj[10];
+        float b = proj[14];
+        return b / (a - 1f);
+    }
+
+    private static float projectionFar(float[] proj) {
+        float a = proj[10];
+        float b = proj[14];
+        return b / (a + 1f);
+    }
+
+    private static float viewDistanceToNdcDepth(float[] proj, float distance) {
+        float clipZ = proj[10] * (-distance) + proj[14];
+        float clipW = proj[11] * (-distance) + proj[15];
+        if (Math.abs(clipW) < 0.000001f) {
+            return 1f;
+        }
+        return clipZ / clipW;
+    }
+
+    private static float[] transformPoint(float[] m, float x, float y, float z) {
+        float tx = m[0] * x + m[4] * y + m[8] * z + m[12];
+        float ty = m[1] * x + m[5] * y + m[9] * z + m[13];
+        float tz = m[2] * x + m[6] * y + m[10] * z + m[14];
+        float tw = m[3] * x + m[7] * y + m[11] * z + m[15];
+        if (Math.abs(tw) > 0.000001f) {
+            return new float[]{tx / tw, ty / tw, tz / tw};
+        }
+        return new float[]{tx, ty, tz};
+    }
+
+    private static float[] unproject(float[] invViewProj, float ndcX, float ndcY, float ndcZ) {
+        float x = invViewProj[0] * ndcX + invViewProj[4] * ndcY + invViewProj[8] * ndcZ + invViewProj[12];
+        float y = invViewProj[1] * ndcX + invViewProj[5] * ndcY + invViewProj[9] * ndcZ + invViewProj[13];
+        float z = invViewProj[2] * ndcX + invViewProj[6] * ndcY + invViewProj[10] * ndcZ + invViewProj[14];
+        float w = invViewProj[3] * ndcX + invViewProj[7] * ndcY + invViewProj[11] * ndcZ + invViewProj[15];
+        if (Math.abs(w) < 0.000001f) {
+            return new float[]{x, y, z};
+        }
+        return new float[]{x / w, y / w, z / w};
+    }
+
+    private static float[] invert(float[] m) {
+        float[] inv = new float[16];
+        inv[0] = m[5] * m[10] * m[15] - m[5] * m[11] * m[14] - m[9] * m[6] * m[15]
+                + m[9] * m[7] * m[14] + m[13] * m[6] * m[11] - m[13] * m[7] * m[10];
+        inv[4] = -m[4] * m[10] * m[15] + m[4] * m[11] * m[14] + m[8] * m[6] * m[15]
+                - m[8] * m[7] * m[14] - m[12] * m[6] * m[11] + m[12] * m[7] * m[10];
+        inv[8] = m[4] * m[9] * m[15] - m[4] * m[11] * m[13] - m[8] * m[5] * m[15]
+                + m[8] * m[7] * m[13] + m[12] * m[5] * m[11] - m[12] * m[7] * m[9];
+        inv[12] = -m[4] * m[9] * m[14] + m[4] * m[10] * m[13] + m[8] * m[5] * m[14]
+                - m[8] * m[6] * m[13] - m[12] * m[5] * m[10] + m[12] * m[6] * m[9];
+        inv[1] = -m[1] * m[10] * m[15] + m[1] * m[11] * m[14] + m[9] * m[2] * m[15]
+                - m[9] * m[3] * m[14] - m[13] * m[2] * m[11] + m[13] * m[3] * m[10];
+        inv[5] = m[0] * m[10] * m[15] - m[0] * m[11] * m[14] - m[8] * m[2] * m[15]
+                + m[8] * m[3] * m[14] + m[12] * m[2] * m[11] - m[12] * m[3] * m[10];
+        inv[9] = -m[0] * m[9] * m[15] + m[0] * m[11] * m[13] + m[8] * m[1] * m[15]
+                - m[8] * m[3] * m[13] - m[12] * m[1] * m[11] + m[12] * m[3] * m[9];
+        inv[13] = m[0] * m[9] * m[14] - m[0] * m[10] * m[13] - m[8] * m[1] * m[14]
+                + m[8] * m[2] * m[13] + m[12] * m[1] * m[10] - m[12] * m[2] * m[9];
+        inv[2] = m[1] * m[6] * m[15] - m[1] * m[7] * m[14] - m[5] * m[2] * m[15]
+                + m[5] * m[3] * m[14] + m[13] * m[2] * m[7] - m[13] * m[3] * m[6];
+        inv[6] = -m[0] * m[6] * m[15] + m[0] * m[7] * m[14] + m[4] * m[2] * m[15]
+                - m[4] * m[3] * m[14] - m[12] * m[2] * m[7] + m[12] * m[3] * m[6];
+        inv[10] = m[0] * m[5] * m[15] - m[0] * m[7] * m[13] - m[4] * m[1] * m[15]
+                + m[4] * m[3] * m[13] + m[12] * m[1] * m[7] - m[12] * m[3] * m[5];
+        inv[14] = -m[0] * m[5] * m[14] + m[0] * m[6] * m[13] + m[4] * m[1] * m[14]
+                - m[4] * m[2] * m[13] - m[12] * m[1] * m[6] + m[12] * m[2] * m[5];
+        inv[3] = -m[1] * m[6] * m[11] + m[1] * m[7] * m[10] + m[5] * m[2] * m[11]
+                - m[5] * m[3] * m[10] - m[9] * m[2] * m[7] + m[9] * m[3] * m[6];
+        inv[7] = m[0] * m[6] * m[11] - m[0] * m[7] * m[10] - m[4] * m[2] * m[11]
+                + m[4] * m[3] * m[10] + m[8] * m[2] * m[7] - m[8] * m[3] * m[6];
+        inv[11] = -m[0] * m[5] * m[11] + m[0] * m[7] * m[9] + m[4] * m[1] * m[11]
+                - m[4] * m[3] * m[9] - m[8] * m[1] * m[7] + m[8] * m[3] * m[5];
+        inv[15] = m[0] * m[5] * m[10] - m[0] * m[6] * m[9] - m[4] * m[1] * m[10]
+                + m[4] * m[2] * m[9] + m[8] * m[1] * m[6] - m[8] * m[2] * m[5];
+
+        float det = m[0] * inv[0] + m[1] * inv[4] + m[2] * inv[8] + m[3] * inv[12];
+        if (Math.abs(det) < 0.0000001f) {
+            return null;
+        }
+        float invDet = 1.0f / det;
+        for (int i = 0; i < 16; i++) {
+            inv[i] *= invDet;
+        }
+        return inv;
+    }
+
     private void updateShadowLightViewProjMatrices() {
+        float[] viewProj = mul(projMatrix, viewMatrix);
+        float[] invViewProj = invert(viewProj);
+        if (invViewProj == null) {
+            for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
+                shadowLightViewProjMatrices[i] = identityMatrix();
+            }
+            shadowCascadeSplitNdc[0] = 1f;
+            shadowCascadeSplitNdc[1] = 1f;
+            shadowCascadeSplitNdc[2] = 1f;
+            return;
+        }
+
+        float near = projectionNear(projMatrix);
+        float far = projectionFar(projMatrix);
+        if (!(near > 0f) || !(far > near)) {
+            near = 0.1f;
+            far = 100f;
+        }
+
+        int cascades = Math.max(1, Math.min(MAX_SHADOW_CASCADES, shadowCascadeCount));
+        float lambda = 0.7f;
+        float prevSplitDist = near;
+        float[] splitDist = new float[MAX_SHADOW_CASCADES];
+        for (int i = 0; i < cascades; i++) {
+            float p = (i + 1f) / cascades;
+            float log = near * (float) Math.pow(far / near, p);
+            float lin = near + (far - near) * p;
+            splitDist[i] = log * lambda + lin * (1f - lambda);
+        }
+
         float len = (float) Math.sqrt(dirLightDirX * dirLightDirX + dirLightDirY * dirLightDirY + dirLightDirZ * dirLightDirZ);
         if (len < 0.0001f) {
             len = 1f;
@@ -2113,15 +2233,92 @@ final class VulkanContext {
         float lx = dirLightDirX / len;
         float ly = dirLightDirY / len;
         float lz = dirLightDirZ / len;
-        float eyeX = -lx * 8.0f;
-        float eyeY = -ly * 8.0f;
-        float eyeZ = -lz * 8.0f;
-        float[] lightView = lookAt(eyeX, eyeY, eyeZ, 0f, 0f, 0f, 0f, 1f, 0f);
-        float[] cascadeScales = new float[]{8f, 16f, 28f, 48f};
-        for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
-            float scale = cascadeScales[i];
-            float[] lightProj = ortho(-scale, scale, -scale, scale, 0.1f, 96f);
-            shadowLightViewProjMatrices[i] = mul(lightProj, lightView);
+        float upX = 0f;
+        float upY = 1f;
+        float upZ = 0f;
+        if (Math.abs(ly) > 0.95f) {
+            upX = 0f;
+            upY = 0f;
+            upZ = 1f;
+        }
+
+        shadowCascadeSplitNdc[0] = 1f;
+        shadowCascadeSplitNdc[1] = 1f;
+        shadowCascadeSplitNdc[2] = 1f;
+        for (int cascade = 0; cascade < MAX_SHADOW_CASCADES; cascade++) {
+            if (cascade >= cascades) {
+                shadowLightViewProjMatrices[cascade] = shadowLightViewProjMatrices[Math.max(0, cascades - 1)];
+                continue;
+            }
+            float nearDist = prevSplitDist;
+            float farDist = splitDist[cascade];
+            prevSplitDist = farDist;
+            float nearNdc = viewDistanceToNdcDepth(projMatrix, nearDist);
+            float farNdc = viewDistanceToNdcDepth(projMatrix, farDist);
+            if (cascade < 3) {
+                shadowCascadeSplitNdc[cascade] = farNdc * 0.5f + 0.5f;
+            }
+
+            float[][] corners = new float[8][3];
+            int idx = 0;
+            for (int z = 0; z < 2; z++) {
+                float ndcZ = z == 0 ? nearNdc : farNdc;
+                for (int y = 0; y < 2; y++) {
+                    float ndcY = y == 0 ? -1f : 1f;
+                    for (int x = 0; x < 2; x++) {
+                        float ndcX = x == 0 ? -1f : 1f;
+                        float[] world = unproject(invViewProj, ndcX, ndcY, ndcZ);
+                        corners[idx][0] = world[0];
+                        corners[idx][1] = world[1];
+                        corners[idx][2] = world[2];
+                        idx++;
+                    }
+                }
+            }
+
+            float centerX = 0f;
+            float centerY = 0f;
+            float centerZ = 0f;
+            for (float[] c : corners) {
+                centerX += c[0];
+                centerY += c[1];
+                centerZ += c[2];
+            }
+            centerX /= 8f;
+            centerY /= 8f;
+            centerZ /= 8f;
+
+            float radius = 0f;
+            for (float[] c : corners) {
+                float dx = c[0] - centerX;
+                float dy = c[1] - centerY;
+                float dz = c[2] - centerZ;
+                radius = Math.max(radius, (float) Math.sqrt(dx * dx + dy * dy + dz * dz));
+            }
+            radius = Math.max(radius, 1f);
+            float eyeX = centerX - lx * (radius * 2.0f);
+            float eyeY = centerY - ly * (radius * 2.0f);
+            float eyeZ = centerZ - lz * (radius * 2.0f);
+            float[] lightView = lookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+
+            float minX = Float.POSITIVE_INFINITY;
+            float minY = Float.POSITIVE_INFINITY;
+            float minZ = Float.POSITIVE_INFINITY;
+            float maxX = Float.NEGATIVE_INFINITY;
+            float maxY = Float.NEGATIVE_INFINITY;
+            float maxZ = Float.NEGATIVE_INFINITY;
+            for (float[] c : corners) {
+                float[] l = transformPoint(lightView, c[0], c[1], c[2]);
+                minX = Math.min(minX, l[0]);
+                minY = Math.min(minY, l[1]);
+                minZ = Math.min(minZ, l[2]);
+                maxX = Math.max(maxX, l[0]);
+                maxY = Math.max(maxY, l[1]);
+                maxZ = Math.max(maxZ, l[2]);
+            }
+            float zPad = Math.max(10f, radius);
+            float[] lightProj = ortho(minX, maxX, minY, maxY, minZ - zPad, maxZ + zPad);
+            shadowLightViewProjMatrices[cascade] = mul(lightProj, lightView);
         }
     }
 
@@ -2755,9 +2952,9 @@ final class VulkanContext {
         fb.put(new float[]{pointLightPosX, pointLightPosY, pointLightPosZ, 0f});
         fb.put(new float[]{pointLightColorR, pointLightColorG, pointLightColorB, 0f});
         fb.put(new float[]{shadowEnabled ? 1f : 0f, shadowStrength, shadowBias, (float) shadowPcfRadius});
-        float split1 = shadowCascadeCount <= 1 ? 1.0f : 0.28f;
-        float split2 = shadowCascadeCount <= 2 ? 1.0f : 0.62f;
-        float split3 = shadowCascadeCount <= 3 ? 1.0f : 0.86f;
+        float split1 = shadowCascadeSplitNdc[0];
+        float split2 = shadowCascadeSplitNdc[1];
+        float split3 = shadowCascadeSplitNdc[2];
         fb.put(new float[]{(float) shadowCascadeCount, (float) shadowMapResolution, split1, split2});
         fb.put(new float[]{(float) activeShadowCascadeIndex, split3, 0f, 0f});
         fb.put(new float[]{fogEnabled ? 1f : 0f, fogDensity, 0f, 0f});

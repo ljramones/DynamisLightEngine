@@ -131,6 +131,17 @@ class BackendParityIntegrationTest {
         assertTrue(report.diffMetric() <= 0.30, "diff was " + report.diffMetric());
     }
 
+    @Test
+    void compareHarnessShadowSceneHasBoundedDiff() throws Exception {
+        Path outDir = Files.createTempDirectory("dle-compare-shadow");
+        var report = BackendCompareHarness.run(outDir, shadowScene(), QualityTier.HIGH);
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.42, "shadow diff was " + report.diffMetric());
+    }
+
     private static void runParityLifecycle(String backendId) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
         RecordingCallbacks callbacks = new RecordingCallbacks();
