@@ -277,6 +277,24 @@ class BackendParityIntegrationTest {
 
     @Test
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessPostProcessSsaoStressSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("post-process-ssao-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                postProcessSsaoStressScene(),
+                QualityTier.ULTRA,
+                "post-process-ssao-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.37, "post-process ssao stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessFogSmokeShadowPostStressHasBoundedDiff() throws Exception {
         Path outDir = compareOutputDir("fog-smoke-shadow-post-stress");
         var report = BackendCompareHarness.run(
@@ -354,6 +372,12 @@ class BackendParityIntegrationTest {
                 QualityTier.MEDIUM, 0.40,
                 QualityTier.HIGH, 0.35,
                 QualityTier.ULTRA, 0.35
+        );
+        Map<QualityTier, Double> postProcessSsaoStressMaxDiff = Map.of(
+                QualityTier.LOW, 0.48,
+                QualityTier.MEDIUM, 0.43,
+                QualityTier.HIGH, 0.39,
+                QualityTier.ULTRA, 0.37
         );
         Map<QualityTier, Double> materialFogSmokeShadowMaxDiff = Map.of(
                 QualityTier.LOW, 0.54,
@@ -452,6 +476,19 @@ class BackendParityIntegrationTest {
                             + " exceeded " + postProcessSsaoMaxDiff.get(tier) + " at " + tier
             );
 
+            Path postSsaoStressDir = compareOutputDir("post-process-ssao-stress-" + tier.name().toLowerCase());
+            var postSsaoStressReport = BackendCompareHarness.run(
+                    postSsaoStressDir,
+                    postProcessSsaoStressScene(),
+                    tier,
+                    "post-process-ssao-stress-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    postSsaoStressReport.diffMetric() <= postProcessSsaoStressMaxDiff.get(tier),
+                    "post-process ssao stress diff " + postSsaoStressReport.diffMetric()
+                            + " exceeded " + postProcessSsaoStressMaxDiff.get(tier) + " at " + tier
+            );
+
             Path materialFogSmokeShadowDir = compareOutputDir("material-fog-smoke-shadow-" + tier.name().toLowerCase());
             var materialFogSmokeShadowReport = BackendCompareHarness.run(
                     materialFogSmokeShadowDir,
@@ -478,7 +515,8 @@ class BackendParityIntegrationTest {
                 "brdf-tier-extremes", 0.29,
                 "fog-smoke-shadow-post-stress", 0.05,
                 "material-fog-smoke-shadow-cascade-stress", 0.30,
-                "post-process-ssao", 0.35
+                "post-process-ssao", 0.35,
+                "post-process-ssao-stress", 0.37
         );
 
         var reports = Map.of(
@@ -529,6 +567,12 @@ class BackendParityIntegrationTest {
                         postProcessScene(false, true),
                         QualityTier.ULTRA,
                         "post-process-ssao-golden-ultra"
+                ),
+                "post-process-ssao-stress", BackendCompareHarness.run(
+                        compareOutputDir("post-process-ssao-stress-golden"),
+                        postProcessSsaoStressScene(),
+                        QualityTier.ULTRA,
+                        "post-process-ssao-stress-golden-ultra"
                 )
         );
 
@@ -1003,6 +1047,48 @@ class BackendParityIntegrationTest {
                 base.lights(),
                 base.environment(),
                 base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor postProcessSsaoStressScene() {
+        SceneDescriptor base = materialLightingScene();
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.12f,
+                2.2f,
+                true,
+                0.92f,
+                0.78f,
+                true,
+                0.60f,
+                2.2f,
+                0.05f,
+                1.8f
+        );
+        FogDesc fog = new FogDesc(
+                true,
+                FogMode.HEIGHT_EXPONENTIAL,
+                new Vec3(0.50f, 0.54f, 0.60f),
+                0.30f,
+                0.34f,
+                0.72f,
+                0.10f,
+                1.0f,
+                0.20f
+        );
+        return new SceneDescriptor(
+                "parity-post-process-ssao-stress-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                fog,
                 base.smokeEmitters(),
                 post
         );

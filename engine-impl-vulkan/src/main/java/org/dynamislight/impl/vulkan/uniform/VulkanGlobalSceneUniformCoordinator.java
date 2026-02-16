@@ -65,6 +65,9 @@ public final class VulkanGlobalSceneUniformCoordinator {
                         in.bloomStrength(),
                         in.ssaoEnabled(),
                         in.ssaoStrength(),
+                        in.ssaoRadius(),
+                        in.ssaoBias(),
+                        in.ssaoPower(),
                         in.shadowLightViewProjMatrices()
                 )
         );
@@ -129,6 +132,9 @@ public final class VulkanGlobalSceneUniformCoordinator {
             float bloomStrength,
             boolean ssaoEnabled,
             float ssaoStrength,
+            float ssaoRadius,
+            float ssaoBias,
+            float ssaoPower,
             float[][] shadowLightViewProjMatrices
     ) {
     }

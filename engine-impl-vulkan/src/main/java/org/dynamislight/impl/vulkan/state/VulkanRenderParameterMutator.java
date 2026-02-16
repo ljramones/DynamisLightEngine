@@ -97,6 +97,9 @@ public final class VulkanRenderParameterMutator {
         float bloomStrength = current.bloomStrength();
         boolean ssaoEnabled = current.ssaoEnabled();
         float ssaoStrength = current.ssaoStrength();
+        float ssaoRadius = current.ssaoRadius();
+        float ssaoBias = current.ssaoBias();
+        float ssaoPower = current.ssaoPower();
 
         if (tonemapEnabled != update.tonemapEnabled()) {
             tonemapEnabled = update.tonemapEnabled();
@@ -129,7 +132,24 @@ public final class VulkanRenderParameterMutator {
             ssaoStrength = clampedSsaoStrength;
             changed = true;
         }
-        return new PostResult(new PostState(tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength, ssaoEnabled, ssaoStrength), changed);
+        float clampedSsaoRadius = Math.max(0.2f, Math.min(3.0f, update.ssaoRadius()));
+        float clampedSsaoBias = Math.max(0f, Math.min(0.2f, update.ssaoBias()));
+        float clampedSsaoPower = Math.max(0.5f, Math.min(4.0f, update.ssaoPower()));
+        if (!floatEquals(ssaoRadius, clampedSsaoRadius)
+                || !floatEquals(ssaoBias, clampedSsaoBias)
+                || !floatEquals(ssaoPower, clampedSsaoPower)) {
+            ssaoRadius = clampedSsaoRadius;
+            ssaoBias = clampedSsaoBias;
+            ssaoPower = clampedSsaoPower;
+            changed = true;
+        }
+        return new PostResult(
+                new PostState(
+                        tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength,
+                        ssaoEnabled, ssaoStrength, ssaoRadius, ssaoBias, ssaoPower
+                ),
+                changed
+        );
     }
 
     public static CameraResult applyCameraMatrices(CameraState current, CameraUpdate update) {
@@ -190,7 +210,10 @@ public final class VulkanRenderParameterMutator {
             float bloomThreshold,
             float bloomStrength,
             boolean ssaoEnabled,
-            float ssaoStrength
+            float ssaoStrength,
+            float ssaoRadius,
+            float ssaoBias,
+            float ssaoPower
     ) {
     }
 
@@ -202,7 +225,10 @@ public final class VulkanRenderParameterMutator {
             float bloomThreshold,
             float bloomStrength,
             boolean ssaoEnabled,
-            float ssaoStrength
+            float ssaoStrength,
+            float ssaoRadius,
+            float ssaoBias,
+            float ssaoPower
     ) {
     }
 

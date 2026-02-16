@@ -38,6 +38,9 @@ public final class VulkanRenderState {
     public float bloomStrength = 0.8f;
     public boolean ssaoEnabled;
     public float ssaoStrength;
+    public float ssaoRadius = 1.0f;
+    public float ssaoBias = 0.02f;
+    public float ssaoPower = 1.0f;
     public boolean postOffscreenRequested;
     public boolean postOffscreenActive;
     public boolean postIntermediateInitialized;

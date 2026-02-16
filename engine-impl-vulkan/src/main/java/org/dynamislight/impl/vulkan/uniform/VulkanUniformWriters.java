@@ -30,12 +30,12 @@ public final class VulkanUniformWriters {
         float split3 = in.shadowCascadeSplitNdc()[2];
         fb.put(new float[]{(float) in.shadowCascadeCount(), (float) in.shadowMapResolution(), split1, split2});
         fb.put(new float[]{0f, split3, 0f, 0f});
-        fb.put(new float[]{in.fogEnabled() ? 1f : 0f, in.fogDensity(), 0f, 0f});
+        fb.put(new float[]{in.fogEnabled() ? 1f : 0f, in.fogDensity(), in.ssaoRadius(), in.ssaoBias()});
         fb.put(new float[]{in.fogR(), in.fogG(), in.fogB(), (float) in.fogSteps()});
         float viewportW = (float) Math.max(1, in.swapchainWidth());
         float viewportH = (float) Math.max(1, in.swapchainHeight());
         fb.put(new float[]{in.smokeEnabled() ? 1f : 0f, in.smokeIntensity(), viewportW, viewportH});
-        fb.put(new float[]{in.smokeR(), in.smokeG(), in.smokeB(), 0f});
+        fb.put(new float[]{in.smokeR(), in.smokeG(), in.smokeB(), in.ssaoPower()});
         fb.put(new float[]{in.iblEnabled() ? 1f : 0f, in.iblDiffuseStrength(), in.iblSpecularStrength(), in.iblPrefilterStrength()});
         boolean scenePostEnabled = !in.postOffscreenActive();
         fb.put(new float[]{scenePostEnabled && in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), scenePostEnabled && in.ssaoEnabled() ? 1f : 0f});
@@ -120,6 +120,9 @@ public final class VulkanUniformWriters {
             float bloomStrength,
             boolean ssaoEnabled,
             float ssaoStrength,
+            float ssaoRadius,
+            float ssaoBias,
+            float ssaoPower,
             float[][] shadowLightViewProjMatrices
     ) {
     }

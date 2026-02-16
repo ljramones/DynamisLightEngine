@@ -117,7 +117,10 @@ final class VulkanRuntimeLifecycle {
                 state.post().bloomThreshold(),
                 state.post().bloomStrength(),
                 state.post().ssaoEnabled(),
-                state.post().ssaoStrength()
+                state.post().ssaoStrength(),
+                state.post().ssaoRadius(),
+                state.post().ssaoBias(),
+                state.post().ssaoPower()
         );
         context.setSceneMeshes(state.sceneMeshes());
         context.setPlannedWorkload(state.plannedDrawCalls(), state.plannedTriangles(), state.plannedVisibleObjects());

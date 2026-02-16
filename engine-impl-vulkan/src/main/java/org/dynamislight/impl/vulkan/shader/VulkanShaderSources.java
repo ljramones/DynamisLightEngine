@@ -405,11 +405,20 @@ public final class VulkanShaderSources {
                         color += color * bloom;
                     }
                     if (gbo.uPostProcess.w > 0.5) {
-                        float depthDelta = length(vec2(dFdx(gl_FragCoord.z), dFdy(gl_FragCoord.z)));
+                        float depthDx = dFdx(gl_FragCoord.z);
+                        float depthDy = dFdy(gl_FragCoord.z);
+                        float depthDelta = length(vec2(depthDx, depthDy));
                         float normalDelta = length(dFdx(n)) + length(dFdy(n));
-                        float edge = clamp((depthDelta * 260.0) + (normalDelta * 0.35), 0.0, 1.0);
-                        float ssao = 1.0 - clamp(edge * clamp(gbo.uBloom.w, 0.0, 1.0), 0.0, 0.75);
-                        color *= ssao;
+                        float curvature = clamp((depthDelta * 230.0) + (normalDelta * 0.42), 0.0, 1.0);
+                        float micro = clamp((abs(dFdx(depthDx)) + abs(dFdy(depthDy))) * 3600.0, 0.0, 1.0);
+                        float edge = clamp(curvature * 0.8 + micro * 0.2, 0.0, 1.0);
+                        float ssaoStrength = clamp(gbo.uBloom.w, 0.0, 1.0);
+                        float ssaoRadius = clamp(gbo.uFog.z, 0.2, 3.0);
+                        float ssaoBias = clamp(gbo.uFog.w, 0.0, 0.2);
+                        float ssaoPower = clamp(gbo.uSmokeColor.w, 0.5, 4.0);
+                        float shapedEdge = clamp(edge * mix(0.75, 1.25, (ssaoRadius - 0.2) / 2.8) - ssaoBias, 0.0, 1.0);
+                        float occlusion = pow(clamp(shapedEdge * ssaoStrength, 0.0, 0.92), max(0.60, 1.25 - (ssaoPower * 0.32)));
+                        color *= (1.0 - occlusion * 0.82);
                     }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 }
@@ -438,6 +447,7 @@ public final class VulkanShaderSources {
                 layout(push_constant) uniform PostPush {
                     vec4 tonemap;
                     vec4 bloom;
+                    vec4 ssao;
                 } pc;
                 void main() {
                     vec3 color = texture(uSceneColor, vUv).rgb;
@@ -455,15 +465,32 @@ public final class VulkanShaderSources {
                         color += color * (bright * strength);
                     }
                     if (pc.tonemap.w > 0.5) {
-                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        float radius = clamp(pc.ssao.x, 0.2, 3.0);
+                        vec2 texel = (1.0 / vec2(textureSize(uSceneColor, 0))) * mix(0.75, 2.0, (radius - 0.2) / 2.8);
                         vec3 c = color;
                         vec3 cx = texture(uSceneColor, clamp(vUv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
                         vec3 cy = texture(uSceneColor, clamp(vUv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 cxy = texture(uSceneColor, clamp(vUv + texel, vec2(0.0), vec2(1.0))).rgb;
+                        vec3 cxny = texture(uSceneColor, clamp(vUv + vec2(texel.x, -texel.y), vec2(0.0), vec2(1.0))).rgb;
                         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
                         float lx = dot(cx, vec3(0.2126, 0.7152, 0.0722));
                         float ly = dot(cy, vec3(0.2126, 0.7152, 0.0722));
-                        float edge = clamp(abs(l - lx) + abs(l - ly), 0.0, 1.0);
-                        color *= (1.0 - clamp(edge * clamp(pc.bloom.w, 0.0, 1.0), 0.0, 0.75));
+                        float lxy = dot(cxy, vec3(0.2126, 0.7152, 0.0722));
+                        float lxny = dot(cxny, vec3(0.2126, 0.7152, 0.0722));
+                        float edge = clamp(
+                            abs(l - lx) * 0.30 +
+                            abs(l - ly) * 0.30 +
+                            abs(l - lxy) * 0.20 +
+                            abs(l - lxny) * 0.20,
+                            0.0,
+                            1.0
+                        );
+                        float ssaoStrength = clamp(pc.bloom.w, 0.0, 1.0);
+                        float ssaoBias = clamp(pc.ssao.y, 0.0, 0.2);
+                        float ssaoPower = clamp(pc.ssao.z, 0.5, 4.0);
+                        float shapedEdge = clamp(edge - ssaoBias, 0.0, 1.0);
+                        float occlusion = pow(clamp(shapedEdge * ssaoStrength, 0.0, 0.92), max(0.60, 1.18 - (ssaoPower * 0.30)));
+                        color *= (1.0 - occlusion * 0.82);
                     }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 }

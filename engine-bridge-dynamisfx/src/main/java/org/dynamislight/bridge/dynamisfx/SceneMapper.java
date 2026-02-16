@@ -154,7 +154,10 @@ public final class SceneMapper {
                 post.bloomThreshold(),
                 post.bloomStrength(),
                 post.ssaoEnabled(),
-                post.ssaoStrength()
+                post.ssaoStrength(),
+                post.ssaoRadius(),
+                post.ssaoBias(),
+                post.ssaoPower()
         );
     }
 }

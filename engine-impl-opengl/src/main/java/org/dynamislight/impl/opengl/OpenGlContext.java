@@ -314,6 +314,9 @@ final class OpenGlContext {
             uniform float uBloomStrength;
             uniform int uSsaoEnabled;
             uniform float uSsaoStrength;
+            uniform float uSsaoRadius;
+            uniform float uSsaoBias;
+            uniform float uSsaoPower;
             out vec4 FragColor;
             float distributionGGX(float ndh, float roughness) {
                 float a = roughness * roughness;
@@ -536,11 +539,20 @@ final class OpenGlContext {
                     color += color * bloom;
                 }
                 if (uSsaoEnabled == 1) {
-                    float depthDelta = length(vec2(dFdx(gl_FragCoord.z), dFdy(gl_FragCoord.z)));
+                    float depthDx = dFdx(gl_FragCoord.z);
+                    float depthDy = dFdy(gl_FragCoord.z);
+                    float depthDelta = length(vec2(depthDx, depthDy));
                     float normalDelta = length(dFdx(normal)) + length(dFdy(normal));
-                    float edge = clamp((depthDelta * 260.0) + (normalDelta * 0.35), 0.0, 1.0);
-                    float ssao = 1.0 - clamp(edge * clamp(uSsaoStrength, 0.0, 1.0), 0.0, 0.75);
-                    color *= ssao;
+                    float curvature = clamp((depthDelta * 230.0) + (normalDelta * 0.42), 0.0, 1.0);
+                    float micro = clamp((abs(dFdx(depthDx)) + abs(dFdy(depthDy))) * 3600.0, 0.0, 1.0);
+                    float edge = clamp(curvature * 0.8 + micro * 0.2, 0.0, 1.0);
+                    float ssaoStrength = clamp(uSsaoStrength, 0.0, 1.0);
+                    float ssaoRadius = clamp(uSsaoRadius, 0.2, 3.0);
+                    float ssaoBias = clamp(uSsaoBias, 0.0, 0.2);
+                    float ssaoPower = clamp(uSsaoPower, 0.5, 4.0);
+                    float shapedEdge = clamp(edge * mix(0.75, 1.25, (ssaoRadius - 0.2) / 2.8) - ssaoBias, 0.0, 1.0);
+                    float occlusion = pow(clamp(shapedEdge * ssaoStrength, 0.0, 0.92), max(0.60, 1.25 - (ssaoPower * 0.32)));
+                    color *= (1.0 - occlusion * 0.82);
                 }
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
             }
@@ -573,17 +585,37 @@ final class OpenGlContext {
             uniform float uBloomStrength;
             uniform int uSsaoEnabled;
             uniform float uSsaoStrength;
+            uniform float uSsaoRadius;
+            uniform float uSsaoBias;
+            uniform float uSsaoPower;
             out vec4 FragColor;
             float ssaoLite(vec2 uv) {
-                vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                float radius = clamp(uSsaoRadius, 0.2, 3.0);
+                vec2 texel = (1.0 / vec2(textureSize(uSceneColor, 0))) * mix(0.75, 2.0, (radius - 0.2) / 2.8);
                 vec3 c = texture(uSceneColor, uv).rgb;
                 vec3 cx = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
                 vec3 cy = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                vec3 cxy = texture(uSceneColor, clamp(uv + texel, vec2(0.0), vec2(1.0))).rgb;
+                vec3 cxny = texture(uSceneColor, clamp(uv + vec2(texel.x, -texel.y), vec2(0.0), vec2(1.0))).rgb;
                 float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
                 float lx = dot(cx, vec3(0.2126, 0.7152, 0.0722));
                 float ly = dot(cy, vec3(0.2126, 0.7152, 0.0722));
-                float edge = clamp(abs(l - lx) + abs(l - ly), 0.0, 1.0);
-                return 1.0 - clamp(edge * clamp(uSsaoStrength, 0.0, 1.0), 0.0, 0.75);
+                float lxy = dot(cxy, vec3(0.2126, 0.7152, 0.0722));
+                float lxny = dot(cxny, vec3(0.2126, 0.7152, 0.0722));
+                float edge = clamp(
+                    abs(l - lx) * 0.30 +
+                    abs(l - ly) * 0.30 +
+                    abs(l - lxy) * 0.20 +
+                    abs(l - lxny) * 0.20,
+                    0.0,
+                    1.0
+                );
+                float ssaoStrength = clamp(uSsaoStrength, 0.0, 1.0);
+                float ssaoBias = clamp(uSsaoBias, 0.0, 0.2);
+                float ssaoPower = clamp(uSsaoPower, 0.5, 4.0);
+                float shapedEdge = clamp(edge - ssaoBias, 0.0, 1.0);
+                float occlusion = pow(clamp(shapedEdge * ssaoStrength, 0.0, 0.92), max(0.60, 1.18 - (ssaoPower * 0.30)));
+                return 1.0 - (occlusion * 0.82);
             }
             void main() {
                 vec3 color = texture(uSceneColor, vUv).rgb;
@@ -668,6 +700,9 @@ final class OpenGlContext {
     private int bloomStrengthLocation;
     private int ssaoEnabledLocation;
     private int ssaoStrengthLocation;
+    private int ssaoRadiusLocation;
+    private int ssaoBiasLocation;
+    private int ssaoPowerLocation;
     private int postProgramId;
     private int postSceneColorLocation;
     private int postTonemapEnabledLocation;
@@ -678,6 +713,9 @@ final class OpenGlContext {
     private int postBloomStrengthLocation;
     private int postSsaoEnabledLocation;
     private int postSsaoStrengthLocation;
+    private int postSsaoRadiusLocation;
+    private int postSsaoBiasLocation;
+    private int postSsaoPowerLocation;
     private int postVaoId;
     private int sceneFramebufferId;
     private int sceneColorTextureId;
@@ -709,6 +747,9 @@ final class OpenGlContext {
     private float bloomStrength = 0.8f;
     private boolean ssaoEnabled;
     private float ssaoStrength = 0f;
+    private float ssaoRadius = 1.0f;
+    private float ssaoBias = 0.02f;
+    private float ssaoPower = 1.0f;
     private float dirLightDirX = 0.3f;
     private float dirLightDirY = -1.0f;
     private float dirLightDirZ = 0.25f;
@@ -1034,6 +1075,9 @@ final class OpenGlContext {
         glUniform1f(postBloomStrengthLocation, bloomStrength);
         glUniform1i(postSsaoEnabledLocation, ssaoEnabled ? 1 : 0);
         glUniform1f(postSsaoStrengthLocation, ssaoStrength);
+        glUniform1f(postSsaoRadiusLocation, ssaoRadius);
+        glUniform1f(postSsaoBiasLocation, ssaoBias);
+        glUniform1f(postSsaoPowerLocation, ssaoPower);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1146,7 +1190,10 @@ final class OpenGlContext {
             float bloomThreshold,
             float bloomStrength,
             boolean ssaoEnabled,
-            float ssaoStrength
+            float ssaoStrength,
+            float ssaoRadius,
+            float ssaoBias,
+            float ssaoPower
     ) {
         this.tonemapEnabled = tonemapEnabled;
         tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
@@ -1156,6 +1203,9 @@ final class OpenGlContext {
         this.bloomStrength = Math.max(0f, Math.min(2.0f, bloomStrength));
         this.ssaoEnabled = ssaoEnabled;
         this.ssaoStrength = Math.max(0f, Math.min(1.0f, ssaoStrength));
+        this.ssaoRadius = Math.max(0.2f, Math.min(3.0f, ssaoRadius));
+        this.ssaoBias = Math.max(0f, Math.min(0.2f, ssaoBias));
+        this.ssaoPower = Math.max(0.5f, Math.min(4.0f, ssaoPower));
     }
 
     void setCameraMatrices(float[] view, float[] proj) {
@@ -1336,6 +1386,9 @@ final class OpenGlContext {
         bloomStrengthLocation = glGetUniformLocation(programId, "uBloomStrength");
         ssaoEnabledLocation = glGetUniformLocation(programId, "uSsaoEnabled");
         ssaoStrengthLocation = glGetUniformLocation(programId, "uSsaoStrength");
+        ssaoRadiusLocation = glGetUniformLocation(programId, "uSsaoRadius");
+        ssaoBiasLocation = glGetUniformLocation(programId, "uSsaoBias");
+        ssaoPowerLocation = glGetUniformLocation(programId, "uSsaoPower");
 
         glUseProgram(programId);
         glUniform1i(albedoTextureLocation, 0);
@@ -1376,6 +1429,9 @@ final class OpenGlContext {
         postBloomStrengthLocation = glGetUniformLocation(postProgramId, "uBloomStrength");
         postSsaoEnabledLocation = glGetUniformLocation(postProgramId, "uSsaoEnabled");
         postSsaoStrengthLocation = glGetUniformLocation(postProgramId, "uSsaoStrength");
+        postSsaoRadiusLocation = glGetUniformLocation(postProgramId, "uSsaoRadius");
+        postSsaoBiasLocation = glGetUniformLocation(postProgramId, "uSsaoBias");
+        postSsaoPowerLocation = glGetUniformLocation(postProgramId, "uSsaoPower");
         postVaoId = glGenVertexArrays();
         glUseProgram(postProgramId);
         glUniform1i(postSceneColorLocation, 0);
@@ -1709,6 +1765,9 @@ final class OpenGlContext {
         glUniform1f(bloomStrengthLocation, bloomStrength);
         glUniform1i(ssaoEnabledLocation, shaderDrivenEnabled && ssaoEnabled ? 1 : 0);
         glUniform1f(ssaoStrengthLocation, ssaoStrength);
+        glUniform1f(ssaoRadiusLocation, ssaoRadius);
+        glUniform1f(ssaoBiasLocation, ssaoBias);
+        glUniform1f(ssaoPowerLocation, ssaoPower);
     }
 
     private boolean useDedicatedPostPass() {

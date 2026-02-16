@@ -53,7 +53,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             float bloomThreshold,
             float bloomStrength,
             boolean ssaoEnabled,
-            float ssaoStrength
+            float ssaoStrength,
+            float ssaoRadius,
+            float ssaoBias,
+            float ssaoPower
     ) {
     }
 
@@ -97,7 +100,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
-    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f);
+    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f);
     private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
@@ -148,7 +151,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 postProcess.bloomThreshold(),
                 postProcess.bloomStrength(),
                 postProcess.ssaoEnabled(),
-                postProcess.ssaoStrength()
+                postProcess.ssaoStrength(),
+                postProcess.ssaoRadius(),
+                postProcess.ssaoBias(),
+                postProcess.ssaoPower()
         );
         frameGraph = buildFrameGraph();
     }
@@ -213,7 +219,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     postProcess.bloomThreshold(),
                     postProcess.bloomStrength(),
                     postProcess.ssaoEnabled(),
-                    postProcess.ssaoStrength()
+                    postProcess.ssaoStrength(),
+                    postProcess.ssaoRadius(),
+                    postProcess.ssaoBias(),
+                    postProcess.ssaoPower()
             );
             frameGraph = buildFrameGraph();
         }
@@ -466,7 +475,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private static PostProcessRenderConfig mapPostProcess(PostProcessDesc desc, QualityTier qualityTier) {
         if (desc == null || !desc.enabled()) {
-            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f);
+            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -481,8 +490,12 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         boolean bloomEnabled = desc.bloomEnabled() && qualityTier != QualityTier.LOW;
         boolean ssaoEnabled = desc.ssaoEnabled() && qualityTier != QualityTier.LOW;
         float ssaoStrength = Math.max(0f, Math.min(1.0f, desc.ssaoStrength()));
+        float ssaoRadius = Math.max(0.2f, Math.min(3.0f, desc.ssaoRadius()));
+        float ssaoBias = Math.max(0.0f, Math.min(0.2f, desc.ssaoBias()));
+        float ssaoPower = Math.max(0.5f, Math.min(4.0f, desc.ssaoPower()));
         if (qualityTier == QualityTier.MEDIUM) {
             ssaoStrength *= 0.8f;
+            ssaoRadius *= 0.9f;
         }
         return new PostProcessRenderConfig(
                 desc.tonemapEnabled(),
@@ -492,7 +505,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 bloomThreshold,
                 bloomStrength,
                 ssaoEnabled,
-                ssaoStrength
+                ssaoStrength,
+                ssaoRadius,
+                ssaoBias,
+                ssaoPower
         );
     }
 

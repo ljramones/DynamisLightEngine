@@ -431,7 +431,10 @@ final class VulkanContext {
             float bloomThreshold,
             float bloomStrength,
             boolean ssaoEnabled,
-            float ssaoStrength
+            float ssaoStrength,
+            float ssaoRadius,
+            float ssaoBias,
+            float ssaoPower
     ) {
         var result = VulkanRenderParameterMutator.applyPost(
                 new VulkanRenderParameterMutator.PostState(
@@ -442,7 +445,10 @@ final class VulkanContext {
                         this.renderState.bloomThreshold,
                         this.renderState.bloomStrength,
                         this.renderState.ssaoEnabled,
-                        this.renderState.ssaoStrength
+                        this.renderState.ssaoStrength,
+                        this.renderState.ssaoRadius,
+                        this.renderState.ssaoBias,
+                        this.renderState.ssaoPower
                 ),
                 new VulkanRenderParameterMutator.PostUpdate(
                         tonemapEnabled,
@@ -452,7 +458,10 @@ final class VulkanContext {
                         bloomThreshold,
                         bloomStrength,
                         ssaoEnabled,
-                        ssaoStrength
+                        ssaoStrength,
+                        ssaoRadius,
+                        ssaoBias,
+                        ssaoPower
                 )
         );
         var state = result.state();
@@ -464,6 +473,9 @@ final class VulkanContext {
         this.renderState.bloomStrength = state.bloomStrength();
         this.renderState.ssaoEnabled = state.ssaoEnabled();
         this.renderState.ssaoStrength = state.ssaoStrength();
+        this.renderState.ssaoRadius = state.ssaoRadius();
+        this.renderState.ssaoBias = state.ssaoBias();
+        this.renderState.ssaoPower = state.ssaoPower();
         if (result.changed()) {
             markGlobalStateDirty();
         }
@@ -712,6 +724,9 @@ final class VulkanContext {
                         renderState.bloomThreshold,
                         renderState.bloomStrength,
                         renderState.ssaoStrength,
+                        renderState.ssaoRadius,
+                        renderState.ssaoBias,
+                        renderState.ssaoPower,
                         backendResources.postRenderPass,
                         backendResources.postGraphicsPipeline,
                         backendResources.postPipelineLayout,
@@ -933,6 +948,9 @@ final class VulkanContext {
                                         renderState.bloomStrength,
                                         renderState.ssaoEnabled,
                                         renderState.ssaoStrength,
+                                        renderState.ssaoRadius,
+                                        renderState.ssaoBias,
+                                        renderState.ssaoPower,
                                         renderState.shadowLightViewProjMatrices
                                 )
                         ),

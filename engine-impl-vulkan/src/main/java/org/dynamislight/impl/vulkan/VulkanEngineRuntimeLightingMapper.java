@@ -17,7 +17,7 @@ final class VulkanEngineRuntimeLightingMapper {
 
     static VulkanEngineRuntime.PostProcessRenderConfig mapPostProcess(PostProcessDesc desc, QualityTier qualityTier) {
         if (desc == null || !desc.enabled()) {
-            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f);
+            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -32,8 +32,12 @@ final class VulkanEngineRuntimeLightingMapper {
         boolean bloomEnabled = desc.bloomEnabled() && qualityTier != QualityTier.LOW;
         boolean ssaoEnabled = desc.ssaoEnabled() && qualityTier != QualityTier.LOW;
         float ssaoStrength = Math.max(0f, Math.min(1.0f, desc.ssaoStrength()));
+        float ssaoRadius = Math.max(0.2f, Math.min(3.0f, desc.ssaoRadius()));
+        float ssaoBias = Math.max(0f, Math.min(0.2f, desc.ssaoBias()));
+        float ssaoPower = Math.max(0.5f, Math.min(4.0f, desc.ssaoPower()));
         if (qualityTier == QualityTier.MEDIUM) {
             ssaoStrength *= 0.8f;
+            ssaoRadius *= 0.9f;
         }
         return new VulkanEngineRuntime.PostProcessRenderConfig(
                 desc.tonemapEnabled(),
@@ -43,7 +47,10 @@ final class VulkanEngineRuntimeLightingMapper {
                 bloomThreshold,
                 bloomStrength,
                 ssaoEnabled,
-                ssaoStrength
+                ssaoStrength,
+                ssaoRadius,
+                ssaoBias,
+                ssaoPower
         );
     }
 

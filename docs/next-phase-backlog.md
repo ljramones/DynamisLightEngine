@@ -2,7 +2,20 @@
 
 Primary roadmap: `docs/rendering-roadmap-2026.md`
 
+## Targeted Phase Lanes (Current)
+- Phase A (active): visual quality/post stack maturation.
+- Phase B (active polish): lighting + shadow parity/refinement.
+- Phase C (active): Vulkan hardening/scalability and real-device validation expansion.
+- Phase D (planned): platform/tooling expansion.
+
 ## Latest Completed Batch (February 2026)
+- Phase A SSAO controls expansion landed:
+  - `PostProcessDesc` now supports `ssaoRadius`, `ssaoBias`, and `ssaoPower` with backward-compatible constructors.
+  - OpenGL and Vulkan now apply SSAO shaping controls in both scene shader and dedicated post-pass paths.
+  - Compare harness includes new deterministic `post-process-ssao-stress` profile with tiered and stress-golden bounds.
+- Phase A kickoff landed:
+  - upgraded SSAO-lite kernel shaping in OpenGL and Vulkan shader paths (multi-sample edge weighting + curvature/micro-contrast response)
+  - kept API/runtime interfaces stable while improving post-pass SSAO visual stability
 - Tightened parity stress thresholds:
   - `shadow-cascade-stress` `0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29 -> 0.28 -> 0.27 -> 0.26 -> 0.25`
   - `fog-shadow-cascade-stress` `0.40 -> 0.39 -> 0.38 -> 0.37 -> 0.36 -> 0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29 -> 0.28 -> 0.27 -> 0.26 -> 0.25`
@@ -120,8 +133,16 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - added guarded validation for descriptor-ring reuse counters on dynamic-only scene updates
 
 ## Active Next Steps
-- Threshold tightening lane complete for current stress profiles; keep envelopes frozen at established floor and revisit only after major lighting/post changes.
-- Expand deterministic golden scenes for additional fog/smoke/shadow material interactions.
+- Phase A immediate:
+  - upgrade SSAO-lite quality path (stronger kernel shaping; tier-aware behavior)
+  - rerun guarded compare set and retighten post-process envelopes where stable
+- Phase B immediate:
+  - run another OpenGL/Vulkan parity tuning cycle after Phase A shader changes settle
+- Phase C immediate:
+  - deepen staged/ring updates for additional scene data classes and extend per-frame ownership guardrails
+  - extend guarded long-endurance and forced-error matrix coverage
+- Threshold tightening lane is complete for current stress profiles; revisit only after material visual changes.
+- Expand deterministic golden scenes for additional fog/smoke/shadow/material interactions.
 - Phase 2 IBL maturity lane is now functionally complete:
   - native `.ktx/.ktx2` decode/transcode path is active for baseline uncompressed + zlib + zstd + BasisLZ/UASTC families
   - 16-bit uncompressed family support includes `R16/RG16/RGB16/RGBA16` normalization
