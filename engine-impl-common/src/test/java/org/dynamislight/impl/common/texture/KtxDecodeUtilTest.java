@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.github.luben.zstd.Zstd;
 import java.awt.image.BufferedImage;
@@ -12,6 +13,12 @@ import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.zip.Deflater;
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.util.ktx.KTX;
+import org.lwjgl.util.ktx.ktxTexture;
+import org.lwjgl.util.ktx.ktxTexture2;
 import org.junit.jupiter.api.Test;
 
 class KtxDecodeUtilTest {
@@ -146,6 +153,33 @@ class KtxDecodeUtilTest {
     }
 
     @Test
+    void decodesBasisLzKtx2ViaLibKtxTranscode() throws Exception {
+        Path source = Files.createTempFile("dle-ktx2-source-", ".ktx2");
+        Path basis = Files.createTempFile("dle-ktx2-basislz-", ".ktx2");
+        try {
+            byte[] raw = new byte[]{
+                    (byte) 255, 0, 0, (byte) 255,
+                    0, (byte) 255, 0, (byte) 255,
+                    0, 0, (byte) 255, (byte) 255,
+                    (byte) 255, (byte) 255, 0, (byte) 255
+            };
+            writeKtx2(source, 37, 2, 2, 0, raw, raw.length);
+            assumeTrue(writeBasisLzFromSourceKtx2(source, basis), "libktx BasisLZ encode not available in this environment");
+
+            assertTrue(KtxDecodeUtil.requiresTranscode(basis));
+            KtxDecodeUtil.DecodedRgba decoded = KtxDecodeUtil.decodeToRgbaIfSupported(basis);
+            assertNotNull(decoded);
+            assertEquals(2, decoded.width());
+            assertEquals(2, decoded.height());
+            assertEquals(16, decoded.rgbaBytes().length);
+            assertTrue(KtxDecodeUtil.canDecodeSupported(basis));
+        } finally {
+            Files.deleteIfExists(source);
+            Files.deleteIfExists(basis);
+        }
+    }
+
+    @Test
     void decodesKtx2ZstdSupercompressedRgba8() throws Exception {
         Path file = Files.createTempFile("dle-ktx2-zstd-", ".ktx2");
         try {
@@ -218,6 +252,49 @@ class KtxDecodeUtilTest {
             return exact;
         } finally {
             deflater.end();
+        }
+    }
+
+    private static boolean writeBasisLzFromSourceKtx2(Path source, Path out) {
+        ByteBuffer sourceBytes = null;
+        long texturePtr = 0L;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            byte[] bytes = Files.readAllBytes(source);
+            sourceBytes = MemoryUtil.memAlloc(bytes.length);
+            sourceBytes.put(bytes).flip();
+            PointerBuffer textureOut = stack.mallocPointer(1);
+            int create = KTX.ktxTexture2_CreateFromMemory(
+                    sourceBytes,
+                    KTX.KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT,
+                    textureOut
+            );
+            if (create != KTX.KTX_SUCCESS) {
+                return false;
+            }
+            texturePtr = textureOut.get(0);
+            if (texturePtr == 0L) {
+                return false;
+            }
+            ktxTexture2 texture2 = ktxTexture2.create(texturePtr);
+            int compress = KTX.ktxTexture2_CompressBasis(texture2, 0);
+            if (compress != KTX.KTX_SUCCESS) {
+                return false;
+            }
+            int write = KTX.ktxWriteToNamedFile(ktxTexture.create(texturePtr), out.toAbsolutePath().toString());
+            return write == KTX.KTX_SUCCESS;
+        } catch (Throwable ignored) {
+            return false;
+        } finally {
+            if (texturePtr != 0L) {
+                try {
+                    KTX.ktxTexture_Destroy(ktxTexture.create(texturePtr));
+                } catch (Throwable ignored) {
+                    // ignore
+                }
+            }
+            if (sourceBytes != null) {
+                MemoryUtil.memFree(sourceBytes);
+            }
         }
     }
 

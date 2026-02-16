@@ -99,6 +99,7 @@ OpenGL backend provides a real forward render baseline:
   - baseline native container decode path added for uncompressed KTX/KTX2 channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`) (resolved to runtime PNG cache when needed)
   - native KTX2 zlib supercompression decode is supported for baseline decodable channel families
   - native KTX2 Zstd supercompression decode is supported for baseline decodable channel families
+  - native KTX2 BasisLZ/UASTC transcode path is supported via `libktx` (`ktxTexture2_TranscodeBasis -> RGBA32`) for direct runtime ingestion
   - baseline uncompressed 16-bit KTX2 families are supported (`R16_UNORM`, `R16G16_UNORM`, `R16G16B16A16_UNORM`) via 16-bit-to-8-bit normalization for runtime ingestion
   - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory via raw RGBA extraction (no PNG transcode dependency for GPU upload)
   - backend texture ingestion now prefers native KTX/KTX2 decode first; sidecar assets are used only as fallback when native decode is unavailable
@@ -166,6 +167,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - baseline native container decode path added for uncompressed KTX/KTX2 channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`) (resolved to runtime PNG cache when needed)
   - native KTX2 zlib supercompression decode is supported for baseline decodable channel families
   - native KTX2 Zstd supercompression decode is supported for baseline decodable channel families
+  - native KTX2 BasisLZ/UASTC transcode path is supported via `libktx` (`ktxTexture2_TranscodeBasis -> RGBA32`) for direct runtime ingestion
   - baseline uncompressed 16-bit KTX2 families are supported (`R16_UNORM`, `R16G16_UNORM`, `R16G16B16A16_UNORM`) via 16-bit-to-8-bit normalization for runtime ingestion
   - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory via raw RGBA extraction (no PNG transcode dependency for GPU upload)
   - backend texture ingestion now prefers native KTX/KTX2 decode first; sidecar assets are used only as fallback when native decode is unavailable

@@ -10,6 +10,12 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.util.ktx.KTX;
+import org.lwjgl.util.ktx.ktxTexture;
+import org.lwjgl.util.ktx.ktxTexture2;
 
 /**
  * Minimal native KTX/KTX2 decode utility used for IBL fallback ingestion.
@@ -183,12 +189,14 @@ public final class KtxDecodeUtil {
         int faceCount = bb.getInt(36);
         int levelCount = bb.getInt(40);
         int supercompression = bb.getInt(44);
+        if (isBasisOrUndefinedFormatKtx2(bytes)) {
+            return decodeKtx2ViaLibKtxTranscode(bytes);
+        }
         if (bytesPerPixel <= 0
                 || layout == null
                 || pixelWidth <= 0
                 || pixelHeight <= 0
                 || faceCount != 1
-                || isBasisOrUndefinedFormatKtx2(bytes)
                 || !isSupportedKtx2Supercompression(supercompression)
                 || levelCount <= 0
                 || layerCount > 1) {
@@ -227,6 +235,90 @@ public final class KtxDecodeUtil {
             return null;
         }
         return toRgba(rawBytes, 0, pixelWidth, pixelHeight, bytesPerPixel, layout);
+    }
+
+    private static DecodedRgba decodeKtx2ViaLibKtxTranscode(byte[] bytes) {
+        long texturePtr = 0L;
+        ByteBuffer nativeBytes = null;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            nativeBytes = MemoryUtil.memAlloc(bytes.length);
+            nativeBytes.put(bytes).flip();
+            PointerBuffer textureOut = stack.mallocPointer(1);
+            int createResult = KTX.ktxTexture2_CreateFromMemory(
+                    nativeBytes,
+                    KTX.KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT,
+                    textureOut
+            );
+            if (createResult != KTX.KTX_SUCCESS) {
+                return null;
+            }
+            texturePtr = textureOut.get(0);
+            if (texturePtr == 0L) {
+                return null;
+            }
+            ktxTexture2 texture2 = ktxTexture2.create(texturePtr);
+            if (texture2 == null
+                    || texture2.baseWidth() <= 0
+                    || texture2.baseHeight() <= 0
+                    || texture2.numFaces() != 1
+                    || texture2.numLayers() > 1
+                    || texture2.numLevels() <= 0) {
+                return null;
+            }
+            if (KTX.ktxTexture2_NeedsTranscoding(texture2)) {
+                int transcodeResult = KTX.ktxTexture2_TranscodeBasis(texture2, KTX.KTX_TTF_RGBA32, 0);
+                if (transcodeResult != KTX.KTX_SUCCESS) {
+                    return null;
+                }
+            }
+            ktxTexture texture = ktxTexture.create(texturePtr);
+            PointerBuffer imageOffset = stack.mallocPointer(1);
+            int imageOffsetResult = KTX.ktxTexture_GetImageOffset(texture, 0, 0, 0, imageOffset);
+            if (imageOffsetResult != KTX.KTX_SUCCESS) {
+                return null;
+            }
+            ByteBuffer data = KTX.ktxTexture_GetData(texture);
+            if (data == null) {
+                return null;
+            }
+            int width = texture2.baseWidth();
+            int height = texture2.baseHeight();
+            int rowPitch = KTX.ktxTexture_GetRowPitch(texture, 0);
+            int tightRowBytes = width * 4;
+            if (rowPitch < tightRowBytes) {
+                return null;
+            }
+            long imageOffsetLong = imageOffset.get(0);
+            if (imageOffsetLong < 0 || imageOffsetLong > Integer.MAX_VALUE) {
+                return null;
+            }
+            int imageStart = (int) imageOffsetLong;
+            long requiredBytes = (long) rowPitch * (long) height;
+            if (requiredBytes <= 0 || imageStart + requiredBytes > data.capacity()) {
+                return null;
+            }
+            byte[] rgba = new byte[tightRowBytes * height];
+            ByteBuffer dataView = data.duplicate();
+            for (int y = 0; y < height; y++) {
+                int srcPos = imageStart + (y * rowPitch);
+                dataView.position(srcPos);
+                dataView.get(rgba, y * tightRowBytes, tightRowBytes);
+            }
+            return new DecodedRgba(width, height, rgba);
+        } catch (Throwable ignored) {
+            return null;
+        } finally {
+            if (texturePtr != 0L) {
+                try {
+                    KTX.ktxTexture_Destroy(ktxTexture.create(texturePtr));
+                } catch (Throwable ignored) {
+                    // ignore
+                }
+            }
+            if (nativeBytes != null) {
+                MemoryUtil.memFree(nativeBytes);
+            }
+        }
     }
 
     private static boolean isUnsupportedKtx2(byte[] bytes) {

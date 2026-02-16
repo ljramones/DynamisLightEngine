@@ -1009,6 +1009,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
             return 0;
         }
+        if (KtxDecodeUtil.canDecodeSupported(requestedPath)) {
+            return 0;
+        }
         if (!KtxDecodeUtil.requiresTranscode(requestedPath)) {
             return 0;
         }

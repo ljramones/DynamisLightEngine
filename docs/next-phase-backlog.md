@@ -35,6 +35,11 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - decode-unavailable and variant-unsupported counters now exclude transcode-required KTX2 paths.
   - new runtime warning emitted in both backends: `IBL_KTX_TRANSCODE_REQUIRED`.
   - zlib KTX2 decode path now aligns to scheme `3`; zstd remains scheme `2`.
+- Implemented true BasisLZ/UASTC decode/upload path:
+  - `engine-impl-common` now includes `lwjgl-ktx` and native `libktx` runtime artifacts.
+  - KTX2 BasisLZ/UASTC payloads are transcoded in-memory via `ktxTexture2_TranscodeBasis(..., KTX_TTF_RGBA32, ...)`.
+  - decoded RGBA output is consumed directly by OpenGL/Vulkan texture ingestion (no PNG sidecar requirement).
+  - backend lifecycle tests validate that real BasisLZ KTX2 channels no longer emit `IBL_KTX_TRANSCODE_REQUIRED` when transcoding succeeds.
 - Expanded guarded real-device matrix coverage:
   - new long-endurance Vulkan integration test path gated by `-Ddle.test.vulkan.real.long=true`
   - CI matrix now includes dedicated guarded long-endurance Vulkan job on macOS/Linux/Windows.

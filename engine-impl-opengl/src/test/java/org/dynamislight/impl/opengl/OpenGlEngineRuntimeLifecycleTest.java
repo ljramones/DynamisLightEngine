@@ -493,6 +493,53 @@ class OpenGlEngineRuntimeLifecycleTest {
     }
 
     @Test
+    void iblBasisLzKtx2TranscodedDoesNotEmitTranscodeRequiredWarning() throws Exception {
+        Path irr = Files.createTempFile("dle-irr-basis-real-", ".ktx2");
+        Path rad = Files.createTempFile("dle-rad-basis-real-", ".ktx2");
+        try {
+            assumeTrue(
+                    writeBasisLzKtx2(irr, 2, 2, (byte) 170, (byte) 140, (byte) 110, (byte) 255)
+                            && writeBasisLzKtx2(rad, 2, 2, (byte) 210, (byte) 180, (byte) 150, (byte) 255),
+                    "libktx BasisLZ encode not available in this environment"
+            );
+            Path brdf = Path.of("..", "assets", "textures", "albedo.png").toAbsolutePath().normalize();
+
+            SceneDescriptor base = validScene();
+            EnvironmentDesc env = new EnvironmentDesc(
+                    base.environment().ambientColor(),
+                    base.environment().ambientIntensity(),
+                    null,
+                    irr.toString(),
+                    rad.toString(),
+                    brdf.toString()
+            );
+            var runtime = new OpenGlEngineRuntime();
+            runtime.initialize(validConfig(), new RecordingCallbacks());
+            runtime.loadScene(new SceneDescriptor(
+                    "ibl-ktx-basis-transcoded-scene",
+                    base.cameras(),
+                    base.activeCameraId(),
+                    base.transforms(),
+                    base.meshes(),
+                    base.materials(),
+                    base.lights(),
+                    env,
+                    base.fog(),
+                    base.smokeEmitters(),
+                    base.postProcess()
+            ));
+
+            EngineFrameResult frame = runtime.render();
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_TRANSCODE_REQUIRED".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
+        } finally {
+            Files.deleteIfExists(irr);
+            Files.deleteIfExists(rad);
+        }
+    }
+
+    @Test
     void iblKtxContainerDecodableViaStbDoesNotEmitDecodeUnavailableWarning() throws Exception {
         Path irr = Files.createTempFile("dle-irr-stb-", ".ktx2");
         Path rad = Files.createTempFile("dle-rad-stb-", ".ktx2");
@@ -1277,6 +1324,88 @@ class OpenGlEngineRuntimeLifecycleTest {
         putLongLE(out, 96, rgba.length);
         System.arraycopy(compressed, 0, out, dataOffset, compressed.length);
         Files.write(path, out);
+    }
+
+    private static boolean writeBasisLzKtx2(Path path, int width, int height, byte r, byte g, byte b, byte a) {
+        java.nio.ByteBuffer source = null;
+        long texturePtr = 0L;
+        try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            int pixels = Math.max(1, width) * Math.max(1, height);
+            byte[] rgba = new byte[pixels * 4];
+            for (int i = 0; i < pixels; i++) {
+                int idx = i * 4;
+                rgba[idx] = r;
+                rgba[idx + 1] = g;
+                rgba[idx + 2] = b;
+                rgba[idx + 3] = a;
+            }
+            int headerSize = 80;
+            int levelIndexSize = 24;
+            int dataOffset = headerSize + levelIndexSize;
+            byte[] out = new byte[dataOffset + rgba.length];
+            byte[] identifier = new byte[]{
+                    (byte) 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, (byte) 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
+            };
+            System.arraycopy(identifier, 0, out, 0, identifier.length);
+            putIntLE(out, 12, 37);
+            putIntLE(out, 16, 1);
+            putIntLE(out, 20, Math.max(1, width));
+            putIntLE(out, 24, Math.max(1, height));
+            putIntLE(out, 28, 0);
+            putIntLE(out, 32, 0);
+            putIntLE(out, 36, 1);
+            putIntLE(out, 40, 1);
+            putIntLE(out, 44, 0);
+            putIntLE(out, 48, 0);
+            putIntLE(out, 52, 0);
+            putIntLE(out, 56, 0);
+            putIntLE(out, 60, 0);
+            putLongLE(out, 64, 0L);
+            putLongLE(out, 72, 0L);
+            putLongLE(out, 80, dataOffset);
+            putLongLE(out, 88, rgba.length);
+            putLongLE(out, 96, rgba.length);
+            System.arraycopy(rgba, 0, out, dataOffset, rgba.length);
+
+            source = org.lwjgl.system.MemoryUtil.memAlloc(out.length);
+            source.put(out).flip();
+            org.lwjgl.PointerBuffer textureOut = stack.mallocPointer(1);
+            int create = org.lwjgl.util.ktx.KTX.ktxTexture2_CreateFromMemory(
+                    source,
+                    org.lwjgl.util.ktx.KTX.KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT,
+                    textureOut
+            );
+            if (create != org.lwjgl.util.ktx.KTX.KTX_SUCCESS) {
+                return false;
+            }
+            texturePtr = textureOut.get(0);
+            if (texturePtr == 0L) {
+                return false;
+            }
+            org.lwjgl.util.ktx.ktxTexture2 texture2 = org.lwjgl.util.ktx.ktxTexture2.create(texturePtr);
+            int compress = org.lwjgl.util.ktx.KTX.ktxTexture2_CompressBasis(texture2, 0);
+            if (compress != org.lwjgl.util.ktx.KTX.KTX_SUCCESS) {
+                return false;
+            }
+            int write = org.lwjgl.util.ktx.KTX.ktxWriteToNamedFile(
+                    org.lwjgl.util.ktx.ktxTexture.create(texturePtr),
+                    path.toAbsolutePath().toString()
+            );
+            return write == org.lwjgl.util.ktx.KTX.KTX_SUCCESS;
+        } catch (Throwable ignored) {
+            return false;
+        } finally {
+            if (texturePtr != 0L) {
+                try {
+                    org.lwjgl.util.ktx.KTX.ktxTexture_Destroy(org.lwjgl.util.ktx.ktxTexture.create(texturePtr));
+                } catch (Throwable ignored) {
+                    // ignore
+                }
+            }
+            if (source != null) {
+                org.lwjgl.system.MemoryUtil.memFree(source);
+            }
+        }
     }
 
     private static void putIntLE(byte[] buffer, int offset, int value) {
