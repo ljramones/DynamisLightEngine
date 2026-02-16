@@ -245,6 +245,8 @@ The repository includes automated tests validating:
   - `lastUniformUploadRanges`
   - `maxUniformUploadRanges`
   - `lastUniformUploadStartObject`
+- Vulkan runtime now emits mesh-loader cache telemetry warning:
+  - `MESH_GEOMETRY_CACHE_PROFILE` (`hits`, `misses`, `entries`)
 - Practical floor note: attempted `fog-smoke-shadow-post-stress <= 0.04` failed (`diff=0.04049019607843137`), so stress envelopes are frozen at `0.05` / `0.06`.
 - Compare harness backend toggles:
   - `dle.compare.opengl.mockContext`

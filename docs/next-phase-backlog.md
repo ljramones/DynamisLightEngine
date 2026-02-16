@@ -54,6 +54,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - glTF/fallback geometry is cached by stable key
   - loader returns defensive copies to preserve cache integrity
   - reduces repeated parse/geometry-construction churn across scene reloads
+  - runtime now exposes cache behavior via `MESH_GEOMETRY_CACHE_PROFILE` warning (`hits/misses/entries`)
 - Expanded guarded real-Vulkan suite:
   - longer resize/scene-switch endurance loop
   - forced device-loss error-path test

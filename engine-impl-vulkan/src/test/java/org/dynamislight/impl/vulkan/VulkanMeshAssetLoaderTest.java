@@ -38,6 +38,10 @@ class VulkanMeshAssetLoaderTest {
         assertNotSame(first.indices(), second.indices());
         assertEquals(-0.6f, second.vertices()[0]);
         assertEquals(0, second.indices()[0]);
+        VulkanMeshAssetLoader.CacheProfile profile = loader.cacheProfile();
+        assertEquals(1, profile.misses());
+        assertEquals(1, profile.hits());
+        assertEquals(1, profile.entries());
     }
 
     @Test
@@ -139,5 +143,9 @@ class VulkanMeshAssetLoaderTest {
         assertNotSame(first.indices(), second.indices());
         assertEquals(expectedVertex0, second.vertices()[0]);
         assertEquals(expectedIndex0, second.indices()[0]);
+        VulkanMeshAssetLoader.CacheProfile profile = loader.cacheProfile();
+        assertEquals(1, profile.misses());
+        assertEquals(1, profile.hits());
+        assertEquals(1, profile.entries());
     }
 }

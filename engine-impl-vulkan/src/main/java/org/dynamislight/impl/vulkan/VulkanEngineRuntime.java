@@ -43,6 +43,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private long plannedVisibleObjects = 1;
     private Path assetRoot = Path.of(".");
     private VulkanMeshAssetLoader meshLoader = new VulkanMeshAssetLoader(assetRoot);
+    private MeshGeometryCacheProfile meshGeometryCacheProfile = new MeshGeometryCacheProfile(0, 0, 0);
     private int viewportWidth = 1280;
     private int viewportHeight = 720;
     private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
@@ -109,6 +110,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         currentIbl = ibl;
         nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene == null ? null : scene.lights());
         List<VulkanContext.SceneMeshData> sceneMeshes = buildSceneMeshes(scene);
+        VulkanMeshAssetLoader.CacheProfile cache = meshLoader.cacheProfile();
+        meshGeometryCacheProfile = new MeshGeometryCacheProfile(cache.hits(), cache.misses(), cache.entries());
         plannedDrawCalls = sceneMeshes.size();
         plannedTriangles = sceneMeshes.stream().mapToLong(m -> m.indices().length / 3).sum();
         plannedVisibleObjects = plannedDrawCalls;
@@ -255,6 +258,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
         }
         if (!mockContext) {
+            warnings.add(new EngineWarning(
+                    "MESH_GEOMETRY_CACHE_PROFILE",
+                    "hits=" + meshGeometryCacheProfile.hits()
+                            + " misses=" + meshGeometryCacheProfile.misses()
+                            + " entries=" + meshGeometryCacheProfile.entries()
+            ));
             VulkanContext.SceneReuseStats reuse = context.sceneReuseStats();
             warnings.add(new EngineWarning(
                     "SCENE_REUSE_PROFILE",
@@ -378,6 +387,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static float clamp01(float v) {
         return Math.max(0f, Math.min(1f, v));
+    }
+
+    private record MeshGeometryCacheProfile(long hits, long misses, int entries) {
     }
 
     private record FogRenderConfig(boolean enabled, float r, float g, float b, float density, int steps, boolean degraded) {

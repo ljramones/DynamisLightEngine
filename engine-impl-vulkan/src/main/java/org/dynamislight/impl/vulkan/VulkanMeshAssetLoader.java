@@ -10,6 +10,8 @@ final class VulkanMeshAssetLoader {
     private final Path assetRoot;
     private final VulkanGltfMeshParser gltfParser;
     private final Map<String, VulkanGltfMeshParser.MeshGeometry> geometryCache = new HashMap<>();
+    private long geometryCacheHits;
+    private long geometryCacheMisses;
 
     VulkanMeshAssetLoader(Path assetRoot) {
         this.assetRoot = assetRoot == null ? Path.of(".") : assetRoot;
@@ -26,6 +28,7 @@ final class VulkanMeshAssetLoader {
         String cacheKey = cacheKeyFor(meshPath, resolved, meshIndex);
         VulkanGltfMeshParser.MeshGeometry cached = geometryCache.get(cacheKey);
         if (cached != null) {
+            geometryCacheHits++;
             return cloneGeometry(cached);
         }
 
@@ -39,8 +42,13 @@ final class VulkanMeshAssetLoader {
         if (resolvedGeometry == null) {
             resolvedGeometry = fallbackByName(meshPath, meshIndex);
         }
+        geometryCacheMisses++;
         geometryCache.put(cacheKey, resolvedGeometry);
         return cloneGeometry(resolvedGeometry);
+    }
+
+    CacheProfile cacheProfile() {
+        return new CacheProfile(geometryCacheHits, geometryCacheMisses, geometryCache.size());
     }
 
     private Path resolve(String meshAssetPath) {
@@ -73,6 +81,9 @@ final class VulkanMeshAssetLoader {
                 geometry.vertices().clone(),
                 geometry.indices().clone()
         );
+    }
+
+    record CacheProfile(long hits, long misses, int entries) {
     }
 
     private VulkanGltfMeshParser.MeshGeometry triangleGeometry() {

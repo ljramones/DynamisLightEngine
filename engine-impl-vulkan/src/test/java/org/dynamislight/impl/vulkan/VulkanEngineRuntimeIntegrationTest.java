@@ -377,6 +377,26 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void realVulkanStableStateEventuallySkipsUniformUploadsOnReusedFrameSlot() throws Exception {
+        assumeRealVulkanReady("real Vulkan stable-state uniform-skip integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), new RecordingCallbacks());
+        runtime.loadScene(validReusableScene(false, false));
+
+        runtime.render(); // frame slot 0 first sync
+        runtime.render(); // frame slot 1 first sync
+        runtime.render(); // frame slot 2 first sync
+        var frame = runtime.render(); // frame slot 0 should now be stable
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())
+                        && w.message().contains("lastUniformUploadBytes=0")
+                        && w.message().contains("lastUniformUploadRanges=0")));
+        runtime.shutdown();
+    }
+
+    @Test
     void mockVulkanPostFogOnlySceneChangeReusesBuffersWithoutDescriptorRebuild() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
@@ -404,6 +424,7 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.loadScene(validShadowSmokeScene(new ShadowDesc(2048, 0.0012f, 5, 4)));
         var frameA = runtime.render();
         assertTrue(frameA.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())));
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "MESH_GEOMETRY_CACHE_PROFILE".equals(w.code())));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorSetsInRing=3")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
