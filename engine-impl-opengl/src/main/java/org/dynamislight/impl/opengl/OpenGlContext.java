@@ -610,6 +610,7 @@ final class OpenGlContext {
             uniform float uTaaBlend;
             uniform int uTaaHistoryValid;
             uniform vec2 uTaaJitterDelta;
+            uniform vec2 uTaaMotionUv;
             uniform sampler2D uTaaHistory;
             out vec4 FragColor;
             float ssaoLite(vec2 uv) {
@@ -679,7 +680,7 @@ final class OpenGlContext {
                     color = smaaLite(vUv, color);
                 }
                 if (uTaaEnabled == 1 && uTaaHistoryValid == 1) {
-                    vec2 historyUv = clamp(vUv + uTaaJitterDelta, vec2(0.0), vec2(1.0));
+                    vec2 historyUv = clamp(vUv + uTaaJitterDelta + uTaaMotionUv, vec2(0.0), vec2(1.0));
                     vec3 history = texture(uTaaHistory, historyUv).rgb;
                     float blend = clamp(uTaaBlend, 0.0, 0.95);
                     vec3 minN = min(color, history);
@@ -777,6 +778,7 @@ final class OpenGlContext {
     private int postTaaBlendLocation;
     private int postTaaHistoryValidLocation;
     private int postTaaJitterDeltaLocation;
+    private int postTaaMotionUvLocation;
     private int postTaaHistoryLocation;
     private int postVaoId;
     private int sceneFramebufferId;
@@ -784,6 +786,10 @@ final class OpenGlContext {
     private int sceneDepthRenderbufferId;
     private int taaHistoryTextureId;
     private boolean taaHistoryValid;
+    private boolean taaPrevViewProjValid;
+    private float[] taaPrevViewProj = identityMatrix();
+    private float taaMotionUvX;
+    private float taaMotionUvY;
     private boolean postProcessPipelineAvailable;
     private float[] viewMatrix = identityMatrix();
     private float[] projMatrix = identityMatrix();
@@ -1161,6 +1167,7 @@ final class OpenGlContext {
         glUniform1f(postTaaBlendLocation, taaBlend);
         glUniform1i(postTaaHistoryValidLocation, taaHistoryValid ? 1 : 0);
         glUniform2f(postTaaJitterDeltaLocation, taaJitterUvDeltaX(), taaJitterUvDeltaY());
+        glUniform2f(postTaaMotionUvLocation, taaMotionUvX, taaMotionUvY);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1178,6 +1185,7 @@ final class OpenGlContext {
     }
 
     void endFrame() {
+        updateTemporalHistoryCameraState();
         if (gpuTimerQuerySupported) {
             glEndQuery(GL_TIME_ELAPSED);
             if (glGetQueryObjecti(gpuTimeQueryId, GL_QUERY_RESULT_AVAILABLE) == 1) {
@@ -1307,6 +1315,7 @@ final class OpenGlContext {
         if (!this.taaEnabled) {
             resetTemporalJitterState();
             projMatrix = projBaseMatrix.clone();
+            resetTemporalMotionState();
         }
     }
 
@@ -1318,6 +1327,7 @@ final class OpenGlContext {
             projBaseMatrix = proj.clone();
             projMatrix = applyProjectionJitter(projBaseMatrix, taaJitterNdcX, taaJitterNdcY);
             taaHistoryValid = false;
+            taaPrevViewProjValid = false;
         }
     }
 
@@ -1546,6 +1556,7 @@ final class OpenGlContext {
         postTaaBlendLocation = glGetUniformLocation(postProgramId, "uTaaBlend");
         postTaaHistoryValidLocation = glGetUniformLocation(postProgramId, "uTaaHistoryValid");
         postTaaJitterDeltaLocation = glGetUniformLocation(postProgramId, "uTaaJitterDelta");
+        postTaaMotionUvLocation = glGetUniformLocation(postProgramId, "uTaaMotionUv");
         postTaaHistoryLocation = glGetUniformLocation(postProgramId, "uTaaHistory");
         postVaoId = glGenVertexArrays();
         glUseProgram(postProgramId);
@@ -1924,6 +1935,7 @@ final class OpenGlContext {
         taaJitterNdcX = (float) (((halton(frame, 2) - 0.5) * 2.0) / widthPx);
         taaJitterNdcY = (float) (((halton(frame, 3) - 0.5) * 2.0) / heightPx);
         projMatrix = applyProjectionJitter(projBaseMatrix, taaJitterNdcX, taaJitterNdcY);
+        updateTemporalMotionVector();
     }
 
     private void resetTemporalJitterState() {
@@ -1932,6 +1944,45 @@ final class OpenGlContext {
         taaJitterNdcY = 0f;
         taaPrevJitterNdcX = 0f;
         taaPrevJitterNdcY = 0f;
+    }
+
+    private void resetTemporalMotionState() {
+        taaMotionUvX = 0f;
+        taaMotionUvY = 0f;
+        taaPrevViewProjValid = false;
+    }
+
+    private void updateTemporalMotionVector() {
+        if (!taaEnabled) {
+            taaMotionUvX = 0f;
+            taaMotionUvY = 0f;
+            return;
+        }
+        float[] currentViewProj = mul(projMatrix, viewMatrix);
+        if (!taaPrevViewProjValid) {
+            taaMotionUvX = 0f;
+            taaMotionUvY = 0f;
+            return;
+        }
+        float[] origin = new float[]{0f, 0f, 0f, 1f};
+        float[] prevClip = mulVec4(taaPrevViewProj, origin);
+        float[] currClip = mulVec4(currentViewProj, origin);
+        float prevW = Math.abs(prevClip[3]) > 1e-6f ? prevClip[3] : 1f;
+        float currW = Math.abs(currClip[3]) > 1e-6f ? currClip[3] : 1f;
+        float prevNdcX = prevClip[0] / prevW;
+        float prevNdcY = prevClip[1] / prevW;
+        float currNdcX = currClip[0] / currW;
+        float currNdcY = currClip[1] / currW;
+        taaMotionUvX = (prevNdcX - currNdcX) * 0.5f;
+        taaMotionUvY = (prevNdcY - currNdcY) * 0.5f;
+    }
+
+    private void updateTemporalHistoryCameraState() {
+        if (!taaEnabled) {
+            return;
+        }
+        taaPrevViewProj = mul(projMatrix, viewMatrix);
+        taaPrevViewProjValid = true;
     }
 
     private float taaJitterUvDeltaX() {
@@ -2202,6 +2253,15 @@ final class OpenGlContext {
             }
         }
         return out;
+    }
+
+    private static float[] mulVec4(float[] m, float[] v) {
+        return new float[]{
+                m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12] * v[3],
+                m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13] * v[3],
+                m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14] * v[3],
+                m[3] * v[0] + m[7] * v[1] + m[11] * v[2] + m[15] * v[3]
+        };
     }
 
     private static float[] identityMatrix() {

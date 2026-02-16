@@ -90,6 +90,8 @@ final class VulkanContext {
     private float[] viewMatrix = identityMatrix();
     private float[] projMatrix = identityMatrix();
     private float[] projBaseMatrix = identityMatrix();
+    private float[] taaPrevViewProj = identityMatrix();
+    private boolean taaPrevViewProjValid;
     private int taaJitterFrameIndex;
     private final VulkanRenderState renderState = new VulkanRenderState();
     private VulkanLightingParameterMutator.LightingState lightingState = new VulkanLightingParameterMutator.LightingState(
@@ -186,6 +188,7 @@ final class VulkanContext {
                     recreateSwapchainFromWindow();
                 }
                 backendResources.currentFrame = (backendResources.currentFrame + 1) % Math.max(1, backendResources.commandBuffers.length);
+                updateTemporalHistoryCameraState();
             }
         }
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
@@ -310,6 +313,7 @@ final class VulkanContext {
             projBaseMatrix = proj.clone();
             projMatrix = applyProjectionJitter(projBaseMatrix, renderState.taaJitterNdcX, renderState.taaJitterNdcY);
             renderState.postTaaHistoryInitialized = false;
+            taaPrevViewProjValid = false;
         } else {
             projMatrix = result.state().proj();
         }
@@ -505,6 +509,7 @@ final class VulkanContext {
             this.renderState.postTaaHistoryInitialized = false;
             resetTemporalJitterState();
             projMatrix = projBaseMatrix.clone();
+            taaPrevViewProjValid = false;
         }
         if (result.changed()) {
             markGlobalStateDirty();
@@ -763,6 +768,8 @@ final class VulkanContext {
                         renderState.postTaaHistoryInitialized,
                         taaJitterUvDeltaX(),
                         taaJitterUvDeltaY(),
+                        renderState.taaMotionUvX,
+                        renderState.taaMotionUvY,
                         backendResources.postRenderPass,
                         backendResources.postGraphicsPipeline,
                         backendResources.postPipelineLayout,
@@ -1029,6 +1036,7 @@ final class VulkanContext {
         renderState.taaJitterNdcY = jitterY;
         if (changed) {
             projMatrix = applyProjectionJitter(projBaseMatrix, renderState.taaJitterNdcX, renderState.taaJitterNdcY);
+            updateTemporalMotionVector();
             markGlobalStateDirty();
         }
     }
@@ -1039,6 +1047,8 @@ final class VulkanContext {
         renderState.taaJitterNdcY = 0f;
         renderState.taaPrevJitterNdcX = 0f;
         renderState.taaPrevJitterNdcY = 0f;
+        renderState.taaMotionUvX = 0f;
+        renderState.taaMotionUvY = 0f;
     }
 
     private float taaJitterUvDeltaX() {
@@ -1066,6 +1076,48 @@ final class VulkanContext {
             i /= base;
         }
         return result;
+    }
+
+    private void updateTemporalMotionVector() {
+        if (!renderState.taaEnabled) {
+            renderState.taaMotionUvX = 0f;
+            renderState.taaMotionUvY = 0f;
+            return;
+        }
+        float[] currentViewProj = mul(projMatrix, viewMatrix);
+        if (!taaPrevViewProjValid) {
+            renderState.taaMotionUvX = 0f;
+            renderState.taaMotionUvY = 0f;
+            return;
+        }
+        float[] origin = new float[]{0f, 0f, 0f, 1f};
+        float[] prevClip = mulVec4(taaPrevViewProj, origin);
+        float[] currClip = mulVec4(currentViewProj, origin);
+        float prevW = Math.abs(prevClip[3]) > 1e-6f ? prevClip[3] : 1f;
+        float currW = Math.abs(currClip[3]) > 1e-6f ? currClip[3] : 1f;
+        float prevNdcX = prevClip[0] / prevW;
+        float prevNdcY = prevClip[1] / prevW;
+        float currNdcX = currClip[0] / currW;
+        float currNdcY = currClip[1] / currW;
+        renderState.taaMotionUvX = (prevNdcX - currNdcX) * 0.5f;
+        renderState.taaMotionUvY = (prevNdcY - currNdcY) * 0.5f;
+    }
+
+    private void updateTemporalHistoryCameraState() {
+        if (!renderState.taaEnabled) {
+            return;
+        }
+        taaPrevViewProj = mul(projMatrix, viewMatrix);
+        taaPrevViewProjValid = true;
+    }
+
+    private static float[] mulVec4(float[] m, float[] v) {
+        return new float[]{
+                m[0] * v[0] + m[4] * v[1] + m[8] * v[2] + m[12] * v[3],
+                m[1] * v[0] + m[5] * v[1] + m[9] * v[2] + m[13] * v[3],
+                m[2] * v[0] + m[6] * v[1] + m[10] * v[2] + m[14] * v[3],
+                m[3] * v[0] + m[7] * v[1] + m[11] * v[2] + m[15] * v[3]
+        };
     }
 
 }

@@ -461,6 +461,7 @@ public final class VulkanShaderSources {
                     vec4 bloom;
                     vec4 ssao;
                     vec4 smaa;
+                    vec4 motion;
                     vec4 taa;
                 } pc;
                 vec3 smaaLite(vec2 uv, vec3 color) {
@@ -526,7 +527,7 @@ public final class VulkanShaderSources {
                         color = smaaLite(vUv, color);
                     }
                     if (pc.taa.x > 0.5 && pc.taa.z > 0.5) {
-                        vec2 historyUv = clamp(vUv + pc.smaa.zw, vec2(0.0), vec2(1.0));
+                        vec2 historyUv = clamp(vUv + pc.smaa.zw + pc.motion.xy, vec2(0.0), vec2(1.0));
                         vec3 history = texture(uHistoryColor, historyUv).rgb;
                         float blend = clamp(pc.taa.y, 0.0, 0.95);
                         vec3 minN = min(color, history);
