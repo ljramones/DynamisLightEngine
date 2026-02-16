@@ -187,6 +187,7 @@ Vulkan runtime emits profiling warnings (real-context mode) for:
 - `VULKAN_FRAME_RESOURCE_PROFILE`
 - `SHADOW_CASCADE_PROFILE`
 - `DESCRIPTOR_RING_WASTE_HIGH` (when descriptor-ring waste ratio stays above configured threshold for configured consecutive frames)
+- `DESCRIPTOR_RING_CAP_PRESSURE` (when descriptor-ring cap bypass count reaches configured threshold for configured consecutive frames)
 
 `VULKAN_FRAME_RESOURCE_PROFILE` now includes per-frame ring diagnostics:
 - `framesInFlight`
@@ -233,6 +234,8 @@ Vulkan options:
 - `vulkan.descriptorRingWasteWarnRatio` (default `0.85`, clamped `0.1..0.99`)
 - `vulkan.descriptorRingWasteWarnMinFrames` (default `8`, clamped `1..600`)
 - `vulkan.descriptorRingWasteWarnMinCapacity` (default `64`, clamped `1..65536`)
+- `vulkan.descriptorRingCapPressureWarnMinBypasses` (default `4`, clamped `1..1000000`)
+- `vulkan.descriptorRingCapPressureWarnMinFrames` (default `2`, clamped `1..600`)
 
 ## 11) Test-backed confidence areas
 The repository includes automated tests validating:

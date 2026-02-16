@@ -42,6 +42,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int descriptorRingWasteWarnMinFrames = 8;
     private int descriptorRingWasteWarnMinCapacity = 64;
     private int descriptorRingWasteHighStreak;
+    private long descriptorRingCapPressureWarnMinBypasses = 4;
+    private int descriptorRingCapPressureWarnMinFrames = 2;
+    private int descriptorRingCapPressureStreak;
     private QualityTier qualityTier = QualityTier.MEDIUM;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
@@ -123,6 +126,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 1,
                 65536
         );
+        descriptorRingCapPressureWarnMinBypasses = parseLongOption(
+                backendOptions,
+                "vulkan.descriptorRingCapPressureWarnMinBypasses",
+                4,
+                1,
+                1_000_000
+        );
+        descriptorRingCapPressureWarnMinFrames = parseIntOption(
+                backendOptions,
+                "vulkan.descriptorRingCapPressureWarnMinFrames",
+                2,
+                1,
+                600
+        );
         context.configureFrameResources(framesInFlight, maxDynamicSceneObjects, maxPendingUploadRanges);
         context.configureDescriptorRing(descriptorRingMaxSetCapacity);
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
@@ -132,6 +149,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         viewportHeight = config.initialHeightPx();
         deviceLostRaised = false;
         descriptorRingWasteHighStreak = 0;
+        descriptorRingCapPressureStreak = 0;
         if (Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.forceInitFailure", "false"))) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Forced Vulkan init failure", false);
         }
@@ -382,6 +400,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             } else {
                 descriptorRingWasteHighStreak = 0;
             }
+            if (frameResources.descriptorRingCapBypasses() >= descriptorRingCapPressureWarnMinBypasses) {
+                descriptorRingCapPressureStreak++;
+                if (descriptorRingCapPressureStreak >= descriptorRingCapPressureWarnMinFrames) {
+                    warnings.add(new EngineWarning(
+                            "DESCRIPTOR_RING_CAP_PRESSURE",
+                            "Descriptor ring cap bypasses=" + frameResources.descriptorRingCapBypasses()
+                                    + " (maxSetCapacity=" + frameResources.descriptorRingMaxSetCapacity()
+                                    + ", active=" + frameResources.descriptorRingActiveSetCount()
+                                    + ", capacity=" + frameResources.descriptorRingSetCapacity() + ")"
+                    ));
+                }
+            } else {
+                descriptorRingCapPressureStreak = 0;
+            }
             if (currentShadows.enabled()) {
                 VulkanContext.ShadowCascadeProfile shadow = context.shadowCascadeProfile();
                 warnings.add(new EngineWarning(
@@ -507,6 +539,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         }
     }
 
+    private static long parseLongOption(Map<String, String> options, String key, long fallback, long min, long max) {
+        String raw = options.get(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return clampLong(Long.parseLong(raw.trim()), min, max);
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
     private static double parseDoubleOption(Map<String, String> options, String key, double fallback, double min, double max) {
         String raw = options.get(key);
         if (raw == null || raw.isBlank()) {
@@ -524,6 +568,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private static double clampDouble(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static long clampLong(long value, long min, long max) {
         return Math.max(min, Math.min(max, value));
     }
 

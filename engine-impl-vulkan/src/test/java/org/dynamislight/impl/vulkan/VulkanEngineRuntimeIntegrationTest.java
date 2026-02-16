@@ -563,6 +563,25 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void realVulkanDescriptorCapPressureEmitsWarning() throws Exception {
+        assumeRealVulkanReady("real Vulkan descriptor cap pressure warning integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "false",
+                "vulkan.maxTextureDescriptorSets", "256",
+                "vulkan.descriptorRingCapPressureWarnMinBypasses", "1",
+                "vulkan.descriptorRingCapPressureWarnMinFrames", "1"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validLargeMeshScene(300));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "DESCRIPTOR_RING_CAP_PRESSURE".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
     void realVulkanEnduranceResizeAndSceneSwitchMaintainsHealthyProfiles() throws Exception {
         assumeRealVulkanReady("real Vulkan endurance integration test");
 
@@ -865,6 +884,38 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.fog(),
                 base.smokeEmitters(),
                 base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validLargeMeshScene(int meshCount) {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 8), new Vec3(0, 0, 0), 60f, 0.1f, 200f);
+        List<TransformDesc> transforms = new ArrayList<>(meshCount);
+        List<MeshDesc> meshes = new ArrayList<>(meshCount);
+        for (int i = 0; i < meshCount; i++) {
+            String transformId = "xform-" + i;
+            float x = ((i % 20) - 10) * 0.4f;
+            float y = ((i / 20) - 7) * 0.35f;
+            transforms.add(new TransformDesc(transformId, new Vec3(x, y, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1)));
+            String meshPath = (i % 2 == 0) ? "meshes/quad.glb" : "meshes/triangle.glb";
+            meshes.add(new MeshDesc("mesh-" + i, transformId, "mat", meshPath));
+        }
+
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(0.85f, 0.85f, 0.9f), 0.2f, 0.55f, null, null);
+        LightDesc light = new LightDesc("light", new Vec3(1, 3, 2), new Vec3(1, 1, 1), 1.0f, 15f, false, null);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "vulkan-large-mesh-scene",
+                List.of(camera),
+                "cam",
+                transforms,
+                meshes,
+                List.of(mat),
+                List.of(light),
+                env,
+                fog,
+                List.of()
         );
     }
 
