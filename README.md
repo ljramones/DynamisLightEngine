@@ -140,6 +140,7 @@ Optional integration-test flags:
 ## Planning
 
 - Capabilities compendium: `docs/capabilities-compendium.md`
+- Release workflow: `docs/release-workflow.md`
 - Milestone and issue backlog: `docs/github-milestones.md`
 - Architecture note: `docs/architecture/backend-strategy.md`
 - ADR: `docs/adr/0001-backend-strategy.md`

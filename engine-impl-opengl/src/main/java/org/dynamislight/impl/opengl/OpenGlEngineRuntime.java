@@ -144,7 +144,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 context.lastDrawCalls(),
                 context.lastTriangles(),
                 context.lastVisibleObjects(),
-                0
+                context.estimatedGpuMemoryBytes()
         );
     }
 

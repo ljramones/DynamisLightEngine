@@ -78,6 +78,12 @@ class BackendParityIntegrationTest {
         assertTrue(vulkan.warningCodes().contains("FEATURE_BASELINE"));
     }
 
+    @Test
+    void repeatedResizeIsStableAcrossBackends() throws Exception {
+        assertResizeStability("opengl");
+        assertResizeStability("vulkan");
+    }
+
     private static void runParityLifecycle(String backendId) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
         RecordingCallbacks callbacks = new RecordingCallbacks();
@@ -143,6 +149,21 @@ class BackendParityIntegrationTest {
                     runtime.getStats().visibleObjects(),
                     frame.warnings().stream().map(w -> w.code()).collect(Collectors.toSet())
             );
+        }
+    }
+
+    private static void assertResizeStability(String backendId) throws Exception {
+        EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
+        try (var runtime = provider.createRuntime()) {
+            runtime.initialize(validConfig(backendId), new RecordingCallbacks());
+            runtime.loadScene(validScene());
+            for (int i = 0; i < 12; i++) {
+                int width = 800 + (i * 37);
+                int height = 600 + (i * 23);
+                runtime.resize(width, height, 1.0f);
+                runtime.render();
+            }
+            assertTrue(runtime.getStats().fps() >= 0.0);
         }
     }
 

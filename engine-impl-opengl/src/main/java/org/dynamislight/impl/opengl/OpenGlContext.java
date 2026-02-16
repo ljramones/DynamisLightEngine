@@ -126,6 +126,9 @@ final class OpenGlContext {
         private final float roughness;
         private final int textureId;
         private final int normalTextureId;
+        private final long vertexBytes;
+        private final long textureBytes;
+        private final long normalTextureBytes;
 
         private MeshBuffer(
                 int vaoId,
@@ -136,7 +139,10 @@ final class OpenGlContext {
                 float metallic,
                 float roughness,
                 int textureId,
-                int normalTextureId
+                int normalTextureId,
+                long vertexBytes,
+                long textureBytes,
+                long normalTextureBytes
         ) {
             this.vaoId = vaoId;
             this.vboId = vboId;
@@ -147,7 +153,13 @@ final class OpenGlContext {
             this.roughness = roughness;
             this.textureId = textureId;
             this.normalTextureId = normalTextureId;
+            this.vertexBytes = vertexBytes;
+            this.textureBytes = textureBytes;
+            this.normalTextureBytes = normalTextureBytes;
         }
+    }
+
+    private record TextureData(int id, long bytes) {
     }
 
     private static final String VERTEX_SHADER = """
@@ -331,6 +343,7 @@ final class OpenGlContext {
     private long lastDrawCalls;
     private long lastTriangles;
     private long lastVisibleObjects;
+    private long estimatedGpuMemoryBytes;
 
     void initialize(String appName, int width, int height, boolean vsyncEnabled, boolean windowVisible) throws EngineException {
         GLFWErrorCallback.createPrint(System.err).set();
@@ -388,7 +401,7 @@ final class OpenGlContext {
 
         double cpuMs = (System.nanoTime() - startNs) / 1_000_000.0;
         double gpuMs = lastGpuFrameMs > 0.0 ? lastGpuFrameMs : cpuMs;
-        return new OpenGlFrameMetrics(cpuMs, gpuMs, lastDrawCalls, lastTriangles, lastVisibleObjects, 0);
+        return new OpenGlFrameMetrics(cpuMs, gpuMs, lastDrawCalls, lastTriangles, lastVisibleObjects, estimatedGpuMemoryBytes);
     }
 
     void beginFrame() {
@@ -567,6 +580,10 @@ final class OpenGlContext {
         return lastVisibleObjects;
     }
 
+    long estimatedGpuMemoryBytes() {
+        return estimatedGpuMemoryBytes;
+    }
+
     void setSceneMeshes(List<SceneMesh> meshes) {
         clearSceneMeshes();
         List<SceneMesh> effectiveMeshes = meshes == null || meshes.isEmpty()
@@ -575,6 +592,7 @@ final class OpenGlContext {
         for (SceneMesh mesh : effectiveMeshes) {
             sceneMeshes.add(uploadMesh(mesh));
         }
+        estimatedGpuMemoryBytes = estimateGpuMemoryBytes();
     }
 
     private void initializeShaderPipeline() throws EngineException {
@@ -642,8 +660,9 @@ final class OpenGlContext {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
-        int textureId = loadTexture(mesh.albedoTexturePath());
-        int normalTextureId = loadTexture(mesh.normalTexturePath());
+        TextureData albedoTexture = loadTexture(mesh.albedoTexturePath());
+        TextureData normalTexture = loadTexture(mesh.normalTexturePath());
+        long vertexBytes = (long) mesh.geometry().vertices().length * Float.BYTES;
         return new MeshBuffer(
                 vaoId,
                 vboId,
@@ -652,19 +671,22 @@ final class OpenGlContext {
                 mesh.albedoColor().clone(),
                 clamp01(mesh.metallic()),
                 clamp01(mesh.roughness()),
-                textureId,
-                normalTextureId
+                albedoTexture.id(),
+                normalTexture.id(),
+                vertexBytes,
+                albedoTexture.bytes(),
+                normalTexture.bytes()
         );
     }
 
-    private int loadTexture(Path texturePath) {
+    private TextureData loadTexture(Path texturePath) {
         if (texturePath == null || !Files.isRegularFile(texturePath)) {
-            return 0;
+            return new TextureData(0, 0);
         }
         try {
             BufferedImage image = ImageIO.read(texturePath.toFile());
             if (image == null) {
-                return 0;
+                return new TextureData(0, 0);
             }
             int width = image.getWidth();
             int height = image.getHeight();
@@ -686,9 +708,9 @@ final class OpenGlContext {
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
             glBindTexture(GL_TEXTURE_2D, 0);
-            return textureId;
+            return new TextureData(textureId, (long) width * height * 4L);
         } catch (IOException ignored) {
-            return 0;
+            return new TextureData(0, 0);
         }
     }
 
@@ -704,6 +726,17 @@ final class OpenGlContext {
             glDeleteVertexArrays(mesh.vaoId);
         }
         sceneMeshes.clear();
+        estimatedGpuMemoryBytes = 0;
+    }
+
+    private long estimateGpuMemoryBytes() {
+        long bytes = 0;
+        for (MeshBuffer mesh : sceneMeshes) {
+            bytes += mesh.vertexBytes;
+            bytes += mesh.textureBytes;
+            bytes += mesh.normalTextureBytes;
+        }
+        return bytes;
     }
 
     private float clamp01(float value) {

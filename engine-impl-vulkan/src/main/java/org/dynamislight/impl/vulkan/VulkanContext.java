@@ -289,6 +289,7 @@ final class VulkanContext {
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
+    private long estimatedGpuMemoryBytes;
     private final List<GpuMesh> gpuMeshes = new ArrayList<>();
     private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
     private float[] viewMatrix = identityMatrix();
@@ -345,7 +346,7 @@ final class VulkanContext {
             }
         }
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
-        return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, 0);
+        return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, estimatedGpuMemoryBytes);
     }
 
     void resize(int width, int height) throws EngineException {
@@ -682,6 +683,7 @@ final class VulkanContext {
         );
         globalUniformBuffer = uniformAlloc.buffer;
         globalUniformMemory = uniformAlloc.memory;
+        estimatedGpuMemoryBytes = GLOBAL_UNIFORM_BYTES;
 
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
@@ -736,6 +738,7 @@ final class VulkanContext {
             vkFreeMemory(device, globalUniformMemory, null);
             globalUniformMemory = VK_NULL_HANDLE;
         }
+        estimatedGpuMemoryBytes = 0;
         descriptorSet = VK_NULL_HANDLE;
         if (descriptorPool != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device, descriptorPool, null);
@@ -1477,6 +1480,8 @@ final class VulkanContext {
                     indexAlloc.buffer,
                     indexAlloc.memory,
                     indices.length,
+                    vertexData.remaining(),
+                    indexData.remaining(),
                     mesh.modelMatrix().clone(),
                     mesh.color()[0],
                     mesh.color()[1],
@@ -1485,6 +1490,11 @@ final class VulkanContext {
                     mesh.roughness()
             ));
         }
+        long meshBytes = 0;
+        for (GpuMesh mesh : gpuMeshes) {
+            meshBytes += mesh.vertexBytes + mesh.indexBytes;
+        }
+        estimatedGpuMemoryBytes = GLOBAL_UNIFORM_BYTES + meshBytes;
     }
 
     private void destroySceneMeshes() {
@@ -1613,6 +1623,8 @@ final class VulkanContext {
         private final long indexBuffer;
         private final long indexMemory;
         private final int indexCount;
+        private final long vertexBytes;
+        private final long indexBytes;
         private final float[] modelMatrix;
         private final float colorR;
         private final float colorG;
@@ -1626,6 +1638,8 @@ final class VulkanContext {
                 long indexBuffer,
                 long indexMemory,
                 int indexCount,
+                long vertexBytes,
+                long indexBytes,
                 float[] modelMatrix,
                 float colorR,
                 float colorG,
@@ -1638,6 +1652,8 @@ final class VulkanContext {
             this.indexBuffer = indexBuffer;
             this.indexMemory = indexMemory;
             this.indexCount = indexCount;
+            this.vertexBytes = vertexBytes;
+            this.indexBytes = indexBytes;
             this.modelMatrix = modelMatrix;
             this.colorR = colorR;
             this.colorG = colorG;
