@@ -199,6 +199,7 @@ Vulkan runtime emits profiling warnings (real-context mode) for:
 - `pendingRangeOverflows`
 - `descriptorRingSetCapacity` / `descriptorRingPeakSetCapacity`
 - `descriptorRingReuseHits` / `descriptorRingGrowthRebuilds` / `descriptorRingSteadyRebuilds`
+- `descriptorRingPoolReuses` / `descriptorRingPoolResetFailures`
 - `persistentStagingMapped`
 
 ## 10) Backend/runtime options

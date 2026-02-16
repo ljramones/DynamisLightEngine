@@ -319,6 +319,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " descriptorRingReuseHits=" + frameResources.descriptorRingReuseHits()
                             + " descriptorRingGrowthRebuilds=" + frameResources.descriptorRingGrowthRebuilds()
                             + " descriptorRingSteadyRebuilds=" + frameResources.descriptorRingSteadyRebuilds()
+                            + " descriptorRingPoolReuses=" + frameResources.descriptorRingPoolReuses()
+                            + " descriptorRingPoolResetFailures=" + frameResources.descriptorRingPoolResetFailures()
                             + " persistentStagingMapped=" + frameResources.persistentStagingMapped()
             ));
             if (currentShadows.enabled()) {

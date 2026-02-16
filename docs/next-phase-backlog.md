@@ -56,6 +56,8 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
     - `descriptorRingSetCapacity` / `descriptorRingPeakSetCapacity`
     - `descriptorRingReuseHits`
     - `descriptorRingGrowthRebuilds` / `descriptorRingSteadyRebuilds`
+    - descriptor-pool reset/reuse path active when descriptor capacity is sufficient
+    - `descriptorRingPoolReuses` / `descriptorRingPoolResetFailures`
 - Added Vulkan mesh-geometry cache in asset loader:
   - glTF/fallback geometry is cached by stable key
   - loader returns defensive copies to preserve cache integrity

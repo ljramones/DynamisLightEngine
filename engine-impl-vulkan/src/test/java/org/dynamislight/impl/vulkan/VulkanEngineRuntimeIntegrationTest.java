@@ -487,6 +487,10 @@ class VulkanEngineRuntimeIntegrationTest {
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingGrowthRebuilds=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingSteadyRebuilds=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingPoolReuses=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingPoolResetFailures=")));
         assertTrue(frameA.warnings().stream().anyMatch(w -> "SHADOW_CASCADE_PROFILE".equals(w.code())));
 
         runtime.resize(1600, 900, 1.0f);

@@ -227,6 +227,7 @@ import static org.lwjgl.vulkan.VK10.vkQueueWaitIdle;
 import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 import static org.lwjgl.vulkan.VK10.vkUpdateDescriptorSets;
 import static org.lwjgl.vulkan.VK10.vkResetCommandBuffer;
+import static org.lwjgl.vulkan.VK10.vkResetDescriptorPool;
 import static org.lwjgl.vulkan.VK10.vkResetFences;
 import static org.lwjgl.vulkan.VK10.vkWaitForFences;
 import static org.lwjgl.vulkan.VK10.vkFreeMemory;
@@ -379,6 +380,8 @@ final class VulkanContext {
     private long descriptorRingReuseHitCount;
     private long descriptorRingGrowthRebuildCount;
     private long descriptorRingSteadyRebuildCount;
+    private long descriptorRingPoolReuseCount;
+    private long descriptorRingPoolResetFailureCount;
     private int descriptorRingSetCapacity;
     private int descriptorRingPeakSetCapacity;
     private long estimatedGpuMemoryBytes;
@@ -594,6 +597,8 @@ final class VulkanContext {
                 descriptorRingReuseHitCount,
                 descriptorRingGrowthRebuildCount,
                 descriptorRingSteadyRebuildCount,
+                descriptorRingPoolReuseCount,
+                descriptorRingPoolResetFailureCount,
                 globalUniformStagingMappedAddress != 0L
         );
     }
@@ -1364,6 +1369,8 @@ final class VulkanContext {
         descriptorSet = VK_NULL_HANDLE;
         descriptorRingSetCapacity = 0;
         descriptorRingPeakSetCapacity = 0;
+        descriptorRingPoolReuseCount = 0;
+        descriptorRingPoolResetFailureCount = 0;
         if (descriptorPool != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device, descriptorPool, null);
             descriptorPool = VK_NULL_HANDLE;
@@ -3959,41 +3966,52 @@ final class VulkanContext {
             return;
         }
         int requiredSetCount = gpuMeshes.size();
-        if (descriptorRingSetCapacity > 0) {
-            if (requiredSetCount > descriptorRingSetCapacity) {
-                descriptorRingGrowthRebuildCount++;
+        boolean needsRebuild = textureDescriptorPool == VK_NULL_HANDLE || requiredSetCount > descriptorRingSetCapacity;
+        if (!needsRebuild) {
+            int resetResult = vkResetDescriptorPool(device, textureDescriptorPool, 0);
+            if (resetResult == VK_SUCCESS) {
+                descriptorRingPoolReuseCount++;
             } else {
-                descriptorRingSteadyRebuildCount++;
+                descriptorRingPoolResetFailureCount++;
+                needsRebuild = true;
             }
         }
-        if (textureDescriptorPool != VK_NULL_HANDLE) {
-            vkDestroyDescriptorPool(device, textureDescriptorPool, null);
-            textureDescriptorPool = VK_NULL_HANDLE;
-            descriptorPoolRebuildCount++;
-        }
-        descriptorPoolBuildCount++;
-        descriptorRingSetCapacity = requiredSetCount;
-        descriptorRingPeakSetCapacity = Math.max(descriptorRingPeakSetCapacity, requiredSetCount);
 
-        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
-        poolSizes.get(0)
-                .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(requiredSetCount * 8);
+        if (needsRebuild) {
+            if (textureDescriptorPool != VK_NULL_HANDLE) {
+                vkDestroyDescriptorPool(device, textureDescriptorPool, null);
+                textureDescriptorPool = VK_NULL_HANDLE;
+                descriptorPoolRebuildCount++;
+                if (requiredSetCount > descriptorRingSetCapacity) {
+                    descriptorRingGrowthRebuildCount++;
+                } else {
+                    descriptorRingSteadyRebuildCount++;
+                }
+            }
+            descriptorPoolBuildCount++;
+            descriptorRingSetCapacity = Math.max(requiredSetCount, descriptorRingSetCapacity);
+            descriptorRingPeakSetCapacity = Math.max(descriptorRingPeakSetCapacity, descriptorRingSetCapacity);
 
-        VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
-                .maxSets(requiredSetCount)
-                .pPoolSizes(poolSizes);
-        var pPool = stack.longs(VK_NULL_HANDLE);
-        int poolResult = vkCreateDescriptorPool(device, poolInfo, null, pPool);
-        if (poolResult != VK_SUCCESS || pPool.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(
-                    EngineErrorCode.BACKEND_INIT_FAILED,
-                    "vkCreateDescriptorPool(texture) failed: " + poolResult,
-                    false
-            );
+            VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
+            poolSizes.get(0)
+                    .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(descriptorRingSetCapacity * 8);
+
+            VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
+                    .maxSets(descriptorRingSetCapacity)
+                    .pPoolSizes(poolSizes);
+            var pPool = stack.longs(VK_NULL_HANDLE);
+            int poolResult = vkCreateDescriptorPool(device, poolInfo, null, pPool);
+            if (poolResult != VK_SUCCESS || pPool.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "vkCreateDescriptorPool(texture) failed: " + poolResult,
+                        false
+                );
+            }
+            textureDescriptorPool = pPool.get(0);
         }
-        textureDescriptorPool = pPool.get(0);
 
         VkDescriptorSetAllocateInfo allocInfo = VkDescriptorSetAllocateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO)
@@ -5209,6 +5227,8 @@ final class VulkanContext {
             long descriptorRingReuseHits,
             long descriptorRingGrowthRebuilds,
             long descriptorRingSteadyRebuilds,
+            long descriptorRingPoolReuses,
+            long descriptorRingPoolResetFailures,
             boolean persistentStagingMapped
     ) {
     }
