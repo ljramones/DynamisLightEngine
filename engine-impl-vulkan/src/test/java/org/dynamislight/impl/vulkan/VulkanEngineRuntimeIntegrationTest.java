@@ -506,6 +506,25 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void realVulkanDescriptorPoolResetsAreUsedWhenSceneShrinks() throws Exception {
+        assumeRealVulkanReady("real Vulkan descriptor-pool reset reuse integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), new RecordingCallbacks());
+        runtime.loadScene(validReusableScene(false, false)); // 2 meshes
+        runtime.render();
+        var before = runtime.debugFrameResourceProfile();
+
+        runtime.loadScene(validShadowSmokeScene(new ShadowDesc(1024, 0.0015f, 3, 2))); // 1 mesh
+        runtime.render();
+        var after = runtime.debugFrameResourceProfile();
+
+        assertTrue(after.descriptorRingPoolReuses() > before.descriptorRingPoolReuses());
+        assertEquals(before.descriptorRingPoolResetFailures(), after.descriptorRingPoolResetFailures());
+        runtime.shutdown();
+    }
+
+    @Test
     void realVulkanEnduranceResizeAndSceneSwitchMaintainsHealthyProfiles() throws Exception {
         assumeRealVulkanReady("real Vulkan endurance integration test");
 
