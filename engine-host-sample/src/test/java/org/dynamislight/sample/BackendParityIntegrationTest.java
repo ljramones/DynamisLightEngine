@@ -260,6 +260,23 @@ class BackendParityIntegrationTest {
 
     @Test
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessMaterialFogSmokeShadowStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("material-fog-smoke-shadow-cascade-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                materialFogSmokeShadowCascadeStressScene(),
+                QualityTier.ULTRA,
+                "material-fog-smoke-shadow-cascade-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.30, "material+fog+smoke+shadow stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessTieredGoldenProfilesStayBounded() throws Exception {
         Map<QualityTier, Double> fogSmokeMaxDiff = Map.of(
                 QualityTier.LOW, 0.45,
@@ -290,6 +307,12 @@ class BackendParityIntegrationTest {
                 QualityTier.MEDIUM, 0.40,
                 QualityTier.HIGH, 0.36,
                 QualityTier.ULTRA, 0.37
+        );
+        Map<QualityTier, Double> materialFogSmokeShadowMaxDiff = Map.of(
+                QualityTier.LOW, 0.54,
+                QualityTier.MEDIUM, 0.44,
+                QualityTier.HIGH, 0.34,
+                QualityTier.ULTRA, 0.30
         );
 
         for (QualityTier tier : QualityTier.values()) {
@@ -355,6 +378,19 @@ class BackendParityIntegrationTest {
                     "post-process bloom diff " + postBloomReport.diffMetric()
                             + " exceeded " + postProcessBloomMaxDiff.get(tier) + " at " + tier
             );
+
+            Path materialFogSmokeShadowDir = compareOutputDir("material-fog-smoke-shadow-" + tier.name().toLowerCase());
+            var materialFogSmokeShadowReport = BackendCompareHarness.run(
+                    materialFogSmokeShadowDir,
+                    materialFogSmokeShadowCascadeStressScene(),
+                    tier,
+                    "material-fog-smoke-shadow-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    materialFogSmokeShadowReport.diffMetric() <= materialFogSmokeShadowMaxDiff.get(tier),
+                    "material-fog-smoke-shadow diff " + materialFogSmokeShadowReport.diffMetric()
+                            + " exceeded " + materialFogSmokeShadowMaxDiff.get(tier) + " at " + tier
+            );
         }
     }
 
@@ -366,7 +402,8 @@ class BackendParityIntegrationTest {
                 "fog-shadow-cascade-stress", 0.25,
                 "smoke-shadow-cascade-stress", 0.25,
                 "texture-heavy", 0.32,
-                "fog-smoke-shadow-post-stress", 0.05
+                "fog-smoke-shadow-post-stress", 0.05,
+                "material-fog-smoke-shadow-cascade-stress", 0.30
         );
 
         var reports = Map.of(
@@ -399,6 +436,12 @@ class BackendParityIntegrationTest {
                         fogSmokeShadowPostStressScene(),
                         QualityTier.ULTRA,
                         "fog-smoke-shadow-post-stress-golden-ultra"
+                ),
+                "material-fog-smoke-shadow-cascade-stress", BackendCompareHarness.run(
+                        compareOutputDir("material-fog-smoke-shadow-cascade-stress-golden"),
+                        materialFogSmokeShadowCascadeStressScene(),
+                        QualityTier.ULTRA,
+                        "material-fog-smoke-shadow-cascade-stress-golden-ultra"
                 )
         );
 
@@ -944,6 +987,112 @@ class BackendParityIntegrationTest {
                 fog,
                 base.smokeEmitters(),
                 post
+        );
+    }
+
+    private static SceneDescriptor materialFogSmokeShadowCascadeStressScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.35f, 1.5f, 9.4f), new Vec3(-10f, 11f, 0f), 74f, 0.1f, 260f);
+        TransformDesc near = new TransformDesc("xform-near", new Vec3(-1.2f, -0.15f, 1.2f), new Vec3(0, 20, 0), new Vec3(1f, 1f, 1f));
+        TransformDesc mid = new TransformDesc("xform-mid", new Vec3(0.35f, -0.25f, -11.8f), new Vec3(0, -14, 0), new Vec3(1.5f, 1.5f, 1.5f));
+        TransformDesc far = new TransformDesc("xform-far", new Vec3(2.25f, -0.45f, -46.0f), new Vec3(0, 10, 0), new Vec3(2.55f, 2.55f, 2.55f));
+        TransformDesc ground = new TransformDesc("xform-ground", new Vec3(0f, -1.25f, -20f), new Vec3(0, 0, 0), new Vec3(8.0f, 1f, 8.0f));
+
+        MeshDesc meshNear = new MeshDesc("mesh-near", "xform-near", "mat-near", "meshes/quad.gltf");
+        MeshDesc meshMid = new MeshDesc("mesh-mid", "xform-mid", "mat-mid", "meshes/quad.gltf");
+        MeshDesc meshFar = new MeshDesc("mesh-far", "xform-far", "mat-far", "meshes/quad.gltf");
+        MeshDesc meshGround = new MeshDesc("mesh-ground", "xform-ground", "mat-ground", "meshes/quad.gltf");
+
+        MaterialDesc matNear = new MaterialDesc(
+                "mat-near",
+                new Vec3(0.88f, 0.50f, 0.40f),
+                0.26f,
+                0.44f,
+                "textures/a.png",
+                "textures/a_n.png",
+                "textures/a_mr.png",
+                "textures/a_ao.png"
+        );
+        MaterialDesc matMid = new MaterialDesc(
+                "mat-mid",
+                new Vec3(0.48f, 0.80f, 0.94f),
+                0.60f,
+                0.36f,
+                "textures/b.png",
+                "textures/b_n.png",
+                "textures/b_mr.png",
+                "textures/b_ao.png"
+        );
+        MaterialDesc matFar = new MaterialDesc(
+                "mat-far",
+                new Vec3(0.74f, 0.76f, 0.80f),
+                0.14f,
+                0.76f,
+                "textures/c.png",
+                "textures/c_n.png",
+                "textures/c_mr.png",
+                "textures/c_ao.png"
+        );
+        MaterialDesc matGround = new MaterialDesc(
+                "mat-ground",
+                new Vec3(0.60f, 0.63f, 0.57f),
+                0.06f,
+                0.90f,
+                "textures/d.png",
+                "textures/d_n.png",
+                "textures/d_mr.png",
+                "textures/d_ao.png"
+        );
+
+        LightDesc shadowLight = new LightDesc(
+                "shadow-light",
+                new Vec3(8f, 21f, 9f),
+                new Vec3(1f, 0.98f, 0.95f),
+                1.14f,
+                280f,
+                true,
+                new ShadowDesc(2048, 0.0006f, 5, 4)
+        );
+        LightDesc fill = new LightDesc("fill", new Vec3(-5f, 7f, -4f), new Vec3(0.34f, 0.47f, 0.70f), 0.52f, 105f, false, null);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.18f, null);
+        FogDesc fog = new FogDesc(true, FogMode.HEIGHT_EXPONENTIAL, new Vec3(0.53f, 0.58f, 0.64f), 0.42f, 0.38f, 0.77f, 0.14f, 1.15f, 0.26f);
+        SmokeEmitterDesc smokeA = new SmokeEmitterDesc(
+                "smoke-a",
+                new Vec3(-0.8f, -0.2f, -5.2f),
+                new Vec3(2.1f, 1.3f, 2.1f),
+                22f,
+                0.86f,
+                new Vec3(0.67f, 0.68f, 0.72f),
+                0.18f,
+                new Vec3(0.04f, 0.16f, -0.03f),
+                0.3f,
+                3.6f,
+                true
+        );
+        SmokeEmitterDesc smokeB = new SmokeEmitterDesc(
+                "smoke-b",
+                new Vec3(1.2f, -0.24f, -18.8f),
+                new Vec3(3.0f, 1.6f, 3.0f),
+                18f,
+                0.72f,
+                new Vec3(0.62f, 0.64f, 0.67f),
+                0.15f,
+                new Vec3(-0.03f, 0.13f, 0.02f),
+                0.25f,
+                3.3f,
+                true
+        );
+
+        return new SceneDescriptor(
+                "parity-material-fog-smoke-shadow-cascade-stress-scene",
+                List.of(camera),
+                "cam",
+                List.of(near, mid, far, ground),
+                List.of(meshNear, meshMid, meshFar, meshGround),
+                List.of(matNear, matMid, matFar, matGround),
+                List.of(shadowLight, fill),
+                env,
+                fog,
+                List.of(smokeA, smokeB)
         );
     }
 

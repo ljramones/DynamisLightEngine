@@ -5,8 +5,26 @@ import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 
 /**
- * Validator for host-provided runtime configuration.
- */
+ * Utility class for validating {@link EngineConfig} instances to ensure they meet the
+ * necessary criteria for proper engine initialization.
+ *
+ * This class provides a single static method for validation and performs various checks
+ * on the configuration object's fields. It ensures that mandatory fields are not null
+ * or empty and that numeric values fall within acceptable ranges.
+ *
+ * Validation Rules:
+ * - The configuration object itself must not be null.
+ * - The backend ID must not be null or blank.
+ * - The application name must not be null or blank.
+ * - The initial dimensions (width and height) must be greater than 0.
+ * - The DPI scale must be greater than 0.
+ * - The target FPS must be greater than 0.
+ * - The quality tier must not be null.
+ * - The asset root path must not be null.
+ *
+ * If any validation check fails, an {@link EngineException} is thrown with the appropriate error message.
+ *
+ * This class is designed as a*/
 public final class EngineConfigValidator {
     private EngineConfigValidator() {
     }

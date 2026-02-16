@@ -444,10 +444,11 @@ final class OpenGlContext {
                 vec3 pointLit = (kd * albedo / 3.14159)
                         * uPointLightColor
                         * (pNdl * attenuation * spotAttenuation * uPointLightIntensity);
+                float ao = 1.0;
                 vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * albedo;
                 if (uUseOcclusionTexture == 1) {
-                    float ao = texture(uOcclusionTexture, vUv).r;
-                    ambient *= clamp(ao, 0.0, 1.0);
+                    ao = clamp(texture(uOcclusionTexture, vUv).r, 0.0, 1.0);
+                    ambient *= ao;
                 }
                 if (uIblParams.x > 0.5) {
                     float iblDiffuseWeight = clamp(uIblParams.y, 0.0, 2.0);
@@ -460,7 +461,7 @@ final class OpenGlContext {
                     vec2 brdfUv = vec2(clamp(ndv, 0.0, 1.0), clamp(roughness, 0.0, 1.0));
                     vec2 brdf = texture(uIblBrdfLut, brdfUv).rg;
                     float fresnel = pow(1.0 - ndv, 5.0);
-                    vec3 iblDiffuse = albedo * irr * (0.2 + 0.55 * (1.0 - roughness)) * iblDiffuseWeight;
+                    vec3 iblDiffuse = albedo * ao * irr * (0.2 + 0.55 * (1.0 - roughness)) * iblDiffuseWeight;
                     vec3 iblSpec = rad * mix(vec3(0.03), f0, fresnel) * (0.1 + 0.55 * (1.0 - roughness))
                             * (0.4 + 0.6 * brdf.x + 0.3 * brdf.y) * iblSpecWeight;
                     ambient += iblDiffuse + iblSpec;

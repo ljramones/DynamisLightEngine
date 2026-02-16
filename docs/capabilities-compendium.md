@@ -90,6 +90,7 @@ OpenGL backend provides a real forward render baseline:
   - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
+  - OpenGL/Vulkan parity update: AO now modulates IBL diffuse ambient in both backends for closer cross-backend material response
 - Fog support (`FogDesc`) with quality-tier behavior.
 - Smoke support (`SmokeEmitterDesc`) with quality degradation warnings at lower tiers.
 - Tonemap + bloom post-process baseline (scene-driven exposure/gamma/threshold/strength).
@@ -115,6 +116,10 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - Graphics pipeline + pipeline layout creation.
 - Descriptor set path with uniform buffer binding for model/view/proj + material + lighting + fog/smoke parameters.
 - Per-frame descriptor-set ring for global scene uniforms (frame-indexed binding path).
+- Revision-aware per-frame uniform staging for dynamic updates:
+  - frame slots track applied global/scene uniform revisions
+  - uniform copy/barrier is skipped when a frame slot is already synchronized
+  - dirty object subranges are uploaded for dynamic-only scene changes
 - Per-mesh sampled textures for albedo, normal, metallic-roughness, and occlusion.
 - Attribute-rich vertex path (`position`, `normal`, `uv`, `tangent`) from `.gltf/.glb` mesh ingestion.
 - GGX-style PBR-leaning lighting response aligned with OpenGL baseline (directional + point light path).
@@ -224,14 +229,21 @@ The repository includes automated tests validating:
 - Guarded compare-harness includes `shadow-cascade-stress`, `fog-shadow-cascade-stress`, `smoke-shadow-cascade-stress`, and `texture-heavy` profiles for deeper split/bias/fog/smoke/material interaction regression coverage.
 - Guarded compare-harness includes `post-process` and `post-process-bloom` profiles.
 - Guarded compare-harness includes `fog-smoke-shadow-post-stress` for combined volumetric+shadow+post regression coverage.
+- Guarded compare-harness includes `material-fog-smoke-shadow-cascade-stress` for mixed material+fog+smoke+cascaded-shadow coverage.
 - Tiered golden envelopes also include `texture-heavy` (`LOW/MEDIUM/HIGH/ULTRA`) alongside existing fog/smoke and shadow tier checks.
 - Tiered golden envelopes now include `post-process` and `post-process-bloom` (`LOW/MEDIUM/HIGH/ULTRA`).
+- Tiered golden envelopes now include `material-fog-smoke-shadow-cascade-stress` (`LOW/MEDIUM/HIGH/ULTRA`).
 - Current ULTRA `shadow-cascade-stress` bound: `<= 0.25`.
 - Current ULTRA `fog-shadow-cascade-stress` bound: `<= 0.25`.
 - Current ULTRA `smoke-shadow-cascade-stress` bound: `<= 0.25`.
 - Current ULTRA `fog-smoke-shadow-post-stress` bound: `<= 0.05`.
+- Current ULTRA `material-fog-smoke-shadow-cascade-stress` bound: `<= 0.30`.
 - Current HIGH `post-process` bound: `<= 0.32`.
 - Current HIGH `post-process-bloom` bound: `<= 0.06`.
+- Vulkan frame-resource profile now also reports:
+  - `lastUniformUploadRanges`
+  - `maxUniformUploadRanges`
+  - `lastUniformUploadStartObject`
 - Practical floor note: attempted `fog-smoke-shadow-post-stress <= 0.04` failed (`diff=0.04049019607843137`), so stress envelopes are frozen at `0.05` / `0.06`.
 - Compare harness backend toggles:
   - `dle.compare.opengl.mockContext`

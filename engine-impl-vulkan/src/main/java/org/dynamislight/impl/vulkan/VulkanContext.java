@@ -377,6 +377,20 @@ final class VulkanContext {
     private int maxFrameUniformUploadBytes;
     private int lastFrameUniformObjectCount;
     private int maxFrameUniformObjectCount;
+    private int lastFrameUniformUploadRanges;
+    private int maxFrameUniformUploadRanges;
+    private int lastFrameUniformUploadStartObject;
+    private long globalStateRevision = 1;
+    private long sceneStateRevision = 1;
+    private final long[] frameGlobalRevisionApplied = new long[MAX_FRAMES_IN_FLIGHT];
+    private final long[] frameSceneRevisionApplied = new long[MAX_FRAMES_IN_FLIGHT];
+    private int pendingSceneDirtyStart = Integer.MAX_VALUE;
+    private int pendingSceneDirtyEnd = -1;
+    private long pendingUploadSrcOffset = -1L;
+    private long pendingUploadDstOffset = -1L;
+    private int pendingUploadByteCount;
+    private int pendingUploadObjectCount;
+    private int pendingUploadStartObject;
     private final List<GpuMesh> gpuMeshes = new ArrayList<>();
     private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
     private float[] viewMatrix = identityMatrix();
@@ -526,6 +540,9 @@ final class VulkanContext {
                 maxFrameUniformUploadBytes,
                 lastFrameUniformObjectCount,
                 maxFrameUniformObjectCount,
+                lastFrameUniformUploadRanges,
+                maxFrameUniformUploadRanges,
+                lastFrameUniformUploadStartObject,
                 globalUniformStagingMappedAddress != 0L
         );
     }
@@ -565,14 +582,21 @@ final class VulkanContext {
         try (MemoryStack stack = stackPush()) {
             uploadSceneMeshes(stack, safe);
         }
+        markSceneStateDirty(0, Math.max(0, safe.size() - 1));
     }
 
     void setCameraMatrices(float[] view, float[] proj) {
+        boolean changed = false;
         if (view != null && view.length == 16) {
             viewMatrix = view.clone();
+            changed = true;
         }
         if (proj != null && proj.length == 16) {
             projMatrix = proj.clone();
+            changed = true;
+        }
+        if (changed) {
+            markGlobalStateDirty();
         }
     }
 
@@ -626,6 +650,7 @@ final class VulkanContext {
         pointLightIsSpot = pointIsSpot ? 1f : 0f;
         pointShadowFarPlane = Math.max(1.0f, pointRange);
         pointShadowEnabled = pointCastsShadows;
+        markGlobalStateDirty();
     }
 
     void setShadowParameters(boolean enabled, float strength, float bias, int pcfRadius, int cascadeCount, int mapResolution)
@@ -649,6 +674,7 @@ final class VulkanContext {
                 }
             }
         }
+        markGlobalStateDirty();
     }
 
     void setFogParameters(boolean enabled, float r, float g, float b, float density, int steps) {
@@ -658,6 +684,7 @@ final class VulkanContext {
         fogB = b;
         fogDensity = Math.max(0f, density);
         fogSteps = Math.max(0, steps);
+        markGlobalStateDirty();
     }
 
     void setSmokeParameters(boolean enabled, float r, float g, float b, float intensity) {
@@ -666,6 +693,7 @@ final class VulkanContext {
         smokeG = g;
         smokeB = b;
         smokeIntensity = Math.max(0f, Math.min(1f, intensity));
+        markGlobalStateDirty();
     }
 
     void setIblParameters(boolean enabled, float diffuseStrength, float specularStrength, float prefilterStrength) {
@@ -673,6 +701,7 @@ final class VulkanContext {
         iblDiffuseStrength = Math.max(0f, Math.min(2.0f, diffuseStrength));
         iblSpecularStrength = Math.max(0f, Math.min(2.0f, specularStrength));
         iblPrefilterStrength = Math.max(0f, Math.min(1.0f, prefilterStrength));
+        markGlobalStateDirty();
     }
 
     void setIblTexturePaths(Path irradiancePath, Path radiancePath, Path brdfLutPath) {
@@ -695,12 +724,14 @@ final class VulkanContext {
         this.bloomEnabled = bloomEnabled;
         this.bloomThreshold = Math.max(0f, Math.min(4.0f, bloomThreshold));
         this.bloomStrength = Math.max(0f, Math.min(2.0f, bloomStrength));
+        markGlobalStateDirty();
     }
 
     void configurePostProcessMode(boolean requestOffscreen) {
         postOffscreenRequested = requestOffscreen;
         // Keep existing shader-driven post as safe fallback until Vulkan offscreen chain is fully wired.
         postOffscreenActive = false;
+        markGlobalStateDirty();
     }
 
     void shutdown() {
@@ -1125,6 +1156,24 @@ final class VulkanContext {
         uniformStrideBytes = GLOBAL_UNIFORM_BYTES;
         uniformFrameSpanBytes = GLOBAL_UNIFORM_BYTES;
         estimatedGpuMemoryBytes = 0;
+        lastFrameUniformUploadBytes = 0;
+        maxFrameUniformUploadBytes = 0;
+        lastFrameUniformObjectCount = 0;
+        maxFrameUniformObjectCount = 0;
+        lastFrameUniformUploadRanges = 0;
+        maxFrameUniformUploadRanges = 0;
+        lastFrameUniformUploadStartObject = 0;
+        pendingUploadSrcOffset = -1L;
+        pendingUploadDstOffset = -1L;
+        pendingUploadByteCount = 0;
+        pendingUploadObjectCount = 0;
+        pendingUploadStartObject = 0;
+        pendingSceneDirtyStart = Integer.MAX_VALUE;
+        pendingSceneDirtyEnd = -1;
+        globalStateRevision = 1;
+        sceneStateRevision = 1;
+        Arrays.fill(frameGlobalRevisionApplied, 0L);
+        Arrays.fill(frameSceneRevisionApplied, 0L);
         frameDescriptorSets = new long[0];
         descriptorSet = VK_NULL_HANDLE;
         if (descriptorPool != VK_NULL_HANDLE) {
@@ -3482,6 +3531,8 @@ final class VulkanContext {
         }
         List<GpuMesh> ordered = new ArrayList<>(sceneMeshes.size());
         boolean reordered = false;
+        int dirtyStart = Integer.MAX_VALUE;
+        int dirtyEnd = -1;
         for (int i = 0; i < sceneMeshes.size(); i++) {
             SceneMeshData sceneMesh = sceneMeshes.get(i);
             GpuMesh mesh = byId.get(sceneMesh.meshId());
@@ -3491,7 +3542,7 @@ final class VulkanContext {
             if (i < gpuMeshes.size() && gpuMeshes.get(i) != mesh) {
                 reordered = true;
             }
-            mesh.updateDynamicState(
+            boolean changed = mesh.updateDynamicState(
                     sceneMesh.modelMatrix().clone(),
                     sceneMesh.color()[0],
                     sceneMesh.color()[1],
@@ -3499,6 +3550,10 @@ final class VulkanContext {
                     sceneMesh.metallic(),
                     sceneMesh.roughness()
             );
+            if (changed) {
+                dirtyStart = Math.min(dirtyStart, i);
+                dirtyEnd = Math.max(dirtyEnd, i);
+            }
             ordered.add(mesh);
         }
         if (ordered.size() == gpuMeshes.size()) {
@@ -3507,6 +3562,11 @@ final class VulkanContext {
         }
         if (reordered) {
             sceneReorderReuseCount++;
+            dirtyStart = 0;
+            dirtyEnd = Math.max(0, gpuMeshes.size() - 1);
+        }
+        if (dirtyEnd >= dirtyStart) {
+            markSceneStateDirty(dirtyStart, dirtyEnd);
         }
     }
 
@@ -4265,6 +4325,28 @@ final class VulkanContext {
         return pSampler.get(0);
     }
 
+    private void markGlobalStateDirty() {
+        globalStateRevision++;
+    }
+
+    private void markSceneStateDirty(int dirtyStart, int dirtyEnd) {
+        if (dirtyEnd < dirtyStart) {
+            return;
+        }
+        sceneStateRevision++;
+        pendingSceneDirtyStart = Math.min(pendingSceneDirtyStart, Math.max(0, dirtyStart));
+        pendingSceneDirtyEnd = Math.max(pendingSceneDirtyEnd, Math.max(0, dirtyEnd));
+    }
+
+    private boolean allFramesApplied(long[] frameRevisions, long revision) {
+        for (long frameRevision : frameRevisions) {
+            if (frameRevision != revision) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void prepareFrameUniforms(int frameIdx) throws EngineException {
         int meshCount = Math.max(1, gpuMeshes.size());
         if (meshCount > MAX_DYNAMIC_SCENE_OBJECTS) {
@@ -4274,27 +4356,50 @@ final class VulkanContext {
                     false
             );
         }
-        int frameBase = frameIdx * uniformFrameSpanBytes;
+        int normalizedFrame = Math.floorMod(frameIdx, MAX_FRAMES_IN_FLIGHT);
+        int frameBase = normalizedFrame * uniformFrameSpanBytes;
+        boolean globalStale = frameGlobalRevisionApplied[normalizedFrame] != globalStateRevision;
+        boolean sceneStale = frameSceneRevisionApplied[normalizedFrame] != sceneStateRevision;
+        if (!globalStale && !sceneStale) {
+            pendingUploadSrcOffset = -1L;
+            pendingUploadDstOffset = -1L;
+            pendingUploadByteCount = 0;
+            pendingUploadObjectCount = 0;
+            pendingUploadStartObject = 0;
+            return;
+        }
+
+        int uploadStartObject = 0;
+        int uploadObjectCount = meshCount;
+        if (!globalStale && sceneStale && pendingSceneDirtyEnd >= pendingSceneDirtyStart) {
+            int start = Math.max(0, Math.min(meshCount - 1, pendingSceneDirtyStart));
+            int end = Math.max(start, Math.min(meshCount - 1, pendingSceneDirtyEnd));
+            uploadStartObject = start;
+            uploadObjectCount = (end - start) + 1;
+        }
+        int uploadStartByte = uploadStartObject * uniformStrideBytes;
+        int uploadByteCount = uploadObjectCount * uniformStrideBytes;
+
         ByteBuffer mapped;
         if (globalUniformStagingMappedAddress != 0L) {
-            mapped = memByteBuffer(globalUniformStagingMappedAddress + frameBase, meshCount * uniformStrideBytes);
+            mapped = memByteBuffer(globalUniformStagingMappedAddress + frameBase, uniformFrameSpanBytes);
         } else {
-            mapped = memAlloc(meshCount * uniformStrideBytes);
+            mapped = memAlloc(uniformFrameSpanBytes);
         }
         mapped.order(ByteOrder.nativeOrder());
         try {
-            for (int meshIndex = 0; meshIndex < meshCount; meshIndex++) {
+            for (int meshIndex = uploadStartObject; meshIndex < uploadStartObject + uploadObjectCount; meshIndex++) {
                 GpuMesh mesh = gpuMeshes.isEmpty() ? null : gpuMeshes.get(meshIndex);
                 writeSceneUniform(mapped, meshIndex * uniformStrideBytes, mesh);
             }
             if (globalUniformStagingMappedAddress == 0L) {
                 try (MemoryStack stack = stackPush()) {
                     PointerBuffer pData = stack.mallocPointer(1);
-                    int mapResult = vkMapMemory(device, globalUniformStagingMemory, frameBase, mapped.limit(), 0, pData);
+                    int mapResult = vkMapMemory(device, globalUniformStagingMemory, frameBase, uniformFrameSpanBytes, 0, pData);
                     if (mapResult != VK_SUCCESS) {
                         throw vkFailure("vkMapMemory(staging)", mapResult);
                     }
-                    memCopy(memAddress(mapped), pData.get(0), mapped.limit());
+                    memCopy(memAddress(mapped) + uploadStartByte, pData.get(0) + uploadStartByte, uploadByteCount);
                     vkUnmapMemory(device, globalUniformStagingMemory);
                 }
             }
@@ -4302,6 +4407,17 @@ final class VulkanContext {
             if (globalUniformStagingMappedAddress == 0L) {
                 memFree(mapped);
             }
+        }
+        pendingUploadSrcOffset = (long) frameBase + uploadStartByte;
+        pendingUploadDstOffset = (long) frameBase + uploadStartByte;
+        pendingUploadByteCount = uploadByteCount;
+        pendingUploadObjectCount = uploadObjectCount;
+        pendingUploadStartObject = uploadStartObject;
+        frameGlobalRevisionApplied[normalizedFrame] = globalStateRevision;
+        frameSceneRevisionApplied[normalizedFrame] = sceneStateRevision;
+        if (pendingSceneDirtyEnd >= pendingSceneDirtyStart && allFramesApplied(frameSceneRevisionApplied, sceneStateRevision)) {
+            pendingSceneDirtyStart = Integer.MAX_VALUE;
+            pendingSceneDirtyEnd = -1;
         }
     }
 
@@ -4349,17 +4465,26 @@ final class VulkanContext {
     }
 
     private void uploadFrameUniforms(VkCommandBuffer commandBuffer, int frameIdx) {
-        int meshCount = Math.max(1, gpuMeshes.size());
-        int byteCount = meshCount * uniformStrideBytes;
+        if (pendingUploadByteCount <= 0 || pendingUploadSrcOffset < 0L || pendingUploadDstOffset < 0L) {
+            lastFrameUniformUploadBytes = 0;
+            lastFrameUniformObjectCount = 0;
+            lastFrameUniformUploadRanges = 0;
+            lastFrameUniformUploadStartObject = 0;
+            return;
+        }
+
+        int byteCount = pendingUploadByteCount;
         lastFrameUniformUploadBytes = byteCount;
         maxFrameUniformUploadBytes = Math.max(maxFrameUniformUploadBytes, byteCount);
-        lastFrameUniformObjectCount = meshCount;
-        maxFrameUniformObjectCount = Math.max(maxFrameUniformObjectCount, meshCount);
-        long frameBase = (long) frameIdx * uniformFrameSpanBytes;
+        lastFrameUniformObjectCount = pendingUploadObjectCount;
+        maxFrameUniformObjectCount = Math.max(maxFrameUniformObjectCount, pendingUploadObjectCount);
+        lastFrameUniformUploadRanges = 1;
+        maxFrameUniformUploadRanges = Math.max(maxFrameUniformUploadRanges, 1);
+        lastFrameUniformUploadStartObject = pendingUploadStartObject;
 
         VkBufferCopy.Buffer copy = VkBufferCopy.calloc(1)
-                .srcOffset(frameBase)
-                .dstOffset(frameBase)
+                .srcOffset(pendingUploadSrcOffset)
+                .dstOffset(pendingUploadDstOffset)
                 .size(byteCount);
         vkCmdCopyBuffer(commandBuffer, globalUniformStagingBuffer, globalUniformBuffer, copy);
         copy.free();
@@ -4371,7 +4496,7 @@ final class VulkanContext {
                 .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                 .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                 .buffer(globalUniformBuffer)
-                .offset(frameBase)
+                .offset(pendingUploadDstOffset)
                 .size(byteCount);
         vkCmdPipelineBarrier(
                 commandBuffer,
@@ -4383,6 +4508,11 @@ final class VulkanContext {
                 null
         );
         barrier.free();
+        pendingUploadSrcOffset = -1L;
+        pendingUploadDstOffset = -1L;
+        pendingUploadByteCount = 0;
+        pendingUploadObjectCount = 0;
+        pendingUploadStartObject = 0;
     }
 
     private int dynamicUniformOffset(int frameIdx, int meshIndex) {
@@ -4617,7 +4747,7 @@ final class VulkanContext {
             this.occlusionKey = occlusionKey;
         }
 
-        private void updateDynamicState(
+        private boolean updateDynamicState(
                 float[] modelMatrix,
                 float colorR,
                 float colorG,
@@ -4625,12 +4755,19 @@ final class VulkanContext {
                 float metallic,
                 float roughness
         ) {
+            boolean changed = !Arrays.equals(this.modelMatrix, modelMatrix)
+                    || this.colorR != colorR
+                    || this.colorG != colorG
+                    || this.colorB != colorB
+                    || this.metallic != metallic
+                    || this.roughness != roughness;
             this.modelMatrix = modelMatrix;
             this.colorR = colorR;
             this.colorG = colorG;
             this.colorB = colorB;
             this.metallic = metallic;
             this.roughness = roughness;
+            return changed;
         }
     }
 
@@ -4761,6 +4898,9 @@ final class VulkanContext {
             int maxFrameUniformUploadBytes,
             int lastFrameUniformObjectCount,
             int maxFrameUniformObjectCount,
+            int lastFrameUniformUploadRanges,
+            int maxFrameUniformUploadRanges,
+            int lastFrameUniformUploadStartObject,
             boolean persistentStagingMapped
     ) {
     }

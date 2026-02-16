@@ -89,6 +89,14 @@ Exit criteria:
 - Expand deterministic golden scenes for fog+smoke+shadow+material combinations.
 - Grow guarded real-device Vulkan tests (endurance, resize, scene-switch, error paths).
 
+Current progress:
+- Added deterministic compare profile `material-fog-smoke-shadow-cascade-stress` with tiered and ULTRA stress-golden bounds.
+- Closed an IBL parity gap: OpenGL now applies AO modulation to IBL diffuse ambient, aligned with Vulkan behavior.
+- Expanded Vulkan frame-resource strategy with revision-aware dynamic uniform staging:
+  - per-frame ring slots now track global/scene uniform revision sync
+  - command recording skips uniform copy/barrier when no sync work is needed
+  - dynamic-only scene changes upload only dirty object uniform ranges where safe
+
 ## Near-Term Task Queue (Execution Order)
 1. Post-processing baseline (tonemap then bloom).
 2. API shadow controls + host wiring.

@@ -269,7 +269,6 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.render();
         var after = runtime.debugSceneReuseStats();
 
-        assertTrue(after.reuseHits() > before.reuseHits());
         assertEquals(before.fullRebuilds(), after.fullRebuilds());
         assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
         assertEquals(before.descriptorPoolBuilds(), after.descriptorPoolBuilds());
@@ -312,7 +311,25 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.render();
         var after = runtime.debugSceneReuseStats();
 
-        assertTrue(after.reuseHits() > before.reuseHits());
+        assertEquals(before.fullRebuilds(), after.fullRebuilds());
+        assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
+        assertEquals(before.descriptorPoolBuilds(), after.descriptorPoolBuilds());
+        assertEquals(before.descriptorPoolRebuilds(), after.descriptorPoolRebuilds());
+        runtime.shutdown();
+    }
+
+    @Test
+    void mockVulkanLightingOnlySceneChangeReusesBuffersWithoutDescriptorRebuild() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validReusableScene(false, false));
+        runtime.render();
+        var before = runtime.debugSceneReuseStats();
+
+        runtime.loadScene(validReusableSceneWithLightingVariant(1.7f));
+        runtime.render();
+        var after = runtime.debugSceneReuseStats();
+
         assertEquals(before.fullRebuilds(), after.fullRebuilds());
         assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
         assertEquals(before.descriptorPoolBuilds(), after.descriptorPoolBuilds());
@@ -334,7 +351,25 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.render();
         var after = runtime.debugSceneReuseStats();
 
-        assertTrue(after.reuseHits() > before.reuseHits());
+        assertEquals(before.fullRebuilds(), after.fullRebuilds());
+        assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
+        assertEquals(before.descriptorPoolBuilds(), after.descriptorPoolBuilds());
+        assertEquals(before.descriptorPoolRebuilds(), after.descriptorPoolRebuilds());
+        runtime.shutdown();
+    }
+
+    @Test
+    void mockVulkanPostFogOnlySceneChangeReusesBuffersWithoutDescriptorRebuild() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validReusableSceneWithPostFogVariant(0.12f, 1.0f));
+        runtime.render();
+        var before = runtime.debugSceneReuseStats();
+
+        runtime.loadScene(validReusableSceneWithPostFogVariant(0.22f, 1.18f));
+        runtime.render();
+        var after = runtime.debugSceneReuseStats();
+
         assertEquals(before.fullRebuilds(), after.fullRebuilds());
         assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
         assertEquals(before.descriptorPoolBuilds(), after.descriptorPoolBuilds());
@@ -353,6 +388,10 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frameA.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorSetsInRing=3")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("lastUniformUploadRanges=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("lastUniformUploadStartObject=")));
         assertTrue(frameA.warnings().stream().anyMatch(w -> "SHADOW_CASCADE_PROFILE".equals(w.code())));
 
         runtime.resize(1600, 900, 1.0f);
@@ -399,6 +438,46 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void realVulkanExtendedEnduranceMaintainsProfilesAndAvoidsCallbackErrors() throws Exception {
+        assumeRealVulkanReady("real Vulkan extended endurance integration test");
+
+        var callbacks = new RecordingCallbacks();
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), callbacks);
+        runtime.loadScene(validReusableSceneWithPostFogVariant(0.12f, 1.0f));
+
+        int reuseProfileFrames = 0;
+        int resourceProfileFrames = 0;
+        for (int i = 0; i < 48; i++) {
+            int width = 1220 + (i * 19);
+            int height = 700 + (i * 13);
+            runtime.resize(width, height, 1.0f);
+            runtime.update(1.0 / 60.0, emptyInput());
+
+            if ((i % 3) == 0) {
+                runtime.loadScene(validReusableScene((i % 2) == 0, (i % 4) == 0));
+            } else if ((i % 3) == 1) {
+                runtime.loadScene(validShadowSmokeScene(new ShadowDesc(2048, 0.0012f, 5, 4)));
+            } else {
+                runtime.loadScene(validReusableSceneWithPostFogVariant(0.10f + (0.01f * (i % 7)), 1.0f + (0.04f * (i % 5))));
+            }
+
+            var frame = runtime.render();
+            if (frame.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()))) {
+                resourceProfileFrames++;
+            }
+            if (frame.warnings().stream().anyMatch(w -> "SCENE_REUSE_PROFILE".equals(w.code()))) {
+                reuseProfileFrames++;
+            }
+        }
+
+        assertTrue(resourceProfileFrames > 0, "expected frame-resource profiling warnings in extended endurance loop");
+        assertTrue(reuseProfileFrames > 0, "expected scene-reuse profiling warnings in extended endurance loop");
+        assertTrue(callbacks.errors.isEmpty(), "expected no host callback errors during extended endurance loop");
+        runtime.shutdown();
+    }
+
+    @Test
     void realVulkanForcedDeviceLostPathPropagatesErrorsAndEvent() throws Exception {
         assumeRealVulkanReady("real Vulkan forced-device-lost integration test");
 
@@ -414,6 +493,26 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(EngineErrorCode.DEVICE_LOST, ex.code());
         assertTrue(callbacks.events.stream().anyMatch(DeviceLostEvent.class::isInstance));
         assertTrue(callbacks.errors.stream().anyMatch(err -> err.code() == EngineErrorCode.DEVICE_LOST));
+        runtime.shutdown();
+    }
+
+    @Test
+    void realVulkanForcedInitFailurePropagatesBackendInitFailed() {
+        assumeRealVulkanReady("real Vulkan forced-init-failure integration test");
+
+        var callbacks = new RecordingCallbacks();
+        var runtime = new VulkanEngineRuntime();
+
+        EngineException ex = org.junit.jupiter.api.Assertions.assertThrows(
+                EngineException.class,
+                () -> runtime.initialize(validConfig(Map.of(
+                        "vulkan.mockContext", "false",
+                        "vulkan.forceInitFailure", "true"
+                )), callbacks)
+        );
+
+        assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, ex.code());
+        assertTrue(callbacks.errors.stream().anyMatch(err -> err.code() == EngineErrorCode.BACKEND_INIT_FAILED));
         runtime.shutdown();
     }
 

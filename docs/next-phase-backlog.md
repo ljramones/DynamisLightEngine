@@ -11,6 +11,11 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - `post-process-bloom (HIGH)` `0.36 -> 0.35 -> 0.34 -> 0.33 -> 0.32 -> 0.31 -> 0.30 -> 0.29 -> 0.28 -> 0.27 -> 0.26 -> 0.25 -> 0.24 -> 0.23 -> 0.22 -> 0.21 -> 0.20 -> 0.19 -> 0.18 -> 0.17 -> 0.16 -> 0.15 -> 0.14 -> 0.13 -> 0.12 -> 0.11 -> 0.10 -> 0.09 -> 0.08 -> 0.07 -> 0.06`
   - practical floor detected at attempted `fog-smoke-shadow-post-stress=0.04` (`diff=0.04049019607843137`); envelopes frozen at `0.05` / `0.06`.
 - Added tiered `texture-heavy` parity envelopes (`LOW/MEDIUM/HIGH/ULTRA`) in compare-harness tests.
+- Added deterministic `material-fog-smoke-shadow-cascade-stress` compare profile:
+  - combines textured materials with fog + smoke + cascaded shadows
+  - includes tiered envelope assertions (`LOW/MEDIUM/HIGH/ULTRA`)
+  - includes ULTRA stress-golden envelope assertion
+- Closed an OpenGL/Vulkan IBL parity gap by applying AO modulation to OpenGL IBL diffuse ambient (matching Vulkan behavior).
 - Implemented Phase 2 Item 1 baseline hook:
   - environment-driven IBL baseline in OpenGL and Vulkan
   - shader-side IBL texture sampling baseline in OpenGL and Vulkan (irradiance/radiance/BRDF-LUT)
@@ -39,6 +44,11 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - per-frame descriptor-set ring for global uniforms
   - persistent mapped staging for frame-uniform uploads
   - expanded frame-resource telemetry fields
+  - revision-aware dynamic uniform staging:
+    - per-frame revision tracking for global + scene uniform state
+    - skip uniform buffer copy when frame slot is already synchronized
+    - partial uniform uploads for dynamic-only scene updates using dirty object ranges
+    - additional telemetry: upload ranges + start-object index
 - Expanded guarded real-Vulkan suite:
   - longer resize/scene-switch endurance loop
   - forced device-loss error-path test

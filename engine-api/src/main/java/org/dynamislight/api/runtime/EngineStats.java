@@ -1,7 +1,9 @@
 package org.dynamislight.api.runtime;
 
 /**
- * EngineStats API type.
+ * Represents statistics related to the engine's performance during rendering.
+ *
+ * The record encapsulates key metrics that provide insights into the rendering process and system resource usage.
  */
 public record EngineStats(
         double fps,
