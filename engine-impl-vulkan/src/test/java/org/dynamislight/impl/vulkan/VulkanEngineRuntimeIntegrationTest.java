@@ -142,6 +142,51 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.shutdown();
     }
 
+    @Test
+    void realVulkanDynamicSceneUpdateReusesBuffersWithoutRebuild() throws Exception {
+        assumeTrue(Boolean.getBoolean("dle.test.vulkan.real"),
+                "Set -Ddle.test.vulkan.real=true to run real Vulkan reuse integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), new RecordingCallbacks());
+        runtime.loadScene(validReusableScene(false, false));
+        runtime.render();
+        var before = runtime.debugSceneReuseStats();
+
+        runtime.loadScene(validReusableScene(true, false));
+        runtime.render();
+        var after = runtime.debugSceneReuseStats();
+
+        assertTrue(after.reuseHits() > before.reuseHits());
+        assertEquals(before.fullRebuilds(), after.fullRebuilds());
+        assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
+        assertEquals(before.descriptorPoolBuilds(), after.descriptorPoolBuilds());
+        assertEquals(before.descriptorPoolRebuilds(), after.descriptorPoolRebuilds());
+        runtime.shutdown();
+    }
+
+    @Test
+    void realVulkanMeshReorderStillHitsReusePath() throws Exception {
+        assumeTrue(Boolean.getBoolean("dle.test.vulkan.real"),
+                "Set -Ddle.test.vulkan.real=true to run real Vulkan reorder reuse integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), new RecordingCallbacks());
+        runtime.loadScene(validReusableScene(false, false));
+        runtime.render();
+        var before = runtime.debugSceneReuseStats();
+
+        runtime.loadScene(validReusableScene(false, true));
+        runtime.render();
+        var after = runtime.debugSceneReuseStats();
+
+        assertTrue(after.reuseHits() > before.reuseHits());
+        assertTrue(after.reorderReuseHits() > before.reorderReuseHits());
+        assertEquals(before.fullRebuilds(), after.fullRebuilds());
+        assertEquals(before.meshBufferRebuilds(), after.meshBufferRebuilds());
+        runtime.shutdown();
+    }
+
     private static EngineConfig validConfig(boolean mock) {
         return validConfig(Map.of("vulkan.mockContext", Boolean.toString(mock)));
     }
@@ -245,6 +290,44 @@ class VulkanEngineRuntimeIntegrationTest {
                 env,
                 fog,
                 List.of(smoke)
+        );
+    }
+
+    private static SceneDescriptor validReusableScene(boolean transformVariant, boolean reorderMeshes) {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transformA = new TransformDesc(
+                "xform-a",
+                transformVariant ? new Vec3(-0.35f, 0.08f, 0) : new Vec3(-0.35f, 0, 0),
+                new Vec3(0, 0, 0),
+                new Vec3(1, 1, 1)
+        );
+        TransformDesc transformB = new TransformDesc(
+                "xform-b",
+                transformVariant ? new Vec3(0.35f, -0.08f, 0) : new Vec3(0.35f, 0, 0),
+                new Vec3(0, 0, 0),
+                new Vec3(1, 1, 1)
+        );
+        MeshDesc meshA = new MeshDesc("mesh-a", "xform-a", "mat-a", "meshes/triangle.glb");
+        MeshDesc meshB = new MeshDesc("mesh-b", "xform-b", "mat-b", "meshes/quad.glb");
+        List<MeshDesc> meshes = reorderMeshes ? List.of(meshB, meshA) : List.of(meshA, meshB);
+
+        MaterialDesc matA = new MaterialDesc("mat-a", new Vec3(0.9f, 0.35f, 0.3f), 0.2f, 0.55f, null, null);
+        MaterialDesc matB = new MaterialDesc("mat-b", new Vec3(0.3f, 0.7f, 0.9f), 0.5f, 0.35f, null, null);
+        LightDesc light = new LightDesc("light", new Vec3(1, 3, 2), new Vec3(1, 1, 1), 1.0f, 15f, false, null);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "vulkan-reuse-scene",
+                List.of(camera),
+                "cam",
+                List.of(transformA, transformB),
+                meshes,
+                List.of(matA, matB),
+                List.of(light),
+                env,
+                fog,
+                List.of()
         );
     }
 

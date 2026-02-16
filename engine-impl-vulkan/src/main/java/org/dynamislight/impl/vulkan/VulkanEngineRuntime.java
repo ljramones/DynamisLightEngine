@@ -181,6 +181,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     "Shadow quality reduced for tier " + qualityTier + " to maintain performance"
             ));
         }
+        if (!mockContext) {
+            VulkanContext.SceneReuseStats reuse = context.sceneReuseStats();
+            warnings.add(new EngineWarning(
+                    "SCENE_REUSE_PROFILE",
+                    "reuseHits=" + reuse.reuseHits()
+                            + " reorderReuseHits=" + reuse.reorderReuseHits()
+                            + " fullRebuilds=" + reuse.fullRebuilds()
+                            + " meshBufferRebuilds=" + reuse.meshBufferRebuilds()
+                            + " descriptorPoolBuilds=" + reuse.descriptorPoolBuilds()
+                            + " descriptorPoolRebuilds=" + reuse.descriptorPoolRebuilds()
+            ));
+        }
         return warnings;
     }
 
@@ -207,7 +219,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float metallic = material == null ? 0.0f : clamp01(material.metallic());
             float roughness = material == null ? 0.6f : clamp01(material.roughness());
             float[] model = modelMatrixOf(transforms.get(mesh.transformId()), i);
+            String stableMeshId = (mesh.id() == null || mesh.id().isBlank()) ? ("mesh-index-" + i) : mesh.id();
             VulkanContext.SceneMeshData meshData = new VulkanContext.SceneMeshData(
+                    stableMeshId,
                     geometry.vertices(),
                     geometry.indices(),
                     model,
@@ -220,6 +234,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             out.add(meshData);
         }
         return out.isEmpty() ? List.of(VulkanContext.SceneMeshData.defaultTriangle()) : List.copyOf(out);
+    }
+
+    VulkanContext.SceneReuseStats debugSceneReuseStats() {
+        return context.sceneReuseStats();
     }
 
     private float[] materialToColor(MaterialDesc material) {

@@ -355,6 +355,12 @@ final class VulkanContext {
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
+    private long sceneReuseHitCount;
+    private long sceneReorderReuseCount;
+    private long sceneFullRebuildCount;
+    private long meshBufferRebuildCount;
+    private long descriptorPoolBuildCount;
+    private long descriptorPoolRebuildCount;
     private long estimatedGpuMemoryBytes;
     private final List<GpuMesh> gpuMeshes = new ArrayList<>();
     private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
@@ -444,6 +450,17 @@ final class VulkanContext {
         plannedVisibleObjects = Math.max(1, visibleObjects);
     }
 
+    SceneReuseStats sceneReuseStats() {
+        return new SceneReuseStats(
+                sceneReuseHitCount,
+                sceneReorderReuseCount,
+                sceneFullRebuildCount,
+                meshBufferRebuildCount,
+                descriptorPoolBuildCount,
+                descriptorPoolRebuildCount
+        );
+    }
+
     void setSceneMeshes(List<SceneMeshData> sceneMeshes) throws EngineException {
         List<SceneMeshData> safe = (sceneMeshes == null || sceneMeshes.isEmpty())
                 ? List.of(SceneMeshData.defaultTriangle())
@@ -453,9 +470,11 @@ final class VulkanContext {
             return;
         }
         if (canReuseGpuMeshes(safe)) {
+            sceneReuseHitCount++;
             updateDynamicSceneState(safe);
             return;
         }
+        sceneFullRebuildCount++;
         try (MemoryStack stack = stackPush()) {
             uploadSceneMeshes(stack, safe);
         }
@@ -2475,9 +2494,17 @@ final class VulkanContext {
         if (gpuMeshes.isEmpty() || sceneMeshes.size() != gpuMeshes.size()) {
             return false;
         }
-        for (int i = 0; i < sceneMeshes.size(); i++) {
-            SceneMeshData sceneMesh = sceneMeshes.get(i);
-            GpuMesh gpuMesh = gpuMeshes.get(i);
+        Map<String, GpuMesh> byId = new HashMap<>();
+        for (GpuMesh gpuMesh : gpuMeshes) {
+            if (byId.put(gpuMesh.meshId, gpuMesh) != null) {
+                return false;
+            }
+        }
+        for (SceneMeshData sceneMesh : sceneMeshes) {
+            GpuMesh gpuMesh = byId.get(sceneMesh.meshId());
+            if (gpuMesh == null) {
+                return false;
+            }
             long vertexBytes = (long) sceneMesh.vertices().length * Float.BYTES;
             long indexBytes = (long) sceneMesh.indices().length * Integer.BYTES;
             if (gpuMesh.vertexBytes != vertexBytes || gpuMesh.indexBytes != indexBytes || gpuMesh.indexCount != sceneMesh.indices().length) {
@@ -2496,9 +2523,22 @@ final class VulkanContext {
     }
 
     private void updateDynamicSceneState(List<SceneMeshData> sceneMeshes) {
+        Map<String, GpuMesh> byId = new HashMap<>();
+        for (GpuMesh mesh : gpuMeshes) {
+            byId.put(mesh.meshId, mesh);
+        }
+        List<GpuMesh> ordered = new ArrayList<>(sceneMeshes.size());
+        boolean reordered = false;
         for (int i = 0; i < sceneMeshes.size(); i++) {
             SceneMeshData sceneMesh = sceneMeshes.get(i);
-            gpuMeshes.get(i).updateDynamicState(
+            GpuMesh mesh = byId.get(sceneMesh.meshId());
+            if (mesh == null) {
+                continue;
+            }
+            if (i < gpuMeshes.size() && gpuMeshes.get(i) != mesh) {
+                reordered = true;
+            }
+            mesh.updateDynamicState(
                     sceneMesh.modelMatrix().clone(),
                     sceneMesh.color()[0],
                     sceneMesh.color()[1],
@@ -2506,10 +2546,19 @@ final class VulkanContext {
                     sceneMesh.metallic(),
                     sceneMesh.roughness()
             );
+            ordered.add(mesh);
+        }
+        if (ordered.size() == gpuMeshes.size()) {
+            gpuMeshes.clear();
+            gpuMeshes.addAll(ordered);
+        }
+        if (reordered) {
+            sceneReorderReuseCount++;
         }
     }
 
     private void uploadSceneMeshes(MemoryStack stack, List<SceneMeshData> sceneMeshes) throws EngineException {
+        meshBufferRebuildCount++;
         destroySceneMeshes();
         Map<String, GpuTexture> textureCache = new HashMap<>();
         GpuTexture defaultAlbedo = createTextureFromPath(null, false);
@@ -2560,6 +2609,7 @@ final class VulkanContext {
                     mesh.roughness(),
                     albedoTexture,
                     normalTexture,
+                    mesh.meshId(),
                     vertexHash,
                     indexHash,
                     albedoKey,
@@ -2665,7 +2715,9 @@ final class VulkanContext {
         if (textureDescriptorPool != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device, textureDescriptorPool, null);
             textureDescriptorPool = VK_NULL_HANDLE;
+            descriptorPoolRebuildCount++;
         }
+        descriptorPoolBuildCount++;
 
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
@@ -3322,6 +3374,7 @@ final class VulkanContext {
         private final int indexCount;
         private final long vertexBytes;
         private final long indexBytes;
+        private final String meshId;
         private float[] modelMatrix;
         private float colorR;
         private float colorG;
@@ -3352,6 +3405,7 @@ final class VulkanContext {
                 float roughness,
                 GpuTexture albedoTexture,
                 GpuTexture normalTexture,
+                String meshId,
                 int vertexHash,
                 int indexHash,
                 String albedoKey,
@@ -3364,6 +3418,7 @@ final class VulkanContext {
             this.indexCount = indexCount;
             this.vertexBytes = vertexBytes;
             this.indexBytes = indexBytes;
+            this.meshId = meshId;
             this.modelMatrix = modelMatrix;
             this.colorR = colorR;
             this.colorG = colorG;
@@ -3405,6 +3460,7 @@ final class VulkanContext {
     }
 
     static record SceneMeshData(
+            String meshId,
             float[] vertices,
             int[] indices,
             float[] modelMatrix,
@@ -3415,6 +3471,9 @@ final class VulkanContext {
             Path normalTexturePath
     ) {
         SceneMeshData {
+            if (meshId == null || meshId.isBlank()) {
+                throw new IllegalArgumentException("meshId is required");
+            }
             if (vertices == null || vertices.length < VERTEX_STRIDE_FLOATS * 3 || vertices.length % VERTEX_STRIDE_FLOATS != 0) {
                 throw new IllegalArgumentException("vertices must be interleaved as pos/normal/uv/tangent");
             }
@@ -3436,6 +3495,7 @@ final class VulkanContext {
         static SceneMeshData triangle(float[] color, int meshIndex) {
             float offsetX = (meshIndex % 2 == 0 ? -0.25f : 0.25f) * Math.min(meshIndex, 3);
             return new SceneMeshData(
+                    "default-triangle-" + meshIndex,
                     new float[]{
                             0.0f, -0.6f, 0.0f,     0f, 0f, 1f,    0.5f, 0.0f,    1f, 0f, 0f,
                             0.6f, 0.6f, 0.0f,      0f, 0f, 1f,    1.0f, 1.0f,    1f, 0f, 0f,
@@ -3459,6 +3519,7 @@ final class VulkanContext {
         static SceneMeshData quad(float[] color, int meshIndex) {
             float offsetX = (meshIndex - 1) * 0.35f;
             return new SceneMeshData(
+                    "default-quad-" + meshIndex,
                     new float[]{
                             -0.6f, -0.6f, 0.0f,    0f, 0f, 1f,    0f, 0f,    1f, 0f, 0f,
                             0.6f, -0.6f, 0.0f,     0f, 0f, 1f,    1f, 0f,    1f, 0f, 0f,
@@ -3488,6 +3549,16 @@ final class VulkanContext {
             long triangles,
             long visibleObjects,
             long gpuMemoryBytes
+    ) {
+    }
+
+    record SceneReuseStats(
+            long reuseHits,
+            long reorderReuseHits,
+            long fullRebuilds,
+            long meshBufferRebuilds,
+            long descriptorPoolBuilds,
+            long descriptorPoolRebuilds
     ) {
     }
 
