@@ -43,6 +43,7 @@ import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixBuilder;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowResources;
 import org.dynamislight.impl.vulkan.swapchain.VulkanFramebufferResources;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainAllocation;
+import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainDestroyCoordinator;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainImageViews;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainResourceCoordinator;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainSelector;
@@ -1227,70 +1228,56 @@ final class VulkanContext {
     }
 
     private void destroySwapchainResources() {
-        if (device == null) {
-            return;
-        }
-        destroyPostProcessResources();
-        VulkanFramebufferResources.destroyFramebuffers(device, framebuffers);
-        framebuffers = new long[0];
-        if (graphicsPipeline != VK_NULL_HANDLE) {
-            vkDestroyPipeline(device, graphicsPipeline, null);
-            graphicsPipeline = VK_NULL_HANDLE;
-        }
-        if (pipelineLayout != VK_NULL_HANDLE) {
-            vkDestroyPipelineLayout(device, pipelineLayout, null);
-            pipelineLayout = VK_NULL_HANDLE;
-        }
-        if (renderPass != VK_NULL_HANDLE) {
-            vkDestroyRenderPass(device, renderPass, null);
-            renderPass = VK_NULL_HANDLE;
-        }
-        VulkanSwapchainImageViews.destroy(device, swapchainImageViews);
-        VulkanFramebufferResources.destroyDepthResources(
-                device,
-                new VulkanFramebufferResources.DepthResources(depthImages, depthMemories, depthImageViews)
-        );
-        depthImageViews = new long[0];
-        depthImages = new long[0];
-        depthMemories = new long[0];
-        swapchainImageViews = new long[0];
-        swapchainImages = new long[0];
-        if (swapchain != VK_NULL_HANDLE) {
-            vkDestroySwapchainKHR(device, swapchain, null);
-            swapchain = VK_NULL_HANDLE;
-        }
-    }
-
-    private void destroyPostProcessResources() {
-        VulkanPostProcessResources.destroy(
-                device,
-                new VulkanPostProcessResources.Allocation(
-                        offscreenColorImage,
-                        offscreenColorMemory,
-                        offscreenColorImageView,
-                        offscreenColorSampler,
-                        postDescriptorSetLayout,
-                        postDescriptorPool,
-                        postDescriptorSet,
-                        postRenderPass,
-                        postPipelineLayout,
-                        postGraphicsPipeline,
-                        postFramebuffers
+        VulkanSwapchainDestroyCoordinator.Result result = VulkanSwapchainDestroyCoordinator.destroy(
+                new VulkanSwapchainDestroyCoordinator.DestroyInputs(
+                        device,
+                        framebuffers,
+                        graphicsPipeline,
+                        pipelineLayout,
+                        renderPass,
+                        swapchainImageViews,
+                        depthImages,
+                        depthMemories,
+                        depthImageViews,
+                        swapchain,
+                        new VulkanPostProcessResources.Allocation(
+                                offscreenColorImage,
+                                offscreenColorMemory,
+                                offscreenColorImageView,
+                                offscreenColorSampler,
+                                postDescriptorSetLayout,
+                                postDescriptorPool,
+                                postDescriptorSet,
+                                postRenderPass,
+                                postPipelineLayout,
+                                postGraphicsPipeline,
+                                postFramebuffers
+                        )
                 )
         );
-        postFramebuffers = new long[0];
-        postGraphicsPipeline = VK_NULL_HANDLE;
-        postPipelineLayout = VK_NULL_HANDLE;
-        postRenderPass = VK_NULL_HANDLE;
-        postDescriptorPool = VK_NULL_HANDLE;
-        postDescriptorSetLayout = VK_NULL_HANDLE;
-        postDescriptorSet = VK_NULL_HANDLE;
-        offscreenColorSampler = VK_NULL_HANDLE;
-        offscreenColorImageView = VK_NULL_HANDLE;
-        offscreenColorImage = VK_NULL_HANDLE;
-        offscreenColorMemory = VK_NULL_HANDLE;
-        postIntermediateInitialized = false;
-        postOffscreenActive = false;
+        framebuffers = result.framebuffers();
+        graphicsPipeline = result.graphicsPipeline();
+        pipelineLayout = result.pipelineLayout();
+        renderPass = result.renderPass();
+        swapchainImageViews = result.swapchainImageViews();
+        depthImages = result.depthImages();
+        depthMemories = result.depthMemories();
+        depthImageViews = result.depthImageViews();
+        swapchainImages = result.swapchainImages();
+        swapchain = result.swapchain();
+        postFramebuffers = result.postFramebuffers();
+        postGraphicsPipeline = result.postGraphicsPipeline();
+        postPipelineLayout = result.postPipelineLayout();
+        postRenderPass = result.postRenderPass();
+        postDescriptorPool = result.postDescriptorPool();
+        postDescriptorSetLayout = result.postDescriptorSetLayout();
+        postDescriptorSet = result.postDescriptorSet();
+        offscreenColorSampler = result.offscreenColorSampler();
+        offscreenColorImageView = result.offscreenColorImageView();
+        offscreenColorImage = result.offscreenColorImage();
+        offscreenColorMemory = result.offscreenColorMemory();
+        postIntermediateInitialized = result.postIntermediateInitialized();
+        postOffscreenActive = result.postOffscreenActive();
     }
 
     private void createFrameSyncResources(MemoryStack stack) throws EngineException {

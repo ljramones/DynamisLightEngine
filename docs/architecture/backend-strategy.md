@@ -58,7 +58,7 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 - `org.dynamislight.impl.vulkan.shader`
   - shader source/compile helpers (`VulkanShaderSources`, `VulkanShaderCompiler`)
 - `org.dynamislight.impl.vulkan.swapchain`
-  - swapchain policy/selection/allocation, resource coordination, image-view lifecycle, and framebuffer/depth helpers (`VulkanSwapchainSelector`, `VulkanSwapchainAllocation`, `VulkanSwapchainResourceCoordinator`, `VulkanSwapchainImageViews`, `VulkanFramebufferResources`)
+  - swapchain policy/selection/allocation, create/destroy resource coordination, image-view lifecycle, and framebuffer/depth helpers (`VulkanSwapchainSelector`, `VulkanSwapchainAllocation`, `VulkanSwapchainResourceCoordinator`, `VulkanSwapchainDestroyCoordinator`, `VulkanSwapchainImageViews`, `VulkanFramebufferResources`)
 - `org.dynamislight.impl.vulkan.descriptor`
   - descriptor-ring sizing + descriptor resource lifecycle + texture descriptor pool/ring manager + descriptor-set coordination/writes (`VulkanDescriptorRingPolicy`, `VulkanDescriptorResources`, `VulkanTextureDescriptorPoolManager`, `VulkanTextureDescriptorSetCoordinator`, `VulkanTextureDescriptorWriter`)
 - `org.dynamislight.impl.vulkan.command`
