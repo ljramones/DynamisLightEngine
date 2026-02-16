@@ -196,7 +196,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     color,
                     metallic,
                     roughness,
-                    resolveTexturePath(material == null ? null : material.albedoTexturePath())
+                    resolveTexturePath(material == null ? null : material.albedoTexturePath()),
+                    resolveTexturePath(material == null ? null : material.normalTexturePath())
             );
             out.add(meshData);
         }

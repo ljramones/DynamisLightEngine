@@ -712,9 +712,14 @@ final class VulkanContext {
         }
         descriptorSetLayout = pLayout.get(0);
 
-        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(1, stack);
+        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(2, stack);
         textureBindings.get(0)
                 .binding(0)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
+        textureBindings.get(1)
+                .binding(1)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -958,6 +963,7 @@ final class VulkanContext {
                 layout(location = 1) out vec3 vNormal;
                 layout(location = 2) out float vHeight;
                 layout(location = 3) out vec2 vUv;
+                layout(location = 4) out vec3 vTangent;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -979,8 +985,8 @@ final class VulkanContext {
                     vHeight = world.y;
                     vec3 tangent = normalize(mat3(ubo.uModel) * inTangent);
                     vec3 normal = normalize(mat3(ubo.uModel) * inNormal);
-                    normal = normalize(mix(normal, tangent, 0.08));
                     vNormal = normal;
+                    vTangent = tangent;
                     vUv = inUv;
                     gl_Position = ubo.uProj * ubo.uView * world;
                 }
@@ -991,6 +997,7 @@ final class VulkanContext {
                 layout(location = 1) in vec3 vNormal;
                 layout(location = 2) in float vHeight;
                 layout(location = 3) in vec2 vUv;
+                layout(location = 4) in vec3 vTangent;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -1007,9 +1014,14 @@ final class VulkanContext {
                     vec4 uSmokeColor;
                 } ubo;
                 layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
+                layout(set = 1, binding = 1) uniform sampler2D uNormalTexture;
                 layout(location = 0) out vec4 outColor;
                 void main() {
-                    vec3 n = normalize(vNormal);
+                    vec3 n0 = normalize(vNormal);
+                    vec3 t = normalize(vTangent - dot(vTangent, n0) * n0);
+                    vec3 b = normalize(cross(n0, t));
+                    vec3 normalTex = texture(uNormalTexture, vUv).xyz * 2.0 - 1.0;
+                    vec3 n = normalize(mat3(t, b, n0) * normalTex);
                     vec3 sampledAlbedo = texture(uAlbedoTexture, vUv).rgb;
                     vec3 baseColor = ubo.uBaseColor.rgb * sampledAlbedo;
                     float metallic = clamp(ubo.uMaterial.x, 0.0, 1.0);
@@ -1554,8 +1566,9 @@ final class VulkanContext {
 
     private void uploadSceneMeshes(MemoryStack stack, List<SceneMeshData> sceneMeshes) throws EngineException {
         destroySceneMeshes();
-        Map<Path, GpuTexture> textureCache = new HashMap<>();
-        GpuTexture defaultTexture = createTextureFromPath(null);
+        Map<String, GpuTexture> textureCache = new HashMap<>();
+        GpuTexture defaultAlbedo = createTextureFromPath(null, false);
+        GpuTexture defaultNormal = createTextureFromPath(null, true);
         for (SceneMeshData mesh : sceneMeshes) {
             float[] vertices = mesh.vertices();
             int[] indices = mesh.indices();
@@ -1579,7 +1592,8 @@ final class VulkanContext {
                     indexData,
                     VK_BUFFER_USAGE_INDEX_BUFFER_BIT
             );
-            GpuTexture albedoTexture = resolveOrCreateTexture(mesh.albedoTexturePath(), textureCache, defaultTexture);
+            GpuTexture albedoTexture = resolveOrCreateTexture(mesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
+            GpuTexture normalTexture = resolveOrCreateTexture(mesh.normalTexturePath(), textureCache, defaultNormal, true);
 
             gpuMeshes.add(new GpuMesh(
                     vertexAlloc.buffer,
@@ -1595,7 +1609,8 @@ final class VulkanContext {
                     mesh.color()[2],
                     mesh.metallic(),
                     mesh.roughness(),
-                    albedoTexture
+                    albedoTexture,
+                    normalTexture
             ));
         }
 
@@ -1608,6 +1623,9 @@ final class VulkanContext {
             meshBytes += mesh.vertexBytes + mesh.indexBytes;
             if (uniqueTextures.add(mesh.albedoTexture)) {
                 textureBytes += mesh.albedoTexture.bytes();
+            }
+            if (uniqueTextures.add(mesh.normalTexture)) {
+                textureBytes += mesh.normalTexture.bytes();
             }
         }
         estimatedGpuMemoryBytes = GLOBAL_UNIFORM_BYTES + meshBytes + textureBytes;
@@ -1633,6 +1651,7 @@ final class VulkanContext {
                 vkFreeMemory(device, mesh.indexMemory, null);
             }
             uniqueTextures.add(mesh.albedoTexture);
+            uniqueTextures.add(mesh.normalTexture);
         }
         for (GpuTexture texture : uniqueTextures) {
             if (texture == null) {
@@ -1658,16 +1677,23 @@ final class VulkanContext {
         gpuMeshes.clear();
     }
 
-    private GpuTexture resolveOrCreateTexture(Path texturePath, Map<Path, GpuTexture> cache, GpuTexture defaultTexture) throws EngineException {
+    private GpuTexture resolveOrCreateTexture(
+            Path texturePath,
+            Map<String, GpuTexture> cache,
+            GpuTexture defaultTexture,
+            boolean normalMap
+    )
+            throws EngineException {
         if (texturePath == null || !Files.isRegularFile(texturePath)) {
             return defaultTexture;
         }
-        GpuTexture cached = cache.get(texturePath);
+        String cacheKey = (normalMap ? "normal:" : "albedo:") + texturePath.toAbsolutePath().normalize();
+        GpuTexture cached = cache.get(cacheKey);
         if (cached != null) {
             return cached;
         }
-        GpuTexture created = createTextureFromPath(texturePath);
-        cache.put(texturePath, created);
+        GpuTexture created = createTextureFromPath(texturePath, normalMap);
+        cache.put(cacheKey, created);
         return created;
     }
 
@@ -1683,7 +1709,7 @@ final class VulkanContext {
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(gpuMeshes.size());
+                .descriptorCount(gpuMeshes.size() * 2);
 
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
@@ -1723,28 +1749,45 @@ final class VulkanContext {
             GpuMesh mesh = gpuMeshes.get(i);
             mesh.textureDescriptorSet = allocatedSets.buffer().get(i);
 
-            VkDescriptorImageInfo.Buffer imageInfo = VkDescriptorImageInfo.calloc(1, stack);
-            imageInfo.get(0)
+            VkDescriptorImageInfo.Buffer albedoInfo = VkDescriptorImageInfo.calloc(1, stack);
+            albedoInfo.get(0)
                     .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
                     .imageView(mesh.albedoTexture.view())
                     .sampler(mesh.albedoTexture.sampler());
-            VkWriteDescriptorSet.Buffer write = VkWriteDescriptorSet.calloc(1, stack);
-            write.get(0)
+            VkDescriptorImageInfo.Buffer normalInfo = VkDescriptorImageInfo.calloc(1, stack);
+            normalInfo.get(0)
+                    .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .imageView(mesh.normalTexture.view())
+                    .sampler(mesh.normalTexture.sampler());
+
+            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(2, stack);
+            writes.get(0)
                     .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                     .dstSet(mesh.textureDescriptorSet)
                     .dstBinding(0)
                     .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
-                    .pImageInfo(imageInfo);
-            vkUpdateDescriptorSets(device, write, null);
+                    .pImageInfo(albedoInfo);
+            writes.get(1)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(1)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(normalInfo);
+            vkUpdateDescriptorSets(device, writes, null);
         }
     }
 
-    private GpuTexture createTextureFromPath(Path texturePath) throws EngineException {
+    private GpuTexture createTextureFromPath(Path texturePath, boolean normalMap) throws EngineException {
         TexturePixelData pixels = loadTexturePixels(texturePath);
         if (pixels == null) {
             ByteBuffer data = memAlloc(4);
-            data.put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).flip();
+            if (normalMap) {
+                data.put((byte) 0x80).put((byte) 0x80).put((byte) 0xFF).put((byte) 0xFF).flip();
+            } else {
+                data.put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).flip();
+            }
             pixels = new TexturePixelData(data, 1, 1);
         }
         try {
@@ -2207,6 +2250,7 @@ final class VulkanContext {
         private final float metallic;
         private final float roughness;
         private final GpuTexture albedoTexture;
+        private final GpuTexture normalTexture;
         private long textureDescriptorSet = VK_NULL_HANDLE;
 
         private GpuMesh(
@@ -2223,7 +2267,8 @@ final class VulkanContext {
                 float colorB,
                 float metallic,
                 float roughness,
-                GpuTexture albedoTexture
+                GpuTexture albedoTexture,
+                GpuTexture normalTexture
         ) {
             this.vertexBuffer = vertexBuffer;
             this.vertexMemory = vertexMemory;
@@ -2239,6 +2284,7 @@ final class VulkanContext {
             this.metallic = metallic;
             this.roughness = roughness;
             this.albedoTexture = albedoTexture;
+            this.normalTexture = normalTexture;
         }
     }
 
@@ -2258,7 +2304,8 @@ final class VulkanContext {
             float[] color,
             float metallic,
             float roughness,
-            Path albedoTexturePath
+            Path albedoTexturePath,
+            Path normalTexturePath
     ) {
         SceneMeshData {
             if (vertices == null || vertices.length < VERTEX_STRIDE_FLOATS * 3 || vertices.length % VERTEX_STRIDE_FLOATS != 0) {
@@ -2297,6 +2344,7 @@ final class VulkanContext {
                     color,
                     0.0f,
                     0.6f,
+                    null,
                     null
             );
         }
@@ -2320,6 +2368,7 @@ final class VulkanContext {
                     color,
                     0.0f,
                     0.6f,
+                    null,
                     null
             );
         }

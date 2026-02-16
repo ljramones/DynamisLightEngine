@@ -45,6 +45,18 @@ public final class SampleHostApp {
     public static void main(String[] args) throws Exception {
         String backendId = args.length > 0 ? args[0] : "opengl";
         boolean resourceProbe = java.util.Arrays.asList(args).contains("--resources");
+        boolean compareMode = java.util.Arrays.asList(args).contains("--compare");
+        if (compareMode) {
+            Path outDir = Path.of("artifacts", "compare");
+            var report = BackendCompareHarness.run(outDir, defaultScene(), QualityTier.MEDIUM);
+            System.out.printf(
+                    "compare openGl=%s vulkan=%s diff=%.5f%n",
+                    report.openGlImage(),
+                    report.vulkanImage(),
+                    report.diffMetric()
+            );
+            return;
+        }
         EngineBackendProvider provider = resolveProvider(backendId);
         EngineConfig config = defaultConfig(backendId);
         SceneDescriptor scene = defaultScene();

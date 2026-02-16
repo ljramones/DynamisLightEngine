@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -101,6 +102,17 @@ class BackendParityIntegrationTest {
         assertFalse(openGlHigh.contains("SMOKE_QUALITY_DEGRADED"));
         assertFalse(vulkanHigh.contains("FOG_QUALITY_DEGRADED"));
         assertFalse(vulkanHigh.contains("SMOKE_QUALITY_DEGRADED"));
+    }
+
+    @Test
+    void compareHarnessProducesImagesWithBoundedDiff() throws Exception {
+        Path outDir = Files.createTempDirectory("dle-compare");
+        var report = BackendCompareHarness.run(outDir, materialLightingScene(), QualityTier.MEDIUM);
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.30, "diff was " + report.diffMetric());
     }
 
     private static void runParityLifecycle(String backendId) throws Exception {
