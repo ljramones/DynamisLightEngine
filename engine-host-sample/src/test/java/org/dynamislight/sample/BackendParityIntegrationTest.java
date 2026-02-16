@@ -348,6 +348,40 @@ class BackendParityIntegrationTest {
 
     @Test
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaDisocclusionStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-disocclusion-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaDisocclusionStressScene(),
+                QualityTier.ULTRA,
+                "taa-disocclusion-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.32, "taa disocclusion stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaReactiveAuthoredStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-reactive-authored-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaReactiveAuthoredStressScene(),
+                QualityTier.ULTRA,
+                "taa-reactive-authored-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.32, "taa reactive authored stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessTieredGoldenProfilesStayBounded() throws Exception {
         Map<QualityTier, Double> fogSmokeMaxDiff = Map.of(
                 QualityTier.LOW, 0.45,
@@ -408,6 +442,18 @@ class BackendParityIntegrationTest {
                 QualityTier.MEDIUM, 0.44,
                 QualityTier.HIGH, 0.34,
                 QualityTier.ULTRA, 0.30
+        );
+        Map<QualityTier, Double> taaDisocclusionMaxDiff = Map.of(
+                QualityTier.LOW, 0.52,
+                QualityTier.MEDIUM, 0.44,
+                QualityTier.HIGH, 0.36,
+                QualityTier.ULTRA, 0.32
+        );
+        Map<QualityTier, Double> taaReactiveAuthoredMaxDiff = Map.of(
+                QualityTier.LOW, 0.52,
+                QualityTier.MEDIUM, 0.44,
+                QualityTier.HIGH, 0.36,
+                QualityTier.ULTRA, 0.32
         );
 
         for (QualityTier tier : QualityTier.values()) {
@@ -538,86 +584,126 @@ class BackendParityIntegrationTest {
                     "material-fog-smoke-shadow diff " + materialFogSmokeShadowReport.diffMetric()
                             + " exceeded " + materialFogSmokeShadowMaxDiff.get(tier) + " at " + tier
             );
+
+            Path taaDisocclusionDir = compareOutputDir("taa-disocclusion-stress-" + tier.name().toLowerCase());
+            var taaDisocclusionReport = BackendCompareHarness.run(
+                    taaDisocclusionDir,
+                    taaDisocclusionStressScene(),
+                    tier,
+                    "taa-disocclusion-stress-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaDisocclusionReport.diffMetric() <= taaDisocclusionMaxDiff.get(tier),
+                    "taa-disocclusion-stress diff " + taaDisocclusionReport.diffMetric()
+                            + " exceeded " + taaDisocclusionMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path taaReactiveDir = compareOutputDir("taa-reactive-authored-stress-" + tier.name().toLowerCase());
+            var taaReactiveReport = BackendCompareHarness.run(
+                    taaReactiveDir,
+                    taaReactiveAuthoredStressScene(),
+                    tier,
+                    "taa-reactive-authored-stress-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaReactiveReport.diffMetric() <= taaReactiveAuthoredMaxDiff.get(tier),
+                    "taa-reactive-authored-stress diff " + taaReactiveReport.diffMetric()
+                            + " exceeded " + taaReactiveAuthoredMaxDiff.get(tier) + " at " + tier
+            );
         }
     }
 
     @Test
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessStressGoldenProfilesStayBounded() throws Exception {
-        Map<String, Double> stressMaxDiff = Map.of(
-                "shadow-cascade-stress", 0.25,
-                "fog-shadow-cascade-stress", 0.25,
-                "smoke-shadow-cascade-stress", 0.25,
-                "texture-heavy", 0.32,
-                "brdf-tier-extremes", 0.29,
-                "fog-smoke-shadow-post-stress", 0.05,
-                "material-fog-smoke-shadow-cascade-stress", 0.30,
-                "post-process-ssao", 0.35,
-                "post-process-ssao-stress", 0.37,
-                "post-process-smaa", 0.36
+        Map<String, Double> stressMaxDiff = Map.ofEntries(
+                Map.entry("shadow-cascade-stress", 0.25),
+                Map.entry("fog-shadow-cascade-stress", 0.25),
+                Map.entry("smoke-shadow-cascade-stress", 0.25),
+                Map.entry("texture-heavy", 0.32),
+                Map.entry("brdf-tier-extremes", 0.29),
+                Map.entry("fog-smoke-shadow-post-stress", 0.05),
+                Map.entry("material-fog-smoke-shadow-cascade-stress", 0.30),
+                Map.entry("taa-disocclusion-stress", 0.32),
+                Map.entry("taa-reactive-authored-stress", 0.32),
+                Map.entry("post-process-ssao", 0.35),
+                Map.entry("post-process-ssao-stress", 0.37),
+                Map.entry("post-process-smaa", 0.36)
         );
 
-        var reports = Map.of(
-                "shadow-cascade-stress", BackendCompareHarness.run(
+        var reports = Map.ofEntries(
+                Map.entry("shadow-cascade-stress", BackendCompareHarness.run(
                         compareOutputDir("shadow-cascade-stress-golden"),
                         shadowCascadeStressScene(),
                         QualityTier.ULTRA,
                         "shadow-cascade-stress-golden-ultra"
-                ),
-                "fog-shadow-cascade-stress", BackendCompareHarness.run(
+                )),
+                Map.entry("fog-shadow-cascade-stress", BackendCompareHarness.run(
                         compareOutputDir("fog-shadow-cascade-stress-golden"),
                         fogShadowCascadeStressScene(),
                         QualityTier.ULTRA,
                         "fog-shadow-cascade-stress-golden-ultra"
-                ),
-                "smoke-shadow-cascade-stress", BackendCompareHarness.run(
+                )),
+                Map.entry("smoke-shadow-cascade-stress", BackendCompareHarness.run(
                         compareOutputDir("smoke-shadow-cascade-stress-golden"),
                         smokeShadowCascadeStressScene(),
                         QualityTier.ULTRA,
                         "smoke-shadow-cascade-stress-golden-ultra"
-                ),
-                "texture-heavy", BackendCompareHarness.run(
+                )),
+                Map.entry("texture-heavy", BackendCompareHarness.run(
                         compareOutputDir("texture-heavy-golden"),
                         textureHeavyScene(),
                         QualityTier.ULTRA,
                         "texture-heavy-golden-ultra"
-                ),
-                "brdf-tier-extremes", BackendCompareHarness.run(
+                )),
+                Map.entry("brdf-tier-extremes", BackendCompareHarness.run(
                         compareOutputDir("brdf-tier-extremes-golden"),
                         brdfTierExtremesScene(),
                         QualityTier.ULTRA,
                         "brdf-tier-extremes-golden-ultra"
-                ),
-                "fog-smoke-shadow-post-stress", BackendCompareHarness.run(
+                )),
+                Map.entry("fog-smoke-shadow-post-stress", BackendCompareHarness.run(
                         compareOutputDir("fog-smoke-shadow-post-stress-golden"),
                         fogSmokeShadowPostStressScene(),
                         QualityTier.ULTRA,
                         "fog-smoke-shadow-post-stress-golden-ultra"
-                ),
-                "material-fog-smoke-shadow-cascade-stress", BackendCompareHarness.run(
+                )),
+                Map.entry("material-fog-smoke-shadow-cascade-stress", BackendCompareHarness.run(
                         compareOutputDir("material-fog-smoke-shadow-cascade-stress-golden"),
                         materialFogSmokeShadowCascadeStressScene(),
                         QualityTier.ULTRA,
                         "material-fog-smoke-shadow-cascade-stress-golden-ultra"
-                ),
-                "post-process-ssao", BackendCompareHarness.run(
+                )),
+                Map.entry("taa-disocclusion-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-disocclusion-stress-golden"),
+                        taaDisocclusionStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-disocclusion-stress-golden-ultra"
+                )),
+                Map.entry("taa-reactive-authored-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-reactive-authored-stress-golden"),
+                        taaReactiveAuthoredStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-reactive-authored-stress-golden-ultra"
+                )),
+                Map.entry("post-process-ssao", BackendCompareHarness.run(
                         compareOutputDir("post-process-ssao-golden"),
                         postProcessScene(false, true),
                         QualityTier.ULTRA,
                         "post-process-ssao-golden-ultra"
-                ),
-                "post-process-ssao-stress", BackendCompareHarness.run(
+                )),
+                Map.entry("post-process-ssao-stress", BackendCompareHarness.run(
                         compareOutputDir("post-process-ssao-stress-golden"),
                         postProcessSsaoStressScene(),
                         QualityTier.ULTRA,
                         "post-process-ssao-stress-golden-ultra"
-                ),
-                "post-process-smaa", BackendCompareHarness.run(
+                )),
+                Map.entry("post-process-smaa", BackendCompareHarness.run(
                         compareOutputDir("post-process-smaa-golden"),
                         postProcessSmaaScene(),
                         QualityTier.ULTRA,
                         "post-process-smaa-golden-ultra"
-                )
+                ))
         );
 
         reports.forEach((profile, report) -> assertTrue(
@@ -780,8 +866,32 @@ class BackendParityIntegrationTest {
         TransformDesc b = new TransformDesc("xform-b", new Vec3(0.8f, 0.1f, 0), new Vec3(0, 20, 0), new Vec3(1, 1, 1));
         MeshDesc triangle = new MeshDesc("mesh-a", "xform-a", "mat-a", "meshes/triangle.gltf");
         MeshDesc quad = new MeshDesc("mesh-b", "xform-b", "mat-b", "meshes/quad.gltf");
-        MaterialDesc matA = new MaterialDesc("mat-a", new Vec3(0.95f, 0.3f, 0.25f), 0.15f, 0.55f, "textures/a.png", "textures/a_n.png");
-        MaterialDesc matB = new MaterialDesc("mat-b", new Vec3(0.25f, 0.65f, 0.95f), 0.65f, 0.35f, "textures/b.png", "textures/b_n.png");
+        MaterialDesc matA = new MaterialDesc(
+                "mat-a",
+                new Vec3(0.95f, 0.3f, 0.25f),
+                0.15f,
+                0.55f,
+                "textures/a.png",
+                "textures/a_n.png",
+                null,
+                null,
+                0.72f,
+                true,
+                false
+        );
+        MaterialDesc matB = new MaterialDesc(
+                "mat-b",
+                new Vec3(0.25f, 0.65f, 0.95f),
+                0.65f,
+                0.35f,
+                "textures/b.png",
+                "textures/b_n.png",
+                null,
+                null,
+                0.78f,
+                false,
+                true
+        );
         LightDesc key = new LightDesc("key", new Vec3(1.2f, 2.0f, 1.8f), new Vec3(1f, 0.96f, 0.9f), 1.0f, 15f, false, null);
         LightDesc fill = new LightDesc("fill", new Vec3(-1.4f, 1.2f, 1.0f), new Vec3(0.35f, 0.55f, 1f), 0.7f, 12f, false, null);
         EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.1f, 0.12f), 0.2f, null);
@@ -805,7 +915,7 @@ class BackendParityIntegrationTest {
         CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
         TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
         MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "meshes/quad.gltf");
-        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.1f, 0.6f, null, null);
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.1f, 0.6f, null, null, null, null, 0.75f, true, true);
         LightDesc light = new LightDesc("light", new Vec3(0, 2, 1), new Vec3(1, 1, 1), 1.0f, 10f, false, null);
         EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
         FogDesc fog = new FogDesc(true, FogMode.EXPONENTIAL, new Vec3(0.5f, 0.55f, 0.6f), 0.35f, 0f, 0f, 0f, 0f, 0f);
@@ -841,7 +951,7 @@ class BackendParityIntegrationTest {
         CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
         TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
         MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "meshes/quad.gltf");
-        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.1f, 0.6f, null, null);
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.1f, 0.6f, null, null, null, null, 0.75f, true, true);
         LightDesc light = new LightDesc("shadow-light", new Vec3(0, 2, 1), new Vec3(1, 1, 1), 1.0f, 10f, true,
                 new ShadowDesc(1024, 0.0008f, 3, 2));
         EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
@@ -926,7 +1036,10 @@ class BackendParityIntegrationTest {
                 "textures/a.png",
                 "textures/a_n.png",
                 "textures/a_mr.png",
-                "textures/a_ao.png"
+                "textures/a_ao.png",
+                0.84f,
+                true,
+                false
         );
         MaterialDesc matMid = new MaterialDesc(
                 "mat-mid",
@@ -936,7 +1049,10 @@ class BackendParityIntegrationTest {
                 "textures/b.png",
                 "textures/b_n.png",
                 "textures/b_mr.png",
-                "textures/b_ao.png"
+                "textures/b_ao.png",
+                0.88f,
+                false,
+                true
         );
         MaterialDesc matFar = new MaterialDesc(
                 "mat-far",
@@ -946,7 +1062,10 @@ class BackendParityIntegrationTest {
                 "textures/c.png",
                 "textures/c_n.png",
                 "textures/c_mr.png",
-                "textures/c_ao.png"
+                "textures/c_ao.png",
+                0.68f,
+                false,
+                false
         );
         MaterialDesc matGround = new MaterialDesc(
                 "mat-ground",
@@ -956,7 +1075,10 @@ class BackendParityIntegrationTest {
                 "textures/d.png",
                 "textures/d_n.png",
                 "textures/d_mr.png",
-                "textures/d_ao.png"
+                "textures/d_ao.png",
+                0.74f,
+                true,
+                true
         );
 
         LightDesc shadowLight = new LightDesc(
@@ -1344,7 +1466,10 @@ class BackendParityIntegrationTest {
                 "textures/a.png",
                 "textures/a_n.png",
                 "textures/a_mr.png",
-                "textures/a_ao.png"
+                "textures/a_ao.png",
+                0.84f,
+                true,
+                false
         );
         MaterialDesc matMid = new MaterialDesc(
                 "mat-mid",
@@ -1354,7 +1479,10 @@ class BackendParityIntegrationTest {
                 "textures/b.png",
                 "textures/b_n.png",
                 "textures/b_mr.png",
-                "textures/b_ao.png"
+                "textures/b_ao.png",
+                0.88f,
+                false,
+                true
         );
         MaterialDesc matFar = new MaterialDesc(
                 "mat-far",
@@ -1364,7 +1492,10 @@ class BackendParityIntegrationTest {
                 "textures/c.png",
                 "textures/c_n.png",
                 "textures/c_mr.png",
-                "textures/c_ao.png"
+                "textures/c_ao.png",
+                0.68f,
+                false,
+                false
         );
         MaterialDesc matGround = new MaterialDesc(
                 "mat-ground",
@@ -1374,7 +1505,10 @@ class BackendParityIntegrationTest {
                 "textures/d.png",
                 "textures/d_n.png",
                 "textures/d_mr.png",
-                "textures/d_ao.png"
+                "textures/d_ao.png",
+                0.74f,
+                true,
+                true
         );
 
         LightDesc shadowLight = new LightDesc(
@@ -1427,6 +1561,61 @@ class BackendParityIntegrationTest {
                 env,
                 fog,
                 List.of(smokeA, smokeB)
+        );
+    }
+
+    private static SceneDescriptor taaDisocclusionStressScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.45f, 1.2f, 8.8f), new Vec3(-8f, 18f, 0f), 72f, 0.1f, 220f);
+        TransformDesc near = new TransformDesc("x-near", new Vec3(-1.1f, -0.2f, 0.9f), new Vec3(0, 15, 0), new Vec3(1f, 1f, 1f));
+        TransformDesc mid = new TransformDesc("x-mid", new Vec3(0.35f, -0.25f, -10.5f), new Vec3(0, -18, 0), new Vec3(1.45f, 1.45f, 1.45f));
+        TransformDesc far = new TransformDesc("x-far", new Vec3(2.2f, -0.45f, -42f), new Vec3(0, 6, 0), new Vec3(2.4f, 2.4f, 2.4f));
+        TransformDesc occluder = new TransformDesc("x-occ", new Vec3(0f, -0.15f, -4.2f), new Vec3(0, 32, 0), new Vec3(1.2f, 2.2f, 0.25f));
+        MeshDesc meshNear = new MeshDesc("mesh-near", "x-near", "mat-near", "meshes/quad.gltf");
+        MeshDesc meshMid = new MeshDesc("mesh-mid", "x-mid", "mat-mid", "meshes/quad.gltf");
+        MeshDesc meshFar = new MeshDesc("mesh-far", "x-far", "mat-far", "meshes/quad.gltf");
+        MeshDesc meshOccluder = new MeshDesc("mesh-occ", "x-occ", "mat-occ", "meshes/quad.gltf");
+        MaterialDesc matNear = new MaterialDesc("mat-near", new Vec3(0.90f, 0.5f, 0.42f), 0.24f, 0.42f, null, null, null, null, 0.82f, true, false);
+        MaterialDesc matMid = new MaterialDesc("mat-mid", new Vec3(0.50f, 0.82f, 0.95f), 0.58f, 0.36f, null, null, null, null, 0.86f, false, true);
+        MaterialDesc matFar = new MaterialDesc("mat-far", new Vec3(0.74f, 0.76f, 0.80f), 0.14f, 0.74f, null, null, null, null, 0.62f, false, false);
+        MaterialDesc matOcc = new MaterialDesc("mat-occ", new Vec3(0.62f, 0.66f, 0.60f), 0.0f, 0.90f, null, null, null, null, 0.70f, true, true);
+        LightDesc shadowLight = new LightDesc("shadow-light", new Vec3(8f, 20f, 8f), new Vec3(1f, 0.98f, 0.95f), 1.12f, 260f, true, new ShadowDesc(2048, 0.0006f, 5, 4));
+        LightDesc fill = new LightDesc("fill", new Vec3(-5f, 7f, -4f), new Vec3(0.35f, 0.46f, 0.70f), 0.5f, 100f, false, null);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.18f, null);
+        FogDesc fog = new FogDesc(true, FogMode.HEIGHT_EXPONENTIAL, new Vec3(0.52f, 0.57f, 0.64f), 0.38f, 0.34f, 0.74f, 0.12f, 1.1f, 0.24f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.08f, 2.2f, true, 0.95f, 0.80f, true, 0.58f, 1.05f, 0.02f, 1.2f, true, 0.66f, true, 0.66f);
+        return new SceneDescriptor(
+                "parity-taa-disocclusion-stress-scene",
+                List.of(camera),
+                "cam",
+                List.of(near, mid, far, occluder),
+                List.of(meshNear, meshMid, meshFar, meshOccluder),
+                List.of(matNear, matMid, matFar, matOcc),
+                List.of(shadowLight, fill),
+                env,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaReactiveAuthoredStressScene() {
+        SceneDescriptor base = taaDisocclusionStressScene();
+        MaterialDesc alphaA = new MaterialDesc("mat-near", new Vec3(0.88f, 0.48f, 0.40f), 0.22f, 0.44f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 0.95f, true, false);
+        MaterialDesc foliageB = new MaterialDesc("mat-mid", new Vec3(0.42f, 0.86f, 0.44f), 0.38f, 0.40f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 0.98f, false, true);
+        MaterialDesc neutralC = new MaterialDesc("mat-far", new Vec3(0.72f, 0.74f, 0.78f), 0.10f, 0.78f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 0.64f, false, false);
+        MaterialDesc alphaFoliageD = new MaterialDesc("mat-occ", new Vec3(0.58f, 0.66f, 0.58f), 0.04f, 0.88f, "textures/d.png", "textures/d_n.png", "textures/d_mr.png", "textures/d_ao.png", 1.0f, true, true);
+        return new SceneDescriptor(
+                "parity-taa-reactive-authored-stress-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(alphaA, foliageB, neutralC, alphaFoliageD),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
         );
     }
 

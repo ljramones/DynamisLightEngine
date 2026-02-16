@@ -36,8 +36,8 @@ final class BackendCompareHarness {
         Path openGlPng = outputDir.resolve("opengl-" + normalizedTag + ".png");
         Path vulkanPng = outputDir.resolve("vulkan-" + normalizedTag + ".png");
 
-        BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier);
-        BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier);
+        BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag);
+        BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag);
 
         writeDiagnosticImage(openGl, openGlPng);
         writeDiagnosticImage(vulkan, vulkanPng);
@@ -52,15 +52,27 @@ final class BackendCompareHarness {
         return tag.toLowerCase().replaceAll("[^a-z0-9._-]", "-");
     }
 
-    private static BackendSnapshot renderBackend(String backendId, SceneDescriptor scene, QualityTier qualityTier) throws Exception {
+    private static BackendSnapshot renderBackend(
+            String backendId,
+            SceneDescriptor scene,
+            QualityTier qualityTier,
+            String profileTag
+    ) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
         EngineConfig config = configFor(backendId, qualityTier);
-        EngineInput input = new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
+        boolean taaStress = profileTag.contains("taa-disocclusion-stress") || profileTag.contains("taa-reactive-authored-stress");
+        EngineInput input = taaStress
+                ? new EngineInput(540, 360, 96, -48, false, false, Set.of(KeyCode.A, KeyCode.D), 0.0)
+                : new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
         try (var runtime = provider.createRuntime()) {
             runtime.initialize(config, new NoopCallbacks());
             runtime.loadScene(scene);
-            runtime.update(1.0 / 60.0, input);
-            EngineFrameResult frame = runtime.render();
+            EngineFrameResult frame = null;
+            int frames = taaStress ? 5 : 1;
+            for (int i = 0; i < frames; i++) {
+                runtime.update(1.0 / 60.0, input);
+                frame = runtime.render();
+            }
             var stats = runtime.getStats();
             return new BackendSnapshot(
                     backendId,

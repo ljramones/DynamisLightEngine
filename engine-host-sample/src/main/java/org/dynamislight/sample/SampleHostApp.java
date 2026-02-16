@@ -226,7 +226,19 @@ public final class SampleHostApp {
         CameraDesc camera = new CameraDesc("main-cam", new Vec3(0, 2, 5), new Vec3(0, 0, 0), 60f, 0.1f, 1000f);
         TransformDesc transform = new TransformDesc("root", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
         MeshDesc mesh = new MeshDesc("mesh-1", "root", "mat-1", "meshes/triangle.glb");
-        MaterialDesc material = new MaterialDesc("mat-1", new Vec3(1, 1, 1), 0.1f, 0.7f, null, null);
+        MaterialDesc material = new MaterialDesc(
+                "mat-1",
+                new Vec3(1, 1, 1),
+                0.1f,
+                0.7f,
+                null,
+                null,
+                null,
+                null,
+                0.82f,
+                true,
+                true
+        );
         ShadowDesc shadow = options.shadowsEnabled()
                 ? new ShadowDesc(
                 options.shadowMapResolution(),
