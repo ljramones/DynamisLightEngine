@@ -94,7 +94,15 @@ final class OpenGlContext {
         }
     }
 
-    static record SceneMesh(MeshGeometry geometry, float[] modelMatrix, float[] albedoColor, Path albedoTexturePath) {
+    static record SceneMesh(
+            MeshGeometry geometry,
+            float[] modelMatrix,
+            float[] albedoColor,
+            float metallic,
+            float roughness,
+            Path albedoTexturePath,
+            Path normalTexturePath
+    ) {
         SceneMesh {
             if (geometry == null) {
                 throw new IllegalArgumentException("geometry is required");
@@ -114,15 +122,31 @@ final class OpenGlContext {
         private final int vertexCount;
         private final float[] modelMatrix;
         private final float[] albedoColor;
+        private final float metallic;
+        private final float roughness;
         private final int textureId;
+        private final int normalTextureId;
 
-        private MeshBuffer(int vaoId, int vboId, int vertexCount, float[] modelMatrix, float[] albedoColor, int textureId) {
+        private MeshBuffer(
+                int vaoId,
+                int vboId,
+                int vertexCount,
+                float[] modelMatrix,
+                float[] albedoColor,
+                float metallic,
+                float roughness,
+                int textureId,
+                int normalTextureId
+        ) {
             this.vaoId = vaoId;
             this.vboId = vboId;
             this.vertexCount = vertexCount;
             this.modelMatrix = modelMatrix;
             this.albedoColor = albedoColor;
+            this.metallic = metallic;
+            this.roughness = roughness;
             this.textureId = textureId;
+            this.normalTextureId = normalTextureId;
         }
     }
 
@@ -134,11 +158,13 @@ final class OpenGlContext {
             uniform mat4 uView;
             uniform mat4 uProj;
             out vec3 vColor;
+            out vec3 vWorldPos;
             out float vHeight;
             out vec2 vUv;
             void main() {
                 vec4 world = uModel * vec4(aPos, 1.0);
                 vColor = aColor;
+                vWorldPos = world.xyz;
                 vHeight = world.y;
                 vUv = aPos.xy * 0.5 + vec2(0.5);
                 gl_Position = uProj * uView * world;
@@ -148,11 +174,22 @@ final class OpenGlContext {
     private static final String FRAGMENT_SHADER = """
             #version 330 core
             in vec3 vColor;
+            in vec3 vWorldPos;
             in float vHeight;
             in vec2 vUv;
             uniform vec3 uMaterialAlbedo;
+            uniform float uMaterialMetallic;
+            uniform float uMaterialRoughness;
             uniform int uUseAlbedoTexture;
             uniform sampler2D uAlbedoTexture;
+            uniform int uUseNormalTexture;
+            uniform sampler2D uNormalTexture;
+            uniform vec3 uDirLightDir;
+            uniform vec3 uDirLightColor;
+            uniform float uDirLightIntensity;
+            uniform vec3 uPointLightPos;
+            uniform vec3 uPointLightColor;
+            uniform float uPointLightIntensity;
             uniform int uFogEnabled;
             uniform vec3 uFogColor;
             uniform float uFogDensity;
@@ -163,10 +200,31 @@ final class OpenGlContext {
             out vec4 FragColor;
             void main() {
                 vec3 color = vColor * uMaterialAlbedo;
+                vec3 normal = vec3(0.0, 0.0, 1.0);
                 if (uUseAlbedoTexture == 1) {
                     vec3 tex = texture(uAlbedoTexture, vUv).rgb;
                     color *= tex;
                 }
+                if (uUseNormalTexture == 1) {
+                    vec3 ntex = texture(uNormalTexture, vUv).rgb * 2.0 - 1.0;
+                    normal = normalize(mix(normal, ntex, 0.55));
+                }
+                vec3 ambient = 0.18 * color;
+                vec3 lDir = normalize(-uDirLightDir);
+                float ndl = max(dot(normal, lDir), 0.0);
+                vec3 diffuse = color * uDirLightColor * (ndl * uDirLightIntensity);
+                vec3 pDir = normalize(uPointLightPos - vWorldPos);
+                float pNdl = max(dot(normal, pDir), 0.0);
+                float dist = max(length(uPointLightPos - vWorldPos), 0.1);
+                float attenuation = 1.0 / (1.0 + 0.35 * dist + 0.1 * dist * dist);
+                vec3 pointLit = color * uPointLightColor * (pNdl * attenuation * uPointLightIntensity);
+                float gloss = 1.0 - clamp(uMaterialRoughness, 0.04, 1.0);
+                vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
+                vec3 halfVec = normalize(lDir + viewDir);
+                float specPow = mix(8.0, 96.0, gloss);
+                float spec = pow(max(dot(normal, halfVec), 0.0), specPow) * mix(0.08, 0.9, clamp(uMaterialMetallic, 0.0, 1.0));
+                vec3 lit = ambient + diffuse + pointLit + vec3(spec);
+                color *= clamp(lit, 0.0, 2.2);
                 if (uFogEnabled == 1) {
                     float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
                     float fogFactor = clamp(exp(-uFogDensity * (1.0 - normalizedHeight)), 0.0, 1.0);
@@ -193,8 +251,18 @@ final class OpenGlContext {
     private int viewLocation;
     private int projLocation;
     private int materialAlbedoLocation;
+    private int materialMetallicLocation;
+    private int materialRoughnessLocation;
     private int useAlbedoTextureLocation;
     private int albedoTextureLocation;
+    private int useNormalTextureLocation;
+    private int normalTextureLocation;
+    private int dirLightDirLocation;
+    private int dirLightColorLocation;
+    private int dirLightIntensityLocation;
+    private int pointLightPosLocation;
+    private int pointLightColorLocation;
+    private int pointLightIntensityLocation;
     private int fogEnabledLocation;
     private int fogColorLocation;
     private int fogDensityLocation;
@@ -215,6 +283,20 @@ final class OpenGlContext {
     private float smokeG = 0.6f;
     private float smokeB = 0.6f;
     private float smokeIntensity;
+    private float dirLightDirX = 0.3f;
+    private float dirLightDirY = -1.0f;
+    private float dirLightDirZ = 0.25f;
+    private float dirLightColorR = 1.0f;
+    private float dirLightColorG = 0.98f;
+    private float dirLightColorB = 0.95f;
+    private float dirLightIntensity = 1.0f;
+    private float pointLightPosX = 0.0f;
+    private float pointLightPosY = 1.2f;
+    private float pointLightPosZ = 1.8f;
+    private float pointLightColorR = 0.95f;
+    private float pointLightColorG = 0.62f;
+    private float pointLightColorB = 0.22f;
+    private float pointLightIntensity = 1.0f;
     private boolean gpuTimerQuerySupported;
     private int gpuTimeQueryId;
     private double lastGpuFrameMs;
@@ -253,7 +335,7 @@ final class OpenGlContext {
 
         initializeShaderPipeline();
         initializeGpuQuerySupport();
-        setSceneMeshes(List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, null)));
+        setSceneMeshes(List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, 0.0f, 0.6f, null, null)));
     }
 
     void resize(int width, int height) {
@@ -305,6 +387,14 @@ final class OpenGlContext {
         for (MeshBuffer mesh : sceneMeshes) {
             glUniformMatrix4fv(modelLocation, false, mesh.modelMatrix);
             glUniform3f(materialAlbedoLocation, mesh.albedoColor[0], mesh.albedoColor[1], mesh.albedoColor[2]);
+            glUniform1f(materialMetallicLocation, mesh.metallic);
+            glUniform1f(materialRoughnessLocation, mesh.roughness);
+            glUniform3f(dirLightDirLocation, dirLightDirX, dirLightDirY, dirLightDirZ);
+            glUniform3f(dirLightColorLocation, dirLightColorR, dirLightColorG, dirLightColorB);
+            glUniform1f(dirLightIntensityLocation, dirLightIntensity);
+            glUniform3f(pointLightPosLocation, pointLightPosX, pointLightPosY, pointLightPosZ);
+            glUniform3f(pointLightColorLocation, pointLightColorR, pointLightColorG, pointLightColorB);
+            glUniform1f(pointLightIntensityLocation, pointLightIntensity);
             if (mesh.textureId != 0) {
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, mesh.textureId);
@@ -312,12 +402,22 @@ final class OpenGlContext {
             } else {
                 glUniform1i(useAlbedoTextureLocation, 0);
             }
+            if (mesh.normalTextureId != 0) {
+                glActiveTexture(GL_TEXTURE0 + 1);
+                glBindTexture(GL_TEXTURE_2D, mesh.normalTextureId);
+                glUniform1i(useNormalTextureLocation, 1);
+            } else {
+                glUniform1i(useNormalTextureLocation, 0);
+            }
             glBindVertexArray(mesh.vaoId);
             glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
             lastDrawCalls++;
             lastTriangles += mesh.vertexCount / 3;
         }
         glBindVertexArray(0);
+        glActiveTexture(GL_TEXTURE0 + 1);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
         glUseProgram(0);
     }
@@ -391,6 +491,38 @@ final class OpenGlContext {
         }
     }
 
+    void setLightingParameters(
+            float[] dirDir,
+            float[] dirColor,
+            float dirIntensity,
+            float[] pointPos,
+            float[] pointColor,
+            float pointIntensity
+    ) {
+        if (dirDir != null && dirDir.length == 3) {
+            dirLightDirX = dirDir[0];
+            dirLightDirY = dirDir[1];
+            dirLightDirZ = dirDir[2];
+        }
+        if (dirColor != null && dirColor.length == 3) {
+            dirLightColorR = dirColor[0];
+            dirLightColorG = dirColor[1];
+            dirLightColorB = dirColor[2];
+        }
+        dirLightIntensity = Math.max(0f, dirIntensity);
+        if (pointPos != null && pointPos.length == 3) {
+            pointLightPosX = pointPos[0];
+            pointLightPosY = pointPos[1];
+            pointLightPosZ = pointPos[2];
+        }
+        if (pointColor != null && pointColor.length == 3) {
+            pointLightColorR = pointColor[0];
+            pointLightColorG = pointColor[1];
+            pointLightColorB = pointColor[2];
+        }
+        pointLightIntensity = Math.max(0f, pointIntensity);
+    }
+
     double lastGpuFrameMs() {
         return lastGpuFrameMs;
     }
@@ -410,7 +542,7 @@ final class OpenGlContext {
     void setSceneMeshes(List<SceneMesh> meshes) {
         clearSceneMeshes();
         List<SceneMesh> effectiveMeshes = meshes == null || meshes.isEmpty()
-                ? List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, null))
+                ? List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, 0.0f, 0.6f, null, null))
                 : meshes;
         for (SceneMesh mesh : effectiveMeshes) {
             sceneMeshes.add(uploadMesh(mesh));
@@ -439,8 +571,18 @@ final class OpenGlContext {
         viewLocation = glGetUniformLocation(programId, "uView");
         projLocation = glGetUniformLocation(programId, "uProj");
         materialAlbedoLocation = glGetUniformLocation(programId, "uMaterialAlbedo");
+        materialMetallicLocation = glGetUniformLocation(programId, "uMaterialMetallic");
+        materialRoughnessLocation = glGetUniformLocation(programId, "uMaterialRoughness");
         useAlbedoTextureLocation = glGetUniformLocation(programId, "uUseAlbedoTexture");
         albedoTextureLocation = glGetUniformLocation(programId, "uAlbedoTexture");
+        useNormalTextureLocation = glGetUniformLocation(programId, "uUseNormalTexture");
+        normalTextureLocation = glGetUniformLocation(programId, "uNormalTexture");
+        dirLightDirLocation = glGetUniformLocation(programId, "uDirLightDir");
+        dirLightColorLocation = glGetUniformLocation(programId, "uDirLightColor");
+        dirLightIntensityLocation = glGetUniformLocation(programId, "uDirLightIntensity");
+        pointLightPosLocation = glGetUniformLocation(programId, "uPointLightPos");
+        pointLightColorLocation = glGetUniformLocation(programId, "uPointLightColor");
+        pointLightIntensityLocation = glGetUniformLocation(programId, "uPointLightIntensity");
         fogEnabledLocation = glGetUniformLocation(programId, "uFogEnabled");
         fogColorLocation = glGetUniformLocation(programId, "uFogColor");
         fogDensityLocation = glGetUniformLocation(programId, "uFogDensity");
@@ -451,6 +593,7 @@ final class OpenGlContext {
 
         glUseProgram(programId);
         glUniform1i(albedoTextureLocation, 0);
+        glUniform1i(normalTextureLocation, 1);
         glUseProgram(0);
     }
 
@@ -472,13 +615,17 @@ final class OpenGlContext {
         glBindVertexArray(0);
 
         int textureId = loadTexture(mesh.albedoTexturePath());
+        int normalTextureId = loadTexture(mesh.normalTexturePath());
         return new MeshBuffer(
                 vaoId,
                 vboId,
                 mesh.geometry().vertexCount(),
                 mesh.modelMatrix().clone(),
                 mesh.albedoColor().clone(),
-                textureId
+                clamp01(mesh.metallic()),
+                clamp01(mesh.roughness()),
+                textureId,
+                normalTextureId
         );
     }
 
@@ -522,10 +669,17 @@ final class OpenGlContext {
             if (mesh.textureId != 0) {
                 glDeleteTextures(mesh.textureId);
             }
+            if (mesh.normalTextureId != 0) {
+                glDeleteTextures(mesh.normalTextureId);
+            }
             glDeleteBuffers(mesh.vboId);
             glDeleteVertexArrays(mesh.vaoId);
         }
         sceneMeshes.clear();
+    }
+
+    private float clamp01(float value) {
+        return Math.max(0f, Math.min(1f, value));
     }
 
     private static int compileShader(int type, String source) throws EngineException {

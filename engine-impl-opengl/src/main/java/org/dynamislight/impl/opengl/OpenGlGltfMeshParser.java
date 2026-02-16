@@ -125,14 +125,14 @@ final class OpenGlGltfMeshParser {
         }
         JsonNode primitive = primitives.get(0);
         int mode = primitive.path("mode").asInt(4);
-        if (mode != 4) {
+        if (mode != 4 && mode != 5) {
             return Optional.empty();
         }
         int positionAccessor = primitive.path("attributes").path("POSITION").asInt(-1);
         if (positionAccessor < 0) {
             return Optional.empty();
         }
-        float[] positions = readVec3FloatAccessor(root, binary, positionAccessor);
+        float[] positions = readPositionAccessor(root, binary, positionAccessor);
         if (positions == null || positions.length < 9) {
             return Optional.empty();
         }
@@ -142,6 +142,9 @@ final class OpenGlGltfMeshParser {
 
         int indexAccessor = primitive.path("indices").asInt(-1);
         int[] indices = indexAccessor >= 0 ? readIndexAccessor(root, binary, indexAccessor) : null;
+        if (mode == 5) {
+            indices = triangleStripToTriangles(indices, positions.length / 3);
+        }
 
         float[] interleaved = buildInterleaved(positions, colors, indices);
         if (interleaved.length < 18) {
@@ -219,21 +222,23 @@ final class OpenGlGltfMeshParser {
         }
     }
 
-    private float[] readVec3FloatAccessor(JsonNode root, byte[] binary, int accessorIndex) {
+    private float[] readPositionAccessor(JsonNode root, byte[] binary, int accessorIndex) {
         AccessorMeta meta = readAccessorMeta(root, accessorIndex);
-        if (meta == null || meta.componentType != 5126 || meta.components != 3 || binary.length == 0) {
+        if (meta == null || (meta.components != 2 && meta.components != 3) || binary.length == 0) {
             return null;
         }
         float[] out = new float[meta.count * 3];
         ByteBuffer bb = ByteBuffer.wrap(binary).order(ByteOrder.LITTLE_ENDIAN);
         for (int i = 0; i < meta.count; i++) {
             int base = meta.offset + i * meta.stride;
-            if (base + 12 > binary.length) {
+            if (base + meta.componentBytes * meta.components > binary.length) {
                 return null;
             }
-            out[i * 3] = bb.getFloat(base);
-            out[i * 3 + 1] = bb.getFloat(base + 4);
-            out[i * 3 + 2] = bb.getFloat(base + 8);
+            out[i * 3] = readComponentAsFloat(bb, base, meta.componentType);
+            out[i * 3 + 1] = readComponentAsFloat(bb, base + meta.componentBytes, meta.componentType);
+            out[i * 3 + 2] = meta.components >= 3
+                    ? readComponentAsFloat(bb, base + 2 * meta.componentBytes, meta.componentType)
+                    : 0.0f;
         }
         return out;
     }
@@ -287,8 +292,47 @@ final class OpenGlGltfMeshParser {
             case 5126 -> bb.getFloat(offset);
             case 5121 -> (bb.get(offset) & 0xFF) / 255.0f;
             case 5123 -> (bb.getShort(offset) & 0xFFFF) / 65535.0f;
+            case 5120 -> Math.max(-1.0f, bb.get(offset) / 127.0f);
+            case 5122 -> Math.max(-1.0f, bb.getShort(offset) / 32767.0f);
             default -> 0.0f;
         };
+    }
+
+    private int[] triangleStripToTriangles(int[] indices, int vertexCount) {
+        if (indices == null || indices.length < 3) {
+            int count = Math.max(0, vertexCount - 2);
+            int[] generated = new int[count * 3];
+            int out = 0;
+            for (int i = 0; i < count; i++) {
+                if ((i & 1) == 0) {
+                    generated[out++] = i;
+                    generated[out++] = i + 1;
+                    generated[out++] = i + 2;
+                } else {
+                    generated[out++] = i + 1;
+                    generated[out++] = i;
+                    generated[out++] = i + 2;
+                }
+            }
+            return generated;
+        }
+        int triCount = Math.max(0, indices.length - 2);
+        int[] out = new int[triCount * 3];
+        int outIdx = 0;
+        for (int i = 0; i < triCount; i++) {
+            int a = indices[i];
+            int b = indices[i + 1];
+            int c = indices[i + 2];
+            if ((i & 1) == 1) {
+                int t = a;
+                a = b;
+                b = t;
+            }
+            out[outIdx++] = a;
+            out[outIdx++] = b;
+            out[outIdx++] = c;
+        }
+        return out;
     }
 
     private AccessorMeta readAccessorMeta(JsonNode root, int accessorIndex) {

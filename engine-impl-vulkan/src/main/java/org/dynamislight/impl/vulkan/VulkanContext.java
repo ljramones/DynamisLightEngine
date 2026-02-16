@@ -1,6 +1,11 @@
 package org.dynamislight.impl.vulkan;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_FALSE;
@@ -19,6 +24,11 @@ import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
 import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
 import static org.lwjgl.glfw.GLFWVulkan.glfwVulkanSupported;
 import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.system.MemoryUtil.memAlloc;
+import static org.lwjgl.system.MemoryUtil.memAllocPointer;
+import static org.lwjgl.system.MemoryUtil.memFree;
+import static org.lwjgl.system.MemoryUtil.memAddress;
+import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_into_spv;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_initialize;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_release;
@@ -60,6 +70,9 @@ import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_A_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_B_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_G_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_R_BIT;
+import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -70,12 +83,14 @@ import static org.lwjgl.vulkan.VK10.VK_FENCE_CREATE_SIGNALED_BIT;
 import static org.lwjgl.vulkan.VK10.VK_FALSE;
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_B8G8R8A8_SRGB;
 import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
+import static org.lwjgl.vulkan.VK10.VK_INDEX_TYPE_UINT32;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_BIND_POINT_GRAPHICS;
+import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 import static org.lwjgl.vulkan.VK10.VK_POLYGON_MODE_FILL;
 import static org.lwjgl.vulkan.VK10.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -85,10 +100,18 @@ import static org.lwjgl.vulkan.VK10.VK_SAMPLE_COUNT_1_BIT;
 import static org.lwjgl.vulkan.VK10.VK_SHADER_STAGE_FRAGMENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_SHADER_STAGE_VERTEX_BIT;
 import static org.lwjgl.vulkan.VK10.VK_SHARING_MODE_EXCLUSIVE;
+import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_APPLICATION_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -115,12 +138,21 @@ import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 import static org.lwjgl.vulkan.VK10.VK_TRUE;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_2D;
 import static org.lwjgl.vulkan.VK10.vkAllocateCommandBuffers;
+import static org.lwjgl.vulkan.VK10.vkAllocateDescriptorSets;
+import static org.lwjgl.vulkan.VK10.vkAllocateMemory;
 import static org.lwjgl.vulkan.VK10.vkBeginCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkCmdBeginRenderPass;
+import static org.lwjgl.vulkan.VK10.vkCmdBindDescriptorSets;
+import static org.lwjgl.vulkan.VK10.vkCmdBindIndexBuffer;
 import static org.lwjgl.vulkan.VK10.vkCmdBindPipeline;
+import static org.lwjgl.vulkan.VK10.vkCmdBindVertexBuffers;
 import static org.lwjgl.vulkan.VK10.vkCmdDraw;
+import static org.lwjgl.vulkan.VK10.vkCmdDrawIndexed;
 import static org.lwjgl.vulkan.VK10.vkCmdEndRenderPass;
+import static org.lwjgl.vulkan.VK10.vkCreateBuffer;
 import static org.lwjgl.vulkan.VK10.vkCreateCommandPool;
+import static org.lwjgl.vulkan.VK10.vkCreateDescriptorPool;
+import static org.lwjgl.vulkan.VK10.vkCreateDescriptorSetLayout;
 import static org.lwjgl.vulkan.VK10.vkCreateDevice;
 import static org.lwjgl.vulkan.VK10.vkCreateFence;
 import static org.lwjgl.vulkan.VK10.vkCreateFramebuffer;
@@ -132,6 +164,9 @@ import static org.lwjgl.vulkan.VK10.vkCreateRenderPass;
 import static org.lwjgl.vulkan.VK10.vkCreateSemaphore;
 import static org.lwjgl.vulkan.VK10.vkCreateShaderModule;
 import static org.lwjgl.vulkan.VK10.vkDestroyCommandPool;
+import static org.lwjgl.vulkan.VK10.vkDestroyBuffer;
+import static org.lwjgl.vulkan.VK10.vkDestroyDescriptorPool;
+import static org.lwjgl.vulkan.VK10.vkDestroyDescriptorSetLayout;
 import static org.lwjgl.vulkan.VK10.vkDestroyDevice;
 import static org.lwjgl.vulkan.VK10.vkDestroyFence;
 import static org.lwjgl.vulkan.VK10.vkDestroyFramebuffer;
@@ -146,11 +181,18 @@ import static org.lwjgl.vulkan.VK10.vkDeviceWaitIdle;
 import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkEnumeratePhysicalDevices;
 import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
+import static org.lwjgl.vulkan.VK10.vkGetBufferMemoryRequirements;
+import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceMemoryProperties;
 import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceQueueFamilyProperties;
+import static org.lwjgl.vulkan.VK10.vkBindBufferMemory;
+import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkQueueSubmit;
+import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
+import static org.lwjgl.vulkan.VK10.vkUpdateDescriptorSets;
 import static org.lwjgl.vulkan.VK10.vkResetCommandBuffer;
 import static org.lwjgl.vulkan.VK10.vkResetFences;
 import static org.lwjgl.vulkan.VK10.vkWaitForFences;
+import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -170,6 +212,17 @@ import org.lwjgl.vulkan.VkCommandPoolCreateInfo;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkDeviceCreateInfo;
 import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
+import org.lwjgl.vulkan.VkBufferCreateInfo;
+import org.lwjgl.vulkan.VkDescriptorBufferInfo;
+import org.lwjgl.vulkan.VkDescriptorPoolCreateInfo;
+import org.lwjgl.vulkan.VkDescriptorPoolSize;
+import org.lwjgl.vulkan.VkDescriptorSetAllocateInfo;
+import org.lwjgl.vulkan.VkDescriptorSetLayoutBinding;
+import org.lwjgl.vulkan.VkDescriptorSetLayoutCreateInfo;
+import org.lwjgl.vulkan.VkMemoryAllocateInfo;
+import org.lwjgl.vulkan.VkMemoryRequirements;
+import org.lwjgl.vulkan.VkPhysicalDeviceMemoryProperties;
+import org.lwjgl.vulkan.VkWriteDescriptorSet;
 import org.lwjgl.vulkan.VkExtent2D;
 import org.lwjgl.vulkan.VkFenceCreateInfo;
 import org.lwjgl.vulkan.VkFramebufferCreateInfo;
@@ -221,6 +274,11 @@ final class VulkanContext {
     private long renderPass = VK_NULL_HANDLE;
     private long pipelineLayout = VK_NULL_HANDLE;
     private long graphicsPipeline = VK_NULL_HANDLE;
+    private long descriptorSetLayout = VK_NULL_HANDLE;
+    private long descriptorPool = VK_NULL_HANDLE;
+    private long descriptorSet = VK_NULL_HANDLE;
+    private long globalUniformBuffer = VK_NULL_HANDLE;
+    private long globalUniformMemory = VK_NULL_HANDLE;
     private long[] framebuffers = new long[0];
     private long commandPool = VK_NULL_HANDLE;
     private VkCommandBuffer commandBuffer;
@@ -230,6 +288,8 @@ final class VulkanContext {
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
+    private final List<GpuMesh> gpuMeshes = new ArrayList<>();
+    private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
 
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
         initWindow(appName, width, height, windowVisible);
@@ -238,9 +298,11 @@ final class VulkanContext {
             createSurface(stack);
             selectPhysicalDevice(stack);
             createLogicalDevice(stack);
+            createDescriptorResources(stack);
             createSwapchainResources(stack, width, height);
             createCommandResources(stack);
             createSyncObjects(stack);
+            uploadSceneMeshes(stack, pendingSceneMeshes);
         }
     }
 
@@ -271,6 +333,19 @@ final class VulkanContext {
         plannedVisibleObjects = Math.max(1, visibleObjects);
     }
 
+    void setSceneMeshes(List<SceneMeshData> sceneMeshes) throws EngineException {
+        List<SceneMeshData> safe = (sceneMeshes == null || sceneMeshes.isEmpty())
+                ? List.of(SceneMeshData.defaultTriangle())
+                : List.copyOf(sceneMeshes);
+        pendingSceneMeshes = safe;
+        if (device == null) {
+            return;
+        }
+        try (MemoryStack stack = stackPush()) {
+            uploadSceneMeshes(stack, safe);
+        }
+    }
+
     void shutdown() {
         if (device != null) {
             vkDeviceWaitIdle(device);
@@ -290,12 +365,14 @@ final class VulkanContext {
         }
 
         commandBuffer = null;
+        destroySceneMeshes();
         if (commandPool != VK_NULL_HANDLE && device != null) {
             vkDestroyCommandPool(device, commandPool, null);
             commandPool = VK_NULL_HANDLE;
         }
 
         destroySwapchainResources();
+        destroyDescriptorResources();
 
         if (device != null) {
             vkDestroyDevice(device, null);
@@ -493,6 +570,97 @@ final class VulkanContext {
         graphicsQueue = new VkQueue(pQueue.get(0), device);
     }
 
+    private void createDescriptorResources(MemoryStack stack) throws EngineException {
+        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(1, stack);
+        bindings.get(0)
+                .binding(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo = VkDescriptorSetLayoutCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO)
+                .pBindings(bindings);
+        var pLayout = stack.longs(VK_NULL_HANDLE);
+        int layoutResult = vkCreateDescriptorSetLayout(device, layoutInfo, null, pLayout);
+        if (layoutResult != VK_SUCCESS || pLayout.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateDescriptorSetLayout failed: " + layoutResult, false);
+        }
+        descriptorSetLayout = pLayout.get(0);
+
+        BufferAlloc uniformAlloc = createBuffer(
+                stack,
+                80,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+        globalUniformBuffer = uniformAlloc.buffer;
+        globalUniformMemory = uniformAlloc.memory;
+
+        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
+        poolSizes.get(0)
+                .type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                .descriptorCount(1);
+        VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
+                .maxSets(1)
+                .pPoolSizes(poolSizes);
+        var pPool = stack.longs(VK_NULL_HANDLE);
+        int poolResult = vkCreateDescriptorPool(device, poolInfo, null, pPool);
+        if (poolResult != VK_SUCCESS || pPool.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateDescriptorPool failed: " + poolResult, false);
+        }
+        descriptorPool = pPool.get(0);
+
+        VkDescriptorSetAllocateInfo allocInfo = VkDescriptorSetAllocateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO)
+                .descriptorPool(descriptorPool)
+                .pSetLayouts(stack.longs(descriptorSetLayout));
+        var pSet = stack.longs(VK_NULL_HANDLE);
+        int setResult = vkAllocateDescriptorSets(device, allocInfo, pSet);
+        if (setResult != VK_SUCCESS || pSet.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateDescriptorSets failed: " + setResult, false);
+        }
+        descriptorSet = pSet.get(0);
+
+        VkDescriptorBufferInfo.Buffer bufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
+        bufferInfo.get(0)
+                .buffer(globalUniformBuffer)
+                .offset(0)
+                .range(80);
+        VkWriteDescriptorSet.Buffer write = VkWriteDescriptorSet.calloc(1, stack);
+        write.get(0)
+                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                .dstSet(descriptorSet)
+                .dstBinding(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                .pBufferInfo(bufferInfo);
+        vkUpdateDescriptorSets(device, write, null);
+    }
+
+    private void destroyDescriptorResources() {
+        if (device == null) {
+            return;
+        }
+        if (globalUniformBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, globalUniformBuffer, null);
+            globalUniformBuffer = VK_NULL_HANDLE;
+        }
+        if (globalUniformMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, globalUniformMemory, null);
+            globalUniformMemory = VK_NULL_HANDLE;
+        }
+        descriptorSet = VK_NULL_HANDLE;
+        if (descriptorPool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device, descriptorPool, null);
+            descriptorPool = VK_NULL_HANDLE;
+        }
+        if (descriptorSetLayout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, descriptorSetLayout, null);
+            descriptorSetLayout = VK_NULL_HANDLE;
+        }
+    }
+
     private void createSwapchainResources(MemoryStack stack, int requestedWidth, int requestedHeight) throws EngineException {
         VkSurfaceCapabilitiesKHR capabilities = VkSurfaceCapabilitiesKHR.calloc(stack);
         int capsResult = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface, capabilities);
@@ -631,20 +799,24 @@ final class VulkanContext {
     private void createGraphicsPipeline(MemoryStack stack) throws EngineException {
         String vertexShaderSource = """
                 #version 450
-                vec2 positions[3] = vec2[](
-                    vec2(0.0, -0.6),
-                    vec2(0.6, 0.6),
-                    vec2(-0.6, 0.6)
-                );
+                layout(location = 0) in vec3 inPos;
+                layout(set = 0, binding = 0) uniform SceneData {
+                    mat4 uModel;
+                    vec4 uColor;
+                } ubo;
                 void main() {
-                    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
+                    gl_Position = ubo.uModel * vec4(inPos, 1.0);
                 }
                 """;
         String fragmentShaderSource = """
                 #version 450
+                layout(set = 0, binding = 0) uniform SceneData {
+                    mat4 uModel;
+                    vec4 uColor;
+                } ubo;
                 layout(location = 0) out vec4 outColor;
                 void main() {
-                    outColor = vec4(0.93, 0.52, 0.14, 1.0);
+                    outColor = ubo.uColor;
                 }
                 """;
 
@@ -669,8 +841,22 @@ final class VulkanContext {
                     .module(fragModule)
                     .pName(stack.UTF8("main"));
 
+            var bindingDesc = org.lwjgl.vulkan.VkVertexInputBindingDescription.calloc(1, stack);
+            bindingDesc.get(0)
+                    .binding(0)
+                    .stride(3 * Float.BYTES)
+                    .inputRate(VK10.VK_VERTEX_INPUT_RATE_VERTEX);
+            var attrDesc = org.lwjgl.vulkan.VkVertexInputAttributeDescription.calloc(1, stack);
+            attrDesc.get(0)
+                    .location(0)
+                    .binding(0)
+                    .format(VK10.VK_FORMAT_R32G32B32_SFLOAT)
+                    .offset(0);
+
             VkPipelineVertexInputStateCreateInfo vertexInput = VkPipelineVertexInputStateCreateInfo.calloc(stack)
-                    .sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO)
+                    .pVertexBindingDescriptions(bindingDesc)
+                    .pVertexAttributeDescriptions(attrDesc);
             VkPipelineInputAssemblyStateCreateInfo inputAssembly = VkPipelineInputAssemblyStateCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
                     .topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
@@ -726,7 +912,8 @@ final class VulkanContext {
                     .pAttachments(colorBlendAttachment);
 
             VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
-                    .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
+                    .pSetLayouts(stack.longs(descriptorSetLayout));
             var pPipelineLayout = stack.longs(VK_NULL_HANDLE);
             int layoutResult = vkCreatePipelineLayout(device, pipelineLayoutInfo, null, pPipelineLayout);
             if (layoutResult != VK_SUCCESS || pPipelineLayout.get(0) == VK_NULL_HANDLE) {
@@ -978,7 +1165,25 @@ final class VulkanContext {
 
         vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        if (descriptorSet != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(
+                    commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    pipelineLayout,
+                    0,
+                    stack.longs(descriptorSet),
+                    null
+            );
+        }
+        for (GpuMesh mesh : gpuMeshes) {
+            updateGlobalUniform(mesh.colorR, mesh.colorG, mesh.colorB, mesh.offsetX);
+            vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer), stack.longs(0));
+            vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
+        }
+        if (gpuMeshes.isEmpty()) {
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        }
         vkCmdEndRenderPass(commandBuffer);
         int endResult = vkEndCommandBuffer(commandBuffer);
         if (endResult != VK_SUCCESS) {
@@ -1068,6 +1273,246 @@ final class VulkanContext {
         int clampedWidth = Math.max(capabilities.minImageExtent().width(), Math.min(capabilities.maxImageExtent().width(), width));
         int clampedHeight = Math.max(capabilities.minImageExtent().height(), Math.min(capabilities.maxImageExtent().height(), height));
         return VkExtent2D.calloc(stack).set(clampedWidth, clampedHeight);
+    }
+
+    private void uploadSceneMeshes(MemoryStack stack, List<SceneMeshData> sceneMeshes) throws EngineException {
+        destroySceneMeshes();
+        for (SceneMeshData mesh : sceneMeshes) {
+            float[] vertices = mesh.vertices();
+            int[] indices = mesh.indices();
+            ByteBuffer vertexData = ByteBuffer.allocateDirect(vertices.length * Float.BYTES).order(ByteOrder.nativeOrder());
+            FloatBuffer vb = vertexData.asFloatBuffer();
+            vb.put(vertices);
+            vertexData.limit(vertices.length * Float.BYTES);
+
+            ByteBuffer indexData = ByteBuffer.allocateDirect(indices.length * Integer.BYTES).order(ByteOrder.nativeOrder());
+            IntBuffer ib = indexData.asIntBuffer();
+            ib.put(indices);
+            indexData.limit(indices.length * Integer.BYTES);
+
+            BufferAlloc vertexAlloc = createBuffer(
+                    stack,
+                    vertexData.remaining(),
+                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            );
+            BufferAlloc indexAlloc = createBuffer(
+                    stack,
+                    indexData.remaining(),
+                    VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            );
+
+            uploadToMemory(vertexAlloc.memory, vertexData);
+            uploadToMemory(indexAlloc.memory, indexData);
+
+            gpuMeshes.add(new GpuMesh(
+                    vertexAlloc.buffer,
+                    vertexAlloc.memory,
+                    indexAlloc.buffer,
+                    indexAlloc.memory,
+                    indices.length,
+                    mesh.color()[0],
+                    mesh.color()[1],
+                    mesh.color()[2],
+                    mesh.offsetX()
+            ));
+        }
+    }
+
+    private void destroySceneMeshes() {
+        if (device == null) {
+            gpuMeshes.clear();
+            return;
+        }
+        for (GpuMesh mesh : gpuMeshes) {
+            if (mesh.vertexBuffer != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, mesh.vertexBuffer, null);
+            }
+            if (mesh.vertexMemory != VK_NULL_HANDLE) {
+                vkFreeMemory(device, mesh.vertexMemory, null);
+            }
+            if (mesh.indexBuffer != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, mesh.indexBuffer, null);
+            }
+            if (mesh.indexMemory != VK_NULL_HANDLE) {
+                vkFreeMemory(device, mesh.indexMemory, null);
+            }
+        }
+        gpuMeshes.clear();
+    }
+
+    private void updateGlobalUniform(float r, float g, float b, float offsetX) throws EngineException {
+        ByteBuffer mapped = memAlloc(80);
+        mapped.order(ByteOrder.nativeOrder());
+        FloatBuffer fb = mapped.asFloatBuffer();
+        fb.put(new float[]{
+                1f, 0f, 0f, 0f,
+                0f, 1f, 0f, 0f,
+                0f, 0f, 1f, 0f,
+                offsetX, 0f, 0f, 1f,
+                r, g, b, 1f
+        });
+        mapped.limit(80);
+        try (MemoryStack stack = stackPush()) {
+            PointerBuffer pData = stack.mallocPointer(1);
+            int mapResult = vkMapMemory(device, globalUniformMemory, 0, 80, 0, pData);
+            if (mapResult != VK_SUCCESS) {
+                throw vkFailure("vkMapMemory", mapResult);
+            }
+            memCopy(memAddress(mapped), pData.get(0), 80);
+            vkUnmapMemory(device, globalUniformMemory);
+        } finally {
+            memFree(mapped);
+        }
+    }
+
+    private BufferAlloc createBuffer(MemoryStack stack, int sizeBytes, int usage, int memoryProperties) throws EngineException {
+        VkBufferCreateInfo bufferInfo = VkBufferCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO)
+                .size(sizeBytes)
+                .usage(usage)
+                .sharingMode(VK_SHARING_MODE_EXCLUSIVE);
+        var pBuffer = stack.longs(VK_NULL_HANDLE);
+        int createBufferResult = vkCreateBuffer(device, bufferInfo, null, pBuffer);
+        if (createBufferResult != VK_SUCCESS || pBuffer.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateBuffer failed: " + createBufferResult, false);
+        }
+        long buffer = pBuffer.get(0);
+
+        VkMemoryRequirements memReq = VkMemoryRequirements.calloc(stack);
+        vkGetBufferMemoryRequirements(device, buffer, memReq);
+
+        VkMemoryAllocateInfo allocInfo = VkMemoryAllocateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO)
+                .allocationSize(memReq.size())
+                .memoryTypeIndex(findMemoryType(memReq.memoryTypeBits(), memoryProperties));
+
+        var pMemory = stack.longs(VK_NULL_HANDLE);
+        int allocResult = vkAllocateMemory(device, allocInfo, null, pMemory);
+        if (allocResult != VK_SUCCESS || pMemory.get(0) == VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, buffer, null);
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateMemory failed: " + allocResult, false);
+        }
+        long memory = pMemory.get(0);
+        int bindResult = vkBindBufferMemory(device, buffer, memory, 0);
+        if (bindResult != VK_SUCCESS) {
+            vkFreeMemory(device, memory, null);
+            vkDestroyBuffer(device, buffer, null);
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkBindBufferMemory failed: " + bindResult, false);
+        }
+        return new BufferAlloc(buffer, memory);
+    }
+
+    private void uploadToMemory(long memory, ByteBuffer source) throws EngineException {
+        try (MemoryStack stack = stackPush()) {
+            PointerBuffer pData = stack.mallocPointer(1);
+            int mapResult = vkMapMemory(device, memory, 0, source.remaining(), 0, pData);
+            if (mapResult != VK_SUCCESS) {
+                throw vkFailure("vkMapMemory", mapResult);
+            }
+            memCopy(memAddress(source), pData.get(0), source.remaining());
+            vkUnmapMemory(device, memory);
+        }
+    }
+
+    private int findMemoryType(int typeFilter, int properties) throws EngineException {
+        try (MemoryStack stack = stackPush()) {
+            VkPhysicalDeviceMemoryProperties memoryProperties = VkPhysicalDeviceMemoryProperties.calloc(stack);
+            vkGetPhysicalDeviceMemoryProperties(physicalDevice, memoryProperties);
+            for (int i = 0; i < memoryProperties.memoryTypeCount(); i++) {
+                boolean typeMatch = (typeFilter & (1 << i)) != 0;
+                boolean propsMatch = (memoryProperties.memoryTypes(i).propertyFlags() & properties) == properties;
+                if (typeMatch && propsMatch) {
+                    return i;
+                }
+            }
+        }
+        throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "No suitable Vulkan memory type found", false);
+    }
+
+    private record BufferAlloc(long buffer, long memory) {
+    }
+
+    private static final class GpuMesh {
+        private final long vertexBuffer;
+        private final long vertexMemory;
+        private final long indexBuffer;
+        private final long indexMemory;
+        private final int indexCount;
+        private final float colorR;
+        private final float colorG;
+        private final float colorB;
+        private final float offsetX;
+
+        private GpuMesh(
+                long vertexBuffer,
+                long vertexMemory,
+                long indexBuffer,
+                long indexMemory,
+                int indexCount,
+                float colorR,
+                float colorG,
+                float colorB,
+                float offsetX
+        ) {
+            this.vertexBuffer = vertexBuffer;
+            this.vertexMemory = vertexMemory;
+            this.indexBuffer = indexBuffer;
+            this.indexMemory = indexMemory;
+            this.indexCount = indexCount;
+            this.colorR = colorR;
+            this.colorG = colorG;
+            this.colorB = colorB;
+            this.offsetX = offsetX;
+        }
+    }
+
+    static record SceneMeshData(float[] vertices, int[] indices, float[] color, float offsetX) {
+        SceneMeshData {
+            if (vertices == null || vertices.length < 9 || vertices.length % 3 != 0) {
+                throw new IllegalArgumentException("vertices must be xyz-packed and non-empty");
+            }
+            if (indices == null || indices.length < 3 || indices.length % 3 != 0) {
+                throw new IllegalArgumentException("indices must be non-empty triangles");
+            }
+            if (color == null || color.length != 4) {
+                throw new IllegalArgumentException("color must be rgba");
+            }
+        }
+
+        static SceneMeshData defaultTriangle() {
+            return triangle(new float[]{1f, 1f, 1f, 1f}, 0);
+        }
+
+        static SceneMeshData triangle(float[] color, int meshIndex) {
+            float offsetX = (meshIndex % 2 == 0 ? -0.25f : 0.25f) * Math.min(meshIndex, 3);
+            return new SceneMeshData(
+                    new float[]{
+                            0.0f, -0.6f, 0.0f,
+                            0.6f, 0.6f, 0.0f,
+                            -0.6f, 0.6f, 0.0f
+                    },
+                    new int[]{0, 1, 2},
+                    color,
+                    offsetX
+            );
+        }
+
+        static SceneMeshData quad(float[] color, int meshIndex) {
+            float offsetX = (meshIndex - 1) * 0.35f;
+            return new SceneMeshData(
+                    new float[]{
+                            -0.6f, -0.6f, 0.0f,
+                            0.6f, -0.6f, 0.0f,
+                            0.6f, 0.6f, 0.0f,
+                            -0.6f, 0.6f, 0.0f
+                    },
+                    new int[]{0, 1, 2, 2, 3, 0},
+                    color,
+                    offsetX
+            );
+        }
     }
 
     record VulkanFrameMetrics(

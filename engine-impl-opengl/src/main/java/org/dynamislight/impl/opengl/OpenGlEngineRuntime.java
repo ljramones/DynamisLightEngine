@@ -15,6 +15,7 @@ import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.FogMode;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
@@ -111,6 +112,15 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         if (!mockContext) {
             context.setSceneMeshes(sceneMeshes);
             context.setCameraMatrices(cameraMatrices.view(), cameraMatrices.proj());
+            LightingConfig lighting = mapLighting(scene.lights());
+            context.setLightingParameters(
+                    lighting.directionalDirection(),
+                    lighting.directionalColor(),
+                    lighting.directionalIntensity(),
+                    lighting.pointPosition(),
+                    lighting.pointColor(),
+                    lighting.pointIntensity()
+            );
             context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
             frameGraph = buildFrameGraph();
@@ -273,6 +283,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     OpenGlContext.defaultTriangleGeometry(),
                     identityMatrix(),
                     new float[]{1f, 1f, 1f},
+                    0.0f,
+                    0.6f,
+                    null,
                     null
             ));
         }
@@ -297,10 +310,65 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             float[] model = modelMatrixOf(transform);
             float[] albedo = albedoOf(material);
             Path albedoTexturePath = resolveTexturePath(material == null ? null : material.albedoTexturePath());
-
-            sceneMeshes.add(new OpenGlContext.SceneMesh(geometry, model, albedo, albedoTexturePath));
+            Path normalTexturePath = resolveTexturePath(material == null ? null : material.normalTexturePath());
+            float metallic = material == null ? 0.0f : clamp01(material.metallic());
+            float roughness = material == null ? 0.6f : clamp01(material.roughness());
+            sceneMeshes.add(new OpenGlContext.SceneMesh(
+                    geometry,
+                    model,
+                    albedo,
+                    metallic,
+                    roughness,
+                    albedoTexturePath,
+                    normalTexturePath
+            ));
         }
         return sceneMeshes;
+    }
+
+    private static LightingConfig mapLighting(List<LightDesc> lights) {
+        float[] dir = new float[]{0.35f, -1.0f, 0.25f};
+        float[] dirColor = new float[]{1.0f, 0.98f, 0.95f};
+        float dirIntensity = 1.0f;
+        float[] pointPos = new float[]{0f, 1.3f, 1.8f};
+        float[] pointColor = new float[]{0.95f, 0.62f, 0.22f};
+        float pointIntensity = 1.0f;
+        if (lights == null || lights.isEmpty()) {
+            return new LightingConfig(dir, dirColor, dirIntensity, pointPos, pointColor, pointIntensity);
+        }
+        LightDesc first = lights.getFirst();
+        if (first != null && first.color() != null) {
+            dirColor = new float[]{clamp01(first.color().x()), clamp01(first.color().y()), clamp01(first.color().z())};
+        }
+        if (first != null) {
+            dirIntensity = Math.max(0f, first.intensity());
+            if (first.position() != null) {
+                pointPos = new float[]{first.position().x(), first.position().y(), first.position().z()};
+            }
+        }
+        if (lights.size() > 1) {
+            LightDesc second = lights.get(1);
+            if (second != null && second.color() != null) {
+                pointColor = new float[]{clamp01(second.color().x()), clamp01(second.color().y()), clamp01(second.color().z())};
+            }
+            if (second != null) {
+                pointIntensity = Math.max(0f, second.intensity());
+                if (second.position() != null) {
+                    pointPos = new float[]{second.position().x(), second.position().y(), second.position().z()};
+                }
+            }
+        }
+        return new LightingConfig(dir, dirColor, dirIntensity, pointPos, pointColor, pointIntensity);
+    }
+
+    private record LightingConfig(
+            float[] directionalDirection,
+            float[] directionalColor,
+            float directionalIntensity,
+            float[] pointPosition,
+            float[] pointColor,
+            float pointIntensity
+    ) {
     }
 
     private CameraDesc selectActiveCamera(SceneDescriptor scene) {
@@ -379,6 +447,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             return 16f / 9f;
         }
         return Math.max(0.1f, (float) width / (float) height);
+    }
+
+    private static float clamp01(float value) {
+        return Math.max(0f, Math.min(1f, value));
     }
 
     private FrameGraph buildFrameGraph() {

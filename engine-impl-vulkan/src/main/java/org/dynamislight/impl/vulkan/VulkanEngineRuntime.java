@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.config.EngineConfig;
@@ -11,6 +12,8 @@ import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
+import org.dynamislight.api.scene.MaterialDesc;
+import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
 
 public final class VulkanEngineRuntime extends AbstractEngineRuntime {
@@ -57,11 +60,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
-    protected void onLoadScene(SceneDescriptor scene) {
+    protected void onLoadScene(SceneDescriptor scene) throws EngineException {
         plannedDrawCalls = scene.meshes() == null || scene.meshes().isEmpty() ? 1 : scene.meshes().size();
         plannedTriangles = estimateTriangles(scene.meshes());
         plannedVisibleObjects = plannedDrawCalls;
         if (!mockContext) {
+            context.setSceneMeshes(buildSceneMeshes(scene));
             context.setPlannedWorkload(plannedDrawCalls, plannedTriangles, plannedVisibleObjects);
         }
     }
@@ -115,5 +119,47 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             triangles += (path.contains("quad") || path.contains("box")) ? 2 : 1;
         }
         return Math.max(1, triangles);
+    }
+
+    private static List<VulkanContext.SceneMeshData> buildSceneMeshes(SceneDescriptor scene) {
+        if (scene == null || scene.meshes() == null || scene.meshes().isEmpty()) {
+            return List.of(VulkanContext.SceneMeshData.defaultTriangle());
+        }
+        Map<String, MaterialDesc> materials = scene.materials() == null ? Map.of() : scene.materials().stream()
+                .filter(m -> m != null && m.id() != null)
+                .collect(java.util.stream.Collectors.toMap(MaterialDesc::id, m -> m, (a, b) -> a));
+
+        List<VulkanContext.SceneMeshData> out = new java.util.ArrayList<>(scene.meshes().size());
+        for (int i = 0; i < scene.meshes().size(); i++) {
+            MeshDesc mesh = scene.meshes().get(i);
+            if (mesh == null) {
+                continue;
+            }
+            MaterialDesc material = materials.get(mesh.materialId());
+            float[] color = materialToColor(material);
+            String path = mesh.meshAssetPath() == null ? "" : mesh.meshAssetPath().toLowerCase(Locale.ROOT);
+            VulkanContext.SceneMeshData meshData = path.contains("quad") || path.contains("plane")
+                    ? VulkanContext.SceneMeshData.quad(color, i)
+                    : VulkanContext.SceneMeshData.triangle(color, i);
+            out.add(meshData);
+        }
+        return out.isEmpty() ? List.of(VulkanContext.SceneMeshData.defaultTriangle()) : List.copyOf(out);
+    }
+
+    private static float[] materialToColor(MaterialDesc material) {
+        Vec3 albedo = material == null ? null : material.albedo();
+        if (albedo == null) {
+            return new float[]{1f, 1f, 1f, 1f};
+        }
+        return new float[]{
+                clamp01(albedo.x()),
+                clamp01(albedo.y()),
+                clamp01(albedo.z()),
+                1f
+        };
+    }
+
+    private static float clamp01(float v) {
+        return Math.max(0f, Math.min(1f, v));
     }
 }
