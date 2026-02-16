@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.zip.DataFormatException;
+import java.util.zip.Inflater;
 
 /**
  * Minimal native KTX/KTX2 decode utility used for IBL fallback ingestion.
@@ -26,6 +28,8 @@ public final class KtxDecodeUtil {
     private static final int VK_FORMAT_R8G8B8_UNORM = 23;
     private static final int VK_FORMAT_R8G8_UNORM = 16;
     private static final int VK_FORMAT_R8_UNORM = 9;
+    private static final int KTX2_SUPERCOMPRESSION_NONE = 0;
+    private static final int KTX2_SUPERCOMPRESSION_ZLIB = 1;
     private static final int GL_UNSIGNED_BYTE = 0x1401;
     private static final int GL_RED = 0x1903;
     private static final int GL_RG = 0x8227;
@@ -36,6 +40,9 @@ public final class KtxDecodeUtil {
     private static final Map<Path, CacheEntry> CACHE = new ConcurrentHashMap<>();
 
     private record CacheEntry(long size, long modifiedMs, Path decodedPath) {
+    }
+
+    public record DecodedRgba(int width, int height, byte[] rgbaBytes) {
     }
 
     private KtxDecodeUtil() {
@@ -80,19 +87,27 @@ public final class KtxDecodeUtil {
     }
 
     public static BufferedImage decodeToImageIfSupported(Path containerPath) {
+        DecodedRgba decoded = decodeToRgbaIfSupported(containerPath);
+        if (decoded == null) {
+            return null;
+        }
+        return rgbaToImage(decoded.width(), decoded.height(), decoded.rgbaBytes());
+    }
+
+    public static DecodedRgba decodeToRgbaIfSupported(Path containerPath) {
         if (containerPath == null || !Files.isRegularFile(containerPath)) {
             return null;
         }
         try {
             byte[] bytes = Files.readAllBytes(containerPath.toAbsolutePath().normalize());
-            return decodeImage(bytes);
+            return decodeRaw(bytes);
         } catch (Throwable ignored) {
             return null;
         }
     }
 
     public static boolean canDecodeSupported(Path containerPath) {
-        return decodeToImageIfSupported(containerPath) != null;
+        return decodeToRgbaIfSupported(containerPath) != null;
     }
 
     public static boolean isKnownUnsupportedVariant(Path containerPath) {
@@ -119,6 +134,14 @@ public final class KtxDecodeUtil {
     }
 
     private static BufferedImage decodeImage(byte[] bytes) {
+        DecodedRgba decoded = decodeRaw(bytes);
+        if (decoded == null) {
+            return null;
+        }
+        return rgbaToImage(decoded.width(), decoded.height(), decoded.rgbaBytes());
+    }
+
+    private static DecodedRgba decodeRaw(byte[] bytes) {
         if (startsWith(bytes, KTX2_IDENTIFIER)) {
             return decodeKtx2(bytes);
         }
@@ -128,7 +151,7 @@ public final class KtxDecodeUtil {
         return null;
     }
 
-    private static BufferedImage decodeKtx2(byte[] bytes) {
+    private static DecodedRgba decodeKtx2(byte[] bytes) {
         if (bytes.length < 104) {
             return null;
         }
@@ -147,7 +170,7 @@ public final class KtxDecodeUtil {
                 || pixelWidth <= 0
                 || pixelHeight <= 0
                 || faceCount != 1
-                || supercompression != 0
+                || (supercompression != KTX2_SUPERCOMPRESSION_NONE && supercompression != KTX2_SUPERCOMPRESSION_ZLIB)
                 || levelCount <= 0
                 || layerCount > 1) {
             return null;
@@ -160,11 +183,24 @@ public final class KtxDecodeUtil {
         long byteLength = bb.getLong(levelIndexOffset + 8);
         long uncompressedLength = bb.getLong(levelIndexOffset + 16);
         long expected = (long) pixelWidth * (long) pixelHeight * bytesPerPixel;
-        long actualLength = uncompressedLength > 0 ? uncompressedLength : byteLength;
-        if (actualLength < expected || byteOffset < 0 || byteOffset + expected > bytes.length) {
+        long expectedUncompressed = uncompressedLength > 0 ? uncompressedLength : expected;
+        if (expectedUncompressed < expected || byteOffset < 0 || byteOffset + byteLength > bytes.length) {
             return null;
         }
-        return toImage(bytes, (int) byteOffset, pixelWidth, pixelHeight, bytesPerPixel, layout);
+        byte[] rawBytes;
+        if (supercompression == KTX2_SUPERCOMPRESSION_NONE) {
+            if (byteLength < expected) {
+                return null;
+            }
+            rawBytes = new byte[(int) expected];
+            System.arraycopy(bytes, (int) byteOffset, rawBytes, 0, rawBytes.length);
+        } else {
+            rawBytes = inflateZlib(bytes, (int) byteOffset, (int) byteLength, (int) expectedUncompressed);
+            if (rawBytes == null || rawBytes.length < expected) {
+                return null;
+            }
+        }
+        return toRgba(rawBytes, 0, pixelWidth, pixelHeight, bytesPerPixel, layout);
     }
 
     private static boolean isUnsupportedKtx2(byte[] bytes) {
@@ -174,13 +210,13 @@ public final class KtxDecodeUtil {
         ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         int vkFormat = bb.getInt(12);
         int supercompression = bb.getInt(44);
-        if (supercompression != 0) {
+        if (supercompression != KTX2_SUPERCOMPRESSION_NONE && supercompression != KTX2_SUPERCOMPRESSION_ZLIB) {
             return true;
         }
         return bytesPerPixelForVkFormat(vkFormat) <= 0 || layoutForVkFormat(vkFormat) == null;
     }
 
-    private static BufferedImage decodeKtx1(byte[] bytes) {
+    private static DecodedRgba decodeKtx1(byte[] bytes) {
         if (bytes.length < 68) {
             return null;
         }
@@ -213,7 +249,7 @@ public final class KtxDecodeUtil {
         if (imageSize < expected || imageOffset + expected > bytes.length) {
             return null;
         }
-        return toImage(bytes, imageOffset, pixelWidth, pixelHeight, bytesPerPixel, layout);
+        return toRgba(bytes, imageOffset, pixelWidth, pixelHeight, bytesPerPixel, layout);
     }
 
     private static boolean isUnsupportedKtx1(byte[] bytes) {
@@ -229,7 +265,7 @@ public final class KtxDecodeUtil {
         return bytesPerPixelForGlFormat(glFormat) <= 0 || layoutForGlFormat(glFormat) == null;
     }
 
-    private static BufferedImage toImage(
+    private static DecodedRgba toRgba(
             byte[] bytes,
             int offset,
             int width,
@@ -237,8 +273,9 @@ public final class KtxDecodeUtil {
             int bytesPerPixel,
             ChannelLayout layout
     ) {
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        byte[] rgba = new byte[width * height * 4];
         int idx = offset;
+        int out = 0;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int r = 0;
@@ -269,11 +306,51 @@ public final class KtxDecodeUtil {
                 } else {
                     idx += bytesPerPixel;
                 }
+                rgba[out++] = (byte) r;
+                rgba[out++] = (byte) g;
+                rgba[out++] = (byte) b;
+                rgba[out++] = (byte) a;
+            }
+        }
+        return new DecodedRgba(width, height, rgba);
+    }
+
+    private static BufferedImage rgbaToImage(int width, int height, byte[] rgbaBytes) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        int idx = 0;
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int r = rgbaBytes[idx++] & 0xFF;
+                int g = rgbaBytes[idx++] & 0xFF;
+                int b = rgbaBytes[idx++] & 0xFF;
+                int a = rgbaBytes[idx++] & 0xFF;
                 int argb = (a << 24) | (r << 16) | (g << 8) | b;
                 image.setRGB(x, y, argb);
             }
         }
         return image;
+    }
+
+    private static byte[] inflateZlib(byte[] source, int offset, int length, int expectedLength) {
+        Inflater inflater = new Inflater();
+        try {
+            inflater.setInput(source, offset, length);
+            byte[] out = new byte[Math.max(0, expectedLength)];
+            int inflated = inflater.inflate(out);
+            if (inflated <= 0) {
+                return null;
+            }
+            if (inflated == out.length) {
+                return out;
+            }
+            byte[] exact = new byte[inflated];
+            System.arraycopy(out, 0, exact, 0, inflated);
+            return exact;
+        } catch (DataFormatException ignored) {
+            return null;
+        } finally {
+            inflater.end();
+        }
     }
 
     private static int bytesPerPixelForVkFormat(int vkFormat) {

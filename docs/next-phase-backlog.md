@@ -91,13 +91,17 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 - Expand deterministic golden scenes for additional fog/smoke/shadow material interactions.
 - Expand IBL beyond baseline (native `.ktx/.ktx2` decode/prefilter and deeper BRDF/roughness integration).
   - baseline native `.ktx/.ktx2` decode is now in place for uncompressed channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`)
+  - native KTX2 zlib-supercompressed decode is now supported for baseline decodable channel families
   - direct GPU ingestion path now decodes supported KTX/KTX2 in-memory (no PNG transcode dependency)
   - BRDF/roughness integration has been deepened in both backends with stronger roughness-aware prefilter weighting and BRDF LUT energy shaping
   - prefilter path now includes roughness-driven mip/LOD sampling for IBL radiance (`IBL_MIP_LOD_PREFILTER_ACTIVE`)
   - unsupported compressed/supercompressed/non-RGBA8 variants are surfaced explicitly via `IBL_KTX_VARIANT_UNSUPPORTED`
-  - remaining: true compressed/supercompressed native decode/upload coverage beyond baseline uncompressed families
+  - remaining: broader compressed/supercompressed native decode/upload coverage beyond zlib + baseline uncompressed families
 - Shadow fidelity tune: radius/cascade-aware depth-bias scaling now applied in both backends to reduce acne/flicker at higher PCF/cascade settings.
 - Extend Vulkan dynamic-update staging strategy to more scene data beyond current uniform path.
+- Dynamic scene ownership guardrails expanded:
+  - configurable soft-limit telemetry (`vulkan.dynamicObjectSoftLimit`)
+  - frame profile now reports observed dynamic-object peak and emits `DYNAMIC_SCENE_SOFT_LIMIT_EXCEEDED` when exceeded
 - Add more real-device validation coverage across multiple machine/driver profiles.
 
 ## P0-1 Vulkan Albedo Texturing Vertical Slice

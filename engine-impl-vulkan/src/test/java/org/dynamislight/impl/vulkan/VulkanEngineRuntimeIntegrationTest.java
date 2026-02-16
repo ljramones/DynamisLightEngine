@@ -81,6 +81,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.maxDynamicSceneObjects", "4096",
                 "vulkan.maxPendingUploadRanges", "128",
                 "vulkan.dynamicUploadMergeGapObjects", "7",
+                "vulkan.dynamicObjectSoftLimit", "1024",
                 "vulkan.maxTextureDescriptorSets", "8192",
                 "vulkan.meshGeometryCacheEntries", "512"
         )), new RecordingCallbacks());
@@ -93,6 +94,7 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(8192, config.maxTextureDescriptorSets());
         assertEquals(512, config.meshGeometryCacheEntries());
         assertEquals(7, profile.dynamicUploadMergeGapObjects());
+        assertEquals(1024, profile.dynamicObjectSoftLimit());
         runtime.shutdown();
     }
 
@@ -105,6 +107,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.maxDynamicSceneObjects", "10",
                 "vulkan.maxPendingUploadRanges", "-1",
                 "vulkan.dynamicUploadMergeGapObjects", "99",
+                "vulkan.dynamicObjectSoftLimit", "10",
                 "vulkan.maxTextureDescriptorSets", "1",
                 "vulkan.meshGeometryCacheEntries", "nope"
         )), new RecordingCallbacks());
@@ -117,6 +120,7 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(256, config.maxTextureDescriptorSets());
         assertEquals(256, config.meshGeometryCacheEntries());
         assertEquals(32, profile.dynamicUploadMergeGapObjects());
+        assertEquals(128, profile.dynamicObjectSoftLimit());
         runtime.shutdown();
     }
 
@@ -342,6 +346,50 @@ class VulkanEngineRuntimeIntegrationTest {
             var frame = runtime.render();
             assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
             assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_ASSET_FALLBACK_ACTIVE".equals(w.code())));
+            runtime.shutdown();
+        } finally {
+            Files.deleteIfExists(irr);
+            Files.deleteIfExists(rad);
+        }
+    }
+
+    @Test
+    void iblZlibSupercompressedKtx2DoesNotEmitDecodeUnavailableWarning() throws Exception {
+        Path irr = Files.createTempFile("dle-vk-irr-zlib-", ".ktx2");
+        Path rad = Files.createTempFile("dle-vk-rad-zlib-", ".ktx2");
+        try {
+            writeKtx2ZlibRgba8(irr, 2, 2, (byte) 180, (byte) 160, (byte) 120, (byte) 255);
+            writeKtx2ZlibRgba8(rad, 2, 2, (byte) 220, (byte) 200, (byte) 180, (byte) 255);
+            Path brdf = Path.of("..", "assets", "textures", "albedo.png").toAbsolutePath().normalize();
+
+            SceneDescriptor base = validScene();
+            EnvironmentDesc env = new EnvironmentDesc(
+                    base.environment().ambientColor(),
+                    base.environment().ambientIntensity(),
+                    null,
+                    irr.toString(),
+                    rad.toString(),
+                    brdf.toString()
+            );
+            var runtime = new VulkanEngineRuntime();
+            runtime.initialize(validConfig(true), new RecordingCallbacks());
+            runtime.loadScene(new SceneDescriptor(
+                    "vulkan-ibl-ktx-zlib-decode-available-scene",
+                    base.cameras(),
+                    base.activeCameraId(),
+                    base.transforms(),
+                    base.meshes(),
+                    base.materials(),
+                    base.lights(),
+                    env,
+                    base.fog(),
+                    base.smokeEmitters(),
+                    base.postProcess()
+            ));
+
+            var frame = runtime.render();
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_KTX_VARIANT_UNSUPPORTED".equals(w.code())));
             runtime.shutdown();
         } finally {
             Files.deleteIfExists(irr);
@@ -684,6 +732,10 @@ class VulkanEngineRuntimeIntegrationTest {
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingCapBypasses=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("dynamicUploadMergeGapObjects=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("dynamicObjectSoftLimit=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("maxObservedDynamicObjects=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingWasteWarnCooldownRemaining=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
@@ -1457,6 +1509,58 @@ class VulkanEngineRuntimeIntegrationTest {
         putIntLE(header, 40, 1);
         putIntLE(header, 44, 1);
         Files.write(path, header);
+    }
+
+    private static void writeKtx2ZlibRgba8(Path path, int width, int height, byte r, byte g, byte b, byte a) throws Exception {
+        int pixels = Math.max(1, width) * Math.max(1, height);
+        byte[] rgba = new byte[pixels * 4];
+        for (int i = 0; i < pixels; i++) {
+            int idx = i * 4;
+            rgba[idx] = r;
+            rgba[idx + 1] = g;
+            rgba[idx + 2] = b;
+            rgba[idx + 3] = a;
+        }
+        java.util.zip.Deflater deflater = new java.util.zip.Deflater(java.util.zip.Deflater.DEFAULT_COMPRESSION);
+        byte[] compressed;
+        try {
+            deflater.setInput(rgba);
+            deflater.finish();
+            byte[] out = new byte[rgba.length + 64];
+            int len = deflater.deflate(out);
+            compressed = new byte[len];
+            System.arraycopy(out, 0, compressed, 0, len);
+        } finally {
+            deflater.end();
+        }
+        int headerSize = 80;
+        int levelIndexSize = 24;
+        int dataOffset = headerSize + levelIndexSize;
+        byte[] out = new byte[dataOffset + compressed.length];
+        byte[] identifier = new byte[]{
+                (byte) 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, (byte) 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
+        };
+        System.arraycopy(identifier, 0, out, 0, identifier.length);
+        putIntLE(out, 12, 37);
+        putIntLE(out, 16, 1);
+        putIntLE(out, 20, Math.max(1, width));
+        putIntLE(out, 24, Math.max(1, height));
+        putIntLE(out, 28, 0);
+        putIntLE(out, 32, 0);
+        putIntLE(out, 36, 1);
+        putIntLE(out, 40, 1);
+        putIntLE(out, 44, 1);
+        putIntLE(out, 48, 0);
+        putIntLE(out, 52, 0);
+        putIntLE(out, 56, 0);
+        putIntLE(out, 60, 0);
+        putLongLE(out, 64, 0L);
+        putLongLE(out, 72, 0L);
+        putLongLE(out, 80, dataOffset);
+        putLongLE(out, 88, compressed.length);
+        putLongLE(out, 96, rgba.length);
+        System.arraycopy(compressed, 0, out, dataOffset, compressed.length);
+        Files.write(path, out);
     }
 
     private static void putIntLE(byte[] buffer, int offset, int value) {

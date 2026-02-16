@@ -314,6 +314,7 @@ final class VulkanContext {
     private static final int DEFAULT_MAX_DYNAMIC_SCENE_OBJECTS = 2048;
     private static final int DEFAULT_MAX_PENDING_UPLOAD_RANGES = 64;
     private static final int DEFAULT_DYNAMIC_UPLOAD_MERGE_GAP_OBJECTS = 1;
+    private static final int DEFAULT_DYNAMIC_OBJECT_SOFT_LIMIT = 1536;
     private static final int MAX_PENDING_UPLOAD_RANGES_HARD_CAP = 4096;
     private static final int MAX_SHADOW_CASCADES = 4;
     private static final int POINT_SHADOW_FACES = 6;
@@ -365,6 +366,8 @@ final class VulkanContext {
     private int maxDynamicSceneObjects = DEFAULT_MAX_DYNAMIC_SCENE_OBJECTS;
     private int maxPendingUploadRanges = DEFAULT_MAX_PENDING_UPLOAD_RANGES;
     private int dynamicUploadMergeGapObjects = DEFAULT_DYNAMIC_UPLOAD_MERGE_GAP_OBJECTS;
+    private int dynamicObjectSoftLimit = DEFAULT_DYNAMIC_OBJECT_SOFT_LIMIT;
+    private int maxObservedDynamicObjects;
     private long[] framebuffers = new long[0];
     private long commandPool = VK_NULL_HANDLE;
     private VkCommandBuffer[] commandBuffers = new VkCommandBuffer[0];
@@ -524,6 +527,13 @@ final class VulkanContext {
         dynamicUploadMergeGapObjects = clamp(mergeGapObjects, 0, 32);
     }
 
+    void configureDynamicObjectSoftLimit(int softLimit) {
+        if (device != null) {
+            return;
+        }
+        dynamicObjectSoftLimit = clamp(softLimit, 128, 8192);
+    }
+
     void configureDescriptorRing(int maxSetCapacity) {
         if (device != null) {
             return;
@@ -632,6 +642,8 @@ final class VulkanContext {
                 descriptorRingPoolResetFailureCount,
                 descriptorRingCapBypassCount,
                 dynamicUploadMergeGapObjects,
+                dynamicObjectSoftLimit,
+                maxObservedDynamicObjects,
                 globalUniformStagingMappedAddress != 0L
         );
     }
@@ -1388,6 +1400,7 @@ final class VulkanContext {
         lastFrameUniformUploadRanges = 0;
         maxFrameUniformUploadRanges = 0;
         lastFrameUniformUploadStartObject = 0;
+        maxObservedDynamicObjects = 0;
         pendingUploadSrcOffset = -1L;
         pendingUploadDstOffset = -1L;
         pendingUploadByteCount = 0;
@@ -4240,11 +4253,21 @@ final class VulkanContext {
     }
 
     private TexturePixelData loadTexturePixelsFromKtx(Path containerPath) {
-        BufferedImage image = KtxDecodeUtil.decodeToImageIfSupported(containerPath);
-        if (image == null) {
+        KtxDecodeUtil.DecodedRgba decoded = KtxDecodeUtil.decodeToRgbaIfSupported(containerPath);
+        if (decoded == null) {
             return null;
         }
-        return bufferedImageToPixels(image);
+        int width = decoded.width();
+        int height = decoded.height();
+        byte[] src = decoded.rgbaBytes();
+        ByteBuffer buffer = memAlloc(src.length);
+        int rowBytes = width * 4;
+        for (int y = 0; y < height; y++) {
+            int srcY = height - 1 - y;
+            buffer.put(src, srcY * rowBytes, rowBytes);
+        }
+        buffer.flip();
+        return new TexturePixelData(buffer, width, height);
     }
 
     private TexturePixelData bufferedImageToPixels(BufferedImage image) {
@@ -4696,6 +4719,7 @@ final class VulkanContext {
 
     private void prepareFrameUniforms(int frameIdx) throws EngineException {
         int meshCount = Math.max(1, gpuMeshes.size());
+        maxObservedDynamicObjects = Math.max(maxObservedDynamicObjects, meshCount);
         if (meshCount > maxDynamicSceneObjects) {
             throw new EngineException(
                     EngineErrorCode.RESOURCE_CREATION_FAILED,
@@ -4713,15 +4737,16 @@ final class VulkanContext {
         }
 
         int uploadRangeCount;
-        int[] uploadStarts = new int[maxPendingUploadRanges];
-        int[] uploadEnds = new int[maxPendingUploadRanges];
+        int uploadCapacity = pendingUploadSrcOffsets.length;
+        int[] uploadStarts = new int[uploadCapacity];
+        int[] uploadEnds = new int[uploadCapacity];
         if (globalStale) {
             uploadRangeCount = 1;
             uploadStarts[0] = 0;
             uploadEnds[0] = meshCount - 1;
         } else if (sceneStale && pendingSceneDirtyRangeCount > 0) {
             uploadRangeCount = 0;
-            for (int i = 0; i < pendingSceneDirtyRangeCount && uploadRangeCount < maxPendingUploadRanges; i++) {
+            for (int i = 0; i < pendingSceneDirtyRangeCount && uploadRangeCount < uploadCapacity; i++) {
                 int start = Math.max(0, Math.min(meshCount - 1, pendingSceneDirtyStarts[i]));
                 int end = Math.max(start, Math.min(meshCount - 1, pendingSceneDirtyEnds[i]));
                 uploadStarts[uploadRangeCount] = start;
@@ -5339,6 +5364,8 @@ final class VulkanContext {
             long descriptorRingPoolResetFailures,
             long descriptorRingCapBypasses,
             int dynamicUploadMergeGapObjects,
+            int dynamicObjectSoftLimit,
+            int maxObservedDynamicObjects,
             boolean persistentStagingMapped
     ) {
     }

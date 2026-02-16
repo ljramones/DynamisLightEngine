@@ -1441,11 +1441,14 @@ final class OpenGlContext {
     }
 
     private TextureData loadTextureFromKtx(Path containerPath) {
-        BufferedImage image = KtxDecodeUtil.decodeToImageIfSupported(containerPath);
-        if (image == null) {
+        KtxDecodeUtil.DecodedRgba decoded = KtxDecodeUtil.decodeToRgbaIfSupported(containerPath);
+        if (decoded == null) {
             return new TextureData(0, 0, 0);
         }
-        return uploadBufferedImageTexture(image);
+        ByteBuffer rgba = ByteBuffer.allocateDirect(decoded.rgbaBytes().length).order(ByteOrder.nativeOrder());
+        rgba.put(decoded.rgbaBytes());
+        rgba.flip();
+        return uploadRgbaTexture(rgba, decoded.width(), decoded.height());
     }
 
     private TextureData uploadBufferedImageTexture(BufferedImage image) {

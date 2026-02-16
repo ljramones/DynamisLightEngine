@@ -111,6 +111,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 0,
                 32
         );
+        int dynamicObjectSoftLimit = parseIntOption(
+                backendOptions,
+                "vulkan.dynamicObjectSoftLimit",
+                1536,
+                128,
+                8192
+        );
         int descriptorRingMaxSetCapacity = parseIntOption(
                 backendOptions,
                 "vulkan.maxTextureDescriptorSets",
@@ -169,6 +176,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
         context.configureFrameResources(framesInFlight, maxDynamicSceneObjects, maxPendingUploadRanges);
         context.configureDynamicUploadMergeGap(dynamicUploadMergeGapObjects);
+        context.configureDynamicObjectSoftLimit(dynamicObjectSoftLimit);
         context.configureDescriptorRing(descriptorRingMaxSetCapacity);
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
@@ -451,10 +459,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " descriptorRingPoolResetFailures=" + frameResources.descriptorRingPoolResetFailures()
                             + " descriptorRingCapBypasses=" + frameResources.descriptorRingCapBypasses()
                             + " dynamicUploadMergeGapObjects=" + frameResources.dynamicUploadMergeGapObjects()
+                            + " dynamicObjectSoftLimit=" + frameResources.dynamicObjectSoftLimit()
+                            + " maxObservedDynamicObjects=" + frameResources.maxObservedDynamicObjects()
                             + " descriptorRingWasteWarnCooldownRemaining=" + descriptorRingWasteWarnCooldownRemaining
                             + " descriptorRingCapPressureWarnCooldownRemaining=" + descriptorRingCapPressureWarnCooldownRemaining
                             + " persistentStagingMapped=" + frameResources.persistentStagingMapped()
             ));
+            if (frameResources.maxObservedDynamicObjects() > frameResources.dynamicObjectSoftLimit()) {
+                warnings.add(new EngineWarning(
+                        "DYNAMIC_SCENE_SOFT_LIMIT_EXCEEDED",
+                        "Observed dynamic scene objects " + frameResources.maxObservedDynamicObjects()
+                                + " exceed configured soft limit " + frameResources.dynamicObjectSoftLimit()
+                                + " (hard capacity=" + frameResources.dynamicSceneCapacity() + ")"
+                ));
+            }
             if (frameResources.descriptorRingSetCapacity() > 0) {
                 double wasteRatio = (double) frameResources.descriptorRingWasteSetCount()
                         / (double) frameResources.descriptorRingSetCapacity();

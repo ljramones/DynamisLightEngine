@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.Deflater;
 import org.junit.jupiter.api.Test;
 
 class KtxDecodeUtilTest {
@@ -27,7 +28,7 @@ class KtxDecodeUtilTest {
             writeKtx2(file, 23, 2, 1, 0, new byte[]{
                     (byte) 255, 0, 0,
                     0, (byte) 255, 0
-            });
+            }, 6);
             BufferedImage image = KtxDecodeUtil.decodeToImageIfSupported(file);
             assertNotNull(image);
             assertEquals(2, image.getWidth());
@@ -63,9 +64,35 @@ class KtxDecodeUtilTest {
     void marksSupercompressedKtx2AsUnsupportedVariant() throws Exception {
         Path file = Files.createTempFile("dle-ktx2-super-", ".ktx2");
         try {
-            writeKtx2(file, 37, 2, 2, 2, new byte[16]);
+            writeKtx2(file, 37, 2, 2, 2, new byte[16], 16);
             assertTrue(KtxDecodeUtil.isKnownUnsupportedVariant(file));
             assertNull(KtxDecodeUtil.decodeToImageIfSupported(file));
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    @Test
+    void decodesKtx2ZlibSupercompressedRgba8() throws Exception {
+        Path file = Files.createTempFile("dle-ktx2-zlib-", ".ktx2");
+        try {
+            byte[] raw = new byte[]{
+                    (byte) 255, 0, 0, (byte) 255,
+                    0, (byte) 255, 0, (byte) 255,
+                    0, 0, (byte) 255, (byte) 255,
+                    (byte) 255, (byte) 255, 0, (byte) 255
+            };
+            byte[] compressed = deflate(raw);
+            writeKtx2(file, 37, 2, 2, 1, compressed, raw.length);
+            KtxDecodeUtil.DecodedRgba decoded = KtxDecodeUtil.decodeToRgbaIfSupported(file);
+            assertNotNull(decoded);
+            assertEquals(2, decoded.width());
+            assertEquals(2, decoded.height());
+            assertEquals(raw.length, decoded.rgbaBytes().length);
+            assertEquals((byte) 255, decoded.rgbaBytes()[0]);
+            assertEquals((byte) 255, decoded.rgbaBytes()[15]);
+            assertTrue(KtxDecodeUtil.canDecodeSupported(file));
+            assertTrue(!KtxDecodeUtil.isKnownUnsupportedVariant(file));
         } finally {
             Files.deleteIfExists(file);
         }
@@ -77,7 +104,8 @@ class KtxDecodeUtilTest {
             int width,
             int height,
             int supercompressionScheme,
-            byte[] payload
+            byte[] payload,
+            int uncompressedLength
     ) throws Exception {
         int levelOffset = 104;
         ByteBuffer bb = ByteBuffer.allocate(levelOffset + payload.length).order(ByteOrder.LITTLE_ENDIAN);
@@ -99,10 +127,25 @@ class KtxDecodeUtilTest {
         bb.putLong(0L);
         bb.putLong(levelOffset);
         bb.putLong(payload.length);
-        bb.putLong(payload.length);
+        bb.putLong(uncompressedLength > 0 ? uncompressedLength : payload.length);
         bb.position(levelOffset);
         bb.put(payload);
         Files.write(file, bb.array());
+    }
+
+    private static byte[] deflate(byte[] raw) {
+        Deflater deflater = new Deflater(Deflater.DEFAULT_COMPRESSION);
+        try {
+            deflater.setInput(raw);
+            deflater.finish();
+            byte[] out = new byte[raw.length + 64];
+            int len = deflater.deflate(out);
+            byte[] exact = new byte[len];
+            System.arraycopy(out, 0, exact, 0, len);
+            return exact;
+        } finally {
+            deflater.end();
+        }
     }
 
     private static void writeKtx1(Path file, int glFormat, int width, int height, byte[] payload) throws Exception {
