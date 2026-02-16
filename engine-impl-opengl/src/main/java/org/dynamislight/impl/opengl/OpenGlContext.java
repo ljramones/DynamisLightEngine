@@ -80,6 +80,7 @@ import static org.lwjgl.opengl.GL30.glDeleteVertexArrays;
 import static org.lwjgl.opengl.GL30.glGenVertexArrays;
 import static org.lwjgl.opengl.GL30.glGenerateMipmap;
 import static org.lwjgl.opengl.GL30.GL_COLOR_ATTACHMENT0;
+import static org.lwjgl.opengl.GL30.GL_COLOR_ATTACHMENT1;
 import static org.lwjgl.opengl.GL30.GL_DEPTH24_STENCIL8;
 import static org.lwjgl.opengl.GL30.GL_DEPTH_STENCIL_ATTACHMENT;
 import static org.lwjgl.opengl.GL30.GL_RENDERBUFFER;
@@ -306,6 +307,8 @@ final class OpenGlContext {
             uniform float uSmokeIntensity;
             uniform vec2 uViewportSize;
             uniform vec4 uIblParams;
+            uniform mat4 uCurrentViewProj;
+            uniform mat4 uPrevViewProj;
             uniform int uTonemapEnabled;
             uniform float uTonemapExposure;
             uniform float uTonemapGamma;
@@ -321,7 +324,8 @@ final class OpenGlContext {
             uniform float uSmaaStrength;
             uniform int uTaaEnabled;
             uniform float uTaaBlend;
-            out vec4 FragColor;
+            layout(location = 0) out vec4 FragColor;
+            layout(location = 1) out vec4 VelocityColor;
             float distributionGGX(float ndh, float roughness) {
                 float a = roughness * roughness;
                 float a2 = a * a;
@@ -570,7 +574,15 @@ final class OpenGlContext {
                     float blend = clamp(uTaaBlend, 0.0, 0.95);
                     color = mix(color, vec3(dot(color, vec3(0.2126, 0.7152, 0.0722))), blend * 0.05);
                 }
+                vec4 currClip = uCurrentViewProj * vec4(vWorldPos, 1.0);
+                vec4 prevClip = uPrevViewProj * vec4(vWorldPos, 1.0);
+                float currW = abs(currClip.w) > 0.000001 ? currClip.w : 1.0;
+                float prevW = abs(prevClip.w) > 0.000001 ? prevClip.w : 1.0;
+                vec2 currNdc = currClip.xy / currW;
+                vec2 prevNdc = prevClip.xy / prevW;
+                vec2 velocityNdc = clamp(prevNdc - currNdc, vec2(-1.0), vec2(1.0));
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+                VelocityColor = vec4(velocityNdc * 0.5 + 0.5, 0.5, 1.0);
             }
             """;
 
@@ -593,6 +605,7 @@ final class OpenGlContext {
             #version 330 core
             in vec2 vUv;
             uniform sampler2D uSceneColor;
+            uniform sampler2D uSceneVelocity;
             uniform int uTonemapEnabled;
             uniform float uTonemapExposure;
             uniform float uTonemapGamma;
@@ -680,7 +693,8 @@ final class OpenGlContext {
                     color = smaaLite(vUv, color);
                 }
                 if (uTaaEnabled == 1 && uTaaHistoryValid == 1) {
-                    vec2 historyUv = clamp(vUv + uTaaJitterDelta + uTaaMotionUv, vec2(0.0), vec2(1.0));
+                    vec2 velocityUv = texture(uSceneVelocity, vUv).rg * 2.0 - 1.0;
+                    vec2 historyUv = clamp(vUv + uTaaJitterDelta + uTaaMotionUv + (velocityUv * 0.5), vec2(0.0), vec2(1.0));
                     vec3 history = texture(uTaaHistory, historyUv).rgb;
                     float blend = clamp(uTaaBlend, 0.0, 0.95);
                     vec3 minN = min(color, history);
@@ -700,6 +714,8 @@ final class OpenGlContext {
     private int modelLocation;
     private int viewLocation;
     private int projLocation;
+    private int currentViewProjLocation;
+    private int prevViewProjLocation;
     private int lightViewProjLocation;
     private int materialAlbedoLocation;
     private int materialMetallicLocation;
@@ -761,6 +777,7 @@ final class OpenGlContext {
     private int taaBlendLocation;
     private int postProgramId;
     private int postSceneColorLocation;
+    private int postSceneVelocityLocation;
     private int postTonemapEnabledLocation;
     private int postTonemapExposureLocation;
     private int postTonemapGammaLocation;
@@ -783,6 +800,7 @@ final class OpenGlContext {
     private int postVaoId;
     private int sceneFramebufferId;
     private int sceneColorTextureId;
+    private int sceneVelocityTextureId;
     private int sceneDepthRenderbufferId;
     private int taaHistoryTextureId;
     private boolean taaHistoryValid;
@@ -970,6 +988,8 @@ final class OpenGlContext {
         applyPostProcessUniforms(useShaderDrivenPost());
         glUniformMatrix4fv(viewLocation, false, viewMatrix);
         glUniformMatrix4fv(projLocation, false, projMatrix);
+        glUniformMatrix4fv(currentViewProjLocation, false, mul(projMatrix, viewMatrix));
+        glUniformMatrix4fv(prevViewProjLocation, false, taaPrevViewProjValid ? taaPrevViewProj : mul(projMatrix, viewMatrix));
         glUniformMatrix4fv(lightViewProjLocation, false, lightViewProjMatrix);
         lastDrawCalls = 0;
         lastTriangles = 0;
@@ -1150,6 +1170,8 @@ final class OpenGlContext {
         glBindTexture(GL_TEXTURE_2D, sceneColorTextureId);
         glActiveTexture(GL_TEXTURE0 + 1);
         glBindTexture(GL_TEXTURE_2D, taaHistoryTextureId);
+        glActiveTexture(GL_TEXTURE0 + 2);
+        glBindTexture(GL_TEXTURE_2D, sceneVelocityTextureId);
         glUniform1i(postTonemapEnabledLocation, tonemapEnabled ? 1 : 0);
         glUniform1f(postTonemapExposureLocation, tonemapExposure);
         glUniform1f(postTonemapGammaLocation, tonemapGamma);
@@ -1179,6 +1201,8 @@ final class OpenGlContext {
             taaHistoryValid = true;
         }
         glActiveTexture(GL_TEXTURE0 + 1);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0 + 2);
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0);
         glUseProgram(0);
@@ -1448,6 +1472,8 @@ final class OpenGlContext {
         modelLocation = glGetUniformLocation(programId, "uModel");
         viewLocation = glGetUniformLocation(programId, "uView");
         projLocation = glGetUniformLocation(programId, "uProj");
+        currentViewProjLocation = glGetUniformLocation(programId, "uCurrentViewProj");
+        prevViewProjLocation = glGetUniformLocation(programId, "uPrevViewProj");
         lightViewProjLocation = glGetUniformLocation(programId, "uLightViewProj");
         materialAlbedoLocation = glGetUniformLocation(programId, "uMaterialAlbedo");
         materialMetallicLocation = glGetUniformLocation(programId, "uMaterialMetallic");
@@ -1539,6 +1565,7 @@ final class OpenGlContext {
         glDeleteShader(vertexShaderId);
         glDeleteShader(fragmentShaderId);
         postSceneColorLocation = glGetUniformLocation(postProgramId, "uSceneColor");
+        postSceneVelocityLocation = glGetUniformLocation(postProgramId, "uSceneVelocity");
         postTonemapEnabledLocation = glGetUniformLocation(postProgramId, "uTonemapEnabled");
         postTonemapExposureLocation = glGetUniformLocation(postProgramId, "uTonemapExposure");
         postTonemapGammaLocation = glGetUniformLocation(postProgramId, "uTonemapGamma");
@@ -1562,6 +1589,7 @@ final class OpenGlContext {
         glUseProgram(postProgramId);
         glUniform1i(postSceneColorLocation, 0);
         glUniform1i(postTaaHistoryLocation, 1);
+        glUniform1i(postSceneVelocityLocation, 2);
         glUseProgram(0);
     }
 
@@ -1570,6 +1598,13 @@ final class OpenGlContext {
         try {
             sceneColorTextureId = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, sceneColorTextureId);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
+            glBindTexture(GL_TEXTURE_2D, 0);
+
+            sceneVelocityTextureId = glGenTextures();
+            glBindTexture(GL_TEXTURE_2D, sceneVelocityTextureId);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
@@ -1591,7 +1626,11 @@ final class OpenGlContext {
             sceneFramebufferId = glGenFramebuffers();
             glBindFramebuffer(GL_FRAMEBUFFER, sceneFramebufferId);
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sceneColorTextureId, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, sceneVelocityTextureId, 0);
             glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, sceneDepthRenderbufferId);
+            try (org.lwjgl.system.MemoryStack stack = org.lwjgl.system.MemoryStack.stackPush()) {
+                org.lwjgl.opengl.GL20.glDrawBuffers(stack.ints(GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1));
+            }
             int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
             postProcessPipelineAvailable = status == GL_FRAMEBUFFER_COMPLETE;
@@ -1611,6 +1650,10 @@ final class OpenGlContext {
         if (sceneColorTextureId != 0) {
             glDeleteTextures(sceneColorTextureId);
             sceneColorTextureId = 0;
+        }
+        if (sceneVelocityTextureId != 0) {
+            glDeleteTextures(sceneVelocityTextureId);
+            sceneVelocityTextureId = 0;
         }
         if (sceneDepthRenderbufferId != 0) {
             glDeleteRenderbuffers(sceneDepthRenderbufferId);
