@@ -5,7 +5,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,9 +18,8 @@ import org.dynamislight.impl.vulkan.command.VulkanCommandSubmitter;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
 import org.dynamislight.impl.vulkan.command.VulkanFrameSyncResources;
 import org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder;
-import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorRingPolicy;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorResources;
-import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorPoolManager;
+import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorSetCoordinator;
 import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorWriter;
 import org.dynamislight.impl.vulkan.pipeline.VulkanMainPipelineBuilder;
 import org.dynamislight.impl.vulkan.pipeline.VulkanPostProcessResources;
@@ -1640,54 +1638,23 @@ final class VulkanContext {
         try (MemoryStack stack = stackPush()) {
             createTextureDescriptorSets(stack);
         }
-        destroyTextures(result.staleTextures());
+        VulkanTextureResourceOps.destroyTextures(device, result.staleTextures());
         markSceneStateDirty(0, Math.max(0, sceneMeshes.size() - 1));
     }
 
     private void destroySceneMeshes() {
-        if (device == null) {
-            gpuMeshes.clear();
-            return;
-        }
-        Set<VulkanGpuTexture> uniqueTextures = new HashSet<>();
-        for (VulkanGpuMesh mesh : gpuMeshes) {
-            if (mesh.vertexBuffer != VK_NULL_HANDLE) {
-                vkDestroyBuffer(device, mesh.vertexBuffer, null);
-            }
-            if (mesh.vertexMemory != VK_NULL_HANDLE) {
-                vkFreeMemory(device, mesh.vertexMemory, null);
-            }
-            if (mesh.indexBuffer != VK_NULL_HANDLE) {
-                vkDestroyBuffer(device, mesh.indexBuffer, null);
-            }
-            if (mesh.indexMemory != VK_NULL_HANDLE) {
-                vkFreeMemory(device, mesh.indexMemory, null);
-            }
-            uniqueTextures.add(mesh.albedoTexture);
-            uniqueTextures.add(mesh.normalTexture);
-            uniqueTextures.add(mesh.metallicRoughnessTexture);
-            uniqueTextures.add(mesh.occlusionTexture);
-        }
-        uniqueTextures.add(iblIrradianceTexture);
-        uniqueTextures.add(iblRadianceTexture);
-        uniqueTextures.add(iblBrdfLutTexture);
-        destroyTextures(uniqueTextures);
-        if (textureDescriptorPool != VK_NULL_HANDLE) {
-            vkDestroyDescriptorPool(device, textureDescriptorPool, null);
-            textureDescriptorPool = VK_NULL_HANDLE;
-        }
+        VulkanSceneMeshLifecycle.DestroyResult destroyResult = VulkanSceneMeshLifecycle.destroyMeshes(
+                device,
+                gpuMeshes,
+                iblIrradianceTexture,
+                iblRadianceTexture,
+                iblBrdfLutTexture,
+                textureDescriptorPool
+        );
+        textureDescriptorPool = destroyResult.textureDescriptorPool();
         iblIrradianceTexture = null;
         iblRadianceTexture = null;
         iblBrdfLutTexture = null;
-        gpuMeshes.clear();
-    }
-
-    private Set<VulkanGpuTexture> collectLiveTextures(List<VulkanGpuMesh> meshes, VulkanGpuTexture iblIrr, VulkanGpuTexture iblRad, VulkanGpuTexture iblBrdf) {
-        return VulkanTextureResourceOps.collectLiveTextures(meshes, iblIrr, iblRad, iblBrdf);
-    }
-
-    private void destroyTextures(Set<VulkanGpuTexture> textures) {
-        VulkanTextureResourceOps.destroyTextures(device, textures);
     }
 
     private VulkanGpuTexture resolveOrCreateTexture(
@@ -1721,29 +1688,29 @@ final class VulkanContext {
         if (gpuMeshes.isEmpty() || textureDescriptorSetLayout == VK_NULL_HANDLE) {
             return;
         }
-        int requiredSetCount = gpuMeshes.size();
-        int targetSetCapacity = targetDescriptorRingCapacity(requiredSetCount);
-        VulkanTextureDescriptorPoolManager.State state = VulkanTextureDescriptorPoolManager.createOrReuseAndWrite(
-                device,
-                stack,
-                gpuMeshes,
-                textureDescriptorSetLayout,
-                textureDescriptorPool,
-                descriptorRingSetCapacity,
-                descriptorRingPeakSetCapacity,
-                descriptorRingPeakWasteSetCount,
-                descriptorPoolBuildCount,
-                descriptorPoolRebuildCount,
-                descriptorRingGrowthRebuildCount,
-                descriptorRingSteadyRebuildCount,
-                descriptorRingPoolReuseCount,
-                descriptorRingPoolResetFailureCount,
-                targetSetCapacity,
-                shadowDepthImageView,
-                shadowSampler,
-                iblIrradianceTexture,
-                iblRadianceTexture,
-                iblBrdfLutTexture
+        VulkanTextureDescriptorSetCoordinator.Result state = VulkanTextureDescriptorSetCoordinator.createOrReuse(
+                new VulkanTextureDescriptorSetCoordinator.Inputs(
+                        device,
+                        stack,
+                        gpuMeshes,
+                        textureDescriptorSetLayout,
+                        textureDescriptorPool,
+                        descriptorRingSetCapacity,
+                        descriptorRingPeakSetCapacity,
+                        descriptorRingPeakWasteSetCount,
+                        descriptorPoolBuildCount,
+                        descriptorPoolRebuildCount,
+                        descriptorRingGrowthRebuildCount,
+                        descriptorRingSteadyRebuildCount,
+                        descriptorRingPoolReuseCount,
+                        descriptorRingPoolResetFailureCount,
+                        descriptorRingMaxSetCapacity,
+                        shadowDepthImageView,
+                        shadowSampler,
+                        iblIrradianceTexture,
+                        iblRadianceTexture,
+                        iblBrdfLutTexture
+                )
         );
         textureDescriptorPool = state.textureDescriptorPool();
         descriptorPoolBuildCount = state.descriptorPoolBuildCount();
@@ -1757,6 +1724,7 @@ final class VulkanContext {
         descriptorRingActiveSetCount = state.descriptorRingActiveSetCount();
         descriptorRingWasteSetCount = state.descriptorRingWasteSetCount();
         descriptorRingPeakWasteSetCount = state.descriptorRingPeakWasteSetCount();
+        descriptorRingCapBypassCount += state.descriptorRingCapBypassCountIncrement();
     }
 
     private VulkanGpuTexture createTextureFromPath(Path texturePath, boolean normalMap) throws EngineException {
@@ -1993,18 +1961,6 @@ final class VulkanContext {
         }
         int normalizedFrame = Math.floorMod(frameIdx, frameDescriptorSets.length);
         return frameDescriptorSets[normalizedFrame];
-    }
-
-    private int targetDescriptorRingCapacity(int requiredSetCount) {
-        VulkanDescriptorRingPolicy.Decision decision = VulkanDescriptorRingPolicy.decide(
-                descriptorRingSetCapacity,
-                requiredSetCount,
-                descriptorRingMaxSetCapacity
-        );
-        if (decision.capBypass()) {
-            descriptorRingCapBypassCount++;
-        }
-        return decision.targetCapacity();
     }
 
     private void reallocateFrameTracking() {

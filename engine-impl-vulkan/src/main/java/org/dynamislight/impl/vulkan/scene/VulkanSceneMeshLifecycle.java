@@ -28,6 +28,10 @@ import java.util.Set;
 
 import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
+import static org.lwjgl.vulkan.VK10.vkDestroyBuffer;
+import static org.lwjgl.vulkan.VK10.vkDestroyDescriptorPool;
+import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 
 public final class VulkanSceneMeshLifecycle {
     private VulkanSceneMeshLifecycle() {
@@ -286,6 +290,50 @@ public final class VulkanSceneMeshLifecycle {
         return new RebindResult(newIblIrradiance, newIblRadiance, newIblBrdfLut, oldTextures);
     }
 
+    public static DestroyResult destroyMeshes(
+            VkDevice device,
+            List<VulkanGpuMesh> gpuMeshes,
+            VulkanGpuTexture iblIrradianceTexture,
+            VulkanGpuTexture iblRadianceTexture,
+            VulkanGpuTexture iblBrdfLutTexture,
+            long textureDescriptorPool
+    ) {
+        if (device == null) {
+            gpuMeshes.clear();
+            return new DestroyResult(VK_NULL_HANDLE);
+        }
+        Set<VulkanGpuTexture> uniqueTextures = new HashSet<>();
+        for (VulkanGpuMesh mesh : gpuMeshes) {
+            if (mesh.vertexBuffer != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, mesh.vertexBuffer, null);
+            }
+            if (mesh.vertexMemory != VK_NULL_HANDLE) {
+                vkFreeMemory(device, mesh.vertexMemory, null);
+            }
+            if (mesh.indexBuffer != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, mesh.indexBuffer, null);
+            }
+            if (mesh.indexMemory != VK_NULL_HANDLE) {
+                vkFreeMemory(device, mesh.indexMemory, null);
+            }
+            uniqueTextures.add(mesh.albedoTexture);
+            uniqueTextures.add(mesh.normalTexture);
+            uniqueTextures.add(mesh.metallicRoughnessTexture);
+            uniqueTextures.add(mesh.occlusionTexture);
+        }
+        uniqueTextures.add(iblIrradianceTexture);
+        uniqueTextures.add(iblRadianceTexture);
+        uniqueTextures.add(iblBrdfLutTexture);
+        VulkanTextureResourceOps.destroyTextures(device, uniqueTextures);
+        long nextTextureDescriptorPool = textureDescriptorPool;
+        if (nextTextureDescriptorPool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device, nextTextureDescriptorPool, null);
+            nextTextureDescriptorPool = VK_NULL_HANDLE;
+        }
+        gpuMeshes.clear();
+        return new DestroyResult(nextTextureDescriptorPool);
+    }
+
     public record UploadResult(
             VulkanGpuTexture iblIrradianceTexture,
             VulkanGpuTexture iblRadianceTexture,
@@ -300,5 +348,8 @@ public final class VulkanSceneMeshLifecycle {
             VulkanGpuTexture iblBrdfLutTexture,
             Set<VulkanGpuTexture> staleTextures
     ) {
+    }
+
+    public record DestroyResult(long textureDescriptorPool) {
     }
 }

@@ -60,11 +60,11 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 - `org.dynamislight.impl.vulkan.swapchain`
   - swapchain policy/selection/allocation, image-view lifecycle, and framebuffer/depth helpers (`VulkanSwapchainSelector`, `VulkanSwapchainAllocation`, `VulkanSwapchainImageViews`, `VulkanFramebufferResources`)
 - `org.dynamislight.impl.vulkan.descriptor`
-  - descriptor-ring sizing + descriptor resource lifecycle + texture descriptor pool/ring manager + descriptor writes (`VulkanDescriptorRingPolicy`, `VulkanDescriptorResources`, `VulkanTextureDescriptorPoolManager`, `VulkanTextureDescriptorWriter`)
+  - descriptor-ring sizing + descriptor resource lifecycle + texture descriptor pool/ring manager + descriptor-set coordination/writes (`VulkanDescriptorRingPolicy`, `VulkanDescriptorResources`, `VulkanTextureDescriptorPoolManager`, `VulkanTextureDescriptorSetCoordinator`, `VulkanTextureDescriptorWriter`)
 - `org.dynamislight.impl.vulkan.command`
   - frame-sync allocation/teardown, acquire+submit/present orchestration, frame-command orchestration, and command recording helpers (`VulkanFrameSyncResources`, `VulkanCommandSubmitter`, `VulkanFrameCommandOrchestrator`, `VulkanRenderCommandRecorder`)
 - `org.dynamislight.impl.vulkan.scene`
-  - scene mesh-reuse, dynamic-update, and mesh lifecycle helpers (`VulkanSceneReusePolicy`, `VulkanDynamicSceneUpdater`, `VulkanSceneMeshLifecycle`)
+  - scene mesh-reuse, dynamic-update, and mesh lifecycle/teardown helpers (`VulkanSceneReusePolicy`, `VulkanDynamicSceneUpdater`, `VulkanSceneMeshLifecycle`)
 - `org.dynamislight.impl.vulkan.math`
   - matrix/vector math helpers extracted from context (`VulkanMath`)
 - `org.dynamislight.impl.vulkan.shadow`
