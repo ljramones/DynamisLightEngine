@@ -1060,6 +1060,13 @@ final class VulkanContext {
         if (device == null) {
             return;
         }
+        destroyDescriptorAllocation();
+        resetDescriptorUniformState();
+        resetDescriptorUploadTrackingState();
+        resetDescriptorPoolState();
+    }
+
+    private void destroyDescriptorAllocation() {
         VulkanDescriptorResources.destroy(
                 device,
                 new VulkanDescriptorResources.Allocation(
@@ -1083,6 +1090,9 @@ final class VulkanContext {
                         estimatedGpuMemoryBytes
                 )
         );
+    }
+
+    private void resetDescriptorUniformState() {
         objectUniformBuffer = VK_NULL_HANDLE;
         objectUniformMemory = VK_NULL_HANDLE;
         objectUniformStagingBuffer = VK_NULL_HANDLE;
@@ -1097,6 +1107,9 @@ final class VulkanContext {
         uniformFrameSpanBytes = OBJECT_UNIFORM_BYTES;
         globalUniformFrameSpanBytes = GLOBAL_SCENE_UNIFORM_BYTES;
         estimatedGpuMemoryBytes = 0;
+    }
+
+    private void resetDescriptorUploadTrackingState() {
         lastFrameUniformUploadBytes = 0;
         maxFrameUniformUploadBytes = 0;
         lastFrameGlobalUploadBytes = 0;
@@ -1120,6 +1133,9 @@ final class VulkanContext {
         sceneStateRevision = 1;
         Arrays.fill(frameGlobalRevisionApplied, 0L);
         Arrays.fill(frameSceneRevisionApplied, 0L);
+    }
+
+    private void resetDescriptorPoolState() {
         frameDescriptorSets = new long[0];
         descriptorSet = VK_NULL_HANDLE;
         descriptorRingSetCapacity = 0;
