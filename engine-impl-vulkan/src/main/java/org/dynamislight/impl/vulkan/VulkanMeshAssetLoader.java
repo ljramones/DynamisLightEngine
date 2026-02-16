@@ -13,9 +13,9 @@ final class VulkanMeshAssetLoader {
         this.gltfParser = new VulkanGltfMeshParser(this.assetRoot);
     }
 
-    VulkanContext.SceneMeshData loadMeshData(MeshDesc mesh, float[] color, int meshIndex) {
+    VulkanGltfMeshParser.MeshGeometry loadMeshGeometry(MeshDesc mesh, int meshIndex) {
         if (mesh == null) {
-            return VulkanContext.SceneMeshData.defaultTriangle();
+            return triangleGeometry();
         }
 
         String meshPath = mesh.meshAssetPath() == null ? "" : mesh.meshAssetPath().toLowerCase(Locale.ROOT);
@@ -23,17 +23,10 @@ final class VulkanMeshAssetLoader {
         if (resolved != null && (meshPath.endsWith(".glb") || meshPath.endsWith(".gltf"))) {
             var parsed = gltfParser.parse(resolved);
             if (parsed.isPresent()) {
-                VulkanGltfMeshParser.MeshGeometry geometry = parsed.get();
-                float offsetX = (meshIndex - 1) * 0.35f;
-                return new VulkanContext.SceneMeshData(
-                        geometry.positions(),
-                        geometry.indices(),
-                        color,
-                        offsetX
-                );
+                return parsed.get();
             }
         }
-        return fallbackByName(meshPath, color, meshIndex);
+        return fallbackByName(meshPath, meshIndex);
     }
 
     private Path resolve(String meshAssetPath) {
@@ -47,10 +40,33 @@ final class VulkanMeshAssetLoader {
         return assetRoot.resolve(path).normalize();
     }
 
-    private VulkanContext.SceneMeshData fallbackByName(String sourceName, float[] color, int meshIndex) {
+    private VulkanGltfMeshParser.MeshGeometry fallbackByName(String sourceName, int meshIndex) {
         if (sourceName.contains("quad") || sourceName.contains("box") || sourceName.contains("plane")) {
-            return VulkanContext.SceneMeshData.quad(color, meshIndex);
+            return quadGeometry();
         }
-        return VulkanContext.SceneMeshData.triangle(color, meshIndex);
+        return triangleGeometry();
+    }
+
+    private VulkanGltfMeshParser.MeshGeometry triangleGeometry() {
+        return new VulkanGltfMeshParser.MeshGeometry(
+                new float[]{
+                        0.0f, -0.6f, 0.0f,
+                        0.6f, 0.6f, 0.0f,
+                        -0.6f, 0.6f, 0.0f
+                },
+                new int[]{0, 1, 2}
+        );
+    }
+
+    private VulkanGltfMeshParser.MeshGeometry quadGeometry() {
+        return new VulkanGltfMeshParser.MeshGeometry(
+                new float[]{
+                        -0.6f, -0.6f, 0.0f,
+                        0.6f, -0.6f, 0.0f,
+                        0.6f, 0.6f, 0.0f,
+                        -0.6f, 0.6f, 0.0f
+                },
+                new int[]{0, 1, 2, 2, 3, 0}
+        );
     }
 }

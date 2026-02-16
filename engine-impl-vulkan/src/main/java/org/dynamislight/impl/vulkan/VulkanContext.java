@@ -258,6 +258,7 @@ import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
 import org.lwjgl.vulkan.VkViewport;
 
 final class VulkanContext {
+    private static final int GLOBAL_UNIFORM_BYTES = 272;
     private VkInstance instance;
     private VkPhysicalDevice physicalDevice;
     private VkDevice device;
@@ -290,6 +291,22 @@ final class VulkanContext {
     private long plannedVisibleObjects = 1;
     private final List<GpuMesh> gpuMeshes = new ArrayList<>();
     private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
+    private float[] viewMatrix = identityMatrix();
+    private float[] projMatrix = identityMatrix();
+    private float dirLightDirX = 0.35f;
+    private float dirLightDirY = -1.0f;
+    private float dirLightDirZ = 0.25f;
+    private float dirLightColorR = 1.0f;
+    private float dirLightColorG = 0.98f;
+    private float dirLightColorB = 0.95f;
+    private float dirLightIntensity = 1.0f;
+    private float pointLightPosX = 0.0f;
+    private float pointLightPosY = 1.2f;
+    private float pointLightPosZ = 1.8f;
+    private float pointLightColorR = 0.95f;
+    private float pointLightColorG = 0.62f;
+    private float pointLightColorB = 0.22f;
+    private float pointLightIntensity = 1.0f;
 
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
         initWindow(appName, width, height, windowVisible);
@@ -344,6 +361,47 @@ final class VulkanContext {
         try (MemoryStack stack = stackPush()) {
             uploadSceneMeshes(stack, safe);
         }
+    }
+
+    void setCameraMatrices(float[] view, float[] proj) {
+        if (view != null && view.length == 16) {
+            viewMatrix = view.clone();
+        }
+        if (proj != null && proj.length == 16) {
+            projMatrix = proj.clone();
+        }
+    }
+
+    void setLightingParameters(
+            float[] dirDir,
+            float[] dirColor,
+            float dirIntensity,
+            float[] pointPos,
+            float[] pointColor,
+            float pointIntensity
+    ) {
+        if (dirDir != null && dirDir.length == 3) {
+            dirLightDirX = dirDir[0];
+            dirLightDirY = dirDir[1];
+            dirLightDirZ = dirDir[2];
+        }
+        if (dirColor != null && dirColor.length == 3) {
+            dirLightColorR = dirColor[0];
+            dirLightColorG = dirColor[1];
+            dirLightColorB = dirColor[2];
+        }
+        dirLightIntensity = Math.max(0f, dirIntensity);
+        if (pointPos != null && pointPos.length == 3) {
+            pointLightPosX = pointPos[0];
+            pointLightPosY = pointPos[1];
+            pointLightPosZ = pointPos[2];
+        }
+        if (pointColor != null && pointColor.length == 3) {
+            pointLightColorR = pointColor[0];
+            pointLightColorG = pointColor[1];
+            pointLightColorB = pointColor[2];
+        }
+        pointLightIntensity = Math.max(0f, pointIntensity);
     }
 
     void shutdown() {
@@ -590,7 +648,7 @@ final class VulkanContext {
 
         BufferAlloc uniformAlloc = createBuffer(
                 stack,
-                80,
+                GLOBAL_UNIFORM_BYTES,
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
         );
@@ -627,7 +685,7 @@ final class VulkanContext {
         bufferInfo.get(0)
                 .buffer(globalUniformBuffer)
                 .offset(0)
-                .range(80);
+                .range(GLOBAL_UNIFORM_BYTES);
         VkWriteDescriptorSet.Buffer write = VkWriteDescriptorSet.calloc(1, stack);
         write.get(0)
                 .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
@@ -800,23 +858,69 @@ final class VulkanContext {
         String vertexShaderSource = """
                 #version 450
                 layout(location = 0) in vec3 inPos;
+                layout(location = 0) out vec3 vWorldPos;
+                layout(location = 1) out vec3 vNormal;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
-                    vec4 uColor;
+                    mat4 uView;
+                    mat4 uProj;
+                    vec4 uBaseColor;
+                    vec4 uMaterial;
+                    vec4 uDirLightDir;
+                    vec4 uDirLightColor;
+                    vec4 uPointLightPos;
+                    vec4 uPointLightColor;
                 } ubo;
                 void main() {
-                    gl_Position = ubo.uModel * vec4(inPos, 1.0);
+                    vec4 world = ubo.uModel * vec4(inPos, 1.0);
+                    vWorldPos = world.xyz;
+                    vNormal = normalize(mat3(ubo.uModel) * vec3(0.0, 0.0, 1.0));
+                    gl_Position = ubo.uProj * ubo.uView * world;
                 }
                 """;
         String fragmentShaderSource = """
                 #version 450
+                layout(location = 0) in vec3 vWorldPos;
+                layout(location = 1) in vec3 vNormal;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
-                    vec4 uColor;
+                    mat4 uView;
+                    mat4 uProj;
+                    vec4 uBaseColor;
+                    vec4 uMaterial;
+                    vec4 uDirLightDir;
+                    vec4 uDirLightColor;
+                    vec4 uPointLightPos;
+                    vec4 uPointLightColor;
                 } ubo;
                 layout(location = 0) out vec4 outColor;
                 void main() {
-                    outColor = ubo.uColor;
+                    vec3 n = normalize(vNormal);
+                    vec3 baseColor = ubo.uBaseColor.rgb;
+                    float metallic = clamp(ubo.uMaterial.x, 0.0, 1.0);
+                    float roughness = clamp(ubo.uMaterial.y, 0.04, 1.0);
+                    float dirIntensity = max(0.0, ubo.uMaterial.z);
+                    float pointIntensity = max(0.0, ubo.uMaterial.w);
+
+                    vec3 ambient = 0.18 * baseColor;
+                    vec3 lDir = normalize(-ubo.uDirLightDir.xyz);
+                    float ndl = max(dot(n, lDir), 0.0);
+                    vec3 diffuse = baseColor * ubo.uDirLightColor.rgb * (ndl * dirIntensity);
+
+                    vec3 pDir = normalize(ubo.uPointLightPos.xyz - vWorldPos);
+                    float pNdl = max(dot(n, pDir), 0.0);
+                    float dist = max(length(ubo.uPointLightPos.xyz - vWorldPos), 0.1);
+                    float attenuation = 1.0 / (1.0 + 0.35 * dist + 0.1 * dist * dist);
+                    vec3 pointLit = baseColor * ubo.uPointLightColor.rgb * (pNdl * attenuation * pointIntensity);
+
+                    vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
+                    vec3 halfVec = normalize(lDir + viewDir);
+                    float gloss = 1.0 - roughness;
+                    float specPow = mix(8.0, 96.0, gloss);
+                    float spec = pow(max(dot(n, halfVec), 0.0), specPow) * mix(0.08, 0.9, metallic);
+
+                    vec3 color = ambient + diffuse + pointLit + vec3(spec);
+                    outColor = vec4(clamp(color, 0.0, 2.2), 1.0);
                 }
                 """;
 
@@ -1176,7 +1280,7 @@ final class VulkanContext {
             );
         }
         for (GpuMesh mesh : gpuMeshes) {
-            updateGlobalUniform(mesh.colorR, mesh.colorG, mesh.colorB, mesh.offsetX);
+            updateGlobalUniform(mesh);
             vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer), stack.longs(0));
             vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
             vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
@@ -1266,6 +1370,15 @@ final class VulkanContext {
         return VK_PRESENT_MODE_FIFO_KHR;
     }
 
+    private static float[] identityMatrix() {
+        return new float[]{
+                1f, 0f, 0f, 0f,
+                0f, 1f, 0f, 0f,
+                0f, 0f, 1f, 0f,
+                0f, 0f, 0f, 1f
+        };
+    }
+
     private VkExtent2D chooseExtent(VkSurfaceCapabilitiesKHR capabilities, int width, int height, MemoryStack stack) {
         if (capabilities.currentExtent().width() != 0xFFFFFFFF) {
             return VkExtent2D.calloc(stack).set(capabilities.currentExtent());
@@ -1312,10 +1425,12 @@ final class VulkanContext {
                     indexAlloc.buffer,
                     indexAlloc.memory,
                     indices.length,
+                    mesh.modelMatrix().clone(),
                     mesh.color()[0],
                     mesh.color()[1],
                     mesh.color()[2],
-                    mesh.offsetX()
+                    mesh.metallic(),
+                    mesh.roughness()
             ));
         }
     }
@@ -1342,25 +1457,27 @@ final class VulkanContext {
         gpuMeshes.clear();
     }
 
-    private void updateGlobalUniform(float r, float g, float b, float offsetX) throws EngineException {
-        ByteBuffer mapped = memAlloc(80);
+    private void updateGlobalUniform(GpuMesh mesh) throws EngineException {
+        ByteBuffer mapped = memAlloc(GLOBAL_UNIFORM_BYTES);
         mapped.order(ByteOrder.nativeOrder());
         FloatBuffer fb = mapped.asFloatBuffer();
-        fb.put(new float[]{
-                1f, 0f, 0f, 0f,
-                0f, 1f, 0f, 0f,
-                0f, 0f, 1f, 0f,
-                offsetX, 0f, 0f, 1f,
-                r, g, b, 1f
-        });
-        mapped.limit(80);
+        fb.put(mesh.modelMatrix);
+        fb.put(viewMatrix);
+        fb.put(projMatrix);
+        fb.put(new float[]{mesh.colorR, mesh.colorG, mesh.colorB, 1f});
+        fb.put(new float[]{mesh.metallic, mesh.roughness, dirLightIntensity, pointLightIntensity});
+        fb.put(new float[]{dirLightDirX, dirLightDirY, dirLightDirZ, 0f});
+        fb.put(new float[]{dirLightColorR, dirLightColorG, dirLightColorB, 0f});
+        fb.put(new float[]{pointLightPosX, pointLightPosY, pointLightPosZ, 0f});
+        fb.put(new float[]{pointLightColorR, pointLightColorG, pointLightColorB, 0f});
+        mapped.limit(GLOBAL_UNIFORM_BYTES);
         try (MemoryStack stack = stackPush()) {
             PointerBuffer pData = stack.mallocPointer(1);
-            int mapResult = vkMapMemory(device, globalUniformMemory, 0, 80, 0, pData);
+            int mapResult = vkMapMemory(device, globalUniformMemory, 0, GLOBAL_UNIFORM_BYTES, 0, pData);
             if (mapResult != VK_SUCCESS) {
                 throw vkFailure("vkMapMemory", mapResult);
             }
-            memCopy(memAddress(mapped), pData.get(0), 80);
+            memCopy(memAddress(mapped), pData.get(0), GLOBAL_UNIFORM_BYTES);
             vkUnmapMemory(device, globalUniformMemory);
         } finally {
             memFree(mapped);
@@ -1440,10 +1557,12 @@ final class VulkanContext {
         private final long indexBuffer;
         private final long indexMemory;
         private final int indexCount;
+        private final float[] modelMatrix;
         private final float colorR;
         private final float colorG;
         private final float colorB;
-        private final float offsetX;
+        private final float metallic;
+        private final float roughness;
 
         private GpuMesh(
                 long vertexBuffer,
@@ -1451,30 +1570,37 @@ final class VulkanContext {
                 long indexBuffer,
                 long indexMemory,
                 int indexCount,
+                float[] modelMatrix,
                 float colorR,
                 float colorG,
                 float colorB,
-                float offsetX
+                float metallic,
+                float roughness
         ) {
             this.vertexBuffer = vertexBuffer;
             this.vertexMemory = vertexMemory;
             this.indexBuffer = indexBuffer;
             this.indexMemory = indexMemory;
             this.indexCount = indexCount;
+            this.modelMatrix = modelMatrix;
             this.colorR = colorR;
             this.colorG = colorG;
             this.colorB = colorB;
-            this.offsetX = offsetX;
+            this.metallic = metallic;
+            this.roughness = roughness;
         }
     }
 
-    static record SceneMeshData(float[] vertices, int[] indices, float[] color, float offsetX) {
+    static record SceneMeshData(float[] vertices, int[] indices, float[] modelMatrix, float[] color, float metallic, float roughness) {
         SceneMeshData {
             if (vertices == null || vertices.length < 9 || vertices.length % 3 != 0) {
                 throw new IllegalArgumentException("vertices must be xyz-packed and non-empty");
             }
             if (indices == null || indices.length < 3 || indices.length % 3 != 0) {
                 throw new IllegalArgumentException("indices must be non-empty triangles");
+            }
+            if (modelMatrix == null || modelMatrix.length != 16) {
+                throw new IllegalArgumentException("modelMatrix must be 16 floats");
             }
             if (color == null || color.length != 4) {
                 throw new IllegalArgumentException("color must be rgba");
@@ -1494,8 +1620,15 @@ final class VulkanContext {
                             -0.6f, 0.6f, 0.0f
                     },
                     new int[]{0, 1, 2},
+                    new float[]{
+                            1f, 0f, 0f, 0f,
+                            0f, 1f, 0f, 0f,
+                            0f, 0f, 1f, 0f,
+                            offsetX, 0f, 0f, 1f
+                    },
                     color,
-                    offsetX
+                    0.0f,
+                    0.6f
             );
         }
 
@@ -1509,8 +1642,15 @@ final class VulkanContext {
                             -0.6f, 0.6f, 0.0f
                     },
                     new int[]{0, 1, 2, 2, 3, 0},
+                    new float[]{
+                            1f, 0f, 0f, 0f,
+                            0f, 1f, 0f, 0f,
+                            0f, 0f, 1f, 0f,
+                            offsetX, 0f, 0f, 1f
+                    },
                     color,
-                    offsetX
+                    0.0f,
+                    0.6f
             );
         }
     }

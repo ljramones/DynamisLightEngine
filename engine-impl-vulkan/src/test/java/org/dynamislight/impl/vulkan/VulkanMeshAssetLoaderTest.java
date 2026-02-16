@@ -16,9 +16,9 @@ class VulkanMeshAssetLoaderTest {
         var loader = new VulkanMeshAssetLoader(Path.of("."));
         var mesh = new MeshDesc("mesh", "xform", "mat", "meshes/quad.glb");
 
-        VulkanContext.SceneMeshData data = loader.loadMeshData(mesh, new float[]{1f, 1f, 1f, 1f}, 0);
+        VulkanGltfMeshParser.MeshGeometry data = loader.loadMeshGeometry(mesh, 0);
 
-        assertEquals(4, data.vertices().length / 3);
+        assertEquals(4, data.positions().length / 3);
         assertEquals(6, data.indices().length);
     }
 
@@ -63,9 +63,9 @@ class VulkanMeshAssetLoaderTest {
         var loader = new VulkanMeshAssetLoader(root);
         var mesh = new MeshDesc("mesh", "xform", "mat", "meshes/triangle.gltf");
 
-        VulkanContext.SceneMeshData data = loader.loadMeshData(mesh, new float[]{1f, 1f, 1f, 1f}, 0);
+        VulkanGltfMeshParser.MeshGeometry data = loader.loadMeshGeometry(mesh, 0);
 
-        assertEquals(3, data.vertices().length / 3);
+        assertEquals(3, data.positions().length / 3);
         assertEquals(3, data.indices().length);
     }
 }
