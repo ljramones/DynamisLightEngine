@@ -9,6 +9,10 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 - Phase D (planned): platform/tooling expansion.
 
 ## Latest Completed Batch (February 2026)
+- Phase A AA baseline landed:
+  - added SMAA-lite controls (`smaaEnabled`, `smaaStrength`) to `PostProcessDesc` with backward-compatible constructors
+  - wired OpenGL + Vulkan SMAA-lite paths (scene fallback + post pass)
+  - added deterministic compare profile `post-process-smaa` with tiered and stress-golden envelopes
 - Phase A SSAO controls expansion landed:
   - `PostProcessDesc` now supports `ssaoRadius`, `ssaoBias`, and `ssaoPower` with backward-compatible constructors.
   - OpenGL and Vulkan now apply SSAO shaping controls in both scene shader and dedicated post-pass paths.

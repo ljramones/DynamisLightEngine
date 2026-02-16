@@ -28,6 +28,7 @@ public final class VulkanShaderSources {
                     vec4 uIbl;
                     vec4 uPostProcess;
                     vec4 uBloom;
+                    vec4 uAntiAlias;
                     mat4 uShadowLightViewProj[6];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
@@ -84,6 +85,7 @@ public final class VulkanShaderSources {
                     vec4 uIbl;
                     vec4 uPostProcess;
                     vec4 uBloom;
+                    vec4 uAntiAlias;
                     mat4 uShadowLightViewProj[6];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
@@ -133,6 +135,7 @@ public final class VulkanShaderSources {
                     vec4 uIbl;
                     vec4 uPostProcess;
                     vec4 uBloom;
+                    vec4 uAntiAlias;
                     mat4 uShadowLightViewProj[6];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
@@ -420,6 +423,14 @@ public final class VulkanShaderSources {
                         float occlusion = pow(clamp(shapedEdge * ssaoStrength, 0.0, 0.92), max(0.60, 1.25 - (ssaoPower * 0.32)));
                         color *= (1.0 - occlusion * 0.82);
                     }
+                    if (gbo.uAntiAlias.x > 0.5) {
+                        float aaStrength = clamp(gbo.uAntiAlias.y, 0.0, 1.0);
+                        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                        float edgeDx = abs(dFdx(luma));
+                        float edgeDy = abs(dFdy(luma));
+                        float edge = clamp((edgeDx + edgeDy) * 5.5, 0.0, 1.0);
+                        color = mix(color, vec3(luma), edge * aaStrength * 0.20);
+                    }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 }
                 """;
@@ -449,6 +460,22 @@ public final class VulkanShaderSources {
                     vec4 bloom;
                     vec4 ssao;
                 } pc;
+                vec3 smaaLite(vec2 uv, vec3 color) {
+                    vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                    vec3 cN = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                    vec3 cS = texture(uSceneColor, clamp(uv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                    vec3 cE = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                    vec3 cW = texture(uSceneColor, clamp(uv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                    float l = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                    float ln = dot(cN, vec3(0.2126, 0.7152, 0.0722));
+                    float ls = dot(cS, vec3(0.2126, 0.7152, 0.0722));
+                    float le = dot(cE, vec3(0.2126, 0.7152, 0.0722));
+                    float lw = dot(cW, vec3(0.2126, 0.7152, 0.0722));
+                    float edge = clamp(max(abs(l - le) + abs(l - lw), abs(l - ln) + abs(l - ls)), 0.0, 1.0);
+                    float blend = edge * clamp(pc.ssao.w, 0.0, 1.0) * 0.55;
+                    vec3 neighborhood = (cN + cS + cE + cW) * 0.25;
+                    return mix(color, neighborhood, blend);
+                }
                 void main() {
                     vec3 color = texture(uSceneColor, vUv).rgb;
                     if (pc.tonemap.x > 0.5) {
@@ -491,6 +518,9 @@ public final class VulkanShaderSources {
                         float shapedEdge = clamp(edge - ssaoBias, 0.0, 1.0);
                         float occlusion = pow(clamp(shapedEdge * ssaoStrength, 0.0, 0.92), max(0.60, 1.18 - (ssaoPower * 0.30)));
                         color *= (1.0 - occlusion * 0.82);
+                    }
+                    if (pc.ssao.w > 0.0) {
+                        color = smaaLite(vUv, color);
                     }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 }

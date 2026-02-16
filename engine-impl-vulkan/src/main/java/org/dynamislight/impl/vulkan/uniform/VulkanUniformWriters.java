@@ -40,6 +40,7 @@ public final class VulkanUniformWriters {
         boolean scenePostEnabled = !in.postOffscreenActive();
         fb.put(new float[]{scenePostEnabled && in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), scenePostEnabled && in.ssaoEnabled() ? 1f : 0f});
         fb.put(new float[]{scenePostEnabled && in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength()});
+        fb.put(new float[]{scenePostEnabled && in.smaaEnabled() ? 1f : 0f, in.smaaStrength(), 0f, 0f});
         for (int i = 0; i < in.shadowLightViewProjMatrices().length; i++) {
             fb.put(in.shadowLightViewProjMatrices()[i]);
         }
@@ -123,6 +124,8 @@ public final class VulkanUniformWriters {
             float ssaoRadius,
             float ssaoBias,
             float ssaoPower,
+            boolean smaaEnabled,
+            float smaaStrength,
             float[][] shadowLightViewProjMatrices
     ) {
     }

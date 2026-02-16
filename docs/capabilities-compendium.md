@@ -116,6 +116,7 @@ OpenGL backend provides a real forward render baseline:
 - Smoke radial falloff now uses runtime viewport dimensions (instead of fixed 1080p constants) for stronger OpenGL/Vulkan parity across window sizes.
 - Tonemap + bloom post-process baseline (scene-driven exposure/gamma/threshold/strength).
 - SSAO-lite post baseline (edge-aware screen-space approximation with tier-aware attenuation), upgraded with multi-sample kernel shaping in both backends for improved stability.
+- SMAA-lite anti-aliasing baseline in both backends with configurable strength and tier-aware degradation.
 - Dedicated post-pass architecture:
   - offscreen scene target (FBO color + depth/stencil) then fullscreen post shader composite
   - shader-driven post remains as fallback if offscreen resources are unavailable
@@ -309,12 +310,12 @@ The repository includes automated tests validating:
 - Guarded compare-harness image diff checks (`-Ddle.compare.tests=true`) including tiered fog/smoke/shadow thresholds.
 - Guarded compare-harness includes `shadow-cascade-stress`, `fog-shadow-cascade-stress`, `smoke-shadow-cascade-stress`, and `texture-heavy` profiles for deeper split/bias/fog/smoke/material interaction regression coverage.
 - Guarded compare-harness includes `brdf-tier-extremes` for glossy/rough material edge-case parity coverage.
-- Guarded compare-harness includes `post-process`, `post-process-bloom`, `post-process-ssao`, and `post-process-ssao-stress` profiles.
+- Guarded compare-harness includes `post-process`, `post-process-bloom`, `post-process-ssao`, `post-process-ssao-stress`, and `post-process-smaa` profiles.
 - Guarded compare-harness includes `fog-smoke-shadow-post-stress` for combined volumetric+shadow+post regression coverage.
 - Guarded compare-harness includes `material-fog-smoke-shadow-cascade-stress` for mixed material+fog+smoke+cascaded-shadow coverage.
 - Tiered golden envelopes also include `texture-heavy` (`LOW/MEDIUM/HIGH/ULTRA`) alongside existing fog/smoke and shadow tier checks.
 - Tiered golden envelopes also include `brdf-tier-extremes` (`LOW/MEDIUM/HIGH/ULTRA`).
-- Tiered golden envelopes now include `post-process`, `post-process-bloom`, `post-process-ssao`, and `post-process-ssao-stress` (`LOW/MEDIUM/HIGH/ULTRA`).
+- Tiered golden envelopes now include `post-process`, `post-process-bloom`, `post-process-ssao`, `post-process-ssao-stress`, and `post-process-smaa` (`LOW/MEDIUM/HIGH/ULTRA`).
 - Tiered golden envelopes now include `material-fog-smoke-shadow-cascade-stress` (`LOW/MEDIUM/HIGH/ULTRA`).
 - Current ULTRA `shadow-cascade-stress` bound: `<= 0.25`.
 - Current ULTRA `fog-shadow-cascade-stress` bound: `<= 0.25`.
@@ -326,6 +327,7 @@ The repository includes automated tests validating:
 - Current HIGH `post-process-bloom` bound: `<= 0.06`.
 - Current HIGH `post-process-ssao` bound: `<= 0.35`.
 - Current ULTRA `post-process-ssao-stress` bound: `<= 0.37`.
+- Current HIGH/ULTRA `post-process-smaa` bound: `<= 0.36`.
 - Vulkan frame-resource profile now also reports:
   - split uniform staging path: global scene UBO uploads are tracked separately from dynamic object UBO uploads
   - `lastUniformUploadRanges`

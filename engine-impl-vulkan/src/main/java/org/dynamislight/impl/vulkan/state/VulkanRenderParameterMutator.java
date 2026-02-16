@@ -100,6 +100,8 @@ public final class VulkanRenderParameterMutator {
         float ssaoRadius = current.ssaoRadius();
         float ssaoBias = current.ssaoBias();
         float ssaoPower = current.ssaoPower();
+        boolean smaaEnabled = current.smaaEnabled();
+        float smaaStrength = current.smaaStrength();
 
         if (tonemapEnabled != update.tonemapEnabled()) {
             tonemapEnabled = update.tonemapEnabled();
@@ -143,10 +145,20 @@ public final class VulkanRenderParameterMutator {
             ssaoPower = clampedSsaoPower;
             changed = true;
         }
+        if (smaaEnabled != update.smaaEnabled()) {
+            smaaEnabled = update.smaaEnabled();
+            changed = true;
+        }
+        float clampedSmaaStrength = Math.max(0f, Math.min(1.0f, update.smaaStrength()));
+        if (!floatEquals(smaaStrength, clampedSmaaStrength)) {
+            smaaStrength = clampedSmaaStrength;
+            changed = true;
+        }
         return new PostResult(
                 new PostState(
                         tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength,
-                        ssaoEnabled, ssaoStrength, ssaoRadius, ssaoBias, ssaoPower
+                        ssaoEnabled, ssaoStrength, ssaoRadius, ssaoBias, ssaoPower,
+                        smaaEnabled, smaaStrength
                 ),
                 changed
         );
@@ -213,7 +225,9 @@ public final class VulkanRenderParameterMutator {
             float ssaoStrength,
             float ssaoRadius,
             float ssaoBias,
-            float ssaoPower
+            float ssaoPower,
+            boolean smaaEnabled,
+            float smaaStrength
     ) {
     }
 
@@ -228,7 +242,9 @@ public final class VulkanRenderParameterMutator {
             float ssaoStrength,
             float ssaoRadius,
             float ssaoBias,
-            float ssaoPower
+            float ssaoPower,
+            boolean smaaEnabled,
+            float smaaStrength
     ) {
     }
 

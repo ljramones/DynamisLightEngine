@@ -67,6 +67,8 @@ public final class VulkanGlobalSceneInputBuilder {
                 in.ssaoRadius(),
                 in.ssaoBias(),
                 in.ssaoPower(),
+                in.smaaEnabled(),
+                in.smaaStrength(),
                 in.shadowLightViewProjMatrices()
         );
     }
@@ -143,6 +145,8 @@ public final class VulkanGlobalSceneInputBuilder {
                 post.ssaoRadius(),
                 post.ssaoBias(),
                 post.ssaoPower(),
+                post.smaaEnabled(),
+                post.smaaStrength(),
                 shadowLightViewProjMatrices
         );
     }
@@ -209,6 +213,8 @@ public final class VulkanGlobalSceneInputBuilder {
             float ssaoRadius,
             float ssaoBias,
             float ssaoPower,
+            boolean smaaEnabled,
+            float smaaStrength,
             float[][] shadowLightViewProjMatrices
     ) {
     }
@@ -283,7 +289,9 @@ public final class VulkanGlobalSceneInputBuilder {
             float ssaoStrength,
             float ssaoRadius,
             float ssaoBias,
-            float ssaoPower
+            float ssaoPower,
+            boolean smaaEnabled,
+            float smaaStrength
     ) {
     }
 }

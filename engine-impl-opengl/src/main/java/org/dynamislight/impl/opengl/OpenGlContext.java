@@ -317,6 +317,8 @@ final class OpenGlContext {
             uniform float uSsaoRadius;
             uniform float uSsaoBias;
             uniform float uSsaoPower;
+            uniform int uSmaaEnabled;
+            uniform float uSmaaStrength;
             out vec4 FragColor;
             float distributionGGX(float ndh, float roughness) {
                 float a = roughness * roughness;
@@ -554,6 +556,14 @@ final class OpenGlContext {
                     float occlusion = pow(clamp(shapedEdge * ssaoStrength, 0.0, 0.92), max(0.60, 1.25 - (ssaoPower * 0.32)));
                     color *= (1.0 - occlusion * 0.82);
                 }
+                if (uSmaaEnabled == 1) {
+                    float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                    float edgeDx = abs(dFdx(luma));
+                    float edgeDy = abs(dFdy(luma));
+                    float edge = clamp((edgeDx + edgeDy) * 5.5, 0.0, 1.0);
+                    float aaStrength = clamp(uSmaaStrength, 0.0, 1.0);
+                    color = mix(color, vec3(luma), edge * aaStrength * 0.20);
+                }
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
             }
             """;
@@ -588,6 +598,8 @@ final class OpenGlContext {
             uniform float uSsaoRadius;
             uniform float uSsaoBias;
             uniform float uSsaoPower;
+            uniform int uSmaaEnabled;
+            uniform float uSmaaStrength;
             out vec4 FragColor;
             float ssaoLite(vec2 uv) {
                 float radius = clamp(uSsaoRadius, 0.2, 3.0);
@@ -617,6 +629,22 @@ final class OpenGlContext {
                 float occlusion = pow(clamp(shapedEdge * ssaoStrength, 0.0, 0.92), max(0.60, 1.18 - (ssaoPower * 0.30)));
                 return 1.0 - (occlusion * 0.82);
             }
+            vec3 smaaLite(vec2 uv, vec3 color) {
+                vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                vec3 cN = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                vec3 cS = texture(uSceneColor, clamp(uv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                vec3 cE = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                vec3 cW = texture(uSceneColor, clamp(uv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                float l = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                float ln = dot(cN, vec3(0.2126, 0.7152, 0.0722));
+                float ls = dot(cS, vec3(0.2126, 0.7152, 0.0722));
+                float le = dot(cE, vec3(0.2126, 0.7152, 0.0722));
+                float lw = dot(cW, vec3(0.2126, 0.7152, 0.0722));
+                float edge = clamp(max(abs(l - le) + abs(l - lw), abs(l - ln) + abs(l - ls)), 0.0, 1.0);
+                float blend = edge * clamp(uSmaaStrength, 0.0, 1.0) * 0.55;
+                vec3 neighborhood = (cN + cS + cE + cW) * 0.25;
+                return mix(color, neighborhood, blend);
+            }
             void main() {
                 vec3 color = texture(uSceneColor, vUv).rgb;
                 if (uTonemapEnabled == 1) {
@@ -635,6 +663,9 @@ final class OpenGlContext {
                 }
                 if (uSsaoEnabled == 1) {
                     color *= ssaoLite(vUv);
+                }
+                if (uSmaaEnabled == 1) {
+                    color = smaaLite(vUv, color);
                 }
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
             }
@@ -703,6 +734,8 @@ final class OpenGlContext {
     private int ssaoRadiusLocation;
     private int ssaoBiasLocation;
     private int ssaoPowerLocation;
+    private int smaaEnabledLocation;
+    private int smaaStrengthLocation;
     private int postProgramId;
     private int postSceneColorLocation;
     private int postTonemapEnabledLocation;
@@ -716,6 +749,8 @@ final class OpenGlContext {
     private int postSsaoRadiusLocation;
     private int postSsaoBiasLocation;
     private int postSsaoPowerLocation;
+    private int postSmaaEnabledLocation;
+    private int postSmaaStrengthLocation;
     private int postVaoId;
     private int sceneFramebufferId;
     private int sceneColorTextureId;
@@ -750,6 +785,8 @@ final class OpenGlContext {
     private float ssaoRadius = 1.0f;
     private float ssaoBias = 0.02f;
     private float ssaoPower = 1.0f;
+    private boolean smaaEnabled;
+    private float smaaStrength;
     private float dirLightDirX = 0.3f;
     private float dirLightDirY = -1.0f;
     private float dirLightDirZ = 0.25f;
@@ -1078,6 +1115,8 @@ final class OpenGlContext {
         glUniform1f(postSsaoRadiusLocation, ssaoRadius);
         glUniform1f(postSsaoBiasLocation, ssaoBias);
         glUniform1f(postSsaoPowerLocation, ssaoPower);
+        glUniform1i(postSmaaEnabledLocation, smaaEnabled ? 1 : 0);
+        glUniform1f(postSmaaStrengthLocation, smaaStrength);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1193,7 +1232,9 @@ final class OpenGlContext {
             float ssaoStrength,
             float ssaoRadius,
             float ssaoBias,
-            float ssaoPower
+            float ssaoPower,
+            boolean smaaEnabled,
+            float smaaStrength
     ) {
         this.tonemapEnabled = tonemapEnabled;
         tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
@@ -1206,6 +1247,8 @@ final class OpenGlContext {
         this.ssaoRadius = Math.max(0.2f, Math.min(3.0f, ssaoRadius));
         this.ssaoBias = Math.max(0f, Math.min(0.2f, ssaoBias));
         this.ssaoPower = Math.max(0.5f, Math.min(4.0f, ssaoPower));
+        this.smaaEnabled = smaaEnabled;
+        this.smaaStrength = Math.max(0f, Math.min(1.0f, smaaStrength));
     }
 
     void setCameraMatrices(float[] view, float[] proj) {
@@ -1389,6 +1432,8 @@ final class OpenGlContext {
         ssaoRadiusLocation = glGetUniformLocation(programId, "uSsaoRadius");
         ssaoBiasLocation = glGetUniformLocation(programId, "uSsaoBias");
         ssaoPowerLocation = glGetUniformLocation(programId, "uSsaoPower");
+        smaaEnabledLocation = glGetUniformLocation(programId, "uSmaaEnabled");
+        smaaStrengthLocation = glGetUniformLocation(programId, "uSmaaStrength");
 
         glUseProgram(programId);
         glUniform1i(albedoTextureLocation, 0);
@@ -1432,6 +1477,8 @@ final class OpenGlContext {
         postSsaoRadiusLocation = glGetUniformLocation(postProgramId, "uSsaoRadius");
         postSsaoBiasLocation = glGetUniformLocation(postProgramId, "uSsaoBias");
         postSsaoPowerLocation = glGetUniformLocation(postProgramId, "uSsaoPower");
+        postSmaaEnabledLocation = glGetUniformLocation(postProgramId, "uSmaaEnabled");
+        postSmaaStrengthLocation = glGetUniformLocation(postProgramId, "uSmaaStrength");
         postVaoId = glGenVertexArrays();
         glUseProgram(postProgramId);
         glUniform1i(postSceneColorLocation, 0);
@@ -1768,10 +1815,12 @@ final class OpenGlContext {
         glUniform1f(ssaoRadiusLocation, ssaoRadius);
         glUniform1f(ssaoBiasLocation, ssaoBias);
         glUniform1f(ssaoPowerLocation, ssaoPower);
+        glUniform1i(smaaEnabledLocation, shaderDrivenEnabled && smaaEnabled ? 1 : 0);
+        glUniform1f(smaaStrengthLocation, smaaStrength);
     }
 
     private boolean useDedicatedPostPass() {
-        return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled || ssaoEnabled);
+        return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled || ssaoEnabled || smaaEnabled);
     }
 
     private boolean useShaderDrivenPost() {

@@ -74,6 +74,12 @@ final class VulkanRuntimeWarningPolicy {
                     "SSAO-lite strength reduced at MEDIUM tier to maintain stable frame cost"
             ));
         }
+        if (in.currentPost().smaaEnabled() && in.qualityTier() == QualityTier.MEDIUM) {
+            warnings.add(new EngineWarning(
+                    "SMAA_QUALITY_DEGRADED",
+                    "SMAA-lite strength reduced at MEDIUM tier to maintain stable frame cost"
+            ));
+        }
         if (in.nonDirectionalShadowRequested()) {
             warnings.add(new EngineWarning(
                     "SHADOW_TYPE_UNSUPPORTED",

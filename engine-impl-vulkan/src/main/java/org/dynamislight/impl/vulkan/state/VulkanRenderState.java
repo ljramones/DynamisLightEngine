@@ -41,6 +41,8 @@ public final class VulkanRenderState {
     public float ssaoRadius = 1.0f;
     public float ssaoBias = 0.02f;
     public float ssaoPower = 1.0f;
+    public boolean smaaEnabled;
+    public float smaaStrength;
     public boolean postOffscreenRequested;
     public boolean postOffscreenActive;
     public boolean postIntermediateInitialized;

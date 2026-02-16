@@ -318,7 +318,7 @@ public final class VulkanRenderCommandRecorder {
         postPush.asFloatBuffer().put(new float[]{
                 in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), in.ssaoEnabled() ? 1f : 0f,
                 in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength(),
-                in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), 0f
+                in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), in.smaaEnabled() ? in.smaaStrength() : 0f
         });
         vkCmdPushConstants(commandBuffer, in.postPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -368,6 +368,8 @@ public final class VulkanRenderCommandRecorder {
             float ssaoRadius,
             float ssaoBias,
             float ssaoPower,
+            boolean smaaEnabled,
+            float smaaStrength,
             long postRenderPass,
             long postGraphicsPipeline,
             long postPipelineLayout,

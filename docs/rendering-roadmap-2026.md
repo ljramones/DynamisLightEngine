@@ -21,6 +21,7 @@ Completed:
 In progress:
 - SSAO quality upgrade from edge-only approximation toward stronger kernel shaping.
 - SSAO controls expansion with `radius`/`bias`/`power` shaping across both backends.
+- SMAA-lite baseline implemented in both backends (shader-driven fallback + dedicated post-pass path).
 - Tighten post-process parity envelopes after each shader-quality upgrade.
 
 Next:

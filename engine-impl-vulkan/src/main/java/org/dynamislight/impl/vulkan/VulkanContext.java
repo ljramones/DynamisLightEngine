@@ -66,7 +66,7 @@ final class VulkanContext {
     private static final int MAX_SHADOW_CASCADES = 4;
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 6;
-    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 784;
+    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 800;
     private static final int OBJECT_UNIFORM_BYTES = 96;
     private final VulkanBackendResources backendResources = new VulkanBackendResources();
     private final VulkanDescriptorResourceState descriptorResources = new VulkanDescriptorResourceState();
@@ -434,7 +434,9 @@ final class VulkanContext {
             float ssaoStrength,
             float ssaoRadius,
             float ssaoBias,
-            float ssaoPower
+            float ssaoPower,
+            boolean smaaEnabled,
+            float smaaStrength
     ) {
         var result = VulkanRenderParameterMutator.applyPost(
                 new VulkanRenderParameterMutator.PostState(
@@ -448,7 +450,9 @@ final class VulkanContext {
                         this.renderState.ssaoStrength,
                         this.renderState.ssaoRadius,
                         this.renderState.ssaoBias,
-                        this.renderState.ssaoPower
+                        this.renderState.ssaoPower,
+                        this.renderState.smaaEnabled,
+                        this.renderState.smaaStrength
                 ),
                 new VulkanRenderParameterMutator.PostUpdate(
                         tonemapEnabled,
@@ -461,7 +465,9 @@ final class VulkanContext {
                         ssaoStrength,
                         ssaoRadius,
                         ssaoBias,
-                        ssaoPower
+                        ssaoPower,
+                        smaaEnabled,
+                        smaaStrength
                 )
         );
         var state = result.state();
@@ -476,6 +482,8 @@ final class VulkanContext {
         this.renderState.ssaoRadius = state.ssaoRadius();
         this.renderState.ssaoBias = state.ssaoBias();
         this.renderState.ssaoPower = state.ssaoPower();
+        this.renderState.smaaEnabled = state.smaaEnabled();
+        this.renderState.smaaStrength = state.smaaStrength();
         if (result.changed()) {
             markGlobalStateDirty();
         }
@@ -727,6 +735,8 @@ final class VulkanContext {
                         renderState.ssaoRadius,
                         renderState.ssaoBias,
                         renderState.ssaoPower,
+                        renderState.smaaEnabled,
+                        renderState.smaaStrength,
                         backendResources.postRenderPass,
                         backendResources.postGraphicsPipeline,
                         backendResources.postPipelineLayout,
@@ -951,6 +961,8 @@ final class VulkanContext {
                                         renderState.ssaoRadius,
                                         renderState.ssaoBias,
                                         renderState.ssaoPower,
+                                        renderState.smaaEnabled,
+                                        renderState.smaaStrength,
                                         renderState.shadowLightViewProjMatrices
                                 )
                         ),

@@ -295,6 +295,24 @@ class BackendParityIntegrationTest {
 
     @Test
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessPostProcessSmaaSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("post-process-smaa");
+        var report = BackendCompareHarness.run(
+                outDir,
+                postProcessSmaaScene(),
+                QualityTier.HIGH,
+                "post-process-smaa-high"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.36, "post-process smaa diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessFogSmokeShadowPostStressHasBoundedDiff() throws Exception {
         Path outDir = compareOutputDir("fog-smoke-shadow-post-stress");
         var report = BackendCompareHarness.run(
@@ -378,6 +396,12 @@ class BackendParityIntegrationTest {
                 QualityTier.MEDIUM, 0.43,
                 QualityTier.HIGH, 0.39,
                 QualityTier.ULTRA, 0.37
+        );
+        Map<QualityTier, Double> postProcessSmaaMaxDiff = Map.of(
+                QualityTier.LOW, 0.48,
+                QualityTier.MEDIUM, 0.42,
+                QualityTier.HIGH, 0.36,
+                QualityTier.ULTRA, 0.36
         );
         Map<QualityTier, Double> materialFogSmokeShadowMaxDiff = Map.of(
                 QualityTier.LOW, 0.54,
@@ -489,6 +513,19 @@ class BackendParityIntegrationTest {
                             + " exceeded " + postProcessSsaoStressMaxDiff.get(tier) + " at " + tier
             );
 
+            Path postSmaaDir = compareOutputDir("post-process-smaa-" + tier.name().toLowerCase());
+            var postSmaaReport = BackendCompareHarness.run(
+                    postSmaaDir,
+                    postProcessSmaaScene(),
+                    tier,
+                    "post-process-smaa-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    postSmaaReport.diffMetric() <= postProcessSmaaMaxDiff.get(tier),
+                    "post-process smaa diff " + postSmaaReport.diffMetric()
+                            + " exceeded " + postProcessSmaaMaxDiff.get(tier) + " at " + tier
+            );
+
             Path materialFogSmokeShadowDir = compareOutputDir("material-fog-smoke-shadow-" + tier.name().toLowerCase());
             var materialFogSmokeShadowReport = BackendCompareHarness.run(
                     materialFogSmokeShadowDir,
@@ -516,7 +553,8 @@ class BackendParityIntegrationTest {
                 "fog-smoke-shadow-post-stress", 0.05,
                 "material-fog-smoke-shadow-cascade-stress", 0.30,
                 "post-process-ssao", 0.35,
-                "post-process-ssao-stress", 0.37
+                "post-process-ssao-stress", 0.37,
+                "post-process-smaa", 0.36
         );
 
         var reports = Map.of(
@@ -573,6 +611,12 @@ class BackendParityIntegrationTest {
                         postProcessSsaoStressScene(),
                         QualityTier.ULTRA,
                         "post-process-ssao-stress-golden-ultra"
+                ),
+                "post-process-smaa", BackendCompareHarness.run(
+                        compareOutputDir("post-process-smaa-golden"),
+                        postProcessSmaaScene(),
+                        QualityTier.ULTRA,
+                        "post-process-smaa-golden-ultra"
                 )
         );
 
@@ -1089,6 +1133,39 @@ class BackendParityIntegrationTest {
                 base.lights(),
                 base.environment(),
                 fog,
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor postProcessSmaaScene() {
+        SceneDescriptor base = materialLightingScene();
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.08f,
+                2.2f,
+                true,
+                0.98f,
+                0.72f,
+                false,
+                0f,
+                1.0f,
+                0.02f,
+                1.0f,
+                true,
+                0.55f
+        );
+        return new SceneDescriptor(
+                "parity-post-process-smaa-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
                 base.smokeEmitters(),
                 post
         );

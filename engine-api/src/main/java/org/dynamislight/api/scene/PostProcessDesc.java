@@ -15,7 +15,9 @@ public record PostProcessDesc(
         float ssaoStrength,
         float ssaoRadius,
         float ssaoBias,
-        float ssaoPower
+        float ssaoPower,
+        boolean smaaEnabled,
+        float smaaStrength
 ) {
     public PostProcessDesc(
             boolean enabled,
@@ -26,7 +28,7 @@ public record PostProcessDesc(
             float bloomThreshold,
             float bloomStrength
     ) {
-        this(enabled, tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength, false, 0f, 1.0f, 0.02f, 1.0f);
+        this(enabled, tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f);
     }
 
     public PostProcessDesc(
@@ -40,6 +42,23 @@ public record PostProcessDesc(
             boolean ssaoEnabled,
             float ssaoStrength
     ) {
-        this(enabled, tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength, ssaoEnabled, ssaoStrength, 1.0f, 0.02f, 1.0f);
+        this(enabled, tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength, ssaoEnabled, ssaoStrength, 1.0f, 0.02f, 1.0f, false, 0f);
+    }
+
+    public PostProcessDesc(
+            boolean enabled,
+            boolean tonemapEnabled,
+            float exposure,
+            float gamma,
+            boolean bloomEnabled,
+            float bloomThreshold,
+            float bloomStrength,
+            boolean ssaoEnabled,
+            float ssaoStrength,
+            float ssaoRadius,
+            float ssaoBias,
+            float ssaoPower
+    ) {
+        this(enabled, tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength, ssaoEnabled, ssaoStrength, ssaoRadius, ssaoBias, ssaoPower, false, 0f);
     }
 }
