@@ -122,7 +122,9 @@ OpenGL backend provides a real forward render baseline:
   - OpenGL and Vulkan both include per-pixel motion-vector reprojection via dedicated velocity render targets sampled in post.
   - Global camera-motion UV reprojection remains layered as a stabilizing baseline term.
   - Reactive-mask + neighborhood-clipping pass is enabled in both backends to reduce ghosting under high-contrast motion.
-  - Per-material reactive masking is now authored via `MaterialDesc` (`reactiveStrength`, `alphaTested`, `foliage`) and emitted from geometry (velocity alpha).
+  - Per-material reactive controls are authored via `MaterialDesc` (`reactiveStrength`, `alphaTested`, `foliage`, `reactiveBoost`, `taaHistoryClamp`) and emitted from geometry (velocity alpha + material tuning).
+  - Neighborhood clipping now follows quality-tier policy (wider at lower quality, tighter at higher quality) to improve stability/detail balance.
+  - Optional luminance clipping mode is available for temporal acceptance control (`PostProcessDesc.taaLumaClipEnabled`).
   - Specular anti-aliasing is enabled in both backends with Toksvig-style roughness filtering (`normalMapVariance + dFdx/dFdy` normal variance) to reduce glossy shimmer.
   - Temporal history alpha stores confidence with explicit decay/recovery policy driven by instability/disocclusion, then modulates TAA blend acceptance.
   - History validation includes explicit previous-frame depth rejection (history-velocity depth sample) plus thin-edge depth neighborhood checks.
@@ -135,6 +137,10 @@ OpenGL backend provides a real forward render baseline:
 - Frame graph execution path (`clear -> geometry -> fog -> smoke -> post`).
 - GPU timing query when available (`GL_TIME_ELAPSED`) with CPU fallback.
 - Approximate GPU memory telemetry exposed via runtime stats.
+- Runtime AA stability telemetry exposed in `EngineStats` and `AaTelemetryEvent`:
+  - `taaHistoryRejectRate`
+  - `taaConfidenceMean`
+  - `taaConfidenceDropEvents`
 
 ### OpenGL limitations (current)
 - Material model is intentionally simplified (not full PBR correctness).

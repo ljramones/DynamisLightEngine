@@ -60,7 +60,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean smaaEnabled,
             float smaaStrength,
             boolean taaEnabled,
-            float taaBlend
+            float taaBlend,
+            float taaClipScale,
+            boolean taaLumaClipEnabled
     ) {
     }
 
@@ -104,10 +106,11 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
-    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f);
+    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false);
     private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
     private int taaDebugView;
+    private boolean taaLumaClipEnabledDefault;
 
     public OpenGlEngineRuntime() {
         super(
@@ -137,6 +140,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         } catch (NumberFormatException ignored) {
             taaDebugView = 0;
         }
+        taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("opengl.taaLumaClip", "false"));
         qualityTier = config.qualityTier();
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new OpenGlMeshAssetLoader(assetRoot);
@@ -168,7 +172,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 postProcess.smaaEnabled(),
                 postProcess.smaaStrength(),
                 postProcess.taaEnabled(),
-                postProcess.taaBlend()
+                postProcess.taaBlend(),
+                postProcess.taaClipScale(),
+                postProcess.taaLumaClipEnabled()
         );
         context.setTaaDebugView(taaDebugView);
         frameGraph = buildFrameGraph();
@@ -181,7 +187,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         smoke = mapSmoke(scene.smokeEmitters(), qualityTier);
         shadows = mapShadows(scene.lights(), qualityTier);
         nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene.lights());
-        postProcess = mapPostProcess(scene.postProcess(), qualityTier);
+        postProcess = mapPostProcess(scene.postProcess(), qualityTier, taaLumaClipEnabledDefault);
         ibl = mapIbl(scene.environment(), qualityTier);
 
         List<OpenGlContext.SceneMesh> sceneMeshes = mapSceneMeshes(scene);
@@ -241,7 +247,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     postProcess.smaaEnabled(),
                     postProcess.smaaStrength(),
                     postProcess.taaEnabled(),
-                    postProcess.taaBlend()
+                    postProcess.taaBlend(),
+                    postProcess.taaClipScale(),
+                    postProcess.taaLumaClipEnabled()
             );
             context.setTaaDebugView(taaDebugView);
             frameGraph = buildFrameGraph();
@@ -426,6 +434,21 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         return List.of(new EngineWarning("FEATURE_BASELINE", "OpenGL backend active with baseline forward render path"));
     }
 
+    @Override
+    protected double aaHistoryRejectRate() {
+        return context.taaHistoryRejectRate();
+    }
+
+    @Override
+    protected double aaConfidenceMean() {
+        return context.taaConfidenceMean();
+    }
+
+    @Override
+    protected long aaConfidenceDropEvents() {
+        return context.taaConfidenceDropEvents();
+    }
+
     private static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
         if (fogDesc == null || !fogDesc.enabled() || fogDesc.mode() == FogMode.NONE) {
             return new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
@@ -511,9 +534,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
-    private static PostProcessRenderConfig mapPostProcess(PostProcessDesc desc, QualityTier qualityTier) {
+    private static PostProcessRenderConfig mapPostProcess(PostProcessDesc desc, QualityTier qualityTier, boolean taaLumaClipEnabledDefault) {
         if (desc == null || !desc.enabled()) {
-            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f);
+            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -535,6 +558,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         float smaaStrength = Math.max(0f, Math.min(1.0f, desc.smaaStrength()));
         boolean taaEnabled = desc.taaEnabled() && qualityTier != QualityTier.LOW;
         float taaBlend = Math.max(0f, Math.min(0.95f, desc.taaBlend()));
+        float taaClipScale = switch (qualityTier) {
+            case LOW -> 1.35f;
+            case MEDIUM -> 1.10f;
+            case HIGH -> 0.92f;
+            case ULTRA -> 0.78f;
+        };
+        boolean taaLumaClipEnabled = desc.taaLumaClipEnabled() || taaLumaClipEnabledDefault;
         if (qualityTier == QualityTier.MEDIUM) {
             ssaoStrength *= 0.8f;
             ssaoRadius *= 0.9f;
@@ -556,7 +586,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 smaaEnabled,
                 smaaStrength,
                 taaEnabled,
-                taaBlend
+                taaBlend,
+                taaClipScale,
+                taaLumaClipEnabled
         );
     }
 
@@ -796,6 +828,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     0f,
                     false,
                     false,
+                    1.0f,
+                    1.0f,
                     null,
                     null,
                     null,
@@ -832,6 +866,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             float reactiveStrength = material == null ? 0f : clamp01(material.reactiveStrength());
             boolean alphaTested = material != null && material.alphaTested();
             boolean foliage = material != null && material.foliage();
+            float reactiveBoost = material == null ? 1.0f : Math.max(0f, Math.min(2.0f, material.reactiveBoost()));
+            float taaHistoryClamp = material == null ? 1.0f : clamp01(material.taaHistoryClamp());
             sceneMeshes.add(new OpenGlContext.SceneMesh(
                     geometry,
                     model,
@@ -841,6 +877,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     reactiveStrength,
                     alphaTested,
                     foliage,
+                    reactiveBoost,
+                    taaHistoryClamp,
                     albedoTexturePath,
                     normalTexturePath,
                     metallicRoughnessTexturePath,

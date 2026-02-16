@@ -17,6 +17,7 @@ import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineErrorReport;
+import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.event.EngineEvent;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.runtime.EngineFrameResult;
@@ -88,6 +89,23 @@ class OpenGlEngineRuntimeLifecycleTest {
         assertFalse(callbacks.logs.isEmpty());
 
         runtime.shutdown();
+        runtime.shutdown();
+    }
+
+    @Test
+    void renderPublishesAaTelemetryEventAndStatsWithinRange() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+
+        runtime.initialize(validConfig(), callbacks);
+        runtime.loadScene(validScene());
+        runtime.render();
+
+        assertTrue(runtime.getStats().taaHistoryRejectRate() >= 0.0 && runtime.getStats().taaHistoryRejectRate() <= 1.0);
+        assertTrue(runtime.getStats().taaConfidenceMean() >= 0.0 && runtime.getStats().taaConfidenceMean() <= 1.0);
+        assertTrue(runtime.getStats().taaConfidenceDropEvents() >= 0L);
+        assertTrue(callbacks.events.stream().anyMatch(AaTelemetryEvent.class::isInstance));
+
         runtime.shutdown();
     }
 

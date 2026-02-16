@@ -46,6 +46,8 @@ final class VulkanEngineRuntimeSceneAssembly {
             float reactiveStrength = material == null ? 0f : clamp01(material.reactiveStrength());
             boolean alphaTested = material != null && material.alphaTested();
             boolean foliage = material != null && material.foliage();
+            float reactiveBoost = material == null ? 1.0f : clamp(material.reactiveBoost(), 0.0f, 2.0f);
+            float taaHistoryClamp = material == null ? 1.0f : clamp01(material.taaHistoryClamp());
             float[] model = VulkanEngineRuntimeCameraMath.modelMatrixOf(transforms.get(mesh.transformId()), i);
             String stableMeshId = (mesh.id() == null || mesh.id().isBlank()) ? ("mesh-index-" + i) : mesh.id();
             VulkanSceneMeshData meshData = new VulkanSceneMeshData(
@@ -59,6 +61,8 @@ final class VulkanEngineRuntimeSceneAssembly {
                     reactiveStrength,
                     alphaTested,
                     foliage,
+                    reactiveBoost,
+                    taaHistoryClamp,
                     resolveTexturePath(material == null ? null : material.albedoTexturePath(), assetRoot),
                     resolveTexturePath(material == null ? null : material.normalTexturePath(), assetRoot),
                     resolveTexturePath(material == null ? null : material.metallicRoughnessTexturePath(), assetRoot),
@@ -92,5 +96,9 @@ final class VulkanEngineRuntimeSceneAssembly {
 
     private static float clamp01(float v) {
         return Math.max(0f, Math.min(1f, v));
+    }
+
+    private static float clamp(float v, float min, float max) {
+        return Math.max(min, Math.min(max, v));
     }
 }

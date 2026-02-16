@@ -45,6 +45,8 @@ public final class VulkanRenderState {
     public float smaaStrength;
     public boolean taaEnabled;
     public float taaBlend;
+    public float taaClipScale = 1.0f;
+    public boolean taaLumaClipEnabled;
     public float taaJitterNdcX;
     public float taaJitterNdcY;
     public float taaPrevJitterNdcX;

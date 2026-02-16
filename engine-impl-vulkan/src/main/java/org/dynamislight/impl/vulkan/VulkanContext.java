@@ -67,7 +67,7 @@ final class VulkanContext {
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 6;
     private static final int GLOBAL_SCENE_UNIFORM_BYTES = 864;
-    private static final int OBJECT_UNIFORM_BYTES = 96;
+    private static final int OBJECT_UNIFORM_BYTES = 112;
     private final VulkanBackendResources backendResources = new VulkanBackendResources();
     private final VulkanDescriptorResourceState descriptorResources = new VulkanDescriptorResourceState();
     private int framesInFlight = DEFAULT_FRAMES_IN_FLIGHT;
@@ -94,6 +94,9 @@ final class VulkanContext {
     private boolean taaPrevViewProjValid;
     private int taaJitterFrameIndex;
     private final VulkanRenderState renderState = new VulkanRenderState();
+    private double taaHistoryRejectRate;
+    private double taaConfidenceMean = 1.0;
+    private long taaConfidenceDropEvents;
     private VulkanLightingParameterMutator.LightingState lightingState = new VulkanLightingParameterMutator.LightingState(
             0.35f, -1.0f, 0.25f,
             1.0f, 0.98f, 0.95f,
@@ -191,8 +194,21 @@ final class VulkanContext {
                 updateTemporalHistoryCameraState();
             }
         }
+        updateAaTelemetry();
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
         return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, estimatedGpuMemoryBytes);
+    }
+
+    double taaHistoryRejectRate() {
+        return taaHistoryRejectRate;
+    }
+
+    double taaConfidenceMean() {
+        return taaConfidenceMean;
+    }
+
+    long taaConfidenceDropEvents() {
+        return taaConfidenceDropEvents;
     }
 
     void resize(int width, int height) throws EngineException {
@@ -459,7 +475,9 @@ final class VulkanContext {
             boolean smaaEnabled,
             float smaaStrength,
             boolean taaEnabled,
-            float taaBlend
+            float taaBlend,
+            float taaClipScale,
+            boolean taaLumaClipEnabled
     ) {
         var result = VulkanRenderParameterMutator.applyPost(
                 new VulkanRenderParameterMutator.PostState(
@@ -477,7 +495,9 @@ final class VulkanContext {
                         this.renderState.smaaEnabled,
                         this.renderState.smaaStrength,
                         this.renderState.taaEnabled,
-                        this.renderState.taaBlend
+                        this.renderState.taaBlend,
+                        this.renderState.taaClipScale,
+                        this.renderState.taaLumaClipEnabled
                 ),
                 new VulkanRenderParameterMutator.PostUpdate(
                         tonemapEnabled,
@@ -494,7 +514,9 @@ final class VulkanContext {
                         smaaEnabled,
                         smaaStrength,
                         taaEnabled,
-                        taaBlend
+                        taaBlend,
+                        taaClipScale,
+                        taaLumaClipEnabled
                 )
         );
         var state = result.state();
@@ -513,11 +535,15 @@ final class VulkanContext {
         this.renderState.smaaStrength = state.smaaStrength();
         this.renderState.taaEnabled = state.taaEnabled();
         this.renderState.taaBlend = state.taaBlend();
+        this.renderState.taaClipScale = state.taaClipScale();
+        this.renderState.taaLumaClipEnabled = state.taaLumaClipEnabled();
         if (!this.renderState.taaEnabled) {
             this.renderState.postTaaHistoryInitialized = false;
             resetTemporalJitterState();
             projMatrix = projBaseMatrix.clone();
             taaPrevViewProjValid = false;
+            taaHistoryRejectRate = 0.0;
+            taaConfidenceMean = 1.0;
         }
         if (result.changed()) {
             markGlobalStateDirty();
@@ -778,6 +804,8 @@ final class VulkanContext {
                         taaJitterUvDeltaY(),
                         renderState.taaMotionUvX,
                         renderState.taaMotionUvY,
+                        renderState.taaClipScale,
+                        renderState.taaLumaClipEnabled,
                         renderState.taaDebugView,
                         backendResources.postRenderPass,
                         backendResources.postGraphicsPipeline,
@@ -1069,6 +1097,36 @@ final class VulkanContext {
 
     private float taaJitterUvDeltaY() {
         return (renderState.taaPrevJitterNdcY - renderState.taaJitterNdcY) * 0.5f;
+    }
+
+    private void updateAaTelemetry() {
+        if (!renderState.taaEnabled) {
+            taaHistoryRejectRate = 0.0;
+            taaConfidenceMean = 1.0;
+            return;
+        }
+        double motion = Math.sqrt((renderState.taaMotionUvX * renderState.taaMotionUvX)
+                + (renderState.taaMotionUvY * renderState.taaMotionUvY));
+        double reject = clamp01((1.0 - renderState.taaBlend) * 0.50 + motion * 6.0);
+        double targetConfidence = clamp01((1.0 - reject * 0.78) * Math.max(0.3, renderState.taaClipScale));
+        if (renderState.taaLumaClipEnabled) {
+            targetConfidence = clamp01(targetConfidence + 0.04);
+        }
+        if (targetConfidence + 0.08 < taaConfidenceMean) {
+            taaConfidenceDropEvents++;
+        }
+        taaHistoryRejectRate = reject;
+        taaConfidenceMean = targetConfidence;
+    }
+
+    private static double clamp01(double value) {
+        if (value < 0.0) {
+            return 0.0;
+        }
+        if (value > 1.0) {
+            return 1.0;
+        }
+        return value;
     }
 
     private static float[] applyProjectionJitter(float[] baseProjection, float jitterNdcX, float jitterNdcY) {

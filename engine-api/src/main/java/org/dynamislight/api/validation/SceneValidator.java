@@ -52,6 +52,12 @@ public final class SceneValidator {
             if (material.reactiveStrength() < 0f || material.reactiveStrength() > 1f) {
                 throw invalid("material " + material.id() + " reactiveStrength must be in [0,1]");
             }
+            if (material.reactiveBoost() < 0f || material.reactiveBoost() > 2f) {
+                throw invalid("material " + material.id() + " reactiveBoost must be in [0,2]");
+            }
+            if (material.taaHistoryClamp() < 0f || material.taaHistoryClamp() > 1f) {
+                throw invalid("material " + material.id() + " taaHistoryClamp must be in [0,1]");
+            }
         }
 
         if (scene.lights() != null) {

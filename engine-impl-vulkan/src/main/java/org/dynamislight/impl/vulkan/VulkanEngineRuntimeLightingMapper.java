@@ -17,7 +17,7 @@ final class VulkanEngineRuntimeLightingMapper {
 
     static VulkanEngineRuntime.PostProcessRenderConfig mapPostProcess(PostProcessDesc desc, QualityTier qualityTier) {
         if (desc == null || !desc.enabled()) {
-            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f);
+            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -39,6 +39,13 @@ final class VulkanEngineRuntimeLightingMapper {
         float smaaStrength = Math.max(0f, Math.min(1.0f, desc.smaaStrength()));
         boolean taaEnabled = desc.taaEnabled() && qualityTier != QualityTier.LOW;
         float taaBlend = Math.max(0f, Math.min(0.95f, desc.taaBlend()));
+        float taaClipScale = switch (qualityTier) {
+            case LOW -> 1.35f;
+            case MEDIUM -> 1.10f;
+            case HIGH -> 0.92f;
+            case ULTRA -> 0.78f;
+        };
+        boolean taaLumaClipEnabled = desc.taaLumaClipEnabled();
         if (qualityTier == QualityTier.MEDIUM) {
             ssaoStrength *= 0.8f;
             ssaoRadius *= 0.9f;
@@ -60,7 +67,9 @@ final class VulkanEngineRuntimeLightingMapper {
                 smaaEnabled,
                 smaaStrength,
                 taaEnabled,
-                taaBlend
+                taaBlend,
+                taaClipScale,
+                taaLumaClipEnabled
         );
     }
 

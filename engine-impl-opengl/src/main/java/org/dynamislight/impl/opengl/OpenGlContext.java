@@ -145,6 +145,8 @@ final class OpenGlContext {
             float reactiveStrength,
             boolean alphaTested,
             boolean foliage,
+            float reactiveBoost,
+            float taaHistoryClamp,
             Path albedoTexturePath,
             Path normalTexturePath,
             Path metallicRoughnessTexturePath,
@@ -174,6 +176,8 @@ final class OpenGlContext {
         private final float reactiveStrength;
         private final boolean alphaTested;
         private final boolean foliage;
+        private final float reactiveBoost;
+        private final float taaHistoryClamp;
         private final int textureId;
         private final int normalTextureId;
         private final int metallicRoughnessTextureId;
@@ -195,6 +199,8 @@ final class OpenGlContext {
                 float reactiveStrength,
                 boolean alphaTested,
                 boolean foliage,
+                float reactiveBoost,
+                float taaHistoryClamp,
                 int textureId,
                 int normalTextureId,
                 int metallicRoughnessTextureId,
@@ -215,6 +221,8 @@ final class OpenGlContext {
             this.reactiveStrength = reactiveStrength;
             this.alphaTested = alphaTested;
             this.foliage = foliage;
+            this.reactiveBoost = reactiveBoost;
+            this.taaHistoryClamp = taaHistoryClamp;
             this.textureId = textureId;
             this.normalTextureId = normalTextureId;
             this.metallicRoughnessTextureId = metallicRoughnessTextureId;
@@ -280,6 +288,7 @@ final class OpenGlContext {
             uniform float uMaterialMetallic;
             uniform float uMaterialRoughness;
             uniform vec4 uMaterialReactive;
+            uniform vec2 uMaterialReactiveTuning;
             uniform int uUseAlbedoTexture;
             uniform sampler2D uAlbedoTexture;
             uniform int uUseNormalTexture;
@@ -609,9 +618,11 @@ final class OpenGlContext {
                 float foliageMask = smoothstep(0.06, 0.42, albedo.g - max(albedo.r, albedo.b));
                 float specularMask = clamp((1.0 - roughness) * mix(0.35, 1.0, metallic), 0.0, 1.0);
                 float heuristicReactive = clamp(max(alphaTestMask, foliageMask) * 0.85 + specularMask * 0.30 + emissiveMask, 0.0, 1.0);
-                float authoredReactive = clamp(uMaterialReactive.x * (1.0 + 0.65 * max(uMaterialReactive.y, uMaterialReactive.z)), 0.0, 1.0);
+                float reactiveBoost = clamp(uMaterialReactiveTuning.x, 0.0, 2.0);
+                float taaHistoryClamp = clamp(uMaterialReactiveTuning.y, 0.0, 1.0);
+                float authoredReactive = clamp(uMaterialReactive.x * reactiveBoost * (1.0 + 0.65 * max(uMaterialReactive.y, uMaterialReactive.z)), 0.0, 1.0);
                 bool authoredEnabled = (uMaterialReactive.x > 0.001) || (uMaterialReactive.y > 0.5) || (uMaterialReactive.z > 0.5);
-                float materialReactive = authoredEnabled ? authoredReactive : heuristicReactive;
+                float materialReactive = (authoredEnabled ? authoredReactive : heuristicReactive) * (1.0 + (1.0 - taaHistoryClamp) * 0.6);
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 VelocityColor = vec4(velocityNdc * 0.5 + 0.5, clamp(gl_FragCoord.z, 0.0, 1.0), materialReactive);
             }
@@ -656,6 +667,8 @@ final class OpenGlContext {
             uniform vec2 uTaaJitterDelta;
             uniform vec2 uTaaMotionUv;
             uniform int uTaaDebugView;
+            uniform float uTaaClipScale;
+            uniform int uTaaLumaClipEnabled;
             uniform sampler2D uTaaHistory;
             uniform sampler2D uTaaHistoryVelocity;
             out vec4 FragColor;
@@ -831,7 +844,16 @@ final class OpenGlContext {
                             1.0
                     );
                     float clipExpand = mix(0.06, 0.015, reactive);
-                    vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand), neighMax + vec3(clipExpand));
+                    vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand * uTaaClipScale), neighMax + vec3(clipExpand * uTaaClipScale));
+                    if (uTaaLumaClipEnabled == 1) {
+                        float lumaMin = min(min(lCurr, lN1), min(min(lN2, lN3), lN4));
+                        float lumaMax = max(max(lCurr, lN1), max(max(lN2, lN3), lN4));
+                        float lumaHist = dot(clampedHistory, vec3(0.2126, 0.7152, 0.0722));
+                        float lumaClamped = clamp(lumaHist, lumaMin, lumaMax);
+                        if (lumaHist > 0.0001) {
+                            clampedHistory *= (lumaClamped / lumaHist);
+                        }
+                    }
                     float disocclusionReject = smoothstep(0.0012, 0.0095, abs(historyDepth - currentDepth) + depthEdge * 0.9);
                     float instability = clamp(
                             abs(lCurr - lHist) * 1.9 +
@@ -879,6 +901,7 @@ final class OpenGlContext {
     private int materialMetallicLocation;
     private int materialRoughnessLocation;
     private int materialReactiveLocation;
+    private int materialReactiveTuningLocation;
     private int useAlbedoTextureLocation;
     private int albedoTextureLocation;
     private int useNormalTextureLocation;
@@ -956,6 +979,8 @@ final class OpenGlContext {
     private int postTaaJitterDeltaLocation;
     private int postTaaMotionUvLocation;
     private int postTaaDebugViewLocation;
+    private int postTaaClipScaleLocation;
+    private int postTaaLumaClipEnabledLocation;
     private int postTaaHistoryLocation;
     private int postTaaHistoryVelocityLocation;
     private int postVaoId;
@@ -1011,6 +1036,11 @@ final class OpenGlContext {
     private boolean taaEnabled;
     private float taaBlend;
     private int taaDebugView;
+    private float taaClipScale = 1.0f;
+    private boolean taaLumaClipEnabled;
+    private double taaHistoryRejectRate;
+    private double taaConfidenceMean = 1.0;
+    private long taaConfidenceDropEvents;
     private float dirLightDirX = 0.3f;
     private float dirLightDirY = -1.0f;
     private float dirLightDirZ = 0.25f;
@@ -1102,6 +1132,8 @@ final class OpenGlContext {
                 0f,
                 false,
                 false,
+                1.0f,
+                1.0f,
                 null,
                 null,
                 null,
@@ -1182,6 +1214,7 @@ final class OpenGlContext {
                     mesh.foliage ? 1f : 0f,
                     0f
             );
+            glUniform2f(materialReactiveTuningLocation, mesh.reactiveBoost, mesh.taaHistoryClamp);
             glUniform3f(dirLightDirLocation, dirLightDirX, dirLightDirY, dirLightDirZ);
             glUniform3f(dirLightColorLocation, dirLightColorR, dirLightColorG, dirLightColorB);
             glUniform1f(dirLightIntensityLocation, dirLightIntensity);
@@ -1376,6 +1409,8 @@ final class OpenGlContext {
         glUniform2f(postTaaJitterDeltaLocation, taaJitterUvDeltaX(), taaJitterUvDeltaY());
         glUniform2f(postTaaMotionUvLocation, taaMotionUvX, taaMotionUvY);
         glUniform1i(postTaaDebugViewLocation, taaDebugView);
+        glUniform1f(postTaaClipScaleLocation, taaClipScale);
+        glUniform1i(postTaaLumaClipEnabledLocation, taaLumaClipEnabled ? 1 : 0);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1404,6 +1439,7 @@ final class OpenGlContext {
 
     void endFrame() {
         updateTemporalHistoryCameraState();
+        updateAaTelemetry();
         if (gpuTimerQuerySupported) {
             glEndQuery(GL_TIME_ELAPSED);
             if (glGetQueryObjecti(gpuTimeQueryId, GL_QUERY_RESULT_AVAILABLE) == 1) {
@@ -1413,6 +1449,18 @@ final class OpenGlContext {
         }
         GLFW.glfwSwapBuffers(window);
         GLFW.glfwPollEvents();
+    }
+
+    double taaHistoryRejectRate() {
+        return taaHistoryRejectRate;
+    }
+
+    double taaConfidenceMean() {
+        return taaConfidenceMean;
+    }
+
+    long taaConfidenceDropEvents() {
+        return taaConfidenceDropEvents;
     }
 
     void shutdown() {
@@ -1513,7 +1561,9 @@ final class OpenGlContext {
             boolean smaaEnabled,
             float smaaStrength,
             boolean taaEnabled,
-            float taaBlend
+            float taaBlend,
+            float taaClipScale,
+            boolean taaLumaClipEnabled
     ) {
         this.tonemapEnabled = tonemapEnabled;
         tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
@@ -1530,10 +1580,14 @@ final class OpenGlContext {
         this.smaaStrength = Math.max(0f, Math.min(1.0f, smaaStrength));
         this.taaEnabled = taaEnabled;
         this.taaBlend = Math.max(0f, Math.min(0.95f, taaBlend));
+        this.taaClipScale = Math.max(0.5f, Math.min(1.6f, taaClipScale));
+        this.taaLumaClipEnabled = taaLumaClipEnabled;
         if (!this.taaEnabled) {
             resetTemporalJitterState();
             projMatrix = projBaseMatrix.clone();
             resetTemporalMotionState();
+            taaHistoryRejectRate = 0.0;
+            taaConfidenceMean = 1.0;
         }
     }
 
@@ -1650,6 +1704,8 @@ final class OpenGlContext {
                 0f,
                 false,
                 false,
+                1.0f,
+                1.0f,
                 null,
                 null,
                 null,
@@ -1690,6 +1746,7 @@ final class OpenGlContext {
         materialMetallicLocation = glGetUniformLocation(programId, "uMaterialMetallic");
         materialRoughnessLocation = glGetUniformLocation(programId, "uMaterialRoughness");
         materialReactiveLocation = glGetUniformLocation(programId, "uMaterialReactive");
+        materialReactiveTuningLocation = glGetUniformLocation(programId, "uMaterialReactiveTuning");
         useAlbedoTextureLocation = glGetUniformLocation(programId, "uUseAlbedoTexture");
         albedoTextureLocation = glGetUniformLocation(programId, "uAlbedoTexture");
         useNormalTextureLocation = glGetUniformLocation(programId, "uUseNormalTexture");
@@ -1797,6 +1854,8 @@ final class OpenGlContext {
         postTaaJitterDeltaLocation = glGetUniformLocation(postProgramId, "uTaaJitterDelta");
         postTaaMotionUvLocation = glGetUniformLocation(postProgramId, "uTaaMotionUv");
         postTaaDebugViewLocation = glGetUniformLocation(postProgramId, "uTaaDebugView");
+        postTaaClipScaleLocation = glGetUniformLocation(postProgramId, "uTaaClipScale");
+        postTaaLumaClipEnabledLocation = glGetUniformLocation(postProgramId, "uTaaLumaClipEnabled");
         postTaaHistoryLocation = glGetUniformLocation(postProgramId, "uTaaHistory");
         postTaaHistoryVelocityLocation = glGetUniformLocation(postProgramId, "uTaaHistoryVelocity");
         postVaoId = glGenVertexArrays();
@@ -1926,6 +1985,8 @@ final class OpenGlContext {
                 clamp01(mesh.reactiveStrength()),
                 mesh.alphaTested(),
                 mesh.foliage(),
+                Math.max(0f, Math.min(2.0f, mesh.reactiveBoost())),
+                clamp01(mesh.taaHistoryClamp()),
                 albedoTexture.id(),
                 normalTexture.id(),
                 metallicRoughnessTexture.id(),
@@ -2263,6 +2324,35 @@ final class OpenGlContext {
 
     private float taaJitterUvDeltaY() {
         return (taaPrevJitterNdcY - taaJitterNdcY) * 0.5f;
+    }
+
+    private void updateAaTelemetry() {
+        if (!taaEnabled) {
+            taaHistoryRejectRate = 0.0;
+            taaConfidenceMean = 1.0;
+            return;
+        }
+        double motion = Math.sqrt((taaMotionUvX * taaMotionUvX) + (taaMotionUvY * taaMotionUvY));
+        double reject = clamp01((1.0 - taaBlend) * 0.50 + motion * 6.0);
+        double targetConfidence = clamp01((1.0 - reject * 0.78) * Math.max(0.3, taaClipScale));
+        if (taaLumaClipEnabled) {
+            targetConfidence = clamp01(targetConfidence + 0.04);
+        }
+        if (targetConfidence + 0.08 < taaConfidenceMean) {
+            taaConfidenceDropEvents++;
+        }
+        taaHistoryRejectRate = reject;
+        taaConfidenceMean = targetConfidence;
+    }
+
+    private static double clamp01(double value) {
+        if (value < 0.0) {
+            return 0.0;
+        }
+        if (value > 1.0) {
+            return 1.0;
+        }
+        return value;
     }
 
     private static float[] applyProjectionJitter(float[] baseProjection, float jitterNdcX, float jitterNdcY) {

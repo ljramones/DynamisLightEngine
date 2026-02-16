@@ -59,7 +59,7 @@ Callbacks must be non-blocking and must not call runtime methods synchronously.
 - cameras (`CameraDesc`) and active camera id
 - transforms (`TransformDesc`)
 - meshes (`MeshDesc`) referencing transform/material ids
-- materials (`MaterialDesc`) with albedo/metallic/roughness, texture paths, and authored temporal-AA reactive controls (`reactiveStrength`, `alphaTested`, `foliage`)
+- materials (`MaterialDesc`) with albedo/metallic/roughness, texture paths, and authored temporal-AA controls (`reactiveStrength`, `alphaTested`, `foliage`, `reactiveBoost`, `taaHistoryClamp`)
 - lights (`LightDesc`)
 - environment (`EnvironmentDesc`)
 - fog (`FogDesc`, `FogMode`)
@@ -82,9 +82,11 @@ Collection fields are defensively copied to immutable lists.
 - `SceneLoadFailedEvent`
 - `ResourceHotReloadedEvent`
 - `DeviceLostEvent`
+- `AaTelemetryEvent` (`historyRejectRate`, `confidenceMean`, `confidenceDropEvents` by frame)
 - `PerformanceWarningEvent`
 
 `EngineFrameResult` also contains `List<EngineWarning>` for per-frame degradations.
+`EngineStats` includes temporal-AA telemetry counters (`taaHistoryRejectRate`, `taaConfidenceMean`, `taaConfidenceDropEvents`).
 
 ### Logs
 `LogMessage(level, category, message, epochMillis)` with `LogLevel` (`TRACE`..`ERROR`).

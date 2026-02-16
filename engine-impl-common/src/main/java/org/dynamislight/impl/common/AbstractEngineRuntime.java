@@ -31,6 +31,7 @@ import org.dynamislight.api.error.EngineErrorReport;
 import org.dynamislight.api.resource.EngineResourceService;
 import org.dynamislight.api.runtime.EngineRuntime;
 import org.dynamislight.api.runtime.EngineStats;
+import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.FrameHandle;
@@ -75,7 +76,7 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     private EngineHostCallbacks host;
     private Path assetRoot = Path.of(".");
     private long frameIndex;
-    private EngineStats stats = new EngineStats(0.0, 0.0, 0.0, 0, 0, 0, 0);
+    private EngineStats stats = new EngineStats(0.0, 0.0, 0.0, 0, 0, 0, 0, 0.0, 1.0, 0);
     private final Map<ResourceId, ResourceInfo> resourceCache = new LinkedHashMap<>();
     private final Map<ResourceId, String> resourceChecksums = new LinkedHashMap<>();
     private List<ResourceId> activeSceneResourceIds = new ArrayList<>();
@@ -191,25 +192,36 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
                 renderMetrics = new RenderMetrics(renderCpuFrameMs, renderGpuFrameMs, 1, 3, 1, 0);
             }
             double frameMs = Math.max(renderMetrics.cpuFrameMs(), 0.0001);
-        stats = new EngineStats(
-                1000.0 / frameMs,
-                renderMetrics.cpuFrameMs(),
-                renderMetrics.gpuFrameMs(),
-                renderMetrics.drawCalls(),
-                renderMetrics.triangles(),
-                renderMetrics.visibleObjects(),
-                renderMetrics.gpuMemoryBytes()
-        );
+            stats = new EngineStats(
+                    1000.0 / frameMs,
+                    renderMetrics.cpuFrameMs(),
+                    renderMetrics.gpuFrameMs(),
+                    renderMetrics.drawCalls(),
+                    renderMetrics.triangles(),
+                    renderMetrics.visibleObjects(),
+                    renderMetrics.gpuMemoryBytes(),
+                    clamp01(aaHistoryRejectRate()),
+                    clamp01(aaConfidenceMean()),
+                    Math.max(0L, aaConfidenceDropEvents())
+            );
         log(LogLevel.DEBUG, "RENDER", "Rendered frame " + frameIndex);
             log(LogLevel.DEBUG, "PERF",
                     "frame=" + frameIndex + " cpuMs=" + String.format("%.3f", stats.cpuFrameMs())
                             + " gpuMs=" + String.format("%.3f", stats.gpuFrameMs())
                             + " fps=" + String.format("%.1f", stats.fps()));
-        List<EngineWarning> warnings = new ArrayList<>();
-        warnings.addAll(baselineWarnings());
-        warnings.addAll(frameWarnings());
-        return new EngineFrameResult(frameIndex, stats.cpuFrameMs(), stats.gpuFrameMs(), new FrameHandle(frameIndex, false),
-                warnings);
+            List<EngineWarning> warnings = new ArrayList<>();
+            warnings.addAll(baselineWarnings());
+            warnings.addAll(frameWarnings());
+            if (host != null) {
+                host.onEvent(new AaTelemetryEvent(
+                        frameIndex,
+                        stats.taaHistoryRejectRate(),
+                        stats.taaConfidenceMean(),
+                        stats.taaConfidenceDropEvents()
+                ));
+            }
+            return new EngineFrameResult(frameIndex, stats.cpuFrameMs(), stats.gpuFrameMs(), new FrameHandle(frameIndex, false),
+                    warnings);
         } catch (EngineException e) {
             throw reportAndReturn(e);
         } catch (RuntimeException e) {
@@ -282,6 +294,18 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected List<EngineWarning> frameWarnings() {
         return List.of();
+    }
+
+    protected double aaHistoryRejectRate() {
+        return 0.0;
+    }
+
+    protected double aaConfidenceMean() {
+        return 1.0;
+    }
+
+    protected long aaConfidenceDropEvents() {
+        return 0L;
     }
 
     protected List<EngineWarning> baselineWarnings() {
@@ -492,6 +516,16 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     private static boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private static double clamp01(double value) {
+        if (value < 0.0) {
+            return 0.0;
+        }
+        if (value > 1.0) {
+            return 1.0;
+        }
+        return value;
     }
 
     private final class RuntimeResourceService implements EngineResourceService {

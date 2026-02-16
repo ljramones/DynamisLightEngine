@@ -14,8 +14,40 @@ public record MaterialDesc(
         String occlusionTexturePath,
         float reactiveStrength,
         boolean alphaTested,
-        boolean foliage
+        boolean foliage,
+        float reactiveBoost,
+        float taaHistoryClamp
 ) {
+    public MaterialDesc(
+            String id,
+            Vec3 albedo,
+            float metallic,
+            float roughness,
+            String albedoTexturePath,
+            String normalTexturePath,
+            String metallicRoughnessTexturePath,
+            String occlusionTexturePath,
+            float reactiveStrength,
+            boolean alphaTested,
+            boolean foliage
+    ) {
+        this(
+                id,
+                albedo,
+                metallic,
+                roughness,
+                albedoTexturePath,
+                normalTexturePath,
+                metallicRoughnessTexturePath,
+                occlusionTexturePath,
+                reactiveStrength,
+                alphaTested,
+                foliage,
+                1.0f,
+                1.0f
+        );
+    }
+
     public MaterialDesc(
             String id,
             Vec3 albedo,
@@ -24,7 +56,7 @@ public record MaterialDesc(
             String albedoTexturePath,
             String normalTexturePath
     ) {
-        this(id, albedo, metallic, roughness, albedoTexturePath, normalTexturePath, null, null, 0f, false, false);
+        this(id, albedo, metallic, roughness, albedoTexturePath, normalTexturePath, null, null, 0f, false, false, 1.0f, 1.0f);
     }
 
     public MaterialDesc(
@@ -48,7 +80,9 @@ public record MaterialDesc(
                 occlusionTexturePath,
                 0f,
                 false,
-                false
+                false,
+                1.0f,
+                1.0f
         );
     }
 }

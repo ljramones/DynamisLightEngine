@@ -12,6 +12,9 @@ public record EngineStats(
         long drawCalls,
         long triangles,
         long visibleObjects,
-        long gpuMemoryBytes
+        long gpuMemoryBytes,
+        double taaHistoryRejectRate,
+        double taaConfidenceMean,
+        long taaConfidenceDropEvents
 ) {
 }

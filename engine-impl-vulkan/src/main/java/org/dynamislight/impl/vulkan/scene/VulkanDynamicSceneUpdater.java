@@ -39,7 +39,9 @@ public final class VulkanDynamicSceneUpdater {
                     sceneMesh.roughness(),
                     sceneMesh.reactiveStrength(),
                     sceneMesh.alphaTested(),
-                    sceneMesh.foliage()
+                    sceneMesh.foliage(),
+                    sceneMesh.reactiveBoost(),
+                    sceneMesh.taaHistoryClamp()
             );
             if (changed) {
                 dirtyStart = Math.min(dirtyStart, i);

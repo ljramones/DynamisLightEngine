@@ -36,6 +36,7 @@ public final class VulkanShaderSources {
                     mat4 uModel;
                     vec4 uBaseColor;
                     vec4 uMaterial;
+                    vec4 uMaterialReactive;
                 } obj;
                 layout(push_constant) uniform ShadowPush {
                     int uCascadeIndex;
@@ -94,6 +95,7 @@ public final class VulkanShaderSources {
                     mat4 uModel;
                     vec4 uBaseColor;
                     vec4 uMaterial;
+                    vec4 uMaterialReactive;
                 } obj;
                 void main() {
                     vec4 world = obj.uModel * vec4(inPos, 1.0);
@@ -145,6 +147,7 @@ public final class VulkanShaderSources {
                     mat4 uModel;
                     vec4 uBaseColor;
                     vec4 uMaterial;
+                    vec4 uMaterialReactive;
                 } obj;
                 layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
                 layout(set = 1, binding = 1) uniform sampler2D uNormalTexture;
@@ -204,6 +207,8 @@ public final class VulkanShaderSources {
                     float roughness = clamp(obj.uMaterial.y * max(mrTex.g, 0.04), 0.04, 1.0);
                     float reactiveStrength = clamp(obj.uMaterial.z, 0.0, 1.0);
                     float reactiveFlags = obj.uMaterial.w;
+                    float reactiveBoost = clamp(obj.uMaterialReactive.x, 0.0, 2.0);
+                    float taaHistoryClamp = clamp(obj.uMaterialReactive.y, 0.0, 1.0);
                     bool alphaTested = mod(reactiveFlags, 2.0) >= 1.0;
                     bool foliage = mod(floor(reactiveFlags / 2.0), 2.0) >= 1.0;
                     float normalVariance = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.30, 0.0, 1.0);
@@ -451,12 +456,12 @@ public final class VulkanShaderSources {
                     float specularMask = clamp((1.0 - roughness) * mix(0.35, 1.0, metallic), 0.0, 1.0);
                     float heuristicReactive = clamp(max(alphaTestMask, foliageMask) * 0.85 + specularMask * 0.30 + emissiveMask, 0.0, 1.0);
                     float authoredReactive = clamp(
-                            reactiveStrength * (1.0 + 0.65 * max(alphaTested ? 1.0 : 0.0, foliage ? 1.0 : 0.0)),
+                            reactiveStrength * reactiveBoost * (1.0 + 0.65 * max(alphaTested ? 1.0 : 0.0, foliage ? 1.0 : 0.0)),
                             0.0,
                             1.0
                     );
                     bool authoredEnabled = (reactiveStrength > 0.001) || alphaTested || foliage;
-                    float materialReactive = authoredEnabled ? authoredReactive : heuristicReactive;
+                    float materialReactive = (authoredEnabled ? authoredReactive : heuristicReactive) * (1.0 + (1.0 - taaHistoryClamp) * 0.6);
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                     vec4 currClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
                     vec4 prevClip = gbo.uPrevViewProj * vec4(vWorldPos, 1.0);
@@ -669,7 +674,17 @@ public final class VulkanShaderSources {
                                 1.0
                         );
                         float clipExpand = mix(0.06, 0.015, reactive);
-                        vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand), neighMax + vec3(clipExpand));
+                        float taaClipScale = clamp(pc.motion.w, 0.5, 1.6);
+                        vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand * taaClipScale), neighMax + vec3(clipExpand * taaClipScale));
+                        if (pc.motion.z > 0.5) {
+                            float lumaMin = min(min(lCurr, lN1), min(min(lN2, lN3), lN4));
+                            float lumaMax = max(max(lCurr, lN1), max(max(lN2, lN3), lN4));
+                            float lumaHist = dot(clampedHistory, vec3(0.2126, 0.7152, 0.0722));
+                            float lumaClamped = clamp(lumaHist, lumaMin, lumaMax);
+                            if (lumaHist > 0.0001) {
+                                clampedHistory *= (lumaClamped / lumaHist);
+                            }
+                        }
                         float disocclusionReject = smoothstep(0.0012, 0.0095, abs(historyDepth - currentDepth) + depthEdge * 0.9);
                         float instability = clamp(
                                 abs(lCurr - lHist) * 1.9 +

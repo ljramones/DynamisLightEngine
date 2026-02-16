@@ -117,6 +117,65 @@ class EngineApiContractTest {
     }
 
     @Test
+    void sceneValidatorRejectsOutOfRangeReactiveBoost() {
+        SceneDescriptor broken = new SceneDescriptor(
+                "scene",
+                List.of(new CameraDesc("cam", new Vec3(0, 0, 1), new Vec3(0, 0, 0), 60f, 0.1f, 100f)),
+                "cam",
+                List.of(new TransformDesc("x", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1))),
+                List.of(new MeshDesc("mesh", "x", "mat", "mesh.glb")),
+                List.of(new MaterialDesc("mat", new Vec3(1, 1, 1), 0f, 1f, null, null, null, null, 0.5f, false, false, 2.5f, 1.0f)),
+                List.of(),
+                new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null),
+                new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0, 0, 0, 0, 0, 0),
+                List.of());
+
+        var ex = assertThrows(EngineException.class, () -> SceneValidator.validate(broken));
+        assertEquals(EngineErrorCode.SCENE_VALIDATION_FAILED, ex.code());
+    }
+
+    @Test
+    void sceneValidatorRejectsOutOfRangeTaaHistoryClamp() {
+        SceneDescriptor broken = new SceneDescriptor(
+                "scene",
+                List.of(new CameraDesc("cam", new Vec3(0, 0, 1), new Vec3(0, 0, 0), 60f, 0.1f, 100f)),
+                "cam",
+                List.of(new TransformDesc("x", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1))),
+                List.of(new MeshDesc("mesh", "x", "mat", "mesh.glb")),
+                List.of(new MaterialDesc("mat", new Vec3(1, 1, 1), 0f, 1f, null, null, null, null, 0.5f, false, false, 1.0f, 1.5f)),
+                List.of(),
+                new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null),
+                new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0, 0, 0, 0, 0, 0),
+                List.of());
+
+        var ex = assertThrows(EngineException.class, () -> SceneValidator.validate(broken));
+        assertEquals(EngineErrorCode.SCENE_VALIDATION_FAILED, ex.code());
+    }
+
+    @Test
+    void postProcessLegacyConstructorDefaultsTaaLumaClipDisabled() {
+        var post = new org.dynamislight.api.scene.PostProcessDesc(
+                true,
+                true,
+                1.0f,
+                2.2f,
+                true,
+                1.0f,
+                0.8f,
+                true,
+                0.5f,
+                1.0f,
+                0.02f,
+                1.0f,
+                true,
+                0.5f,
+                true,
+                0.1f
+        );
+        assertFalse(post.taaLumaClipEnabled());
+    }
+
+    @Test
     void apiVersionCompatibilityFollowsMajorMinorRules() {
         assertTrue(EngineApiVersions.isRuntimeCompatible(new EngineApiVersion(1, 0, 0), new EngineApiVersion(1, 0, 0)));
         assertTrue(EngineApiVersions.isRuntimeCompatible(new EngineApiVersion(1, 1, 0), new EngineApiVersion(1, 2, 0)));

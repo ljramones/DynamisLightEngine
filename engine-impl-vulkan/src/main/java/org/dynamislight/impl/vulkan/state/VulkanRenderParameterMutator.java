@@ -104,6 +104,8 @@ public final class VulkanRenderParameterMutator {
         float smaaStrength = current.smaaStrength();
         boolean taaEnabled = current.taaEnabled();
         float taaBlend = current.taaBlend();
+        float taaClipScale = current.taaClipScale();
+        boolean taaLumaClipEnabled = current.taaLumaClipEnabled();
 
         if (tonemapEnabled != update.tonemapEnabled()) {
             tonemapEnabled = update.tonemapEnabled();
@@ -165,11 +167,20 @@ public final class VulkanRenderParameterMutator {
             taaBlend = clampedTaaBlend;
             changed = true;
         }
+        float clampedTaaClipScale = Math.max(0.5f, Math.min(1.6f, update.taaClipScale()));
+        if (!floatEquals(taaClipScale, clampedTaaClipScale)) {
+            taaClipScale = clampedTaaClipScale;
+            changed = true;
+        }
+        if (taaLumaClipEnabled != update.taaLumaClipEnabled()) {
+            taaLumaClipEnabled = update.taaLumaClipEnabled();
+            changed = true;
+        }
         return new PostResult(
                 new PostState(
                         tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength,
                         ssaoEnabled, ssaoStrength, ssaoRadius, ssaoBias, ssaoPower,
-                        smaaEnabled, smaaStrength, taaEnabled, taaBlend
+                        smaaEnabled, smaaStrength, taaEnabled, taaBlend, taaClipScale, taaLumaClipEnabled
                 ),
                 changed
         );
@@ -240,7 +251,9 @@ public final class VulkanRenderParameterMutator {
             boolean smaaEnabled,
             float smaaStrength,
             boolean taaEnabled,
-            float taaBlend
+            float taaBlend,
+            float taaClipScale,
+            boolean taaLumaClipEnabled
     ) {
     }
 
@@ -259,7 +272,9 @@ public final class VulkanRenderParameterMutator {
             boolean smaaEnabled,
             float smaaStrength,
             boolean taaEnabled,
-            float taaBlend
+            float taaBlend,
+            float taaClipScale,
+            boolean taaLumaClipEnabled
     ) {
     }
 

@@ -15,6 +15,7 @@ import java.util.Set;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.event.DeviceLostEvent;
+import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineErrorReport;
 import org.dynamislight.api.event.EngineEvent;
@@ -157,6 +158,22 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(2, runtime.getStats().drawCalls());
         assertEquals(3, runtime.getStats().triangles());
         assertEquals(2, runtime.getStats().visibleObjects());
+        runtime.shutdown();
+    }
+
+    @Test
+    void mockVulkanRenderPublishesAaTelemetryEventAndStatsWithinRange() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        runtime.initialize(validConfig(true), callbacks);
+        runtime.loadScene(validScene());
+
+        runtime.render();
+
+        assertTrue(runtime.getStats().taaHistoryRejectRate() >= 0.0 && runtime.getStats().taaHistoryRejectRate() <= 1.0);
+        assertTrue(runtime.getStats().taaConfidenceMean() >= 0.0 && runtime.getStats().taaConfidenceMean() <= 1.0);
+        assertTrue(runtime.getStats().taaConfidenceDropEvents() >= 0L);
+        assertTrue(callbacks.events.stream().anyMatch(AaTelemetryEvent.class::isInstance));
         runtime.shutdown();
     }
 
