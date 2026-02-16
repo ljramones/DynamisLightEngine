@@ -1,8 +1,8 @@
 package org.dynamislight.api.validation;
 
-import org.dynamislight.api.EngineConfig;
-import org.dynamislight.api.EngineErrorCode;
-import org.dynamislight.api.EngineException;
+import org.dynamislight.api.config.EngineConfig;
+import org.dynamislight.api.error.EngineErrorCode;
+import org.dynamislight.api.error.EngineException;
 
 /**
  * Validator for host-provided runtime configuration.

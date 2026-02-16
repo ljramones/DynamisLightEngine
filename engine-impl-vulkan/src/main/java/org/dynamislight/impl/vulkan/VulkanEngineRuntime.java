@@ -1,11 +1,11 @@
 package org.dynamislight.impl.vulkan;
 
 import java.util.Set;
-import org.dynamislight.api.EngineCapabilities;
-import org.dynamislight.api.EngineConfig;
-import org.dynamislight.api.EngineException;
-import org.dynamislight.api.EngineWarning;
-import org.dynamislight.api.QualityTier;
+import org.dynamislight.api.runtime.EngineCapabilities;
+import org.dynamislight.api.config.EngineConfig;
+import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.event.EngineWarning;
+import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
 
 public final class VulkanEngineRuntime extends AbstractEngineRuntime {

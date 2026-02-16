@@ -1,8 +1,8 @@
 package org.dynamislight.bridge.dynamisfx;
 
-import org.dynamislight.api.EngineApiVersion;
-import org.dynamislight.api.EngineException;
-import org.dynamislight.api.EngineRuntime;
+import org.dynamislight.api.runtime.EngineApiVersion;
+import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.runtime.EngineRuntime;
 import org.dynamislight.spi.registry.BackendRegistry;
 
 public final class DynamisFxEngineBridge {

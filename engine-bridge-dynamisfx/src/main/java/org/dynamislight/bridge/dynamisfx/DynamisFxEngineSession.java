@@ -1,12 +1,12 @@
 package org.dynamislight.bridge.dynamisfx;
 
-import org.dynamislight.api.EngineConfig;
-import org.dynamislight.api.EngineException;
-import org.dynamislight.api.EngineFrameResult;
-import org.dynamislight.api.EngineHostCallbacks;
-import org.dynamislight.api.EngineRuntime;
-import org.dynamislight.api.ResourceId;
-import org.dynamislight.api.ResourceInfo;
+import org.dynamislight.api.config.EngineConfig;
+import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.runtime.EngineFrameResult;
+import org.dynamislight.api.runtime.EngineHostCallbacks;
+import org.dynamislight.api.runtime.EngineRuntime;
+import org.dynamislight.api.resource.ResourceId;
+import org.dynamislight.api.resource.ResourceInfo;
 import org.dynamislight.bridge.dynamisfx.model.FxInputSnapshot;
 import org.dynamislight.bridge.dynamisfx.model.FxSceneSnapshot;
 
@@ -62,7 +62,7 @@ public final class DynamisFxEngineSession implements AutoCloseable {
 
     private void ensureStarted() throws EngineException {
         if (runtime == null) {
-            throw new EngineException(org.dynamislight.api.EngineErrorCode.INVALID_STATE, "Session not started", true);
+            throw new EngineException(org.dynamislight.api.error.EngineErrorCode.INVALID_STATE, "Session not started", true);
         }
     }
 }

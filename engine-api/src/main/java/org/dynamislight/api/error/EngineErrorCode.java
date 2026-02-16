@@ -1,0 +1,17 @@
+package org.dynamislight.api.error;
+
+/**
+ * EngineErrorCode API type.
+ */
+public enum EngineErrorCode {
+    INVALID_STATE,
+    INVALID_ARGUMENT,
+    BACKEND_NOT_FOUND,
+    BACKEND_INIT_FAILED,
+    SHADER_COMPILATION_FAILED,
+    RESOURCE_CREATION_FAILED,
+    SCENE_VALIDATION_FAILED,
+    OUT_OF_MEMORY,
+    DEVICE_LOST,
+    INTERNAL_ERROR
+}

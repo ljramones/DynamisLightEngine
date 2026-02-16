@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Set;
-import org.dynamislight.api.EngineInput;
-import org.dynamislight.api.KeyCode;
+import org.dynamislight.api.input.EngineInput;
+import org.dynamislight.api.input.KeyCode;
 import org.dynamislight.bridge.dynamisfx.model.FxInputSnapshot;
 import org.junit.jupiter.api.Test;
 

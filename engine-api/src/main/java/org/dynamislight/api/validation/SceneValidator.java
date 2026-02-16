@@ -2,13 +2,13 @@ package org.dynamislight.api.validation;
 
 import java.util.HashSet;
 import java.util.Set;
-import org.dynamislight.api.CameraDesc;
-import org.dynamislight.api.EngineErrorCode;
-import org.dynamislight.api.EngineException;
-import org.dynamislight.api.MaterialDesc;
-import org.dynamislight.api.MeshDesc;
-import org.dynamislight.api.SceneDescriptor;
-import org.dynamislight.api.TransformDesc;
+import org.dynamislight.api.scene.CameraDesc;
+import org.dynamislight.api.error.EngineErrorCode;
+import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.scene.MaterialDesc;
+import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.api.scene.SceneDescriptor;
+import org.dynamislight.api.scene.TransformDesc;
 
 /**
  * Validator for runtime scene descriptors.

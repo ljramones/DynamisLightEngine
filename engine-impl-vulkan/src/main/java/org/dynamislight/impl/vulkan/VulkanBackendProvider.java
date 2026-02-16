@@ -1,7 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
-import org.dynamislight.api.EngineApiVersion;
-import org.dynamislight.api.EngineRuntime;
+import org.dynamislight.api.runtime.EngineApiVersion;
+import org.dynamislight.api.runtime.EngineRuntime;
 import org.dynamislight.spi.EngineBackendInfo;
 import org.dynamislight.spi.EngineBackendProvider;
 

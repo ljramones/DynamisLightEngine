@@ -4,10 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.ServiceLoader;
-import org.dynamislight.api.EngineApiVersion;
-import org.dynamislight.api.EngineApiVersions;
-import org.dynamislight.api.EngineErrorCode;
-import org.dynamislight.api.EngineException;
+import org.dynamislight.api.runtime.EngineApiVersion;
+import org.dynamislight.api.runtime.EngineApiVersions;
+import org.dynamislight.api.error.EngineErrorCode;
+import org.dynamislight.api.error.EngineException;
 import org.dynamislight.spi.EngineBackendInfo;
 import org.dynamislight.spi.EngineBackendProvider;
 

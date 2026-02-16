@@ -3,8 +3,8 @@ package org.dynamislight.bridge.dynamisfx;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import org.dynamislight.api.EngineErrorCode;
-import org.dynamislight.api.EngineException;
+import org.dynamislight.api.error.EngineErrorCode;
+import org.dynamislight.api.error.EngineException;
 import org.dynamislight.bridge.dynamisfx.model.FxInputSnapshot;
 import org.junit.jupiter.api.Test;
 

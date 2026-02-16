@@ -50,8 +50,8 @@ import static org.lwjgl.opengl.GL33.glGetQueryObjecti64;
 import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT;
 import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT_AVAILABLE;
 
-import org.dynamislight.api.EngineErrorCode;
-import org.dynamislight.api.EngineException;
+import org.dynamislight.api.error.EngineErrorCode;
+import org.dynamislight.api.error.EngineException;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;

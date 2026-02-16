@@ -5,8 +5,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.dynamislight.api.EngineInput;
-import org.dynamislight.api.KeyCode;
+import org.dynamislight.api.input.EngineInput;
+import org.dynamislight.api.input.KeyCode;
 import org.dynamislight.bridge.dynamisfx.model.FxInputSnapshot;
 
 public final class InputMapper {
