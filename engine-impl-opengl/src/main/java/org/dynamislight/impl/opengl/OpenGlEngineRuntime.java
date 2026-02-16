@@ -60,6 +60,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean textureDriven,
             boolean skyboxDerived,
             boolean ktxContainerRequested,
+            boolean ktxSkyboxFallback,
             float prefilterStrength,
             boolean degraded,
             int missingAssetCount,
@@ -90,7 +91,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
+    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public OpenGlEngineRuntime() {
@@ -301,6 +302,12 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                         "IBL irradiance/radiance inputs are derived from EnvironmentDesc.skyboxAssetPath"
                 ));
             }
+            if (ibl.ktxSkyboxFallback()) {
+                warnings.add(new EngineWarning(
+                        "IBL_KTX_SKYBOX_FALLBACK_ACTIVE",
+                        "KTX IBL paths without decodable sources fell back to skybox-derived irradiance/radiance inputs"
+                ));
+            }
             if (ibl.missingAssetCount() > 0) {
                 warnings.add(new EngineWarning(
                         "IBL_ASSET_FALLBACK_ACTIVE",
@@ -441,14 +448,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 || !isBlank(environment.iblRadiancePath())
                 || !isBlank(environment.iblBrdfLutPath())
                 || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -484,6 +491,17 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         Path irr = resolveContainerSourcePath(irrSource);
         Path rad = resolveContainerSourcePath(radSource);
         Path brdf = resolveContainerSourcePath(brdfSource);
+        boolean ktxSkyboxFallback = false;
+        Path skyboxResolved = resolveContainerSourcePath(resolveTexturePath(fallbackSkyboxPath));
+        if (isKtxContainerPath(irrSource) && !isRegularFile(irr) && isRegularFile(skyboxResolved)) {
+            irr = skyboxResolved;
+            ktxSkyboxFallback = true;
+        }
+        if (isKtxContainerPath(radSource) && !isRegularFile(rad) && isRegularFile(skyboxResolved)) {
+            rad = skyboxResolved;
+            ktxSkyboxFallback = true;
+        }
+        boolean skyboxDerivedActive = skyboxDerived || ktxSkyboxFallback;
         int missingAssetCount = countMissingFiles(irr, rad, brdf);
         float irrSignal = imageLuminanceSignal(irr);
         float radSignal = imageLuminanceSignal(rad);
@@ -505,8 +523,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 Math.max(0f, Math.min(2.0f, diffuse)),
                 Math.max(0f, Math.min(2.0f, specular)),
                 textureDriven,
-                skyboxDerived,
+                skyboxDerivedActive,
                 ktxContainerRequested,
+                ktxSkyboxFallback,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,
                 missingAssetCount,
@@ -519,11 +538,15 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private static int countMissingFiles(Path... paths) {
         int missing = 0;
         for (Path path : paths) {
-            if (path == null || !Files.isRegularFile(path)) {
+            if (!isRegularFile(path)) {
                 missing++;
             }
         }
         return missing;
+    }
+
+    private static boolean isRegularFile(Path path) {
+        return path != null && Files.isRegularFile(path);
     }
 
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {

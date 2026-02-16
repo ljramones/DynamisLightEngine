@@ -64,7 +64,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
+    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public VulkanEngineRuntime() {
@@ -345,6 +345,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 warnings.add(new EngineWarning(
                         "IBL_SKYBOX_DERIVED_ACTIVE",
                         "IBL irradiance/radiance inputs are derived from EnvironmentDesc.skyboxAssetPath"
+                ));
+            }
+            if (currentIbl.ktxSkyboxFallback()) {
+                warnings.add(new EngineWarning(
+                        "IBL_KTX_SKYBOX_FALLBACK_ACTIVE",
+                        "KTX IBL paths without decodable sources fell back to skybox-derived irradiance/radiance inputs"
                 ));
             }
             if (currentIbl.missingAssetCount() > 0) {
@@ -661,6 +667,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean textureDriven,
             boolean skyboxDerived,
             boolean ktxContainerRequested,
+            boolean ktxSkyboxFallback,
             float prefilterStrength,
             boolean degraded,
             int missingAssetCount,
@@ -701,14 +708,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 || !isBlank(environment.iblRadiancePath())
                 || !isBlank(environment.iblBrdfLutPath())
                 || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -746,6 +753,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         Path irr = resolveContainerSourcePath(irrSource);
         Path rad = resolveContainerSourcePath(radSource);
         Path brdf = resolveContainerSourcePath(brdfSource);
+        boolean ktxSkyboxFallback = false;
+        Path skyboxResolved = resolveContainerSourcePath(resolveScenePath(fallbackSkyboxPath, assetRoot));
+        if (isKtxContainerPath(irrSource) && !isRegularFile(irr) && isRegularFile(skyboxResolved)) {
+            irr = skyboxResolved;
+            ktxSkyboxFallback = true;
+        }
+        if (isKtxContainerPath(radSource) && !isRegularFile(rad) && isRegularFile(skyboxResolved)) {
+            rad = skyboxResolved;
+            ktxSkyboxFallback = true;
+        }
+        boolean skyboxDerivedActive = skyboxDerived || ktxSkyboxFallback;
         int missingAssetCount = countMissingFiles(irr, rad, brdf);
         float irrSignal = imageLuminanceSignal(irr);
         float radSignal = imageLuminanceSignal(rad);
@@ -767,8 +785,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 Math.max(0f, Math.min(2.0f, diffuse)),
                 Math.max(0f, Math.min(2.0f, specular)),
                 textureDriven,
-                skyboxDerived,
+                skyboxDerivedActive,
                 ktxContainerRequested,
+                ktxSkyboxFallback,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,
                 missingAssetCount,
@@ -781,11 +800,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static int countMissingFiles(Path... paths) {
         int missing = 0;
         for (Path path : paths) {
-            if (path == null || !Files.isRegularFile(path)) {
+            if (!isRegularFile(path)) {
                 missing++;
             }
         }
         return missing;
+    }
+
+    private static boolean isRegularFile(Path path) {
+        return path != null && Files.isRegularFile(path);
     }
 
     private record ShadowRenderConfig(

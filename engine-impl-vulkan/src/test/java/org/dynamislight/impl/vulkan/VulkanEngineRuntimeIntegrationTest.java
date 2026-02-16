@@ -241,6 +241,20 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void iblKtxPathsCanFallbackToSkyboxInputs() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.MEDIUM, Path.of("..", "assets")), new RecordingCallbacks());
+        runtime.loadScene(validKtxSkyboxFallbackScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_SKYBOX_FALLBACK_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_SKYBOX_DERIVED_ACTIVE".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_ASSET_FALLBACK_ACTIVE".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
     void iblLowTierEmitsQualityDegradedWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.LOW), new RecordingCallbacks());
@@ -775,6 +789,10 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier qualityTier) {
+        return validConfig(backendOptions, qualityTier, Path.of("."));
+    }
+
+    private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier qualityTier, Path assetRoot) {
         return new EngineConfig(
                 "vulkan",
                 "vulkan-test",
@@ -784,7 +802,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 true,
                 60,
                 qualityTier,
-                Path.of("."),
+                assetRoot,
                 backendOptions
         );
     }
@@ -1125,6 +1143,31 @@ class VulkanEngineRuntimeIntegrationTest {
         );
         return new SceneDescriptor(
                 "vulkan-ibl-skybox-only-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                env,
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validKtxSkyboxFallbackScene() {
+        SceneDescriptor base = validScene();
+        EnvironmentDesc env = new EnvironmentDesc(
+                base.environment().ambientColor(),
+                base.environment().ambientIntensity(),
+                "textures/skybox.hdr",
+                "textures/ibl_irradiance.ktx2",
+                "textures/ibl_radiance.ktx2",
+                "textures/albedo.png"
+        );
+        return new SceneDescriptor(
+                "vulkan-ibl-ktx-skybox-fallback-scene",
                 base.cameras(),
                 base.activeCameraId(),
                 base.transforms(),

@@ -263,6 +263,19 @@ class OpenGlEngineRuntimeLifecycleTest {
     }
 
     @Test
+    void iblKtxPathsCanFallbackToSkyboxInputs() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(Map.of("opengl.mockContext", "true"), QualityTier.MEDIUM, Path.of("..", "assets")), new RecordingCallbacks());
+        runtime.loadScene(validKtxSkyboxFallbackScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_SKYBOX_FALLBACK_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_SKYBOX_DERIVED_ACTIVE".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "IBL_ASSET_FALLBACK_ACTIVE".equals(w.code())));
+    }
+
+    @Test
     void iblLowTierEmitsQualityDegradedWarning() throws Exception {
         var runtime = new OpenGlEngineRuntime();
         runtime.initialize(validLowQualityConfig(), new RecordingCallbacks());
@@ -713,6 +726,31 @@ class OpenGlEngineRuntimeLifecycleTest {
         );
         return new SceneDescriptor(
                 "ibl-skybox-only-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                env,
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validKtxSkyboxFallbackScene() {
+        SceneDescriptor base = validScene();
+        EnvironmentDesc env = new EnvironmentDesc(
+                base.environment().ambientColor(),
+                base.environment().ambientIntensity(),
+                "textures/skybox.hdr",
+                "textures/ibl_irradiance.ktx2",
+                "textures/ibl_radiance.ktx2",
+                "textures/albedo.png"
+        );
+        return new SceneDescriptor(
+                "ibl-ktx-skybox-fallback-scene",
                 base.cameras(),
                 base.activeCameraId(),
                 base.transforms(),
