@@ -131,13 +131,20 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - unsupported compressed/supercompressed/non-RGBA8 variants are surfaced explicitly via `IBL_KTX_VARIANT_UNSUPPORTED`
   - remaining: broader compressed/supercompressed native decode/upload coverage beyond zlib + baseline uncompressed families
 - Shadow fidelity tune: radius/cascade-aware depth-bias scaling now applied in both backends to reduce acne/flicker at higher PCF/cascade settings.
-- Extend Vulkan dynamic-update staging strategy to more scene data beyond current uniform path.
+- Extend Vulkan dynamic-update staging strategy to more scene data beyond current global/object uniform split:
+  - material/instance-class staging paths
+  - broader descriptor update batching under heavy scene churn
 - Dynamic scene ownership guardrails expanded:
   - configurable soft-limit telemetry (`vulkan.dynamicObjectSoftLimit`)
   - frame profile now reports observed dynamic-object peak and emits `DYNAMIC_SCENE_SOFT_LIMIT_EXCEEDED` when exceeded
 - Added Vulkan pressure guardrails for runtime stability at larger scene scale:
   - `UNIFORM_UPLOAD_SOFT_LIMIT_EXCEEDED` warning with configurable upload-byte soft limit + cooldown
   - `DESCRIPTOR_RING_ACTIVE_SOFT_LIMIT_EXCEEDED` warning with configurable active-set soft limit + cooldown
+- Vulkan dynamic staging/resource-ring strategy expanded:
+  - split frame-uniform path into `GlobalData` (per-frame non-dynamic UBO) + `ObjectData` (dynamic per-mesh UBO)
+  - global-only scene changes now upload only global scene bytes (no full per-object rewrite)
+  - frame-resource telemetry now reports global upload bytes separately from object upload bytes
+  - uniform upload soft-limit warning now evaluates total global+object bytes per frame
 - Add more real-device validation coverage across multiple machine/driver profiles.
   - CI now invokes guarded real-device Vulkan integration suite on macOS/Linux/Windows runners.
 

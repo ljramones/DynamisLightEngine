@@ -499,8 +499,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " descriptorSetsInRing=" + frameResources.descriptorSetsInRing()
                             + " uniformStrideBytes=" + frameResources.uniformStrideBytes()
                             + " uniformFrameSpanBytes=" + frameResources.uniformFrameSpanBytes()
+                            + " globalUniformFrameSpanBytes=" + frameResources.globalUniformFrameSpanBytes()
                             + " dynamicSceneCapacity=" + frameResources.dynamicSceneCapacity()
                             + " pendingUploadRangeCapacity=" + frameResources.pendingUploadRangeCapacity()
+                            + " lastGlobalUploadBytes=" + frameResources.lastFrameGlobalUploadBytes()
+                            + " maxGlobalUploadBytes=" + frameResources.maxFrameGlobalUploadBytes()
                             + " lastUniformUploadBytes=" + frameResources.lastFrameUniformUploadBytes()
                             + " maxUniformUploadBytes=" + frameResources.maxFrameUniformUploadBytes()
                             + " lastUniformObjectCount=" + frameResources.lastFrameUniformObjectCount()
@@ -588,13 +591,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             if (descriptorRingCapPressureWarnCooldownRemaining > 0) {
                 descriptorRingCapPressureWarnCooldownRemaining--;
             }
-            if (frameResources.lastFrameUniformUploadBytes() > uniformUploadSoftLimitBytes) {
+            int totalFrameUniformUploadBytes = frameResources.lastFrameUniformUploadBytes() + frameResources.lastFrameGlobalUploadBytes();
+            if (totalFrameUniformUploadBytes > uniformUploadSoftLimitBytes) {
                 if (uniformUploadWarnCooldownRemaining <= 0) {
                     warnings.add(new EngineWarning(
                             "UNIFORM_UPLOAD_SOFT_LIMIT_EXCEEDED",
-                            "Frame uniform upload bytes " + frameResources.lastFrameUniformUploadBytes()
+                            "Frame uniform upload bytes " + totalFrameUniformUploadBytes
                                     + " exceed soft limit " + uniformUploadSoftLimitBytes
-                                    + " (ranges=" + frameResources.lastFrameUniformUploadRanges()
+                                    + " (global=" + frameResources.lastFrameGlobalUploadBytes()
+                                    + ", object=" + frameResources.lastFrameUniformUploadBytes()
+                                    + ", ranges=" + frameResources.lastFrameUniformUploadRanges()
                                     + ", objects=" + frameResources.lastFrameUniformObjectCount() + ")"
                     ));
                     uniformUploadWarnCooldownRemaining = uniformUploadWarnCooldownFrames;

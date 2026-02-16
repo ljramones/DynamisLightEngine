@@ -232,8 +232,9 @@ Vulkan runtime emits profiling warnings (real-context mode) for:
 `VULKAN_FRAME_RESOURCE_PROFILE` now includes per-frame ring diagnostics:
 - `framesInFlight`
 - `descriptorSetsInRing`
-- `uniformStrideBytes` / `uniformFrameSpanBytes`
+- `uniformStrideBytes` / `uniformFrameSpanBytes` / `globalUniformFrameSpanBytes`
 - `dynamicSceneCapacity` / `pendingUploadRangeCapacity`
+- `lastGlobalUploadBytes` / `maxGlobalUploadBytes`
 - `lastUniformUploadBytes` / `maxUniformUploadBytes`
 - `lastUniformObjectCount` / `maxUniformObjectCount`
 - `lastUniformUploadRanges` / `maxUniformUploadRanges`
@@ -318,6 +319,7 @@ The repository includes automated tests validating:
 - Current HIGH `post-process` bound: `<= 0.32`.
 - Current HIGH `post-process-bloom` bound: `<= 0.06`.
 - Vulkan frame-resource profile now also reports:
+  - split uniform staging path: global scene UBO uploads are tracked separately from dynamic object UBO uploads
   - `lastUniformUploadRanges`
   - `maxUniformUploadRanges`
   - `lastUniformUploadStartObject`
