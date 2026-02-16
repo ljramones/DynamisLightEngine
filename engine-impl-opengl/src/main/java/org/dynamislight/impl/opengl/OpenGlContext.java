@@ -319,6 +319,8 @@ final class OpenGlContext {
             uniform float uSsaoPower;
             uniform int uSmaaEnabled;
             uniform float uSmaaStrength;
+            uniform int uTaaEnabled;
+            uniform float uTaaBlend;
             out vec4 FragColor;
             float distributionGGX(float ndh, float roughness) {
                 float a = roughness * roughness;
@@ -564,6 +566,10 @@ final class OpenGlContext {
                     float aaStrength = clamp(uSmaaStrength, 0.0, 1.0);
                     color = mix(color, vec3(luma), edge * aaStrength * 0.20);
                 }
+                if (uTaaEnabled == 1) {
+                    float blend = clamp(uTaaBlend, 0.0, 0.95);
+                    color = mix(color, vec3(dot(color, vec3(0.2126, 0.7152, 0.0722))), blend * 0.05);
+                }
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
             }
             """;
@@ -600,6 +606,10 @@ final class OpenGlContext {
             uniform float uSsaoPower;
             uniform int uSmaaEnabled;
             uniform float uSmaaStrength;
+            uniform int uTaaEnabled;
+            uniform float uTaaBlend;
+            uniform int uTaaHistoryValid;
+            uniform sampler2D uTaaHistory;
             out vec4 FragColor;
             float ssaoLite(vec2 uv) {
                 float radius = clamp(uSsaoRadius, 0.2, 3.0);
@@ -666,6 +676,14 @@ final class OpenGlContext {
                 }
                 if (uSmaaEnabled == 1) {
                     color = smaaLite(vUv, color);
+                }
+                if (uTaaEnabled == 1 && uTaaHistoryValid == 1) {
+                    vec3 history = texture(uTaaHistory, vUv).rgb;
+                    float blend = clamp(uTaaBlend, 0.0, 0.95);
+                    vec3 minN = min(color, history);
+                    vec3 maxN = max(color, history);
+                    vec3 clampedHistory = clamp(history, minN - vec3(0.05), maxN + vec3(0.05));
+                    color = mix(color, clampedHistory, blend);
                 }
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
             }
@@ -736,6 +754,8 @@ final class OpenGlContext {
     private int ssaoPowerLocation;
     private int smaaEnabledLocation;
     private int smaaStrengthLocation;
+    private int taaEnabledLocation;
+    private int taaBlendLocation;
     private int postProgramId;
     private int postSceneColorLocation;
     private int postTonemapEnabledLocation;
@@ -751,10 +771,16 @@ final class OpenGlContext {
     private int postSsaoPowerLocation;
     private int postSmaaEnabledLocation;
     private int postSmaaStrengthLocation;
+    private int postTaaEnabledLocation;
+    private int postTaaBlendLocation;
+    private int postTaaHistoryValidLocation;
+    private int postTaaHistoryLocation;
     private int postVaoId;
     private int sceneFramebufferId;
     private int sceneColorTextureId;
     private int sceneDepthRenderbufferId;
+    private int taaHistoryTextureId;
+    private boolean taaHistoryValid;
     private boolean postProcessPipelineAvailable;
     private float[] viewMatrix = identityMatrix();
     private float[] projMatrix = identityMatrix();
@@ -787,6 +813,8 @@ final class OpenGlContext {
     private float ssaoPower = 1.0f;
     private boolean smaaEnabled;
     private float smaaStrength;
+    private boolean taaEnabled;
+    private float taaBlend;
     private float dirLightDirX = 0.3f;
     private float dirLightDirY = -1.0f;
     private float dirLightDirZ = 0.25f;
@@ -1104,6 +1132,8 @@ final class OpenGlContext {
         glUseProgram(postProgramId);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, sceneColorTextureId);
+        glActiveTexture(GL_TEXTURE0 + 1);
+        glBindTexture(GL_TEXTURE_2D, taaHistoryTextureId);
         glUniform1i(postTonemapEnabledLocation, tonemapEnabled ? 1 : 0);
         glUniform1f(postTonemapExposureLocation, tonemapExposure);
         glUniform1f(postTonemapGammaLocation, tonemapGamma);
@@ -1117,12 +1147,22 @@ final class OpenGlContext {
         glUniform1f(postSsaoPowerLocation, ssaoPower);
         glUniform1i(postSmaaEnabledLocation, smaaEnabled ? 1 : 0);
         glUniform1f(postSmaaStrengthLocation, smaaStrength);
+        glUniform1i(postTaaEnabledLocation, taaEnabled ? 1 : 0);
+        glUniform1f(postTaaBlendLocation, taaBlend);
+        glUniform1i(postTaaHistoryValidLocation, taaHistoryValid ? 1 : 0);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
         glBindVertexArray(0);
         glEnable(GL_DEPTH_TEST);
+        if (taaEnabled && taaHistoryTextureId != 0) {
+            glBindTexture(GL_TEXTURE_2D, taaHistoryTextureId);
+            org.lwjgl.opengl.GL11.glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+            taaHistoryValid = true;
+        }
+        glActiveTexture(GL_TEXTURE0 + 1);
         glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0);
         glUseProgram(0);
     }
 
@@ -1234,7 +1274,9 @@ final class OpenGlContext {
             float ssaoBias,
             float ssaoPower,
             boolean smaaEnabled,
-            float smaaStrength
+            float smaaStrength,
+            boolean taaEnabled,
+            float taaBlend
     ) {
         this.tonemapEnabled = tonemapEnabled;
         tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
@@ -1249,6 +1291,8 @@ final class OpenGlContext {
         this.ssaoPower = Math.max(0.5f, Math.min(4.0f, ssaoPower));
         this.smaaEnabled = smaaEnabled;
         this.smaaStrength = Math.max(0f, Math.min(1.0f, smaaStrength));
+        this.taaEnabled = taaEnabled;
+        this.taaBlend = Math.max(0f, Math.min(0.95f, taaBlend));
     }
 
     void setCameraMatrices(float[] view, float[] proj) {
@@ -1434,6 +1478,8 @@ final class OpenGlContext {
         ssaoPowerLocation = glGetUniformLocation(programId, "uSsaoPower");
         smaaEnabledLocation = glGetUniformLocation(programId, "uSmaaEnabled");
         smaaStrengthLocation = glGetUniformLocation(programId, "uSmaaStrength");
+        taaEnabledLocation = glGetUniformLocation(programId, "uTaaEnabled");
+        taaBlendLocation = glGetUniformLocation(programId, "uTaaBlend");
 
         glUseProgram(programId);
         glUniform1i(albedoTextureLocation, 0);
@@ -1479,9 +1525,14 @@ final class OpenGlContext {
         postSsaoPowerLocation = glGetUniformLocation(postProgramId, "uSsaoPower");
         postSmaaEnabledLocation = glGetUniformLocation(postProgramId, "uSmaaEnabled");
         postSmaaStrengthLocation = glGetUniformLocation(postProgramId, "uSmaaStrength");
+        postTaaEnabledLocation = glGetUniformLocation(postProgramId, "uTaaEnabled");
+        postTaaBlendLocation = glGetUniformLocation(postProgramId, "uTaaBlend");
+        postTaaHistoryValidLocation = glGetUniformLocation(postProgramId, "uTaaHistoryValid");
+        postTaaHistoryLocation = glGetUniformLocation(postProgramId, "uTaaHistory");
         postVaoId = glGenVertexArrays();
         glUseProgram(postProgramId);
         glUniform1i(postSceneColorLocation, 0);
+        glUniform1i(postTaaHistoryLocation, 1);
         glUseProgram(0);
     }
 
@@ -1494,6 +1545,14 @@ final class OpenGlContext {
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
             glBindTexture(GL_TEXTURE_2D, 0);
+
+            taaHistoryTextureId = glGenTextures();
+            glBindTexture(GL_TEXTURE_2D, taaHistoryTextureId);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
+            glBindTexture(GL_TEXTURE_2D, 0);
+            taaHistoryValid = false;
 
             sceneDepthRenderbufferId = glGenRenderbuffers();
             glBindRenderbuffer(GL_RENDERBUFFER, sceneDepthRenderbufferId);
@@ -1528,6 +1587,11 @@ final class OpenGlContext {
             glDeleteRenderbuffers(sceneDepthRenderbufferId);
             sceneDepthRenderbufferId = 0;
         }
+        if (taaHistoryTextureId != 0) {
+            glDeleteTextures(taaHistoryTextureId);
+            taaHistoryTextureId = 0;
+        }
+        taaHistoryValid = false;
         postProcessPipelineAvailable = false;
     }
 
@@ -1817,10 +1881,12 @@ final class OpenGlContext {
         glUniform1f(ssaoPowerLocation, ssaoPower);
         glUniform1i(smaaEnabledLocation, shaderDrivenEnabled && smaaEnabled ? 1 : 0);
         glUniform1f(smaaStrengthLocation, smaaStrength);
+        glUniform1i(taaEnabledLocation, shaderDrivenEnabled && taaEnabled ? 1 : 0);
+        glUniform1f(taaBlendLocation, taaBlend);
     }
 
     private boolean useDedicatedPostPass() {
-        return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled || ssaoEnabled || smaaEnabled);
+        return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled || ssaoEnabled || smaaEnabled || taaEnabled);
     }
 
     private boolean useShaderDrivenPost() {

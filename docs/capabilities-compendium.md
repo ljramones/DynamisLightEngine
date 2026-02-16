@@ -117,6 +117,7 @@ OpenGL backend provides a real forward render baseline:
 - Tonemap + bloom post-process baseline (scene-driven exposure/gamma/threshold/strength).
 - SSAO-lite post baseline (edge-aware screen-space approximation with tier-aware attenuation), upgraded with multi-sample kernel shaping in both backends for improved stability.
 - SMAA-lite anti-aliasing baseline in both backends with configurable strength and tier-aware degradation.
+- TAA baseline controls (`taaEnabled`, `taaBlend`) with OpenGL temporal history blend path enabled; Vulkan parity implementation remains in progress.
 - Dedicated post-pass architecture:
   - offscreen scene target (FBO color + depth/stencil) then fullscreen post shader composite
   - shader-driven post remains as fallback if offscreen resources are unavailable

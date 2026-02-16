@@ -159,7 +159,9 @@ public final class SceneMapper {
                 post.ssaoBias(),
                 post.ssaoPower(),
                 post.smaaEnabled(),
-                post.smaaStrength()
+                post.smaaStrength(),
+                post.taaEnabled(),
+                post.taaBlend()
         );
     }
 }
