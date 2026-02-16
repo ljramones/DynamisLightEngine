@@ -60,19 +60,19 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 - `org.dynamislight.impl.vulkan.swapchain`
   - swapchain policy/selection/allocation, image-view lifecycle, and framebuffer/depth helpers (`VulkanSwapchainSelector`, `VulkanSwapchainAllocation`, `VulkanSwapchainImageViews`, `VulkanFramebufferResources`)
 - `org.dynamislight.impl.vulkan.descriptor`
-  - descriptor-ring sizing + descriptor resource lifecycle + texture descriptor writes (`VulkanDescriptorRingPolicy`, `VulkanDescriptorResources`, `VulkanTextureDescriptorWriter`)
+  - descriptor-ring sizing + descriptor resource lifecycle + texture descriptor pool/ring manager + descriptor writes (`VulkanDescriptorRingPolicy`, `VulkanDescriptorResources`, `VulkanTextureDescriptorPoolManager`, `VulkanTextureDescriptorWriter`)
 - `org.dynamislight.impl.vulkan.command`
-  - frame-sync allocation/teardown, acquire+submit/present orchestration, and command recording helpers (`VulkanFrameSyncResources`, `VulkanCommandSubmitter`, `VulkanRenderCommandRecorder`)
+  - frame-sync allocation/teardown, acquire+submit/present orchestration, frame-command orchestration, and command recording helpers (`VulkanFrameSyncResources`, `VulkanCommandSubmitter`, `VulkanFrameCommandOrchestrator`, `VulkanRenderCommandRecorder`)
 - `org.dynamislight.impl.vulkan.scene`
-  - scene mesh-reuse and dynamic-update helpers (`VulkanSceneReusePolicy`, `VulkanDynamicSceneUpdater`)
+  - scene mesh-reuse, dynamic-update, and mesh lifecycle helpers (`VulkanSceneReusePolicy`, `VulkanDynamicSceneUpdater`, `VulkanSceneMeshLifecycle`)
 - `org.dynamislight.impl.vulkan.math`
   - matrix/vector math helpers extracted from context (`VulkanMath`)
 - `org.dynamislight.impl.vulkan.shadow`
   - shadow/cascade matrix and shadow-resource lifecycle (`VulkanShadowMatrixBuilder`, `VulkanShadowResources`)
 - `org.dynamislight.impl.vulkan.uniform`
-  - uniform serialization/upload helpers (`VulkanUniformWriters`, `VulkanUniformUploadRecorder`)
+  - uniform serialization/upload and frame-uniform preparation helpers (`VulkanUniformWriters`, `VulkanUniformUploadRecorder`, `VulkanFrameUniformCoordinator`)
 - `org.dynamislight.impl.vulkan.texture`
-  - texture pixel/container decode helpers (`VulkanTexturePixelLoader`)
+  - texture pixel/container decode and texture resource lifecycle helpers (`VulkanTexturePixelLoader`, `VulkanTextureResourceOps`)
 - `org.dynamislight.impl.vulkan.memory`
   - buffer/image allocation and transfer helpers (`VulkanMemoryOps`)
 - `org.dynamislight.impl.vulkan.pipeline`

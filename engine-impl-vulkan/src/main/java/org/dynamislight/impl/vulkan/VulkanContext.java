@@ -1,9 +1,5 @@
 package org.dynamislight.impl.vulkan;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -19,12 +15,13 @@ import org.dynamislight.impl.vulkan.model.VulkanGpuTexture;
 import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
 import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
-import org.dynamislight.impl.vulkan.model.VulkanTexturePixelData;
 import org.dynamislight.impl.vulkan.command.VulkanCommandSubmitter;
+import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
 import org.dynamislight.impl.vulkan.command.VulkanFrameSyncResources;
 import org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorRingPolicy;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorResources;
+import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorPoolManager;
 import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorWriter;
 import org.dynamislight.impl.vulkan.pipeline.VulkanMainPipelineBuilder;
 import org.dynamislight.impl.vulkan.pipeline.VulkanPostProcessResources;
@@ -36,6 +33,7 @@ import org.dynamislight.impl.vulkan.profile.SceneReuseStats;
 import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
 import org.dynamislight.impl.vulkan.scene.VulkanDynamicSceneUpdater;
+import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshLifecycle;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneReusePolicy;
 import org.dynamislight.impl.vulkan.shader.VulkanShaderCompiler;
 import org.dynamislight.impl.vulkan.shader.VulkanShaderSources;
@@ -43,9 +41,11 @@ import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixBuilder;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowResources;
 import org.dynamislight.impl.vulkan.swapchain.VulkanFramebufferResources;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainAllocation;
+import org.dynamislight.impl.vulkan.swapchain.VulkanDeviceSelector;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainImageViews;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainSelector;
-import org.dynamislight.impl.vulkan.texture.VulkanTexturePixelLoader;
+import org.dynamislight.impl.vulkan.texture.VulkanTextureResourceOps;
+import org.dynamislight.impl.vulkan.uniform.VulkanFrameUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadRecorder;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformWriters;
 
@@ -69,12 +69,7 @@ import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
 import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
 import static org.lwjgl.glfw.GLFWVulkan.glfwVulkanSupported;
 import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.system.MemoryUtil.memAlloc;
-import static org.lwjgl.system.MemoryUtil.memAllocPointer;
-import static org.lwjgl.system.MemoryUtil.memByteBuffer;
 import static org.lwjgl.system.MemoryUtil.memFree;
-import static org.lwjgl.system.MemoryUtil.memAddress;
-import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_fragment_shader;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_vertex_shader;
 import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
@@ -216,10 +211,8 @@ import static org.lwjgl.vulkan.VK10.vkGetBufferMemoryRequirements;
 import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceMemoryProperties;
 import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceQueueFamilyProperties;
 import static org.lwjgl.vulkan.VK10.vkBindBufferMemory;
-import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkQueueSubmit;
 import static org.lwjgl.vulkan.VK10.vkQueueWaitIdle;
-import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 import static org.lwjgl.vulkan.VK10.vkResetDescriptorPool;
 import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 
@@ -1082,82 +1075,9 @@ final class VulkanContext {
     }
 
     private void selectPhysicalDevice(MemoryStack stack) throws EngineException {
-        var pCount = stack.ints(0);
-        int countResult = vkEnumeratePhysicalDevices(instance, pCount, null);
-        if (countResult != VK_SUCCESS || pCount.get(0) == 0) {
-            throw new EngineException(
-                    EngineErrorCode.BACKEND_INIT_FAILED,
-                    "No Vulkan physical devices available: " + countResult,
-                    false
-            );
-        }
-
-        PointerBuffer devices = stack.mallocPointer(pCount.get(0));
-        int enumerateResult = vkEnumeratePhysicalDevices(instance, pCount, devices);
-        if (enumerateResult != VK_SUCCESS) {
-            throw new EngineException(
-                    EngineErrorCode.BACKEND_INIT_FAILED,
-                    "Failed to enumerate Vulkan physical devices: " + enumerateResult,
-                    false
-            );
-        }
-
-        for (int i = 0; i < devices.capacity(); i++) {
-            VkPhysicalDevice candidate = new VkPhysicalDevice(devices.get(i), instance);
-            int queueIndex = findGraphicsPresentQueueFamily(candidate, stack);
-            if (queueIndex >= 0 && supportsSwapchainExtension(candidate, stack)) {
-                physicalDevice = candidate;
-                graphicsQueueFamilyIndex = queueIndex;
-                return;
-            }
-        }
-
-        throw new EngineException(
-                EngineErrorCode.BACKEND_INIT_FAILED,
-                "No Vulkan device with graphics+present+swapchain support found",
-                false
-        );
-    }
-
-    private int findGraphicsPresentQueueFamily(VkPhysicalDevice candidate, MemoryStack stack) {
-        var pQueueCount = stack.ints(0);
-        vkGetPhysicalDeviceQueueFamilyProperties(candidate, pQueueCount, null);
-        int queueCount = pQueueCount.get(0);
-        if (queueCount <= 0) {
-            return -1;
-        }
-        VkQueueFamilyProperties.Buffer queueProps = VkQueueFamilyProperties.calloc(queueCount, stack);
-        vkGetPhysicalDeviceQueueFamilyProperties(candidate, pQueueCount, queueProps);
-
-        var pSupported = stack.ints(0);
-        for (int i = 0; i < queueCount; i++) {
-            vkGetPhysicalDeviceSurfaceSupportKHR(candidate, i, surface, pSupported);
-            boolean presentSupported = pSupported.get(0) == VK_TRUE;
-            boolean graphicsSupported = (queueProps.get(i).queueFlags() & VK_QUEUE_GRAPHICS_BIT) != 0;
-            if (graphicsSupported && presentSupported) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private boolean supportsSwapchainExtension(VkPhysicalDevice candidate, MemoryStack stack) {
-        var pCount = stack.ints(0);
-        int result = VK10.vkEnumerateDeviceExtensionProperties(candidate, (String) null, pCount, null);
-        if (result != VK_SUCCESS || pCount.get(0) <= 0) {
-            return false;
-        }
-        var props = org.lwjgl.vulkan.VkExtensionProperties.calloc(pCount.get(0), stack);
-        result = VK10.vkEnumerateDeviceExtensionProperties(candidate, (String) null, pCount, props);
-        if (result != VK_SUCCESS) {
-            return false;
-        }
-        for (int i = 0; i < props.capacity(); i++) {
-            if (VK_KHR_SWAPCHAIN_EXTENSION_NAME.equals(props.get(i).extensionNameString())) {
-                return true;
-            }
-        }
-        return false;
+        VulkanDeviceSelector.Selection selection = VulkanDeviceSelector.select(instance, surface, stack);
+        physicalDevice = selection.physicalDevice();
+        graphicsQueueFamilyIndex = selection.graphicsQueueFamilyIndex();
     }
 
     private void createLogicalDevice(MemoryStack stack) throws EngineException {
@@ -1551,32 +1471,20 @@ final class VulkanContext {
     }
 
     private void recordCommandBuffer(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex, int frameIdx) throws EngineException {
-        int beginResult = VulkanRenderCommandRecorder.beginOneShot(commandBuffer, stack);
-        if (beginResult != VK_SUCCESS) {
-            throw vkFailure("vkBeginCommandBuffer", beginResult);
-        }
-
-        updateShadowLightViewProjMatrices();
-        prepareFrameUniforms(frameIdx);
-        uploadFrameUniforms(commandBuffer, frameIdx);
-        long frameDescriptorSet = descriptorSetForFrame(frameIdx);
-        int drawCount = gpuMeshes.isEmpty() ? 1 : Math.min(maxDynamicSceneObjects, gpuMeshes.size());
-        List<VulkanRenderCommandRecorder.MeshDrawCmd> meshes = new ArrayList<>(Math.min(drawCount, gpuMeshes.size()));
-        for (int i = 0; i < drawCount && i < gpuMeshes.size(); i++) {
-            VulkanGpuMesh mesh = gpuMeshes.get(i);
-            meshes.add(new VulkanRenderCommandRecorder.MeshDrawCmd(
-                    mesh.vertexBuffer,
-                    mesh.indexBuffer,
-                    mesh.indexCount,
-                    mesh.textureDescriptorSet
-            ));
-        }
-
-        VulkanRenderCommandRecorder.recordShadowAndMainPasses(
+        VulkanFrameCommandOrchestrator.record(
                 stack,
                 commandBuffer,
-                new VulkanRenderCommandRecorder.RenderPassInputs(
-                        drawCount,
+                imageIndex,
+                frameIdx,
+                new VulkanFrameCommandOrchestrator.FrameHooks(
+                        this::updateShadowLightViewProjMatrices,
+                        () -> prepareFrameUniforms(frameIdx),
+                        () -> uploadFrameUniforms(commandBuffer, frameIdx),
+                        value -> postIntermediateInitialized = value
+                ),
+                new VulkanFrameCommandOrchestrator.Inputs(
+                        gpuMeshes,
+                        maxDynamicSceneObjects,
                         swapchainWidth,
                         swapchainHeight,
                         shadowMapResolution,
@@ -1586,50 +1494,34 @@ final class VulkanContext {
                         MAX_SHADOW_MATRICES,
                         MAX_SHADOW_CASCADES,
                         POINT_SHADOW_FACES,
-                        frameDescriptorSet,
                         renderPass,
-                        framebuffers[imageIndex],
+                        framebuffers,
                         graphicsPipeline,
                         pipelineLayout,
                         shadowRenderPass,
                         shadowPipeline,
                         shadowPipelineLayout,
-                        shadowFramebuffers
-                ),
-                meshes,
-                meshIndex -> dynamicUniformOffset(frameIdx, meshIndex)
+                        shadowFramebuffers,
+                        postOffscreenActive,
+                        postIntermediateInitialized,
+                        tonemapEnabled,
+                        tonemapExposure,
+                        tonemapGamma,
+                        bloomEnabled,
+                        bloomThreshold,
+                        bloomStrength,
+                        postRenderPass,
+                        postGraphicsPipeline,
+                        postPipelineLayout,
+                        postDescriptorSet,
+                        offscreenColorImage,
+                        swapchainImages,
+                        postFramebuffers,
+                        this::descriptorSetForFrame,
+                        meshIndex -> dynamicUniformOffset(frameIdx, meshIndex),
+                        this::vkFailure
+                )
         );
-
-        if (postOffscreenActive) {
-            postIntermediateInitialized = VulkanRenderCommandRecorder.executePostCompositePass(
-                    stack,
-                    commandBuffer,
-                    new VulkanRenderCommandRecorder.PostCompositeInputs(
-                            imageIndex,
-                            swapchainWidth,
-                            swapchainHeight,
-                            postIntermediateInitialized,
-                            tonemapEnabled,
-                            tonemapExposure,
-                            tonemapGamma,
-                            bloomEnabled,
-                            bloomThreshold,
-                            bloomStrength,
-                            postRenderPass,
-                            postGraphicsPipeline,
-                            postPipelineLayout,
-                            postDescriptorSet,
-                            offscreenColorImage,
-                            swapchainImages[imageIndex],
-                            postFramebuffers
-                    )
-            );
-        }
-
-        int endResult = VulkanRenderCommandRecorder.end(commandBuffer);
-        if (endResult != VK_SUCCESS) {
-            throw vkFailure("vkEndCommandBuffer", endResult);
-        }
     }
 
     private void recreateSwapchainFromWindow() throws EngineException {
@@ -1703,199 +1595,52 @@ final class VulkanContext {
     private void uploadSceneMeshes(MemoryStack stack, List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
         meshBufferRebuildCount++;
         destroySceneMeshes();
-        Map<String, VulkanGpuTexture> textureCache = new HashMap<>();
-        VulkanGpuTexture defaultAlbedo = createTextureFromPath(null, false);
-        VulkanGpuTexture defaultNormal = createTextureFromPath(null, true);
-        VulkanGpuTexture defaultMetallicRoughness = createTextureFromPath(null, false);
-        VulkanGpuTexture defaultOcclusion = createTextureFromPath(null, false);
-        iblIrradianceTexture = resolveOrCreateTexture(iblIrradiancePath, textureCache, defaultAlbedo, false);
-        iblRadianceTexture = resolveOrCreateTexture(iblRadiancePath, textureCache, defaultAlbedo, false);
-        iblBrdfLutTexture = resolveOrCreateTexture(iblBrdfLutPath, textureCache, defaultAlbedo, false);
-        for (VulkanSceneMeshData mesh : sceneMeshes) {
-            float[] vertices = mesh.vertices();
-            int[] indices = mesh.indices();
-            ByteBuffer vertexData = ByteBuffer.allocateDirect(vertices.length * Float.BYTES).order(ByteOrder.nativeOrder());
-            FloatBuffer vb = vertexData.asFloatBuffer();
-            vb.put(vertices);
-            vertexData.limit(vertices.length * Float.BYTES);
-
-            ByteBuffer indexData = ByteBuffer.allocateDirect(indices.length * Integer.BYTES).order(ByteOrder.nativeOrder());
-            IntBuffer ib = indexData.asIntBuffer();
-            ib.put(indices);
-            indexData.limit(indices.length * Integer.BYTES);
-
-            VulkanBufferAlloc vertexAlloc = VulkanMemoryOps.createDeviceLocalBufferWithStaging(
-                    device,
-                    physicalDevice,
-                    commandPool,
-                    graphicsQueue,
-                    stack,
-                    vertexData,
-                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                    this::vkFailure
-            );
-            VulkanBufferAlloc indexAlloc = VulkanMemoryOps.createDeviceLocalBufferWithStaging(
-                    device,
-                    physicalDevice,
-                    commandPool,
-                    graphicsQueue,
-                    stack,
-                    indexData,
-                    VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                    this::vkFailure
-            );
-            int vertexHash = Arrays.hashCode(vertices);
-            int indexHash = Arrays.hashCode(indices);
-            String albedoKey = textureCacheKey(mesh.albedoTexturePath(), false);
-            String normalKey = textureCacheKey(mesh.normalTexturePath(), true);
-            String metallicRoughnessKey = textureCacheKey(mesh.metallicRoughnessTexturePath(), false);
-            String occlusionKey = textureCacheKey(mesh.occlusionTexturePath(), false);
-            VulkanGpuTexture albedoTexture = resolveOrCreateTexture(mesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
-            VulkanGpuTexture normalTexture = resolveOrCreateTexture(mesh.normalTexturePath(), textureCache, defaultNormal, true);
-            VulkanGpuTexture metallicRoughnessTexture = resolveOrCreateTexture(
-                    mesh.metallicRoughnessTexturePath(),
-                    textureCache,
-                    defaultMetallicRoughness,
-                    false
-            );
-            VulkanGpuTexture occlusionTexture = resolveOrCreateTexture(mesh.occlusionTexturePath(), textureCache, defaultOcclusion, false);
-
-            gpuMeshes.add(new VulkanGpuMesh(
-                    vertexAlloc.buffer(),
-                    vertexAlloc.memory(),
-                    indexAlloc.buffer(),
-                    indexAlloc.memory(),
-                    indices.length,
-                    vertexData.remaining(),
-                    indexData.remaining(),
-                    mesh.modelMatrix().clone(),
-                    mesh.color()[0],
-                    mesh.color()[1],
-                    mesh.color()[2],
-                    mesh.metallic(),
-                    mesh.roughness(),
-                    albedoTexture,
-                    normalTexture,
-                    metallicRoughnessTexture,
-                    occlusionTexture,
-                    mesh.meshId(),
-                    vertexHash,
-                    indexHash,
-                    albedoKey,
-                    normalKey,
-                    metallicRoughnessKey,
-                    occlusionKey
-            ));
-        }
-
-        createTextureDescriptorSets(stack);
-
-        long meshBytes = 0;
-        long textureBytes = 0;
-        Set<VulkanGpuTexture> uniqueTextures = new HashSet<>();
-        for (VulkanGpuMesh mesh : gpuMeshes) {
-            meshBytes += mesh.vertexBytes + mesh.indexBytes;
-            if (uniqueTextures.add(mesh.albedoTexture)) {
-                textureBytes += mesh.albedoTexture.bytes();
-            }
-            if (uniqueTextures.add(mesh.normalTexture)) {
-                textureBytes += mesh.normalTexture.bytes();
-            }
-            if (uniqueTextures.add(mesh.metallicRoughnessTexture)) {
-                textureBytes += mesh.metallicRoughnessTexture.bytes();
-            }
-            if (uniqueTextures.add(mesh.occlusionTexture)) {
-                textureBytes += mesh.occlusionTexture.bytes();
-            }
-        }
-        if (uniqueTextures.add(iblIrradianceTexture)) {
-            textureBytes += iblIrradianceTexture.bytes();
-        }
-        if (uniqueTextures.add(iblRadianceTexture)) {
-            textureBytes += iblRadianceTexture.bytes();
-        }
-        if (uniqueTextures.add(iblBrdfLutTexture)) {
-            textureBytes += iblBrdfLutTexture.bytes();
-        }
-        long uniformBytes = (long) uniformFrameSpanBytes * framesInFlight * 2L;
-        estimatedGpuMemoryBytes = uniformBytes + meshBytes + textureBytes;
+        VulkanSceneMeshLifecycle.UploadResult result = VulkanSceneMeshLifecycle.uploadMeshes(
+                device,
+                physicalDevice,
+                commandPool,
+                graphicsQueue,
+                stack,
+                sceneMeshes,
+                gpuMeshes,
+                iblIrradiancePath,
+                iblRadiancePath,
+                iblBrdfLutPath,
+                uniformFrameSpanBytes,
+                framesInFlight,
+                this::createTextureFromPath,
+                this::resolveOrCreateTexture,
+                this::textureCacheKey,
+                this::createTextureDescriptorSets,
+                this::vkFailure
+        );
+        iblIrradianceTexture = result.iblIrradianceTexture();
+        iblRadianceTexture = result.iblRadianceTexture();
+        iblBrdfLutTexture = result.iblBrdfLutTexture();
+        estimatedGpuMemoryBytes = result.estimatedGpuMemoryBytes();
     }
 
     private void rebindSceneTexturesAndDynamicState(List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
-        Map<String, VulkanGpuMesh> byId = new HashMap<>();
-        for (VulkanGpuMesh mesh : gpuMeshes) {
-            byId.put(mesh.meshId, mesh);
-        }
-        Set<VulkanGpuTexture> oldTextures = collectLiveTextures(gpuMeshes, iblIrradianceTexture, iblRadianceTexture, iblBrdfLutTexture);
-        List<VulkanGpuMesh> rebound = new ArrayList<>(sceneMeshes.size());
-        Map<String, VulkanGpuTexture> textureCache = new HashMap<>();
-        VulkanGpuTexture defaultAlbedo = createTextureFromPath(null, false);
-        VulkanGpuTexture defaultNormal = createTextureFromPath(null, true);
-        VulkanGpuTexture defaultMetallicRoughness = createTextureFromPath(null, false);
-        VulkanGpuTexture defaultOcclusion = createTextureFromPath(null, false);
-        VulkanGpuTexture newIblIrradiance = resolveOrCreateTexture(iblIrradiancePath, textureCache, defaultAlbedo, false);
-        VulkanGpuTexture newIblRadiance = resolveOrCreateTexture(iblRadiancePath, textureCache, defaultAlbedo, false);
-        VulkanGpuTexture newIblBrdfLut = resolveOrCreateTexture(iblBrdfLutPath, textureCache, defaultAlbedo, false);
-        for (VulkanSceneMeshData sceneMesh : sceneMeshes) {
-            VulkanGpuMesh mesh = byId.get(sceneMesh.meshId());
-            if (mesh == null) {
-                throw new EngineException(
-                        EngineErrorCode.RESOURCE_CREATION_FAILED,
-                        "Unable to resolve reusable mesh '" + sceneMesh.meshId() + "' for texture rebind path",
-                        false
-                );
-            }
-            String albedoKey = textureCacheKey(sceneMesh.albedoTexturePath(), false);
-            String normalKey = textureCacheKey(sceneMesh.normalTexturePath(), true);
-            String metallicRoughnessKey = textureCacheKey(sceneMesh.metallicRoughnessTexturePath(), false);
-            String occlusionKey = textureCacheKey(sceneMesh.occlusionTexturePath(), false);
-            VulkanGpuTexture albedoTexture = resolveOrCreateTexture(sceneMesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
-            VulkanGpuTexture normalTexture = resolveOrCreateTexture(sceneMesh.normalTexturePath(), textureCache, defaultNormal, true);
-            VulkanGpuTexture metallicRoughnessTexture = resolveOrCreateTexture(
-                    sceneMesh.metallicRoughnessTexturePath(),
-                    textureCache,
-                    defaultMetallicRoughness,
-                    false
-            );
-            VulkanGpuTexture occlusionTexture = resolveOrCreateTexture(sceneMesh.occlusionTexturePath(), textureCache, defaultOcclusion, false);
-            rebound.add(new VulkanGpuMesh(
-                    mesh.vertexBuffer,
-                    mesh.vertexMemory,
-                    mesh.indexBuffer,
-                    mesh.indexMemory,
-                    mesh.indexCount,
-                    mesh.vertexBytes,
-                    mesh.indexBytes,
-                    sceneMesh.modelMatrix().clone(),
-                    sceneMesh.color()[0],
-                    sceneMesh.color()[1],
-                    sceneMesh.color()[2],
-                    sceneMesh.metallic(),
-                    sceneMesh.roughness(),
-                    albedoTexture,
-                    normalTexture,
-                    metallicRoughnessTexture,
-                    occlusionTexture,
-                    mesh.meshId,
-                    mesh.vertexHash,
-                    mesh.indexHash,
-                    albedoKey,
-                    normalKey,
-                    metallicRoughnessKey,
-                    occlusionKey
-            ));
-        }
-        gpuMeshes.clear();
-        gpuMeshes.addAll(rebound);
-        iblIrradianceTexture = newIblIrradiance;
-        iblRadianceTexture = newIblRadiance;
-        iblBrdfLutTexture = newIblBrdfLut;
+        VulkanSceneMeshLifecycle.RebindResult result = VulkanSceneMeshLifecycle.rebindSceneTextures(
+                sceneMeshes,
+                gpuMeshes,
+                iblIrradianceTexture,
+                iblRadianceTexture,
+                iblBrdfLutTexture,
+                iblIrradiancePath,
+                iblRadiancePath,
+                iblBrdfLutPath,
+                this::createTextureFromPath,
+                this::resolveOrCreateTexture,
+                this::textureCacheKey
+        );
+        iblIrradianceTexture = result.iblIrradianceTexture();
+        iblRadianceTexture = result.iblRadianceTexture();
+        iblBrdfLutTexture = result.iblBrdfLutTexture();
         try (MemoryStack stack = stackPush()) {
             createTextureDescriptorSets(stack);
         }
-        Set<VulkanGpuTexture> newTextures = collectLiveTextures(gpuMeshes, iblIrradianceTexture, iblRadianceTexture, iblBrdfLutTexture);
-        oldTextures.removeAll(newTextures);
-        destroyTextures(oldTextures);
+        destroyTextures(result.staleTextures());
         markSceneStateDirty(0, Math.max(0, sceneMeshes.size() - 1));
     }
 
@@ -1938,40 +1683,11 @@ final class VulkanContext {
     }
 
     private Set<VulkanGpuTexture> collectLiveTextures(List<VulkanGpuMesh> meshes, VulkanGpuTexture iblIrr, VulkanGpuTexture iblRad, VulkanGpuTexture iblBrdf) {
-        Set<VulkanGpuTexture> textures = new HashSet<>();
-        for (VulkanGpuMesh mesh : meshes) {
-            textures.add(mesh.albedoTexture);
-            textures.add(mesh.normalTexture);
-            textures.add(mesh.metallicRoughnessTexture);
-            textures.add(mesh.occlusionTexture);
-        }
-        textures.add(iblIrr);
-        textures.add(iblRad);
-        textures.add(iblBrdf);
-        return textures;
+        return VulkanTextureResourceOps.collectLiveTextures(meshes, iblIrr, iblRad, iblBrdf);
     }
 
     private void destroyTextures(Set<VulkanGpuTexture> textures) {
-        if (device == null || textures == null || textures.isEmpty()) {
-            return;
-        }
-        for (VulkanGpuTexture texture : textures) {
-            if (texture == null) {
-                continue;
-            }
-            if (texture.sampler() != VK_NULL_HANDLE) {
-                VK10.vkDestroySampler(device, texture.sampler(), null);
-            }
-            if (texture.view() != VK_NULL_HANDLE) {
-                vkDestroyImageView(device, texture.view(), null);
-            }
-            if (texture.image() != VK_NULL_HANDLE) {
-                VK10.vkDestroyImage(device, texture.image(), null);
-            }
-            if (texture.memory() != VK_NULL_HANDLE) {
-                vkFreeMemory(device, texture.memory(), null);
-            }
-        }
+        VulkanTextureResourceOps.destroyTextures(device, textures);
     }
 
     private VulkanGpuTexture resolveOrCreateTexture(
@@ -2007,215 +1723,48 @@ final class VulkanContext {
         }
         int requiredSetCount = gpuMeshes.size();
         int targetSetCapacity = targetDescriptorRingCapacity(requiredSetCount);
-        boolean needsRebuild = textureDescriptorPool == VK_NULL_HANDLE || requiredSetCount > descriptorRingSetCapacity;
-        if (!needsRebuild) {
-            int resetResult = vkResetDescriptorPool(device, textureDescriptorPool, 0);
-            if (resetResult == VK_SUCCESS) {
-                descriptorRingPoolReuseCount++;
-            } else {
-                descriptorRingPoolResetFailureCount++;
-                needsRebuild = true;
-            }
-        }
-
-        if (needsRebuild) {
-            if (textureDescriptorPool != VK_NULL_HANDLE) {
-                vkDestroyDescriptorPool(device, textureDescriptorPool, null);
-                textureDescriptorPool = VK_NULL_HANDLE;
-                descriptorPoolRebuildCount++;
-                if (requiredSetCount > descriptorRingSetCapacity) {
-                    descriptorRingGrowthRebuildCount++;
-                } else {
-                    descriptorRingSteadyRebuildCount++;
-                }
-            }
-            descriptorPoolBuildCount++;
-            descriptorRingSetCapacity = targetSetCapacity;
-            descriptorRingPeakSetCapacity = Math.max(descriptorRingPeakSetCapacity, descriptorRingSetCapacity);
-
-            VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
-            poolSizes.get(0)
-                    .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                    .descriptorCount(descriptorRingSetCapacity * 8);
-
-            VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
-                    .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
-                    .maxSets(descriptorRingSetCapacity)
-                    .pPoolSizes(poolSizes);
-            var pPool = stack.longs(VK_NULL_HANDLE);
-            int poolResult = vkCreateDescriptorPool(device, poolInfo, null, pPool);
-            if (poolResult != VK_SUCCESS || pPool.get(0) == VK_NULL_HANDLE) {
-                throw new EngineException(
-                        EngineErrorCode.BACKEND_INIT_FAILED,
-                        "vkCreateDescriptorPool(texture) failed: " + poolResult,
-                        false
-                );
-            }
-            textureDescriptorPool = pPool.get(0);
-        }
-        descriptorRingActiveSetCount = requiredSetCount;
-        descriptorRingWasteSetCount = Math.max(0, descriptorRingSetCapacity - requiredSetCount);
-        descriptorRingPeakWasteSetCount = Math.max(descriptorRingPeakWasteSetCount, descriptorRingWasteSetCount);
-
-        VulkanTextureDescriptorWriter.allocateAndWrite(
+        VulkanTextureDescriptorPoolManager.State state = VulkanTextureDescriptorPoolManager.createOrReuseAndWrite(
                 device,
                 stack,
-                textureDescriptorPool,
-                textureDescriptorSetLayout,
                 gpuMeshes,
+                textureDescriptorSetLayout,
+                textureDescriptorPool,
+                descriptorRingSetCapacity,
+                descriptorRingPeakSetCapacity,
+                descriptorRingPeakWasteSetCount,
+                descriptorPoolBuildCount,
+                descriptorPoolRebuildCount,
+                descriptorRingGrowthRebuildCount,
+                descriptorRingSteadyRebuildCount,
+                descriptorRingPoolReuseCount,
+                descriptorRingPoolResetFailureCount,
+                targetSetCapacity,
                 shadowDepthImageView,
                 shadowSampler,
                 iblIrradianceTexture,
                 iblRadianceTexture,
                 iblBrdfLutTexture
         );
+        textureDescriptorPool = state.textureDescriptorPool();
+        descriptorPoolBuildCount = state.descriptorPoolBuildCount();
+        descriptorPoolRebuildCount = state.descriptorPoolRebuildCount();
+        descriptorRingGrowthRebuildCount = state.descriptorRingGrowthRebuildCount();
+        descriptorRingSteadyRebuildCount = state.descriptorRingSteadyRebuildCount();
+        descriptorRingPoolReuseCount = state.descriptorRingPoolReuseCount();
+        descriptorRingPoolResetFailureCount = state.descriptorRingPoolResetFailureCount();
+        descriptorRingSetCapacity = state.descriptorRingSetCapacity();
+        descriptorRingPeakSetCapacity = state.descriptorRingPeakSetCapacity();
+        descriptorRingActiveSetCount = state.descriptorRingActiveSetCount();
+        descriptorRingWasteSetCount = state.descriptorRingWasteSetCount();
+        descriptorRingPeakWasteSetCount = state.descriptorRingPeakWasteSetCount();
     }
 
     private VulkanGpuTexture createTextureFromPath(Path texturePath, boolean normalMap) throws EngineException {
-        VulkanTexturePixelData pixels = loadTexturePixels(texturePath);
-        if (pixels == null) {
-            ByteBuffer data = memAlloc(4);
-            if (normalMap) {
-                data.put((byte) 0x80).put((byte) 0x80).put((byte) 0xFF).put((byte) 0xFF).flip();
-            } else {
-                data.put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).flip();
-            }
-            pixels = new VulkanTexturePixelData(data, 1, 1);
-        }
-        try {
-            return createTextureFromPixels(pixels);
-        } finally {
-            memFree(pixels.data());
-        }
-    }
-
-    private VulkanTexturePixelData loadTexturePixels(Path texturePath) {
-        return VulkanTexturePixelLoader.loadTexturePixels(texturePath);
-    }
-
-    private VulkanGpuTexture createTextureFromPixels(VulkanTexturePixelData pixels) throws EngineException {
-        try (MemoryStack stack = stackPush()) {
-            VulkanBufferAlloc staging = VulkanMemoryOps.createBuffer(
-                    device,
-                    physicalDevice,
-                    stack,
-                    pixels.data().remaining(),
-                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            );
-            try {
-                VulkanMemoryOps.uploadToMemory(device, staging.memory(), pixels.data(), this::vkFailure);
-                VulkanImageAlloc imageAlloc = VulkanMemoryOps.createImage(
-                        device,
-                        physicalDevice,
-                        stack,
-                        pixels.width(),
-                        pixels.height(),
-                        VK10.VK_FORMAT_R8G8B8A8_SRGB,
-                        VK10.VK_IMAGE_TILING_OPTIMAL,
-                        VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
-                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                        1
-                );
-                VulkanMemoryOps.transitionImageLayout(
-                        device,
-                        commandPool,
-                        graphicsQueue,
-                        imageAlloc.image(),
-                        VK_IMAGE_LAYOUT_UNDEFINED,
-                        VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                        this::vkFailure
-                );
-                VulkanMemoryOps.copyBufferToImage(
-                        device,
-                        commandPool,
-                        graphicsQueue,
-                        staging.buffer(),
-                        imageAlloc.image(),
-                        pixels.width(),
-                        pixels.height(),
-                        this::vkFailure
-                );
-                VulkanMemoryOps.transitionImageLayout(
-                        device,
-                        commandPool,
-                        graphicsQueue,
-                        imageAlloc.image(),
-                        VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                        VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                        this::vkFailure
-                );
-
-                long imageView = createImageView(stack, imageAlloc.image(), VK10.VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
-                long sampler = createSampler(stack);
-                return new VulkanGpuTexture(imageAlloc.image(), imageAlloc.memory(), imageView, sampler, (long) pixels.width() * pixels.height() * 4L);
-            } finally {
-                if (staging.buffer() != VK_NULL_HANDLE) {
-                    vkDestroyBuffer(device, staging.buffer(), null);
-                }
-                if (staging.memory() != VK_NULL_HANDLE) {
-                    vkFreeMemory(device, staging.memory(), null);
-                }
-            }
-        }
-    }
-
-    private long createImageView(MemoryStack stack, long image, int format, int aspectMask) throws EngineException {
-        return createImageView(stack, image, format, aspectMask, VK_IMAGE_VIEW_TYPE_2D, 0, 1);
-    }
-
-    private long createImageView(
-            MemoryStack stack,
-            long image,
-            int format,
-            int aspectMask,
-            int viewType,
-            int baseArrayLayer,
-            int layerCount
-    ) throws EngineException {
-        VkImageViewCreateInfo viewInfo = VkImageViewCreateInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
-                .image(image)
-                .viewType(viewType)
-                .format(format);
-        viewInfo.subresourceRange()
-                .aspectMask(aspectMask)
-                .baseMipLevel(0)
-                .levelCount(1)
-                .baseArrayLayer(baseArrayLayer)
-                .layerCount(layerCount);
-        var pView = stack.longs(VK_NULL_HANDLE);
-        int result = vkCreateImageView(device, viewInfo, null, pView);
-        if (result != VK_SUCCESS || pView.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateImageView(texture) failed: " + result, false);
-        }
-        return pView.get(0);
-    }
-
-    private long createSampler(MemoryStack stack) throws EngineException {
-        VkSamplerCreateInfo samplerInfo = VkSamplerCreateInfo.calloc(stack)
-                .sType(VK10.VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO)
-                .magFilter(VK10.VK_FILTER_LINEAR)
-                .minFilter(VK10.VK_FILTER_LINEAR)
-                .addressModeU(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT)
-                .addressModeV(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT)
-                .addressModeW(VK10.VK_SAMPLER_ADDRESS_MODE_REPEAT)
-                .anisotropyEnable(false)
-                .maxAnisotropy(1.0f)
-                .borderColor(VK10.VK_BORDER_COLOR_INT_OPAQUE_BLACK)
-                .unnormalizedCoordinates(false)
-                .compareEnable(false)
-                .compareOp(VK10.VK_COMPARE_OP_ALWAYS)
-                .mipmapMode(VK10.VK_SAMPLER_MIPMAP_MODE_LINEAR)
-                .mipLodBias(0.0f)
-                .minLod(0.0f)
-                .maxLod(0.0f);
-        var pSampler = stack.longs(VK_NULL_HANDLE);
-        int result = VK10.vkCreateSampler(device, samplerInfo, null, pSampler);
-        if (result != VK_SUCCESS || pSampler.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateSampler failed: " + result, false);
-        }
-        return pSampler.get(0);
+        return VulkanTextureResourceOps.createTextureFromPath(
+                texturePath,
+                normalMap,
+                new VulkanTextureResourceOps.Context(device, physicalDevice, commandPool, graphicsQueue, this::vkFailure)
+        );
     }
 
     private void markGlobalStateDirty() {
@@ -2279,160 +1828,54 @@ final class VulkanContext {
         pendingSceneDirtyRangeCount = write + 1;
     }
 
-    private boolean allFramesApplied(long[] frameRevisions, long revision) {
-        for (long frameRevision : frameRevisions) {
-            if (frameRevision != revision) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private void prepareFrameUniforms(int frameIdx) throws EngineException {
-        int meshCount = Math.max(1, gpuMeshes.size());
-        maxObservedDynamicObjects = Math.max(maxObservedDynamicObjects, meshCount);
-        if (meshCount > maxDynamicSceneObjects) {
-            throw new EngineException(
-                    EngineErrorCode.RESOURCE_CREATION_FAILED,
-                    "Scene mesh count " + meshCount + " exceeds dynamic uniform capacity " + maxDynamicSceneObjects,
-                    false
-            );
-        }
-        int normalizedFrame = Math.floorMod(frameIdx, framesInFlight);
-        int frameBase = normalizedFrame * uniformFrameSpanBytes;
-        boolean globalStale = frameGlobalRevisionApplied[normalizedFrame] != globalStateRevision;
-        boolean sceneStale = frameSceneRevisionApplied[normalizedFrame] != sceneStateRevision;
-        if (!globalStale && !sceneStale) {
+        VulkanFrameUniformCoordinator.Result result = VulkanFrameUniformCoordinator.prepare(
+                new VulkanFrameUniformCoordinator.Inputs(
+                        frameIdx,
+                        gpuMeshes.size(),
+                        maxObservedDynamicObjects,
+                        maxDynamicSceneObjects,
+                        framesInFlight,
+                        uniformFrameSpanBytes,
+                        globalUniformFrameSpanBytes,
+                        uniformStrideBytes,
+                        OBJECT_UNIFORM_BYTES,
+                        GLOBAL_SCENE_UNIFORM_BYTES,
+                        device,
+                        objectUniformStagingMemory,
+                        sceneGlobalUniformStagingMemory,
+                        objectUniformStagingMappedAddress,
+                        sceneGlobalUniformStagingMappedAddress,
+                        globalStateRevision,
+                        sceneStateRevision,
+                        frameGlobalRevisionApplied,
+                        frameSceneRevisionApplied,
+                        pendingSceneDirtyRangeCount,
+                        pendingSceneDirtyStarts,
+                        pendingSceneDirtyEnds,
+                        pendingUploadSrcOffsets,
+                        pendingUploadDstOffsets,
+                        pendingUploadByteCounts,
+                        idx -> gpuMeshes.isEmpty() ? null : gpuMeshes.get(idx),
+                        globalSceneUniformInput(),
+                        this::vkFailure
+                )
+        );
+        maxObservedDynamicObjects = result.maxObservedDynamicObjects();
+        if (result.clearPendingOnly()) {
             clearPendingUploads();
             return;
         }
-        pendingGlobalUploadSrcOffset = -1L;
-        pendingGlobalUploadDstOffset = -1L;
-        pendingGlobalUploadByteCount = 0;
-
-        long globalFrameBase = (long) normalizedFrame * globalUniformFrameSpanBytes;
-        if (globalStale) {
-            ByteBuffer globalMapped;
-            if (sceneGlobalUniformStagingMappedAddress != 0L) {
-                globalMapped = memByteBuffer(sceneGlobalUniformStagingMappedAddress + globalFrameBase, GLOBAL_SCENE_UNIFORM_BYTES);
-            } else {
-                globalMapped = memAlloc(GLOBAL_SCENE_UNIFORM_BYTES);
-            }
-            globalMapped.order(ByteOrder.nativeOrder());
-            try {
-                VulkanUniformWriters.writeGlobalSceneUniform(globalMapped, globalSceneUniformInput());
-                if (sceneGlobalUniformStagingMappedAddress == 0L) {
-                    try (MemoryStack stack = stackPush()) {
-                        PointerBuffer pData = stack.mallocPointer(1);
-                        int mapResult = vkMapMemory(device, sceneGlobalUniformStagingMemory, globalFrameBase, GLOBAL_SCENE_UNIFORM_BYTES, 0, pData);
-                        if (mapResult != VK_SUCCESS) {
-                            throw vkFailure("vkMapMemory(globalStaging)", mapResult);
-                        }
-                        memCopy(memAddress(globalMapped), pData.get(0), GLOBAL_SCENE_UNIFORM_BYTES);
-                        vkUnmapMemory(device, sceneGlobalUniformStagingMemory);
-                    }
-                }
-            } finally {
-                if (sceneGlobalUniformStagingMappedAddress == 0L) {
-                    memFree(globalMapped);
-                }
-            }
-            pendingGlobalUploadSrcOffset = globalFrameBase;
-            pendingGlobalUploadDstOffset = globalFrameBase;
-            pendingGlobalUploadByteCount = GLOBAL_SCENE_UNIFORM_BYTES;
-        }
-
-        int uploadRangeCount;
-        int uploadCapacity = pendingUploadSrcOffsets.length;
-        int[] uploadStarts = new int[uploadCapacity];
-        int[] uploadEnds = new int[uploadCapacity];
-        if (sceneStale && pendingSceneDirtyRangeCount > 0) {
-            uploadRangeCount = 0;
-            for (int i = 0; i < pendingSceneDirtyRangeCount && uploadRangeCount < uploadCapacity; i++) {
-                int start = Math.max(0, Math.min(meshCount - 1, pendingSceneDirtyStarts[i]));
-                int end = Math.max(start, Math.min(meshCount - 1, pendingSceneDirtyEnds[i]));
-                uploadStarts[uploadRangeCount] = start;
-                uploadEnds[uploadRangeCount] = end;
-                uploadRangeCount++;
-            }
-            if (uploadRangeCount == 0) {
-                uploadRangeCount = 1;
-                uploadStarts[0] = 0;
-                uploadEnds[0] = meshCount - 1;
-            }
-        } else {
-            uploadRangeCount = 1;
-            uploadStarts[0] = 0;
-            uploadEnds[0] = meshCount - 1;
-        }
-
-        ByteBuffer mapped;
-        if (objectUniformStagingMappedAddress != 0L) {
-            mapped = memByteBuffer(objectUniformStagingMappedAddress + frameBase, uniformFrameSpanBytes);
-        } else {
-            mapped = memAlloc(uniformFrameSpanBytes);
-        }
-        mapped.order(ByteOrder.nativeOrder());
-        try {
-            for (int range = 0; range < uploadRangeCount; range++) {
-                int rangeStart = uploadStarts[range];
-                int rangeEnd = uploadEnds[range];
-                for (int meshIndex = rangeStart; meshIndex <= rangeEnd; meshIndex++) {
-                    VulkanGpuMesh mesh = gpuMeshes.isEmpty() ? null : gpuMeshes.get(meshIndex);
-                    VulkanUniformWriters.writeObjectUniform(mapped, meshIndex * uniformStrideBytes, OBJECT_UNIFORM_BYTES, mesh);
-                }
-            }
-            if (objectUniformStagingMappedAddress == 0L) {
-                try (MemoryStack stack = stackPush()) {
-                    PointerBuffer pData = stack.mallocPointer(1);
-                    int mapResult = vkMapMemory(device, objectUniformStagingMemory, frameBase, uniformFrameSpanBytes, 0, pData);
-                    if (mapResult != VK_SUCCESS) {
-                        throw vkFailure("vkMapMemory(objectStaging)", mapResult);
-                    }
-                    for (int range = 0; range < uploadRangeCount; range++) {
-                        int rangeStartByte = uploadStarts[range] * uniformStrideBytes;
-                        int rangeByteCount = ((uploadEnds[range] - uploadStarts[range]) + 1) * uniformStrideBytes;
-                        memCopy(memAddress(mapped) + rangeStartByte, pData.get(0) + rangeStartByte, rangeByteCount);
-                    }
-                    vkUnmapMemory(device, objectUniformStagingMemory);
-                }
-            }
-        } finally {
-            if (objectUniformStagingMappedAddress == 0L) {
-                memFree(mapped);
-            }
-        }
-        pendingUploadRangeCount = uploadRangeCount;
-        pendingUploadObjectCount = 0;
-        pendingUploadStartObject = Integer.MAX_VALUE;
-        pendingUploadByteCount = 0;
-        for (int range = 0; range < uploadRangeCount; range++) {
-            int rangeStartByte = uploadStarts[range] * uniformStrideBytes;
-            int rangeByteCount = ((uploadEnds[range] - uploadStarts[range]) + 1) * uniformStrideBytes;
-            long srcOffset = (long) frameBase + rangeStartByte;
-            pendingUploadSrcOffsets[range] = srcOffset;
-            pendingUploadDstOffsets[range] = srcOffset;
-            pendingUploadByteCounts[range] = rangeByteCount;
-            pendingUploadObjectCount += (uploadEnds[range] - uploadStarts[range]) + 1;
-            pendingUploadStartObject = Math.min(pendingUploadStartObject, uploadStarts[range]);
-            pendingUploadByteCount += rangeByteCount;
-        }
-        if (pendingUploadRangeCount == 1) {
-            pendingUploadSrcOffset = pendingUploadSrcOffsets[0];
-            pendingUploadDstOffset = pendingUploadDstOffsets[0];
-            pendingUploadByteCount = pendingUploadByteCounts[0];
-        } else {
-            pendingUploadSrcOffset = -1L;
-            pendingUploadDstOffset = -1L;
-        }
-        if (pendingUploadStartObject == Integer.MAX_VALUE) {
-            pendingUploadStartObject = 0;
-        }
-        frameGlobalRevisionApplied[normalizedFrame] = globalStateRevision;
-        frameSceneRevisionApplied[normalizedFrame] = sceneStateRevision;
-        if (pendingSceneDirtyRangeCount > 0 && allFramesApplied(frameSceneRevisionApplied, sceneStateRevision)) {
-            pendingSceneDirtyRangeCount = 0;
-        }
+        pendingGlobalUploadSrcOffset = result.pendingGlobalUploadSrcOffset();
+        pendingGlobalUploadDstOffset = result.pendingGlobalUploadDstOffset();
+        pendingGlobalUploadByteCount = result.pendingGlobalUploadByteCount();
+        pendingUploadRangeCount = result.pendingUploadRangeCount();
+        pendingUploadObjectCount = result.pendingUploadObjectCount();
+        pendingUploadStartObject = result.pendingUploadStartObject();
+        pendingUploadByteCount = result.pendingUploadByteCount();
+        pendingUploadSrcOffset = result.pendingUploadSrcOffset();
+        pendingUploadDstOffset = result.pendingUploadDstOffset();
+        pendingSceneDirtyRangeCount = result.pendingSceneDirtyRangeCount();
     }
 
     private void uploadFrameUniforms(VkCommandBuffer commandBuffer, int frameIdx) {
