@@ -336,7 +336,9 @@ final class OpenGlContext {
                 vec3 c2 = texture(uIblRadiance, clamp(roughUv - axis * texel * spread, vec2(0.0), vec2(1.0))).rgb;
                 vec3 c3 = texture(uIblRadiance, clamp(roughUv + side * texel * spread * 0.65, vec2(0.0), vec2(1.0))).rgb;
                 vec3 c4 = texture(uIblRadiance, clamp(roughUv - side * texel * spread * 0.65, vec2(0.0), vec2(1.0))).rgb;
-                return (c0 * 0.38) + (c1 * 0.19) + (c2 * 0.19) + (c3 * 0.12) + (c4 * 0.12);
+                vec3 c5 = texture(uIblRadiance, clamp(roughUv + axis * texel * spread * 1.65, vec2(0.0), vec2(1.0))).rgb;
+                vec3 c6 = texture(uIblRadiance, clamp(roughUv - axis * texel * spread * 1.65, vec2(0.0), vec2(1.0))).rgb;
+                return (c0 * 0.30) + (c1 * 0.16) + (c2 * 0.16) + (c3 * 0.11) + (c4 * 0.11) + (c5 * 0.08) + (c6 * 0.08);
             }
             float shadowTerm(vec3 normal, float ndl) {
                 vec3 projCoords = vLightSpacePos.xyz / max(vLightSpacePos.w, 0.0001);
@@ -461,9 +463,14 @@ final class OpenGlContext {
                     vec2 brdfUv = vec2(clamp(ndv, 0.0, 1.0), clamp(roughness, 0.0, 1.0));
                     vec2 brdf = texture(uIblBrdfLut, brdfUv).rg;
                     float fresnel = pow(1.0 - ndv, 5.0);
-                    vec3 iblDiffuse = albedo * ao * irr * (0.2 + 0.55 * (1.0 - roughness)) * iblDiffuseWeight;
-                    vec3 iblSpec = rad * mix(vec3(0.03), f0, fresnel) * (0.1 + 0.55 * (1.0 - roughness))
-                            * (0.4 + 0.6 * brdf.x + 0.3 * brdf.y) * iblSpecWeight;
+                    vec3 fView = mix(vec3(0.03), f0, fresnel);
+                    vec3 kS = clamp(fView, vec3(0.0), vec3(1.0));
+                    vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+                    float horizon = clamp(0.35 + 0.65 * ndv, 0.0, 1.0);
+                    float energyComp = 1.0 + (1.0 - roughness) * 0.35 * (1.0 - ndv);
+                    vec3 iblDiffuse = kD * albedo * ao * irr * (0.22 + 0.58 * (1.0 - roughness)) * iblDiffuseWeight;
+                    vec3 iblSpecBase = rad * (kS * (0.42 + 0.58 * brdf.x) + vec3(0.24 * brdf.y));
+                    vec3 iblSpec = iblSpecBase * (0.08 + 0.62 * (1.0 - roughness)) * iblSpecWeight * energyComp * horizon;
                     ambient += iblDiffuse + iblSpec;
                 }
                 vec3 color = ambient + directional + pointLit;

@@ -21,6 +21,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - shader-side IBL texture sampling baseline in OpenGL and Vulkan (irradiance/radiance/BRDF-LUT)
   - roughness-aware radiance prefilter approximation in OpenGL and Vulkan (tier-driven prefilter strength)
   - roughness-aware multi-tap specular radiance filtering in OpenGL and Vulkan (`IBL_MULTI_TAP_SPEC_ACTIVE`)
+  - BRDF energy-compensation + horizon-weighted IBL response in OpenGL and Vulkan (`IBL_BRDF_ENERGY_COMP_ACTIVE`)
   - view-space camera-direction IBL response in both backends (replaces fixed forward-view assumption)
   - texture ingestion + calibration support for configured IBL assets (`png/jpg/jpeg/.hdr`)
   - `.ktx/.ktx2` IBL container paths now resolve through sidecar decode sources when available (`.png/.hdr/.jpg/.jpeg`)

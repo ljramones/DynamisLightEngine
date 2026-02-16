@@ -337,6 +337,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     "IBL_MULTI_TAP_SPEC_ACTIVE",
                     "IBL specular radiance uses roughness-aware multi-tap filtering for improved highlight stability"
             ));
+            warnings.add(new EngineWarning(
+                    "IBL_BRDF_ENERGY_COMP_ACTIVE",
+                    "IBL diffuse/specular response uses BRDF energy-compensation and horizon weighting for improved roughness realism"
+            ));
             if (currentIbl.degraded()) {
                 warnings.add(new EngineWarning(
                         "IBL_QUALITY_DEGRADED",

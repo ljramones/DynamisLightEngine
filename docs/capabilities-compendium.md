@@ -82,9 +82,10 @@ OpenGL backend provides a real forward render baseline:
   - environment-driven enablement via `EnvironmentDesc` IBL asset paths
   - lightweight diffuse/specular ambient contribution (`IBL_BASELINE_ACTIVE` warning signal)
   - shader-side IBL texture sampling path (irradiance/radiance/BRDF-LUT samplers in render shader)
-  - roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
-  - roughness-aware multi-tap IBL specular radiance filtering with runtime signal `IBL_MULTI_TAP_SPEC_ACTIVE`
-  - view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
+- roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
+- roughness-aware multi-tap IBL specular radiance filtering with runtime signal `IBL_MULTI_TAP_SPEC_ACTIVE`
+- BRDF energy-compensation + horizon-weighted IBL response with runtime signal `IBL_BRDF_ENERGY_COMP_ACTIVE`
+- view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
   - explicit LOW/MEDIUM tier quality policy with attenuation + warning: `IBL_QUALITY_DEGRADED`
   - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
   - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
