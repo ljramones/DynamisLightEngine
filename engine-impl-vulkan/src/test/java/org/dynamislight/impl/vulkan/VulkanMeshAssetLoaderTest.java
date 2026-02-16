@@ -41,6 +41,7 @@ class VulkanMeshAssetLoaderTest {
         VulkanMeshAssetLoader.CacheProfile profile = loader.cacheProfile();
         assertEquals(1, profile.misses());
         assertEquals(1, profile.hits());
+        assertEquals(0, profile.evictions());
         assertEquals(1, profile.entries());
     }
 
@@ -146,6 +147,23 @@ class VulkanMeshAssetLoaderTest {
         VulkanMeshAssetLoader.CacheProfile profile = loader.cacheProfile();
         assertEquals(1, profile.misses());
         assertEquals(1, profile.hits());
+        assertEquals(0, profile.evictions());
         assertEquals(1, profile.entries());
+    }
+
+    @Test
+    void geometryCacheEvictsOldEntriesWhenLimitExceeded() {
+        var loader = new VulkanMeshAssetLoader(Path.of("."));
+        for (int i = 0; i < 300; i++) {
+            String meshPath = (i % 2 == 0 ? "meshes/quad-" : "meshes/tri-") + i + ".glb";
+            var mesh = new MeshDesc("mesh-" + i, "xform", "mat", meshPath);
+            loader.loadMeshGeometry(mesh, i);
+        }
+
+        VulkanMeshAssetLoader.CacheProfile profile = loader.cacheProfile();
+        assertEquals(300, profile.misses());
+        assertEquals(0, profile.hits());
+        assertEquals(44, profile.evictions());
+        assertEquals(256, profile.entries());
     }
 }

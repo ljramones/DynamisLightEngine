@@ -424,7 +424,8 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.loadScene(validShadowSmokeScene(new ShadowDesc(2048, 0.0012f, 5, 4)));
         var frameA = runtime.render();
         assertTrue(frameA.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())));
-        assertTrue(frameA.warnings().stream().anyMatch(w -> "MESH_GEOMETRY_CACHE_PROFILE".equals(w.code())));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "MESH_GEOMETRY_CACHE_PROFILE".equals(w.code()) && w.message().contains("evictions=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorSetsInRing=3")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
