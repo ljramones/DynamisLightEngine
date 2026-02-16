@@ -51,7 +51,11 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
     - skip uniform buffer copy when frame slot is already synchronized
     - sparse multi-range uniform uploads for dynamic-only scene updates using dirty object ranges
     - global-state setters now mark revisions only on effective value changes (reduces redundant uploads under stable scene settings)
-    - additional telemetry: upload ranges + start-object index
+    - additional telemetry: upload ranges + start-object index + pending-range overflow count
+  - descriptor-ring pressure telemetry now exposed in frame profile:
+    - `descriptorRingSetCapacity` / `descriptorRingPeakSetCapacity`
+    - `descriptorRingReuseHits`
+    - `descriptorRingGrowthRebuilds` / `descriptorRingSteadyRebuilds`
 - Added Vulkan mesh-geometry cache in asset loader:
   - glTF/fallback geometry is cached by stable key
   - loader returns defensive copies to preserve cache integrity
@@ -63,6 +67,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - forced device-loss error-path test
   - native-runtime readiness guard to skip cleanly when LWJGL natives are unavailable
   - added targeted reuse assertions for lighting-only and post/fog-only scene updates (no full rebuilds or descriptor pool rebuilds on real-device path)
+  - added guarded validation for descriptor-ring reuse counters on dynamic-only scene updates
 
 ## Active Next Steps
 - Threshold tightening lane complete for current stress profiles; keep envelopes frozen at established floor and revisit only after major lighting/post changes.
