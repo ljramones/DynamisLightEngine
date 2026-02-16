@@ -1,7 +1,5 @@
 package org.dynamislight.impl.opengl;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,12 +7,10 @@ import java.util.Locale;
 import org.dynamislight.api.scene.MeshDesc;
 
 final class OpenGlMeshAssetLoader {
-    private static final byte[] GLB_MAGIC = new byte[]{'g', 'l', 'T', 'F'};
-
-    private final Path assetRoot;
+    private final OpenGlGltfMeshParser gltfParser;
 
     OpenGlMeshAssetLoader(Path assetRoot) {
-        this.assetRoot = assetRoot == null ? Path.of(".") : assetRoot;
+        this.gltfParser = new OpenGlGltfMeshParser(assetRoot == null ? Path.of(".") : assetRoot);
     }
 
     List<OpenGlContext.MeshGeometry> loadSceneMeshes(List<MeshDesc> meshes) {
@@ -35,9 +31,11 @@ final class OpenGlMeshAssetLoader {
 
         String meshPath = mesh.meshAssetPath() == null ? "" : mesh.meshAssetPath().toLowerCase(Locale.ROOT);
         Path resolved = resolve(mesh.meshAssetPath());
-
-        if (resolved != null && Files.isRegularFile(resolved) && meshPath.endsWith(".glb") && isGlbFile(resolved)) {
-            return mapByName(resolved.getFileName().toString().toLowerCase(Locale.ROOT), index);
+        if (resolved != null && (meshPath.endsWith(".glb") || meshPath.endsWith(".gltf"))) {
+            var parsed = gltfParser.parse(resolved);
+            if (parsed.isPresent()) {
+                return parsed.get();
+            }
         }
         return mapByName(meshPath, index);
     }
@@ -47,22 +45,7 @@ final class OpenGlMeshAssetLoader {
             return null;
         }
         Path path = Path.of(meshAssetPath);
-        return path.isAbsolute() ? path : assetRoot.resolve(path).normalize();
-    }
-
-    private boolean isGlbFile(Path path) {
-        try (var in = Files.newInputStream(path)) {
-            byte[] header = in.readNBytes(4);
-            if (header.length < 4) {
-                return false;
-            }
-            return header[0] == GLB_MAGIC[0]
-                    && header[1] == GLB_MAGIC[1]
-                    && header[2] == GLB_MAGIC[2]
-                    && header[3] == GLB_MAGIC[3];
-        } catch (IOException ignored) {
-            return false;
-        }
+        return path;
     }
 
     private OpenGlContext.MeshGeometry mapByName(String sourceName, int index) {
