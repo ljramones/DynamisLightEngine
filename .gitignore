@@ -1,6 +1,7 @@
 # Maven / Java build outputs
 target/
 out/
+artifacts/
 *.class
 *.jar
 *.war

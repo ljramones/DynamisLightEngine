@@ -28,6 +28,7 @@ import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.logging.LogMessage;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
@@ -139,6 +140,66 @@ class VulkanEngineRuntimeIntegrationTest {
 
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_QUALITY_DEGRADED".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SMOKE_QUALITY_DEGRADED".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void bloomRequestedDoesNotEmitNotImplementedWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validPostProcessScene(true));
+
+        var frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "BLOOM_NOT_IMPLEMENTED".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void iblEnvironmentEmitsBaselineActiveWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validIblScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_BASELINE_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_PREFILTER_APPROX_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_CONTAINER_FALLBACK".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void postOffscreenRequestEmitsFallbackPipelineWarningInMockMode() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.postOffscreen", "true"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validPostProcessScene(true));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "VULKAN_POST_PROCESS_PIPELINE".equals(w.code())
+                        && w.message().contains("offscreenRequested=true")
+                        && w.message().contains("offscreenActive=false")
+                        && w.message().contains("mode=shader-fallback")));
+        runtime.shutdown();
+    }
+
+    @Test
+    void postOffscreenDisabledOmitsPipelineWarningInMockMode() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.postOffscreen", "false"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validPostProcessScene(true));
+
+        var frame = runtime.render();
+
+        assertFalse(frame.warnings().stream().anyMatch(w -> "VULKAN_POST_PROCESS_PIPELINE".equals(w.code())));
         runtime.shutdown();
     }
 
@@ -306,6 +367,32 @@ class VulkanEngineRuntimeIntegrationTest {
         );
     }
 
+    private static SceneDescriptor validPostProcessScene(boolean bloomEnabled) {
+        SceneDescriptor base = validScene();
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.05f,
+                2.2f,
+                bloomEnabled,
+                1.0f,
+                0.8f
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
     private static SceneDescriptor validMultiMeshScene() {
         CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
         TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
@@ -401,6 +488,31 @@ class VulkanEngineRuntimeIntegrationTest {
                 env,
                 fog,
                 List.of()
+        );
+    }
+
+    private static SceneDescriptor validIblScene() {
+        SceneDescriptor base = validScene();
+        EnvironmentDesc env = new EnvironmentDesc(
+                base.environment().ambientColor(),
+                base.environment().ambientIntensity(),
+                base.environment().skyboxAssetPath(),
+                "textures/ibl_irradiance.ktx2",
+                "textures/ibl_radiance.ktx2",
+                "textures/ibl_brdf_lut.png"
+        );
+        return new SceneDescriptor(
+                "vulkan-ibl-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                env,
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
         );
     }
 

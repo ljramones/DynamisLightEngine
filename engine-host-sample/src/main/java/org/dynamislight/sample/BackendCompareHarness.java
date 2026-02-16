@@ -27,9 +27,14 @@ final class BackendCompareHarness {
     }
 
     static CompareReport run(Path outputDir, SceneDescriptor scene, QualityTier qualityTier) throws Exception {
+        return run(outputDir, scene, qualityTier, qualityTier.name().toLowerCase());
+    }
+
+    static CompareReport run(Path outputDir, SceneDescriptor scene, QualityTier qualityTier, String profileTag) throws Exception {
         Files.createDirectories(outputDir);
-        Path openGlPng = outputDir.resolve("opengl.png");
-        Path vulkanPng = outputDir.resolve("vulkan.png");
+        String normalizedTag = normalizeTag(profileTag);
+        Path openGlPng = outputDir.resolve("opengl-" + normalizedTag + ".png");
+        Path vulkanPng = outputDir.resolve("vulkan-" + normalizedTag + ".png");
 
         BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier);
         BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier);
@@ -38,6 +43,13 @@ final class BackendCompareHarness {
         writeDiagnosticImage(vulkan, vulkanPng);
         double diff = normalizedImageDiff(openGlPng, vulkanPng);
         return new CompareReport(openGlPng, vulkanPng, diff, openGl, vulkan);
+    }
+
+    private static String normalizeTag(String tag) {
+        if (tag == null || tag.isBlank()) {
+            return "default";
+        }
+        return tag.toLowerCase().replaceAll("[^a-z0-9._-]", "-");
     }
 
     private static BackendSnapshot renderBackend(String backendId, SceneDescriptor scene, QualityTier qualityTier) throws Exception {
@@ -65,8 +77,13 @@ final class BackendCompareHarness {
 
     private static EngineConfig configFor(String backendId, QualityTier qualityTier) {
         Map<String, String> options = switch (backendId) {
-            case "opengl" -> Map.of("opengl.mockContext", "true");
-            case "vulkan" -> Map.of("vulkan.mockContext", "true");
+            case "opengl" -> Map.of(
+                    "opengl.mockContext", System.getProperty("dle.compare.opengl.mockContext", "true")
+            );
+            case "vulkan" -> Map.of(
+                    "vulkan.mockContext", System.getProperty("dle.compare.vulkan.mockContext", "true"),
+                    "vulkan.postOffscreen", System.getProperty("dle.compare.vulkan.postOffscreen", "true")
+            );
             default -> Map.of();
         };
         return new EngineConfig(

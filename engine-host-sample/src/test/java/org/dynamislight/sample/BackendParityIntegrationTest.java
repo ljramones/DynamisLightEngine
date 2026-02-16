@@ -31,6 +31,7 @@ import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.logging.LogMessage;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.SceneLoadedEvent;
 import org.dynamislight.api.scene.SceneDescriptor;
@@ -154,7 +155,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.35, "shadow cascade stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.29, "shadow cascade stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -166,7 +167,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.39, "fog+shadow cascade stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.30, "fog+shadow cascade stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -183,7 +184,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.39, "smoke+shadow cascade stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.30, "smoke+shadow cascade stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -201,6 +202,60 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
         assertTrue(report.diffMetric() <= 0.32, "texture-heavy diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessPostProcessSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("post-process");
+        var report = BackendCompareHarness.run(
+                outDir,
+                postProcessScene(false),
+                QualityTier.HIGH,
+                "post-process-high"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.33, "post-process diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessPostProcessBloomSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("post-process-bloom");
+        var report = BackendCompareHarness.run(
+                outDir,
+                postProcessScene(true),
+                QualityTier.HIGH,
+                "post-process-bloom-high"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.33, "post-process bloom diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessFogSmokeShadowPostStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("fog-smoke-shadow-post-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                fogSmokeShadowPostStressScene(),
+                QualityTier.ULTRA,
+                "fog-smoke-shadow-post-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.32, "fog+smoke+shadow+post stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -223,6 +278,18 @@ class BackendParityIntegrationTest {
                 QualityTier.MEDIUM, 0.42,
                 QualityTier.HIGH, 0.34,
                 QualityTier.ULTRA, 0.32
+        );
+        Map<QualityTier, Double> postProcessMaxDiff = Map.of(
+                QualityTier.LOW, 0.42,
+                QualityTier.MEDIUM, 0.37,
+                QualityTier.HIGH, 0.32,
+                QualityTier.ULTRA, 0.32
+        );
+        Map<QualityTier, Double> postProcessBloomMaxDiff = Map.of(
+                QualityTier.LOW, 0.45,
+                QualityTier.MEDIUM, 0.40,
+                QualityTier.HIGH, 0.36,
+                QualityTier.ULTRA, 0.37
         );
 
         for (QualityTier tier : QualityTier.values()) {
@@ -262,6 +329,32 @@ class BackendParityIntegrationTest {
                     "texture-heavy diff " + textureHeavyReport.diffMetric()
                             + " exceeded " + textureHeavyMaxDiff.get(tier) + " at " + tier
             );
+
+            Path postDir = compareOutputDir("post-process-" + tier.name().toLowerCase());
+            var postReport = BackendCompareHarness.run(
+                    postDir,
+                    postProcessScene(false),
+                    tier,
+                    "post-process-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    postReport.diffMetric() <= postProcessMaxDiff.get(tier),
+                    "post-process diff " + postReport.diffMetric()
+                            + " exceeded " + postProcessMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path postBloomDir = compareOutputDir("post-process-bloom-" + tier.name().toLowerCase());
+            var postBloomReport = BackendCompareHarness.run(
+                    postBloomDir,
+                    postProcessScene(true),
+                    tier,
+                    "post-process-bloom-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    postBloomReport.diffMetric() <= postProcessBloomMaxDiff.get(tier),
+                    "post-process bloom diff " + postBloomReport.diffMetric()
+                            + " exceeded " + postProcessBloomMaxDiff.get(tier) + " at " + tier
+            );
         }
     }
 
@@ -269,10 +362,11 @@ class BackendParityIntegrationTest {
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessStressGoldenProfilesStayBounded() throws Exception {
         Map<String, Double> stressMaxDiff = Map.of(
-                "shadow-cascade-stress", 0.35,
-                "fog-shadow-cascade-stress", 0.39,
-                "smoke-shadow-cascade-stress", 0.39,
-                "texture-heavy", 0.32
+                "shadow-cascade-stress", 0.29,
+                "fog-shadow-cascade-stress", 0.30,
+                "smoke-shadow-cascade-stress", 0.30,
+                "texture-heavy", 0.32,
+                "fog-smoke-shadow-post-stress", 0.32
         );
 
         var reports = Map.of(
@@ -299,6 +393,12 @@ class BackendParityIntegrationTest {
                         textureHeavyScene(),
                         QualityTier.ULTRA,
                         "texture-heavy-golden-ultra"
+                ),
+                "fog-smoke-shadow-post-stress", BackendCompareHarness.run(
+                        compareOutputDir("fog-smoke-shadow-post-stress-golden"),
+                        fogSmokeShadowPostStressScene(),
+                        QualityTier.ULTRA,
+                        "fog-smoke-shadow-post-stress-golden-ultra"
                 )
         );
 
@@ -668,6 +768,32 @@ class BackendParityIntegrationTest {
         );
     }
 
+    private static SceneDescriptor postProcessScene(boolean bloomEnabled) {
+        SceneDescriptor base = materialLightingScene();
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.08f,
+                2.2f,
+                bloomEnabled,
+                1.0f,
+                0.75f
+        );
+        return new SceneDescriptor(
+                "parity-post-process-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
     private static SceneDescriptor fogShadowCascadeStressScene() {
         CameraDesc camera = new CameraDesc("cam", new Vec3(0.1f, 1.4f, 8.8f), new Vec3(-8f, 10f, 0f), 74f, 0.1f, 220f);
         TransformDesc near = new TransformDesc("xform-near", new Vec3(-1.0f, -0.15f, 0.8f), new Vec3(0, 18, 0), new Vec3(1, 1, 1));
@@ -781,6 +907,43 @@ class BackendParityIntegrationTest {
                 env,
                 fog,
                 List.of(smokeA, smokeB)
+        );
+    }
+
+    private static SceneDescriptor fogSmokeShadowPostStressScene() {
+        SceneDescriptor base = smokeShadowCascadeStressScene();
+        FogDesc fog = new FogDesc(
+                true,
+                FogMode.HEIGHT_EXPONENTIAL,
+                new Vec3(0.52f, 0.57f, 0.64f),
+                0.44f,
+                0.42f,
+                0.78f,
+                0.16f,
+                1.2f,
+                0.28f
+        );
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.1f,
+                2.2f,
+                true,
+                0.95f,
+                0.82f
+        );
+        return new SceneDescriptor(
+                "parity-fog-smoke-shadow-post-stress-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                fog,
+                base.smokeEmitters(),
+                post
         );
     }
 

@@ -30,6 +30,8 @@ This document describes **implemented capabilities** in the current repository s
   - `onEvent(EngineEvent)`
   - `onLog(LogMessage)`
   - `onError(EngineErrorReport)`
+- Scene-level post-process DTO now available:
+  - `PostProcessDesc` on `SceneDescriptor` (tonemap + bloom controls)
 
 ## 4) Scene ingestion and validation
 - `EngineConfigValidator` validates required backend/app/dimensions/dpi/fps/quality/asset root.
@@ -74,9 +76,22 @@ OpenGL backend provides a real forward render baseline:
   - directional + point light uniforms
   - diffuse + specular-style response
   - per-material roughness/metallic modulation
+- IBL baseline hook:
+  - environment-driven enablement via `EnvironmentDesc` IBL asset paths
+  - lightweight diffuse/specular ambient contribution (`IBL_BASELINE_ACTIVE` warning signal)
+  - shader-side IBL texture sampling path (irradiance/radiance/BRDF-LUT samplers in render shader)
+  - roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
+  - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
+  - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
+  - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
+  - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
 - Fog support (`FogDesc`) with quality-tier behavior.
 - Smoke support (`SmokeEmitterDesc`) with quality degradation warnings at lower tiers.
-- Frame graph execution path (`clear -> geometry -> fog -> smoke`).
+- Tonemap + bloom post-process baseline (scene-driven exposure/gamma/threshold/strength).
+- Dedicated post-pass architecture:
+  - offscreen scene target (FBO color + depth/stencil) then fullscreen post shader composite
+  - shader-driven post remains as fallback if offscreen resources are unavailable
+- Frame graph execution path (`clear -> geometry -> fog -> smoke -> post`).
 - GPU timing query when available (`GL_TIME_ELAPSED`) with CPU fallback.
 - Approximate GPU memory telemetry exposed via runtime stats.
 
@@ -90,17 +105,32 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - GLFW-backed Vulkan surface/window initialization.
 - Physical/logical device selection with graphics+present+swapchain checks.
 - Swapchain creation/recreation + image views + render pass + framebuffers.
-- Multi-frame-in-flight command/sync setup (`MAX_FRAMES_IN_FLIGHT=2`).
+- Multi-frame-in-flight command/sync setup (`MAX_FRAMES_IN_FLIGHT=3`).
 - Shader compilation at runtime via `shaderc` (GLSL -> SPIR-V).
 - Graphics pipeline + pipeline layout creation.
 - Descriptor set path with uniform buffer binding for model/view/proj + material + lighting + fog/smoke parameters.
+- Per-frame descriptor-set ring for global scene uniforms (frame-indexed binding path).
 - Per-mesh sampled textures for albedo, normal, metallic-roughness, and occlusion.
 - Attribute-rich vertex path (`position`, `normal`, `uv`, `tangent`) from `.gltf/.glb` mesh ingestion.
 - GGX-style PBR-leaning lighting response aligned with OpenGL baseline (directional + point light path).
+- IBL baseline hook:
+  - environment-driven enablement via `EnvironmentDesc` IBL asset paths
+  - lightweight diffuse/specular ambient contribution (`IBL_BASELINE_ACTIVE` warning signal)
+  - shader-side IBL texture sampling path (irradiance/radiance/BRDF-LUT samplers in render shader)
+  - roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
+  - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
+  - texture-driven calibration path (`png/jpg/jpeg/.hdr` luminance sampling on scene load)
+  - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
+  - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
 - Device-local vertex/index buffer uploads via staging copy path.
 - Render loop clear + scene-driven indexed draws with quality-tier-dependent fog/smoke behavior.
+- Dedicated post-process pass path:
+  - Vulkan can run a dedicated post composite pass (`vulkan.postOffscreen=true`) using an intermediate sampled scene image.
+  - Runtime automatically falls back to shader-driven post if post resources are unavailable.
+  - `VULKAN_POST_PROCESS_PIPELINE` warning/profile details report requested vs active mode.
 - Resize/out-of-date/suboptimal handling with swapchain recreation.
 - Device-loss error mapping and `DeviceLostEvent` propagation.
+- Forced device-loss test path (`vulkan.forceDeviceLostOnRender=true`) validated in both mock and real-context runtime paths.
 - Approximate GPU memory telemetry exposed via runtime stats.
 
 ### Vulkan limitations (current)
@@ -117,6 +147,9 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - enforces validation (`SCENE_VALIDATION_FAILED` on bad input)
 - Sample host supports:
   - backend selection
+  - quality-tier selection (`--tier=...`)
+  - shadow tuning flags (`--shadow`, `--shadow-cascades`, `--shadow-pcf`, `--shadow-bias`, `--shadow-res`)
+  - post-process tuning flags (`--post`, `--tonemap`, `--exposure`, `--gamma`, `--bloom`, `--bloom-threshold`, `--bloom-strength`)
   - lifecycle run loop
   - callback logging/event/error output
   - optional resource inspection/hot-reload workflow
@@ -164,6 +197,7 @@ Vulkan options:
 - `vulkan.forceInitFailure` (default `false`)
 - `vulkan.windowVisible` (default `false`)
 - `vulkan.forceDeviceLostOnRender` (default `false`)
+- `vulkan.postOffscreen` (default `true`, dedicated pass with automatic fallback)
 
 ## 11) Test-backed confidence areas
 The repository includes automated tests validating:
@@ -172,13 +206,25 @@ The repository includes automated tests validating:
 - OpenGL lifecycle/error/resource/hot-reload behavior.
 - Vulkan lifecycle, initialization guards, workload stats parity, and device-loss propagation.
 - Guarded real-device Vulkan endurance integration (`-Ddle.test.vulkan.real=true`) covering repeated resize + scene-switch loops with frame-resource profile assertions.
+- Guarded real-device Vulkan integration now includes a forced device-loss error-path test.
+- Real-device guarded tests auto-skip when LWJGL native runtime prerequisites are unavailable (instead of hard-failing test runs).
 - Cross-backend parity checks in sample host integration tests (material/lighting scene, resize stability, quality-tier warning parity).
 - Guarded compare-harness image diff checks (`-Ddle.compare.tests=true`) including tiered fog/smoke/shadow thresholds.
 - Guarded compare-harness includes `shadow-cascade-stress`, `fog-shadow-cascade-stress`, `smoke-shadow-cascade-stress`, and `texture-heavy` profiles for deeper split/bias/fog/smoke/material interaction regression coverage.
+- Guarded compare-harness includes `post-process` and `post-process-bloom` profiles.
+- Guarded compare-harness includes `fog-smoke-shadow-post-stress` for combined volumetric+shadow+post regression coverage.
 - Tiered golden envelopes also include `texture-heavy` (`LOW/MEDIUM/HIGH/ULTRA`) alongside existing fog/smoke and shadow tier checks.
-- Current ULTRA `shadow-cascade-stress` bound: `<= 0.35`.
-- Current ULTRA `fog-shadow-cascade-stress` bound: `<= 0.39`.
-- Current ULTRA `smoke-shadow-cascade-stress` bound: `<= 0.39`.
+- Tiered golden envelopes now include `post-process` and `post-process-bloom` (`LOW/MEDIUM/HIGH/ULTRA`).
+- Current ULTRA `shadow-cascade-stress` bound: `<= 0.29`.
+- Current ULTRA `fog-shadow-cascade-stress` bound: `<= 0.30`.
+- Current ULTRA `smoke-shadow-cascade-stress` bound: `<= 0.30`.
+- Current ULTRA `fog-smoke-shadow-post-stress` bound: `<= 0.32`.
+- Current HIGH `post-process` bound: `<= 0.32`.
+- Current HIGH `post-process-bloom` bound: `<= 0.33`.
+- Compare harness backend toggles:
+  - `dle.compare.opengl.mockContext`
+  - `dle.compare.vulkan.mockContext`
+  - `dle.compare.vulkan.postOffscreen`
 
 ## 12) Platform and CI coverage
 - Backend modules include LWJGL runtime natives for macOS (arm64), Linux, and Windows.

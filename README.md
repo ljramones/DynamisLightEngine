@@ -63,6 +63,12 @@ mvn clean compile
 mvn test
 ```
 
+If `JAVA_HOME` is stale in your shell, use the repo launcher to force `.java-version` (25):
+
+```bash
+./scripts/mvnw25 test
+```
+
 Run backend compare-harness parity tests explicitly:
 
 ```bash
@@ -108,6 +114,30 @@ Run compare harness from sample host (writes images under `artifacts/compare`):
 mvn -f engine-host-sample/pom.xml exec:java -Dexec.args="--compare --compare-tier=HIGH --compare-tag=shadow-high"
 ```
 
+Compare mode backend toggles:
+- `--compare-opengl-mock=true|false`
+- `--compare-vulkan-mock=true|false`
+- `--compare-vulkan-offscreen=true|false`
+
+Tune sample host shadow/post parameters from CLI:
+
+```bash
+mvn -f engine-host-sample/pom.xml exec:java -Dexec.args="vulkan --tier=HIGH --shadow=on --shadow-cascades=4 --shadow-pcf=5 --shadow-bias=0.001 --shadow-res=2048 --post=on --tonemap=on --exposure=1.1 --gamma=2.2 --bloom=on --bloom-threshold=1.0 --bloom-strength=0.8"
+```
+
+Interactive tuning + diagnostics overlay:
+
+```bash
+mvn -f engine-host-sample/pom.xml exec:java -Dexec.args="vulkan --interactive --overlay --frames=99999"
+```
+
+Interactive commands:
+- `help`, `show`, `reload`, `quit`
+- `tier LOW|MEDIUM|HIGH|ULTRA`
+- `shadow on|off`, `shadow_cascades <1-4>`, `shadow_pcf <1-9>`, `shadow_bias <float>`, `shadow_res <256-4096>`
+- `post on|off`, `tonemap on|off`, `exposure <0.25-4.0>`, `gamma <1.2-3.0>`
+- `bloom on|off`, `bloom_threshold <0.2-2.5>`, `bloom_strength <0.0-1.6>`
+
 OpenGL backend options (via `EngineConfig.backendOptions`):
 - `opengl.mockContext=true|false` (default `false`) skips native context creation for headless/test runs.
 - `opengl.forceInitFailure=true|false` forces `BACKEND_INIT_FAILED` for failure-path testing.
@@ -118,6 +148,7 @@ Vulkan backend options:
 - `vulkan.forceInitFailure=true|false` forces `BACKEND_INIT_FAILED` for failure-path testing.
 - `vulkan.windowVisible=true|false` (default `false`) controls visible presentation window.
 - `vulkan.forceDeviceLostOnRender=true|false` forces `DEVICE_LOST` for failure-path testing.
+- `vulkan.postOffscreen=true|false` (default `true`) enables dedicated Vulkan post pass (intermediate copy + fullscreen composite) with automatic shader fallback if unavailable.
 
 Sample-host default keeps OpenGL in mock mode for portability. To run real OpenGL init/render from sample host:
 
@@ -132,6 +163,8 @@ DynamicLightEngine now provides real baseline rendering in both OpenGL and Vulka
 Vulkan now includes:
 - attribute-rich mesh ingestion (`POSITION`, `NORMAL`, `TEXCOORD_0`, `TANGENT`) with `.gltf/.glb` parsing
 - descriptor-backed camera/material/lighting data
+- 3-frames-in-flight global uniform + descriptor-set ring path
+- persistently mapped Vulkan staging memory for frame-uniform uploads
 - fog/smoke quality-tier behavior and degradation warnings aligned with OpenGL warning semantics
 - multi-frame-in-flight command/sync model and device-local mesh buffers uploaded via staging transfers
 
@@ -140,6 +173,12 @@ Cross-backend parity tests now cover:
 - material/lighting scene behavior parity signals
 - repeated resize stability
 - quality-tier fog/smoke degradation warning parity
+- tonemap-enabled post-process parity profile (`post-process`)
+
+Post-processing status:
+- scene-level `PostProcessDesc` is supported on OpenGL and Vulkan.
+- OpenGL now uses a dedicated post pass (offscreen FBO color target + fullscreen post shader) with shader-driven fallback safety.
+- Vulkan now runs a dedicated post pass when available and surfaces explicit `VULKAN_POST_PROCESS_PIPELINE` diagnostics (including fallback mode when needed).
 
 OpenGL includes a fog path driven by `SceneDescriptor.fog` with quality-tier dependent sampling:
 - `LOW`: coarse fog steps
@@ -171,11 +210,14 @@ Resource telemetry is available via `EngineRuntime.resources().stats()`:
 
 Optional integration-test flags:
 - `-Ddle.test.resource.watch=true` enables watcher auto-reload integration test.
-- `-Ddle.test.vulkan.real=true` enables real Vulkan init integration test.
+- `-Ddle.test.vulkan.real=true` enables guarded real-Vulkan integration tests (init/reuse/reorder/resize-endurance/device-loss paths). Tests skip automatically if LWJGL native runtime prerequisites are unavailable.
 - `-Ddle.compare.tests=true` enables compare-harness image diff integration tests.
+- `-Ddle.compare.opengl.mockContext=true|false`, `-Ddle.compare.vulkan.mockContext=true|false`, and
+  `-Ddle.compare.vulkan.postOffscreen=true|false` control compare-harness backend modes.
 
 ## Planning
 
+- Rendering roadmap (2026): `docs/rendering-roadmap-2026.md`
 - Capabilities compendium: `docs/capabilities-compendium.md`
 - API reference: `docs/api-reference.md`
 - Release workflow: `docs/release-workflow.md`

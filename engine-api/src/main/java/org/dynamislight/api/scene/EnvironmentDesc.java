@@ -6,6 +6,12 @@ package org.dynamislight.api.scene;
 public record EnvironmentDesc(
         Vec3 ambientColor,
         float ambientIntensity,
-        String skyboxAssetPath
+        String skyboxAssetPath,
+        String iblIrradiancePath,
+        String iblRadiancePath,
+        String iblBrdfLutPath
 ) {
+    public EnvironmentDesc(Vec3 ambientColor, float ambientIntensity, String skyboxAssetPath) {
+        this(ambientColor, ambientIntensity, skyboxAssetPath, null, null, null);
+    }
 }

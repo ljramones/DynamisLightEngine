@@ -9,6 +9,7 @@ import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
@@ -39,7 +40,8 @@ public final class SceneMapper {
                     mapLights(source.lights()),
                     mapEnvironment(source.environment()),
                     mapFog(source.fog()),
-                    mapSmokeEmitters(source.smokeEmitters())
+                    mapSmokeEmitters(source.smokeEmitters()),
+                    mapPostProcess(source.postProcess())
             );
 
             SceneValidator.validate(mapped);
@@ -71,7 +73,16 @@ public final class SceneMapper {
 
     private static List<MaterialDesc> mapMaterials(List<MaterialDesc> materials) {
         return materials.stream()
-                .map(m -> new MaterialDesc(m.id(), m.albedo(), m.metallic(), m.roughness(), m.albedoTexturePath(), m.normalTexturePath()))
+                .map(m -> new MaterialDesc(
+                        m.id(),
+                        m.albedo(),
+                        m.metallic(),
+                        m.roughness(),
+                        m.albedoTexturePath(),
+                        m.normalTexturePath(),
+                        m.metallicRoughnessTexturePath(),
+                        m.occlusionTexturePath()
+                ))
                 .toList();
     }
 
@@ -85,7 +96,14 @@ public final class SceneMapper {
         if (environment == null) {
             return null;
         }
-        return new EnvironmentDesc(environment.ambientColor(), environment.ambientIntensity(), environment.skyboxAssetPath());
+        return new EnvironmentDesc(
+                environment.ambientColor(),
+                environment.ambientIntensity(),
+                environment.skyboxAssetPath(),
+                environment.iblIrradiancePath(),
+                environment.iblRadiancePath(),
+                environment.iblBrdfLutPath()
+        );
     }
 
     private static FogDesc mapFog(FogDesc fog) {
@@ -121,5 +139,20 @@ public final class SceneMapper {
                         e.enabled()
                 ))
                 .toList();
+    }
+
+    private static PostProcessDesc mapPostProcess(PostProcessDesc post) {
+        if (post == null) {
+            return null;
+        }
+        return new PostProcessDesc(
+                post.enabled(),
+                post.tonemapEnabled(),
+                post.exposure(),
+                post.gamma(),
+                post.bloomEnabled(),
+                post.bloomThreshold(),
+                post.bloomStrength()
+        );
     }
 }

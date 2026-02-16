@@ -20,6 +20,7 @@ import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11.glClearColor;
 import static org.lwjgl.opengl.GL11.glCullFace;
 import static org.lwjgl.opengl.GL11.glDeleteTextures;
+import static org.lwjgl.opengl.GL11.glDisable;
 import static org.lwjgl.opengl.GL11.glDrawArrays;
 import static org.lwjgl.opengl.GL11.glDrawBuffer;
 import static org.lwjgl.opengl.GL11.glEnable;
@@ -59,6 +60,7 @@ import static org.lwjgl.opengl.GL20.glShaderSource;
 import static org.lwjgl.opengl.GL20.glUniform1f;
 import static org.lwjgl.opengl.GL20.glUniform1i;
 import static org.lwjgl.opengl.GL20.glUniform3f;
+import static org.lwjgl.opengl.GL20.glUniform4f;
 import static org.lwjgl.opengl.GL20.glUniformMatrix4fv;
 import static org.lwjgl.opengl.GL20.glUseProgram;
 import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
@@ -72,6 +74,15 @@ import static org.lwjgl.opengl.GL30.glFramebufferTexture2D;
 import static org.lwjgl.opengl.GL30.glGenFramebuffers;
 import static org.lwjgl.opengl.GL30.glDeleteVertexArrays;
 import static org.lwjgl.opengl.GL30.glGenVertexArrays;
+import static org.lwjgl.opengl.GL30.GL_COLOR_ATTACHMENT0;
+import static org.lwjgl.opengl.GL30.GL_DEPTH24_STENCIL8;
+import static org.lwjgl.opengl.GL30.GL_DEPTH_STENCIL_ATTACHMENT;
+import static org.lwjgl.opengl.GL30.GL_RENDERBUFFER;
+import static org.lwjgl.opengl.GL30.glBindRenderbuffer;
+import static org.lwjgl.opengl.GL30.glDeleteRenderbuffers;
+import static org.lwjgl.opengl.GL30.glFramebufferRenderbuffer;
+import static org.lwjgl.opengl.GL30.glGenRenderbuffers;
+import static org.lwjgl.opengl.GL30.glRenderbufferStorage;
 import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT;
 import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT_AVAILABLE;
 import static org.lwjgl.opengl.GL33.GL_TIME_ELAPSED;
@@ -83,11 +94,17 @@ import static org.lwjgl.opengl.GL33.glGetQueryObjecti64;
 import static org.lwjgl.opengl.GL14.GL_TEXTURE_COMPARE_MODE;
 import static org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE;
 import static org.lwjgl.opengl.GL30.GL_FRAMEBUFFER_COMPLETE;
+import static org.lwjgl.stb.STBImage.stbi_image_free;
+import static org.lwjgl.stb.STBImage.stbi_info;
+import static org.lwjgl.stb.STBImage.stbi_is_hdr;
+import static org.lwjgl.stb.STBImage.stbi_load;
+import static org.lwjgl.stb.STBImage.stbi_loadf;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -119,7 +136,9 @@ final class OpenGlContext {
             float metallic,
             float roughness,
             Path albedoTexturePath,
-            Path normalTexturePath
+            Path normalTexturePath,
+            Path metallicRoughnessTexturePath,
+            Path occlusionTexturePath
     ) {
         SceneMesh {
             if (geometry == null) {
@@ -144,9 +163,13 @@ final class OpenGlContext {
         private final float roughness;
         private final int textureId;
         private final int normalTextureId;
+        private final int metallicRoughnessTextureId;
+        private final int occlusionTextureId;
         private final long vertexBytes;
         private final long textureBytes;
         private final long normalTextureBytes;
+        private final long metallicRoughnessTextureBytes;
+        private final long occlusionTextureBytes;
 
         private MeshBuffer(
                 int vaoId,
@@ -158,9 +181,13 @@ final class OpenGlContext {
                 float roughness,
                 int textureId,
                 int normalTextureId,
+                int metallicRoughnessTextureId,
+                int occlusionTextureId,
                 long vertexBytes,
                 long textureBytes,
-                long normalTextureBytes
+                long normalTextureBytes,
+                long metallicRoughnessTextureBytes,
+                long occlusionTextureBytes
         ) {
             this.vaoId = vaoId;
             this.vboId = vboId;
@@ -171,9 +198,13 @@ final class OpenGlContext {
             this.roughness = roughness;
             this.textureId = textureId;
             this.normalTextureId = normalTextureId;
+            this.metallicRoughnessTextureId = metallicRoughnessTextureId;
+            this.occlusionTextureId = occlusionTextureId;
             this.vertexBytes = vertexBytes;
             this.textureBytes = textureBytes;
             this.normalTextureBytes = normalTextureBytes;
+            this.metallicRoughnessTextureBytes = metallicRoughnessTextureBytes;
+            this.occlusionTextureBytes = occlusionTextureBytes;
         }
     }
 
@@ -233,6 +264,13 @@ final class OpenGlContext {
             uniform sampler2D uAlbedoTexture;
             uniform int uUseNormalTexture;
             uniform sampler2D uNormalTexture;
+            uniform int uUseMetallicRoughnessTexture;
+            uniform sampler2D uMetallicRoughnessTexture;
+            uniform int uUseOcclusionTexture;
+            uniform sampler2D uOcclusionTexture;
+            uniform sampler2D uIblIrradiance;
+            uniform sampler2D uIblRadiance;
+            uniform sampler2D uIblBrdfLut;
             uniform vec3 uDirLightDir;
             uniform vec3 uDirLightColor;
             uniform float uDirLightIntensity;
@@ -252,6 +290,13 @@ final class OpenGlContext {
             uniform int uSmokeEnabled;
             uniform vec3 uSmokeColor;
             uniform float uSmokeIntensity;
+            uniform vec4 uIblParams;
+            uniform int uTonemapEnabled;
+            uniform float uTonemapExposure;
+            uniform float uTonemapGamma;
+            uniform int uBloomEnabled;
+            uniform float uBloomThreshold;
+            uniform float uBloomStrength;
             out vec4 FragColor;
             float distributionGGX(float ndh, float roughness) {
                 float a = roughness * roughness;
@@ -304,6 +349,11 @@ final class OpenGlContext {
                 }
                 float metallic = clamp(uMaterialMetallic, 0.0, 1.0);
                 float roughness = clamp(uMaterialRoughness, 0.04, 1.0);
+                if (uUseMetallicRoughnessTexture == 1) {
+                    vec3 mrTex = texture(uMetallicRoughnessTexture, vUv).rgb;
+                    metallic = clamp(metallic * mrTex.b, 0.0, 1.0);
+                    roughness = clamp(roughness * max(mrTex.g, 0.04), 0.04, 1.0);
+                }
                 vec3 lDir = normalize(-uDirLightDir);
                 vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
                 vec3 halfVec = normalize(lDir + viewDir);
@@ -328,6 +378,30 @@ final class OpenGlContext {
                 float attenuation = 1.0 / (1.0 + 0.35 * dist + 0.1 * dist * dist);
                 vec3 pointLit = (kd * albedo / 3.14159) * uPointLightColor * (pNdl * attenuation * uPointLightIntensity);
                 vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * albedo;
+                if (uUseOcclusionTexture == 1) {
+                    float ao = texture(uOcclusionTexture, vUv).r;
+                    ambient *= clamp(ao, 0.0, 1.0);
+                }
+                if (uIblParams.x > 0.5) {
+                    float iblDiffuseWeight = clamp(uIblParams.y, 0.0, 2.0);
+                    float iblSpecWeight = clamp(uIblParams.z, 0.0, 2.0);
+                    float prefilter = clamp(uIblParams.w, 0.0, 1.0);
+                    vec3 irr = texture(uIblIrradiance, vUv).rgb;
+                    vec3 reflectDir = reflect(-viewDir, normal);
+                    vec2 specUv = clamp(reflectDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
+                    float roughMix = clamp(roughness * (0.5 + 0.5 * prefilter), 0.0, 1.0);
+                    vec2 roughUv = mix(specUv, vUv, roughMix);
+                    vec3 radSharp = texture(uIblRadiance, specUv).rgb;
+                    vec3 radRough = texture(uIblRadiance, roughUv).rgb;
+                    vec3 rad = mix(radSharp, radRough, roughMix);
+                    vec2 brdfUv = vec2(clamp(ndv, 0.0, 1.0), clamp(roughness, 0.0, 1.0));
+                    vec2 brdf = texture(uIblBrdfLut, brdfUv).rg;
+                    float fresnel = pow(1.0 - ndv, 5.0);
+                    vec3 iblDiffuse = albedo * irr * (0.2 + 0.55 * (1.0 - roughness)) * iblDiffuseWeight;
+                    vec3 iblSpec = rad * mix(vec3(0.03), f0, fresnel) * (0.1 + 0.55 * (1.0 - roughness))
+                            * (0.4 + 0.6 * brdf.x + 0.3 * brdf.y) * iblSpecWeight;
+                    ambient += iblDiffuse + iblSpec;
+                }
                 vec3 color = ambient + directional + pointLit;
                 if (uShadowEnabled == 1) {
                     float shadowFactor = clamp(shadowTerm(normal, ndl) * uShadowStrength, 0.0, 0.9);
@@ -346,7 +420,67 @@ final class OpenGlContext {
                     float smokeFactor = clamp(uSmokeIntensity * (0.35 + radial * 0.65), 0.0, 0.85);
                     color = mix(color, uSmokeColor, smokeFactor);
                 }
-                FragColor = vec4(color, 1.0);
+                if (uTonemapEnabled == 1) {
+                    float exposure = max(uTonemapExposure, 0.0001);
+                    float gamma = max(uTonemapGamma, 0.0001);
+                    color = vec3(1.0) - exp(-color * exposure);
+                    color = pow(max(color, vec3(0.0)), vec3(1.0 / gamma));
+                }
+                if (uBloomEnabled == 1) {
+                    float threshold = clamp(uBloomThreshold, 0.0, 4.0);
+                    float strength = clamp(uBloomStrength, 0.0, 2.0);
+                    float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                    float bright = max(0.0, luma - threshold);
+                    float bloom = bright * strength;
+                    color += color * bloom;
+                }
+                FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+            }
+            """;
+
+    private static final String POST_VERTEX_SHADER = """
+            #version 330 core
+            out vec2 vUv;
+            const vec2 POS[3] = vec2[](
+                vec2(-1.0, -1.0),
+                vec2(3.0, -1.0),
+                vec2(-1.0, 3.0)
+            );
+            void main() {
+                vec2 p = POS[gl_VertexID];
+                vUv = p * 0.5 + vec2(0.5);
+                gl_Position = vec4(p, 0.0, 1.0);
+            }
+            """;
+
+    private static final String POST_FRAGMENT_SHADER = """
+            #version 330 core
+            in vec2 vUv;
+            uniform sampler2D uSceneColor;
+            uniform int uTonemapEnabled;
+            uniform float uTonemapExposure;
+            uniform float uTonemapGamma;
+            uniform int uBloomEnabled;
+            uniform float uBloomThreshold;
+            uniform float uBloomStrength;
+            out vec4 FragColor;
+            void main() {
+                vec3 color = texture(uSceneColor, vUv).rgb;
+                if (uTonemapEnabled == 1) {
+                    float exposure = max(uTonemapExposure, 0.0001);
+                    float gamma = max(uTonemapGamma, 0.0001);
+                    color = vec3(1.0) - exp(-color * exposure);
+                    color = pow(max(color, vec3(0.0)), vec3(1.0 / gamma));
+                }
+                if (uBloomEnabled == 1) {
+                    float threshold = clamp(uBloomThreshold, 0.0, 4.0);
+                    float strength = clamp(uBloomStrength, 0.0, 2.0);
+                    float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                    float bright = max(0.0, luma - threshold);
+                    float bloom = bright * strength;
+                    color += color * bloom;
+                }
+                FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
             }
             """;
 
@@ -366,6 +500,13 @@ final class OpenGlContext {
     private int albedoTextureLocation;
     private int useNormalTextureLocation;
     private int normalTextureLocation;
+    private int useMetallicRoughnessTextureLocation;
+    private int metallicRoughnessTextureLocation;
+    private int useOcclusionTextureLocation;
+    private int occlusionTextureLocation;
+    private int iblIrradianceTextureLocation;
+    private int iblRadianceTextureLocation;
+    private int iblBrdfLutTextureLocation;
     private int dirLightDirLocation;
     private int dirLightColorLocation;
     private int dirLightIntensityLocation;
@@ -385,6 +526,26 @@ final class OpenGlContext {
     private int smokeEnabledLocation;
     private int smokeColorLocation;
     private int smokeIntensityLocation;
+    private int iblParamsLocation;
+    private int tonemapEnabledLocation;
+    private int tonemapExposureLocation;
+    private int tonemapGammaLocation;
+    private int bloomEnabledLocation;
+    private int bloomThresholdLocation;
+    private int bloomStrengthLocation;
+    private int postProgramId;
+    private int postSceneColorLocation;
+    private int postTonemapEnabledLocation;
+    private int postTonemapExposureLocation;
+    private int postTonemapGammaLocation;
+    private int postBloomEnabledLocation;
+    private int postBloomThresholdLocation;
+    private int postBloomStrengthLocation;
+    private int postVaoId;
+    private int sceneFramebufferId;
+    private int sceneColorTextureId;
+    private int sceneDepthRenderbufferId;
+    private boolean postProcessPipelineAvailable;
     private float[] viewMatrix = identityMatrix();
     private float[] projMatrix = identityMatrix();
     private boolean fogEnabled;
@@ -398,6 +559,16 @@ final class OpenGlContext {
     private float smokeG = 0.6f;
     private float smokeB = 0.6f;
     private float smokeIntensity;
+    private boolean iblEnabled;
+    private float iblDiffuseStrength;
+    private float iblSpecularStrength;
+    private float iblPrefilterStrength;
+    private boolean tonemapEnabled = true;
+    private float tonemapExposure = 1.0f;
+    private float tonemapGamma = 2.2f;
+    private boolean bloomEnabled;
+    private float bloomThreshold = 1.0f;
+    private float bloomStrength = 0.8f;
     private float dirLightDirX = 0.3f;
     private float dirLightDirY = -1.0f;
     private float dirLightDirZ = 0.25f;
@@ -423,6 +594,9 @@ final class OpenGlContext {
     private int shadowLightViewProjLocation;
     private int shadowFramebufferId;
     private int shadowDepthTextureId;
+    private int iblIrradianceTextureId;
+    private int iblRadianceTextureId;
+    private int iblBrdfLutTextureId;
     private float[] lightViewProjMatrix = identityMatrix();
     private boolean gpuTimerQuerySupported;
     private int gpuTimeQueryId;
@@ -463,15 +637,18 @@ final class OpenGlContext {
 
         initializeShaderPipeline();
         initializeShadowPipeline();
+        initializePostProcessPipeline();
+        recreatePostProcessTargets();
         recreateShadowResources();
         initializeGpuQuerySupport();
-        setSceneMeshes(List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, 0.0f, 0.6f, null, null)));
+        setSceneMeshes(List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, 0.0f, 0.6f, null, null, null, null)));
     }
 
     void resize(int width, int height) {
         this.width = width;
         this.height = height;
         glViewport(0, 0, width, height);
+        recreatePostProcessTargets();
     }
 
     OpenGlFrameMetrics renderFrame() {
@@ -487,6 +664,7 @@ final class OpenGlContext {
         renderGeometryPass();
         renderFogPass();
         renderSmokePass();
+        renderPostProcessPass();
         endFrame();
 
         double cpuMs = (System.nanoTime() - startNs) / 1_000_000.0;
@@ -502,6 +680,11 @@ final class OpenGlContext {
     }
 
     void renderClearPass() {
+        if (useDedicatedPostPass()) {
+            glBindFramebuffer(GL_FRAMEBUFFER, sceneFramebufferId);
+        } else {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
         glClearColor(0.08f, 0.09f, 0.12f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
@@ -511,6 +694,7 @@ final class OpenGlContext {
         glUseProgram(programId);
         applyFogUniforms();
         applySmokeUniforms();
+        applyPostProcessUniforms(useShaderDrivenPost());
         glUniformMatrix4fv(viewLocation, false, viewMatrix);
         glUniformMatrix4fv(projLocation, false, projMatrix);
         glUniformMatrix4fv(lightViewProjLocation, false, lightViewProjMatrix);
@@ -533,6 +717,13 @@ final class OpenGlContext {
             glUniform1f(shadowBiasLocation, shadowBias);
             glUniform1i(shadowPcfRadiusLocation, shadowPcfRadius);
             glUniform1i(shadowCascadeCountLocation, shadowCascadeCount);
+            glUniform4f(
+                    iblParamsLocation,
+                    iblEnabled ? 1f : 0f,
+                    iblDiffuseStrength,
+                    iblSpecularStrength,
+                    iblPrefilterStrength
+            );
             if (mesh.textureId != 0) {
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, mesh.textureId);
@@ -547,8 +738,28 @@ final class OpenGlContext {
             } else {
                 glUniform1i(useNormalTextureLocation, 0);
             }
-            glActiveTexture(GL_TEXTURE0 + 2);
+            if (mesh.metallicRoughnessTextureId != 0) {
+                glActiveTexture(GL_TEXTURE0 + 2);
+                glBindTexture(GL_TEXTURE_2D, mesh.metallicRoughnessTextureId);
+                glUniform1i(useMetallicRoughnessTextureLocation, 1);
+            } else {
+                glUniform1i(useMetallicRoughnessTextureLocation, 0);
+            }
+            if (mesh.occlusionTextureId != 0) {
+                glActiveTexture(GL_TEXTURE0 + 3);
+                glBindTexture(GL_TEXTURE_2D, mesh.occlusionTextureId);
+                glUniform1i(useOcclusionTextureLocation, 1);
+            } else {
+                glUniform1i(useOcclusionTextureLocation, 0);
+            }
+            glActiveTexture(GL_TEXTURE0 + 4);
             glBindTexture(GL_TEXTURE_2D, shadowDepthTextureId);
+            glActiveTexture(GL_TEXTURE0 + 5);
+            glBindTexture(GL_TEXTURE_2D, iblIrradianceTextureId);
+            glActiveTexture(GL_TEXTURE0 + 6);
+            glBindTexture(GL_TEXTURE_2D, iblRadianceTextureId);
+            glActiveTexture(GL_TEXTURE0 + 7);
+            glBindTexture(GL_TEXTURE_2D, iblBrdfLutTextureId);
             glBindVertexArray(mesh.vaoId);
             glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
             lastDrawCalls++;
@@ -558,6 +769,16 @@ final class OpenGlContext {
         glActiveTexture(GL_TEXTURE0 + 1);
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0 + 2);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0 + 3);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0 + 4);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0 + 5);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0 + 6);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0 + 7);
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
@@ -592,6 +813,31 @@ final class OpenGlContext {
         // Smoke is currently applied in the fragment shader during geometry pass.
     }
 
+    void renderPostProcessPass() {
+        if (!useDedicatedPostPass()) {
+            return;
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glViewport(0, 0, width, height);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glUseProgram(postProgramId);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, sceneColorTextureId);
+        glUniform1i(postTonemapEnabledLocation, tonemapEnabled ? 1 : 0);
+        glUniform1f(postTonemapExposureLocation, tonemapExposure);
+        glUniform1f(postTonemapGammaLocation, tonemapGamma);
+        glUniform1i(postBloomEnabledLocation, bloomEnabled ? 1 : 0);
+        glUniform1f(postBloomThresholdLocation, bloomThreshold);
+        glUniform1f(postBloomStrengthLocation, bloomStrength);
+        glDisable(GL_DEPTH_TEST);
+        glBindVertexArray(postVaoId);
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+        glBindVertexArray(0);
+        glEnable(GL_DEPTH_TEST);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glUseProgram(0);
+    }
+
     void endFrame() {
         if (gpuTimerQuerySupported) {
             glEndQuery(GL_TIME_ELAPSED);
@@ -607,9 +853,18 @@ final class OpenGlContext {
     void shutdown() {
         clearSceneMeshes();
         destroyShadowResources();
+        destroyPostProcessResources();
+        if (postVaoId != 0) {
+            glDeleteVertexArrays(postVaoId);
+            postVaoId = 0;
+        }
         if (shadowProgramId != 0) {
             glDeleteProgram(shadowProgramId);
             shadowProgramId = 0;
+        }
+        if (postProgramId != 0) {
+            glDeleteProgram(postProgramId);
+            postProgramId = 0;
         }
         if (programId != 0) {
             glDeleteProgram(programId);
@@ -647,6 +902,47 @@ final class OpenGlContext {
         smokeG = g;
         smokeB = b;
         smokeIntensity = Math.max(0f, Math.min(1f, intensity));
+    }
+
+    void setIblParameters(boolean enabled, float diffuseStrength, float specularStrength, float prefilterStrength) {
+        iblEnabled = enabled;
+        iblDiffuseStrength = Math.max(0f, Math.min(2.0f, diffuseStrength));
+        iblSpecularStrength = Math.max(0f, Math.min(2.0f, specularStrength));
+        iblPrefilterStrength = Math.max(0f, Math.min(1.0f, prefilterStrength));
+    }
+
+    void setIblTexturePaths(Path irradiancePath, Path radiancePath, Path brdfLutPath) {
+        if (iblIrradianceTextureId != 0) {
+            glDeleteTextures(iblIrradianceTextureId);
+            iblIrradianceTextureId = 0;
+        }
+        if (iblRadianceTextureId != 0) {
+            glDeleteTextures(iblRadianceTextureId);
+            iblRadianceTextureId = 0;
+        }
+        if (iblBrdfLutTextureId != 0) {
+            glDeleteTextures(iblBrdfLutTextureId);
+            iblBrdfLutTextureId = 0;
+        }
+        iblIrradianceTextureId = loadTexture(irradiancePath).id();
+        iblRadianceTextureId = loadTexture(radiancePath).id();
+        iblBrdfLutTextureId = loadTexture(brdfLutPath).id();
+    }
+
+    void setPostProcessParameters(
+            boolean tonemapEnabled,
+            float exposure,
+            float gamma,
+            boolean bloomEnabled,
+            float bloomThreshold,
+            float bloomStrength
+    ) {
+        this.tonemapEnabled = tonemapEnabled;
+        tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
+        tonemapGamma = Math.max(0.8f, Math.min(3.2f, gamma));
+        this.bloomEnabled = bloomEnabled;
+        this.bloomThreshold = Math.max(0f, Math.min(4.0f, bloomThreshold));
+        this.bloomStrength = Math.max(0f, Math.min(2.0f, bloomStrength));
     }
 
     void setCameraMatrices(float[] view, float[] proj) {
@@ -726,7 +1022,7 @@ final class OpenGlContext {
     void setSceneMeshes(List<SceneMesh> meshes) {
         clearSceneMeshes();
         List<SceneMesh> effectiveMeshes = meshes == null || meshes.isEmpty()
-                ? List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, 0.0f, 0.6f, null, null))
+                ? List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, 0.0f, 0.6f, null, null, null, null))
                 : meshes;
         for (SceneMesh mesh : effectiveMeshes) {
             sceneMeshes.add(uploadMesh(mesh));
@@ -763,6 +1059,13 @@ final class OpenGlContext {
         albedoTextureLocation = glGetUniformLocation(programId, "uAlbedoTexture");
         useNormalTextureLocation = glGetUniformLocation(programId, "uUseNormalTexture");
         normalTextureLocation = glGetUniformLocation(programId, "uNormalTexture");
+        useMetallicRoughnessTextureLocation = glGetUniformLocation(programId, "uUseMetallicRoughnessTexture");
+        metallicRoughnessTextureLocation = glGetUniformLocation(programId, "uMetallicRoughnessTexture");
+        useOcclusionTextureLocation = glGetUniformLocation(programId, "uUseOcclusionTexture");
+        occlusionTextureLocation = glGetUniformLocation(programId, "uOcclusionTexture");
+        iblIrradianceTextureLocation = glGetUniformLocation(programId, "uIblIrradiance");
+        iblRadianceTextureLocation = glGetUniformLocation(programId, "uIblRadiance");
+        iblBrdfLutTextureLocation = glGetUniformLocation(programId, "uIblBrdfLut");
         dirLightDirLocation = glGetUniformLocation(programId, "uDirLightDir");
         dirLightColorLocation = glGetUniformLocation(programId, "uDirLightColor");
         dirLightIntensityLocation = glGetUniformLocation(programId, "uDirLightIntensity");
@@ -782,12 +1085,100 @@ final class OpenGlContext {
         smokeEnabledLocation = glGetUniformLocation(programId, "uSmokeEnabled");
         smokeColorLocation = glGetUniformLocation(programId, "uSmokeColor");
         smokeIntensityLocation = glGetUniformLocation(programId, "uSmokeIntensity");
+        iblParamsLocation = glGetUniformLocation(programId, "uIblParams");
+        tonemapEnabledLocation = glGetUniformLocation(programId, "uTonemapEnabled");
+        tonemapExposureLocation = glGetUniformLocation(programId, "uTonemapExposure");
+        tonemapGammaLocation = glGetUniformLocation(programId, "uTonemapGamma");
+        bloomEnabledLocation = glGetUniformLocation(programId, "uBloomEnabled");
+        bloomThresholdLocation = glGetUniformLocation(programId, "uBloomThreshold");
+        bloomStrengthLocation = glGetUniformLocation(programId, "uBloomStrength");
 
         glUseProgram(programId);
         glUniform1i(albedoTextureLocation, 0);
         glUniform1i(normalTextureLocation, 1);
-        glUniform1i(shadowMapLocation, 2);
+        glUniform1i(metallicRoughnessTextureLocation, 2);
+        glUniform1i(occlusionTextureLocation, 3);
+        glUniform1i(shadowMapLocation, 4);
+        glUniform1i(iblIrradianceTextureLocation, 5);
+        glUniform1i(iblRadianceTextureLocation, 6);
+        glUniform1i(iblBrdfLutTextureLocation, 7);
         glUseProgram(0);
+    }
+
+    private void initializePostProcessPipeline() throws EngineException {
+        int vertexShaderId = compileShader(GL_VERTEX_SHADER, POST_VERTEX_SHADER);
+        int fragmentShaderId = compileShader(GL_FRAGMENT_SHADER, POST_FRAGMENT_SHADER);
+        postProgramId = glCreateProgram();
+        glAttachShader(postProgramId, vertexShaderId);
+        glAttachShader(postProgramId, fragmentShaderId);
+        glLinkProgram(postProgramId);
+
+        if (glGetProgrami(postProgramId, GL_LINK_STATUS) == 0) {
+            String info = glGetProgramInfoLog(postProgramId);
+            glDeleteShader(vertexShaderId);
+            glDeleteShader(fragmentShaderId);
+            throw new EngineException(EngineErrorCode.SHADER_COMPILATION_FAILED, "Post shader link failed: " + info, false);
+        }
+
+        glDeleteShader(vertexShaderId);
+        glDeleteShader(fragmentShaderId);
+        postSceneColorLocation = glGetUniformLocation(postProgramId, "uSceneColor");
+        postTonemapEnabledLocation = glGetUniformLocation(postProgramId, "uTonemapEnabled");
+        postTonemapExposureLocation = glGetUniformLocation(postProgramId, "uTonemapExposure");
+        postTonemapGammaLocation = glGetUniformLocation(postProgramId, "uTonemapGamma");
+        postBloomEnabledLocation = glGetUniformLocation(postProgramId, "uBloomEnabled");
+        postBloomThresholdLocation = glGetUniformLocation(postProgramId, "uBloomThreshold");
+        postBloomStrengthLocation = glGetUniformLocation(postProgramId, "uBloomStrength");
+        postVaoId = glGenVertexArrays();
+        glUseProgram(postProgramId);
+        glUniform1i(postSceneColorLocation, 0);
+        glUseProgram(0);
+    }
+
+    private void recreatePostProcessTargets() {
+        destroyPostProcessResources();
+        try {
+            sceneColorTextureId = glGenTextures();
+            glBindTexture(GL_TEXTURE_2D, sceneColorTextureId);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
+            glBindTexture(GL_TEXTURE_2D, 0);
+
+            sceneDepthRenderbufferId = glGenRenderbuffers();
+            glBindRenderbuffer(GL_RENDERBUFFER, sceneDepthRenderbufferId);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+            sceneFramebufferId = glGenFramebuffers();
+            glBindFramebuffer(GL_FRAMEBUFFER, sceneFramebufferId);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sceneColorTextureId, 0);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, sceneDepthRenderbufferId);
+            int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            postProcessPipelineAvailable = status == GL_FRAMEBUFFER_COMPLETE;
+        } catch (Throwable ignored) {
+            postProcessPipelineAvailable = false;
+        }
+        if (!postProcessPipelineAvailable) {
+            destroyPostProcessResources();
+        }
+    }
+
+    private void destroyPostProcessResources() {
+        if (sceneFramebufferId != 0) {
+            glDeleteFramebuffers(sceneFramebufferId);
+            sceneFramebufferId = 0;
+        }
+        if (sceneColorTextureId != 0) {
+            glDeleteTextures(sceneColorTextureId);
+            sceneColorTextureId = 0;
+        }
+        if (sceneDepthRenderbufferId != 0) {
+            glDeleteRenderbuffers(sceneDepthRenderbufferId);
+            sceneDepthRenderbufferId = 0;
+        }
+        postProcessPipelineAvailable = false;
     }
 
     private MeshBuffer uploadMesh(SceneMesh mesh) {
@@ -809,6 +1200,8 @@ final class OpenGlContext {
 
         TextureData albedoTexture = loadTexture(mesh.albedoTexturePath());
         TextureData normalTexture = loadTexture(mesh.normalTexturePath());
+        TextureData metallicRoughnessTexture = loadTexture(mesh.metallicRoughnessTexturePath());
+        TextureData occlusionTexture = loadTexture(mesh.occlusionTexturePath());
         long vertexBytes = (long) mesh.geometry().vertices().length * Float.BYTES;
         return new MeshBuffer(
                 vaoId,
@@ -820,45 +1213,143 @@ final class OpenGlContext {
                 clamp01(mesh.roughness()),
                 albedoTexture.id(),
                 normalTexture.id(),
+                metallicRoughnessTexture.id(),
+                occlusionTexture.id(),
                 vertexBytes,
                 albedoTexture.bytes(),
-                normalTexture.bytes()
+                normalTexture.bytes(),
+                metallicRoughnessTexture.bytes(),
+                occlusionTexture.bytes()
         );
     }
 
     private TextureData loadTexture(Path texturePath) {
-        if (texturePath == null || !Files.isRegularFile(texturePath)) {
+        Path sourcePath = resolveContainerSourcePath(texturePath);
+        if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
             return new TextureData(0, 0);
         }
         try {
-            BufferedImage image = ImageIO.read(texturePath.toFile());
-            if (image == null) {
+            BufferedImage image = ImageIO.read(sourcePath.toFile());
+            if (image != null) {
+                int width = image.getWidth();
+                int height = image.getHeight();
+                ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        int argb = image.getRGB(x, y);
+                        rgba.put((byte) ((argb >> 16) & 0xFF));
+                        rgba.put((byte) ((argb >> 8) & 0xFF));
+                        rgba.put((byte) (argb & 0xFF));
+                        rgba.put((byte) ((argb >> 24) & 0xFF));
+                    }
+                }
+                rgba.flip();
+                return uploadRgbaTexture(rgba, width, height);
+            }
+        } catch (IOException ignored) {
+            // Fall through to stb path.
+        }
+        return loadTextureViaStb(sourcePath);
+    }
+
+    private TextureData loadTextureViaStb(Path texturePath) {
+        String path = texturePath.toAbsolutePath().toString();
+        try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
+            var x = stack.mallocInt(1);
+            var y = stack.mallocInt(1);
+            var channels = stack.mallocInt(1);
+            if (!stbi_info(path, x, y, channels)) {
                 return new TextureData(0, 0);
             }
-            int width = image.getWidth();
-            int height = image.getHeight();
-            ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    int argb = image.getRGB(x, y);
-                    rgba.put((byte) ((argb >> 16) & 0xFF));
-                    rgba.put((byte) ((argb >> 8) & 0xFF));
-                    rgba.put((byte) (argb & 0xFF));
-                    rgba.put((byte) ((argb >> 24) & 0xFF));
+            int width = x.get(0);
+            int height = y.get(0);
+            if (width <= 0 || height <= 0) {
+                return new TextureData(0, 0);
+            }
+
+            if (stbi_is_hdr(path)) {
+                FloatBuffer hdr = stbi_loadf(path, x, y, channels, 4);
+                if (hdr == null) {
+                    return new TextureData(0, 0);
+                }
+                try {
+                    ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
+                    for (int i = 0; i < width * height; i++) {
+                        float r = hdr.get(i * 4);
+                        float g = hdr.get(i * 4 + 1);
+                        float b = hdr.get(i * 4 + 2);
+                        float a = hdr.get(i * 4 + 3);
+                        int rb = toLdrByte(r);
+                        int gb = toLdrByte(g);
+                        int bb = toLdrByte(b);
+                        int ab = Math.max(0, Math.min(255, Math.round(Math.max(0f, Math.min(1f, a)) * 255f)));
+                        rgba.put((byte) rb).put((byte) gb).put((byte) bb).put((byte) ab);
+                    }
+                    rgba.flip();
+                    return uploadRgbaTexture(rgba, width, height);
+                } finally {
+                    stbi_image_free(hdr);
                 }
             }
-            rgba.flip();
 
-            int textureId = glGenTextures();
-            glBindTexture(GL_TEXTURE_2D, textureId);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-            glBindTexture(GL_TEXTURE_2D, 0);
-            return new TextureData(textureId, (long) width * height * 4L);
-        } catch (IOException ignored) {
+            ByteBuffer ldr = stbi_load(path, x, y, channels, 4);
+            if (ldr == null) {
+                return new TextureData(0, 0);
+            }
+            try {
+                return uploadRgbaTexture(ldr, width, height);
+            } finally {
+                stbi_image_free(ldr);
+            }
+        } catch (Throwable ignored) {
             return new TextureData(0, 0);
         }
+    }
+
+    private TextureData uploadRgbaTexture(ByteBuffer rgba, int width, int height) {
+        int textureId = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, textureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        return new TextureData(textureId, (long) width * height * 4L);
+    }
+
+    private int toLdrByte(float hdrValue) {
+        float toneMapped = hdrValue / (1.0f + Math.max(0f, hdrValue));
+        float gammaCorrected = (float) Math.pow(Math.max(0f, toneMapped), 1.0 / 2.2);
+        return Math.max(0, Math.min(255, Math.round(gammaCorrected * 255f)));
+    }
+
+    private static Path resolveContainerSourcePath(Path requestedPath) {
+        if (requestedPath == null || !Files.isRegularFile(requestedPath) || !isKtxContainerPath(requestedPath)) {
+            return requestedPath;
+        }
+        String fileName = requestedPath.getFileName() == null ? null : requestedPath.getFileName().toString();
+        if (fileName == null) {
+            return requestedPath;
+        }
+        int dot = fileName.lastIndexOf('.');
+        if (dot <= 0) {
+            return requestedPath;
+        }
+        String baseName = fileName.substring(0, dot);
+        for (String ext : new String[]{".png", ".hdr", ".jpg", ".jpeg"}) {
+            Path candidate = requestedPath.resolveSibling(baseName + ext);
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+        }
+        return requestedPath;
+    }
+
+    private static boolean isKtxContainerPath(Path path) {
+        if (path == null || path.getFileName() == null) {
+            return false;
+        }
+        String name = path.getFileName().toString().toLowerCase();
+        return name.endsWith(".ktx") || name.endsWith(".ktx2");
     }
 
     private void clearSceneMeshes() {
@@ -868,6 +1359,12 @@ final class OpenGlContext {
             }
             if (mesh.normalTextureId != 0) {
                 glDeleteTextures(mesh.normalTextureId);
+            }
+            if (mesh.metallicRoughnessTextureId != 0) {
+                glDeleteTextures(mesh.metallicRoughnessTextureId);
+            }
+            if (mesh.occlusionTextureId != 0) {
+                glDeleteTextures(mesh.occlusionTextureId);
             }
             glDeleteBuffers(mesh.vboId);
             glDeleteVertexArrays(mesh.vaoId);
@@ -882,6 +1379,8 @@ final class OpenGlContext {
             bytes += mesh.vertexBytes;
             bytes += mesh.textureBytes;
             bytes += mesh.normalTextureBytes;
+            bytes += mesh.metallicRoughnessTextureBytes;
+            bytes += mesh.occlusionTextureBytes;
         }
         return bytes;
     }
@@ -915,6 +1414,23 @@ final class OpenGlContext {
         glUniform1i(smokeEnabledLocation, smokeEnabled ? 1 : 0);
         glUniform3f(smokeColorLocation, smokeR, smokeG, smokeB);
         glUniform1f(smokeIntensityLocation, smokeIntensity);
+    }
+
+    private void applyPostProcessUniforms(boolean shaderDrivenEnabled) {
+        glUniform1i(tonemapEnabledLocation, shaderDrivenEnabled && tonemapEnabled ? 1 : 0);
+        glUniform1f(tonemapExposureLocation, tonemapExposure);
+        glUniform1f(tonemapGammaLocation, tonemapGamma);
+        glUniform1i(bloomEnabledLocation, shaderDrivenEnabled && bloomEnabled ? 1 : 0);
+        glUniform1f(bloomThresholdLocation, bloomThreshold);
+        glUniform1f(bloomStrengthLocation, bloomStrength);
+    }
+
+    private boolean useDedicatedPostPass() {
+        return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled);
+    }
+
+    private boolean useShaderDrivenPost() {
+        return !useDedicatedPostPass();
     }
 
     private void initializeShadowPipeline() throws EngineException {

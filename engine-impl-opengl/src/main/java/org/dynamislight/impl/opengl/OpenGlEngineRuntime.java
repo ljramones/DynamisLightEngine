@@ -1,6 +1,10 @@
 package org.dynamislight.impl.opengl;
 
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.nio.FloatBuffer;
 import java.nio.file.Path;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,12 +16,14 @@ import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.scene.CameraDesc;
+import org.dynamislight.api.scene.EnvironmentDesc;
 import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.FogMode;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
@@ -34,6 +40,26 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     }
 
     private record SmokeRenderConfig(boolean enabled, float r, float g, float b, float intensity, boolean degraded) {
+    }
+
+    private record PostProcessRenderConfig(
+            boolean tonemapEnabled,
+            float exposure,
+            float gamma,
+            boolean bloomEnabled,
+            float bloomThreshold,
+            float bloomStrength
+    ) {
+    }
+
+    private record IblRenderConfig(
+            boolean enabled,
+            float diffuseStrength,
+            float specularStrength,
+            boolean textureDriven,
+            boolean ktxContainerRequested,
+            float prefilterStrength
+    ) {
     }
 
     static record CameraMatrices(float[] view, float[] proj) {
@@ -56,6 +82,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
+    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f);
+    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, 0f);
 
     public OpenGlEngineRuntime() {
         super(
@@ -94,6 +122,16 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         context.initialize(config.appName(), config.initialWidthPx(), config.initialHeightPx(), config.vsyncEnabled(), windowVisible);
         context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
         context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
+        context.setIblParameters(ibl.enabled(), ibl.diffuseStrength(), ibl.specularStrength(), ibl.prefilterStrength());
+        context.setIblTexturePaths(null, null, null);
+        context.setPostProcessParameters(
+                postProcess.tonemapEnabled(),
+                postProcess.exposure(),
+                postProcess.gamma(),
+                postProcess.bloomEnabled(),
+                postProcess.bloomThreshold(),
+                postProcess.bloomStrength()
+        );
         frameGraph = buildFrameGraph();
     }
 
@@ -103,6 +141,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         fog = mapFog(scene.fog(), qualityTier);
         smoke = mapSmoke(scene.smokeEmitters(), qualityTier);
         shadows = mapShadows(scene.lights(), qualityTier);
+        postProcess = mapPostProcess(scene.postProcess(), qualityTier);
+        ibl = mapIbl(scene.environment(), qualityTier);
 
         List<OpenGlContext.SceneMesh> sceneMeshes = mapSceneMeshes(scene);
         plannedDrawCalls = sceneMeshes.size();
@@ -134,6 +174,20 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             );
             context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
+            context.setIblParameters(ibl.enabled(), ibl.diffuseStrength(), ibl.specularStrength(), ibl.prefilterStrength());
+            context.setIblTexturePaths(
+                    resolveIblTexturePath(scene.environment() == null ? null : scene.environment().iblIrradiancePath()),
+                    resolveIblTexturePath(scene.environment() == null ? null : scene.environment().iblRadiancePath()),
+                    resolveIblTexturePath(scene.environment() == null ? null : scene.environment().iblBrdfLutPath())
+            );
+            context.setPostProcessParameters(
+                    postProcess.tonemapEnabled(),
+                    postProcess.exposure(),
+                    postProcess.gamma(),
+                    postProcess.bloomEnabled(),
+                    postProcess.bloomThreshold(),
+                    postProcess.bloomStrength()
+            );
             frameGraph = buildFrameGraph();
         }
     }
@@ -200,6 +254,24 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     "SHADOW_QUALITY_DEGRADED",
                     "Shadow quality reduced for tier " + qualityTier + " to maintain performance"
             ));
+        }
+        if (ibl.enabled()) {
+            warnings.add(new EngineWarning(
+                    "IBL_BASELINE_ACTIVE",
+                    "IBL baseline enabled using "
+                            + (ibl.textureDriven() ? "texture-driven" : "path-driven")
+                            + " environment diffuse/specular approximations"
+            ));
+            warnings.add(new EngineWarning(
+                    "IBL_PREFILTER_APPROX_ACTIVE",
+                    "IBL roughness-aware radiance prefilter approximation active (strength=" + ibl.prefilterStrength() + ")"
+            ));
+            if (ibl.ktxContainerRequested()) {
+                warnings.add(new EngineWarning(
+                        "IBL_KTX_CONTAINER_FALLBACK",
+                        "KTX/KTX2 IBL assets are resolved through sidecar decode paths when available (.png/.hdr/.jpg/.jpeg)"
+                ));
+            }
         }
         return warnings;
     }
@@ -294,6 +366,92 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    private static PostProcessRenderConfig mapPostProcess(PostProcessDesc desc, QualityTier qualityTier) {
+        if (desc == null || !desc.enabled()) {
+            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f);
+        }
+        float tierExposureScale = switch (qualityTier) {
+            case LOW -> 0.9f;
+            case MEDIUM -> 1.0f;
+            case HIGH -> 1.05f;
+            case ULTRA -> 1.1f;
+        };
+        float exposure = Math.max(0.25f, Math.min(4.0f, desc.exposure() * tierExposureScale));
+        float gamma = Math.max(1.6f, Math.min(2.6f, desc.gamma()));
+        float bloomThreshold = Math.max(0.2f, Math.min(2.5f, desc.bloomThreshold()));
+        float bloomStrength = Math.max(0f, Math.min(1.6f, desc.bloomStrength()));
+        boolean bloomEnabled = desc.bloomEnabled() && qualityTier != QualityTier.LOW;
+        return new PostProcessRenderConfig(
+                desc.tonemapEnabled(),
+                exposure,
+                gamma,
+                bloomEnabled,
+                bloomThreshold,
+                bloomStrength
+        );
+    }
+
+    private IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier) {
+        if (environment == null) {
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f);
+        }
+        boolean enabled = !isBlank(environment.iblIrradiancePath())
+                && !isBlank(environment.iblRadiancePath())
+                && !isBlank(environment.iblBrdfLutPath());
+        if (!enabled) {
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f);
+        }
+        float tierScale = switch (qualityTier) {
+            case LOW -> 0.75f;
+            case MEDIUM -> 0.9f;
+            case HIGH -> 1.0f;
+            case ULTRA -> 1.1f;
+        };
+        float diffuse = 0.42f * tierScale;
+        float specular = 0.30f * tierScale;
+        float prefilterStrength = switch (qualityTier) {
+            case LOW -> 0.5f;
+            case MEDIUM -> 0.7f;
+            case HIGH -> 0.85f;
+            case ULTRA -> 1.0f;
+        };
+        boolean textureDriven = false;
+
+        Path irrSource = resolveTexturePath(environment.iblIrradiancePath());
+        Path radSource = resolveTexturePath(environment.iblRadiancePath());
+        Path brdfSource = resolveTexturePath(environment.iblBrdfLutPath());
+        boolean ktxContainerRequested = isKtxContainerPath(irrSource)
+                || isKtxContainerPath(radSource)
+                || isKtxContainerPath(brdfSource);
+
+        Path irr = resolveContainerSourcePath(irrSource);
+        Path rad = resolveContainerSourcePath(radSource);
+        Path brdf = resolveContainerSourcePath(brdfSource);
+        float irrSignal = imageLuminanceSignal(irr);
+        float radSignal = imageLuminanceSignal(rad);
+        float brdfSignal = imageLuminanceSignal(brdf);
+        if (irrSignal >= 0f || radSignal >= 0f || brdfSignal >= 0f) {
+            float irrUsed = irrSignal < 0f ? 0.5f : irrSignal;
+            float radUsed = radSignal < 0f ? 0.5f : radSignal;
+            float brdfUsed = brdfSignal < 0f ? 0.5f : brdfSignal;
+            float diffuseScale = 0.82f + 0.36f * irrUsed;
+            float specScale = 0.78f + 0.42f * ((radUsed * 0.6f) + (brdfUsed * 0.4f));
+            diffuse *= diffuseScale;
+            specular *= specScale;
+            prefilterStrength = Math.max(prefilterStrength, 0.65f + 0.35f * radUsed);
+            textureDriven = true;
+        }
+
+        return new IblRenderConfig(
+                true,
+                Math.max(0f, Math.min(2.0f, diffuse)),
+                Math.max(0f, Math.min(2.0f, specular)),
+                textureDriven,
+                ktxContainerRequested,
+                Math.max(0f, Math.min(1f, prefilterStrength))
+        );
+    }
+
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
         if (lights == null || lights.isEmpty()) {
             return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
@@ -337,6 +495,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     0.0f,
                     0.6f,
                     null,
+                    null,
+                    null,
                     null
             ));
         }
@@ -362,6 +522,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             float[] albedo = albedoOf(material);
             Path albedoTexturePath = resolveTexturePath(material == null ? null : material.albedoTexturePath());
             Path normalTexturePath = resolveTexturePath(material == null ? null : material.normalTexturePath());
+            Path metallicRoughnessTexturePath =
+                    resolveTexturePath(material == null ? null : material.metallicRoughnessTexturePath());
+            Path occlusionTexturePath = resolveTexturePath(material == null ? null : material.occlusionTexturePath());
             float metallic = material == null ? 0.0f : clamp01(material.metallic());
             float roughness = material == null ? 0.6f : clamp01(material.roughness());
             sceneMeshes.add(new OpenGlContext.SceneMesh(
@@ -371,7 +534,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     metallic,
                     roughness,
                     albedoTexturePath,
-                    normalTexturePath
+                    normalTexturePath,
+                    metallicRoughnessTexturePath,
+                    occlusionTexturePath
             ));
         }
         return sceneMeshes;
@@ -504,11 +669,133 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         return path.isAbsolute() ? path : assetRoot.resolve(path).normalize();
     }
 
+    private Path resolveIblTexturePath(String texturePath) {
+        return resolveContainerSourcePath(resolveTexturePath(texturePath));
+    }
+
     private static float safeAspect(int width, int height) {
         if (height <= 0) {
             return 16f / 9f;
         }
         return Math.max(0.1f, (float) width / (float) height);
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static float imageLuminanceSignal(Path path) {
+        Path sourcePath = resolveContainerSourcePath(path);
+        if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
+            return -1f;
+        }
+        String name = sourcePath.getFileName() == null ? "" : sourcePath.getFileName().toString().toLowerCase();
+        boolean imageIoSupported = name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg");
+        boolean hdrSupported = name.endsWith(".hdr");
+        if (!imageIoSupported && !hdrSupported) {
+            return -1f;
+        }
+        if (hdrSupported) {
+            try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
+                var x = stack.mallocInt(1);
+                var y = stack.mallocInt(1);
+                var channels = stack.mallocInt(1);
+                FloatBuffer hdr = org.lwjgl.stb.STBImage.stbi_loadf(sourcePath.toAbsolutePath().toString(), x, y, channels, 3);
+                if (hdr == null || x.get(0) <= 0 || y.get(0) <= 0) {
+                    return -1f;
+                }
+                try {
+                    int width = x.get(0);
+                    int height = y.get(0);
+                    int stepX = Math.max(1, width / 64);
+                    int stepY = Math.max(1, height / 64);
+                    double sum = 0.0;
+                    int count = 0;
+                    for (int yIdx = 0; yIdx < height; yIdx += stepY) {
+                        for (int xIdx = 0; xIdx < width; xIdx += stepX) {
+                            int idx = (yIdx * width + xIdx) * 3;
+                            float r = hdr.get(idx);
+                            float g = hdr.get(idx + 1);
+                            float b = hdr.get(idx + 2);
+                            float ldrR = toneMapLdr(r);
+                            float ldrG = toneMapLdr(g);
+                            float ldrB = toneMapLdr(b);
+                            sum += (0.2126 * ldrR) + (0.7152 * ldrG) + (0.0722 * ldrB);
+                            count++;
+                        }
+                    }
+                    if (count == 0) {
+                        return -1f;
+                    }
+                    return (float) Math.max(0.0, Math.min(1.0, sum / count));
+                } finally {
+                    org.lwjgl.stb.STBImage.stbi_image_free(hdr);
+                }
+            } catch (Throwable ignored) {
+                return -1f;
+            }
+        }
+        try {
+            BufferedImage image = javax.imageio.ImageIO.read(sourcePath.toFile());
+            if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) {
+                return -1f;
+            }
+            int stepX = Math.max(1, image.getWidth() / 64);
+            int stepY = Math.max(1, image.getHeight() / 64);
+            double sum = 0.0;
+            int count = 0;
+            for (int y = 0; y < image.getHeight(); y += stepY) {
+                for (int x = 0; x < image.getWidth(); x += stepX) {
+                    int argb = image.getRGB(x, y);
+                    float r = ((argb >> 16) & 0xFF) / 255f;
+                    float g = ((argb >> 8) & 0xFF) / 255f;
+                    float b = (argb & 0xFF) / 255f;
+                    sum += (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+                    count++;
+                }
+            }
+            if (count == 0) {
+                return -1f;
+            }
+            return (float) Math.max(0.0, Math.min(1.0, sum / count));
+        } catch (IOException ignored) {
+            return -1f;
+        }
+    }
+
+    private static Path resolveContainerSourcePath(Path requestedPath) {
+        if (requestedPath == null || !Files.isRegularFile(requestedPath) || !isKtxContainerPath(requestedPath)) {
+            return requestedPath;
+        }
+        String fileName = requestedPath.getFileName() == null ? null : requestedPath.getFileName().toString();
+        if (fileName == null) {
+            return requestedPath;
+        }
+        int dot = fileName.lastIndexOf('.');
+        if (dot <= 0) {
+            return requestedPath;
+        }
+        String baseName = fileName.substring(0, dot);
+        for (String ext : new String[]{".png", ".hdr", ".jpg", ".jpeg"}) {
+            Path candidate = requestedPath.resolveSibling(baseName + ext);
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+        }
+        return requestedPath;
+    }
+
+    private static boolean isKtxContainerPath(Path path) {
+        if (path == null || path.getFileName() == null) {
+            return false;
+        }
+        String name = path.getFileName().toString().toLowerCase();
+        return name.endsWith(".ktx") || name.endsWith(".ktx2");
+    }
+
+    private static float toneMapLdr(float hdrValue) {
+        float toneMapped = hdrValue / (1.0f + Math.max(0f, hdrValue));
+        return (float) Math.pow(Math.max(0f, toneMapped), 1.0 / 2.2);
     }
 
     private static float clamp01(float value) {
@@ -526,6 +813,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             builder.addPass(pass("smoke", fog.enabled() ? Set.of("fog") : Set.of("geometry"),
                     Set.of("color"), Set.of("color"), context::renderSmokePass));
         }
+        String postDependency = smoke.enabled() ? "smoke" : (fog.enabled() ? "fog" : "geometry");
+        builder.addPass(pass("post", Set.of(postDependency), Set.of("color"), Set.of("color"), context::renderPostProcessPass));
         return builder.build();
     }
 

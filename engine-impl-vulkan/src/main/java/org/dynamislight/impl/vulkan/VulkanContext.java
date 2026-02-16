@@ -52,6 +52,11 @@ import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_compilation_stat
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_error_message;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_release;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compilation_status_success;
+import static org.lwjgl.stb.STBImage.stbi_image_free;
+import static org.lwjgl.stb.STBImage.stbi_info;
+import static org.lwjgl.stb.STBImage.stbi_is_hdr;
+import static org.lwjgl.stb.STBImage.stbi_load;
+import static org.lwjgl.stb.STBImage.stbi_loadf;
 import static org.lwjgl.vulkan.KHRSurface.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 import static org.lwjgl.vulkan.KHRSurface.VK_PRESENT_MODE_FIFO_KHR;
@@ -262,6 +267,7 @@ import org.lwjgl.vulkan.VkExtent2D;
 import org.lwjgl.vulkan.VkFenceCreateInfo;
 import org.lwjgl.vulkan.VkFramebufferCreateInfo;
 import org.lwjgl.vulkan.VkImageCreateInfo;
+import org.lwjgl.vulkan.VkImageCopy;
 import org.lwjgl.vulkan.VkImageMemoryBarrier;
 import org.lwjgl.vulkan.VkImageSubresourceRange;
 import org.lwjgl.vulkan.VkImageViewCreateInfo;
@@ -305,7 +311,7 @@ final class VulkanContext {
     private static final int MAX_FRAMES_IN_FLIGHT = 3;
     private static final int MAX_DYNAMIC_SCENE_OBJECTS = 2048;
     private static final int MAX_SHADOW_CASCADES = 4;
-    private static final int GLOBAL_UNIFORM_BYTES = 656;
+    private static final int GLOBAL_UNIFORM_BYTES = 704;
     private VkInstance instance;
     private VkPhysicalDevice physicalDevice;
     private VkDevice device;
@@ -411,6 +417,36 @@ final class VulkanContext {
     private float smokeG = 0.6f;
     private float smokeB = 0.6f;
     private float smokeIntensity;
+    private boolean iblEnabled;
+    private float iblDiffuseStrength;
+    private float iblSpecularStrength;
+    private float iblPrefilterStrength;
+    private Path iblIrradiancePath;
+    private Path iblRadiancePath;
+    private Path iblBrdfLutPath;
+    private GpuTexture iblIrradianceTexture;
+    private GpuTexture iblRadianceTexture;
+    private GpuTexture iblBrdfLutTexture;
+    private boolean tonemapEnabled;
+    private float tonemapExposure = 1.0f;
+    private float tonemapGamma = 2.2f;
+    private boolean bloomEnabled;
+    private float bloomThreshold = 1.0f;
+    private float bloomStrength = 0.8f;
+    private boolean postOffscreenRequested;
+    private boolean postOffscreenActive;
+    private long offscreenColorImage = VK_NULL_HANDLE;
+    private long offscreenColorMemory = VK_NULL_HANDLE;
+    private long offscreenColorImageView = VK_NULL_HANDLE;
+    private long offscreenColorSampler = VK_NULL_HANDLE;
+    private long postRenderPass = VK_NULL_HANDLE;
+    private long postPipelineLayout = VK_NULL_HANDLE;
+    private long postGraphicsPipeline = VK_NULL_HANDLE;
+    private long postDescriptorSetLayout = VK_NULL_HANDLE;
+    private long postDescriptorPool = VK_NULL_HANDLE;
+    private long postDescriptorSet = VK_NULL_HANDLE;
+    private long[] postFramebuffers = new long[0];
+    private boolean postIntermediateInitialized;
 
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
         initWindow(appName, width, height, windowVisible);
@@ -493,6 +529,11 @@ final class VulkanContext {
                 shadowCascadeSplitNdc[1],
                 shadowCascadeSplitNdc[2]
         );
+    }
+
+    PostProcessPipelineProfile postProcessPipelineProfile() {
+        String mode = postOffscreenActive ? "offscreen" : "shader-fallback";
+        return new PostProcessPipelineProfile(postOffscreenRequested, postOffscreenActive, mode);
     }
 
     void setSceneMeshes(List<SceneMeshData> sceneMeshes) throws EngineException {
@@ -593,6 +634,41 @@ final class VulkanContext {
         smokeG = g;
         smokeB = b;
         smokeIntensity = Math.max(0f, Math.min(1f, intensity));
+    }
+
+    void setIblParameters(boolean enabled, float diffuseStrength, float specularStrength, float prefilterStrength) {
+        iblEnabled = enabled;
+        iblDiffuseStrength = Math.max(0f, Math.min(2.0f, diffuseStrength));
+        iblSpecularStrength = Math.max(0f, Math.min(2.0f, specularStrength));
+        iblPrefilterStrength = Math.max(0f, Math.min(1.0f, prefilterStrength));
+    }
+
+    void setIblTexturePaths(Path irradiancePath, Path radiancePath, Path brdfLutPath) {
+        iblIrradiancePath = irradiancePath;
+        iblRadiancePath = radiancePath;
+        iblBrdfLutPath = brdfLutPath;
+    }
+
+    void setPostProcessParameters(
+            boolean tonemapEnabled,
+            float exposure,
+            float gamma,
+            boolean bloomEnabled,
+            float bloomThreshold,
+            float bloomStrength
+    ) {
+        this.tonemapEnabled = tonemapEnabled;
+        tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
+        tonemapGamma = Math.max(0.8f, Math.min(3.2f, gamma));
+        this.bloomEnabled = bloomEnabled;
+        this.bloomThreshold = Math.max(0f, Math.min(4.0f, bloomThreshold));
+        this.bloomStrength = Math.max(0f, Math.min(2.0f, bloomStrength));
+    }
+
+    void configurePostProcessMode(boolean requestOffscreen) {
+        postOffscreenRequested = requestOffscreen;
+        // Keep existing shader-driven post as safe fallback until Vulkan offscreen chain is fully wired.
+        postOffscreenActive = false;
     }
 
     void shutdown() {
@@ -846,7 +922,7 @@ final class VulkanContext {
         }
         descriptorSetLayout = pLayout.get(0);
 
-        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(5, stack);
+        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(8, stack);
         textureBindings.get(0)
                 .binding(0)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
@@ -869,6 +945,21 @@ final class VulkanContext {
                 .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
         textureBindings.get(4)
                 .binding(4)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
+        textureBindings.get(5)
+                .binding(5)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
+        textureBindings.get(6)
+                .binding(6)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
+        textureBindings.get(7)
+                .binding(7)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -1087,6 +1178,16 @@ final class VulkanContext {
         createRenderPass(stack);
         createGraphicsPipeline(stack);
         createFramebuffers(stack);
+        postOffscreenActive = false;
+        if (postOffscreenRequested) {
+            try {
+                createPostProcessResources(stack);
+                postOffscreenActive = true;
+            } catch (EngineException ex) {
+                destroyPostProcessResources();
+                postOffscreenActive = false;
+            }
+        }
     }
 
     private void createImageViews(MemoryStack stack) throws EngineException {
@@ -1268,6 +1369,9 @@ final class VulkanContext {
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
                     vec4 uSmokeColor;
+                    vec4 uIbl;
+                    vec4 uPostProcess;
+                    vec4 uBloom;
                     mat4 uShadowLightViewProj[4];
                 } ubo;
                 layout(push_constant) uniform ShadowPush {
@@ -1509,6 +1613,9 @@ final class VulkanContext {
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
                     vec4 uSmokeColor;
+                    vec4 uIbl;
+                    vec4 uPostProcess;
+                    vec4 uBloom;
                     mat4 uShadowLightViewProj[4];
                 } ubo;
                 void main() {
@@ -1547,6 +1654,9 @@ final class VulkanContext {
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
                     vec4 uSmokeColor;
+                    vec4 uIbl;
+                    vec4 uPostProcess;
+                    vec4 uBloom;
                     mat4 uShadowLightViewProj[4];
                 } ubo;
                 layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
@@ -1554,6 +1664,9 @@ final class VulkanContext {
                 layout(set = 1, binding = 2) uniform sampler2D uMetallicRoughnessTexture;
                 layout(set = 1, binding = 3) uniform sampler2D uOcclusionTexture;
                 layout(set = 1, binding = 4) uniform sampler2DArrayShadow uShadowMap;
+                layout(set = 1, binding = 5) uniform sampler2D uIblIrradianceTexture;
+                layout(set = 1, binding = 6) uniform sampler2D uIblRadianceTexture;
+                layout(set = 1, binding = 7) uniform sampler2D uIblBrdfLutTexture;
                 layout(location = 0) out vec4 outColor;
                 float distributionGGX(float ndh, float roughness) {
                     float a = roughness * roughness;
@@ -1671,7 +1784,41 @@ final class VulkanContext {
                         float smokeFactor = clamp(ubo.uSmoke.y * (0.35 + radial * 0.65), 0.0, 0.85);
                         color = mix(color, ubo.uSmokeColor.rgb, smokeFactor);
                     }
-                    outColor = vec4(clamp(color, 0.0, 2.2), 1.0);
+                    if (ubo.uIbl.x > 0.5) {
+                        float iblDiffuseWeight = clamp(ubo.uIbl.y, 0.0, 2.0);
+                        float iblSpecWeight = clamp(ubo.uIbl.z, 0.0, 2.0);
+                        float prefilter = clamp(ubo.uIbl.w, 0.0, 1.0);
+                        vec3 irr = texture(uIblIrradianceTexture, vUv).rgb;
+                        vec3 reflectDir = reflect(-viewDir, normal);
+                        vec2 specUv = clamp(reflectDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
+                        float roughMix = clamp(roughness * (0.5 + 0.5 * prefilter), 0.0, 1.0);
+                        vec2 roughUv = mix(specUv, vUv, roughMix);
+                        vec3 radSharp = texture(uIblRadianceTexture, specUv).rgb;
+                        vec3 radRough = texture(uIblRadianceTexture, roughUv).rgb;
+                        vec3 rad = mix(radSharp, radRough, roughMix);
+                        vec2 brdfUv = vec2(clamp(ndv, 0.0, 1.0), clamp(roughness, 0.0, 1.0));
+                        vec2 brdf = texture(uIblBrdfLutTexture, brdfUv).rg;
+                        float fresnel = pow(1.0 - ndv, 5.0);
+                        vec3 iblDiffuse = baseColor * ao * irr * (0.2 + 0.55 * (1.0 - roughness)) * iblDiffuseWeight;
+                        vec3 iblSpec = rad * mix(vec3(0.03), f0, fresnel) * (0.1 + 0.55 * (1.0 - roughness))
+                                * (0.4 + 0.6 * brdf.x + 0.3 * brdf.y) * iblSpecWeight;
+                        color += iblDiffuse + iblSpec;
+                    }
+                    if (ubo.uPostProcess.x > 0.5) {
+                        float exposure = max(ubo.uPostProcess.y, 0.0001);
+                        float gamma = max(ubo.uPostProcess.z, 0.0001);
+                        color = vec3(1.0) - exp(-color * exposure);
+                        color = pow(max(color, vec3(0.0)), vec3(1.0 / gamma));
+                    }
+                    if (ubo.uBloom.x > 0.5) {
+                        float threshold = clamp(ubo.uBloom.y, 0.0, 4.0);
+                        float strength = clamp(ubo.uBloom.z, 0.0, 2.0);
+                        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                        float bright = max(0.0, luma - threshold);
+                        float bloom = bright * strength;
+                        color += color * bloom;
+                    }
+                    outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 }
                 """;
 
@@ -1898,6 +2045,274 @@ final class VulkanContext {
         }
     }
 
+    private void createPostProcessResources(MemoryStack stack) throws EngineException {
+        postIntermediateInitialized = false;
+
+        ImageAlloc intermediate = createImage(
+                stack,
+                swapchainWidth,
+                swapchainHeight,
+                swapchainImageFormat,
+                VK10.VK_IMAGE_TILING_OPTIMAL,
+                VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        );
+        offscreenColorImage = intermediate.image();
+        offscreenColorMemory = intermediate.memory();
+        offscreenColorImageView = createImageView(stack, offscreenColorImage, swapchainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
+        offscreenColorSampler = createSampler(stack);
+
+        createPostDescriptorResources(stack);
+        createPostRenderPass(stack);
+        createPostPipeline(stack);
+        createPostFramebuffers(stack);
+    }
+
+    private void createPostDescriptorResources(MemoryStack stack) throws EngineException {
+        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(1, stack);
+        bindings.get(0)
+                .binding(0)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
+        VkDescriptorSetLayoutCreateInfo layoutInfo = VkDescriptorSetLayoutCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO)
+                .pBindings(bindings);
+        var pLayout = stack.longs(VK_NULL_HANDLE);
+        int layoutResult = vkCreateDescriptorSetLayout(device, layoutInfo, null, pLayout);
+        if (layoutResult != VK_SUCCESS || pLayout.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateDescriptorSetLayout(post) failed: " + layoutResult, false);
+        }
+        postDescriptorSetLayout = pLayout.get(0);
+
+        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
+        poolSizes.get(0)
+                .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1);
+        VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
+                .maxSets(1)
+                .pPoolSizes(poolSizes);
+        var pPool = stack.longs(VK_NULL_HANDLE);
+        int poolResult = vkCreateDescriptorPool(device, poolInfo, null, pPool);
+        if (poolResult != VK_SUCCESS || pPool.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateDescriptorPool(post) failed: " + poolResult, false);
+        }
+        postDescriptorPool = pPool.get(0);
+
+        VkDescriptorSetAllocateInfo allocInfo = VkDescriptorSetAllocateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO)
+                .descriptorPool(postDescriptorPool)
+                .pSetLayouts(stack.longs(postDescriptorSetLayout));
+        var pSet = stack.longs(VK_NULL_HANDLE);
+        int setResult = vkAllocateDescriptorSets(device, allocInfo, pSet);
+        if (setResult != VK_SUCCESS || pSet.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateDescriptorSets(post) failed: " + setResult, false);
+        }
+        postDescriptorSet = pSet.get(0);
+
+        VkDescriptorImageInfo.Buffer imageInfo = VkDescriptorImageInfo.calloc(1, stack);
+        imageInfo.get(0)
+                .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                .imageView(offscreenColorImageView)
+                .sampler(offscreenColorSampler);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(1, stack);
+        writes.get(0)
+                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                .dstSet(postDescriptorSet)
+                .dstBinding(0)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .pImageInfo(imageInfo);
+        vkUpdateDescriptorSets(device, writes, null);
+    }
+
+    private void createPostRenderPass(MemoryStack stack) throws EngineException {
+        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(1, stack);
+        attachments.get(0)
+                .format(swapchainImageFormat)
+                .samples(VK_SAMPLE_COUNT_1_BIT)
+                .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
+                .storeOp(VK_ATTACHMENT_STORE_OP_STORE)
+                .stencilLoadOp(VK10.VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                .stencilStoreOp(VK10.VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                .initialLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                .finalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        VkAttachmentReference.Buffer colorRef = VkAttachmentReference.calloc(1, stack)
+                .attachment(0)
+                .layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack)
+                .pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS)
+                .colorAttachmentCount(1)
+                .pColorAttachments(colorRef);
+        VkSubpassDependency.Buffer dependency = VkSubpassDependency.calloc(1, stack)
+                .srcSubpass(VK_SUBPASS_EXTERNAL)
+                .dstSubpass(0)
+                .srcStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+                .dstStageMask(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT)
+                .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
+        VkRenderPassCreateInfo renderPassInfo = VkRenderPassCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO)
+                .pAttachments(attachments)
+                .pSubpasses(subpass)
+                .pDependencies(dependency);
+        var pRenderPass = stack.longs(VK_NULL_HANDLE);
+        int result = vkCreateRenderPass(device, renderPassInfo, null, pRenderPass);
+        if (result != VK_SUCCESS || pRenderPass.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateRenderPass(post) failed: " + result, false);
+        }
+        postRenderPass = pRenderPass.get(0);
+    }
+
+    private void createPostPipeline(MemoryStack stack) throws EngineException {
+        String vertexShaderSource = """
+                #version 450
+                layout(location = 0) out vec2 vUv;
+                vec2 POS[3] = vec2[](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+                void main() {
+                    vec2 p = POS[gl_VertexIndex];
+                    vUv = p * 0.5 + vec2(0.5);
+                    gl_Position = vec4(p, 0.0, 1.0);
+                }
+                """;
+        String fragmentShaderSource = """
+                #version 450
+                layout(location = 0) in vec2 vUv;
+                layout(location = 0) out vec4 outColor;
+                layout(set = 0, binding = 0) uniform sampler2D uSceneColor;
+                layout(push_constant) uniform PostPush {
+                    vec4 tonemap;
+                    vec4 bloom;
+                } pc;
+                void main() {
+                    vec3 color = texture(uSceneColor, vUv).rgb;
+                    if (pc.tonemap.x > 0.5) {
+                        float exposure = max(pc.tonemap.y, 0.0001);
+                        float gamma = max(pc.tonemap.z, 0.0001);
+                        color = vec3(1.0) - exp(-color * exposure);
+                        color = pow(max(color, vec3(0.0)), vec3(1.0 / gamma));
+                    }
+                    if (pc.bloom.x > 0.5) {
+                        float threshold = clamp(pc.bloom.y, 0.0, 4.0);
+                        float strength = clamp(pc.bloom.z, 0.0, 2.0);
+                        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                        float bright = max(0.0, luma - threshold);
+                        color += color * (bright * strength);
+                    }
+                    outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+                }
+                """;
+        ByteBuffer vertSpv = compileGlslToSpv(vertexShaderSource, shaderc_glsl_vertex_shader, "post.vert");
+        ByteBuffer fragSpv = compileGlslToSpv(fragmentShaderSource, shaderc_fragment_shader, "post.frag");
+        long vertModule = VK_NULL_HANDLE;
+        long fragModule = VK_NULL_HANDLE;
+        try {
+            vertModule = createShaderModule(stack, vertSpv);
+            fragModule = createShaderModule(stack, fragSpv);
+            VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
+            shaderStages.get(0).sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_VERTEX_BIT).module(vertModule).pName(stack.UTF8("main"));
+            shaderStages.get(1).sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_FRAGMENT_BIT).module(fragModule).pName(stack.UTF8("main"));
+
+            VkPipelineVertexInputStateCreateInfo vertexInput = VkPipelineVertexInputStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
+            VkPipelineInputAssemblyStateCreateInfo inputAssembly = VkPipelineInputAssemblyStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
+                    .topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+                    .primitiveRestartEnable(false);
+            VkViewport.Buffer viewport = VkViewport.calloc(1, stack)
+                    .x(0f).y(0f).width((float) swapchainWidth).height((float) swapchainHeight).minDepth(0f).maxDepth(1f);
+            VkRect2D.Buffer scissor = VkRect2D.calloc(1, stack);
+            scissor.get(0).offset(it -> it.set(0, 0));
+            scissor.get(0).extent(VkExtent2D.calloc(stack).set(swapchainWidth, swapchainHeight));
+            VkPipelineViewportStateCreateInfo viewportState = VkPipelineViewportStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO)
+                    .viewportCount(1).pViewports(viewport).scissorCount(1).pScissors(scissor);
+            VkPipelineRasterizationStateCreateInfo rasterizer = VkPipelineRasterizationStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO)
+                    .depthClampEnable(false).rasterizerDiscardEnable(false).polygonMode(VK_POLYGON_MODE_FILL)
+                    .lineWidth(1.0f).cullMode(VK_CULL_MODE_NONE).frontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE).depthBiasEnable(false);
+            VkPipelineMultisampleStateCreateInfo multisampling = VkPipelineMultisampleStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
+                    .sampleShadingEnable(false).rasterizationSamples(VK_SAMPLE_COUNT_1_BIT);
+            VkPipelineDepthStencilStateCreateInfo depthStencil = VkPipelineDepthStencilStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
+                    .depthTestEnable(false).depthWriteEnable(false).depthBoundsTestEnable(false).stencilTestEnable(false);
+            VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(1, stack);
+            colorBlendAttachment.get(0)
+                    .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                    .blendEnable(false);
+            VkPipelineColorBlendStateCreateInfo colorBlending = VkPipelineColorBlendStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO)
+                    .logicOpEnable(false)
+                    .pAttachments(colorBlendAttachment);
+
+            VkPushConstantRange.Buffer pushRanges = VkPushConstantRange.calloc(1, stack);
+            pushRanges.get(0)
+                    .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT)
+                    .offset(0)
+                    .size(8 * Float.BYTES);
+            VkPipelineLayoutCreateInfo layoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
+                    .pSetLayouts(stack.longs(postDescriptorSetLayout))
+                    .pPushConstantRanges(pushRanges);
+            var pLayout = stack.longs(VK_NULL_HANDLE);
+            int layoutResult = vkCreatePipelineLayout(device, layoutInfo, null, pLayout);
+            if (layoutResult != VK_SUCCESS || pLayout.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreatePipelineLayout(post) failed: " + layoutResult, false);
+            }
+            postPipelineLayout = pLayout.get(0);
+
+            VkGraphicsPipelineCreateInfo.Buffer pipelineInfo = VkGraphicsPipelineCreateInfo.calloc(1, stack)
+                    .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+                    .pStages(shaderStages)
+                    .pVertexInputState(vertexInput)
+                    .pInputAssemblyState(inputAssembly)
+                    .pViewportState(viewportState)
+                    .pRasterizationState(rasterizer)
+                    .pMultisampleState(multisampling)
+                    .pDepthStencilState(depthStencil)
+                    .pColorBlendState(colorBlending)
+                    .layout(postPipelineLayout)
+                    .renderPass(postRenderPass)
+                    .subpass(0)
+                    .basePipelineHandle(VK_NULL_HANDLE);
+            var pPipeline = stack.longs(VK_NULL_HANDLE);
+            int pipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, pipelineInfo, null, pPipeline);
+            if (pipelineResult != VK_SUCCESS || pPipeline.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateGraphicsPipelines(post) failed: " + pipelineResult, false);
+            }
+            postGraphicsPipeline = pPipeline.get(0);
+        } finally {
+            if (vertModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(device, vertModule, null);
+            }
+            if (fragModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(device, fragModule, null);
+            }
+        }
+    }
+
+    private void createPostFramebuffers(MemoryStack stack) throws EngineException {
+        postFramebuffers = new long[swapchainImageViews.length];
+        for (int i = 0; i < swapchainImageViews.length; i++) {
+            VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
+                    .renderPass(postRenderPass)
+                    .pAttachments(stack.longs(swapchainImageViews[i]))
+                    .width(swapchainWidth)
+                    .height(swapchainHeight)
+                    .layers(1);
+            var pFramebuffer = stack.longs(VK_NULL_HANDLE);
+            int result = vkCreateFramebuffer(device, framebufferInfo, null, pFramebuffer);
+            if (result != VK_SUCCESS || pFramebuffer.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateFramebuffer(post) failed: " + result, false);
+            }
+            postFramebuffers[i] = pFramebuffer.get(0);
+        }
+    }
+
     private void destroyShadowResources() {
         if (device == null) {
             return;
@@ -1948,6 +2363,7 @@ final class VulkanContext {
         if (device == null) {
             return;
         }
+        destroyPostProcessResources();
         for (long fb : framebuffers) {
             if (fb != VK_NULL_HANDLE) {
                 vkDestroyFramebuffer(device, fb, null);
@@ -1995,6 +2411,57 @@ final class VulkanContext {
             vkDestroySwapchainKHR(device, swapchain, null);
             swapchain = VK_NULL_HANDLE;
         }
+    }
+
+    private void destroyPostProcessResources() {
+        if (device == null) {
+            return;
+        }
+        for (long fb : postFramebuffers) {
+            if (fb != VK_NULL_HANDLE) {
+                vkDestroyFramebuffer(device, fb, null);
+            }
+        }
+        postFramebuffers = new long[0];
+        if (postGraphicsPipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, postGraphicsPipeline, null);
+            postGraphicsPipeline = VK_NULL_HANDLE;
+        }
+        if (postPipelineLayout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device, postPipelineLayout, null);
+            postPipelineLayout = VK_NULL_HANDLE;
+        }
+        if (postRenderPass != VK_NULL_HANDLE) {
+            vkDestroyRenderPass(device, postRenderPass, null);
+            postRenderPass = VK_NULL_HANDLE;
+        }
+        if (postDescriptorPool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device, postDescriptorPool, null);
+            postDescriptorPool = VK_NULL_HANDLE;
+        }
+        if (postDescriptorSetLayout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, postDescriptorSetLayout, null);
+            postDescriptorSetLayout = VK_NULL_HANDLE;
+        }
+        postDescriptorSet = VK_NULL_HANDLE;
+        if (offscreenColorSampler != VK_NULL_HANDLE) {
+            VK10.vkDestroySampler(device, offscreenColorSampler, null);
+            offscreenColorSampler = VK_NULL_HANDLE;
+        }
+        if (offscreenColorImageView != VK_NULL_HANDLE) {
+            vkDestroyImageView(device, offscreenColorImageView, null);
+            offscreenColorImageView = VK_NULL_HANDLE;
+        }
+        if (offscreenColorImage != VK_NULL_HANDLE) {
+            VK10.vkDestroyImage(device, offscreenColorImage, null);
+            offscreenColorImage = VK_NULL_HANDLE;
+        }
+        if (offscreenColorMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, offscreenColorMemory, null);
+            offscreenColorMemory = VK_NULL_HANDLE;
+        }
+        postIntermediateInitialized = false;
+        postOffscreenActive = false;
     }
 
     private void createCommandResources(MemoryStack stack) throws EngineException {
@@ -2196,10 +2663,180 @@ final class VulkanContext {
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         }
         vkCmdEndRenderPass(commandBuffer);
+
+        if (postOffscreenActive) {
+            executePostCompositePass(stack, commandBuffer, imageIndex);
+        }
+
         int endResult = vkEndCommandBuffer(commandBuffer);
         if (endResult != VK_SUCCESS) {
             throw vkFailure("vkEndCommandBuffer", endResult);
         }
+    }
+
+    private void executePostCompositePass(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex) {
+        if (postRenderPass == VK_NULL_HANDLE
+                || postGraphicsPipeline == VK_NULL_HANDLE
+                || postPipelineLayout == VK_NULL_HANDLE
+                || postDescriptorSet == VK_NULL_HANDLE
+                || postFramebuffers.length <= imageIndex
+                || offscreenColorImage == VK_NULL_HANDLE) {
+            return;
+        }
+
+        // Transition the rendered swapchain image for transfer-src copy.
+        VkImageMemoryBarrier.Buffer swapToTransferSrc = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                .oldLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+                .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(swapchainImages[imageIndex]);
+        swapToTransferSrc.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                null,
+                null,
+                swapToTransferSrc
+        );
+
+        int intermediateOldLayout = postIntermediateInitialized
+                ? VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                : VK_IMAGE_LAYOUT_UNDEFINED;
+        VkImageMemoryBarrier.Buffer intermediateToTransferDst = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(postIntermediateInitialized ? VK10.VK_ACCESS_SHADER_READ_BIT : 0)
+                .dstAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT)
+                .oldLayout(intermediateOldLayout)
+                .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(offscreenColorImage);
+        intermediateToTransferDst.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                postIntermediateInitialized ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK10.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                null,
+                null,
+                intermediateToTransferDst
+        );
+
+        VkImageCopy.Buffer copyRegion = VkImageCopy.calloc(1, stack);
+        copyRegion.get(0)
+                .srcSubresource(it -> it.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1))
+                .srcOffset(it -> it.set(0, 0, 0))
+                .dstSubresource(it -> it.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1))
+                .dstOffset(it -> it.set(0, 0, 0))
+                .extent(it -> it.set(swapchainWidth, swapchainHeight, 1));
+        VK10.vkCmdCopyImage(
+                commandBuffer,
+                swapchainImages[imageIndex],
+                VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                offscreenColorImage,
+                VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                copyRegion
+        );
+
+        VkImageMemoryBarrier.Buffer intermediateToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                .oldLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(offscreenColorImage);
+        intermediateToShaderRead.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                null,
+                null,
+                intermediateToShaderRead
+        );
+        postIntermediateInitialized = true;
+
+        VkImageMemoryBarrier.Buffer swapToColorAttachment = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                .oldLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                .newLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(swapchainImages[imageIndex]);
+        swapToColorAttachment.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                0,
+                null,
+                null,
+                swapToColorAttachment
+        );
+
+        VkClearValue.Buffer clear = VkClearValue.calloc(1, stack);
+        clear.get(0).color().float32(0, 0.08f);
+        clear.get(0).color().float32(1, 0.09f);
+        clear.get(0).color().float32(2, 0.12f);
+        clear.get(0).color().float32(3, 1.0f);
+        VkRenderPassBeginInfo postPassInfo = VkRenderPassBeginInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
+                .renderPass(postRenderPass)
+                .framebuffer(postFramebuffers[imageIndex])
+                .pClearValues(clear);
+        postPassInfo.renderArea()
+                .offset(it -> it.set(0, 0))
+                .extent(VkExtent2D.calloc(stack).set(swapchainWidth, swapchainHeight));
+
+        vkCmdBeginRenderPass(commandBuffer, postPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, postGraphicsPipeline);
+        vkCmdBindDescriptorSets(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                postPipelineLayout,
+                0,
+                stack.longs(postDescriptorSet),
+                null
+        );
+        ByteBuffer postPush = stack.malloc(8 * Float.BYTES);
+        postPush.asFloatBuffer().put(new float[]{
+                tonemapEnabled ? 1f : 0f, tonemapExposure, tonemapGamma, 0f,
+                bloomEnabled ? 1f : 0f, bloomThreshold, bloomStrength, 0f
+        });
+        vkCmdPushConstants(commandBuffer, postPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        vkCmdEndRenderPass(commandBuffer);
     }
 
     private int submitAndPresent(
@@ -2671,6 +3308,9 @@ final class VulkanContext {
         GpuTexture defaultNormal = createTextureFromPath(null, true);
         GpuTexture defaultMetallicRoughness = createTextureFromPath(null, false);
         GpuTexture defaultOcclusion = createTextureFromPath(null, false);
+        iblIrradianceTexture = resolveOrCreateTexture(iblIrradiancePath, textureCache, defaultAlbedo, false);
+        iblRadianceTexture = resolveOrCreateTexture(iblRadiancePath, textureCache, defaultAlbedo, false);
+        iblBrdfLutTexture = resolveOrCreateTexture(iblBrdfLutPath, textureCache, defaultAlbedo, false);
         for (SceneMeshData mesh : sceneMeshes) {
             float[] vertices = mesh.vertices();
             int[] indices = mesh.indices();
@@ -2758,6 +3398,15 @@ final class VulkanContext {
                 textureBytes += mesh.occlusionTexture.bytes();
             }
         }
+        if (uniqueTextures.add(iblIrradianceTexture)) {
+            textureBytes += iblIrradianceTexture.bytes();
+        }
+        if (uniqueTextures.add(iblRadianceTexture)) {
+            textureBytes += iblRadianceTexture.bytes();
+        }
+        if (uniqueTextures.add(iblBrdfLutTexture)) {
+            textureBytes += iblBrdfLutTexture.bytes();
+        }
         long uniformBytes = (long) uniformFrameSpanBytes * MAX_FRAMES_IN_FLIGHT * 2L;
         estimatedGpuMemoryBytes = uniformBytes + meshBytes + textureBytes;
     }
@@ -2786,6 +3435,9 @@ final class VulkanContext {
             uniqueTextures.add(mesh.metallicRoughnessTexture);
             uniqueTextures.add(mesh.occlusionTexture);
         }
+        uniqueTextures.add(iblIrradianceTexture);
+        uniqueTextures.add(iblRadianceTexture);
+        uniqueTextures.add(iblBrdfLutTexture);
         for (GpuTexture texture : uniqueTextures) {
             if (texture == null) {
                 continue;
@@ -2807,6 +3459,9 @@ final class VulkanContext {
             vkDestroyDescriptorPool(device, textureDescriptorPool, null);
             textureDescriptorPool = VK_NULL_HANDLE;
         }
+        iblIrradianceTexture = null;
+        iblRadianceTexture = null;
+        iblBrdfLutTexture = null;
         gpuMeshes.clear();
     }
 
@@ -2851,7 +3506,7 @@ final class VulkanContext {
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(gpuMeshes.size() * 5);
+                .descriptorCount(gpuMeshes.size() * 8);
 
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
@@ -2916,8 +3571,23 @@ final class VulkanContext {
                     .imageLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL)
                     .imageView(shadowDepthImageView)
                     .sampler(shadowSampler);
+            VkDescriptorImageInfo.Buffer iblIrradianceInfo = VkDescriptorImageInfo.calloc(1, stack);
+            iblIrradianceInfo.get(0)
+                    .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .imageView(iblIrradianceTexture.view())
+                    .sampler(iblIrradianceTexture.sampler());
+            VkDescriptorImageInfo.Buffer iblRadianceInfo = VkDescriptorImageInfo.calloc(1, stack);
+            iblRadianceInfo.get(0)
+                    .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .imageView(iblRadianceTexture.view())
+                    .sampler(iblRadianceTexture.sampler());
+            VkDescriptorImageInfo.Buffer iblBrdfLutInfo = VkDescriptorImageInfo.calloc(1, stack);
+            iblBrdfLutInfo.get(0)
+                    .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .imageView(iblBrdfLutTexture.view())
+                    .sampler(iblBrdfLutTexture.sampler());
 
-            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(5, stack);
+            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(8, stack);
             writes.get(0)
                     .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                     .dstSet(mesh.textureDescriptorSet)
@@ -2953,6 +3623,27 @@ final class VulkanContext {
                     .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
                     .pImageInfo(shadowInfo);
+            writes.get(5)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(5)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(iblIrradianceInfo);
+            writes.get(6)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(6)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(iblRadianceInfo);
+            writes.get(7)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(7)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(iblBrdfLutInfo);
             vkUpdateDescriptorSets(device, writes, null);
         }
     }
@@ -2976,32 +3667,123 @@ final class VulkanContext {
     }
 
     private TexturePixelData loadTexturePixels(Path texturePath) {
-        if (texturePath == null || !Files.isRegularFile(texturePath)) {
+        Path sourcePath = resolveContainerSourcePath(texturePath);
+        if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
             return null;
         }
         try {
-            BufferedImage image = ImageIO.read(texturePath.toFile());
-            if (image == null) {
+            BufferedImage image = ImageIO.read(sourcePath.toFile());
+            if (image != null) {
+                int width = image.getWidth();
+                int height = image.getHeight();
+                ByteBuffer buffer = memAlloc(width * height * 4);
+                for (int y = 0; y < height; y++) {
+                    int srcY = height - 1 - y;
+                    for (int x = 0; x < width; x++) {
+                        int argb = image.getRGB(x, srcY);
+                        buffer.put((byte) ((argb >> 16) & 0xFF));
+                        buffer.put((byte) ((argb >> 8) & 0xFF));
+                        buffer.put((byte) (argb & 0xFF));
+                        buffer.put((byte) ((argb >> 24) & 0xFF));
+                    }
+                }
+                buffer.flip();
+                return new TexturePixelData(buffer, width, height);
+            }
+        } catch (IOException ignored) {
+            // Fall through to stb path.
+        }
+        return loadTexturePixelsViaStb(sourcePath);
+    }
+
+    private TexturePixelData loadTexturePixelsViaStb(Path texturePath) {
+        String path = texturePath.toAbsolutePath().toString();
+        try (MemoryStack stack = stackPush()) {
+            IntBuffer x = stack.mallocInt(1);
+            IntBuffer y = stack.mallocInt(1);
+            IntBuffer channels = stack.mallocInt(1);
+            if (!stbi_info(path, x, y, channels)) {
                 return null;
             }
-            int width = image.getWidth();
-            int height = image.getHeight();
-            ByteBuffer buffer = memAlloc(width * height * 4);
-            for (int y = 0; y < height; y++) {
-                int srcY = height - 1 - y;
-                for (int x = 0; x < width; x++) {
-                    int argb = image.getRGB(x, srcY);
-                    buffer.put((byte) ((argb >> 16) & 0xFF));
-                    buffer.put((byte) ((argb >> 8) & 0xFF));
-                    buffer.put((byte) (argb & 0xFF));
-                    buffer.put((byte) ((argb >> 24) & 0xFF));
+            int width = x.get(0);
+            int height = y.get(0);
+            if (width <= 0 || height <= 0) {
+                return null;
+            }
+            if (stbi_is_hdr(path)) {
+                FloatBuffer hdr = stbi_loadf(path, x, y, channels, 4);
+                if (hdr == null) {
+                    return null;
+                }
+                try {
+                    ByteBuffer buffer = memAlloc(width * height * 4);
+                    for (int i = 0; i < width * height; i++) {
+                        float r = hdr.get(i * 4);
+                        float g = hdr.get(i * 4 + 1);
+                        float b = hdr.get(i * 4 + 2);
+                        float a = hdr.get(i * 4 + 3);
+                        buffer.put((byte) toLdrByte(r));
+                        buffer.put((byte) toLdrByte(g));
+                        buffer.put((byte) toLdrByte(b));
+                        buffer.put((byte) Math.max(0, Math.min(255, Math.round(Math.max(0f, Math.min(1f, a)) * 255f))));
+                    }
+                    buffer.flip();
+                    return new TexturePixelData(buffer, width, height);
+                } finally {
+                    stbi_image_free(hdr);
                 }
             }
-            buffer.flip();
-            return new TexturePixelData(buffer, width, height);
-        } catch (IOException ignored) {
+            ByteBuffer ldr = stbi_load(path, x, y, channels, 4);
+            if (ldr == null) {
+                return null;
+            }
+            try {
+                ByteBuffer copy = memAlloc(width * height * 4);
+                copy.put(ldr);
+                copy.flip();
+                return new TexturePixelData(copy, width, height);
+            } finally {
+                stbi_image_free(ldr);
+            }
+        } catch (Throwable ignored) {
             return null;
         }
+    }
+
+    private int toLdrByte(float hdrValue) {
+        float toneMapped = hdrValue / (1.0f + Math.max(0f, hdrValue));
+        float gammaCorrected = (float) Math.pow(Math.max(0f, toneMapped), 1.0 / 2.2);
+        return Math.max(0, Math.min(255, Math.round(gammaCorrected * 255f)));
+    }
+
+    private static Path resolveContainerSourcePath(Path requestedPath) {
+        if (requestedPath == null || !Files.isRegularFile(requestedPath) || !isKtxContainerPath(requestedPath)) {
+            return requestedPath;
+        }
+        String fileName = requestedPath.getFileName() == null ? null : requestedPath.getFileName().toString();
+        if (fileName == null) {
+            return requestedPath;
+        }
+        int dot = fileName.lastIndexOf('.');
+        if (dot <= 0) {
+            return requestedPath;
+        }
+        String baseName = fileName.substring(0, dot);
+        for (String ext : new String[]{".png", ".hdr", ".jpg", ".jpeg"}) {
+            Path candidate = requestedPath.resolveSibling(baseName + ext);
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+        }
+        return requestedPath;
+    }
+
+    private static boolean isKtxContainerPath(Path path) {
+        if (path == null || path.getFileName() == null) {
+            return false;
+        }
+        String name = path.getFileName().toString().toLowerCase();
+        return name.endsWith(".ktx") || name.endsWith(".ktx2");
     }
 
     private GpuTexture createTextureFromPixels(TexturePixelData pixels) throws EngineException {
@@ -3345,6 +4127,10 @@ final class VulkanContext {
         fb.put(new float[]{fogR, fogG, fogB, (float) fogSteps});
         fb.put(new float[]{smokeEnabled ? 1f : 0f, smokeIntensity, 0f, 0f});
         fb.put(new float[]{smokeR, smokeG, smokeB, 0f});
+        fb.put(new float[]{iblEnabled ? 1f : 0f, iblDiffuseStrength, iblSpecularStrength, iblPrefilterStrength});
+        boolean scenePostEnabled = !postOffscreenActive;
+        fb.put(new float[]{scenePostEnabled && tonemapEnabled ? 1f : 0f, tonemapExposure, tonemapGamma, 0f});
+        fb.put(new float[]{scenePostEnabled && bloomEnabled ? 1f : 0f, bloomThreshold, bloomStrength, 0f});
         for (int i = 0; i < MAX_SHADOW_CASCADES; i++) {
             fb.put(shadowLightViewProjMatrices[i]);
         }
@@ -3776,6 +4562,13 @@ final class VulkanContext {
             float split1Ndc,
             float split2Ndc,
             float split3Ndc
+    ) {
+    }
+
+    record PostProcessPipelineProfile(
+            boolean offscreenRequested,
+            boolean offscreenActive,
+            String mode
     ) {
     }
 
