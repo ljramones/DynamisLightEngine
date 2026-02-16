@@ -382,8 +382,13 @@ final class VulkanContext {
     private long descriptorRingSteadyRebuildCount;
     private long descriptorRingPoolReuseCount;
     private long descriptorRingPoolResetFailureCount;
+    private long descriptorRingCapBypassCount;
     private int descriptorRingSetCapacity;
     private int descriptorRingPeakSetCapacity;
+    private int descriptorRingActiveSetCount;
+    private int descriptorRingWasteSetCount;
+    private int descriptorRingPeakWasteSetCount;
+    private int descriptorRingMaxSetCapacity = 4096;
     private long estimatedGpuMemoryBytes;
     private int lastFrameUniformUploadBytes;
     private int maxFrameUniformUploadBytes;
@@ -508,6 +513,13 @@ final class VulkanContext {
         reallocateUploadRangeTracking();
     }
 
+    void configureDescriptorRing(int maxSetCapacity) {
+        if (device != null) {
+            return;
+        }
+        descriptorRingMaxSetCapacity = clamp(maxSetCapacity, 256, 32768);
+    }
+
     int configuredFramesInFlight() {
         return framesInFlight;
     }
@@ -518,6 +530,10 @@ final class VulkanContext {
 
     int configuredMaxPendingUploadRanges() {
         return maxPendingUploadRanges;
+    }
+
+    int configuredDescriptorRingMaxSetCapacity() {
+        return descriptorRingMaxSetCapacity;
     }
 
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
@@ -594,11 +610,16 @@ final class VulkanContext {
                 pendingUploadRangeOverflowCount,
                 descriptorRingSetCapacity,
                 descriptorRingPeakSetCapacity,
+                descriptorRingActiveSetCount,
+                descriptorRingWasteSetCount,
+                descriptorRingPeakWasteSetCount,
+                descriptorRingMaxSetCapacity,
                 descriptorRingReuseHitCount,
                 descriptorRingGrowthRebuildCount,
                 descriptorRingSteadyRebuildCount,
                 descriptorRingPoolReuseCount,
                 descriptorRingPoolResetFailureCount,
+                descriptorRingCapBypassCount,
                 globalUniformStagingMappedAddress != 0L
         );
     }
@@ -1369,6 +1390,10 @@ final class VulkanContext {
         descriptorSet = VK_NULL_HANDLE;
         descriptorRingSetCapacity = 0;
         descriptorRingPeakSetCapacity = 0;
+        descriptorRingActiveSetCount = 0;
+        descriptorRingWasteSetCount = 0;
+        descriptorRingPeakWasteSetCount = 0;
+        descriptorRingCapBypassCount = 0;
         descriptorRingPoolReuseCount = 0;
         descriptorRingPoolResetFailureCount = 0;
         if (descriptorPool != VK_NULL_HANDLE) {
@@ -3966,6 +3991,7 @@ final class VulkanContext {
             return;
         }
         int requiredSetCount = gpuMeshes.size();
+        int targetSetCapacity = targetDescriptorRingCapacity(requiredSetCount);
         boolean needsRebuild = textureDescriptorPool == VK_NULL_HANDLE || requiredSetCount > descriptorRingSetCapacity;
         if (!needsRebuild) {
             int resetResult = vkResetDescriptorPool(device, textureDescriptorPool, 0);
@@ -3989,7 +4015,7 @@ final class VulkanContext {
                 }
             }
             descriptorPoolBuildCount++;
-            descriptorRingSetCapacity = Math.max(requiredSetCount, descriptorRingSetCapacity);
+            descriptorRingSetCapacity = targetSetCapacity;
             descriptorRingPeakSetCapacity = Math.max(descriptorRingPeakSetCapacity, descriptorRingSetCapacity);
 
             VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
@@ -4012,6 +4038,9 @@ final class VulkanContext {
             }
             textureDescriptorPool = pPool.get(0);
         }
+        descriptorRingActiveSetCount = requiredSetCount;
+        descriptorRingWasteSetCount = Math.max(0, descriptorRingSetCapacity - requiredSetCount);
+        descriptorRingPeakWasteSetCount = Math.max(descriptorRingPeakWasteSetCount, descriptorRingWasteSetCount);
 
         VkDescriptorSetAllocateInfo allocInfo = VkDescriptorSetAllocateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO)
@@ -5187,6 +5216,31 @@ final class VulkanContext {
         }
     }
 
+    private int targetDescriptorRingCapacity(int requiredSetCount) {
+        int growthBase = descriptorRingSetCapacity <= 0 ? 64 : descriptorRingSetCapacity;
+        int grown = Math.max(requiredSetCount, growthBase + Math.max(16, growthBase / 2));
+        int rounded = roundUpToPowerOfTwo(grown);
+        int capped = Math.min(rounded, descriptorRingMaxSetCapacity);
+        if (capped < requiredSetCount) {
+            descriptorRingCapBypassCount++;
+            return requiredSetCount;
+        }
+        return capped;
+    }
+
+    private static int roundUpToPowerOfTwo(int value) {
+        int x = Math.max(1, value - 1);
+        x |= x >> 1;
+        x |= x >> 2;
+        x |= x >> 4;
+        x |= x >> 8;
+        x |= x >> 16;
+        if (x == Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        return x + 1;
+    }
+
     record VulkanFrameMetrics(
             double cpuFrameMs,
             double gpuFrameMs,
@@ -5224,11 +5278,16 @@ final class VulkanContext {
             long pendingUploadRangeOverflows,
             int descriptorRingSetCapacity,
             int descriptorRingPeakSetCapacity,
+            int descriptorRingActiveSetCount,
+            int descriptorRingWasteSetCount,
+            int descriptorRingPeakWasteSetCount,
+            int descriptorRingMaxSetCapacity,
             long descriptorRingReuseHits,
             long descriptorRingGrowthRebuilds,
             long descriptorRingSteadyRebuilds,
             long descriptorRingPoolReuses,
             long descriptorRingPoolResetFailures,
+            long descriptorRingCapBypasses,
             boolean persistentStagingMapped
     ) {
     }

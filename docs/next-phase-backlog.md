@@ -54,10 +54,13 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
     - additional telemetry: upload ranges + start-object index + pending-range overflow count
   - descriptor-ring pressure telemetry now exposed in frame profile:
     - `descriptorRingSetCapacity` / `descriptorRingPeakSetCapacity`
+    - `descriptorRingActiveSetCount` / `descriptorRingWasteSetCount` / `descriptorRingPeakWasteSetCount`
+    - `descriptorRingMaxSetCapacity` / `descriptorRingCapBypasses`
     - `descriptorRingReuseHits`
     - `descriptorRingGrowthRebuilds` / `descriptorRingSteadyRebuilds`
     - descriptor-pool reset/reuse path active when descriptor capacity is sufficient
     - `descriptorRingPoolReuses` / `descriptorRingPoolResetFailures`
+    - ring growth now uses capacity targeting (growth + power-of-two rounding) with configurable soft cap (`vulkan.maxTextureDescriptorSets`)
 - Added Vulkan mesh-geometry cache in asset loader:
   - glTF/fallback geometry is cached by stable key
   - loader returns defensive copies to preserve cache integrity

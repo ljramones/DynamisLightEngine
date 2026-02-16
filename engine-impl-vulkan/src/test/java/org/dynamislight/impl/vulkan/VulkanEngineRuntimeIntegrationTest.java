@@ -79,6 +79,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.framesInFlight", "4",
                 "vulkan.maxDynamicSceneObjects", "4096",
                 "vulkan.maxPendingUploadRanges", "128",
+                "vulkan.maxTextureDescriptorSets", "8192",
                 "vulkan.meshGeometryCacheEntries", "512"
         )), new RecordingCallbacks());
 
@@ -86,6 +87,7 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(4, config.framesInFlight());
         assertEquals(4096, config.maxDynamicSceneObjects());
         assertEquals(128, config.maxPendingUploadRanges());
+        assertEquals(8192, config.maxTextureDescriptorSets());
         assertEquals(512, config.meshGeometryCacheEntries());
         runtime.shutdown();
     }
@@ -98,6 +100,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.framesInFlight", "99",
                 "vulkan.maxDynamicSceneObjects", "10",
                 "vulkan.maxPendingUploadRanges", "-1",
+                "vulkan.maxTextureDescriptorSets", "1",
                 "vulkan.meshGeometryCacheEntries", "nope"
         )), new RecordingCallbacks());
 
@@ -105,6 +108,7 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(4, config.framesInFlight());
         assertEquals(256, config.maxDynamicSceneObjects());
         assertEquals(8, config.maxPendingUploadRanges());
+        assertEquals(256, config.maxTextureDescriptorSets());
         assertEquals(256, config.meshGeometryCacheEntries());
         runtime.shutdown();
     }
@@ -491,6 +495,14 @@ class VulkanEngineRuntimeIntegrationTest {
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingPoolReuses=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingPoolResetFailures=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingActiveSetCount=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingWasteSetCount=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingMaxSetCapacity=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingCapBypasses=")));
         assertTrue(frameA.warnings().stream().anyMatch(w -> "SHADOW_CASCADE_PROFILE".equals(w.code())));
 
         runtime.resize(1600, 900, 1.0f);
@@ -521,6 +533,11 @@ class VulkanEngineRuntimeIntegrationTest {
 
         assertTrue(after.descriptorRingPoolReuses() > before.descriptorRingPoolReuses());
         assertEquals(before.descriptorRingPoolResetFailures(), after.descriptorRingPoolResetFailures());
+        assertTrue(after.descriptorRingSetCapacity() >= after.descriptorRingActiveSetCount());
+        assertEquals(
+                after.descriptorRingSetCapacity() - after.descriptorRingActiveSetCount(),
+                after.descriptorRingWasteSetCount()
+        );
         runtime.shutdown();
     }
 

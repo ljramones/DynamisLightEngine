@@ -91,7 +91,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         int framesInFlight = parseIntOption(backendOptions, "vulkan.framesInFlight", 3, 2, 4);
         int maxDynamicSceneObjects = parseIntOption(backendOptions, "vulkan.maxDynamicSceneObjects", 2048, 256, 8192);
         int maxPendingUploadRanges = parseIntOption(backendOptions, "vulkan.maxPendingUploadRanges", 64, 8, 512);
+        int descriptorRingMaxSetCapacity = parseIntOption(
+                backendOptions,
+                "vulkan.maxTextureDescriptorSets",
+                4096,
+                256,
+                32768
+        );
         context.configureFrameResources(framesInFlight, maxDynamicSceneObjects, maxPendingUploadRanges);
+        context.configureDescriptorRing(descriptorRingMaxSetCapacity);
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
         qualityTier = config.qualityTier();
@@ -316,11 +324,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " pendingRangeOverflows=" + frameResources.pendingUploadRangeOverflows()
                             + " descriptorRingSetCapacity=" + frameResources.descriptorRingSetCapacity()
                             + " descriptorRingPeakSetCapacity=" + frameResources.descriptorRingPeakSetCapacity()
+                            + " descriptorRingActiveSetCount=" + frameResources.descriptorRingActiveSetCount()
+                            + " descriptorRingWasteSetCount=" + frameResources.descriptorRingWasteSetCount()
+                            + " descriptorRingPeakWasteSetCount=" + frameResources.descriptorRingPeakWasteSetCount()
+                            + " descriptorRingMaxSetCapacity=" + frameResources.descriptorRingMaxSetCapacity()
                             + " descriptorRingReuseHits=" + frameResources.descriptorRingReuseHits()
                             + " descriptorRingGrowthRebuilds=" + frameResources.descriptorRingGrowthRebuilds()
                             + " descriptorRingSteadyRebuilds=" + frameResources.descriptorRingSteadyRebuilds()
                             + " descriptorRingPoolReuses=" + frameResources.descriptorRingPoolReuses()
                             + " descriptorRingPoolResetFailures=" + frameResources.descriptorRingPoolResetFailures()
+                            + " descriptorRingCapBypasses=" + frameResources.descriptorRingCapBypasses()
                             + " persistentStagingMapped=" + frameResources.persistentStagingMapped()
             ));
             if (currentShadows.enabled()) {
@@ -406,6 +419,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 context.configuredFramesInFlight(),
                 context.configuredMaxDynamicSceneObjects(),
                 context.configuredMaxPendingUploadRanges(),
+                context.configuredDescriptorRingMaxSetCapacity(),
                 meshGeometryCacheMaxEntries
         );
     }
@@ -458,6 +472,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int framesInFlight,
             int maxDynamicSceneObjects,
             int maxPendingUploadRanges,
+            int maxTextureDescriptorSets,
             int meshGeometryCacheEntries
     ) {
     }

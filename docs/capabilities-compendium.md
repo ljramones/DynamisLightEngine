@@ -198,6 +198,8 @@ Vulkan runtime emits profiling warnings (real-context mode) for:
 - `lastUniformUploadStartObject`
 - `pendingRangeOverflows`
 - `descriptorRingSetCapacity` / `descriptorRingPeakSetCapacity`
+- `descriptorRingActiveSetCount` / `descriptorRingWasteSetCount` / `descriptorRingPeakWasteSetCount`
+- `descriptorRingMaxSetCapacity` / `descriptorRingCapBypasses`
 - `descriptorRingReuseHits` / `descriptorRingGrowthRebuilds` / `descriptorRingSteadyRebuilds`
 - `descriptorRingPoolReuses` / `descriptorRingPoolResetFailures`
 - `persistentStagingMapped`
@@ -225,6 +227,7 @@ Vulkan options:
 - `vulkan.framesInFlight` (default `3`, clamped `2..4`)
 - `vulkan.maxDynamicSceneObjects` (default `2048`, clamped `256..8192`)
 - `vulkan.maxPendingUploadRanges` (default `64`, clamped `8..512`)
+- `vulkan.maxTextureDescriptorSets` (default `4096`, clamped `256..32768`)
 - `vulkan.meshGeometryCacheEntries` (default `256`, clamped `16..4096`)
 
 ## 11) Test-backed confidence areas
