@@ -50,6 +50,10 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
     - sparse multi-range uniform uploads for dynamic-only scene updates using dirty object ranges
     - global-state setters now mark revisions only on effective value changes (reduces redundant uploads under stable scene settings)
     - additional telemetry: upload ranges + start-object index
+- Added Vulkan mesh-geometry cache in asset loader:
+  - glTF/fallback geometry is cached by stable key
+  - loader returns defensive copies to preserve cache integrity
+  - reduces repeated parse/geometry-construction churn across scene reloads
 - Expanded guarded real-Vulkan suite:
   - longer resize/scene-switch endurance loop
   - forced device-loss error-path test

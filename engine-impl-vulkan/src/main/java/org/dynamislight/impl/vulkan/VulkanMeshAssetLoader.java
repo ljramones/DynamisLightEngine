@@ -1,12 +1,15 @@
 package org.dynamislight.impl.vulkan;
 
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import org.dynamislight.api.scene.MeshDesc;
 
 final class VulkanMeshAssetLoader {
     private final Path assetRoot;
     private final VulkanGltfMeshParser gltfParser;
+    private final Map<String, VulkanGltfMeshParser.MeshGeometry> geometryCache = new HashMap<>();
 
     VulkanMeshAssetLoader(Path assetRoot) {
         this.assetRoot = assetRoot == null ? Path.of(".") : assetRoot;
@@ -15,18 +18,29 @@ final class VulkanMeshAssetLoader {
 
     VulkanGltfMeshParser.MeshGeometry loadMeshGeometry(MeshDesc mesh, int meshIndex) {
         if (mesh == null) {
-            return triangleGeometry();
+            return cloneGeometry(triangleGeometry());
         }
 
         String meshPath = mesh.meshAssetPath() == null ? "" : mesh.meshAssetPath().toLowerCase(Locale.ROOT);
         Path resolved = resolve(mesh.meshAssetPath());
+        String cacheKey = cacheKeyFor(meshPath, resolved, meshIndex);
+        VulkanGltfMeshParser.MeshGeometry cached = geometryCache.get(cacheKey);
+        if (cached != null) {
+            return cloneGeometry(cached);
+        }
+
+        VulkanGltfMeshParser.MeshGeometry resolvedGeometry = null;
         if (resolved != null && (meshPath.endsWith(".glb") || meshPath.endsWith(".gltf"))) {
             var parsed = gltfParser.parse(resolved);
             if (parsed.isPresent()) {
-                return parsed.get();
+                resolvedGeometry = parsed.get();
             }
         }
-        return fallbackByName(meshPath, meshIndex);
+        if (resolvedGeometry == null) {
+            resolvedGeometry = fallbackByName(meshPath, meshIndex);
+        }
+        geometryCache.put(cacheKey, resolvedGeometry);
+        return cloneGeometry(resolvedGeometry);
     }
 
     private Path resolve(String meshAssetPath) {
@@ -45,6 +59,20 @@ final class VulkanMeshAssetLoader {
             return quadGeometry();
         }
         return triangleGeometry();
+    }
+
+    private String cacheKeyFor(String meshPath, Path resolved, int meshIndex) {
+        if (resolved != null && (meshPath.endsWith(".glb") || meshPath.endsWith(".gltf"))) {
+            return "asset:" + resolved.toAbsolutePath().normalize();
+        }
+        return "fallback:" + meshPath + "#" + meshIndex;
+    }
+
+    private VulkanGltfMeshParser.MeshGeometry cloneGeometry(VulkanGltfMeshParser.MeshGeometry geometry) {
+        return new VulkanGltfMeshParser.MeshGeometry(
+                geometry.vertices().clone(),
+                geometry.indices().clone()
+        );
     }
 
     private VulkanGltfMeshParser.MeshGeometry triangleGeometry() {

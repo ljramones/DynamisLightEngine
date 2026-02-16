@@ -97,6 +97,7 @@ Current progress:
   - command recording skips uniform copy/barrier when no sync work is needed
   - dynamic-only scene changes upload sparse dirty object uniform ranges (multi-range) where safe
   - global-state revision updates are value-aware to avoid no-op churn when host re-sends unchanged settings each frame
+- Vulkan mesh ingestion path now caches parsed/fallback geometry in loader and returns defensive copies, reducing repeated scene-reload CPU cost while keeping cached data immutable from callers.
 
 ## Near-Term Task Queue (Execution Order)
 1. Post-processing baseline (tonemap then bloom).
