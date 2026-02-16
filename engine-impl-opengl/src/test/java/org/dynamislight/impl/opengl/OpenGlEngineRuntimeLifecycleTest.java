@@ -250,6 +250,18 @@ class OpenGlEngineRuntimeLifecycleTest {
     }
 
     @Test
+    void iblSkyboxOnlySceneEnablesBaselineWithFallbackWarning() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(), new RecordingCallbacks());
+        runtime.loadScene(validSkyboxOnlyIblScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_BASELINE_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_ASSET_FALLBACK_ACTIVE".equals(w.code())));
+    }
+
+    @Test
     void iblLowTierEmitsQualityDegradedWarning() throws Exception {
         var runtime = new OpenGlEngineRuntime();
         runtime.initialize(validLowQualityConfig(), new RecordingCallbacks());
@@ -678,6 +690,28 @@ class OpenGlEngineRuntimeLifecycleTest {
         );
         return new SceneDescriptor(
                 "ibl-missing-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                env,
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validSkyboxOnlyIblScene() {
+        SceneDescriptor base = validScene();
+        EnvironmentDesc env = new EnvironmentDesc(
+                base.environment().ambientColor(),
+                base.environment().ambientIntensity(),
+                "textures/skybox.hdr"
+        );
+        return new SceneDescriptor(
+                "ibl-skybox-only-scene",
                 base.cameras(),
                 base.activeCameraId(),
                 base.transforms(),

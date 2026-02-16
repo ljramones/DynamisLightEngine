@@ -27,6 +27,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - `.ktx/.ktx2` IBL container paths now resolve through sidecar decode sources when available (`.png/.hdr/.jpg/.jpeg`)
   - explicit `IBL_KTX_CONTAINER_FALLBACK` and `IBL_PREFILTER_APPROX_ACTIVE` warnings emitted for IBL runtime mode visibility
   - explicit missing-asset fallback runtime signal added: `IBL_ASSET_FALLBACK_ACTIVE` (configured IBL assets missing/unreadable)
+  - skybox-derived IBL fallback path enabled when explicit irradiance/radiance maps are absent (`EnvironmentDesc.skyboxAssetPath`)
   - bridge mapping preserves `EnvironmentDesc` IBL fields and `PostProcessDesc`
   - new backend tests assert `IBL_BASELINE_ACTIVE` and `IBL_ASSET_FALLBACK_ACTIVE` signals
   - IBL quality-tier policy tightened in OpenGL + Vulkan:

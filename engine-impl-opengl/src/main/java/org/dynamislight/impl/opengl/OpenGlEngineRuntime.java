@@ -61,7 +61,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean ktxContainerRequested,
             float prefilterStrength,
             boolean degraded,
-            int missingAssetCount
+            int missingAssetCount,
+            Path irradiancePath,
+            Path radiancePath,
+            Path brdfLutPath
     ) {
     }
 
@@ -86,7 +89,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0);
+    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public OpenGlEngineRuntime() {
@@ -187,9 +190,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
             context.setIblParameters(ibl.enabled(), ibl.diffuseStrength(), ibl.specularStrength(), ibl.prefilterStrength());
             context.setIblTexturePaths(
-                    resolveIblTexturePath(scene.environment() == null ? null : scene.environment().iblIrradiancePath()),
-                    resolveIblTexturePath(scene.environment() == null ? null : scene.environment().iblRadiancePath()),
-                    resolveIblTexturePath(scene.environment() == null ? null : scene.environment().iblBrdfLutPath())
+                    ibl.irradiancePath(),
+                    ibl.radiancePath(),
+                    ibl.brdfLutPath()
             );
             context.setPostProcessParameters(
                     postProcess.tonemapEnabled(),
@@ -431,13 +434,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0);
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
-                && !isBlank(environment.iblRadiancePath())
-                && !isBlank(environment.iblBrdfLutPath());
+                || !isBlank(environment.iblRadiancePath())
+                || !isBlank(environment.iblBrdfLutPath())
+                || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0);
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -456,8 +460,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         boolean degraded = qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
         boolean textureDriven = false;
 
-        Path irrSource = resolveTexturePath(environment.iblIrradiancePath());
-        Path radSource = resolveTexturePath(environment.iblRadiancePath());
+        String fallbackSkyboxPath = environment.skyboxAssetPath();
+        Path irrSource = resolveTexturePath(
+                isBlank(environment.iblIrradiancePath()) ? fallbackSkyboxPath : environment.iblIrradiancePath()
+        );
+        Path radSource = resolveTexturePath(
+                isBlank(environment.iblRadiancePath()) ? fallbackSkyboxPath : environment.iblRadiancePath()
+        );
         Path brdfSource = resolveTexturePath(environment.iblBrdfLutPath());
         boolean ktxContainerRequested = isKtxContainerPath(irrSource)
                 || isKtxContainerPath(radSource)
@@ -490,7 +499,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 ktxContainerRequested,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,
-                missingAssetCount
+                missingAssetCount,
+                irr,
+                rad,
+                brdf
         );
     }
 
@@ -808,10 +820,6 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         }
         Path path = Path.of(texturePath);
         return path.isAbsolute() ? path : assetRoot.resolve(path).normalize();
-    }
-
-    private Path resolveIblTexturePath(String texturePath) {
-        return resolveContainerSourcePath(resolveTexturePath(texturePath));
     }
 
     private static float safeAspect(int width, int height) {

@@ -64,7 +64,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0);
+    private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public VulkanEngineRuntime() {
@@ -236,9 +236,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
             context.setIblParameters(ibl.enabled(), ibl.diffuseStrength(), ibl.specularStrength(), ibl.prefilterStrength());
             context.setIblTexturePaths(
-                    resolveIblTexturePath(scene == null || scene.environment() == null ? null : scene.environment().iblIrradiancePath()),
-                    resolveIblTexturePath(scene == null || scene.environment() == null ? null : scene.environment().iblRadiancePath()),
-                    resolveIblTexturePath(scene == null || scene.environment() == null ? null : scene.environment().iblBrdfLutPath())
+                    ibl.irradiancePath(),
+                    ibl.radiancePath(),
+                    ibl.brdfLutPath()
             );
             context.setPostProcessParameters(
                     post.tonemapEnabled(),
@@ -656,7 +656,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean ktxContainerRequested,
             float prefilterStrength,
             boolean degraded,
-            int missingAssetCount
+            int missingAssetCount,
+            Path irradiancePath,
+            Path radiancePath,
+            Path brdfLutPath
     ) {
     }
 
@@ -691,13 +694,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0);
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
-                && !isBlank(environment.iblRadiancePath())
-                && !isBlank(environment.iblBrdfLutPath());
+                || !isBlank(environment.iblRadiancePath())
+                || !isBlank(environment.iblBrdfLutPath())
+                || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0);
+            return new IblRenderConfig(false, 0f, 0f, false, false, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -716,8 +720,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         boolean degraded = qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
         boolean textureDriven = false;
 
-        Path irrSource = resolveScenePath(environment.iblIrradiancePath(), assetRoot);
-        Path radSource = resolveScenePath(environment.iblRadiancePath(), assetRoot);
+        String fallbackSkyboxPath = environment.skyboxAssetPath();
+        Path irrSource = resolveScenePath(
+                isBlank(environment.iblIrradiancePath()) ? fallbackSkyboxPath : environment.iblIrradiancePath(),
+                assetRoot
+        );
+        Path radSource = resolveScenePath(
+                isBlank(environment.iblRadiancePath()) ? fallbackSkyboxPath : environment.iblRadiancePath(),
+                assetRoot
+        );
         Path brdfSource = resolveScenePath(environment.iblBrdfLutPath(), assetRoot);
         boolean ktxContainerRequested = isKtxContainerPath(irrSource)
                 || isKtxContainerPath(radSource)
@@ -750,7 +761,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 ktxContainerRequested,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,
-                missingAssetCount
+                missingAssetCount,
+                irr,
+                rad,
+                brdf
         );
     }
 
@@ -1108,10 +1122,6 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             return path.normalize();
         }
         return assetRoot.resolve(path).normalize();
-    }
-
-    private Path resolveIblTexturePath(String sourcePath) {
-        return resolveContainerSourcePath(resolveScenePath(sourcePath, assetRoot));
     }
 
     private static float imageLuminanceSignal(Path path) {
