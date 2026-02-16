@@ -191,8 +191,11 @@ Vulkan runtime emits profiling warnings (real-context mode) for:
 - `framesInFlight`
 - `descriptorSetsInRing`
 - `uniformStrideBytes` / `uniformFrameSpanBytes`
+- `dynamicSceneCapacity` / `pendingUploadRangeCapacity`
 - `lastUniformUploadBytes` / `maxUniformUploadBytes`
 - `lastUniformObjectCount` / `maxUniformObjectCount`
+- `lastUniformUploadRanges` / `maxUniformUploadRanges`
+- `lastUniformUploadStartObject`
 - `persistentStagingMapped`
 
 ## 10) Backend/runtime options
@@ -215,6 +218,10 @@ Vulkan options:
 - `vulkan.windowVisible` (default `false`)
 - `vulkan.forceDeviceLostOnRender` (default `false`)
 - `vulkan.postOffscreen` (default `true`, dedicated pass with automatic fallback)
+- `vulkan.framesInFlight` (default `3`, clamped `2..4`)
+- `vulkan.maxDynamicSceneObjects` (default `2048`, clamped `256..8192`)
+- `vulkan.maxPendingUploadRanges` (default `64`, clamped `8..512`)
+- `vulkan.meshGeometryCacheEntries` (default `256`, clamped `16..4096`)
 
 ## 11) Test-backed confidence areas
 The repository includes automated tests validating:
@@ -246,7 +253,7 @@ The repository includes automated tests validating:
   - `maxUniformUploadRanges`
   - `lastUniformUploadStartObject`
 - Vulkan runtime now emits mesh-loader cache telemetry warning:
-  - `MESH_GEOMETRY_CACHE_PROFILE` (`hits`, `misses`, `entries`)
+  - `MESH_GEOMETRY_CACHE_PROFILE` (`hits`, `misses`, `evictions`, `entries`, `maxEntries`)
 - Practical floor note: attempted `fog-smoke-shadow-post-stress <= 0.04` failed (`diff=0.04049019607843137`), so stress envelopes are frozen at `0.05` / `0.06`.
 - Compare harness backend toggles:
   - `dle.compare.opengl.mockContext`

@@ -72,6 +72,25 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void mockVulkanBackendOptionsConfigureFrameAndCacheLimits() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.framesInFlight", "4",
+                "vulkan.maxDynamicSceneObjects", "4096",
+                "vulkan.maxPendingUploadRanges", "128",
+                "vulkan.meshGeometryCacheEntries", "512"
+        )), new RecordingCallbacks());
+
+        VulkanEngineRuntime.FrameResourceConfig config = runtime.debugFrameResourceConfig();
+        assertEquals(4, config.framesInFlight());
+        assertEquals(4096, config.maxDynamicSceneObjects());
+        assertEquals(128, config.maxPendingUploadRanges());
+        assertEquals(512, config.meshGeometryCacheEntries());
+        runtime.shutdown();
+    }
+
+    @Test
     void forcedInitFailureMapsToBackendInitFailed() {
         var runtime = new VulkanEngineRuntime();
         var callbacks = new RecordingCallbacks();
@@ -426,6 +445,8 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frameA.warnings().stream().anyMatch(w -> "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "MESH_GEOMETRY_CACHE_PROFILE".equals(w.code()) && w.message().contains("evictions=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "MESH_GEOMETRY_CACHE_PROFILE".equals(w.code()) && w.message().contains("maxEntries=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorSetsInRing=3")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->

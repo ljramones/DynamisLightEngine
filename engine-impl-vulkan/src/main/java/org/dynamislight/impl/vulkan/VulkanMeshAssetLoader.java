@@ -8,9 +8,10 @@ import java.util.Map;
 import org.dynamislight.api.scene.MeshDesc;
 
 final class VulkanMeshAssetLoader {
-    private static final int MAX_GEOMETRY_CACHE_ENTRIES = 256;
+    private static final int DEFAULT_MAX_GEOMETRY_CACHE_ENTRIES = 256;
     private final Path assetRoot;
     private final VulkanGltfMeshParser gltfParser;
+    private final int maxGeometryCacheEntries;
     private final LinkedHashMap<String, VulkanGltfMeshParser.MeshGeometry> geometryCache =
             new LinkedHashMap<>(32, 0.75f, true);
     private long geometryCacheHits;
@@ -18,8 +19,13 @@ final class VulkanMeshAssetLoader {
     private long geometryCacheEvictions;
 
     VulkanMeshAssetLoader(Path assetRoot) {
+        this(assetRoot, DEFAULT_MAX_GEOMETRY_CACHE_ENTRIES);
+    }
+
+    VulkanMeshAssetLoader(Path assetRoot, int maxGeometryCacheEntries) {
         this.assetRoot = assetRoot == null ? Path.of(".") : assetRoot;
         this.gltfParser = new VulkanGltfMeshParser(this.assetRoot);
+        this.maxGeometryCacheEntries = Math.max(1, maxGeometryCacheEntries);
     }
 
     VulkanGltfMeshParser.MeshGeometry loadMeshGeometry(MeshDesc mesh, int meshIndex) {
@@ -53,7 +59,7 @@ final class VulkanMeshAssetLoader {
     }
 
     CacheProfile cacheProfile() {
-        return new CacheProfile(geometryCacheHits, geometryCacheMisses, geometryCacheEvictions, geometryCache.size());
+        return new CacheProfile(geometryCacheHits, geometryCacheMisses, geometryCacheEvictions, geometryCache.size(), maxGeometryCacheEntries);
     }
 
     private Path resolve(String meshAssetPath) {
@@ -89,7 +95,7 @@ final class VulkanMeshAssetLoader {
     }
 
     private void evictGeometryCacheIfNeeded() {
-        while (geometryCache.size() > MAX_GEOMETRY_CACHE_ENTRIES) {
+        while (geometryCache.size() > maxGeometryCacheEntries) {
             Iterator<Map.Entry<String, VulkanGltfMeshParser.MeshGeometry>> it = geometryCache.entrySet().iterator();
             if (!it.hasNext()) {
                 return;
@@ -100,7 +106,7 @@ final class VulkanMeshAssetLoader {
         }
     }
 
-    record CacheProfile(long hits, long misses, long evictions, int entries) {
+    record CacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
     }
 
     private VulkanGltfMeshParser.MeshGeometry triangleGeometry() {

@@ -31,6 +31,7 @@ import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
 
 public final class VulkanEngineRuntime extends AbstractEngineRuntime {
+    private static final int DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES = 256;
     private final VulkanContext context = new VulkanContext();
     private boolean mockContext = true;
     private boolean windowVisible;
@@ -43,7 +44,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private long plannedVisibleObjects = 1;
     private Path assetRoot = Path.of(".");
     private VulkanMeshAssetLoader meshLoader = new VulkanMeshAssetLoader(assetRoot);
-    private MeshGeometryCacheProfile meshGeometryCacheProfile = new MeshGeometryCacheProfile(0, 0, 0, 0);
+    private int meshGeometryCacheMaxEntries = DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES;
+    private MeshGeometryCacheProfile meshGeometryCacheProfile =
+            new MeshGeometryCacheProfile(0, 0, 0, 0, DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES);
     private int viewportWidth = 1280;
     private int viewportHeight = 720;
     private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
@@ -73,17 +76,29 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected void onInitialize(EngineConfig config) throws EngineException {
-        mockContext = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.mockContext", "true"));
-        windowVisible = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.windowVisible", "false"));
-        forceDeviceLostOnRender = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.forceDeviceLostOnRender", "false"));
-        postOffscreenRequested = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.postOffscreen", "true"));
+        Map<String, String> backendOptions = config.backendOptions();
+        mockContext = Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.mockContext", "true"));
+        windowVisible = Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.windowVisible", "false"));
+        forceDeviceLostOnRender = Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.forceDeviceLostOnRender", "false"));
+        postOffscreenRequested = Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.postOffscreen", "true"));
+        meshGeometryCacheMaxEntries = parseIntOption(
+                backendOptions,
+                "vulkan.meshGeometryCacheEntries",
+                DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES,
+                16,
+                4096
+        );
+        int framesInFlight = parseIntOption(backendOptions, "vulkan.framesInFlight", 3, 2, 4);
+        int maxDynamicSceneObjects = parseIntOption(backendOptions, "vulkan.maxDynamicSceneObjects", 2048, 256, 8192);
+        int maxPendingUploadRanges = parseIntOption(backendOptions, "vulkan.maxPendingUploadRanges", 64, 8, 512);
+        context.configureFrameResources(framesInFlight, maxDynamicSceneObjects, maxPendingUploadRanges);
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
-        meshLoader = new VulkanMeshAssetLoader(assetRoot);
+        meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
         qualityTier = config.qualityTier();
         viewportWidth = config.initialWidthPx();
         viewportHeight = config.initialHeightPx();
         deviceLostRaised = false;
-        if (Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.forceInitFailure", "false"))) {
+        if (Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.forceInitFailure", "false"))) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Forced Vulkan init failure", false);
         }
         if (!mockContext) {
@@ -111,7 +126,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene == null ? null : scene.lights());
         List<VulkanContext.SceneMeshData> sceneMeshes = buildSceneMeshes(scene);
         VulkanMeshAssetLoader.CacheProfile cache = meshLoader.cacheProfile();
-        meshGeometryCacheProfile = new MeshGeometryCacheProfile(cache.hits(), cache.misses(), cache.evictions(), cache.entries());
+        meshGeometryCacheProfile = new MeshGeometryCacheProfile(
+                cache.hits(),
+                cache.misses(),
+                cache.evictions(),
+                cache.entries(),
+                cache.maxEntries()
+        );
         plannedDrawCalls = sceneMeshes.size();
         plannedTriangles = sceneMeshes.stream().mapToLong(m -> m.indices().length / 3).sum();
         plannedVisibleObjects = plannedDrawCalls;
@@ -264,6 +285,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " misses=" + meshGeometryCacheProfile.misses()
                             + " evictions=" + meshGeometryCacheProfile.evictions()
                             + " entries=" + meshGeometryCacheProfile.entries()
+                            + " maxEntries=" + meshGeometryCacheProfile.maxEntries()
             ));
             VulkanContext.SceneReuseStats reuse = context.sceneReuseStats();
             warnings.add(new EngineWarning(
@@ -282,6 +304,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " descriptorSetsInRing=" + frameResources.descriptorSetsInRing()
                             + " uniformStrideBytes=" + frameResources.uniformStrideBytes()
                             + " uniformFrameSpanBytes=" + frameResources.uniformFrameSpanBytes()
+                            + " dynamicSceneCapacity=" + frameResources.dynamicSceneCapacity()
+                            + " pendingUploadRangeCapacity=" + frameResources.pendingUploadRangeCapacity()
                             + " lastUniformUploadBytes=" + frameResources.lastFrameUniformUploadBytes()
                             + " maxUniformUploadBytes=" + frameResources.maxFrameUniformUploadBytes()
                             + " lastUniformObjectCount=" + frameResources.lastFrameUniformObjectCount()
@@ -365,6 +389,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return context.sceneReuseStats();
     }
 
+    FrameResourceConfig debugFrameResourceConfig() {
+        return new FrameResourceConfig(
+                context.configuredFramesInFlight(),
+                context.configuredMaxDynamicSceneObjects(),
+                context.configuredMaxPendingUploadRanges(),
+                meshGeometryCacheMaxEntries
+        );
+    }
+
     private float[] materialToColor(MaterialDesc material) {
         Vec3 albedo = material == null ? null : material.albedo();
         if (albedo == null) {
@@ -390,7 +423,31 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return Math.max(0f, Math.min(1f, v));
     }
 
-    private record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries) {
+    private static int parseIntOption(Map<String, String> options, String key, int fallback, int min, int max) {
+        String raw = options.get(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return clampInt(Integer.parseInt(raw.trim()), min, max);
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static int clampInt(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
+    }
+
+    record FrameResourceConfig(
+            int framesInFlight,
+            int maxDynamicSceneObjects,
+            int maxPendingUploadRanges,
+            int meshGeometryCacheEntries
+    ) {
     }
 
     private record FogRenderConfig(boolean enabled, float r, float g, float b, float density, int steps, boolean degraded) {

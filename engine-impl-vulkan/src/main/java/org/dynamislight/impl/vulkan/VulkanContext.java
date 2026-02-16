@@ -308,9 +308,9 @@ import org.lwjgl.vulkan.VkViewport;
 final class VulkanContext {
     private static final int VERTEX_STRIDE_FLOATS = 11;
     private static final int VERTEX_STRIDE_BYTES = VERTEX_STRIDE_FLOATS * Float.BYTES;
-    private static final int MAX_FRAMES_IN_FLIGHT = 3;
-    private static final int MAX_DYNAMIC_SCENE_OBJECTS = 2048;
-    private static final int MAX_PENDING_UPLOAD_RANGES = 64;
+    private static final int DEFAULT_FRAMES_IN_FLIGHT = 3;
+    private static final int DEFAULT_MAX_DYNAMIC_SCENE_OBJECTS = 2048;
+    private static final int DEFAULT_MAX_PENDING_UPLOAD_RANGES = 64;
     private static final int MAX_SHADOW_CASCADES = 4;
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 6;
@@ -357,6 +357,9 @@ final class VulkanContext {
     private long globalUniformStagingMappedAddress;
     private int uniformStrideBytes = GLOBAL_UNIFORM_BYTES;
     private int uniformFrameSpanBytes = GLOBAL_UNIFORM_BYTES;
+    private int framesInFlight = DEFAULT_FRAMES_IN_FLIGHT;
+    private int maxDynamicSceneObjects = DEFAULT_MAX_DYNAMIC_SCENE_OBJECTS;
+    private int maxPendingUploadRanges = DEFAULT_MAX_PENDING_UPLOAD_RANGES;
     private long[] framebuffers = new long[0];
     private long commandPool = VK_NULL_HANDLE;
     private VkCommandBuffer[] commandBuffers = new VkCommandBuffer[0];
@@ -383,19 +386,19 @@ final class VulkanContext {
     private int lastFrameUniformUploadStartObject;
     private long globalStateRevision = 1;
     private long sceneStateRevision = 1;
-    private final long[] frameGlobalRevisionApplied = new long[MAX_FRAMES_IN_FLIGHT];
-    private final long[] frameSceneRevisionApplied = new long[MAX_FRAMES_IN_FLIGHT];
-    private final int[] pendingSceneDirtyStarts = new int[MAX_PENDING_UPLOAD_RANGES];
-    private final int[] pendingSceneDirtyEnds = new int[MAX_PENDING_UPLOAD_RANGES];
+    private long[] frameGlobalRevisionApplied = new long[DEFAULT_FRAMES_IN_FLIGHT];
+    private long[] frameSceneRevisionApplied = new long[DEFAULT_FRAMES_IN_FLIGHT];
+    private int[] pendingSceneDirtyStarts = new int[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
+    private int[] pendingSceneDirtyEnds = new int[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
     private int pendingSceneDirtyRangeCount;
     private long pendingUploadSrcOffset = -1L;
     private long pendingUploadDstOffset = -1L;
     private int pendingUploadByteCount;
     private int pendingUploadObjectCount;
     private int pendingUploadStartObject;
-    private final long[] pendingUploadSrcOffsets = new long[MAX_PENDING_UPLOAD_RANGES];
-    private final long[] pendingUploadDstOffsets = new long[MAX_PENDING_UPLOAD_RANGES];
-    private final int[] pendingUploadByteCounts = new int[MAX_PENDING_UPLOAD_RANGES];
+    private long[] pendingUploadSrcOffsets = new long[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
+    private long[] pendingUploadDstOffsets = new long[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
+    private int[] pendingUploadByteCounts = new int[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
     private int pendingUploadRangeCount;
     private final List<GpuMesh> gpuMeshes = new ArrayList<>();
     private List<SceneMeshData> pendingSceneMeshes = List.of(SceneMeshData.defaultTriangle());
@@ -480,6 +483,34 @@ final class VulkanContext {
     private long[] postFramebuffers = new long[0];
     private boolean postIntermediateInitialized;
 
+    VulkanContext() {
+        reallocateFrameTracking();
+        reallocateUploadRangeTracking();
+    }
+
+    void configureFrameResources(int framesInFlight, int maxDynamicSceneObjects, int maxPendingUploadRanges) {
+        if (device != null) {
+            return;
+        }
+        this.framesInFlight = clamp(framesInFlight, 2, 4);
+        this.maxDynamicSceneObjects = clamp(maxDynamicSceneObjects, 256, 8192);
+        this.maxPendingUploadRanges = clamp(maxPendingUploadRanges, 8, 512);
+        reallocateFrameTracking();
+        reallocateUploadRangeTracking();
+    }
+
+    int configuredFramesInFlight() {
+        return framesInFlight;
+    }
+
+    int configuredMaxDynamicSceneObjects() {
+        return maxDynamicSceneObjects;
+    }
+
+    int configuredMaxPendingUploadRanges() {
+        return maxPendingUploadRanges;
+    }
+
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
         initWindow(appName, width, height, windowVisible);
         try (MemoryStack stack = stackPush()) {
@@ -538,10 +569,12 @@ final class VulkanContext {
 
     FrameResourceProfile frameResourceProfile() {
         return new FrameResourceProfile(
-                MAX_FRAMES_IN_FLIGHT,
+                framesInFlight,
                 frameDescriptorSets.length,
                 uniformStrideBytes,
                 uniformFrameSpanBytes,
+                maxDynamicSceneObjects,
+                maxPendingUploadRanges,
                 lastFrameUniformUploadBytes,
                 maxFrameUniformUploadBytes,
                 lastFrameUniformObjectCount,
@@ -1186,8 +1219,8 @@ final class VulkanContext {
         VK10.vkGetPhysicalDeviceProperties(physicalDevice, props);
         long minAlign = Math.max(1L, props.limits().minUniformBufferOffsetAlignment());
         uniformStrideBytes = alignUp(GLOBAL_UNIFORM_BYTES, (int) Math.min(Integer.MAX_VALUE, minAlign));
-        uniformFrameSpanBytes = uniformStrideBytes * MAX_DYNAMIC_SCENE_OBJECTS;
-        int totalUniformBytes = uniformFrameSpanBytes * MAX_FRAMES_IN_FLIGHT;
+        uniformFrameSpanBytes = uniformStrideBytes * maxDynamicSceneObjects;
+        int totalUniformBytes = uniformFrameSpanBytes * framesInFlight;
 
         BufferAlloc uniformDeviceAlloc = createBuffer(
                 stack,
@@ -1221,10 +1254,10 @@ final class VulkanContext {
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
-                .descriptorCount(MAX_FRAMES_IN_FLIGHT);
+                .descriptorCount(framesInFlight);
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
-                .maxSets(MAX_FRAMES_IN_FLIGHT)
+                .maxSets(framesInFlight)
                 .pPoolSizes(poolSizes);
         var pPool = stack.longs(VK_NULL_HANDLE);
         int poolResult = vkCreateDescriptorPool(device, poolInfo, null, pPool);
@@ -1233,28 +1266,28 @@ final class VulkanContext {
         }
         descriptorPool = pPool.get(0);
 
-        java.nio.LongBuffer layouts = stack.mallocLong(MAX_FRAMES_IN_FLIGHT);
-        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        java.nio.LongBuffer layouts = stack.mallocLong(framesInFlight);
+        for (int i = 0; i < framesInFlight; i++) {
             layouts.put(i, descriptorSetLayout);
         }
         VkDescriptorSetAllocateInfo allocInfo = VkDescriptorSetAllocateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO)
                 .descriptorPool(descriptorPool)
                 .pSetLayouts(layouts);
-        java.nio.LongBuffer pSet = stack.mallocLong(MAX_FRAMES_IN_FLIGHT);
+        java.nio.LongBuffer pSet = stack.mallocLong(framesInFlight);
         int setResult = vkAllocateDescriptorSets(device, allocInfo, pSet);
         if (setResult != VK_SUCCESS) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateDescriptorSets failed: " + setResult, false);
         }
-        frameDescriptorSets = new long[MAX_FRAMES_IN_FLIGHT];
-        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        frameDescriptorSets = new long[framesInFlight];
+        for (int i = 0; i < framesInFlight; i++) {
             frameDescriptorSets[i] = pSet.get(i);
         }
         descriptorSet = frameDescriptorSets[0];
 
-        VkDescriptorBufferInfo.Buffer bufferInfos = VkDescriptorBufferInfo.calloc(MAX_FRAMES_IN_FLIGHT, stack);
-        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(MAX_FRAMES_IN_FLIGHT, stack);
-        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkDescriptorBufferInfo.Buffer bufferInfos = VkDescriptorBufferInfo.calloc(framesInFlight, stack);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(framesInFlight, stack);
+        for (int i = 0; i < framesInFlight; i++) {
             long frameBase = (long) i * uniformFrameSpanBytes;
             bufferInfos.get(i)
                     .buffer(globalUniformBuffer)
@@ -2786,15 +2819,15 @@ final class VulkanContext {
                 .sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO)
                 .commandPool(commandPool)
                 .level(VK_COMMAND_BUFFER_LEVEL_PRIMARY)
-                .commandBufferCount(MAX_FRAMES_IN_FLIGHT);
+                .commandBufferCount(framesInFlight);
 
-        PointerBuffer pCommandBuffer = stack.mallocPointer(MAX_FRAMES_IN_FLIGHT);
+        PointerBuffer pCommandBuffer = stack.mallocPointer(framesInFlight);
         int allocResult = vkAllocateCommandBuffers(device, allocInfo, pCommandBuffer);
         if (allocResult != VK_SUCCESS) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkAllocateCommandBuffers failed: " + allocResult, false);
         }
-        commandBuffers = new VkCommandBuffer[MAX_FRAMES_IN_FLIGHT];
-        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        commandBuffers = new VkCommandBuffer[framesInFlight];
+        for (int i = 0; i < framesInFlight; i++) {
             commandBuffers[i] = new VkCommandBuffer(pCommandBuffer.get(i), device);
         }
         currentFrame = 0;
@@ -2804,11 +2837,11 @@ final class VulkanContext {
         VkSemaphoreCreateInfo semaphoreInfo = VkSemaphoreCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
 
-        imageAvailableSemaphores = new long[MAX_FRAMES_IN_FLIGHT];
-        renderFinishedSemaphores = new long[MAX_FRAMES_IN_FLIGHT];
-        renderFences = new long[MAX_FRAMES_IN_FLIGHT];
+        imageAvailableSemaphores = new long[framesInFlight];
+        renderFinishedSemaphores = new long[framesInFlight];
+        renderFences = new long[framesInFlight];
 
-        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        for (int i = 0; i < framesInFlight; i++) {
             var pSemaphore = stack.longs(VK_NULL_HANDLE);
             int semaphoreResult = vkCreateSemaphore(device, semaphoreInfo, null, pSemaphore);
             if (semaphoreResult != VK_SUCCESS || pSemaphore.get(0) == VK_NULL_HANDLE) {
@@ -2880,7 +2913,7 @@ final class VulkanContext {
         prepareFrameUniforms(frameIdx);
         uploadFrameUniforms(commandBuffer, frameIdx);
         long frameDescriptorSet = descriptorSetForFrame(frameIdx);
-        int drawCount = gpuMeshes.isEmpty() ? 1 : Math.min(MAX_DYNAMIC_SCENE_OBJECTS, gpuMeshes.size());
+        int drawCount = gpuMeshes.isEmpty() ? 1 : Math.min(maxDynamicSceneObjects, gpuMeshes.size());
         if (shadowEnabled
                 && shadowRenderPass != VK_NULL_HANDLE
                 && shadowFramebuffers.length >= Math.min(MAX_SHADOW_MATRICES, Math.max(1, shadowCascadeCount))
@@ -3821,7 +3854,7 @@ final class VulkanContext {
         if (uniqueTextures.add(iblBrdfLutTexture)) {
             textureBytes += iblBrdfLutTexture.bytes();
         }
-        long uniformBytes = (long) uniformFrameSpanBytes * MAX_FRAMES_IN_FLIGHT * 2L;
+        long uniformBytes = (long) uniformFrameSpanBytes * framesInFlight * 2L;
         estimatedGpuMemoryBytes = uniformBytes + meshBytes + textureBytes;
     }
 
@@ -4485,7 +4518,7 @@ final class VulkanContext {
         if (end < start) {
             return;
         }
-        if (pendingSceneDirtyRangeCount >= MAX_PENDING_UPLOAD_RANGES) {
+        if (pendingSceneDirtyRangeCount >= maxPendingUploadRanges) {
             pendingSceneDirtyRangeCount = 1;
             pendingSceneDirtyStarts[0] = 0;
             pendingSceneDirtyEnds[0] = Math.max(start, end);
@@ -4540,14 +4573,14 @@ final class VulkanContext {
 
     private void prepareFrameUniforms(int frameIdx) throws EngineException {
         int meshCount = Math.max(1, gpuMeshes.size());
-        if (meshCount > MAX_DYNAMIC_SCENE_OBJECTS) {
+        if (meshCount > maxDynamicSceneObjects) {
             throw new EngineException(
                     EngineErrorCode.RESOURCE_CREATION_FAILED,
-                    "Scene mesh count " + meshCount + " exceeds dynamic uniform capacity " + MAX_DYNAMIC_SCENE_OBJECTS,
+                    "Scene mesh count " + meshCount + " exceeds dynamic uniform capacity " + maxDynamicSceneObjects,
                     false
             );
         }
-        int normalizedFrame = Math.floorMod(frameIdx, MAX_FRAMES_IN_FLIGHT);
+        int normalizedFrame = Math.floorMod(frameIdx, framesInFlight);
         int frameBase = normalizedFrame * uniformFrameSpanBytes;
         boolean globalStale = frameGlobalRevisionApplied[normalizedFrame] != globalStateRevision;
         boolean sceneStale = frameSceneRevisionApplied[normalizedFrame] != sceneStateRevision;
@@ -4557,15 +4590,15 @@ final class VulkanContext {
         }
 
         int uploadRangeCount;
-        int[] uploadStarts = new int[MAX_PENDING_UPLOAD_RANGES];
-        int[] uploadEnds = new int[MAX_PENDING_UPLOAD_RANGES];
+        int[] uploadStarts = new int[maxPendingUploadRanges];
+        int[] uploadEnds = new int[maxPendingUploadRanges];
         if (globalStale) {
             uploadRangeCount = 1;
             uploadStarts[0] = 0;
             uploadEnds[0] = meshCount - 1;
         } else if (sceneStale && pendingSceneDirtyRangeCount > 0) {
             uploadRangeCount = 0;
-            for (int i = 0; i < pendingSceneDirtyRangeCount && uploadRangeCount < MAX_PENDING_UPLOAD_RANGES; i++) {
+            for (int i = 0; i < pendingSceneDirtyRangeCount && uploadRangeCount < maxPendingUploadRanges; i++) {
                 int start = Math.max(0, Math.min(meshCount - 1, pendingSceneDirtyStarts[i]));
                 int end = Math.max(start, Math.min(meshCount - 1, pendingSceneDirtyEnds[i]));
                 uploadStarts[uploadRangeCount] = start;
@@ -5135,6 +5168,8 @@ final class VulkanContext {
             int descriptorSetsInRing,
             int uniformStrideBytes,
             int uniformFrameSpanBytes,
+            int dynamicSceneCapacity,
+            int pendingUploadRangeCapacity,
             int lastFrameUniformUploadBytes,
             int maxFrameUniformUploadBytes,
             int lastFrameUniformObjectCount,
@@ -5163,6 +5198,23 @@ final class VulkanContext {
             boolean offscreenActive,
             String mode
     ) {
+    }
+
+    private void reallocateFrameTracking() {
+        frameGlobalRevisionApplied = new long[framesInFlight];
+        frameSceneRevisionApplied = new long[framesInFlight];
+    }
+
+    private void reallocateUploadRangeTracking() {
+        pendingSceneDirtyStarts = new int[maxPendingUploadRanges];
+        pendingSceneDirtyEnds = new int[maxPendingUploadRanges];
+        pendingUploadSrcOffsets = new long[maxPendingUploadRanges];
+        pendingUploadDstOffsets = new long[maxPendingUploadRanges];
+        pendingUploadByteCounts = new int[maxPendingUploadRanges];
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static final class LongBufferWrapper {

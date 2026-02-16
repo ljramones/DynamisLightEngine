@@ -40,7 +40,9 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - Adaptive point-shadow PCF/bias scaling now applied in both backends to improve near/far stability.
   - Backend tests ensure legacy `SPOT_LIGHT_APPROX_ACTIVE` warning remains absent and verify point/spot shadow warning behavior.
 - Hardened Vulkan frame-resource architecture:
-  - expanded to `MAX_FRAMES_IN_FLIGHT=3`
+  - configurable ring sizing (`vulkan.framesInFlight`, default `3`, clamp `2..4`)
+  - configurable dynamic-scene uniform capacity (`vulkan.maxDynamicSceneObjects`, default `2048`)
+  - configurable pending upload-range capacity (`vulkan.maxPendingUploadRanges`, default `64`)
   - per-frame descriptor-set ring for global uniforms
   - persistent mapped staging for frame-uniform uploads
   - expanded frame-resource telemetry fields
@@ -54,7 +56,8 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - glTF/fallback geometry is cached by stable key
   - loader returns defensive copies to preserve cache integrity
   - reduces repeated parse/geometry-construction churn across scene reloads
-  - runtime now exposes cache behavior via `MESH_GEOMETRY_CACHE_PROFILE` warning (`hits/misses/entries`)
+  - runtime now exposes cache behavior via `MESH_GEOMETRY_CACHE_PROFILE` warning (`hits/misses/evictions/entries/maxEntries`)
+  - cache capacity is configurable via `vulkan.meshGeometryCacheEntries` (default `256`)
 - Expanded guarded real-Vulkan suite:
   - longer resize/scene-switch endurance loop
   - forced device-loss error-path test
