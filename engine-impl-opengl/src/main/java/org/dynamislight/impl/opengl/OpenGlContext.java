@@ -6,6 +6,7 @@ import static org.lwjgl.opengl.GL11.GL_DEPTH_COMPONENT;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_TEST;
 import static org.lwjgl.opengl.GL11.GL_FLOAT;
 import static org.lwjgl.opengl.GL11.GL_LINEAR;
+import static org.lwjgl.opengl.GL11.GL_LINEAR_MIPMAP_LINEAR;
 import static org.lwjgl.opengl.GL11.GL_NEAREST;
 import static org.lwjgl.opengl.GL11.GL_NONE;
 import static org.lwjgl.opengl.GL11.GL_RGBA;
@@ -76,6 +77,7 @@ import static org.lwjgl.opengl.GL30.glFramebufferTexture2D;
 import static org.lwjgl.opengl.GL30.glGenFramebuffers;
 import static org.lwjgl.opengl.GL30.glDeleteVertexArrays;
 import static org.lwjgl.opengl.GL30.glGenVertexArrays;
+import static org.lwjgl.opengl.GL30.glGenerateMipmap;
 import static org.lwjgl.opengl.GL30.GL_COLOR_ATTACHMENT0;
 import static org.lwjgl.opengl.GL30.GL_DEPTH24_STENCIL8;
 import static org.lwjgl.opengl.GL30.GL_DEPTH_STENCIL_ATTACHMENT;
@@ -211,7 +213,7 @@ final class OpenGlContext {
         }
     }
 
-    private record TextureData(int id, long bytes) {
+    private record TextureData(int id, long bytes, int maxLod) {
     }
 
     private static final String VERTEX_SHADER = """
@@ -274,6 +276,7 @@ final class OpenGlContext {
             uniform sampler2D uIblIrradiance;
             uniform sampler2D uIblRadiance;
             uniform sampler2D uIblBrdfLut;
+            uniform float uIblRadianceMaxLod;
             uniform vec3 uDirLightDir;
             uniform vec3 uDirLightColor;
             uniform float uDirLightIntensity;
@@ -328,27 +331,18 @@ final class OpenGlContext {
             vec3 sampleIblRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter) {
                 float roughMix = clamp(roughness * (0.45 + 0.55 * prefilter), 0.0, 1.0);
                 vec2 roughUv = mix(specUv, baseUv, roughMix);
+                float maxLod = max(uIblRadianceMaxLod, 0.0);
+                float lod = roughMix * maxLod;
                 vec2 texel = 1.0 / vec2(textureSize(uIblRadiance, 0));
                 vec2 axis = normalize(vec2(0.37, 0.93) + vec2(roughMix, 1.0 - roughMix) * 0.45);
                 vec2 side = vec2(-axis.y, axis.x);
-                float spread = mix(0.75, 7.5, roughMix);
-                vec3 c0 = texture(uIblRadiance, roughUv).rgb;
-                vec3 c1 = texture(uIblRadiance, clamp(roughUv + axis * texel * spread, vec2(0.0), vec2(1.0))).rgb;
-                vec3 c2 = texture(uIblRadiance, clamp(roughUv - axis * texel * spread, vec2(0.0), vec2(1.0))).rgb;
-                vec3 c3 = texture(uIblRadiance, clamp(roughUv + side * texel * spread * 0.65, vec2(0.0), vec2(1.0))).rgb;
-                vec3 c4 = texture(uIblRadiance, clamp(roughUv - side * texel * spread * 0.65, vec2(0.0), vec2(1.0))).rgb;
-                vec3 c5 = texture(uIblRadiance, clamp(roughUv + axis * texel * spread * 1.65, vec2(0.0), vec2(1.0))).rgb;
-                vec3 c6 = texture(uIblRadiance, clamp(roughUv - axis * texel * spread * 1.65, vec2(0.0), vec2(1.0))).rgb;
-                vec3 c7 = texture(uIblRadiance, clamp(roughUv + side * texel * spread * 1.25, vec2(0.0), vec2(1.0))).rgb;
-                vec3 c8 = texture(uIblRadiance, clamp(roughUv - side * texel * spread * 1.25, vec2(0.0), vec2(1.0))).rgb;
-                vec3 weighted = (c0 * 0.24)
-                        + (c1 * 0.14) + (c2 * 0.14)
-                        + (c3 * 0.10) + (c4 * 0.10)
-                        + (c5 * 0.08) + (c6 * 0.08)
-                        + (c7 * 0.06) + (c8 * 0.06);
-                float luma = dot(weighted, vec3(0.2126, 0.7152, 0.0722));
-                float prefilterBoost = mix(0.95, 1.22, prefilter * roughMix);
-                return weighted * prefilterBoost * (0.9 + 0.1 * clamp(luma, 0.0, 1.0));
+                float spread = mix(0.5, 3.0, roughMix);
+                vec3 c0 = textureLod(uIblRadiance, roughUv, lod).rgb;
+                vec3 c1 = textureLod(uIblRadiance, clamp(roughUv + axis * texel * spread, vec2(0.0), vec2(1.0)), lod).rgb;
+                vec3 c2 = textureLod(uIblRadiance, clamp(roughUv - axis * texel * spread, vec2(0.0), vec2(1.0)), lod).rgb;
+                vec3 c3 = textureLod(uIblRadiance, clamp(roughUv + side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
+                vec3 c4 = textureLod(uIblRadiance, clamp(roughUv - side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
+                return (c0 * 0.44) + (c1 * 0.18) + (c2 * 0.18) + (c3 * 0.10) + (c4 * 0.10);
             }
             float shadowTerm(vec3 normal, float ndl) {
                 vec3 projCoords = vLightSpacePos.xyz / max(vLightSpacePos.w, 0.0001);
@@ -603,6 +597,7 @@ final class OpenGlContext {
     private int iblIrradianceTextureLocation;
     private int iblRadianceTextureLocation;
     private int iblBrdfLutTextureLocation;
+    private int iblRadianceMaxLodLocation;
     private int dirLightDirLocation;
     private int dirLightColorLocation;
     private int dirLightIntensityLocation;
@@ -666,6 +661,7 @@ final class OpenGlContext {
     private float iblDiffuseStrength;
     private float iblSpecularStrength;
     private float iblPrefilterStrength;
+    private float iblRadianceMaxLod;
     private boolean tonemapEnabled = true;
     private float tonemapExposure = 1.0f;
     private float tonemapGamma = 2.2f;
@@ -844,6 +840,7 @@ final class OpenGlContext {
                     iblSpecularStrength,
                     iblPrefilterStrength
             );
+            glUniform1f(iblRadianceMaxLodLocation, iblRadianceMaxLod);
             if (mesh.textureId != 0) {
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, mesh.textureId);
@@ -1089,9 +1086,13 @@ final class OpenGlContext {
             glDeleteTextures(iblBrdfLutTextureId);
             iblBrdfLutTextureId = 0;
         }
-        iblIrradianceTextureId = loadTexture(irradiancePath).id();
-        iblRadianceTextureId = loadTexture(radiancePath).id();
-        iblBrdfLutTextureId = loadTexture(brdfLutPath).id();
+        TextureData irradiance = loadTexture(irradiancePath);
+        TextureData radiance = loadTexture(radiancePath);
+        TextureData brdfLut = loadTexture(brdfLutPath);
+        iblIrradianceTextureId = irradiance.id();
+        iblRadianceTextureId = radiance.id();
+        iblBrdfLutTextureId = brdfLut.id();
+        iblRadianceMaxLod = radiance.maxLod();
     }
 
     void setPostProcessParameters(
@@ -1251,6 +1252,7 @@ final class OpenGlContext {
         iblIrradianceTextureLocation = glGetUniformLocation(programId, "uIblIrradiance");
         iblRadianceTextureLocation = glGetUniformLocation(programId, "uIblRadiance");
         iblBrdfLutTextureLocation = glGetUniformLocation(programId, "uIblBrdfLut");
+        iblRadianceMaxLodLocation = glGetUniformLocation(programId, "uIblRadianceMaxLod");
         dirLightDirLocation = glGetUniformLocation(programId, "uDirLightDir");
         dirLightColorLocation = glGetUniformLocation(programId, "uDirLightColor");
         dirLightIntensityLocation = glGetUniformLocation(programId, "uDirLightIntensity");
@@ -1419,7 +1421,7 @@ final class OpenGlContext {
     private TextureData loadTexture(Path texturePath) {
         Path sourcePath = resolveContainerSourcePath(texturePath);
         if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
-            return new TextureData(0, 0);
+            return new TextureData(0, 0, 0);
         }
         if (isKtxContainerPath(sourcePath)) {
             TextureData decoded = loadTextureFromKtx(sourcePath);
@@ -1441,7 +1443,7 @@ final class OpenGlContext {
     private TextureData loadTextureFromKtx(Path containerPath) {
         BufferedImage image = KtxDecodeUtil.decodeToImageIfSupported(containerPath);
         if (image == null) {
-            return new TextureData(0, 0);
+            return new TextureData(0, 0, 0);
         }
         return uploadBufferedImageTexture(image);
     }
@@ -1470,18 +1472,18 @@ final class OpenGlContext {
             var y = stack.mallocInt(1);
             var channels = stack.mallocInt(1);
             if (!stbi_info(path, x, y, channels)) {
-                return new TextureData(0, 0);
+                return new TextureData(0, 0, 0);
             }
             int width = x.get(0);
             int height = y.get(0);
             if (width <= 0 || height <= 0) {
-                return new TextureData(0, 0);
+                return new TextureData(0, 0, 0);
             }
 
             if (stbi_is_hdr(path)) {
                 FloatBuffer hdr = stbi_loadf(path, x, y, channels, 4);
                 if (hdr == null) {
-                    return new TextureData(0, 0);
+                    return new TextureData(0, 0, 0);
                 }
                 try {
                     ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
@@ -1505,7 +1507,7 @@ final class OpenGlContext {
 
             ByteBuffer ldr = stbi_load(path, x, y, channels, 4);
             if (ldr == null) {
-                return new TextureData(0, 0);
+                return new TextureData(0, 0, 0);
             }
             try {
                 return uploadRgbaTexture(ldr, width, height);
@@ -1513,18 +1515,21 @@ final class OpenGlContext {
                 stbi_image_free(ldr);
             }
         } catch (Throwable ignored) {
-            return new TextureData(0, 0);
+            return new TextureData(0, 0, 0);
         }
     }
 
     private TextureData uploadRgbaTexture(ByteBuffer rgba, int width, int height) {
         int textureId = glGenTextures();
         glBindTexture(GL_TEXTURE_2D, textureId);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        int maxLod = (int) Math.floor(Math.log(Math.max(1, Math.max(width, height))) / Math.log(2));
+        maxLod = Math.max(0, maxLod);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        glGenerateMipmap(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, 0);
-        return new TextureData(textureId, (long) width * height * 4L);
+        return new TextureData(textureId, (long) width * height * 4L, maxLod);
     }
 
     private int toLdrByte(float hdrValue) {

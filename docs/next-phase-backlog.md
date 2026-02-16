@@ -93,6 +93,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - baseline native `.ktx/.ktx2` decode is now in place for uncompressed channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`)
   - direct GPU ingestion path now decodes supported KTX/KTX2 in-memory (no PNG transcode dependency)
   - BRDF/roughness integration has been deepened in both backends with stronger roughness-aware prefilter weighting and BRDF LUT energy shaping
+  - prefilter path now includes roughness-driven mip/LOD sampling for IBL radiance (`IBL_MIP_LOD_PREFILTER_ACTIVE`)
   - unsupported compressed/supercompressed/non-RGBA8 variants are surfaced explicitly via `IBL_KTX_VARIANT_UNSUPPORTED`
   - remaining: true compressed/supercompressed native decode/upload coverage beyond baseline uncompressed families
 - Shadow fidelity tune: radius/cascade-aware depth-bias scaling now applied in both backends to reduce acne/flicker at higher PCF/cascade settings.

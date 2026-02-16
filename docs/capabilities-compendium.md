@@ -85,6 +85,7 @@ OpenGL backend provides a real forward render baseline:
   - shader-side IBL texture sampling path (irradiance/radiance/BRDF-LUT samplers in render shader)
 - roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
 - roughness-aware multi-tap IBL specular radiance filtering with runtime signal `IBL_MULTI_TAP_SPEC_ACTIVE`
+- roughness-driven mip/LOD prefilter sampling path for IBL radiance with runtime signal `IBL_MIP_LOD_PREFILTER_ACTIVE`
 - BRDF energy-compensation + horizon-weighted IBL response with runtime signal `IBL_BRDF_ENERGY_COMP_ACTIVE`
 - deeper roughness/BRDF integration: prefilter weighting and BRDF-LUT shaping tuned to improve energy balance on glossy vs rough materials
 - view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
@@ -145,6 +146,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - shader-side IBL texture sampling path (irradiance/radiance/BRDF-LUT samplers in render shader)
   - roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
   - roughness-aware multi-tap IBL specular radiance filtering with runtime signal `IBL_MULTI_TAP_SPEC_ACTIVE`
+  - roughness-driven mip/LOD prefilter sampling path for IBL radiance with runtime signal `IBL_MIP_LOD_PREFILTER_ACTIVE`
   - BRDF energy-compensation + horizon-weighted IBL response with runtime signal `IBL_BRDF_ENERGY_COMP_ACTIVE`
   - deeper roughness/BRDF integration: prefilter weighting and BRDF-LUT shaping tuned to improve energy balance on glossy vs rough materials
   - view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
