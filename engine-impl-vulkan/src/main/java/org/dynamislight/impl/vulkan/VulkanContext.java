@@ -258,7 +258,7 @@ import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
 import org.lwjgl.vulkan.VkViewport;
 
 final class VulkanContext {
-    private static final int GLOBAL_UNIFORM_BYTES = 272;
+    private static final int GLOBAL_UNIFORM_BYTES = 352;
     private VkInstance instance;
     private VkPhysicalDevice physicalDevice;
     private VkDevice device;
@@ -307,6 +307,17 @@ final class VulkanContext {
     private float pointLightColorG = 0.62f;
     private float pointLightColorB = 0.22f;
     private float pointLightIntensity = 1.0f;
+    private boolean fogEnabled;
+    private float fogR = 0.5f;
+    private float fogG = 0.5f;
+    private float fogB = 0.5f;
+    private float fogDensity;
+    private int fogSteps;
+    private boolean smokeEnabled;
+    private float smokeR = 0.6f;
+    private float smokeG = 0.6f;
+    private float smokeB = 0.6f;
+    private float smokeIntensity;
 
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
         initWindow(appName, width, height, windowVisible);
@@ -402,6 +413,23 @@ final class VulkanContext {
             pointLightColorB = pointColor[2];
         }
         pointLightIntensity = Math.max(0f, pointIntensity);
+    }
+
+    void setFogParameters(boolean enabled, float r, float g, float b, float density, int steps) {
+        fogEnabled = enabled;
+        fogR = r;
+        fogG = g;
+        fogB = b;
+        fogDensity = Math.max(0f, density);
+        fogSteps = Math.max(0, steps);
+    }
+
+    void setSmokeParameters(boolean enabled, float r, float g, float b, float intensity) {
+        smokeEnabled = enabled;
+        smokeR = r;
+        smokeG = g;
+        smokeB = b;
+        smokeIntensity = Math.max(0f, Math.min(1f, intensity));
     }
 
     void shutdown() {
@@ -860,6 +888,7 @@ final class VulkanContext {
                 layout(location = 0) in vec3 inPos;
                 layout(location = 0) out vec3 vWorldPos;
                 layout(location = 1) out vec3 vNormal;
+                layout(location = 2) out float vHeight;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -870,10 +899,15 @@ final class VulkanContext {
                     vec4 uDirLightColor;
                     vec4 uPointLightPos;
                     vec4 uPointLightColor;
+                    vec4 uFog;
+                    vec4 uFogColorSteps;
+                    vec4 uSmoke;
+                    vec4 uSmokeColor;
                 } ubo;
                 void main() {
                     vec4 world = ubo.uModel * vec4(inPos, 1.0);
                     vWorldPos = world.xyz;
+                    vHeight = world.y;
                     vNormal = normalize(mat3(ubo.uModel) * vec3(0.0, 0.0, 1.0));
                     gl_Position = ubo.uProj * ubo.uView * world;
                 }
@@ -882,6 +916,7 @@ final class VulkanContext {
                 #version 450
                 layout(location = 0) in vec3 vWorldPos;
                 layout(location = 1) in vec3 vNormal;
+                layout(location = 2) in float vHeight;
                 layout(set = 0, binding = 0) uniform SceneData {
                     mat4 uModel;
                     mat4 uView;
@@ -892,6 +927,10 @@ final class VulkanContext {
                     vec4 uDirLightColor;
                     vec4 uPointLightPos;
                     vec4 uPointLightColor;
+                    vec4 uFog;
+                    vec4 uFogColorSteps;
+                    vec4 uSmoke;
+                    vec4 uSmokeColor;
                 } ubo;
                 layout(location = 0) out vec4 outColor;
                 void main() {
@@ -920,6 +959,19 @@ final class VulkanContext {
                     float spec = pow(max(dot(n, halfVec), 0.0), specPow) * mix(0.08, 0.9, metallic);
 
                     vec3 color = ambient + diffuse + pointLit + vec3(spec);
+                    if (ubo.uFog.x > 0.5) {
+                        float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
+                        float fogFactor = clamp(exp(-ubo.uFog.y * (1.0 - normalizedHeight)), 0.0, 1.0);
+                        if (ubo.uFogColorSteps.w > 0.0) {
+                            fogFactor = floor(fogFactor * ubo.uFogColorSteps.w) / ubo.uFogColorSteps.w;
+                        }
+                        color = mix(ubo.uFogColorSteps.rgb, color, fogFactor);
+                    }
+                    if (ubo.uSmoke.x > 0.5) {
+                        float radial = clamp(1.0 - length(gl_FragCoord.xy / vec2(1920.0, 1080.0) - vec2(0.5)), 0.0, 1.0);
+                        float smokeFactor = clamp(ubo.uSmoke.y * (0.35 + radial * 0.65), 0.0, 0.85);
+                        color = mix(color, ubo.uSmokeColor.rgb, smokeFactor);
+                    }
                     outColor = vec4(clamp(color, 0.0, 2.2), 1.0);
                 }
                 """;
@@ -1470,6 +1522,10 @@ final class VulkanContext {
         fb.put(new float[]{dirLightColorR, dirLightColorG, dirLightColorB, 0f});
         fb.put(new float[]{pointLightPosX, pointLightPosY, pointLightPosZ, 0f});
         fb.put(new float[]{pointLightColorR, pointLightColorG, pointLightColorB, 0f});
+        fb.put(new float[]{fogEnabled ? 1f : 0f, fogDensity, 0f, 0f});
+        fb.put(new float[]{fogR, fogG, fogB, (float) fogSteps});
+        fb.put(new float[]{smokeEnabled ? 1f : 0f, smokeIntensity, 0f, 0f});
+        fb.put(new float[]{smokeR, smokeG, smokeB, 0f});
         mapped.limit(GLOBAL_UNIFORM_BYTES);
         try (MemoryStack stack = stackPush()) {
             PointerBuffer pData = stack.mallocPointer(1);

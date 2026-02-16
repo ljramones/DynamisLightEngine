@@ -15,6 +15,9 @@ import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.MaterialDesc;
+import org.dynamislight.api.scene.FogDesc;
+import org.dynamislight.api.scene.FogMode;
+import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
@@ -25,6 +28,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean windowVisible;
     private boolean forceDeviceLostOnRender;
     private boolean deviceLostRaised;
+    private QualityTier qualityTier = QualityTier.MEDIUM;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
@@ -58,6 +62,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         forceDeviceLostOnRender = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.forceDeviceLostOnRender", "false"));
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot);
+        qualityTier = config.qualityTier();
         viewportWidth = config.initialWidthPx();
         viewportHeight = config.initialHeightPx();
         deviceLostRaised = false;
@@ -75,6 +80,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         CameraDesc camera = selectActiveCamera(scene);
         CameraMatrices cameraMatrices = cameraMatricesFor(camera, safeAspect(viewportWidth, viewportHeight));
         LightingConfig lighting = mapLighting(scene == null ? null : scene.lights());
+        FogRenderConfig fog = mapFog(scene == null ? null : scene.fog(), qualityTier);
+        SmokeRenderConfig smoke = mapSmoke(scene == null ? null : scene.smokeEmitters(), qualityTier);
         List<VulkanContext.SceneMeshData> sceneMeshes = buildSceneMeshes(scene);
         plannedDrawCalls = sceneMeshes.size();
         plannedTriangles = sceneMeshes.stream().mapToLong(m -> m.indices().length / 3).sum();
@@ -89,6 +96,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     lighting.pointColor(),
                     lighting.pointIntensity()
             );
+            context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
+            context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
             context.setSceneMeshes(sceneMeshes);
             context.setPlannedWorkload(plannedDrawCalls, plannedTriangles, plannedVisibleObjects);
         }
@@ -188,6 +197,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return Math.max(0f, Math.min(1f, v));
     }
 
+    private record FogRenderConfig(boolean enabled, float r, float g, float b, float density, int steps) {
+    }
+
+    private record SmokeRenderConfig(boolean enabled, float r, float g, float b, float intensity) {
+    }
+
     private record CameraMatrices(float[] view, float[] proj) {
     }
 
@@ -276,6 +291,68 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
         }
         return new LightingConfig(dir, dirColor, dirIntensity, pointPos, pointColor, pointIntensity);
+    }
+
+    private static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
+        if (fogDesc == null || !fogDesc.enabled() || fogDesc.mode() == FogMode.NONE) {
+            return new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
+        }
+        float tierDensityScale = switch (qualityTier) {
+            case LOW -> 0.55f;
+            case MEDIUM -> 0.75f;
+            case HIGH -> 1.0f;
+            case ULTRA -> 1.2f;
+        };
+        int tierSteps = switch (qualityTier) {
+            case LOW -> 4;
+            case MEDIUM -> 8;
+            case HIGH -> 16;
+            case ULTRA -> 0;
+        };
+        float density = Math.max(0f, fogDesc.density() * tierDensityScale);
+        return new FogRenderConfig(
+                true,
+                fogDesc.color() == null ? 0.5f : fogDesc.color().x(),
+                fogDesc.color() == null ? 0.5f : fogDesc.color().y(),
+                fogDesc.color() == null ? 0.5f : fogDesc.color().z(),
+                density,
+                tierSteps
+        );
+    }
+
+    private static SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
+        if (emitters == null || emitters.isEmpty()) {
+            return new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f);
+        }
+        int enabledCount = 0;
+        float densityAccum = 0f;
+        float r = 0f;
+        float g = 0f;
+        float b = 0f;
+        for (SmokeEmitterDesc emitter : emitters) {
+            if (!emitter.enabled()) {
+                continue;
+            }
+            enabledCount++;
+            densityAccum += Math.max(0f, emitter.density());
+            r += emitter.albedo() == null ? 0.6f : emitter.albedo().x();
+            g += emitter.albedo() == null ? 0.6f : emitter.albedo().y();
+            b += emitter.albedo() == null ? 0.6f : emitter.albedo().z();
+        }
+        if (enabledCount == 0) {
+            return new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f);
+        }
+        float avgR = r / enabledCount;
+        float avgG = g / enabledCount;
+        float avgB = b / enabledCount;
+        float baseIntensity = Math.min(0.85f, densityAccum / enabledCount);
+        float tierScale = switch (qualityTier) {
+            case LOW -> 0.45f;
+            case MEDIUM -> 0.7f;
+            case HIGH -> 0.9f;
+            case ULTRA -> 1.0f;
+        };
+        return new SmokeRenderConfig(true, avgR, avgG, avgB, Math.min(0.85f, baseIntensity * tierScale));
     }
 
     private static float[] modelMatrixOf(TransformDesc transform, int meshIndex) {

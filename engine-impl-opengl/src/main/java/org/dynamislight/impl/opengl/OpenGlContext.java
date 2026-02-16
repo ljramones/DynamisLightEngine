@@ -198,33 +198,61 @@ final class OpenGlContext {
             uniform vec3 uSmokeColor;
             uniform float uSmokeIntensity;
             out vec4 FragColor;
+            float distributionGGX(float ndh, float roughness) {
+                float a = roughness * roughness;
+                float a2 = a * a;
+                float d = (ndh * ndh) * (a2 - 1.0) + 1.0;
+                return a2 / max(3.14159 * d * d, 0.0001);
+            }
+            float geometrySchlickGGX(float ndv, float roughness) {
+                float r = roughness + 1.0;
+                float k = (r * r) / 8.0;
+                return ndv / max(ndv * (1.0 - k) + k, 0.0001);
+            }
+            float geometrySmith(float ndv, float ndl, float roughness) {
+                return geometrySchlickGGX(ndv, roughness) * geometrySchlickGGX(ndl, roughness);
+            }
+            vec3 fresnelSchlick(float cosTheta, vec3 f0) {
+                return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
+            }
             void main() {
-                vec3 color = vColor * uMaterialAlbedo;
+                vec3 albedo = vColor * uMaterialAlbedo;
                 vec3 normal = vec3(0.0, 0.0, 1.0);
                 if (uUseAlbedoTexture == 1) {
                     vec3 tex = texture(uAlbedoTexture, vUv).rgb;
-                    color *= tex;
+                    albedo *= tex;
                 }
                 if (uUseNormalTexture == 1) {
                     vec3 ntex = texture(uNormalTexture, vUv).rgb * 2.0 - 1.0;
                     normal = normalize(mix(normal, ntex, 0.55));
                 }
-                vec3 ambient = 0.18 * color;
+                float metallic = clamp(uMaterialMetallic, 0.0, 1.0);
+                float roughness = clamp(uMaterialRoughness, 0.04, 1.0);
                 vec3 lDir = normalize(-uDirLightDir);
+                vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
+                vec3 halfVec = normalize(lDir + viewDir);
                 float ndl = max(dot(normal, lDir), 0.0);
-                vec3 diffuse = color * uDirLightColor * (ndl * uDirLightIntensity);
+                float ndv = max(dot(normal, viewDir), 0.0);
+                float ndh = max(dot(normal, halfVec), 0.0);
+                float vdh = max(dot(viewDir, halfVec), 0.0);
+                vec3 f0 = mix(vec3(0.04), albedo, metallic);
+                vec3 f = fresnelSchlick(vdh, f0);
+                float d = distributionGGX(ndh, roughness);
+                float g = geometrySmith(ndv, ndl, roughness);
+                vec3 numerator = d * g * f;
+                float denominator = max(4.0 * ndv * ndl, 0.0001);
+                vec3 specular = numerator / denominator;
+                vec3 kd = (1.0 - f) * (1.0 - metallic);
+                vec3 diffuse = kd * albedo / 3.14159;
+                vec3 directional = (diffuse + specular) * uDirLightColor * (ndl * uDirLightIntensity);
+
                 vec3 pDir = normalize(uPointLightPos - vWorldPos);
                 float pNdl = max(dot(normal, pDir), 0.0);
                 float dist = max(length(uPointLightPos - vWorldPos), 0.1);
                 float attenuation = 1.0 / (1.0 + 0.35 * dist + 0.1 * dist * dist);
-                vec3 pointLit = color * uPointLightColor * (pNdl * attenuation * uPointLightIntensity);
-                float gloss = 1.0 - clamp(uMaterialRoughness, 0.04, 1.0);
-                vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
-                vec3 halfVec = normalize(lDir + viewDir);
-                float specPow = mix(8.0, 96.0, gloss);
-                float spec = pow(max(dot(normal, halfVec), 0.0), specPow) * mix(0.08, 0.9, clamp(uMaterialMetallic, 0.0, 1.0));
-                vec3 lit = ambient + diffuse + pointLit + vec3(spec);
-                color *= clamp(lit, 0.0, 2.2);
+                vec3 pointLit = (kd * albedo / 3.14159) * uPointLightColor * (pNdl * attenuation * uPointLightIntensity);
+                vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * albedo;
+                vec3 color = ambient + directional + pointLit;
                 if (uFogEnabled == 1) {
                     float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
                     float fogFactor = clamp(exp(-uFogDensity * (1.0 - normalizedHeight)), 0.0, 1.0);
