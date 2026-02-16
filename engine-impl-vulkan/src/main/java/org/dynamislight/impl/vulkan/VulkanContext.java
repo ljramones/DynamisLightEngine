@@ -16,7 +16,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import javax.imageio.ImageIO;
+import org.dynamislight.impl.vulkan.model.VulkanBufferAlloc;
+import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
+import org.dynamislight.impl.vulkan.model.VulkanGpuTexture;
+import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
+import org.dynamislight.impl.vulkan.model.VulkanTexturePixelData;
 import org.dynamislight.impl.vulkan.command.VulkanCommandSubmitter;
 import org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorRingPolicy;
@@ -434,7 +439,7 @@ final class VulkanContext {
     private long pendingGlobalUploadSrcOffset = -1L;
     private long pendingGlobalUploadDstOffset = -1L;
     private int pendingGlobalUploadByteCount;
-    private final List<GpuMesh> gpuMeshes = new ArrayList<>();
+    private final List<VulkanGpuMesh> gpuMeshes = new ArrayList<>();
     private List<VulkanSceneMeshData> pendingSceneMeshes = List.of(VulkanSceneMeshData.defaultTriangle());
     private float[] viewMatrix = identityMatrix();
     private float[] projMatrix = identityMatrix();
@@ -493,9 +498,9 @@ final class VulkanContext {
     private Path iblIrradiancePath;
     private Path iblRadiancePath;
     private Path iblBrdfLutPath;
-    private GpuTexture iblIrradianceTexture;
-    private GpuTexture iblRadianceTexture;
-    private GpuTexture iblBrdfLutTexture;
+    private VulkanGpuTexture iblIrradianceTexture;
+    private VulkanGpuTexture iblRadianceTexture;
+    private VulkanGpuTexture iblBrdfLutTexture;
     private boolean tonemapEnabled;
     private float tonemapExposure = 1.0f;
     private float tonemapGamma = 2.2f;
@@ -1316,23 +1321,23 @@ final class VulkanContext {
         int totalObjectUniformBytes = uniformFrameSpanBytes * framesInFlight;
         int totalGlobalUniformBytes = globalUniformFrameSpanBytes * framesInFlight;
 
-        BufferAlloc objectUniformDeviceAlloc = createBuffer(
+        VulkanBufferAlloc objectUniformDeviceAlloc = createBuffer(
                 stack,
                 totalObjectUniformBytes,
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
         );
-        objectUniformBuffer = objectUniformDeviceAlloc.buffer;
-        objectUniformMemory = objectUniformDeviceAlloc.memory;
+        objectUniformBuffer = objectUniformDeviceAlloc.buffer();
+        objectUniformMemory = objectUniformDeviceAlloc.memory();
 
-        BufferAlloc objectUniformStagingAlloc = createBuffer(
+        VulkanBufferAlloc objectUniformStagingAlloc = createBuffer(
                 stack,
                 totalObjectUniformBytes,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
         );
-        objectUniformStagingBuffer = objectUniformStagingAlloc.buffer;
-        objectUniformStagingMemory = objectUniformStagingAlloc.memory;
+        objectUniformStagingBuffer = objectUniformStagingAlloc.buffer();
+        objectUniformStagingMemory = objectUniformStagingAlloc.memory();
         PointerBuffer pObjectMapped = stack.mallocPointer(1);
         int mapObjectStagingResult = vkMapMemory(device, objectUniformStagingMemory, 0, totalObjectUniformBytes, 0, pObjectMapped);
         if (mapObjectStagingResult != VK_SUCCESS || pObjectMapped.get(0) == 0L) {
@@ -1344,23 +1349,23 @@ final class VulkanContext {
         }
         objectUniformStagingMappedAddress = pObjectMapped.get(0);
 
-        BufferAlloc globalUniformDeviceAlloc = createBuffer(
+        VulkanBufferAlloc globalUniformDeviceAlloc = createBuffer(
                 stack,
                 totalGlobalUniformBytes,
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
         );
-        sceneGlobalUniformBuffer = globalUniformDeviceAlloc.buffer;
-        sceneGlobalUniformMemory = globalUniformDeviceAlloc.memory;
+        sceneGlobalUniformBuffer = globalUniformDeviceAlloc.buffer();
+        sceneGlobalUniformMemory = globalUniformDeviceAlloc.memory();
 
-        BufferAlloc globalUniformStagingAlloc = createBuffer(
+        VulkanBufferAlloc globalUniformStagingAlloc = createBuffer(
                 stack,
                 totalGlobalUniformBytes,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
         );
-        sceneGlobalUniformStagingBuffer = globalUniformStagingAlloc.buffer;
-        sceneGlobalUniformStagingMemory = globalUniformStagingAlloc.memory;
+        sceneGlobalUniformStagingBuffer = globalUniformStagingAlloc.buffer();
+        sceneGlobalUniformStagingMemory = globalUniformStagingAlloc.memory();
         PointerBuffer pGlobalMapped = stack.mallocPointer(1);
         int mapGlobalStagingResult = vkMapMemory(device, sceneGlobalUniformStagingMemory, 0, totalGlobalUniformBytes, 0, pGlobalMapped);
         if (mapGlobalStagingResult != VK_SUCCESS || pGlobalMapped.get(0) == 0L) {
@@ -1645,7 +1650,7 @@ final class VulkanContext {
         depthMemories = new long[swapchainImages.length];
         depthImageViews = new long[swapchainImages.length];
         for (int i = 0; i < swapchainImages.length; i++) {
-            ImageAlloc depth = createImage(
+            VulkanImageAlloc depth = createImage(
                     stack,
                     swapchainWidth,
                     swapchainHeight,
@@ -1661,7 +1666,7 @@ final class VulkanContext {
     }
 
     private void createShadowResources(MemoryStack stack) throws EngineException {
-        ImageAlloc shadowDepth = createImage(
+        VulkanImageAlloc shadowDepth = createImage(
                 stack,
                 shadowMapResolution,
                 shadowMapResolution,
@@ -2155,7 +2160,7 @@ final class VulkanContext {
     private void createPostProcessResources(MemoryStack stack) throws EngineException {
         postIntermediateInitialized = false;
 
-        ImageAlloc intermediate = createImage(
+        VulkanImageAlloc intermediate = createImage(
                 stack,
                 swapchainWidth,
                 swapchainHeight,
@@ -2656,7 +2661,7 @@ final class VulkanContext {
         int drawCount = gpuMeshes.isEmpty() ? 1 : Math.min(maxDynamicSceneObjects, gpuMeshes.size());
         List<VulkanRenderCommandRecorder.MeshDrawCmd> meshes = new ArrayList<>(Math.min(drawCount, gpuMeshes.size()));
         for (int i = 0; i < drawCount && i < gpuMeshes.size(); i++) {
-            GpuMesh mesh = gpuMeshes.get(i);
+            VulkanGpuMesh mesh = gpuMeshes.get(i);
             meshes.add(new VulkanRenderCommandRecorder.MeshDrawCmd(
                     mesh.vertexBuffer,
                     mesh.indexBuffer,
@@ -2796,14 +2801,14 @@ final class VulkanContext {
         if (gpuMeshes.isEmpty() || sceneMeshes.size() != gpuMeshes.size()) {
             return false;
         }
-        Map<String, GpuMesh> byId = new HashMap<>();
-        for (GpuMesh gpuMesh : gpuMeshes) {
+        Map<String, VulkanGpuMesh> byId = new HashMap<>();
+        for (VulkanGpuMesh gpuMesh : gpuMeshes) {
             if (byId.put(gpuMesh.meshId, gpuMesh) != null) {
                 return false;
             }
         }
         for (VulkanSceneMeshData sceneMesh : sceneMeshes) {
-            GpuMesh gpuMesh = byId.get(sceneMesh.meshId());
+            VulkanGpuMesh gpuMesh = byId.get(sceneMesh.meshId());
             if (gpuMesh == null) {
                 return false;
             }
@@ -2833,14 +2838,14 @@ final class VulkanContext {
         if (gpuMeshes.isEmpty() || sceneMeshes.size() != gpuMeshes.size()) {
             return false;
         }
-        Map<String, GpuMesh> byId = new HashMap<>();
-        for (GpuMesh gpuMesh : gpuMeshes) {
+        Map<String, VulkanGpuMesh> byId = new HashMap<>();
+        for (VulkanGpuMesh gpuMesh : gpuMeshes) {
             if (byId.put(gpuMesh.meshId, gpuMesh) != null) {
                 return false;
             }
         }
         for (VulkanSceneMeshData sceneMesh : sceneMeshes) {
-            GpuMesh gpuMesh = byId.get(sceneMesh.meshId());
+            VulkanGpuMesh gpuMesh = byId.get(sceneMesh.meshId());
             if (gpuMesh == null) {
                 return false;
             }
@@ -2857,17 +2862,17 @@ final class VulkanContext {
     }
 
     private void updateDynamicSceneState(List<VulkanSceneMeshData> sceneMeshes) {
-        Map<String, GpuMesh> byId = new HashMap<>();
-        for (GpuMesh mesh : gpuMeshes) {
+        Map<String, VulkanGpuMesh> byId = new HashMap<>();
+        for (VulkanGpuMesh mesh : gpuMeshes) {
             byId.put(mesh.meshId, mesh);
         }
-        List<GpuMesh> ordered = new ArrayList<>(sceneMeshes.size());
+        List<VulkanGpuMesh> ordered = new ArrayList<>(sceneMeshes.size());
         boolean reordered = false;
         int dirtyStart = Integer.MAX_VALUE;
         int dirtyEnd = -1;
         for (int i = 0; i < sceneMeshes.size(); i++) {
             VulkanSceneMeshData sceneMesh = sceneMeshes.get(i);
-            GpuMesh mesh = byId.get(sceneMesh.meshId());
+            VulkanGpuMesh mesh = byId.get(sceneMesh.meshId());
             if (mesh == null) {
                 continue;
             }
@@ -2905,11 +2910,11 @@ final class VulkanContext {
     private void uploadSceneMeshes(MemoryStack stack, List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
         meshBufferRebuildCount++;
         destroySceneMeshes();
-        Map<String, GpuTexture> textureCache = new HashMap<>();
-        GpuTexture defaultAlbedo = createTextureFromPath(null, false);
-        GpuTexture defaultNormal = createTextureFromPath(null, true);
-        GpuTexture defaultMetallicRoughness = createTextureFromPath(null, false);
-        GpuTexture defaultOcclusion = createTextureFromPath(null, false);
+        Map<String, VulkanGpuTexture> textureCache = new HashMap<>();
+        VulkanGpuTexture defaultAlbedo = createTextureFromPath(null, false);
+        VulkanGpuTexture defaultNormal = createTextureFromPath(null, true);
+        VulkanGpuTexture defaultMetallicRoughness = createTextureFromPath(null, false);
+        VulkanGpuTexture defaultOcclusion = createTextureFromPath(null, false);
         iblIrradianceTexture = resolveOrCreateTexture(iblIrradiancePath, textureCache, defaultAlbedo, false);
         iblRadianceTexture = resolveOrCreateTexture(iblRadiancePath, textureCache, defaultAlbedo, false);
         iblBrdfLutTexture = resolveOrCreateTexture(iblBrdfLutPath, textureCache, defaultAlbedo, false);
@@ -2926,12 +2931,12 @@ final class VulkanContext {
             ib.put(indices);
             indexData.limit(indices.length * Integer.BYTES);
 
-            BufferAlloc vertexAlloc = createDeviceLocalBufferWithStaging(
+            VulkanBufferAlloc vertexAlloc = createDeviceLocalBufferWithStaging(
                     stack,
                     vertexData,
                     VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
             );
-            BufferAlloc indexAlloc = createDeviceLocalBufferWithStaging(
+            VulkanBufferAlloc indexAlloc = createDeviceLocalBufferWithStaging(
                     stack,
                     indexData,
                     VK_BUFFER_USAGE_INDEX_BUFFER_BIT
@@ -2942,21 +2947,21 @@ final class VulkanContext {
             String normalKey = textureCacheKey(mesh.normalTexturePath(), true);
             String metallicRoughnessKey = textureCacheKey(mesh.metallicRoughnessTexturePath(), false);
             String occlusionKey = textureCacheKey(mesh.occlusionTexturePath(), false);
-            GpuTexture albedoTexture = resolveOrCreateTexture(mesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
-            GpuTexture normalTexture = resolveOrCreateTexture(mesh.normalTexturePath(), textureCache, defaultNormal, true);
-            GpuTexture metallicRoughnessTexture = resolveOrCreateTexture(
+            VulkanGpuTexture albedoTexture = resolveOrCreateTexture(mesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
+            VulkanGpuTexture normalTexture = resolveOrCreateTexture(mesh.normalTexturePath(), textureCache, defaultNormal, true);
+            VulkanGpuTexture metallicRoughnessTexture = resolveOrCreateTexture(
                     mesh.metallicRoughnessTexturePath(),
                     textureCache,
                     defaultMetallicRoughness,
                     false
             );
-            GpuTexture occlusionTexture = resolveOrCreateTexture(mesh.occlusionTexturePath(), textureCache, defaultOcclusion, false);
+            VulkanGpuTexture occlusionTexture = resolveOrCreateTexture(mesh.occlusionTexturePath(), textureCache, defaultOcclusion, false);
 
-            gpuMeshes.add(new GpuMesh(
-                    vertexAlloc.buffer,
-                    vertexAlloc.memory,
-                    indexAlloc.buffer,
-                    indexAlloc.memory,
+            gpuMeshes.add(new VulkanGpuMesh(
+                    vertexAlloc.buffer(),
+                    vertexAlloc.memory(),
+                    indexAlloc.buffer(),
+                    indexAlloc.memory(),
                     indices.length,
                     vertexData.remaining(),
                     indexData.remaining(),
@@ -2984,8 +2989,8 @@ final class VulkanContext {
 
         long meshBytes = 0;
         long textureBytes = 0;
-        Set<GpuTexture> uniqueTextures = new HashSet<>();
-        for (GpuMesh mesh : gpuMeshes) {
+        Set<VulkanGpuTexture> uniqueTextures = new HashSet<>();
+        for (VulkanGpuMesh mesh : gpuMeshes) {
             meshBytes += mesh.vertexBytes + mesh.indexBytes;
             if (uniqueTextures.add(mesh.albedoTexture)) {
                 textureBytes += mesh.albedoTexture.bytes();
@@ -3014,22 +3019,22 @@ final class VulkanContext {
     }
 
     private void rebindSceneTexturesAndDynamicState(List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
-        Map<String, GpuMesh> byId = new HashMap<>();
-        for (GpuMesh mesh : gpuMeshes) {
+        Map<String, VulkanGpuMesh> byId = new HashMap<>();
+        for (VulkanGpuMesh mesh : gpuMeshes) {
             byId.put(mesh.meshId, mesh);
         }
-        Set<GpuTexture> oldTextures = collectLiveTextures(gpuMeshes, iblIrradianceTexture, iblRadianceTexture, iblBrdfLutTexture);
-        List<GpuMesh> rebound = new ArrayList<>(sceneMeshes.size());
-        Map<String, GpuTexture> textureCache = new HashMap<>();
-        GpuTexture defaultAlbedo = createTextureFromPath(null, false);
-        GpuTexture defaultNormal = createTextureFromPath(null, true);
-        GpuTexture defaultMetallicRoughness = createTextureFromPath(null, false);
-        GpuTexture defaultOcclusion = createTextureFromPath(null, false);
-        GpuTexture newIblIrradiance = resolveOrCreateTexture(iblIrradiancePath, textureCache, defaultAlbedo, false);
-        GpuTexture newIblRadiance = resolveOrCreateTexture(iblRadiancePath, textureCache, defaultAlbedo, false);
-        GpuTexture newIblBrdfLut = resolveOrCreateTexture(iblBrdfLutPath, textureCache, defaultAlbedo, false);
+        Set<VulkanGpuTexture> oldTextures = collectLiveTextures(gpuMeshes, iblIrradianceTexture, iblRadianceTexture, iblBrdfLutTexture);
+        List<VulkanGpuMesh> rebound = new ArrayList<>(sceneMeshes.size());
+        Map<String, VulkanGpuTexture> textureCache = new HashMap<>();
+        VulkanGpuTexture defaultAlbedo = createTextureFromPath(null, false);
+        VulkanGpuTexture defaultNormal = createTextureFromPath(null, true);
+        VulkanGpuTexture defaultMetallicRoughness = createTextureFromPath(null, false);
+        VulkanGpuTexture defaultOcclusion = createTextureFromPath(null, false);
+        VulkanGpuTexture newIblIrradiance = resolveOrCreateTexture(iblIrradiancePath, textureCache, defaultAlbedo, false);
+        VulkanGpuTexture newIblRadiance = resolveOrCreateTexture(iblRadiancePath, textureCache, defaultAlbedo, false);
+        VulkanGpuTexture newIblBrdfLut = resolveOrCreateTexture(iblBrdfLutPath, textureCache, defaultAlbedo, false);
         for (VulkanSceneMeshData sceneMesh : sceneMeshes) {
-            GpuMesh mesh = byId.get(sceneMesh.meshId());
+            VulkanGpuMesh mesh = byId.get(sceneMesh.meshId());
             if (mesh == null) {
                 throw new EngineException(
                         EngineErrorCode.RESOURCE_CREATION_FAILED,
@@ -3041,16 +3046,16 @@ final class VulkanContext {
             String normalKey = textureCacheKey(sceneMesh.normalTexturePath(), true);
             String metallicRoughnessKey = textureCacheKey(sceneMesh.metallicRoughnessTexturePath(), false);
             String occlusionKey = textureCacheKey(sceneMesh.occlusionTexturePath(), false);
-            GpuTexture albedoTexture = resolveOrCreateTexture(sceneMesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
-            GpuTexture normalTexture = resolveOrCreateTexture(sceneMesh.normalTexturePath(), textureCache, defaultNormal, true);
-            GpuTexture metallicRoughnessTexture = resolveOrCreateTexture(
+            VulkanGpuTexture albedoTexture = resolveOrCreateTexture(sceneMesh.albedoTexturePath(), textureCache, defaultAlbedo, false);
+            VulkanGpuTexture normalTexture = resolveOrCreateTexture(sceneMesh.normalTexturePath(), textureCache, defaultNormal, true);
+            VulkanGpuTexture metallicRoughnessTexture = resolveOrCreateTexture(
                     sceneMesh.metallicRoughnessTexturePath(),
                     textureCache,
                     defaultMetallicRoughness,
                     false
             );
-            GpuTexture occlusionTexture = resolveOrCreateTexture(sceneMesh.occlusionTexturePath(), textureCache, defaultOcclusion, false);
-            rebound.add(new GpuMesh(
+            VulkanGpuTexture occlusionTexture = resolveOrCreateTexture(sceneMesh.occlusionTexturePath(), textureCache, defaultOcclusion, false);
+            rebound.add(new VulkanGpuMesh(
                     mesh.vertexBuffer,
                     mesh.vertexMemory,
                     mesh.indexBuffer,
@@ -3085,7 +3090,7 @@ final class VulkanContext {
         try (MemoryStack stack = stackPush()) {
             createTextureDescriptorSets(stack);
         }
-        Set<GpuTexture> newTextures = collectLiveTextures(gpuMeshes, iblIrradianceTexture, iblRadianceTexture, iblBrdfLutTexture);
+        Set<VulkanGpuTexture> newTextures = collectLiveTextures(gpuMeshes, iblIrradianceTexture, iblRadianceTexture, iblBrdfLutTexture);
         oldTextures.removeAll(newTextures);
         destroyTextures(oldTextures);
         markSceneStateDirty(0, Math.max(0, sceneMeshes.size() - 1));
@@ -3096,8 +3101,8 @@ final class VulkanContext {
             gpuMeshes.clear();
             return;
         }
-        Set<GpuTexture> uniqueTextures = new HashSet<>();
-        for (GpuMesh mesh : gpuMeshes) {
+        Set<VulkanGpuTexture> uniqueTextures = new HashSet<>();
+        for (VulkanGpuMesh mesh : gpuMeshes) {
             if (mesh.vertexBuffer != VK_NULL_HANDLE) {
                 vkDestroyBuffer(device, mesh.vertexBuffer, null);
             }
@@ -3129,9 +3134,9 @@ final class VulkanContext {
         gpuMeshes.clear();
     }
 
-    private Set<GpuTexture> collectLiveTextures(List<GpuMesh> meshes, GpuTexture iblIrr, GpuTexture iblRad, GpuTexture iblBrdf) {
-        Set<GpuTexture> textures = new HashSet<>();
-        for (GpuMesh mesh : meshes) {
+    private Set<VulkanGpuTexture> collectLiveTextures(List<VulkanGpuMesh> meshes, VulkanGpuTexture iblIrr, VulkanGpuTexture iblRad, VulkanGpuTexture iblBrdf) {
+        Set<VulkanGpuTexture> textures = new HashSet<>();
+        for (VulkanGpuMesh mesh : meshes) {
             textures.add(mesh.albedoTexture);
             textures.add(mesh.normalTexture);
             textures.add(mesh.metallicRoughnessTexture);
@@ -3143,11 +3148,11 @@ final class VulkanContext {
         return textures;
     }
 
-    private void destroyTextures(Set<GpuTexture> textures) {
+    private void destroyTextures(Set<VulkanGpuTexture> textures) {
         if (device == null || textures == null || textures.isEmpty()) {
             return;
         }
-        for (GpuTexture texture : textures) {
+        for (VulkanGpuTexture texture : textures) {
             if (texture == null) {
                 continue;
             }
@@ -3166,10 +3171,10 @@ final class VulkanContext {
         }
     }
 
-    private GpuTexture resolveOrCreateTexture(
+    private VulkanGpuTexture resolveOrCreateTexture(
             Path texturePath,
-            Map<String, GpuTexture> cache,
-            GpuTexture defaultTexture,
+            Map<String, VulkanGpuTexture> cache,
+            VulkanGpuTexture defaultTexture,
             boolean normalMap
     )
             throws EngineException {
@@ -3177,11 +3182,11 @@ final class VulkanContext {
             return defaultTexture;
         }
         String cacheKey = textureCacheKey(texturePath, normalMap);
-        GpuTexture cached = cache.get(cacheKey);
+        VulkanGpuTexture cached = cache.get(cacheKey);
         if (cached != null) {
             return cached;
         }
-        GpuTexture created = createTextureFromPath(texturePath, normalMap);
+        VulkanGpuTexture created = createTextureFromPath(texturePath, normalMap);
         cache.put(cacheKey, created);
         return created;
     }
@@ -3269,7 +3274,7 @@ final class VulkanContext {
         }
 
         for (int i = 0; i < requiredSetCount; i++) {
-            GpuMesh mesh = gpuMeshes.get(i);
+            VulkanGpuMesh mesh = gpuMeshes.get(i);
             mesh.textureDescriptorSet = allocatedSets.buffer().get(i);
 
             VkDescriptorImageInfo.Buffer albedoInfo = VkDescriptorImageInfo.calloc(1, stack);
@@ -3374,8 +3379,8 @@ final class VulkanContext {
         }
     }
 
-    private GpuTexture createTextureFromPath(Path texturePath, boolean normalMap) throws EngineException {
-        TexturePixelData pixels = loadTexturePixels(texturePath);
+    private VulkanGpuTexture createTextureFromPath(Path texturePath, boolean normalMap) throws EngineException {
+        VulkanTexturePixelData pixels = loadTexturePixels(texturePath);
         if (pixels == null) {
             ByteBuffer data = memAlloc(4);
             if (normalMap) {
@@ -3383,7 +3388,7 @@ final class VulkanContext {
             } else {
                 data.put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).flip();
             }
-            pixels = new TexturePixelData(data, 1, 1);
+            pixels = new VulkanTexturePixelData(data, 1, 1);
         }
         try {
             return createTextureFromPixels(pixels);
@@ -3392,13 +3397,13 @@ final class VulkanContext {
         }
     }
 
-    private TexturePixelData loadTexturePixels(Path texturePath) {
+    private VulkanTexturePixelData loadTexturePixels(Path texturePath) {
         Path sourcePath = texturePath;
         if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
             return null;
         }
         if (isKtxContainerPath(sourcePath)) {
-            TexturePixelData decoded = loadTexturePixelsFromKtx(sourcePath);
+            VulkanTexturePixelData decoded = loadTexturePixelsFromKtx(sourcePath);
             if (decoded != null) {
                 return decoded;
             }
@@ -3418,7 +3423,7 @@ final class VulkanContext {
         return loadTexturePixelsViaStb(sourcePath);
     }
 
-    private TexturePixelData loadTexturePixelsFromKtx(Path containerPath) {
+    private VulkanTexturePixelData loadTexturePixelsFromKtx(Path containerPath) {
         KtxDecodeUtil.DecodedRgba decoded = KtxDecodeUtil.decodeToRgbaIfSupported(containerPath);
         if (decoded == null) {
             return null;
@@ -3433,10 +3438,10 @@ final class VulkanContext {
             buffer.put(src, srcY * rowBytes, rowBytes);
         }
         buffer.flip();
-        return new TexturePixelData(buffer, width, height);
+        return new VulkanTexturePixelData(buffer, width, height);
     }
 
-    private TexturePixelData bufferedImageToPixels(BufferedImage image) {
+    private VulkanTexturePixelData bufferedImageToPixels(BufferedImage image) {
         int width = image.getWidth();
         int height = image.getHeight();
         ByteBuffer buffer = memAlloc(width * height * 4);
@@ -3451,10 +3456,10 @@ final class VulkanContext {
             }
         }
         buffer.flip();
-        return new TexturePixelData(buffer, width, height);
+        return new VulkanTexturePixelData(buffer, width, height);
     }
 
-    private TexturePixelData loadTexturePixelsViaStb(Path texturePath) {
+    private VulkanTexturePixelData loadTexturePixelsViaStb(Path texturePath) {
         String path = texturePath.toAbsolutePath().toString();
         try (MemoryStack stack = stackPush()) {
             IntBuffer x = stack.mallocInt(1);
@@ -3486,7 +3491,7 @@ final class VulkanContext {
                         buffer.put((byte) Math.max(0, Math.min(255, Math.round(Math.max(0f, Math.min(1f, a)) * 255f))));
                     }
                     buffer.flip();
-                    return new TexturePixelData(buffer, width, height);
+                    return new VulkanTexturePixelData(buffer, width, height);
                 } finally {
                     stbi_image_free(hdr);
                 }
@@ -3499,7 +3504,7 @@ final class VulkanContext {
                 ByteBuffer copy = memAlloc(width * height * 4);
                 copy.put(ldr);
                 copy.flip();
-                return new TexturePixelData(copy, width, height);
+                return new VulkanTexturePixelData(copy, width, height);
             } finally {
                 stbi_image_free(ldr);
             }
@@ -3544,17 +3549,17 @@ final class VulkanContext {
         return name.endsWith(".ktx") || name.endsWith(".ktx2");
     }
 
-    private GpuTexture createTextureFromPixels(TexturePixelData pixels) throws EngineException {
+    private VulkanGpuTexture createTextureFromPixels(VulkanTexturePixelData pixels) throws EngineException {
         try (MemoryStack stack = stackPush()) {
-            BufferAlloc staging = createBuffer(
+            VulkanBufferAlloc staging = createBuffer(
                     stack,
                     pixels.data().remaining(),
                     VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
             );
             try {
-                uploadToMemory(staging.memory, pixels.data());
-                ImageAlloc imageAlloc = createImage(
+                uploadToMemory(staging.memory(), pixels.data());
+                VulkanImageAlloc imageAlloc = createImage(
                         stack,
                         pixels.width(),
                         pixels.height(),
@@ -3564,24 +3569,24 @@ final class VulkanContext {
                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
                 );
                 transitionImageLayout(imageAlloc.image(), VK_IMAGE_LAYOUT_UNDEFINED, VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-                copyBufferToImage(staging.buffer, imageAlloc.image(), pixels.width(), pixels.height());
+                copyBufferToImage(staging.buffer(), imageAlloc.image(), pixels.width(), pixels.height());
                 transitionImageLayout(imageAlloc.image(), VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
                 long imageView = createImageView(stack, imageAlloc.image(), VK10.VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
                 long sampler = createSampler(stack);
-                return new GpuTexture(imageAlloc.image(), imageAlloc.memory(), imageView, sampler, (long) pixels.width() * pixels.height() * 4L);
+                return new VulkanGpuTexture(imageAlloc.image(), imageAlloc.memory(), imageView, sampler, (long) pixels.width() * pixels.height() * 4L);
             } finally {
-                if (staging.buffer != VK_NULL_HANDLE) {
-                    vkDestroyBuffer(device, staging.buffer, null);
+                if (staging.buffer() != VK_NULL_HANDLE) {
+                    vkDestroyBuffer(device, staging.buffer(), null);
                 }
-                if (staging.memory != VK_NULL_HANDLE) {
-                    vkFreeMemory(device, staging.memory, null);
+                if (staging.memory() != VK_NULL_HANDLE) {
+                    vkFreeMemory(device, staging.memory(), null);
                 }
             }
         }
     }
 
-    private ImageAlloc createImage(
+    private VulkanImageAlloc createImage(
             MemoryStack stack,
             int width,
             int height,
@@ -3593,7 +3598,7 @@ final class VulkanContext {
         return createImage(stack, width, height, format, tiling, usage, properties, 1);
     }
 
-    private ImageAlloc createImage(
+    private VulkanImageAlloc createImage(
             MemoryStack stack,
             int width,
             int height,
@@ -3644,7 +3649,7 @@ final class VulkanContext {
             VK10.vkDestroyImage(device, image, null);
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkBindImageMemory failed: " + bindResult, false);
         }
-        return new ImageAlloc(image, memory);
+        return new VulkanImageAlloc(image, memory);
     }
 
     private void transitionImageLayout(long image, int oldLayout, int newLayout) throws EngineException {
@@ -3973,7 +3978,7 @@ final class VulkanContext {
                 int rangeStart = uploadStarts[range];
                 int rangeEnd = uploadEnds[range];
                 for (int meshIndex = rangeStart; meshIndex <= rangeEnd; meshIndex++) {
-                    GpuMesh mesh = gpuMeshes.isEmpty() ? null : gpuMeshes.get(meshIndex);
+                    VulkanGpuMesh mesh = gpuMeshes.isEmpty() ? null : gpuMeshes.get(meshIndex);
                     writeObjectUniform(mapped, meshIndex * uniformStrideBytes, mesh);
                 }
             }
@@ -4064,7 +4069,7 @@ final class VulkanContext {
         }
     }
 
-    private void writeObjectUniform(ByteBuffer target, int offset, GpuMesh mesh) {
+    private void writeObjectUniform(ByteBuffer target, int offset, VulkanGpuMesh mesh) {
         ByteBuffer slice = target.duplicate();
         slice.position(offset);
         slice.limit(offset + OBJECT_UNIFORM_BYTES);
@@ -4187,7 +4192,7 @@ final class VulkanContext {
         return frameDescriptorSets[normalizedFrame];
     }
 
-    private BufferAlloc createBuffer(MemoryStack stack, int sizeBytes, int usage, int memoryProperties) throws EngineException {
+    private VulkanBufferAlloc createBuffer(MemoryStack stack, int sizeBytes, int usage, int memoryProperties) throws EngineException {
         VkBufferCreateInfo bufferInfo = VkBufferCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO)
                 .size(sizeBytes)
@@ -4221,33 +4226,33 @@ final class VulkanContext {
             vkDestroyBuffer(device, buffer, null);
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkBindBufferMemory failed: " + bindResult, false);
         }
-        return new BufferAlloc(buffer, memory);
+        return new VulkanBufferAlloc(buffer, memory);
     }
 
-    private BufferAlloc createDeviceLocalBufferWithStaging(MemoryStack stack, ByteBuffer source, int usage) throws EngineException {
+    private VulkanBufferAlloc createDeviceLocalBufferWithStaging(MemoryStack stack, ByteBuffer source, int usage) throws EngineException {
         int sizeBytes = source.remaining();
-        BufferAlloc staging = createBuffer(
+        VulkanBufferAlloc staging = createBuffer(
                 stack,
                 sizeBytes,
                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
         );
-        BufferAlloc deviceLocal = createBuffer(
+        VulkanBufferAlloc deviceLocal = createBuffer(
                 stack,
                 sizeBytes,
                 usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
         );
         try {
-            uploadToMemory(staging.memory, source);
-            copyBuffer(staging.buffer, deviceLocal.buffer, sizeBytes);
+            uploadToMemory(staging.memory(), source);
+            copyBuffer(staging.buffer(), deviceLocal.buffer(), sizeBytes);
             return deviceLocal;
         } finally {
-            if (staging.buffer != VK_NULL_HANDLE) {
-                vkDestroyBuffer(device, staging.buffer, null);
+            if (staging.buffer() != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, staging.buffer(), null);
             }
-            if (staging.memory != VK_NULL_HANDLE) {
-                vkFreeMemory(device, staging.memory, null);
+            if (staging.memory() != VK_NULL_HANDLE) {
+                vkFreeMemory(device, staging.memory(), null);
             }
         }
     }
@@ -4323,121 +4328,6 @@ final class VulkanContext {
             }
         }
         throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "No suitable Vulkan memory type found", false);
-    }
-
-    private record BufferAlloc(long buffer, long memory) {
-    }
-
-    private static final class GpuMesh {
-        private final long vertexBuffer;
-        private final long vertexMemory;
-        private final long indexBuffer;
-        private final long indexMemory;
-        private final int indexCount;
-        private final long vertexBytes;
-        private final long indexBytes;
-        private final String meshId;
-        private float[] modelMatrix;
-        private float colorR;
-        private float colorG;
-        private float colorB;
-        private float metallic;
-        private float roughness;
-        private final GpuTexture albedoTexture;
-        private final GpuTexture normalTexture;
-        private final GpuTexture metallicRoughnessTexture;
-        private final GpuTexture occlusionTexture;
-        private final int vertexHash;
-        private final int indexHash;
-        private final String albedoKey;
-        private final String normalKey;
-        private final String metallicRoughnessKey;
-        private final String occlusionKey;
-        private long textureDescriptorSet = VK_NULL_HANDLE;
-
-        private GpuMesh(
-                long vertexBuffer,
-                long vertexMemory,
-                long indexBuffer,
-                long indexMemory,
-                int indexCount,
-                long vertexBytes,
-                long indexBytes,
-                float[] modelMatrix,
-                float colorR,
-                float colorG,
-                float colorB,
-                float metallic,
-                float roughness,
-                GpuTexture albedoTexture,
-                GpuTexture normalTexture,
-                GpuTexture metallicRoughnessTexture,
-                GpuTexture occlusionTexture,
-                String meshId,
-                int vertexHash,
-                int indexHash,
-                String albedoKey,
-                String normalKey,
-                String metallicRoughnessKey,
-                String occlusionKey
-        ) {
-            this.vertexBuffer = vertexBuffer;
-            this.vertexMemory = vertexMemory;
-            this.indexBuffer = indexBuffer;
-            this.indexMemory = indexMemory;
-            this.indexCount = indexCount;
-            this.vertexBytes = vertexBytes;
-            this.indexBytes = indexBytes;
-            this.meshId = meshId;
-            this.modelMatrix = modelMatrix;
-            this.colorR = colorR;
-            this.colorG = colorG;
-            this.colorB = colorB;
-            this.metallic = metallic;
-            this.roughness = roughness;
-            this.albedoTexture = albedoTexture;
-            this.normalTexture = normalTexture;
-            this.metallicRoughnessTexture = metallicRoughnessTexture;
-            this.occlusionTexture = occlusionTexture;
-            this.vertexHash = vertexHash;
-            this.indexHash = indexHash;
-            this.albedoKey = albedoKey;
-            this.normalKey = normalKey;
-            this.metallicRoughnessKey = metallicRoughnessKey;
-            this.occlusionKey = occlusionKey;
-        }
-
-        private boolean updateDynamicState(
-                float[] modelMatrix,
-                float colorR,
-                float colorG,
-                float colorB,
-                float metallic,
-                float roughness
-        ) {
-            boolean changed = !Arrays.equals(this.modelMatrix, modelMatrix)
-                    || this.colorR != colorR
-                    || this.colorG != colorG
-                    || this.colorB != colorB
-                    || this.metallic != metallic
-                    || this.roughness != roughness;
-            this.modelMatrix = modelMatrix;
-            this.colorR = colorR;
-            this.colorG = colorG;
-            this.colorB = colorB;
-            this.metallic = metallic;
-            this.roughness = roughness;
-            return changed;
-        }
-    }
-
-    private record GpuTexture(long image, long memory, long view, long sampler, long bytes) {
-    }
-
-    private record ImageAlloc(long image, long memory) {
-    }
-
-    private record TexturePixelData(ByteBuffer data, int width, int height) {
     }
 
     private int targetDescriptorRingCapacity(int requiredSetCount) {

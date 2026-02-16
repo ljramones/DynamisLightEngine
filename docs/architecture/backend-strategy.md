@@ -52,7 +52,7 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 - `org.dynamislight.impl.vulkan.asset`
   - mesh ingestion/parsing (`VulkanMeshAssetLoader`, `VulkanGltfMeshParser`)
 - `org.dynamislight.impl.vulkan.model`
-  - scene ingestion DTOs used by the backend (`VulkanSceneMeshData`)
+  - scene ingestion + internal render data carriers (`VulkanSceneMeshData`, `VulkanGpuMesh`, `VulkanGpuTexture`, `VulkanBufferAlloc`, `VulkanImageAlloc`, `VulkanTexturePixelData`)
 - `org.dynamislight.impl.vulkan.profile`
   - runtime telemetry/profile DTOs (`VulkanFrameMetrics`, `SceneReuseStats`, `FrameResourceProfile`, `ShadowCascadeProfile`, `PostProcessPipelineProfile`)
 - `org.dynamislight.impl.vulkan.shader`
