@@ -39,7 +39,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int viewportHeight = 720;
     private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
-    private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, false);
+    private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
 
     public VulkanEngineRuntime() {
         super(
@@ -104,7 +104,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     lighting.pointColor(),
                     lighting.pointIntensity()
             );
-            context.setShadowParameters(shadows.enabled(), shadows.strength());
+            context.setShadowParameters(
+                    shadows.enabled(),
+                    shadows.strength(),
+                    shadows.bias(),
+                    shadows.pcfRadius(),
+                    shadows.cascadeCount(),
+                    shadows.mapResolution()
+            );
             context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
             context.setSceneMeshes(sceneMeshes);
@@ -246,7 +253,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private record SmokeRenderConfig(boolean enabled, float r, float g, float b, float intensity, boolean degraded) {
     }
 
-    private record ShadowRenderConfig(boolean enabled, float strength, boolean degraded) {
+    private record ShadowRenderConfig(
+            boolean enabled,
+            float strength,
+            float bias,
+            int pcfRadius,
+            int cascadeCount,
+            int mapResolution,
+            boolean degraded
+    ) {
     }
 
     private record CameraMatrices(float[] view, float[] proj) {
@@ -341,14 +356,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
         if (lights == null || lights.isEmpty()) {
-            return new ShadowRenderConfig(false, 0.45f, false);
+            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
         }
         for (LightDesc light : lights) {
             if (light == null || !light.castsShadows()) {
                 continue;
             }
             ShadowDesc shadow = light.shadow();
-            float base = shadow == null ? 0.45f : Math.min(0.85f, 0.25f + (shadow.pcfKernelSize() * 0.04f) + (shadow.cascadeCount() * 0.05f));
+            int kernel = shadow == null ? 3 : Math.max(1, shadow.pcfKernelSize());
+            int radius = Math.max(0, (kernel - 1) / 2);
+            int cascades = shadow == null ? 1 : Math.max(1, shadow.cascadeCount());
+            int resolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));
+            float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
+            float base = Math.min(0.9f, 0.25f + (kernel * 0.04f) + (cascades * 0.05f));
             float tierScale = switch (qualityTier) {
                 case LOW -> 0.55f;
                 case MEDIUM -> 0.75f;
@@ -358,10 +378,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             return new ShadowRenderConfig(
                     true,
                     Math.max(0.2f, Math.min(0.9f, base * tierScale)),
+                    bias,
+                    radius,
+                    cascades,
+                    resolution,
                     qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM
             );
         }
-        return new ShadowRenderConfig(false, 0.45f, false);
+        return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     }
 
     private static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {

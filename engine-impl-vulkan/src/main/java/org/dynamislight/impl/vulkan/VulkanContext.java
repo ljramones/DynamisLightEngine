@@ -100,6 +100,7 @@ import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
@@ -289,7 +290,7 @@ final class VulkanContext {
     private static final int VERTEX_STRIDE_FLOATS = 11;
     private static final int VERTEX_STRIDE_BYTES = VERTEX_STRIDE_FLOATS * Float.BYTES;
     private static final int MAX_FRAMES_IN_FLIGHT = 2;
-    private static final int GLOBAL_UNIFORM_BYTES = 368;
+    private static final int GLOBAL_UNIFORM_BYTES = 448;
     private VkInstance instance;
     private VkPhysicalDevice physicalDevice;
     private VkDevice device;
@@ -307,6 +308,14 @@ final class VulkanContext {
     private long[] depthImages = new long[0];
     private long[] depthMemories = new long[0];
     private long[] depthImageViews = new long[0];
+    private long shadowDepthImage = VK_NULL_HANDLE;
+    private long shadowDepthMemory = VK_NULL_HANDLE;
+    private long shadowDepthImageView = VK_NULL_HANDLE;
+    private long shadowSampler = VK_NULL_HANDLE;
+    private long shadowRenderPass = VK_NULL_HANDLE;
+    private long shadowPipelineLayout = VK_NULL_HANDLE;
+    private long shadowPipeline = VK_NULL_HANDLE;
+    private long shadowFramebuffer = VK_NULL_HANDLE;
     private long renderPass = VK_NULL_HANDLE;
     private long pipelineLayout = VK_NULL_HANDLE;
     private long graphicsPipeline = VK_NULL_HANDLE;
@@ -348,6 +357,11 @@ final class VulkanContext {
     private float pointLightIntensity = 1.0f;
     private boolean shadowEnabled;
     private float shadowStrength = 0.45f;
+    private float shadowBias = 0.0015f;
+    private int shadowPcfRadius = 1;
+    private int shadowCascadeCount = 1;
+    private int shadowMapResolution = 1024;
+    private float[] shadowLightViewProjMatrix = identityMatrix();
     private boolean fogEnabled;
     private float fogR = 0.5f;
     private float fogG = 0.5f;
@@ -370,6 +384,7 @@ final class VulkanContext {
             createDescriptorResources(stack);
             createSwapchainResources(stack, width, height);
             createCommandResources(stack);
+            createShadowResources(stack);
             createSyncObjects(stack);
             uploadSceneMeshes(stack, pendingSceneMeshes);
         }
@@ -458,9 +473,27 @@ final class VulkanContext {
         pointLightIntensity = Math.max(0f, pointIntensity);
     }
 
-    void setShadowParameters(boolean enabled, float strength) {
+    void setShadowParameters(boolean enabled, float strength, float bias, int pcfRadius, int cascadeCount, int mapResolution)
+            throws EngineException {
         shadowEnabled = enabled;
         shadowStrength = Math.max(0f, Math.min(1f, strength));
+        shadowBias = Math.max(0.00002f, bias);
+        shadowPcfRadius = Math.max(0, pcfRadius);
+        shadowCascadeCount = Math.max(1, cascadeCount);
+        int clampedResolution = Math.max(256, Math.min(4096, mapResolution));
+        if (shadowMapResolution != clampedResolution) {
+            shadowMapResolution = clampedResolution;
+            if (device != null) {
+                vkDeviceWaitIdle(device);
+                try (MemoryStack stack = stackPush()) {
+                    destroyShadowResources();
+                    createShadowResources(stack);
+                    if (!gpuMeshes.isEmpty()) {
+                        createTextureDescriptorSets(stack);
+                    }
+                }
+            }
+        }
     }
 
     void setFogParameters(boolean enabled, float r, float g, float b, float density, int steps) {
@@ -508,6 +541,7 @@ final class VulkanContext {
 
         commandBuffers = new VkCommandBuffer[0];
         destroySceneMeshes();
+        destroyShadowResources();
         if (commandPool != VK_NULL_HANDLE && device != null) {
             vkDestroyCommandPool(device, commandPool, null);
             commandPool = VK_NULL_HANDLE;
@@ -730,7 +764,7 @@ final class VulkanContext {
         }
         descriptorSetLayout = pLayout.get(0);
 
-        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(2, stack);
+        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(3, stack);
         textureBindings.get(0)
                 .binding(0)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
@@ -738,6 +772,11 @@ final class VulkanContext {
                 .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
         textureBindings.get(1)
                 .binding(1)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
+        textureBindings.get(2)
+                .binding(2)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .stageFlags(VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -950,6 +989,265 @@ final class VulkanContext {
         }
     }
 
+    private void createShadowResources(MemoryStack stack) throws EngineException {
+        ImageAlloc shadowDepth = createImage(
+                stack,
+                shadowMapResolution,
+                shadowMapResolution,
+                depthFormat,
+                VK10.VK_IMAGE_TILING_OPTIMAL,
+                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+        );
+        shadowDepthImage = shadowDepth.image();
+        shadowDepthMemory = shadowDepth.memory();
+        shadowDepthImageView = createImageView(stack, shadowDepthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
+        shadowSampler = createShadowSampler(stack);
+        createShadowRenderPass(stack);
+        createShadowPipeline(stack);
+        createShadowFramebuffer(stack);
+    }
+
+    private long createShadowSampler(MemoryStack stack) throws EngineException {
+        VkSamplerCreateInfo samplerInfo = VkSamplerCreateInfo.calloc(stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO)
+                .magFilter(VK10.VK_FILTER_LINEAR)
+                .minFilter(VK10.VK_FILTER_LINEAR)
+                .addressModeU(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+                .addressModeV(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+                .addressModeW(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+                .anisotropyEnable(false)
+                .maxAnisotropy(1.0f)
+                .borderColor(VK10.VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE)
+                .unnormalizedCoordinates(false)
+                .compareEnable(true)
+                .compareOp(VK10.VK_COMPARE_OP_LESS_OR_EQUAL)
+                .mipmapMode(VK10.VK_SAMPLER_MIPMAP_MODE_NEAREST)
+                .mipLodBias(0.0f)
+                .minLod(0.0f)
+                .maxLod(0.0f);
+        var pSampler = stack.longs(VK_NULL_HANDLE);
+        int result = VK10.vkCreateSampler(device, samplerInfo, null, pSampler);
+        if (result != VK_SUCCESS || pSampler.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateSampler(shadow) failed: " + result, false);
+        }
+        return pSampler.get(0);
+    }
+
+    private void createShadowRenderPass(MemoryStack stack) throws EngineException {
+        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(1, stack)
+                .format(depthFormat)
+                .samples(VK_SAMPLE_COUNT_1_BIT)
+                .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
+                .storeOp(VK_ATTACHMENT_STORE_OP_STORE)
+                .stencilLoadOp(VK10.VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                .stencilStoreOp(VK10.VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
+                .finalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+
+        VkAttachmentReference.Buffer depthRef = VkAttachmentReference.calloc(1, stack)
+                .attachment(0)
+                .layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+        VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack)
+                .pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS)
+                .pDepthStencilAttachment(depthRef.get(0));
+
+        VkSubpassDependency.Buffer dependencies = VkSubpassDependency.calloc(2, stack);
+        dependencies.get(0)
+                .srcSubpass(VK_SUBPASS_EXTERNAL)
+                .dstSubpass(0)
+                .srcStageMask(VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT)
+                .dstStageMask(VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT);
+        dependencies.get(1)
+                .srcSubpass(0)
+                .dstSubpass(VK_SUBPASS_EXTERNAL)
+                .srcStageMask(VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT)
+                .srcAccessMask(VK10.VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT)
+                .dstStageMask(VK10.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT);
+
+        VkRenderPassCreateInfo renderPassInfo = VkRenderPassCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO)
+                .pAttachments(attachments)
+                .pSubpasses(subpass)
+                .pDependencies(dependencies);
+
+        var pRenderPass = stack.longs(VK_NULL_HANDLE);
+        int result = vkCreateRenderPass(device, renderPassInfo, null, pRenderPass);
+        if (result != VK_SUCCESS || pRenderPass.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateRenderPass(shadow) failed: " + result, false);
+        }
+        shadowRenderPass = pRenderPass.get(0);
+    }
+
+    private void createShadowPipeline(MemoryStack stack) throws EngineException {
+        String shadowVertSource = """
+                #version 450
+                layout(location = 0) in vec3 inPos;
+                layout(set = 0, binding = 0) uniform SceneData {
+                    mat4 uModel;
+                    mat4 uView;
+                    mat4 uProj;
+                    vec4 uBaseColor;
+                    vec4 uMaterial;
+                    vec4 uDirLightDir;
+                    vec4 uDirLightColor;
+                    vec4 uPointLightPos;
+                    vec4 uPointLightColor;
+                    vec4 uShadow;
+                    vec4 uShadowCascade;
+                    vec4 uFog;
+                    vec4 uFogColorSteps;
+                    vec4 uSmoke;
+                    vec4 uSmokeColor;
+                    mat4 uShadowLightViewProj;
+                } ubo;
+                void main() {
+                    gl_Position = ubo.uShadowLightViewProj * ubo.uModel * vec4(inPos, 1.0);
+                }
+                """;
+        String shadowFragSource = """
+                #version 450
+                void main() { }
+                """;
+
+        ByteBuffer vertSpv = compileGlslToSpv(shadowVertSource, shaderc_glsl_vertex_shader, "shadow.vert");
+        ByteBuffer fragSpv = compileGlslToSpv(shadowFragSource, shaderc_fragment_shader, "shadow.frag");
+        long vertModule = VK_NULL_HANDLE;
+        long fragModule = VK_NULL_HANDLE;
+        try {
+            vertModule = createShaderModule(stack, vertSpv);
+            fragModule = createShaderModule(stack, fragSpv);
+            VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
+            shaderStages.get(0)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_VERTEX_BIT)
+                    .module(vertModule)
+                    .pName(stack.UTF8("main"));
+            shaderStages.get(1)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_FRAGMENT_BIT)
+                    .module(fragModule)
+                    .pName(stack.UTF8("main"));
+
+            var bindingDesc = org.lwjgl.vulkan.VkVertexInputBindingDescription.calloc(1, stack);
+            bindingDesc.get(0)
+                    .binding(0)
+                    .stride(VERTEX_STRIDE_BYTES)
+                    .inputRate(VK10.VK_VERTEX_INPUT_RATE_VERTEX);
+            var attrDesc = org.lwjgl.vulkan.VkVertexInputAttributeDescription.calloc(1, stack);
+            attrDesc.get(0)
+                    .location(0)
+                    .binding(0)
+                    .format(VK10.VK_FORMAT_R32G32B32_SFLOAT)
+                    .offset(0);
+            VkPipelineVertexInputStateCreateInfo vertexInput = VkPipelineVertexInputStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO)
+                    .pVertexBindingDescriptions(bindingDesc)
+                    .pVertexAttributeDescriptions(attrDesc);
+            VkPipelineInputAssemblyStateCreateInfo inputAssembly = VkPipelineInputAssemblyStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO)
+                    .topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST)
+                    .primitiveRestartEnable(false);
+            VkViewport.Buffer viewport = VkViewport.calloc(1, stack)
+                    .x(0f)
+                    .y(0f)
+                    .width((float) shadowMapResolution)
+                    .height((float) shadowMapResolution)
+                    .minDepth(0f)
+                    .maxDepth(1f);
+            VkRect2D.Buffer scissor = VkRect2D.calloc(1, stack);
+            scissor.get(0).offset(it -> it.set(0, 0));
+            scissor.get(0).extent(VkExtent2D.calloc(stack).set(shadowMapResolution, shadowMapResolution));
+            VkPipelineViewportStateCreateInfo viewportState = VkPipelineViewportStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO)
+                    .viewportCount(1)
+                    .pViewports(viewport)
+                    .scissorCount(1)
+                    .pScissors(scissor);
+            VkPipelineRasterizationStateCreateInfo rasterizer = VkPipelineRasterizationStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO)
+                    .depthClampEnable(false)
+                    .rasterizerDiscardEnable(false)
+                    .polygonMode(VK_POLYGON_MODE_FILL)
+                    .lineWidth(1.0f)
+                    .cullMode(VK10.VK_CULL_MODE_BACK_BIT)
+                    .frontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE)
+                    .depthBiasEnable(false);
+            VkPipelineMultisampleStateCreateInfo multisampling = VkPipelineMultisampleStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO)
+                    .sampleShadingEnable(false)
+                    .rasterizationSamples(VK_SAMPLE_COUNT_1_BIT);
+            VkPipelineDepthStencilStateCreateInfo depthStencil = VkPipelineDepthStencilStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO)
+                    .depthTestEnable(true)
+                    .depthWriteEnable(true)
+                    .depthCompareOp(VK10.VK_COMPARE_OP_LESS)
+                    .depthBoundsTestEnable(false)
+                    .stencilTestEnable(false);
+            VkPipelineColorBlendStateCreateInfo colorBlending = VkPipelineColorBlendStateCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO)
+                    .logicOpEnable(false)
+                    .attachmentCount(0);
+
+            VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
+                    .pSetLayouts(stack.longs(descriptorSetLayout));
+            var pLayout = stack.longs(VK_NULL_HANDLE);
+            int layoutResult = vkCreatePipelineLayout(device, pipelineLayoutInfo, null, pLayout);
+            if (layoutResult != VK_SUCCESS || pLayout.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreatePipelineLayout(shadow) failed: " + layoutResult, false);
+            }
+            shadowPipelineLayout = pLayout.get(0);
+
+            VkGraphicsPipelineCreateInfo.Buffer pipelineInfo = VkGraphicsPipelineCreateInfo.calloc(1, stack)
+                    .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+                    .pStages(shaderStages)
+                    .pVertexInputState(vertexInput)
+                    .pInputAssemblyState(inputAssembly)
+                    .pViewportState(viewportState)
+                    .pRasterizationState(rasterizer)
+                    .pMultisampleState(multisampling)
+                    .pDepthStencilState(depthStencil)
+                    .pColorBlendState(colorBlending)
+                    .layout(shadowPipelineLayout)
+                    .renderPass(shadowRenderPass)
+                    .subpass(0)
+                    .basePipelineHandle(VK_NULL_HANDLE);
+            var pPipeline = stack.longs(VK_NULL_HANDLE);
+            int pipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, pipelineInfo, null, pPipeline);
+            if (pipelineResult != VK_SUCCESS || pPipeline.get(0) == VK_NULL_HANDLE) {
+                throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateGraphicsPipelines(shadow) failed: " + pipelineResult, false);
+            }
+            shadowPipeline = pPipeline.get(0);
+        } finally {
+            if (vertModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(device, vertModule, null);
+            }
+            if (fragModule != VK_NULL_HANDLE) {
+                vkDestroyShaderModule(device, fragModule, null);
+            }
+        }
+    }
+
+    private void createShadowFramebuffer(MemoryStack stack) throws EngineException {
+        VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
+                .renderPass(shadowRenderPass)
+                .pAttachments(stack.longs(shadowDepthImageView))
+                .width(shadowMapResolution)
+                .height(shadowMapResolution)
+                .layers(1);
+        var pFramebuffer = stack.longs(VK_NULL_HANDLE);
+        int result = vkCreateFramebuffer(device, framebufferInfo, null, pFramebuffer);
+        if (result != VK_SUCCESS || pFramebuffer.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateFramebuffer(shadow) failed: " + result, false);
+        }
+        shadowFramebuffer = pFramebuffer.get(0);
+    }
+
     private void createRenderPass(MemoryStack stack) throws EngineException {
         VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(2, stack);
         attachments.get(0)
@@ -1028,10 +1326,12 @@ final class VulkanContext {
                     vec4 uPointLightPos;
                     vec4 uPointLightColor;
                     vec4 uShadow;
+                    vec4 uShadowCascade;
                     vec4 uFog;
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
                     vec4 uSmokeColor;
+                    mat4 uShadowLightViewProj;
                 } ubo;
                 void main() {
                     vec4 world = ubo.uModel * vec4(inPos, 1.0);
@@ -1063,10 +1363,12 @@ final class VulkanContext {
                     vec4 uPointLightPos;
                     vec4 uPointLightColor;
                     vec4 uShadow;
+                    vec4 uShadowCascade;
                     vec4 uFog;
                     vec4 uFogColorSteps;
                     vec4 uSmoke;
                     vec4 uSmokeColor;
+                    mat4 uShadowLightViewProj;
                 } ubo;
                 layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
                 layout(set = 1, binding = 1) uniform sampler2D uNormalTexture;
@@ -1348,6 +1650,44 @@ final class VulkanContext {
         }
     }
 
+    private void destroyShadowResources() {
+        if (device == null) {
+            return;
+        }
+        if (shadowFramebuffer != VK_NULL_HANDLE) {
+            vkDestroyFramebuffer(device, shadowFramebuffer, null);
+            shadowFramebuffer = VK_NULL_HANDLE;
+        }
+        if (shadowPipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, shadowPipeline, null);
+            shadowPipeline = VK_NULL_HANDLE;
+        }
+        if (shadowPipelineLayout != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(device, shadowPipelineLayout, null);
+            shadowPipelineLayout = VK_NULL_HANDLE;
+        }
+        if (shadowRenderPass != VK_NULL_HANDLE) {
+            vkDestroyRenderPass(device, shadowRenderPass, null);
+            shadowRenderPass = VK_NULL_HANDLE;
+        }
+        if (shadowSampler != VK_NULL_HANDLE) {
+            VK10.vkDestroySampler(device, shadowSampler, null);
+            shadowSampler = VK_NULL_HANDLE;
+        }
+        if (shadowDepthImageView != VK_NULL_HANDLE) {
+            vkDestroyImageView(device, shadowDepthImageView, null);
+            shadowDepthImageView = VK_NULL_HANDLE;
+        }
+        if (shadowDepthImage != VK_NULL_HANDLE) {
+            VK10.vkDestroyImage(device, shadowDepthImage, null);
+            shadowDepthImage = VK_NULL_HANDLE;
+        }
+        if (shadowDepthMemory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, shadowDepthMemory, null);
+            shadowDepthMemory = VK_NULL_HANDLE;
+        }
+    }
+
     private void destroySwapchainResources() {
         if (device == null) {
             return;
@@ -1508,6 +1848,42 @@ final class VulkanContext {
             throw vkFailure("vkBeginCommandBuffer", beginResult);
         }
 
+        updateShadowLightViewProjMatrix();
+        if (shadowEnabled
+                && shadowRenderPass != VK_NULL_HANDLE
+                && shadowFramebuffer != VK_NULL_HANDLE
+                && shadowPipeline != VK_NULL_HANDLE
+                && descriptorSet != VK_NULL_HANDLE
+                && !gpuMeshes.isEmpty()) {
+            VkClearValue.Buffer shadowClearValues = VkClearValue.calloc(1, stack);
+            shadowClearValues.get(0).depthStencil().depth(1.0f).stencil(0);
+            VkRenderPassBeginInfo shadowPassInfo = VkRenderPassBeginInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
+                    .renderPass(shadowRenderPass)
+                    .framebuffer(shadowFramebuffer)
+                    .pClearValues(shadowClearValues);
+            shadowPassInfo.renderArea()
+                    .offset(it -> it.set(0, 0))
+                    .extent(VkExtent2D.calloc(stack).set(shadowMapResolution, shadowMapResolution));
+            vkCmdBeginRenderPass(commandBuffer, shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, shadowPipeline);
+            vkCmdBindDescriptorSets(
+                    commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    shadowPipelineLayout,
+                    0,
+                    stack.longs(descriptorSet),
+                    null
+            );
+            for (GpuMesh mesh : gpuMeshes) {
+                updateGlobalUniform(mesh);
+                vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer), stack.longs(0));
+                vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+                vkCmdDrawIndexed(commandBuffer, mesh.indexCount, 1, 0, 0, 0);
+            }
+            vkCmdEndRenderPass(commandBuffer);
+        }
+
         VkClearValue.Buffer clearValues = VkClearValue.calloc(2, stack);
         clearValues.get(0).color().float32(0, 0.08f);
         clearValues.get(0).color().float32(1, 0.09f);
@@ -1641,6 +2017,86 @@ final class VulkanContext {
                 0f, 0f, 1f, 0f,
                 0f, 0f, 0f, 1f
         };
+    }
+
+    private void updateShadowLightViewProjMatrix() {
+        float len = (float) Math.sqrt(dirLightDirX * dirLightDirX + dirLightDirY * dirLightDirY + dirLightDirZ * dirLightDirZ);
+        if (len < 0.0001f) {
+            len = 1f;
+        }
+        float lx = dirLightDirX / len;
+        float ly = dirLightDirY / len;
+        float lz = dirLightDirZ / len;
+        float eyeX = -lx * 8.0f;
+        float eyeY = -ly * 8.0f;
+        float eyeZ = -lz * 8.0f;
+        float[] lightView = lookAt(eyeX, eyeY, eyeZ, 0f, 0f, 0f, 0f, 1f, 0f);
+        float[] lightProj = ortho(-8f, 8f, -8f, 8f, 0.1f, 32f);
+        shadowLightViewProjMatrix = mul(lightProj, lightView);
+    }
+
+    private static float[] lookAt(float eyeX, float eyeY, float eyeZ, float targetX, float targetY, float targetZ,
+                                  float upX, float upY, float upZ) {
+        float fx = targetX - eyeX;
+        float fy = targetY - eyeY;
+        float fz = targetZ - eyeZ;
+        float fLen = (float) Math.sqrt(fx * fx + fy * fy + fz * fz);
+        if (fLen < 0.00001f) {
+            return identityMatrix();
+        }
+        fx /= fLen;
+        fy /= fLen;
+        fz /= fLen;
+
+        float sx = fy * upZ - fz * upY;
+        float sy = fz * upX - fx * upZ;
+        float sz = fx * upY - fy * upX;
+        float sLen = (float) Math.sqrt(sx * sx + sy * sy + sz * sz);
+        if (sLen < 0.00001f) {
+            return identityMatrix();
+        }
+        sx /= sLen;
+        sy /= sLen;
+        sz /= sLen;
+
+        float ux = sy * fz - sz * fy;
+        float uy = sz * fx - sx * fz;
+        float uz = sx * fy - sy * fx;
+
+        return new float[]{
+                sx, ux, -fx, 0f,
+                sy, uy, -fy, 0f,
+                sz, uz, -fz, 0f,
+                -(sx * eyeX + sy * eyeY + sz * eyeZ),
+                -(ux * eyeX + uy * eyeY + uz * eyeZ),
+                (fx * eyeX + fy * eyeY + fz * eyeZ),
+                1f
+        };
+    }
+
+    private static float[] ortho(float left, float right, float bottom, float top, float near, float far) {
+        float rl = right - left;
+        float tb = top - bottom;
+        float fn = far - near;
+        return new float[]{
+                2f / rl, 0f, 0f, 0f,
+                0f, 2f / tb, 0f, 0f,
+                0f, 0f, -2f / fn, 0f,
+                -(right + left) / rl, -(top + bottom) / tb, -(far + near) / fn, 1f
+        };
+    }
+
+    private static float[] mul(float[] a, float[] b) {
+        float[] out = new float[16];
+        for (int c = 0; c < 4; c++) {
+            for (int r = 0; r < 4; r++) {
+                out[c * 4 + r] = a[r] * b[c * 4]
+                        + a[4 + r] * b[c * 4 + 1]
+                        + a[8 + r] * b[c * 4 + 2]
+                        + a[12 + r] * b[c * 4 + 3];
+            }
+        }
+        return out;
     }
 
     private VkExtent2D chooseExtent(VkSurfaceCapabilitiesKHR capabilities, int width, int height, MemoryStack stack) {
@@ -2164,11 +2620,13 @@ final class VulkanContext {
         fb.put(new float[]{dirLightColorR, dirLightColorG, dirLightColorB, 0f});
         fb.put(new float[]{pointLightPosX, pointLightPosY, pointLightPosZ, 0f});
         fb.put(new float[]{pointLightColorR, pointLightColorG, pointLightColorB, 0f});
-        fb.put(new float[]{shadowEnabled ? 1f : 0f, shadowStrength, 0f, 0f});
+        fb.put(new float[]{shadowEnabled ? 1f : 0f, shadowStrength, shadowBias, (float) shadowPcfRadius});
+        fb.put(new float[]{(float) shadowCascadeCount, (float) shadowMapResolution, 0f, 0f});
         fb.put(new float[]{fogEnabled ? 1f : 0f, fogDensity, 0f, 0f});
         fb.put(new float[]{fogR, fogG, fogB, (float) fogSteps});
         fb.put(new float[]{smokeEnabled ? 1f : 0f, smokeIntensity, 0f, 0f});
         fb.put(new float[]{smokeR, smokeG, smokeB, 0f});
+        fb.put(shadowLightViewProjMatrix);
         mapped.limit(GLOBAL_UNIFORM_BYTES);
         try (MemoryStack stack = stackPush()) {
             PointerBuffer pData = stack.mallocPointer(1);
