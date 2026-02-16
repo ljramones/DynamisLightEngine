@@ -58,14 +58,24 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 - `org.dynamislight.impl.vulkan.shader`
   - shader source/compile helpers (`VulkanShaderSources`, `VulkanShaderCompiler`)
 - `org.dynamislight.impl.vulkan.swapchain`
-  - swapchain policy/selection helpers (`VulkanSwapchainSelector`)
+  - swapchain policy/selection/allocation, image-view lifecycle, and framebuffer/depth helpers (`VulkanSwapchainSelector`, `VulkanSwapchainAllocation`, `VulkanSwapchainImageViews`, `VulkanFramebufferResources`)
 - `org.dynamislight.impl.vulkan.descriptor`
-  - descriptor-ring sizing policy (`VulkanDescriptorRingPolicy`)
+  - descriptor-ring sizing + descriptor resource lifecycle + texture descriptor writes (`VulkanDescriptorRingPolicy`, `VulkanDescriptorResources`, `VulkanTextureDescriptorWriter`)
 - `org.dynamislight.impl.vulkan.command`
-  - submit/present + command recording helpers (`VulkanCommandSubmitter`, `VulkanRenderCommandRecorder`)
+  - frame-sync allocation/teardown, acquire+submit/present orchestration, and command recording helpers (`VulkanFrameSyncResources`, `VulkanCommandSubmitter`, `VulkanRenderCommandRecorder`)
+- `org.dynamislight.impl.vulkan.scene`
+  - scene mesh-reuse and dynamic-update helpers (`VulkanSceneReusePolicy`, `VulkanDynamicSceneUpdater`)
 - `org.dynamislight.impl.vulkan.math`
   - matrix/vector math helpers extracted from context (`VulkanMath`)
 - `org.dynamislight.impl.vulkan.shadow`
-  - shadow/cascade matrix builder (`VulkanShadowMatrixBuilder`)
+  - shadow/cascade matrix and shadow-resource lifecycle (`VulkanShadowMatrixBuilder`, `VulkanShadowResources`)
+- `org.dynamislight.impl.vulkan.uniform`
+  - uniform serialization/upload helpers (`VulkanUniformWriters`, `VulkanUniformUploadRecorder`)
+- `org.dynamislight.impl.vulkan.texture`
+  - texture pixel/container decode helpers (`VulkanTexturePixelLoader`)
+- `org.dynamislight.impl.vulkan.memory`
+  - buffer/image allocation and transfer helpers (`VulkanMemoryOps`)
+- `org.dynamislight.impl.vulkan.pipeline`
+  - pipeline/render-pass builders and post-process resource lifecycle (`VulkanMainPipelineBuilder`, `VulkanPostPipelineBuilder`, `VulkanShadowPipelineBuilder`, `VulkanPostProcessResources`)
 
 Design rule: keep render orchestration/state transitions in `VulkanContext`, and place data carriers/parsers in subpackages. New Vulkan features should default to subpackage classes first; only core command submission/state mutation belongs in `VulkanContext`.
