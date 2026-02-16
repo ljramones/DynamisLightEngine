@@ -12,8 +12,8 @@ This document describes **implemented capabilities** in the current repository s
 | Engine API contract (`engine-api`) | Implemented | Stable Java DTO boundary, lifecycle/runtime contracts, validation, error model |
 | Backend discovery (`engine-spi`) | Implemented | `ServiceLoader` + deterministic `BackendRegistry.resolve(...)` |
 | Shared runtime policies (`engine-impl-common`) | Implemented | Lifecycle enforcement, stats, logging/events/errors, resource cache/hot-reload/watch |
-| OpenGL backend (`engine-impl-opengl`) | Implemented (baseline real rendering) | Real context/shaders, scene meshes, fog/smoke, material/texture + baseline lighting |
-| Vulkan backend (`engine-impl-vulkan`) | Implemented (baseline real rendering) | Real Vulkan init, swapchain/pipeline, indexed draws, descriptor-backed uniform path |
+| OpenGL backend (`engine-impl-opengl`) | Implemented (advanced baseline) | Real context/shaders, scene meshes, fog/smoke, material/texture + PBR-leaning shading baseline |
+| Vulkan backend (`engine-impl-vulkan`) | Implemented (advanced baseline) | Real Vulkan init, swapchain/pipeline, attribute-rich mesh path, descriptor-backed camera/material/light uniforms, multi-frame sync + staging uploads |
 | DynamisFX bridge (`engine-bridge-dynamisfx`) | Implemented (v1 baseline) | Runtime creation, input mapping, scene mapping + validation |
 | Sample host (`engine-host-sample`) | Implemented | Runs lifecycle loop, backend select, resource inspection/hot-reload demo |
 
@@ -76,6 +76,7 @@ OpenGL backend provides a real forward render baseline:
 - Smoke support (`SmokeEmitterDesc`) with quality degradation warnings at lower tiers.
 - Frame graph execution path (`clear -> geometry -> fog -> smoke`).
 - GPU timing query when available (`GL_TIME_ELAPSED`) with CPU fallback.
+- Approximate GPU memory telemetry exposed via runtime stats.
 
 ### OpenGL limitations (current)
 - Material model is intentionally simplified (not full PBR correctness).
@@ -83,23 +84,25 @@ OpenGL backend provides a real forward render baseline:
 - glTF support is pragmatic baseline, not full spec coverage.
 
 ## 7) Vulkan backend capabilities
-Vulkan backend provides a real rendering bootstrap and baseline draw flow:
+Vulkan backend provides a real rendering bootstrap and advanced baseline draw flow:
 - GLFW-backed Vulkan surface/window initialization.
 - Physical/logical device selection with graphics+present+swapchain checks.
 - Swapchain creation/recreation + image views + render pass + framebuffers.
-- Command pool/buffer setup + fence/semaphore synchronization.
+- Multi-frame-in-flight command/sync setup (`MAX_FRAMES_IN_FLIGHT=2`).
 - Shader compilation at runtime via `shaderc` (GLSL -> SPIR-V).
 - Graphics pipeline + pipeline layout creation.
-- Descriptor set path with uniform buffer binding.
-- Vertex/index buffer upload and indexed draw submission.
-- Render loop clear + scene-driven indexed draws.
+- Descriptor set path with uniform buffer binding for model/view/proj + material + lighting + fog/smoke parameters.
+- Attribute-rich vertex path (`position`, `normal`, `uv`, `tangent`) from `.gltf/.glb` mesh ingestion.
+- Device-local vertex/index buffer uploads via staging copy path.
+- Render loop clear + scene-driven indexed draws with quality-tier-dependent fog/smoke behavior.
 - Resize/out-of-date/suboptimal handling with swapchain recreation.
 - Device-loss error mapping and `DeviceLostEvent` propagation.
+- Approximate GPU memory telemetry exposed via runtime stats.
 
 ### Vulkan limitations (current)
-- Scene geometry source is currently baseline synthesized primitives from scene mesh descriptors (triangle/quad mapping), not full mesh-asset decode parity.
-- Uniform path is baseline global data (model/color style block), not full camera/material descriptor architecture yet.
-- Feature set is intentionally minimal compared to production Vulkan engines.
+- Material texture handling is currently signal-based (texture-derived influence), not full Vulkan sampled-texture descriptor binding parity with OpenGL.
+- glTF support is pragmatic baseline, not full spec coverage.
+- Feature set remains intentionally lean compared to production Vulkan engines (no full deferred path, no advanced framegraph composition, etc.).
 
 ## 8) Bridge and host integration capabilities
 - `DynamisFxEngineBridge` resolves runtime by backend id through `BackendRegistry`.
@@ -152,4 +155,11 @@ The repository includes automated tests validating:
 - SPI discovery and backend resolution failure modes.
 - OpenGL lifecycle/error/resource/hot-reload behavior.
 - Vulkan lifecycle, initialization guards, workload stats parity, and device-loss propagation.
-- Cross-backend parity checks in sample host integration tests.
+- Cross-backend parity checks in sample host integration tests (material/lighting scene, resize stability, quality-tier warning parity).
+
+## 12) Platform and CI coverage
+- Backend modules include LWJGL runtime natives for macOS (arm64), Linux, and Windows.
+- GitHub Actions CI runs test matrix on:
+  - `ubuntu-latest`
+  - `macos-latest`
+  - `windows-latest`

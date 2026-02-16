@@ -63,7 +63,7 @@ mvn clean compile
 mvn test
 ```
 
-GitHub Actions CI runs the same test command on `main` and pull requests using JDK 25:
+GitHub Actions CI runs the same test command on `main` and pull requests using JDK 25 across Linux, macOS, and Windows:
 - `.github/workflows/ci.yml`
 
 ## Run sample host
@@ -94,6 +94,9 @@ OpenGL backend options (via `EngineConfig.backendOptions`):
 
 Vulkan backend options:
 - `vulkan.mockContext=true|false` (default `true`) toggles real Vulkan instance initialization.
+- `vulkan.forceInitFailure=true|false` forces `BACKEND_INIT_FAILED` for failure-path testing.
+- `vulkan.windowVisible=true|false` (default `false`) controls visible presentation window.
+- `vulkan.forceDeviceLostOnRender=true|false` forces `DEVICE_LOST` for failure-path testing.
 
 Sample-host default keeps OpenGL in mock mode for portability. To run real OpenGL init/render from sample host:
 
@@ -104,6 +107,18 @@ mvn -f engine-host-sample/pom.xml exec:java -Dexec.args=\"opengl\" -Ddle.opengl.
 ## Current status
 
 DynamicLightEngine now provides real baseline rendering in both OpenGL and Vulkan backends behind the same API/SPI contracts.
+
+Vulkan now includes:
+- attribute-rich mesh ingestion (`POSITION`, `NORMAL`, `TEXCOORD_0`, `TANGENT`) with `.gltf/.glb` parsing
+- descriptor-backed camera/material/lighting data
+- fog/smoke quality-tier behavior and degradation warnings aligned with OpenGL warning semantics
+- multi-frame-in-flight command/sync model and device-local mesh buffers uploaded via staging transfers
+
+Cross-backend parity tests now cover:
+- lifecycle/error parity
+- material/lighting scene behavior parity signals
+- repeated resize stability
+- quality-tier fog/smoke degradation warning parity
 
 OpenGL includes a fog path driven by `SceneDescriptor.fog` with quality-tier dependent sampling:
 - `LOW`: coarse fog steps
