@@ -29,6 +29,9 @@ public final class VulkanBackendResources {
     public long[] depthImages = new long[0];
     public long[] depthMemories = new long[0];
     public long[] depthImageViews = new long[0];
+    public long velocityImage = VK_NULL_HANDLE;
+    public long velocityMemory = VK_NULL_HANDLE;
+    public long velocityImageView = VK_NULL_HANDLE;
 
     public long shadowDepthImage = VK_NULL_HANDLE;
     public long shadowDepthMemory = VK_NULL_HANDLE;

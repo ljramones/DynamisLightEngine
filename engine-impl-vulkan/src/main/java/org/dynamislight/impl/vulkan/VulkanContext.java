@@ -66,7 +66,7 @@ final class VulkanContext {
     private static final int MAX_SHADOW_CASCADES = 4;
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 6;
-    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 800;
+    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 864;
     private static final int OBJECT_UNIFORM_BYTES = 96;
     private final VulkanBackendResources backendResources = new VulkanBackendResources();
     private final VulkanDescriptorResourceState descriptorResources = new VulkanDescriptorResourceState();
@@ -776,6 +776,7 @@ final class VulkanContext {
                         backendResources.postDescriptorSet,
                         backendResources.offscreenColorImage,
                         backendResources.postTaaHistoryImage,
+                        backendResources.velocityImage,
                         backendResources.swapchainImages,
                         backendResources.postFramebuffers,
                         frame -> VulkanUniformFrameCoordinator.descriptorSetForFrame(
@@ -997,6 +998,7 @@ final class VulkanContext {
                                         renderState.ssaoPower,
                                         renderState.smaaEnabled,
                                         renderState.smaaStrength,
+                                        taaPrevViewProjValid ? taaPrevViewProj : mul(projMatrix, viewMatrix),
                                         renderState.shadowLightViewProjMatrices
                                 )
                         ),

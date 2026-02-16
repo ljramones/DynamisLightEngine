@@ -55,7 +55,8 @@ public final class VulkanPostProcessResources {
             int swapchainImageFormat,
             int swapchainWidth,
             int swapchainHeight,
-            long[] swapchainImageViews
+            long[] swapchainImageViews,
+            long velocityImageView
     ) throws EngineException {
         VulkanImageAlloc intermediate = VulkanMemoryOps.createImage(
                 device,
@@ -100,7 +101,9 @@ public final class VulkanPostProcessResources {
                 offscreenColorImageView,
                 offscreenColorSampler,
                 taaHistoryImageView,
-                taaHistorySampler
+                taaHistorySampler,
+                velocityImageView,
+                offscreenColorSampler
         );
 
         VulkanPostPipelineBuilder.Result postPipeline = VulkanPostPipelineBuilder.create(
@@ -256,7 +259,7 @@ public final class VulkanPostProcessResources {
     }
 
     private static long createPostDescriptorSetLayout(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(2, stack);
+        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(3, stack);
         bindings.get(0)
                 .binding(0)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
@@ -264,6 +267,11 @@ public final class VulkanPostProcessResources {
                 .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
         bindings.get(1)
                 .binding(1)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
+        bindings.get(2)
+                .binding(2)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -282,7 +290,7 @@ public final class VulkanPostProcessResources {
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(2);
+                .descriptorCount(3);
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
                 .maxSets(1)
@@ -320,7 +328,9 @@ public final class VulkanPostProcessResources {
             long offscreenColorImageView,
             long offscreenColorSampler,
             long taaHistoryImageView,
-            long taaHistorySampler
+            long taaHistorySampler,
+            long velocityImageView,
+            long velocitySampler
     ) {
         VkDescriptorImageInfo.Buffer imageInfo = VkDescriptorImageInfo.calloc(1, stack);
         imageInfo.get(0)
@@ -332,7 +342,12 @@ public final class VulkanPostProcessResources {
                 .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
                 .imageView(taaHistoryImageView)
                 .sampler(taaHistorySampler);
-        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(2, stack);
+        VkDescriptorImageInfo.Buffer velocityInfo = VkDescriptorImageInfo.calloc(1, stack);
+        velocityInfo.get(0)
+                .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                .imageView(velocityImageView)
+                .sampler(velocitySampler);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(3, stack);
         writes.get(0)
                 .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                 .dstSet(postDescriptorSet)
@@ -347,6 +362,13 @@ public final class VulkanPostProcessResources {
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .pImageInfo(historyInfo);
+        writes.get(2)
+                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                .dstSet(postDescriptorSet)
+                .dstBinding(2)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .pImageInfo(velocityInfo);
         vkUpdateDescriptorSets(device, writes, null);
     }
 

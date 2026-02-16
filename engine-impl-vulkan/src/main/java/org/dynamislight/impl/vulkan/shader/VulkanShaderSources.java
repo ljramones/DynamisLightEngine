@@ -29,6 +29,7 @@ public final class VulkanShaderSources {
                     vec4 uPostProcess;
                     vec4 uBloom;
                     vec4 uAntiAlias;
+                    mat4 uPrevViewProj;
                     mat4 uShadowLightViewProj[6];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
@@ -86,6 +87,7 @@ public final class VulkanShaderSources {
                     vec4 uPostProcess;
                     vec4 uBloom;
                     vec4 uAntiAlias;
+                    mat4 uPrevViewProj;
                     mat4 uShadowLightViewProj[6];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
@@ -136,6 +138,7 @@ public final class VulkanShaderSources {
                     vec4 uPostProcess;
                     vec4 uBloom;
                     vec4 uAntiAlias;
+                    mat4 uPrevViewProj;
                     mat4 uShadowLightViewProj[6];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
@@ -152,6 +155,7 @@ public final class VulkanShaderSources {
                 layout(set = 1, binding = 6) uniform sampler2D uIblRadianceTexture;
                 layout(set = 1, binding = 7) uniform sampler2D uIblBrdfLutTexture;
                 layout(location = 0) out vec4 outColor;
+                layout(location = 1) out vec4 outVelocity;
                 float distributionGGX(float ndh, float roughness) {
                     float a = roughness * roughness;
                     float a2 = a * a;
@@ -432,6 +436,14 @@ public final class VulkanShaderSources {
                         color = mix(color, vec3(luma), edge * aaStrength * 0.20);
                     }
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+                    vec4 currClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
+                    vec4 prevClip = gbo.uPrevViewProj * vec4(vWorldPos, 1.0);
+                    float currW = abs(currClip.w) > 0.000001 ? currClip.w : 1.0;
+                    float prevW = abs(prevClip.w) > 0.000001 ? prevClip.w : 1.0;
+                    vec2 currNdc = currClip.xy / currW;
+                    vec2 prevNdc = prevClip.xy / prevW;
+                    vec2 velocityNdc = clamp(prevNdc - currNdc, vec2(-1.0), vec2(1.0));
+                    outVelocity = vec4(velocityNdc * 0.5 + 0.5, 0.5, 1.0);
                 }
                 """;
     }
@@ -456,6 +468,7 @@ public final class VulkanShaderSources {
                 layout(location = 0) out vec4 outColor;
                 layout(set = 0, binding = 0) uniform sampler2D uSceneColor;
                 layout(set = 0, binding = 1) uniform sampler2D uHistoryColor;
+                layout(set = 0, binding = 2) uniform sampler2D uVelocityColor;
                 layout(push_constant) uniform PostPush {
                     vec4 tonemap;
                     vec4 bloom;
@@ -527,7 +540,8 @@ public final class VulkanShaderSources {
                         color = smaaLite(vUv, color);
                     }
                     if (pc.taa.x > 0.5 && pc.taa.z > 0.5) {
-                        vec2 historyUv = clamp(vUv + pc.smaa.zw + pc.motion.xy, vec2(0.0), vec2(1.0));
+                        vec2 velocityUv = texture(uVelocityColor, vUv).rg * 2.0 - 1.0;
+                        vec2 historyUv = clamp(vUv + pc.smaa.zw + pc.motion.xy + (velocityUv * 0.5), vec2(0.0), vec2(1.0));
                         vec3 history = texture(uHistoryColor, historyUv).rgb;
                         float blend = clamp(pc.taa.y, 0.0, 0.95);
                         vec3 minN = min(color, history);

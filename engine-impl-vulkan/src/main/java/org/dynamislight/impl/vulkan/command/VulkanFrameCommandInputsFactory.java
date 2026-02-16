@@ -57,6 +57,7 @@ public final class VulkanFrameCommandInputsFactory {
                 inputs.postDescriptorSet(),
                 inputs.offscreenColorImage(),
                 inputs.taaHistoryImage(),
+                inputs.velocityImage(),
                 inputs.swapchainImages(),
                 inputs.postFramebuffers(),
                 inputs.descriptorSetForFrame(),
@@ -120,6 +121,7 @@ public final class VulkanFrameCommandInputsFactory {
                 post.postDescriptorSet(),
                 post.offscreenColorImage(),
                 post.taaHistoryImage(),
+                post.velocityImage(),
                 post.swapchainImages(),
                 post.postFramebuffers(),
                 descriptorSetForFrame,
@@ -176,6 +178,7 @@ public final class VulkanFrameCommandInputsFactory {
             long postDescriptorSet,
             long offscreenColorImage,
             long taaHistoryImage,
+            long velocityImage,
             long[] swapchainImages,
             long[] postFramebuffers,
             VulkanFrameCommandOrchestrator.LongByInt descriptorSetForFrame,
@@ -236,6 +239,7 @@ public final class VulkanFrameCommandInputsFactory {
             long postDescriptorSet,
             long offscreenColorImage,
             long taaHistoryImage,
+            long velocityImage,
             long[] swapchainImages,
             long[] postFramebuffers
     ) {

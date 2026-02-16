@@ -87,6 +87,9 @@ public final class VulkanLifecycleOrchestrator {
                         request.backendResources().depthImages,
                         request.backendResources().depthMemories,
                         request.backendResources().depthImageViews,
+                        request.backendResources().velocityImage,
+                        request.backendResources().velocityMemory,
+                        request.backendResources().velocityImageView,
                         request.backendResources().swapchain,
                         request.backendResources().swapchainImageFormat,
                         request.backendResources().swapchainWidth,
@@ -127,6 +130,9 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.depthImages = state.depthImages();
         backendResources.depthMemories = state.depthMemories();
         backendResources.depthImageViews = state.depthImageViews();
+        backendResources.velocityImage = state.velocityImage();
+        backendResources.velocityMemory = state.velocityMemory();
+        backendResources.velocityImageView = state.velocityImageView();
         backendResources.renderPass = state.renderPass();
         backendResources.pipelineLayout = state.pipelineLayout();
         backendResources.graphicsPipeline = state.graphicsPipeline();

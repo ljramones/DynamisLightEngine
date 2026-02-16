@@ -12,6 +12,7 @@ import org.lwjgl.vulkan.VkImageViewCreateInfo;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -63,6 +64,7 @@ public final class VulkanFramebufferResources {
             MemoryStack stack,
             long renderPass,
             long[] swapchainImageViews,
+            long velocityImageView,
             long[] depthImageViews,
             int width,
             int height
@@ -72,7 +74,7 @@ public final class VulkanFramebufferResources {
             VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
                     .renderPass(renderPass)
-                    .pAttachments(stack.longs(swapchainImageViews[i], depthImageViews[i]))
+                    .pAttachments(stack.longs(swapchainImageViews[i], velocityImageView, depthImageViews[i]))
                     .width(width)
                     .height(height)
                     .layers(1);
@@ -134,6 +136,26 @@ public final class VulkanFramebufferResources {
         int result = vkCreateImageView(device, viewInfo, null, pView);
         if (result != VK_SUCCESS || pView.get(0) == VK_NULL_HANDLE) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateImageView(depth) failed: " + result, false);
+        }
+        return pView.get(0);
+    }
+
+    public static long createColorImageView(VkDevice device, MemoryStack stack, long image, int format) throws EngineException {
+        VkImageViewCreateInfo viewInfo = VkImageViewCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
+                .image(image)
+                .viewType(VK10.VK_IMAGE_VIEW_TYPE_2D)
+                .format(format);
+        viewInfo.subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        var pView = stack.longs(VK_NULL_HANDLE);
+        int result = vkCreateImageView(device, viewInfo, null, pView);
+        if (result != VK_SUCCESS || pView.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateImageView(color) failed: " + result, false);
         }
         return pView.get(0);
     }

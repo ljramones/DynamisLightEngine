@@ -45,6 +45,7 @@ import static org.lwjgl.vulkan.VK10.VK_CULL_MODE_NONE;
 import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -192,8 +193,17 @@ public final class VulkanMainPipelineBuilder {
                         .depthBoundsTestEnable(false)
                         .stencilTestEnable(false);
 
-                VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(1, stack);
+                VkPipelineColorBlendAttachmentState.Buffer colorBlendAttachment = VkPipelineColorBlendAttachmentState.calloc(2, stack);
                 colorBlendAttachment.get(0)
+                        .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
+                        .blendEnable(false)
+                        .srcColorBlendFactor(VK_BLEND_FACTOR_ONE)
+                        .dstColorBlendFactor(VK_BLEND_FACTOR_ZERO)
+                        .colorBlendOp(VK_BLEND_OP_ADD)
+                        .srcAlphaBlendFactor(VK_BLEND_FACTOR_ONE)
+                        .dstAlphaBlendFactor(VK_BLEND_FACTOR_ZERO)
+                        .alphaBlendOp(VK_BLEND_OP_ADD);
+                colorBlendAttachment.get(1)
                         .colorWriteMask(VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT)
                         .blendEnable(false)
                         .srcColorBlendFactor(VK_BLEND_FACTOR_ONE)
@@ -260,7 +270,7 @@ public final class VulkanMainPipelineBuilder {
     }
 
     private static long createRenderPass(VkDevice device, MemoryStack stack, int swapchainImageFormat, int depthFormat) throws EngineException {
-        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(2, stack);
+        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(3, stack);
         attachments.get(0)
                 .format(swapchainImageFormat)
                 .samples(VK_SAMPLE_COUNT_1_BIT)
@@ -271,6 +281,15 @@ public final class VulkanMainPipelineBuilder {
                 .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
                 .finalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         attachments.get(1)
+                .format(swapchainImageFormat)
+                .samples(VK_SAMPLE_COUNT_1_BIT)
+                .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
+                .storeOp(VK_ATTACHMENT_STORE_OP_STORE)
+                .stencilLoadOp(VK10.VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                .stencilStoreOp(VK10.VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
+                .finalLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        attachments.get(2)
                 .format(depthFormat)
                 .samples(VK_SAMPLE_COUNT_1_BIT)
                 .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
@@ -280,16 +299,20 @@ public final class VulkanMainPipelineBuilder {
                 .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
                 .finalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
-        VkAttachmentReference.Buffer colorRef = VkAttachmentReference.calloc(1, stack)
+        VkAttachmentReference.Buffer colorRef = VkAttachmentReference.calloc(2, stack);
+        colorRef.get(0)
                 .attachment(0)
                 .layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        VkAttachmentReference.Buffer depthRef = VkAttachmentReference.calloc(1, stack)
+        colorRef.get(1)
                 .attachment(1)
+                .layout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        VkAttachmentReference.Buffer depthRef = VkAttachmentReference.calloc(1, stack)
+                .attachment(2)
                 .layout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
         VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack)
                 .pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS)
-                .colorAttachmentCount(1)
+                .colorAttachmentCount(2)
                 .pColorAttachments(colorRef)
                 .pDepthStencilAttachment(depthRef.get(0));
 

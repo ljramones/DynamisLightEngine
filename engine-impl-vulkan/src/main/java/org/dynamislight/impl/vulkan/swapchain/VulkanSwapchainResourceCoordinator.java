@@ -1,11 +1,14 @@
 package org.dynamislight.impl.vulkan.swapchain;
 
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
+import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
 import org.dynamislight.impl.vulkan.pipeline.VulkanMainPipelineBuilder;
 import org.dynamislight.impl.vulkan.pipeline.VulkanPostProcessResources;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkPhysicalDevice;
+import org.lwjgl.vulkan.VK10;
 
 public final class VulkanSwapchainResourceCoordinator {
     private VulkanSwapchainResourceCoordinator() {
@@ -37,6 +40,23 @@ public final class VulkanSwapchainResourceCoordinator {
                 swapchainAllocation.swapchainHeight(),
                 inputs.depthFormat()
         );
+        VulkanImageAlloc velocity = VulkanMemoryOps.createImage(
+                inputs.device(),
+                inputs.physicalDevice(),
+                inputs.stack(),
+                swapchainAllocation.swapchainWidth(),
+                swapchainAllocation.swapchainHeight(),
+                swapchainAllocation.swapchainImageFormat(),
+                VK10.VK_IMAGE_TILING_OPTIMAL,
+                VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                1
+        );
+        long velocityImage = velocity.image();
+        long velocityMemory = velocity.memory();
+        long velocityImageView = VulkanFramebufferResources.createColorImageView(
+                inputs.device(), inputs.stack(), velocityImage, swapchainAllocation.swapchainImageFormat()
+        );
         VulkanMainPipelineBuilder.Result mainPipeline = VulkanMainPipelineBuilder.create(
                 inputs.device(),
                 inputs.stack(),
@@ -53,6 +73,7 @@ public final class VulkanSwapchainResourceCoordinator {
                 inputs.stack(),
                 mainPipeline.renderPass(),
                 swapchainImageViews,
+                velocityImageView,
                 depthResources.depthImageViews(),
                 swapchainAllocation.swapchainWidth(),
                 swapchainAllocation.swapchainHeight()
@@ -69,7 +90,8 @@ public final class VulkanSwapchainResourceCoordinator {
                         swapchainAllocation.swapchainImageFormat(),
                         swapchainAllocation.swapchainWidth(),
                         swapchainAllocation.swapchainHeight(),
-                        swapchainImageViews
+                        swapchainImageViews,
+                        velocityImageView
                 );
                 postOffscreenActive = true;
             } catch (EngineException ex) {
@@ -87,6 +109,9 @@ public final class VulkanSwapchainResourceCoordinator {
                 depthResources.depthImages(),
                 depthResources.depthMemories(),
                 depthResources.depthImageViews(),
+                velocityImage,
+                velocityMemory,
+                velocityImageView,
                 mainPipeline.renderPass(),
                 mainPipeline.pipelineLayout(),
                 mainPipeline.graphicsPipeline(),
@@ -121,6 +146,9 @@ public final class VulkanSwapchainResourceCoordinator {
             long[] depthImages,
             long[] depthMemories,
             long[] depthImageViews,
+            long velocityImage,
+            long velocityMemory,
+            long velocityImageView,
             long renderPass,
             long pipelineLayout,
             long graphicsPipeline,

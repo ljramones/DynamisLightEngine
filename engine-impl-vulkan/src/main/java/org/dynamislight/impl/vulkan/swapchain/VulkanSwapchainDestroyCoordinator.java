@@ -8,6 +8,8 @@ import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.vkDestroyPipeline;
 import static org.lwjgl.vulkan.VK10.vkDestroyPipelineLayout;
 import static org.lwjgl.vulkan.VK10.vkDestroyRenderPass;
+import static org.lwjgl.vulkan.VK10.vkDestroyImageView;
+import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 
 public final class VulkanSwapchainDestroyCoordinator {
     private VulkanSwapchainDestroyCoordinator() {
@@ -37,6 +39,15 @@ public final class VulkanSwapchainDestroyCoordinator {
                         inputs.depthImageViews()
                 )
         );
+        if (inputs.velocityImageView() != VK_NULL_HANDLE) {
+            vkDestroyImageView(inputs.device(), inputs.velocityImageView(), null);
+        }
+        if (inputs.velocityImage() != VK_NULL_HANDLE) {
+            org.lwjgl.vulkan.VK10.vkDestroyImage(inputs.device(), inputs.velocityImage(), null);
+        }
+        if (inputs.velocityMemory() != VK_NULL_HANDLE) {
+            vkFreeMemory(inputs.device(), inputs.velocityMemory(), null);
+        }
         if (inputs.swapchain() != VK_NULL_HANDLE) {
             vkDestroySwapchainKHR(inputs.device(), inputs.swapchain(), null);
         }
@@ -53,6 +64,9 @@ public final class VulkanSwapchainDestroyCoordinator {
             long[] depthImages,
             long[] depthMemories,
             long[] depthImageViews,
+            long velocityImage,
+            long velocityMemory,
+            long velocityImageView,
             long swapchain,
             VulkanPostProcessResources.Allocation postProcessResources
     ) {
@@ -67,6 +81,9 @@ public final class VulkanSwapchainDestroyCoordinator {
             long[] depthImages,
             long[] depthMemories,
             long[] depthImageViews,
+            long velocityImage,
+            long velocityMemory,
+            long velocityImageView,
             long[] swapchainImages,
             long swapchain,
             long[] postFramebuffers,
@@ -98,6 +115,9 @@ public final class VulkanSwapchainDestroyCoordinator {
                     new long[0],
                     new long[0],
                     new long[0],
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
                     new long[0],
                     VK_NULL_HANDLE,
                     new long[0],

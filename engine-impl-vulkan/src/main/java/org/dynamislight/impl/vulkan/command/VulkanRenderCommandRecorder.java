@@ -117,12 +117,16 @@ public final class VulkanRenderCommandRecorder {
             }
         }
 
-        VkClearValue.Buffer clearValues = VkClearValue.calloc(2, stack);
+        VkClearValue.Buffer clearValues = VkClearValue.calloc(3, stack);
         clearValues.get(0).color().float32(0, 0.08f);
         clearValues.get(0).color().float32(1, 0.09f);
         clearValues.get(0).color().float32(2, 0.12f);
         clearValues.get(0).color().float32(3, 1.0f);
-        clearValues.get(1).depthStencil().depth(1.0f).stencil(0);
+        clearValues.get(1).color().float32(0, 0.5f);
+        clearValues.get(1).color().float32(1, 0.5f);
+        clearValues.get(1).color().float32(2, 0.5f);
+        clearValues.get(1).color().float32(3, 1.0f);
+        clearValues.get(2).depthStencil().depth(1.0f).stencil(0);
 
         VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.calloc(stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
@@ -167,7 +171,8 @@ public final class VulkanRenderCommandRecorder {
                 || in.postPipelineLayout() == VK_NULL_HANDLE
                 || in.postDescriptorSet() == VK_NULL_HANDLE
                 || in.postFramebuffers().length <= in.imageIndex()
-                || in.offscreenColorImage() == VK_NULL_HANDLE) {
+                || in.offscreenColorImage() == VK_NULL_HANDLE
+                || in.velocityImage() == VK_NULL_HANDLE) {
             return new PostCompositeState(in.postIntermediateInitialized(), in.taaHistoryInitialized());
         }
 
@@ -291,6 +296,31 @@ public final class VulkanRenderCommandRecorder {
                     historyToShaderRead
             );
         }
+
+        VkImageMemoryBarrier.Buffer velocityToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                .oldLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(in.velocityImage());
+        velocityToShaderRead.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                null,
+                null,
+                velocityToShaderRead
+        );
 
         VkImageMemoryBarrier.Buffer swapToColorAttachment = VkImageMemoryBarrier.calloc(1, stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
@@ -525,6 +555,7 @@ public final class VulkanRenderCommandRecorder {
             long postDescriptorSet,
             long offscreenColorImage,
             long taaHistoryImage,
+            long velocityImage,
             long swapchainImage,
             long[] postFramebuffers
     ) {
