@@ -75,15 +75,19 @@ class VulkanEngineRuntimeIntegrationTest {
     @Test
     void mockVulkanBackendOptionsConfigureFrameAndCacheLimits() throws Exception {
         var runtime = new VulkanEngineRuntime();
-        runtime.initialize(validConfig(Map.of(
-                "vulkan.mockContext", "true",
-                "vulkan.framesInFlight", "4",
-                "vulkan.maxDynamicSceneObjects", "4096",
-                "vulkan.maxPendingUploadRanges", "128",
-                "vulkan.dynamicUploadMergeGapObjects", "7",
-                "vulkan.dynamicObjectSoftLimit", "1024",
-                "vulkan.maxTextureDescriptorSets", "8192",
-                "vulkan.meshGeometryCacheEntries", "512"
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.framesInFlight", "4"),
+                Map.entry("vulkan.maxDynamicSceneObjects", "4096"),
+                Map.entry("vulkan.maxPendingUploadRanges", "128"),
+                Map.entry("vulkan.dynamicUploadMergeGapObjects", "7"),
+                Map.entry("vulkan.dynamicObjectSoftLimit", "1024"),
+                Map.entry("vulkan.uniformUploadSoftLimitBytes", "123456"),
+                Map.entry("vulkan.uniformUploadWarnCooldownFrames", "9"),
+                Map.entry("vulkan.descriptorRingActiveSoftLimit", "512"),
+                Map.entry("vulkan.descriptorRingActiveWarnCooldownFrames", "11"),
+                Map.entry("vulkan.maxTextureDescriptorSets", "8192"),
+                Map.entry("vulkan.meshGeometryCacheEntries", "512")
         )), new RecordingCallbacks());
 
         VulkanEngineRuntime.FrameResourceConfig config = runtime.debugFrameResourceConfig();
@@ -101,15 +105,19 @@ class VulkanEngineRuntimeIntegrationTest {
     @Test
     void mockVulkanBackendOptionsClampAndFallbackWhenInvalid() throws Exception {
         var runtime = new VulkanEngineRuntime();
-        runtime.initialize(validConfig(Map.of(
-                "vulkan.mockContext", "true",
-                "vulkan.framesInFlight", "99",
-                "vulkan.maxDynamicSceneObjects", "10",
-                "vulkan.maxPendingUploadRanges", "-1",
-                "vulkan.dynamicUploadMergeGapObjects", "99",
-                "vulkan.dynamicObjectSoftLimit", "10",
-                "vulkan.maxTextureDescriptorSets", "1",
-                "vulkan.meshGeometryCacheEntries", "nope"
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.framesInFlight", "99"),
+                Map.entry("vulkan.maxDynamicSceneObjects", "10"),
+                Map.entry("vulkan.maxPendingUploadRanges", "-1"),
+                Map.entry("vulkan.dynamicUploadMergeGapObjects", "99"),
+                Map.entry("vulkan.dynamicObjectSoftLimit", "10"),
+                Map.entry("vulkan.uniformUploadSoftLimitBytes", "12"),
+                Map.entry("vulkan.uniformUploadWarnCooldownFrames", "-1"),
+                Map.entry("vulkan.descriptorRingActiveSoftLimit", "2"),
+                Map.entry("vulkan.descriptorRingActiveWarnCooldownFrames", "-1"),
+                Map.entry("vulkan.maxTextureDescriptorSets", "1"),
+                Map.entry("vulkan.meshGeometryCacheEntries", "nope")
         )), new RecordingCallbacks());
 
         VulkanEngineRuntime.FrameResourceConfig config = runtime.debugFrameResourceConfig();
@@ -736,6 +744,14 @@ class VulkanEngineRuntimeIntegrationTest {
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("dynamicObjectSoftLimit=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("maxObservedDynamicObjects=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("uniformUploadSoftLimitBytes=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("uniformUploadWarnCooldownRemaining=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingActiveSoftLimit=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingActiveWarnCooldownRemaining=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingWasteWarnCooldownRemaining=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->

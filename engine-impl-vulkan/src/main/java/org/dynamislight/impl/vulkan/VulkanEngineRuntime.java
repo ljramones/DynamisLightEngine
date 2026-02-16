@@ -51,6 +51,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int descriptorRingCapPressureStreak;
     private int descriptorRingCapPressureWarnCooldownFrames = 120;
     private int descriptorRingCapPressureWarnCooldownRemaining;
+    private int uniformUploadSoftLimitBytes = 2 * 1024 * 1024;
+    private int uniformUploadWarnCooldownFrames = 120;
+    private int uniformUploadWarnCooldownRemaining;
+    private int descriptorRingActiveSoftLimit = 2048;
+    private int descriptorRingActiveWarnCooldownFrames = 120;
+    private int descriptorRingActiveWarnCooldownRemaining;
     private QualityTier qualityTier = QualityTier.MEDIUM;
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
@@ -174,6 +180,34 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 0,
                 10000
         );
+        uniformUploadSoftLimitBytes = parseIntOption(
+                backendOptions,
+                "vulkan.uniformUploadSoftLimitBytes",
+                2 * 1024 * 1024,
+                4096,
+                64 * 1024 * 1024
+        );
+        uniformUploadWarnCooldownFrames = parseIntOption(
+                backendOptions,
+                "vulkan.uniformUploadWarnCooldownFrames",
+                120,
+                0,
+                10000
+        );
+        descriptorRingActiveSoftLimit = parseIntOption(
+                backendOptions,
+                "vulkan.descriptorRingActiveSoftLimit",
+                2048,
+                64,
+                32768
+        );
+        descriptorRingActiveWarnCooldownFrames = parseIntOption(
+                backendOptions,
+                "vulkan.descriptorRingActiveWarnCooldownFrames",
+                120,
+                0,
+                10000
+        );
         context.configureFrameResources(framesInFlight, maxDynamicSceneObjects, maxPendingUploadRanges);
         context.configureDynamicUploadMergeGap(dynamicUploadMergeGapObjects);
         context.configureDynamicObjectSoftLimit(dynamicObjectSoftLimit);
@@ -188,6 +222,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         descriptorRingCapPressureStreak = 0;
         descriptorRingWasteWarnCooldownRemaining = 0;
         descriptorRingCapPressureWarnCooldownRemaining = 0;
+        uniformUploadWarnCooldownRemaining = 0;
+        descriptorRingActiveWarnCooldownRemaining = 0;
         if (Boolean.parseBoolean(backendOptions.getOrDefault("vulkan.forceInitFailure", "false"))) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Forced Vulkan init failure", false);
         }
@@ -461,6 +497,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " dynamicUploadMergeGapObjects=" + frameResources.dynamicUploadMergeGapObjects()
                             + " dynamicObjectSoftLimit=" + frameResources.dynamicObjectSoftLimit()
                             + " maxObservedDynamicObjects=" + frameResources.maxObservedDynamicObjects()
+                            + " uniformUploadSoftLimitBytes=" + uniformUploadSoftLimitBytes
+                            + " uniformUploadWarnCooldownRemaining=" + uniformUploadWarnCooldownRemaining
+                            + " descriptorRingActiveSoftLimit=" + descriptorRingActiveSoftLimit
+                            + " descriptorRingActiveWarnCooldownRemaining=" + descriptorRingActiveWarnCooldownRemaining
                             + " descriptorRingWasteWarnCooldownRemaining=" + descriptorRingWasteWarnCooldownRemaining
                             + " descriptorRingCapPressureWarnCooldownRemaining=" + descriptorRingCapPressureWarnCooldownRemaining
                             + " persistentStagingMapped=" + frameResources.persistentStagingMapped()
@@ -518,6 +558,35 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             if (descriptorRingCapPressureWarnCooldownRemaining > 0) {
                 descriptorRingCapPressureWarnCooldownRemaining--;
+            }
+            if (frameResources.lastFrameUniformUploadBytes() > uniformUploadSoftLimitBytes) {
+                if (uniformUploadWarnCooldownRemaining <= 0) {
+                    warnings.add(new EngineWarning(
+                            "UNIFORM_UPLOAD_SOFT_LIMIT_EXCEEDED",
+                            "Frame uniform upload bytes " + frameResources.lastFrameUniformUploadBytes()
+                                    + " exceed soft limit " + uniformUploadSoftLimitBytes
+                                    + " (ranges=" + frameResources.lastFrameUniformUploadRanges()
+                                    + ", objects=" + frameResources.lastFrameUniformObjectCount() + ")"
+                    ));
+                    uniformUploadWarnCooldownRemaining = uniformUploadWarnCooldownFrames;
+                }
+            }
+            if (frameResources.descriptorRingActiveSetCount() > descriptorRingActiveSoftLimit) {
+                if (descriptorRingActiveWarnCooldownRemaining <= 0) {
+                    warnings.add(new EngineWarning(
+                            "DESCRIPTOR_RING_ACTIVE_SOFT_LIMIT_EXCEEDED",
+                            "Descriptor ring active set count " + frameResources.descriptorRingActiveSetCount()
+                                    + " exceeds soft limit " + descriptorRingActiveSoftLimit
+                                    + " (capacity=" + frameResources.descriptorRingSetCapacity() + ")"
+                    ));
+                    descriptorRingActiveWarnCooldownRemaining = descriptorRingActiveWarnCooldownFrames;
+                }
+            }
+            if (uniformUploadWarnCooldownRemaining > 0) {
+                uniformUploadWarnCooldownRemaining--;
+            }
+            if (descriptorRingActiveWarnCooldownRemaining > 0) {
+                descriptorRingActiveWarnCooldownRemaining--;
             }
             if (currentShadows.enabled()) {
                 VulkanContext.ShadowCascadeProfile shadow = context.shadowCascadeProfile();

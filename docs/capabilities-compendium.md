@@ -258,6 +258,10 @@ Vulkan options:
 - `vulkan.maxPendingUploadRanges` (default `64`, clamped `8..2048`)
 - `vulkan.dynamicUploadMergeGapObjects` (default `1`, clamped `0..32`)
 - `vulkan.dynamicObjectSoftLimit` (default `1536`, clamped `128..8192`)
+- `vulkan.uniformUploadSoftLimitBytes` (default `2097152`, clamped `4096..67108864`)
+- `vulkan.uniformUploadWarnCooldownFrames` (default `120`, clamped `0..10000`)
+- `vulkan.descriptorRingActiveSoftLimit` (default `2048`, clamped `64..32768`)
+- `vulkan.descriptorRingActiveWarnCooldownFrames` (default `120`, clamped `0..10000`)
 - `vulkan.maxTextureDescriptorSets` (default `4096`, clamped `256..32768`)
 - `vulkan.meshGeometryCacheEntries` (default `256`, clamped `16..4096`)
 - `vulkan.descriptorRingWasteWarnRatio` (default `0.85`, clamped `0.1..0.99`)
@@ -275,6 +279,7 @@ The repository includes automated tests validating:
 - OpenGL lifecycle/error/resource/hot-reload behavior.
 - Vulkan lifecycle, initialization guards, workload stats parity, and device-loss propagation.
 - Guarded real-device Vulkan endurance integration (`-Ddle.test.vulkan.real=true`) covering repeated resize + scene-switch loops with frame-resource profile assertions.
+- CI now runs guarded real-device Vulkan suite invocation on macOS/Linux/Windows; environments without native/runtime support skip via guards rather than failing the pipeline.
 - Guarded real-device Vulkan integration now includes a forced device-loss error-path test.
 - Real-device guarded tests auto-skip when LWJGL native runtime prerequisites are unavailable (instead of hard-failing test runs).
 - Cross-backend parity checks in sample host integration tests (material/lighting scene, resize stability, quality-tier warning parity).

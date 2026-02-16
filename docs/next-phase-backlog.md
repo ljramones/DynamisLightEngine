@@ -102,7 +102,11 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 - Dynamic scene ownership guardrails expanded:
   - configurable soft-limit telemetry (`vulkan.dynamicObjectSoftLimit`)
   - frame profile now reports observed dynamic-object peak and emits `DYNAMIC_SCENE_SOFT_LIMIT_EXCEEDED` when exceeded
+- Added Vulkan pressure guardrails for runtime stability at larger scene scale:
+  - `UNIFORM_UPLOAD_SOFT_LIMIT_EXCEEDED` warning with configurable upload-byte soft limit + cooldown
+  - `DESCRIPTOR_RING_ACTIVE_SOFT_LIMIT_EXCEEDED` warning with configurable active-set soft limit + cooldown
 - Add more real-device validation coverage across multiple machine/driver profiles.
+  - CI now invokes guarded real-device Vulkan integration suite on macOS/Linux/Windows runners.
 
 ## P0-1 Vulkan Albedo Texturing Vertical Slice
 - Scope: Implement end-to-end albedo texture sampling in Vulkan for glTF meshes.
