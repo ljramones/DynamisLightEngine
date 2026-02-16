@@ -101,9 +101,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 16,
                 4096
         );
-        int framesInFlight = parseIntOption(backendOptions, "vulkan.framesInFlight", 3, 2, 4);
+        int framesInFlight = parseIntOption(backendOptions, "vulkan.framesInFlight", 3, 2, 6);
         int maxDynamicSceneObjects = parseIntOption(backendOptions, "vulkan.maxDynamicSceneObjects", 2048, 256, 8192);
-        int maxPendingUploadRanges = parseIntOption(backendOptions, "vulkan.maxPendingUploadRanges", 64, 8, 512);
+        int maxPendingUploadRanges = parseIntOption(backendOptions, "vulkan.maxPendingUploadRanges", 64, 8, 2048);
+        int dynamicUploadMergeGapObjects = parseIntOption(
+                backendOptions,
+                "vulkan.dynamicUploadMergeGapObjects",
+                1,
+                0,
+                32
+        );
         int descriptorRingMaxSetCapacity = parseIntOption(
                 backendOptions,
                 "vulkan.maxTextureDescriptorSets",
@@ -161,6 +168,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 10000
         );
         context.configureFrameResources(framesInFlight, maxDynamicSceneObjects, maxPendingUploadRanges);
+        context.configureDynamicUploadMergeGap(dynamicUploadMergeGapObjects);
         context.configureDescriptorRing(descriptorRingMaxSetCapacity);
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
@@ -438,6 +446,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " descriptorRingPoolReuses=" + frameResources.descriptorRingPoolReuses()
                             + " descriptorRingPoolResetFailures=" + frameResources.descriptorRingPoolResetFailures()
                             + " descriptorRingCapBypasses=" + frameResources.descriptorRingCapBypasses()
+                            + " dynamicUploadMergeGapObjects=" + frameResources.dynamicUploadMergeGapObjects()
                             + " descriptorRingWasteWarnCooldownRemaining=" + descriptorRingWasteWarnCooldownRemaining
                             + " descriptorRingCapPressureWarnCooldownRemaining=" + descriptorRingCapPressureWarnCooldownRemaining
                             + " persistentStagingMapped=" + frameResources.persistentStagingMapped()

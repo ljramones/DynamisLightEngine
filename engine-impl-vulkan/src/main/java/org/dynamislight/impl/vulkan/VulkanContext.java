@@ -313,6 +313,8 @@ final class VulkanContext {
     private static final int DEFAULT_FRAMES_IN_FLIGHT = 3;
     private static final int DEFAULT_MAX_DYNAMIC_SCENE_OBJECTS = 2048;
     private static final int DEFAULT_MAX_PENDING_UPLOAD_RANGES = 64;
+    private static final int DEFAULT_DYNAMIC_UPLOAD_MERGE_GAP_OBJECTS = 1;
+    private static final int MAX_PENDING_UPLOAD_RANGES_HARD_CAP = 4096;
     private static final int MAX_SHADOW_CASCADES = 4;
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 6;
@@ -362,6 +364,7 @@ final class VulkanContext {
     private int framesInFlight = DEFAULT_FRAMES_IN_FLIGHT;
     private int maxDynamicSceneObjects = DEFAULT_MAX_DYNAMIC_SCENE_OBJECTS;
     private int maxPendingUploadRanges = DEFAULT_MAX_PENDING_UPLOAD_RANGES;
+    private int dynamicUploadMergeGapObjects = DEFAULT_DYNAMIC_UPLOAD_MERGE_GAP_OBJECTS;
     private long[] framebuffers = new long[0];
     private long commandPool = VK_NULL_HANDLE;
     private VkCommandBuffer[] commandBuffers = new VkCommandBuffer[0];
@@ -507,11 +510,18 @@ final class VulkanContext {
         if (device != null) {
             return;
         }
-        this.framesInFlight = clamp(framesInFlight, 2, 4);
+        this.framesInFlight = clamp(framesInFlight, 2, 6);
         this.maxDynamicSceneObjects = clamp(maxDynamicSceneObjects, 256, 8192);
-        this.maxPendingUploadRanges = clamp(maxPendingUploadRanges, 8, 512);
+        this.maxPendingUploadRanges = clamp(maxPendingUploadRanges, 8, 2048);
         reallocateFrameTracking();
         reallocateUploadRangeTracking();
+    }
+
+    void configureDynamicUploadMergeGap(int mergeGapObjects) {
+        if (device != null) {
+            return;
+        }
+        dynamicUploadMergeGapObjects = clamp(mergeGapObjects, 0, 32);
     }
 
     void configureDescriptorRing(int maxSetCapacity) {
@@ -600,7 +610,7 @@ final class VulkanContext {
                 uniformStrideBytes,
                 uniformFrameSpanBytes,
                 maxDynamicSceneObjects,
-                maxPendingUploadRanges,
+                pendingSceneDirtyStarts.length,
                 lastFrameUniformUploadBytes,
                 maxFrameUniformUploadBytes,
                 lastFrameUniformObjectCount,
@@ -621,6 +631,7 @@ final class VulkanContext {
                 descriptorRingPoolReuseCount,
                 descriptorRingPoolResetFailureCount,
                 descriptorRingCapBypassCount,
+                dynamicUploadMergeGapObjects,
                 globalUniformStagingMappedAddress != 0L
         );
     }
@@ -2007,7 +2018,16 @@ final class VulkanContext {
                     vec3 c4 = texture(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 0.65, vec2(0.0), vec2(1.0))).rgb;
                     vec3 c5 = texture(uIblRadianceTexture, clamp(roughUv + axis * texel * spread * 1.65, vec2(0.0), vec2(1.0))).rgb;
                     vec3 c6 = texture(uIblRadianceTexture, clamp(roughUv - axis * texel * spread * 1.65, vec2(0.0), vec2(1.0))).rgb;
-                    return (c0 * 0.30) + (c1 * 0.16) + (c2 * 0.16) + (c3 * 0.11) + (c4 * 0.11) + (c5 * 0.08) + (c6 * 0.08);
+                    vec3 c7 = texture(uIblRadianceTexture, clamp(roughUv + side * texel * spread * 1.25, vec2(0.0), vec2(1.0))).rgb;
+                    vec3 c8 = texture(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 1.25, vec2(0.0), vec2(1.0))).rgb;
+                    vec3 weighted = (c0 * 0.24)
+                            + (c1 * 0.14) + (c2 * 0.14)
+                            + (c3 * 0.10) + (c4 * 0.10)
+                            + (c5 * 0.08) + (c6 * 0.08)
+                            + (c7 * 0.06) + (c8 * 0.06);
+                    float luma = dot(weighted, vec3(0.2126, 0.7152, 0.0722));
+                    float prefilterBoost = mix(0.95, 1.22, prefilter * roughMix);
+                    return weighted * prefilterBoost * (0.9 + 0.1 * clamp(luma, 0.0, 1.0));
                 }
                 void main() {
                     vec3 n0 = normalize(vNormal);
@@ -2184,19 +2204,32 @@ final class VulkanContext {
                         vec3 reflectDir = reflect(-viewDir, n);
                         vec2 specUv = clamp(reflectDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
                         vec3 rad = sampleIblRadiance(specUv, vUv, roughness, prefilter);
-                        vec2 brdfUv = vec2(clamp(ndv, 0.0, 1.0), clamp(roughness, 0.0, 1.0));
-                        vec2 brdf = texture(uIblBrdfLutTexture, brdfUv).rg;
-                        float fresnel = pow(1.0 - ndv, 5.0);
-                        vec3 fView = mix(vec3(0.03), f0, fresnel);
-                        vec3 kS = clamp(fView, vec3(0.0), vec3(1.0));
-                        vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
-                        float horizon = clamp(0.35 + 0.65 * ndv, 0.0, 1.0);
-                        float energyComp = 1.0 + (1.0 - roughness) * 0.35 * (1.0 - ndv);
-                        vec3 iblDiffuse = kD * baseColor * ao * irr * (0.22 + 0.58 * (1.0 - roughness)) * iblDiffuseWeight;
-                        vec3 iblSpecBase = rad * (kS * (0.42 + 0.58 * brdf.x) + vec3(0.24 * brdf.y));
-                        vec3 iblSpec = iblSpecBase * (0.08 + 0.62 * (1.0 - roughness)) * iblSpecWeight * energyComp * horizon;
-                        color += iblDiffuse + iblSpec;
-                    }
+                    vec2 brdfUv = vec2(clamp(ndv, 0.0, 1.0), clamp(roughness, 0.0, 1.0));
+                    vec2 brdf = texture(uIblBrdfLutTexture, brdfUv).rg;
+                    float fresnel = pow(1.0 - ndv, 5.0);
+                    vec3 fView = mix(vec3(0.03), f0, fresnel);
+                    vec3 kS = clamp(fView, vec3(0.0), vec3(1.0));
+                    vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+                    float horizon = clamp(0.35 + 0.65 * ndv, 0.0, 1.0);
+                    float energyComp = 1.0 + (1.0 - roughness) * 0.35 * (1.0 - ndv);
+                    float roughEnergy = mix(1.15, 0.72, roughness);
+                    float brdfDiffuseLift = mix(0.82, 1.18, brdf.y);
+                    vec3 iblDiffuse = kD * baseColor * ao * irr
+                            * (0.22 + 0.58 * (1.0 - roughness))
+                            * iblDiffuseWeight
+                            * brdfDiffuseLift;
+                    float specLobe = mix(1.08, 0.64, roughness * roughness);
+                    vec3 iblSpecBase = rad * (kS * (0.34 + 0.66 * brdf.x) + vec3(0.18 + 0.28 * brdf.y));
+                    vec3 iblSpec = iblSpecBase
+                            * (0.10 + 0.66 * (1.0 - roughness))
+                            * iblSpecWeight
+                            * energyComp
+                            * horizon
+                            * roughEnergy
+                            * specLobe
+                            * mix(0.9, 1.1, prefilter);
+                    color += iblDiffuse + iblSpec;
+                }
                     if (ubo.uPostProcess.x > 0.5) {
                         float exposure = max(ubo.uPostProcess.y, 0.0001);
                         float gamma = max(ubo.uPostProcess.z, 0.0001);
@@ -4616,7 +4649,7 @@ final class VulkanContext {
         if (end < start) {
             return;
         }
-        if (pendingSceneDirtyRangeCount >= maxPendingUploadRanges) {
+        if (pendingSceneDirtyRangeCount >= pendingSceneDirtyStarts.length && !tryGrowUploadRangeTracking()) {
             pendingUploadRangeOverflowCount++;
             pendingSceneDirtyRangeCount = 1;
             pendingSceneDirtyStarts[0] = 0;
@@ -4650,7 +4683,7 @@ final class VulkanContext {
             int currStart = pendingSceneDirtyStarts[read];
             int currEnd = pendingSceneDirtyEnds[read];
             int prevEnd = pendingSceneDirtyEnds[write];
-            if (currStart <= (prevEnd + 1)) {
+            if (currStart <= (prevEnd + 1 + dynamicUploadMergeGapObjects)) {
                 pendingSceneDirtyEnds[write] = Math.max(prevEnd, currEnd);
             } else {
                 write++;
@@ -5314,6 +5347,7 @@ final class VulkanContext {
             long descriptorRingPoolReuses,
             long descriptorRingPoolResetFailures,
             long descriptorRingCapBypasses,
+            int dynamicUploadMergeGapObjects,
             boolean persistentStagingMapped
     ) {
     }
@@ -5343,11 +5377,26 @@ final class VulkanContext {
     }
 
     private void reallocateUploadRangeTracking() {
-        pendingSceneDirtyStarts = new int[maxPendingUploadRanges];
-        pendingSceneDirtyEnds = new int[maxPendingUploadRanges];
-        pendingUploadSrcOffsets = new long[maxPendingUploadRanges];
-        pendingUploadDstOffsets = new long[maxPendingUploadRanges];
-        pendingUploadByteCounts = new int[maxPendingUploadRanges];
+        int capacity = Math.max(8, maxPendingUploadRanges);
+        pendingSceneDirtyStarts = new int[capacity];
+        pendingSceneDirtyEnds = new int[capacity];
+        pendingUploadSrcOffsets = new long[capacity];
+        pendingUploadDstOffsets = new long[capacity];
+        pendingUploadByteCounts = new int[capacity];
+    }
+
+    private boolean tryGrowUploadRangeTracking() {
+        int current = pendingSceneDirtyStarts.length;
+        if (current >= MAX_PENDING_UPLOAD_RANGES_HARD_CAP) {
+            return false;
+        }
+        int target = Math.min(MAX_PENDING_UPLOAD_RANGES_HARD_CAP, Math.max(current + 1, current * 2));
+        pendingSceneDirtyStarts = Arrays.copyOf(pendingSceneDirtyStarts, target);
+        pendingSceneDirtyEnds = Arrays.copyOf(pendingSceneDirtyEnds, target);
+        pendingUploadSrcOffsets = Arrays.copyOf(pendingUploadSrcOffsets, target);
+        pendingUploadDstOffsets = Arrays.copyOf(pendingUploadDstOffsets, target);
+        pendingUploadByteCounts = Arrays.copyOf(pendingUploadByteCounts, target);
+        return true;
     }
 
     private static int clamp(int value, int min, int max) {

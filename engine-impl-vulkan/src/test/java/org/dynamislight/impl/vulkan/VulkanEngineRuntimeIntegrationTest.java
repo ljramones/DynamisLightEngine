@@ -80,16 +80,19 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.framesInFlight", "4",
                 "vulkan.maxDynamicSceneObjects", "4096",
                 "vulkan.maxPendingUploadRanges", "128",
+                "vulkan.dynamicUploadMergeGapObjects", "7",
                 "vulkan.maxTextureDescriptorSets", "8192",
                 "vulkan.meshGeometryCacheEntries", "512"
         )), new RecordingCallbacks());
 
         VulkanEngineRuntime.FrameResourceConfig config = runtime.debugFrameResourceConfig();
+        var profile = runtime.debugFrameResourceProfile();
         assertEquals(4, config.framesInFlight());
         assertEquals(4096, config.maxDynamicSceneObjects());
         assertEquals(128, config.maxPendingUploadRanges());
         assertEquals(8192, config.maxTextureDescriptorSets());
         assertEquals(512, config.meshGeometryCacheEntries());
+        assertEquals(7, profile.dynamicUploadMergeGapObjects());
         runtime.shutdown();
     }
 
@@ -101,16 +104,19 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.framesInFlight", "99",
                 "vulkan.maxDynamicSceneObjects", "10",
                 "vulkan.maxPendingUploadRanges", "-1",
+                "vulkan.dynamicUploadMergeGapObjects", "99",
                 "vulkan.maxTextureDescriptorSets", "1",
                 "vulkan.meshGeometryCacheEntries", "nope"
         )), new RecordingCallbacks());
 
         VulkanEngineRuntime.FrameResourceConfig config = runtime.debugFrameResourceConfig();
-        assertEquals(4, config.framesInFlight());
+        var profile = runtime.debugFrameResourceProfile();
+        assertEquals(6, config.framesInFlight());
         assertEquals(256, config.maxDynamicSceneObjects());
         assertEquals(8, config.maxPendingUploadRanges());
         assertEquals(256, config.maxTextureDescriptorSets());
         assertEquals(256, config.meshGeometryCacheEntries());
+        assertEquals(32, profile.dynamicUploadMergeGapObjects());
         runtime.shutdown();
     }
 
@@ -676,6 +682,8 @@ class VulkanEngineRuntimeIntegrationTest {
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingMaxSetCapacity=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingCapBypasses=")));
+        assertTrue(frameA.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("dynamicUploadMergeGapObjects=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->
                 "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code()) && w.message().contains("descriptorRingWasteWarnCooldownRemaining=")));
         assertTrue(frameA.warnings().stream().anyMatch(w ->

@@ -20,8 +20,18 @@ public final class KtxDecodeUtil {
             (byte) 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, (byte) 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
     };
     private static final int VK_FORMAT_R8G8B8A8_UNORM = 37;
+    private static final int VK_FORMAT_R8G8B8A8_SRGB = 43;
+    private static final int VK_FORMAT_B8G8R8A8_UNORM = 44;
+    private static final int VK_FORMAT_B8G8R8A8_SRGB = 50;
+    private static final int VK_FORMAT_R8G8B8_UNORM = 23;
+    private static final int VK_FORMAT_R8G8_UNORM = 16;
+    private static final int VK_FORMAT_R8_UNORM = 9;
     private static final int GL_UNSIGNED_BYTE = 0x1401;
+    private static final int GL_RED = 0x1903;
+    private static final int GL_RG = 0x8227;
+    private static final int GL_RGB = 0x1907;
     private static final int GL_RGBA = 0x1908;
+    private static final int GL_BGRA = 0x80E1;
     private static final int MAX_DECODE_BYTES = 64 * 1024 * 1024;
     private static final Map<Path, CacheEntry> CACHE = new ConcurrentHashMap<>();
 
@@ -124,13 +134,16 @@ public final class KtxDecodeUtil {
         }
         ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         int vkFormat = bb.getInt(12);
+        int bytesPerPixel = bytesPerPixelForVkFormat(vkFormat);
+        ChannelLayout layout = layoutForVkFormat(vkFormat);
         int pixelWidth = bb.getInt(20);
         int pixelHeight = bb.getInt(24);
         int layerCount = bb.getInt(32);
         int faceCount = bb.getInt(36);
         int levelCount = bb.getInt(40);
         int supercompression = bb.getInt(44);
-        if (vkFormat != VK_FORMAT_R8G8B8A8_UNORM
+        if (bytesPerPixel <= 0
+                || layout == null
                 || pixelWidth <= 0
                 || pixelHeight <= 0
                 || faceCount != 1
@@ -146,12 +159,12 @@ public final class KtxDecodeUtil {
         long byteOffset = bb.getLong(levelIndexOffset);
         long byteLength = bb.getLong(levelIndexOffset + 8);
         long uncompressedLength = bb.getLong(levelIndexOffset + 16);
-        long expected = (long) pixelWidth * (long) pixelHeight * 4L;
+        long expected = (long) pixelWidth * (long) pixelHeight * bytesPerPixel;
         long actualLength = uncompressedLength > 0 ? uncompressedLength : byteLength;
         if (actualLength < expected || byteOffset < 0 || byteOffset + expected > bytes.length) {
             return null;
         }
-        return rgbaToImage(bytes, (int) byteOffset, pixelWidth, pixelHeight);
+        return toImage(bytes, (int) byteOffset, pixelWidth, pixelHeight, bytesPerPixel, layout);
     }
 
     private static boolean isUnsupportedKtx2(byte[] bytes) {
@@ -161,7 +174,10 @@ public final class KtxDecodeUtil {
         ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         int vkFormat = bb.getInt(12);
         int supercompression = bb.getInt(44);
-        return supercompression != 0 || vkFormat != VK_FORMAT_R8G8B8A8_UNORM;
+        if (supercompression != 0) {
+            return true;
+        }
+        return bytesPerPixelForVkFormat(vkFormat) <= 0 || layoutForVkFormat(vkFormat) == null;
     }
 
     private static BufferedImage decodeKtx1(byte[] bytes) {
@@ -171,13 +187,16 @@ public final class KtxDecodeUtil {
         ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         int glType = bb.getInt(16);
         int glFormat = bb.getInt(24);
+        int bytesPerPixel = bytesPerPixelForGlFormat(glFormat);
+        ChannelLayout layout = layoutForGlFormat(glFormat);
         int pixelWidth = bb.getInt(36);
         int pixelHeight = bb.getInt(40);
         int faceCount = bb.getInt(52);
         int mipLevels = bb.getInt(56);
         int keyValueBytes = bb.getInt(60);
         if (glType != GL_UNSIGNED_BYTE
-                || glFormat != GL_RGBA
+                || bytesPerPixel <= 0
+                || layout == null
                 || pixelWidth <= 0
                 || pixelHeight <= 0
                 || faceCount != 1
@@ -190,11 +209,11 @@ public final class KtxDecodeUtil {
         }
         int imageSize = bb.getInt(imageSizeOffset);
         int imageOffset = imageSizeOffset + 4;
-        long expected = (long) pixelWidth * (long) pixelHeight * 4L;
+        long expected = (long) pixelWidth * (long) pixelHeight * bytesPerPixel;
         if (imageSize < expected || imageOffset + expected > bytes.length) {
             return null;
         }
-        return rgbaToImage(bytes, imageOffset, pixelWidth, pixelHeight);
+        return toImage(bytes, imageOffset, pixelWidth, pixelHeight, bytesPerPixel, layout);
     }
 
     private static boolean isUnsupportedKtx1(byte[] bytes) {
@@ -204,23 +223,107 @@ public final class KtxDecodeUtil {
         ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
         int glType = bb.getInt(16);
         int glFormat = bb.getInt(24);
-        return glType != GL_UNSIGNED_BYTE || glFormat != GL_RGBA;
+        if (glType != GL_UNSIGNED_BYTE) {
+            return true;
+        }
+        return bytesPerPixelForGlFormat(glFormat) <= 0 || layoutForGlFormat(glFormat) == null;
     }
 
-    private static BufferedImage rgbaToImage(byte[] bytes, int offset, int width, int height) {
+    private static BufferedImage toImage(
+            byte[] bytes,
+            int offset,
+            int width,
+            int height,
+            int bytesPerPixel,
+            ChannelLayout layout
+    ) {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         int idx = offset;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int r = bytes[idx++] & 0xFF;
-                int g = bytes[idx++] & 0xFF;
-                int b = bytes[idx++] & 0xFF;
-                int a = bytes[idx++] & 0xFF;
+                int r = 0;
+                int g = 0;
+                int b = 0;
+                int a = 255;
+                if (layout == ChannelLayout.R) {
+                    r = bytes[idx++] & 0xFF;
+                    g = r;
+                    b = r;
+                } else if (layout == ChannelLayout.RG) {
+                    r = bytes[idx++] & 0xFF;
+                    g = bytes[idx++] & 0xFF;
+                } else if (layout == ChannelLayout.RGB) {
+                    r = bytes[idx++] & 0xFF;
+                    g = bytes[idx++] & 0xFF;
+                    b = bytes[idx++] & 0xFF;
+                } else if (layout == ChannelLayout.RGBA) {
+                    r = bytes[idx++] & 0xFF;
+                    g = bytes[idx++] & 0xFF;
+                    b = bytes[idx++] & 0xFF;
+                    a = bytes[idx++] & 0xFF;
+                } else if (layout == ChannelLayout.BGRA) {
+                    b = bytes[idx++] & 0xFF;
+                    g = bytes[idx++] & 0xFF;
+                    r = bytes[idx++] & 0xFF;
+                    a = bytes[idx++] & 0xFF;
+                } else {
+                    idx += bytesPerPixel;
+                }
                 int argb = (a << 24) | (r << 16) | (g << 8) | b;
                 image.setRGB(x, y, argb);
             }
         }
         return image;
+    }
+
+    private static int bytesPerPixelForVkFormat(int vkFormat) {
+        return switch (vkFormat) {
+            case VK_FORMAT_R8_UNORM -> 1;
+            case VK_FORMAT_R8G8_UNORM -> 2;
+            case VK_FORMAT_R8G8B8_UNORM -> 3;
+            case VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SRGB -> 4;
+            default -> -1;
+        };
+    }
+
+    private static ChannelLayout layoutForVkFormat(int vkFormat) {
+        return switch (vkFormat) {
+            case VK_FORMAT_R8_UNORM -> ChannelLayout.R;
+            case VK_FORMAT_R8G8_UNORM -> ChannelLayout.RG;
+            case VK_FORMAT_R8G8B8_UNORM -> ChannelLayout.RGB;
+            case VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_R8G8B8A8_SRGB -> ChannelLayout.RGBA;
+            case VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_B8G8R8A8_SRGB -> ChannelLayout.BGRA;
+            default -> null;
+        };
+    }
+
+    private static int bytesPerPixelForGlFormat(int glFormat) {
+        return switch (glFormat) {
+            case GL_RED -> 1;
+            case GL_RG -> 2;
+            case GL_RGB -> 3;
+            case GL_RGBA, GL_BGRA -> 4;
+            default -> -1;
+        };
+    }
+
+    private static ChannelLayout layoutForGlFormat(int glFormat) {
+        return switch (glFormat) {
+            case GL_RED -> ChannelLayout.R;
+            case GL_RG -> ChannelLayout.RG;
+            case GL_RGB -> ChannelLayout.RGB;
+            case GL_RGBA -> ChannelLayout.RGBA;
+            case GL_BGRA -> ChannelLayout.BGRA;
+            default -> null;
+        };
+    }
+
+    private enum ChannelLayout {
+        R,
+        RG,
+        RGB,
+        RGBA,
+        BGRA
     }
 
     private static boolean startsWith(byte[] source, byte[] prefix) {

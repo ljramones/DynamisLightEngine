@@ -339,7 +339,16 @@ final class OpenGlContext {
                 vec3 c4 = texture(uIblRadiance, clamp(roughUv - side * texel * spread * 0.65, vec2(0.0), vec2(1.0))).rgb;
                 vec3 c5 = texture(uIblRadiance, clamp(roughUv + axis * texel * spread * 1.65, vec2(0.0), vec2(1.0))).rgb;
                 vec3 c6 = texture(uIblRadiance, clamp(roughUv - axis * texel * spread * 1.65, vec2(0.0), vec2(1.0))).rgb;
-                return (c0 * 0.30) + (c1 * 0.16) + (c2 * 0.16) + (c3 * 0.11) + (c4 * 0.11) + (c5 * 0.08) + (c6 * 0.08);
+                vec3 c7 = texture(uIblRadiance, clamp(roughUv + side * texel * spread * 1.25, vec2(0.0), vec2(1.0))).rgb;
+                vec3 c8 = texture(uIblRadiance, clamp(roughUv - side * texel * spread * 1.25, vec2(0.0), vec2(1.0))).rgb;
+                vec3 weighted = (c0 * 0.24)
+                        + (c1 * 0.14) + (c2 * 0.14)
+                        + (c3 * 0.10) + (c4 * 0.10)
+                        + (c5 * 0.08) + (c6 * 0.08)
+                        + (c7 * 0.06) + (c8 * 0.06);
+                float luma = dot(weighted, vec3(0.2126, 0.7152, 0.0722));
+                float prefilterBoost = mix(0.95, 1.22, prefilter * roughMix);
+                return weighted * prefilterBoost * (0.9 + 0.1 * clamp(luma, 0.0, 1.0));
             }
             float shadowTerm(vec3 normal, float ndl) {
                 vec3 projCoords = vLightSpacePos.xyz / max(vLightSpacePos.w, 0.0001);
@@ -469,9 +478,22 @@ final class OpenGlContext {
                     vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
                     float horizon = clamp(0.35 + 0.65 * ndv, 0.0, 1.0);
                     float energyComp = 1.0 + (1.0 - roughness) * 0.35 * (1.0 - ndv);
-                    vec3 iblDiffuse = kD * albedo * ao * irr * (0.22 + 0.58 * (1.0 - roughness)) * iblDiffuseWeight;
-                    vec3 iblSpecBase = rad * (kS * (0.42 + 0.58 * brdf.x) + vec3(0.24 * brdf.y));
-                    vec3 iblSpec = iblSpecBase * (0.08 + 0.62 * (1.0 - roughness)) * iblSpecWeight * energyComp * horizon;
+                    float roughEnergy = mix(1.15, 0.72, roughness);
+                    float brdfDiffuseLift = mix(0.82, 1.18, brdf.y);
+                    vec3 iblDiffuse = kD * albedo * ao * irr
+                            * (0.22 + 0.58 * (1.0 - roughness))
+                            * iblDiffuseWeight
+                            * brdfDiffuseLift;
+                    float specLobe = mix(1.08, 0.64, roughness * roughness);
+                    vec3 iblSpecBase = rad * (kS * (0.34 + 0.66 * brdf.x) + vec3(0.18 + 0.28 * brdf.y));
+                    vec3 iblSpec = iblSpecBase
+                            * (0.10 + 0.66 * (1.0 - roughness))
+                            * iblSpecWeight
+                            * energyComp
+                            * horizon
+                            * roughEnergy
+                            * specLobe
+                            * mix(0.9, 1.1, prefilter);
                     ambient += iblDiffuse + iblSpec;
                 }
                 vec3 color = ambient + directional + pointLit;

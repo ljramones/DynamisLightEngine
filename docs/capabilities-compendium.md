@@ -86,6 +86,7 @@ OpenGL backend provides a real forward render baseline:
 - roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
 - roughness-aware multi-tap IBL specular radiance filtering with runtime signal `IBL_MULTI_TAP_SPEC_ACTIVE`
 - BRDF energy-compensation + horizon-weighted IBL response with runtime signal `IBL_BRDF_ENERGY_COMP_ACTIVE`
+- deeper roughness/BRDF integration: prefilter weighting and BRDF-LUT shaping tuned to improve energy balance on glossy vs rough materials
 - view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
   - explicit LOW/MEDIUM tier quality policy with attenuation + warning: `IBL_QUALITY_DEGRADED`
   - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
@@ -94,7 +95,7 @@ OpenGL backend provides a real forward render baseline:
   - explicit runtime signal when skybox-derived IBL inputs are active: `IBL_SKYBOX_DERIVED_ACTIVE`
   - when KTX irradiance/radiance assets are configured but unresolved, runtime can fallback those channels to skybox-derived inputs (`IBL_KTX_SKYBOX_FALLBACK_ACTIVE`)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
-  - baseline native container decode path added for uncompressed RGBA8 KTX/KTX2 payloads (resolved to runtime PNG cache)
+  - baseline native container decode path added for uncompressed KTX/KTX2 channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`) (resolved to runtime PNG cache when needed)
   - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory (no PNG transcode dependency for GPU upload)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when KTX containers exist but remain undecodable in current build: `IBL_KTX_DECODE_UNAVAILABLE`
@@ -121,7 +122,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - GLFW-backed Vulkan surface/window initialization.
 - Physical/logical device selection with graphics+present+swapchain checks.
 - Swapchain creation/recreation + image views + render pass + framebuffers.
-- Multi-frame-in-flight command/sync setup (`MAX_FRAMES_IN_FLIGHT=3`).
+- Multi-frame-in-flight command/sync setup (default `3`, configurable via backend options).
 - Shader compilation at runtime via `shaderc` (GLSL -> SPIR-V).
 - Graphics pipeline + pipeline layout creation.
 - Descriptor set path with uniform buffer binding for model/view/proj + material + lighting + fog/smoke parameters.
@@ -144,6 +145,8 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - shader-side IBL texture sampling path (irradiance/radiance/BRDF-LUT samplers in render shader)
   - roughness-aware radiance prefilter approximation (tier-driven strength) with `IBL_PREFILTER_APPROX_ACTIVE` warning signal
   - roughness-aware multi-tap IBL specular radiance filtering with runtime signal `IBL_MULTI_TAP_SPEC_ACTIVE`
+  - BRDF energy-compensation + horizon-weighted IBL response with runtime signal `IBL_BRDF_ENERGY_COMP_ACTIVE`
+  - deeper roughness/BRDF integration: prefilter weighting and BRDF-LUT shaping tuned to improve energy balance on glossy vs rough materials
   - view-space camera-direction IBL response (replaces fixed forward-view assumption for specular reflection)
   - explicit LOW/MEDIUM tier quality policy with attenuation + warning: `IBL_QUALITY_DEGRADED`
   - texture ingestion now supports `png/jpg/jpeg` and `.hdr` fallback paths
@@ -152,7 +155,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - explicit runtime signal when skybox-derived IBL inputs are active: `IBL_SKYBOX_DERIVED_ACTIVE`
   - when KTX irradiance/radiance assets are configured but unresolved, runtime can fallback those channels to skybox-derived inputs (`IBL_KTX_SKYBOX_FALLBACK_ACTIVE`)
   - `.ktx/.ktx2` IBL paths now resolve through sidecar decode paths when available (`.png/.hdr/.jpg/.jpeg`)
-  - baseline native container decode path added for uncompressed RGBA8 KTX/KTX2 payloads (resolved to runtime PNG cache)
+  - baseline native container decode path added for uncompressed KTX/KTX2 channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`) (resolved to runtime PNG cache when needed)
   - direct backend texture ingestion now decodes supported KTX/KTX2 payloads in-memory (no PNG transcode dependency for GPU upload)
   - explicit runtime warning when KTX container paths are requested: `IBL_KTX_CONTAINER_FALLBACK`
   - explicit runtime warning when KTX containers exist but remain undecodable in current build: `IBL_KTX_DECODE_UNAVAILABLE`
@@ -246,9 +249,10 @@ Vulkan options:
 - `vulkan.windowVisible` (default `false`)
 - `vulkan.forceDeviceLostOnRender` (default `false`)
 - `vulkan.postOffscreen` (default `true`, dedicated pass with automatic fallback)
-- `vulkan.framesInFlight` (default `3`, clamped `2..4`)
+- `vulkan.framesInFlight` (default `3`, clamped `2..6`)
 - `vulkan.maxDynamicSceneObjects` (default `2048`, clamped `256..8192`)
-- `vulkan.maxPendingUploadRanges` (default `64`, clamped `8..512`)
+- `vulkan.maxPendingUploadRanges` (default `64`, clamped `8..2048`)
+- `vulkan.dynamicUploadMergeGapObjects` (default `1`, clamped `0..32`)
 - `vulkan.maxTextureDescriptorSets` (default `4096`, clamped `256..32768`)
 - `vulkan.meshGeometryCacheEntries` (default `256`, clamped `16..4096`)
 - `vulkan.descriptorRingWasteWarnRatio` (default `0.85`, clamped `0.1..0.99`)
@@ -288,6 +292,7 @@ The repository includes automated tests validating:
   - `lastUniformUploadRanges`
   - `maxUniformUploadRanges`
   - `lastUniformUploadStartObject`
+  - `dynamicUploadMergeGapObjects`
 - Vulkan runtime now emits mesh-loader cache telemetry warning:
   - `MESH_GEOMETRY_CACHE_PROFILE` (`hits`, `misses`, `evictions`, `entries`, `maxEntries`)
 - Practical floor note: attempted `fog-smoke-shadow-post-stress <= 0.04` failed (`diff=0.04049019607843137`), so stress envelopes are frozen at `0.05` / `0.06`.

@@ -46,11 +46,13 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - Adaptive point-shadow PCF/bias scaling now applied in both backends to improve near/far stability.
   - Backend tests ensure legacy `SPOT_LIGHT_APPROX_ACTIVE` warning remains absent and verify point/spot shadow warning behavior.
 - Hardened Vulkan frame-resource architecture:
-  - configurable ring sizing (`vulkan.framesInFlight`, default `3`, clamp `2..4`)
+  - configurable ring sizing (`vulkan.framesInFlight`, default `3`, clamp `2..6`)
   - configurable dynamic-scene uniform capacity (`vulkan.maxDynamicSceneObjects`, default `2048`)
-  - configurable pending upload-range capacity (`vulkan.maxPendingUploadRanges`, default `64`)
+  - configurable pending upload-range capacity (`vulkan.maxPendingUploadRanges`, default `64`, clamp `8..2048`)
+  - configurable dirty-range merge gap for dynamic uploads (`vulkan.dynamicUploadMergeGapObjects`, default `1`, clamp `0..32`)
   - per-frame descriptor-set ring for global uniforms
   - persistent mapped staging for frame-uniform uploads
+  - pending upload-range tracking now auto-grows up to a hard cap before overflow fallback
   - expanded frame-resource telemetry fields
   - revision-aware dynamic uniform staging:
     - per-frame revision tracking for global + scene uniform state
@@ -88,10 +90,11 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 - Threshold tightening lane complete for current stress profiles; keep envelopes frozen at established floor and revisit only after major lighting/post changes.
 - Expand deterministic golden scenes for additional fog/smoke/shadow material interactions.
 - Expand IBL beyond baseline (native `.ktx/.ktx2` decode/prefilter and deeper BRDF/roughness integration).
-  - baseline native `.ktx/.ktx2` decode is now in place for uncompressed RGBA8 payloads
+  - baseline native `.ktx/.ktx2` decode is now in place for uncompressed channel families (`R`, `RG`, `RGB`, `RGBA`, `BGRA`)
   - direct GPU ingestion path now decodes supported KTX/KTX2 in-memory (no PNG transcode dependency)
+  - BRDF/roughness integration has been deepened in both backends with stronger roughness-aware prefilter weighting and BRDF LUT energy shaping
   - unsupported compressed/supercompressed/non-RGBA8 variants are surfaced explicitly via `IBL_KTX_VARIANT_UNSUPPORTED`
-  - remaining: broader KTX format/supercompression decode coverage + richer IBL prefilter usage
+  - remaining: true compressed/supercompressed native decode/upload coverage beyond baseline uncompressed families
 - Shadow fidelity tune: radius/cascade-aware depth-bias scaling now applied in both backends to reduce acne/flicker at higher PCF/cascade settings.
 - Extend Vulkan dynamic-update staging strategy to more scene data beyond current uniform path.
 - Add more real-device validation coverage across multiple machine/driver profiles.
