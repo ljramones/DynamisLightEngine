@@ -276,6 +276,50 @@ class OpenGlEngineRuntimeLifecycleTest {
     }
 
     @Test
+    void iblExistingKtxWithoutSidecarEmitsDecodeUnavailableWarning() throws Exception {
+        Path irr = Files.createTempFile("dle-irr-", ".ktx2");
+        Path rad = Files.createTempFile("dle-rad-", ".ktx2");
+        try {
+            writeKtx2Stub(irr, 16, 16);
+            writeKtx2Stub(rad, 16, 16);
+            Path brdf = Path.of("..", "assets", "textures", "albedo.png").toAbsolutePath().normalize();
+
+            SceneDescriptor base = validScene();
+            EnvironmentDesc env = new EnvironmentDesc(
+                    base.environment().ambientColor(),
+                    base.environment().ambientIntensity(),
+                    null,
+                    irr.toString(),
+                    rad.toString(),
+                    brdf.toString()
+            );
+
+            var runtime = new OpenGlEngineRuntime();
+            runtime.initialize(validConfig(), new RecordingCallbacks());
+            runtime.loadScene(new SceneDescriptor(
+                    "ibl-ktx-decode-unavailable-scene",
+                    base.cameras(),
+                    base.activeCameraId(),
+                    base.transforms(),
+                    base.meshes(),
+                    base.materials(),
+                    base.lights(),
+                    env,
+                    base.fog(),
+                    base.smokeEmitters(),
+                    base.postProcess()
+            ));
+
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_DECODE_UNAVAILABLE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "IBL_KTX_CONTAINER_FALLBACK".equals(w.code())));
+        } finally {
+            Files.deleteIfExists(irr);
+            Files.deleteIfExists(rad);
+        }
+    }
+
+    @Test
     void iblLowTierEmitsQualityDegradedWarning() throws Exception {
         var runtime = new OpenGlEngineRuntime();
         runtime.initialize(validLowQualityConfig(), new RecordingCallbacks());
@@ -823,6 +867,31 @@ class OpenGlEngineRuntimeLifecycleTest {
 
     private static EngineInput emptyInput() {
         return new EngineInput(0, 0, 0, 0, false, false, java.util.Set.<KeyCode>of(), 0.0);
+    }
+
+    private static void writeKtx2Stub(Path path, int width, int height) throws Exception {
+        byte[] header = new byte[68];
+        byte[] identifier = new byte[]{
+                (byte) 0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, (byte) 0xBB, 0x0D, 0x0A, 0x1A, 0x0A
+        };
+        System.arraycopy(identifier, 0, header, 0, identifier.length);
+        putIntLE(header, 12, 37);
+        putIntLE(header, 16, 1);
+        putIntLE(header, 20, Math.max(1, width));
+        putIntLE(header, 24, Math.max(1, height));
+        putIntLE(header, 28, 0);
+        putIntLE(header, 32, 0);
+        putIntLE(header, 36, 1);
+        putIntLE(header, 40, 1);
+        putIntLE(header, 44, 0);
+        Files.write(path, header);
+    }
+
+    private static void putIntLE(byte[] buffer, int offset, int value) {
+        buffer[offset] = (byte) (value & 0xFF);
+        buffer[offset + 1] = (byte) ((value >>> 8) & 0xFF);
+        buffer[offset + 2] = (byte) ((value >>> 16) & 0xFF);
+        buffer[offset + 3] = (byte) ((value >>> 24) & 0xFF);
     }
 
     private static final class RecordingCallbacks implements EngineHostCallbacks {

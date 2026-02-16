@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.config.EngineConfig;
@@ -61,6 +62,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean skyboxDerived,
             boolean ktxContainerRequested,
             boolean ktxSkyboxFallback,
+            int ktxDecodeUnavailableCount,
             float prefilterStrength,
             boolean degraded,
             int missingAssetCount,
@@ -91,7 +93,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f);
-    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0f, false, 0, null, null, null);
+    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
     public OpenGlEngineRuntime() {
@@ -308,6 +310,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                         "KTX IBL paths without decodable sources fell back to skybox-derived irradiance/radiance inputs"
                 ));
             }
+            if (ibl.ktxDecodeUnavailableCount() > 0) {
+                warnings.add(new EngineWarning(
+                        "IBL_KTX_DECODE_UNAVAILABLE",
+                        "KTX/KTX2 IBL assets detected but no native decode path is active (channels=" + ibl.ktxDecodeUnavailableCount()
+                                + "); runtime used sidecar/derived/default fallback inputs"
+                ));
+            }
             if (ibl.missingAssetCount() > 0) {
                 warnings.add(new EngineWarning(
                         "IBL_ASSET_FALLBACK_ACTIVE",
@@ -448,14 +457,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier) {
         if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 || !isBlank(environment.iblRadiancePath())
                 || !isBlank(environment.iblBrdfLutPath())
                 || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -502,6 +511,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             ktxSkyboxFallback = true;
         }
         boolean skyboxDerivedActive = skyboxDerived || ktxSkyboxFallback;
+        int ktxDecodeUnavailableCount = 0;
+        ktxDecodeUnavailableCount += decodeUnavailableChannelCount(irrSource, irr);
+        ktxDecodeUnavailableCount += decodeUnavailableChannelCount(radSource, rad);
+        ktxDecodeUnavailableCount += decodeUnavailableChannelCount(brdfSource, brdf);
         int missingAssetCount = countMissingFiles(irr, rad, brdf);
         float irrSignal = imageLuminanceSignal(irr);
         float radSignal = imageLuminanceSignal(rad);
@@ -526,6 +539,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 skyboxDerivedActive,
                 ktxContainerRequested,
                 ktxSkyboxFallback,
+                ktxDecodeUnavailableCount,
                 Math.max(0f, Math.min(1f, prefilterStrength)),
                 degraded,
                 missingAssetCount,
@@ -547,6 +561,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private static boolean isRegularFile(Path path) {
         return path != null && Files.isRegularFile(path);
+    }
+
+    private static int decodeUnavailableChannelCount(Path requestedPath, Path resolvedPath) {
+        if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
+            return 0;
+        }
+        return Objects.equals(requestedPath, resolvedPath) ? 1 : 0;
     }
 
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {

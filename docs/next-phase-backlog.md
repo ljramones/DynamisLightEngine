@@ -30,6 +30,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - skybox-derived IBL fallback path enabled when explicit irradiance/radiance maps are absent (`EnvironmentDesc.skyboxAssetPath`)
   - explicit skybox-derived mode runtime signal added: `IBL_SKYBOX_DERIVED_ACTIVE`
   - KTX irradiance/radiance recovery path added: unresolved `.ktx/.ktx2` channels can fallback to skybox-derived inputs (`IBL_KTX_SKYBOX_FALLBACK_ACTIVE`)
+  - explicit decode-gap warning added when KTX container files exist without active native decode path: `IBL_KTX_DECODE_UNAVAILABLE`
   - bridge mapping preserves `EnvironmentDesc` IBL fields and `PostProcessDesc`
   - new backend tests assert `IBL_BASELINE_ACTIVE` and `IBL_ASSET_FALLBACK_ACTIVE` signals
   - IBL quality-tier policy tightened in OpenGL + Vulkan:
