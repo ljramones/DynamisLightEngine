@@ -64,6 +64,20 @@ class BackendParityIntegrationTest {
         assertContractErrors("vulkan");
     }
 
+    @Test
+    void materialAndLightingSceneProducesParitySignalsAcrossBackends() throws Exception {
+        SceneDescriptor scene = materialLightingScene();
+        BackendRunResult openGl = runSceneAndCollect("opengl", scene);
+        BackendRunResult vulkan = runSceneAndCollect("vulkan", scene);
+
+        assertEquals(openGl.drawCalls(), vulkan.drawCalls());
+        assertEquals(openGl.visibleObjects(), vulkan.visibleObjects());
+        assertTrue(openGl.triangles() > 0);
+        assertTrue(vulkan.triangles() > 0);
+        assertTrue(openGl.warningCodes().contains("FEATURE_BASELINE"));
+        assertTrue(vulkan.warningCodes().contains("FEATURE_BASELINE"));
+    }
+
     private static void runParityLifecycle(String backendId) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
         RecordingCallbacks callbacks = new RecordingCallbacks();
@@ -116,6 +130,22 @@ class BackendParityIntegrationTest {
         }
     }
 
+    private static BackendRunResult runSceneAndCollect(String backendId, SceneDescriptor scene) throws Exception {
+        EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
+        RecordingCallbacks callbacks = new RecordingCallbacks();
+        try (var runtime = provider.createRuntime()) {
+            runtime.initialize(validConfig(backendId), callbacks);
+            runtime.loadScene(scene);
+            EngineFrameResult frame = runtime.render();
+            return new BackendRunResult(
+                    runtime.getStats().drawCalls(),
+                    runtime.getStats().triangles(),
+                    runtime.getStats().visibleObjects(),
+                    frame.warnings().stream().map(w -> w.code()).collect(Collectors.toSet())
+            );
+        }
+    }
+
     private static EngineConfig validConfig(String backendId) {
         Map<String, String> options = "opengl".equalsIgnoreCase(backendId)
                 ? Map.of("opengl.mockContext", "true")
@@ -158,6 +188,33 @@ class BackendParityIntegrationTest {
         );
     }
 
+    private static SceneDescriptor materialLightingScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 6), new Vec3(0, 0, 0), 65f, 0.1f, 150f);
+        TransformDesc a = new TransformDesc("xform-a", new Vec3(-0.8f, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        TransformDesc b = new TransformDesc("xform-b", new Vec3(0.8f, 0.1f, 0), new Vec3(0, 20, 0), new Vec3(1, 1, 1));
+        MeshDesc triangle = new MeshDesc("mesh-a", "xform-a", "mat-a", "meshes/triangle.gltf");
+        MeshDesc quad = new MeshDesc("mesh-b", "xform-b", "mat-b", "meshes/quad.gltf");
+        MaterialDesc matA = new MaterialDesc("mat-a", new Vec3(0.95f, 0.3f, 0.25f), 0.15f, 0.55f, "textures/a.png", "textures/a_n.png");
+        MaterialDesc matB = new MaterialDesc("mat-b", new Vec3(0.25f, 0.65f, 0.95f), 0.65f, 0.35f, "textures/b.png", "textures/b_n.png");
+        LightDesc key = new LightDesc("key", new Vec3(1.2f, 2.0f, 1.8f), new Vec3(1f, 0.96f, 0.9f), 1.0f, 15f, false);
+        LightDesc fill = new LightDesc("fill", new Vec3(-1.4f, 1.2f, 1.0f), new Vec3(0.35f, 0.55f, 1f), 0.7f, 12f, false);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.1f, 0.12f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "parity-material-lighting-scene",
+                List.of(camera),
+                "cam",
+                List.of(a, b),
+                List.of(triangle, quad),
+                List.of(matA, matB),
+                List.of(key, fill),
+                env,
+                fog,
+                List.of()
+        );
+    }
+
     private static EngineInput emptyInput() {
         return new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
     }
@@ -181,5 +238,8 @@ class BackendParityIntegrationTest {
         public void onError(EngineErrorReport error) {
             errors.add(error);
         }
+    }
+
+    private record BackendRunResult(long drawCalls, long triangles, long visibleObjects, Set<String> warningCodes) {
     }
 }
