@@ -376,6 +376,11 @@ final class VulkanContext {
     private long meshBufferRebuildCount;
     private long descriptorPoolBuildCount;
     private long descriptorPoolRebuildCount;
+    private long descriptorRingReuseHitCount;
+    private long descriptorRingGrowthRebuildCount;
+    private long descriptorRingSteadyRebuildCount;
+    private int descriptorRingSetCapacity;
+    private int descriptorRingPeakSetCapacity;
     private long estimatedGpuMemoryBytes;
     private int lastFrameUniformUploadBytes;
     private int maxFrameUniformUploadBytes;
@@ -584,6 +589,11 @@ final class VulkanContext {
                 maxFrameUniformUploadRanges,
                 lastFrameUniformUploadStartObject,
                 pendingUploadRangeOverflowCount,
+                descriptorRingSetCapacity,
+                descriptorRingPeakSetCapacity,
+                descriptorRingReuseHitCount,
+                descriptorRingGrowthRebuildCount,
+                descriptorRingSteadyRebuildCount,
                 globalUniformStagingMappedAddress != 0L
         );
     }
@@ -616,6 +626,7 @@ final class VulkanContext {
         }
         if (canReuseGpuMeshes(safe)) {
             sceneReuseHitCount++;
+            descriptorRingReuseHitCount++;
             updateDynamicSceneState(safe);
             return;
         }
@@ -1351,6 +1362,8 @@ final class VulkanContext {
         Arrays.fill(frameSceneRevisionApplied, 0L);
         frameDescriptorSets = new long[0];
         descriptorSet = VK_NULL_HANDLE;
+        descriptorRingSetCapacity = 0;
+        descriptorRingPeakSetCapacity = 0;
         if (descriptorPool != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device, descriptorPool, null);
             descriptorPool = VK_NULL_HANDLE;
@@ -3945,21 +3958,31 @@ final class VulkanContext {
         if (gpuMeshes.isEmpty() || textureDescriptorSetLayout == VK_NULL_HANDLE) {
             return;
         }
+        int requiredSetCount = gpuMeshes.size();
+        if (descriptorRingSetCapacity > 0) {
+            if (requiredSetCount > descriptorRingSetCapacity) {
+                descriptorRingGrowthRebuildCount++;
+            } else {
+                descriptorRingSteadyRebuildCount++;
+            }
+        }
         if (textureDescriptorPool != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device, textureDescriptorPool, null);
             textureDescriptorPool = VK_NULL_HANDLE;
             descriptorPoolRebuildCount++;
         }
         descriptorPoolBuildCount++;
+        descriptorRingSetCapacity = requiredSetCount;
+        descriptorRingPeakSetCapacity = Math.max(descriptorRingPeakSetCapacity, requiredSetCount);
 
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(gpuMeshes.size() * 8);
+                .descriptorCount(requiredSetCount * 8);
 
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
-                .maxSets(gpuMeshes.size())
+                .maxSets(requiredSetCount)
                 .pPoolSizes(poolSizes);
         var pPool = stack.longs(VK_NULL_HANDLE);
         int poolResult = vkCreateDescriptorPool(device, poolInfo, null, pPool);
@@ -3975,13 +3998,13 @@ final class VulkanContext {
         VkDescriptorSetAllocateInfo allocInfo = VkDescriptorSetAllocateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO)
                 .descriptorPool(textureDescriptorPool);
-        LongBufferWrapper setLayouts = LongBufferWrapper.allocate(stack, gpuMeshes.size());
-        for (int i = 0; i < gpuMeshes.size(); i++) {
+        LongBufferWrapper setLayouts = LongBufferWrapper.allocate(stack, requiredSetCount);
+        for (int i = 0; i < requiredSetCount; i++) {
             setLayouts.buffer().put(i, textureDescriptorSetLayout);
         }
         allocInfo.pSetLayouts(setLayouts.buffer());
 
-        LongBufferWrapper allocatedSets = LongBufferWrapper.allocate(stack, gpuMeshes.size());
+        LongBufferWrapper allocatedSets = LongBufferWrapper.allocate(stack, requiredSetCount);
         int setResult = vkAllocateDescriptorSets(device, allocInfo, allocatedSets.buffer());
         if (setResult != VK_SUCCESS) {
             throw new EngineException(
@@ -3991,7 +4014,7 @@ final class VulkanContext {
             );
         }
 
-        for (int i = 0; i < gpuMeshes.size(); i++) {
+        for (int i = 0; i < requiredSetCount; i++) {
             GpuMesh mesh = gpuMeshes.get(i);
             mesh.textureDescriptorSet = allocatedSets.buffer().get(i);
 
@@ -5181,6 +5204,11 @@ final class VulkanContext {
             int maxFrameUniformUploadRanges,
             int lastFrameUniformUploadStartObject,
             long pendingUploadRangeOverflows,
+            int descriptorRingSetCapacity,
+            int descriptorRingPeakSetCapacity,
+            long descriptorRingReuseHits,
+            long descriptorRingGrowthRebuilds,
+            long descriptorRingSteadyRebuilds,
             boolean persistentStagingMapped
     ) {
     }

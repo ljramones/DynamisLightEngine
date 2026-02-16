@@ -314,6 +314,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " maxUniformUploadRanges=" + frameResources.maxFrameUniformUploadRanges()
                             + " lastUniformUploadStartObject=" + frameResources.lastFrameUniformUploadStartObject()
                             + " pendingRangeOverflows=" + frameResources.pendingUploadRangeOverflows()
+                            + " descriptorRingSetCapacity=" + frameResources.descriptorRingSetCapacity()
+                            + " descriptorRingPeakSetCapacity=" + frameResources.descriptorRingPeakSetCapacity()
+                            + " descriptorRingReuseHits=" + frameResources.descriptorRingReuseHits()
+                            + " descriptorRingGrowthRebuilds=" + frameResources.descriptorRingGrowthRebuilds()
+                            + " descriptorRingSteadyRebuilds=" + frameResources.descriptorRingSteadyRebuilds()
                             + " persistentStagingMapped=" + frameResources.persistentStagingMapped()
             ));
             if (currentShadows.enabled()) {
