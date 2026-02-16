@@ -1,282 +1,55 @@
 package org.dynamislight.impl.vulkan;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import org.dynamislight.impl.vulkan.model.VulkanBufferAlloc;
+
+import org.dynamislight.api.error.EngineErrorCode;
+import org.dynamislight.api.error.EngineException;
+import org.dynamislight.impl.vulkan.bootstrap.VulkanBootstrap;
+import org.dynamislight.impl.vulkan.bootstrap.VulkanShutdownCoordinator;
+import org.dynamislight.impl.vulkan.command.VulkanFrameCommandInputAssembler;
+import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
+import org.dynamislight.impl.vulkan.command.VulkanFrameSyncLifecycleCoordinator;
+import org.dynamislight.impl.vulkan.command.VulkanFrameSubmitCoordinator;
+import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorResources;
+import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorLifecycleCoordinator;
+import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorSetCoordinator;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
 import org.dynamislight.impl.vulkan.model.VulkanGpuTexture;
-import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
-import org.dynamislight.impl.vulkan.command.VulkanCommandSubmitter;
-import org.dynamislight.impl.vulkan.command.VulkanFrameCommandInputsFactory;
-import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
-import org.dynamislight.impl.vulkan.command.VulkanFrameSyncResources;
-import org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder;
-import org.dynamislight.impl.vulkan.bootstrap.VulkanBootstrap;
-import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorResources;
-import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorSetCoordinator;
-import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorWriter;
-import org.dynamislight.impl.vulkan.pipeline.VulkanMainPipelineBuilder;
-import org.dynamislight.impl.vulkan.pipeline.VulkanPostProcessResources;
-import org.dynamislight.impl.vulkan.pipeline.VulkanPostPipelineBuilder;
-import org.dynamislight.impl.vulkan.pipeline.VulkanShadowPipelineBuilder;
 import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
 import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
 import org.dynamislight.impl.vulkan.profile.SceneReuseStats;
 import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
+import org.dynamislight.impl.vulkan.profile.VulkanContextProfileCoordinator;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
-import org.dynamislight.impl.vulkan.scene.VulkanDynamicSceneUpdater;
-import org.dynamislight.impl.vulkan.scene.VulkanDirtyRangeTrackerOps;
-import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshLifecycle;
-import org.dynamislight.impl.vulkan.scene.VulkanSceneReusePolicy;
-import org.dynamislight.impl.vulkan.scene.VulkanSceneUploadCoordinator;
-import org.dynamislight.impl.vulkan.shader.VulkanShaderCompiler;
-import org.dynamislight.impl.vulkan.shader.VulkanShaderSources;
-import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixBuilder;
-import org.dynamislight.impl.vulkan.shadow.VulkanShadowResources;
-import org.dynamislight.impl.vulkan.swapchain.VulkanFramebufferResources;
-import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainAllocation;
-import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainDestroyCoordinator;
-import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainImageViews;
-import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainResourceCoordinator;
-import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainSelector;
+import org.dynamislight.impl.vulkan.scene.VulkanSceneRuntimeCoordinator;
+import org.dynamislight.impl.vulkan.scene.VulkanSceneSetPlanner;
+import org.dynamislight.impl.vulkan.scene.VulkanSceneTextureCoordinator;
+import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixCoordinator;
+import org.dynamislight.impl.vulkan.shadow.VulkanShadowLifecycleCoordinator;
+import org.dynamislight.impl.vulkan.state.VulkanRenderParameterMutator;
+import org.dynamislight.impl.vulkan.state.VulkanLightingParameterMutator;
+import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainLifecycleCoordinator;
+import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainRecreateCoordinator;
 import org.dynamislight.impl.vulkan.texture.VulkanTextureResourceOps;
 import org.dynamislight.impl.vulkan.uniform.VulkanFrameUniformCoordinator;
-import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneInputBuilder;
+import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneUniformCoordinator;
+import org.dynamislight.impl.vulkan.uniform.VulkanUniformFrameCoordinator;
+import org.dynamislight.impl.vulkan.uniform.VulkanUploadStateTracker;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadRecorder;
-import org.dynamislight.impl.vulkan.uniform.VulkanUniformWriters;
-
-import static org.dynamislight.impl.vulkan.math.VulkanMath.clamp01;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.floatEquals;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.identityMatrix;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.normalize3;
-import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
-import static org.lwjgl.glfw.GLFW.GLFW_FALSE;
-import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
-import static org.lwjgl.glfw.GLFW.GLFW_TRUE;
-import static org.lwjgl.glfw.GLFW.GLFW_VISIBLE;
-import static org.lwjgl.glfw.GLFW.glfwCreateWindow;
-import static org.lwjgl.glfw.GLFW.glfwDefaultWindowHints;
-import static org.lwjgl.glfw.GLFW.glfwDestroyWindow;
-import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
-import static org.lwjgl.glfw.GLFW.glfwInit;
-import static org.lwjgl.glfw.GLFW.glfwTerminate;
-import static org.lwjgl.glfw.GLFW.glfwWindowHint;
-import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
-import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
-import static org.lwjgl.glfw.GLFWVulkan.glfwVulkanSupported;
-import static org.lwjgl.system.MemoryStack.stackPush;
-import static org.lwjgl.system.MemoryUtil.memFree;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_fragment_shader;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_vertex_shader;
-import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
-import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfacePresentModesKHR;
-import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfaceSupportKHR;
-import static org.lwjgl.vulkan.KHRSwapchain.VK_ERROR_OUT_OF_DATE_KHR;
-import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-import static org.lwjgl.vulkan.KHRSwapchain.VK_SUBOPTIMAL_KHR;
-import static org.lwjgl.vulkan.KHRSwapchain.vkCreateSwapchainKHR;
-import static org.lwjgl.vulkan.KHRSwapchain.vkDestroySwapchainKHR;
-import static org.lwjgl.vulkan.KHRSwapchain.vkGetSwapchainImagesKHR;
-import static org.lwjgl.vulkan.VK10.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-import static org.lwjgl.vulkan.VK10.VK_ACCESS_TRANSFER_WRITE_BIT;
-import static org.lwjgl.vulkan.VK10.VK_ACCESS_UNIFORM_READ_BIT;
-import static org.lwjgl.vulkan.VK10.VK_ATTACHMENT_LOAD_OP_CLEAR;
-import static org.lwjgl.vulkan.VK10.VK_ATTACHMENT_STORE_OP_STORE;
-import static org.lwjgl.vulkan.VK10.VK_BLEND_FACTOR_ONE;
-import static org.lwjgl.vulkan.VK10.VK_BLEND_FACTOR_ZERO;
-import static org.lwjgl.vulkan.VK10.VK_BLEND_OP_ADD;
-import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_A_BIT;
-import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_B_BIT;
-import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_G_BIT;
-import static org.lwjgl.vulkan.VK10.VK_COLOR_COMPONENT_R_BIT;
-import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-import static org.lwjgl.vulkan.VK10.VK_CULL_MODE_NONE;
-import static org.lwjgl.vulkan.VK10.VK_ERROR_INITIALIZATION_FAILED;
-import static org.lwjgl.vulkan.VK10.VK_ERROR_DEVICE_LOST;
-import static org.lwjgl.vulkan.VK10.VK_FALSE;
-import static org.lwjgl.vulkan.VK10.VK_FORMAT_B8G8R8A8_SRGB;
-import static org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT;
-import static org.lwjgl.vulkan.VK10.VK_FRONT_FACE_COUNTER_CLOCKWISE;
-import static org.lwjgl.vulkan.VK10.VK_INDEX_TYPE_UINT32;
-import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
-import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT;
-import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
-import static org.lwjgl.vulkan.VK10.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
-import static org.lwjgl.vulkan.VK10.VK_PIPELINE_BIND_POINT_GRAPHICS;
-import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-import static org.lwjgl.vulkan.VK10.VK_POLYGON_MODE_FILL;
-import static org.lwjgl.vulkan.VK10.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_TRANSFER_BIT;
-import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-import static org.lwjgl.vulkan.VK10.VK_QUEUE_GRAPHICS_BIT;
-import static org.lwjgl.vulkan.VK10.VK_QUEUE_FAMILY_IGNORED;
-import static org.lwjgl.vulkan.VK10.VK_SAMPLE_COUNT_1_BIT;
-import static org.lwjgl.vulkan.VK10.VK_SHADER_STAGE_FRAGMENT_BIT;
-import static org.lwjgl.vulkan.VK10.VK_SHADER_STAGE_VERTEX_BIT;
-import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_APPLICATION_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_SUBMIT_INFO;
-import static org.lwjgl.vulkan.VK10.VK_SUBPASS_CONTENTS_INLINE;
-import static org.lwjgl.vulkan.VK10.VK_SUBPASS_EXTERNAL;
-import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
-import static org.lwjgl.vulkan.VK10.VK_TRUE;
-import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_2D;
-import static org.lwjgl.vulkan.VK10.vkAllocateDescriptorSets;
-import static org.lwjgl.vulkan.VK10.vkAllocateMemory;
-import static org.lwjgl.vulkan.VK10.vkBeginCommandBuffer;
-import static org.lwjgl.vulkan.VK10.vkCmdBeginRenderPass;
-import static org.lwjgl.vulkan.VK10.vkCmdBindDescriptorSets;
-import static org.lwjgl.vulkan.VK10.vkCmdBindIndexBuffer;
-import static org.lwjgl.vulkan.VK10.vkCmdBindPipeline;
-import static org.lwjgl.vulkan.VK10.vkCmdBindVertexBuffers;
-import static org.lwjgl.vulkan.VK10.vkCmdCopyBuffer;
-import static org.lwjgl.vulkan.VK10.vkCmdDraw;
-import static org.lwjgl.vulkan.VK10.vkCmdDrawIndexed;
-import static org.lwjgl.vulkan.VK10.vkCmdEndRenderPass;
-import static org.lwjgl.vulkan.VK10.vkCmdPipelineBarrier;
-import static org.lwjgl.vulkan.VK10.vkCmdPushConstants;
-import static org.lwjgl.vulkan.VK10.vkCreateBuffer;
-import static org.lwjgl.vulkan.VK10.vkCreateDescriptorPool;
-import static org.lwjgl.vulkan.VK10.vkCreateDescriptorSetLayout;
-import static org.lwjgl.vulkan.VK10.vkCreateDevice;
-import static org.lwjgl.vulkan.VK10.vkCreateFramebuffer;
-import static org.lwjgl.vulkan.VK10.vkCreateGraphicsPipelines;
-import static org.lwjgl.vulkan.VK10.vkCreateImageView;
-import static org.lwjgl.vulkan.VK10.vkCreateInstance;
-import static org.lwjgl.vulkan.VK10.vkCreatePipelineLayout;
-import static org.lwjgl.vulkan.VK10.vkCreateRenderPass;
-import static org.lwjgl.vulkan.VK10.vkCreateShaderModule;
-import static org.lwjgl.vulkan.VK10.vkDestroyBuffer;
-import static org.lwjgl.vulkan.VK10.vkDestroyDescriptorPool;
-import static org.lwjgl.vulkan.VK10.vkDestroyDescriptorSetLayout;
-import static org.lwjgl.vulkan.VK10.vkDestroyDevice;
-import static org.lwjgl.vulkan.VK10.vkDestroyFramebuffer;
-import static org.lwjgl.vulkan.VK10.vkDestroyImageView;
-import static org.lwjgl.vulkan.VK10.vkDestroyInstance;
-import static org.lwjgl.vulkan.VK10.vkDestroyPipeline;
-import static org.lwjgl.vulkan.VK10.vkDestroyPipelineLayout;
-import static org.lwjgl.vulkan.VK10.vkDestroyRenderPass;
-import static org.lwjgl.vulkan.VK10.vkDestroyShaderModule;
-import static org.lwjgl.vulkan.VK10.vkDeviceWaitIdle;
-import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
-import static org.lwjgl.vulkan.VK10.vkFreeCommandBuffers;
-import static org.lwjgl.vulkan.VK10.vkEnumeratePhysicalDevices;
-import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
-import static org.lwjgl.vulkan.VK10.vkGetBufferMemoryRequirements;
-import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceMemoryProperties;
-import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceQueueFamilyProperties;
-import static org.lwjgl.vulkan.VK10.vkBindBufferMemory;
-import static org.lwjgl.vulkan.VK10.vkQueueSubmit;
-import static org.lwjgl.vulkan.VK10.vkQueueWaitIdle;
-import static org.lwjgl.vulkan.VK10.vkResetDescriptorPool;
-import static org.lwjgl.vulkan.VK10.vkFreeMemory;
-
-import org.dynamislight.api.error.EngineErrorCode;
-import org.dynamislight.api.error.EngineException;
-import org.lwjgl.PointerBuffer;
-import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.vulkan.KHRSwapchain;
-import org.lwjgl.vulkan.VK10;
-import org.lwjgl.vulkan.VkApplicationInfo;
-import org.lwjgl.vulkan.VkAttachmentDescription;
-import org.lwjgl.vulkan.VkAttachmentReference;
-import org.lwjgl.vulkan.VkClearValue;
-import org.lwjgl.vulkan.VkCommandBuffer;
-import org.lwjgl.vulkan.VkCommandBufferBeginInfo;
-import org.lwjgl.vulkan.VkDevice;
-import org.lwjgl.vulkan.VkDeviceCreateInfo;
-import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
-import org.lwjgl.vulkan.VkBufferCreateInfo;
-import org.lwjgl.vulkan.VkBufferCopy;
-import org.lwjgl.vulkan.VkBufferMemoryBarrier;
-import org.lwjgl.vulkan.VkDescriptorImageInfo;
-import org.lwjgl.vulkan.VkDescriptorPoolCreateInfo;
-import org.lwjgl.vulkan.VkDescriptorPoolSize;
-import org.lwjgl.vulkan.VkMemoryAllocateInfo;
-import org.lwjgl.vulkan.VkMemoryRequirements;
-import org.lwjgl.vulkan.VkPhysicalDeviceMemoryProperties;
-import org.lwjgl.vulkan.VkFramebufferCreateInfo;
-import org.lwjgl.vulkan.VkImageCreateInfo;
-import org.lwjgl.vulkan.VkImageCopy;
-import org.lwjgl.vulkan.VkImageMemoryBarrier;
-import org.lwjgl.vulkan.VkImageSubresourceRange;
-import org.lwjgl.vulkan.VkImageViewCreateInfo;
-import org.lwjgl.vulkan.VkInstance;
-import org.lwjgl.vulkan.VkInstanceCreateInfo;
-import org.lwjgl.vulkan.VkGraphicsPipelineCreateInfo;
-import org.lwjgl.vulkan.VkPipelineColorBlendAttachmentState;
-import org.lwjgl.vulkan.VkPipelineColorBlendStateCreateInfo;
-import org.lwjgl.vulkan.VkPipelineInputAssemblyStateCreateInfo;
-import org.lwjgl.vulkan.VkPipelineLayoutCreateInfo;
-import org.lwjgl.vulkan.VkPipelineMultisampleStateCreateInfo;
-import org.lwjgl.vulkan.VkPushConstantRange;
-import org.lwjgl.vulkan.VkPipelineDepthStencilStateCreateInfo;
-import org.lwjgl.vulkan.VkPipelineRasterizationStateCreateInfo;
-import org.lwjgl.vulkan.VkPipelineShaderStageCreateInfo;
-import org.lwjgl.vulkan.VkPipelineVertexInputStateCreateInfo;
-import org.lwjgl.vulkan.VkPipelineViewportStateCreateInfo;
-import org.lwjgl.vulkan.VkPhysicalDevice;
-import org.lwjgl.vulkan.VkQueue;
-import org.lwjgl.vulkan.VkQueueFamilyProperties;
-import org.lwjgl.vulkan.VkRect2D;
-import org.lwjgl.vulkan.VkRenderPassBeginInfo;
-import org.lwjgl.vulkan.VkRenderPassCreateInfo;
-import org.lwjgl.vulkan.VkBufferImageCopy;
-import org.lwjgl.vulkan.VkSamplerCreateInfo;
-import org.lwjgl.vulkan.VkSubmitInfo;
-import org.lwjgl.vulkan.VkSubpassDependency;
-import org.lwjgl.vulkan.VkSubpassDescription;
-import org.lwjgl.vulkan.VkViewport;
+import org.lwjgl.vulkan.*;
+
+import static org.dynamislight.impl.vulkan.math.VulkanMath.*;
+import static org.lwjgl.glfw.GLFW.*;
+import static org.lwjgl.glfw.GLFWVulkan.*;
+import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
+import static org.lwjgl.vulkan.KHRSwapchain.*;
+import static org.lwjgl.vulkan.VK10.*;
 
 final class VulkanContext {
     private static final int VERTEX_STRIDE_FLOATS = 11;
@@ -345,7 +118,11 @@ final class VulkanContext {
     private int maxPendingUploadRanges = DEFAULT_MAX_PENDING_UPLOAD_RANGES;
     private int dynamicUploadMergeGapObjects = DEFAULT_DYNAMIC_UPLOAD_MERGE_GAP_OBJECTS;
     private int dynamicObjectSoftLimit = DEFAULT_DYNAMIC_OBJECT_SOFT_LIMIT;
-    private int maxObservedDynamicObjects;
+    private final VulkanUploadStateTracker uploadState = new VulkanUploadStateTracker(
+            DEFAULT_FRAMES_IN_FLIGHT,
+            DEFAULT_MAX_PENDING_UPLOAD_RANGES,
+            MAX_PENDING_UPLOAD_RANGES_HARD_CAP
+    );
     private long[] framebuffers = new long[0];
     private long commandPool = VK_NULL_HANDLE;
     private VkCommandBuffer[] commandBuffers = new VkCommandBuffer[0];
@@ -385,26 +162,6 @@ final class VulkanContext {
     private int lastFrameUniformUploadRanges;
     private int maxFrameUniformUploadRanges;
     private int lastFrameUniformUploadStartObject;
-    private long globalStateRevision = 1;
-    private long sceneStateRevision = 1;
-    private long[] frameGlobalRevisionApplied = new long[DEFAULT_FRAMES_IN_FLIGHT];
-    private long[] frameSceneRevisionApplied = new long[DEFAULT_FRAMES_IN_FLIGHT];
-    private int[] pendingSceneDirtyStarts = new int[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
-    private int[] pendingSceneDirtyEnds = new int[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
-    private int pendingSceneDirtyRangeCount;
-    private long pendingUploadSrcOffset = -1L;
-    private long pendingUploadDstOffset = -1L;
-    private int pendingUploadByteCount;
-    private int pendingUploadObjectCount;
-    private int pendingUploadStartObject;
-    private long[] pendingUploadSrcOffsets = new long[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
-    private long[] pendingUploadDstOffsets = new long[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
-    private int[] pendingUploadByteCounts = new int[DEFAULT_MAX_PENDING_UPLOAD_RANGES];
-    private int pendingUploadRangeCount;
-    private long pendingUploadRangeOverflowCount;
-    private long pendingGlobalUploadSrcOffset = -1L;
-    private long pendingGlobalUploadDstOffset = -1L;
-    private int pendingGlobalUploadByteCount;
     private final List<VulkanGpuMesh> gpuMeshes = new ArrayList<>();
     private List<VulkanSceneMeshData> pendingSceneMeshes = List.of(VulkanSceneMeshData.defaultTriangle());
     private float[] viewMatrix = identityMatrix();
@@ -488,10 +245,7 @@ final class VulkanContext {
     private long[] postFramebuffers = new long[0];
     private boolean postIntermediateInitialized;
 
-    VulkanContext() {
-        reallocateFrameTracking();
-        reallocateUploadRangeTracking();
-    }
+    VulkanContext() {}
 
     void configureFrameResources(int framesInFlight, int maxDynamicSceneObjects, int maxPendingUploadRanges) {
         if (device != null) {
@@ -500,8 +254,8 @@ final class VulkanContext {
         this.framesInFlight = clamp(framesInFlight, 2, 6);
         this.maxDynamicSceneObjects = clamp(maxDynamicSceneObjects, 256, 8192);
         this.maxPendingUploadRanges = clamp(maxPendingUploadRanges, 8, 2048);
-        reallocateFrameTracking();
-        reallocateUploadRangeTracking();
+        uploadState.reallocateFrameTracking(this.framesInFlight);
+        uploadState.reallocateUploadRangeTracking(this.maxPendingUploadRanges);
     }
 
     void configureDynamicUploadMergeGap(int mergeGapObjects) {
@@ -590,92 +344,122 @@ final class VulkanContext {
     }
 
     SceneReuseStats sceneReuseStats() {
-        return new SceneReuseStats(
-                sceneReuseHitCount,
-                sceneReorderReuseCount,
-                sceneTextureRebindCount,
-                sceneFullRebuildCount,
-                meshBufferRebuildCount,
-                descriptorPoolBuildCount,
-                descriptorPoolRebuildCount
+        return VulkanContextProfileCoordinator.sceneReuse(
+                new VulkanContextProfileCoordinator.SceneReuseRequest(
+                        sceneReuseHitCount,
+                        sceneReorderReuseCount,
+                        sceneTextureRebindCount,
+                        sceneFullRebuildCount,
+                        meshBufferRebuildCount,
+                        descriptorPoolBuildCount,
+                        descriptorPoolRebuildCount
+                )
         );
     }
 
     FrameResourceProfile frameResourceProfile() {
-        return new FrameResourceProfile(
-                framesInFlight,
-                frameDescriptorSets.length,
-                uniformStrideBytes,
-                uniformFrameSpanBytes,
-                globalUniformFrameSpanBytes,
-                maxDynamicSceneObjects,
-                pendingSceneDirtyStarts.length,
-                lastFrameGlobalUploadBytes,
-                maxFrameGlobalUploadBytes,
-                lastFrameUniformUploadBytes,
-                maxFrameUniformUploadBytes,
-                lastFrameUniformObjectCount,
-                maxFrameUniformObjectCount,
-                lastFrameUniformUploadRanges,
-                maxFrameUniformUploadRanges,
-                lastFrameUniformUploadStartObject,
-                pendingUploadRangeOverflowCount,
-                descriptorRingSetCapacity,
-                descriptorRingPeakSetCapacity,
-                descriptorRingActiveSetCount,
-                descriptorRingWasteSetCount,
-                descriptorRingPeakWasteSetCount,
-                descriptorRingMaxSetCapacity,
-                descriptorRingReuseHitCount,
-                descriptorRingGrowthRebuildCount,
-                descriptorRingSteadyRebuildCount,
-                descriptorRingPoolReuseCount,
-                descriptorRingPoolResetFailureCount,
-                descriptorRingCapBypassCount,
-                dynamicUploadMergeGapObjects,
-                dynamicObjectSoftLimit,
-                maxObservedDynamicObjects,
-                objectUniformStagingMappedAddress != 0L && sceneGlobalUniformStagingMappedAddress != 0L
+        return VulkanContextProfileCoordinator.frameResource(
+                new VulkanContextProfileCoordinator.FrameResourceRequest(
+                        framesInFlight,
+                        frameDescriptorSets.length,
+                        uniformStrideBytes,
+                        uniformFrameSpanBytes,
+                        globalUniformFrameSpanBytes,
+                        maxDynamicSceneObjects,
+                        uploadState.pendingSceneDirtyStarts().length,
+                        lastFrameGlobalUploadBytes,
+                        maxFrameGlobalUploadBytes,
+                        lastFrameUniformUploadBytes,
+                        maxFrameUniformUploadBytes,
+                        lastFrameUniformObjectCount,
+                        maxFrameUniformObjectCount,
+                        lastFrameUniformUploadRanges,
+                        maxFrameUniformUploadRanges,
+                        lastFrameUniformUploadStartObject,
+                        uploadState.pendingUploadRangeOverflowCount(),
+                        descriptorRingSetCapacity,
+                        descriptorRingPeakSetCapacity,
+                        descriptorRingActiveSetCount,
+                        descriptorRingWasteSetCount,
+                        descriptorRingPeakWasteSetCount,
+                        descriptorRingMaxSetCapacity,
+                        descriptorRingReuseHitCount,
+                        descriptorRingGrowthRebuildCount,
+                        descriptorRingSteadyRebuildCount,
+                        descriptorRingPoolReuseCount,
+                        descriptorRingPoolResetFailureCount,
+                        descriptorRingCapBypassCount,
+                        dynamicUploadMergeGapObjects,
+                        dynamicObjectSoftLimit,
+                        uploadState.maxObservedDynamicObjects(),
+                        objectUniformStagingMappedAddress != 0L && sceneGlobalUniformStagingMappedAddress != 0L
+                )
         );
     }
 
     ShadowCascadeProfile shadowCascadeProfile() {
-        return new ShadowCascadeProfile(
-                shadowEnabled,
-                shadowCascadeCount,
-                shadowMapResolution,
-                shadowPcfRadius,
-                shadowBias,
-                shadowCascadeSplitNdc[0],
-                shadowCascadeSplitNdc[1],
-                shadowCascadeSplitNdc[2]
+        return VulkanContextProfileCoordinator.shadowCascade(
+                new VulkanContextProfileCoordinator.ShadowRequest(
+                        shadowEnabled,
+                        shadowCascadeCount,
+                        shadowMapResolution,
+                        shadowPcfRadius,
+                        shadowBias,
+                        shadowCascadeSplitNdc
+                )
         );
     }
 
     PostProcessPipelineProfile postProcessPipelineProfile() {
-        String mode = postOffscreenActive ? "offscreen" : "shader-fallback";
-        return new PostProcessPipelineProfile(postOffscreenRequested, postOffscreenActive, mode);
+        return VulkanContextProfileCoordinator.postProcess(
+                new VulkanContextProfileCoordinator.PostRequest(postOffscreenRequested, postOffscreenActive)
+        );
     }
 
     void setSceneMeshes(List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
-        List<VulkanSceneMeshData> safe = (sceneMeshes == null || sceneMeshes.isEmpty())
-                ? List.of(VulkanSceneMeshData.defaultTriangle())
-                : List.copyOf(sceneMeshes);
+        VulkanSceneSetPlanner.Plan plan = VulkanSceneSetPlanner.plan(gpuMeshes, sceneMeshes, this::textureCacheKey);
+        List<VulkanSceneMeshData> safe = plan.sceneMeshes();
         pendingSceneMeshes = safe;
         if (device == null) {
             return;
         }
-        if (VulkanSceneReusePolicy.canReuseGpuMeshes(gpuMeshes, safe, this::textureCacheKey)) {
+        if (plan.action() == VulkanSceneSetPlanner.Action.REUSE_DYNAMIC_ONLY) {
             sceneReuseHitCount++;
             descriptorRingReuseHitCount++;
-            updateDynamicSceneState(safe);
+            var dynamicResult = VulkanSceneRuntimeCoordinator.updateDynamicState(gpuMeshes, safe);
+            if (dynamicResult.reordered()) {
+                sceneReorderReuseCount++;
+            }
+            if (dynamicResult.dirtyEnd() >= dynamicResult.dirtyStart()) {
+                markSceneStateDirty(dynamicResult.dirtyStart(), dynamicResult.dirtyEnd());
+            }
             return;
         }
-        if (VulkanSceneReusePolicy.canReuseGeometryBuffers(gpuMeshes, safe)) {
+        if (plan.action() == VulkanSceneSetPlanner.Action.REUSE_GEOMETRY_REBIND_TEXTURES) {
             sceneReuseHitCount++;
             sceneTextureRebindCount++;
             descriptorRingReuseHitCount++;
-            rebindSceneTexturesAndDynamicState(safe);
+            var rebindResult = VulkanSceneRuntimeCoordinator.rebind(
+                    new VulkanSceneRuntimeCoordinator.RebindRequest(
+                            device,
+                            safe,
+                            gpuMeshes,
+                            iblIrradianceTexture,
+                            iblRadianceTexture,
+                            iblBrdfLutTexture,
+                            iblIrradiancePath,
+                            iblRadiancePath,
+                            iblBrdfLutPath,
+                            this::createTextureFromPath,
+                            this::resolveOrCreateTexture,
+                            this::textureCacheKey,
+                            this::refreshTextureDescriptorSets,
+                            this::markSceneStateDirty
+                    )
+            );
+            iblIrradianceTexture = rebindResult.iblIrradianceTexture();
+            iblRadianceTexture = rebindResult.iblRadianceTexture();
+            iblBrdfLutTexture = rebindResult.iblBrdfLutTexture();
             return;
         }
         sceneFullRebuildCount++;
@@ -686,20 +470,13 @@ final class VulkanContext {
     }
 
     void setCameraMatrices(float[] view, float[] proj) {
-        boolean changed = false;
-        if (view != null && view.length == 16) {
-            if (!Arrays.equals(viewMatrix, view)) {
-                viewMatrix = view.clone();
-                changed = true;
-            }
-        }
-        if (proj != null && proj.length == 16) {
-            if (!Arrays.equals(projMatrix, proj)) {
-                projMatrix = proj.clone();
-                changed = true;
-            }
-        }
-        if (changed) {
+        var result = VulkanRenderParameterMutator.applyCameraMatrices(
+                new VulkanRenderParameterMutator.CameraState(viewMatrix, projMatrix),
+                new VulkanRenderParameterMutator.CameraUpdate(view, proj)
+        );
+        viewMatrix = result.state().view();
+        projMatrix = result.state().proj();
+        if (result.changed()) {
             markGlobalStateDirty();
         }
     }
@@ -718,201 +495,128 @@ final class VulkanContext {
             float pointRange,
             boolean pointCastsShadows
     ) {
-        boolean changed = false;
-        if (dirDir != null && dirDir.length == 3) {
-            if (!floatEquals(dirLightDirX, dirDir[0]) || !floatEquals(dirLightDirY, dirDir[1]) || !floatEquals(dirLightDirZ, dirDir[2])) {
-                dirLightDirX = dirDir[0];
-                dirLightDirY = dirDir[1];
-                dirLightDirZ = dirDir[2];
-                changed = true;
-            }
-        }
-        if (dirColor != null && dirColor.length == 3) {
-            if (!floatEquals(dirLightColorR, dirColor[0]) || !floatEquals(dirLightColorG, dirColor[1]) || !floatEquals(dirLightColorB, dirColor[2])) {
-                dirLightColorR = dirColor[0];
-                dirLightColorG = dirColor[1];
-                dirLightColorB = dirColor[2];
-                changed = true;
-            }
-        }
-        float clampedDirIntensity = Math.max(0f, dirIntensity);
-        if (!floatEquals(dirLightIntensity, clampedDirIntensity)) {
-            dirLightIntensity = clampedDirIntensity;
-            changed = true;
-        }
-        if (pointPos != null && pointPos.length == 3) {
-            if (!floatEquals(pointLightPosX, pointPos[0]) || !floatEquals(pointLightPosY, pointPos[1]) || !floatEquals(pointLightPosZ, pointPos[2])) {
-                pointLightPosX = pointPos[0];
-                pointLightPosY = pointPos[1];
-                pointLightPosZ = pointPos[2];
-                changed = true;
-            }
-        }
-        if (pointColor != null && pointColor.length == 3) {
-            if (!floatEquals(pointLightColorR, pointColor[0]) || !floatEquals(pointLightColorG, pointColor[1]) || !floatEquals(pointLightColorB, pointColor[2])) {
-                pointLightColorR = pointColor[0];
-                pointLightColorG = pointColor[1];
-                pointLightColorB = pointColor[2];
-                changed = true;
-            }
-        }
-        float clampedPointIntensity = Math.max(0f, pointIntensity);
-        if (!floatEquals(pointLightIntensity, clampedPointIntensity)) {
-            pointLightIntensity = clampedPointIntensity;
-            changed = true;
-        }
-        if (pointDirection != null && pointDirection.length == 3) {
-            float[] normalized = normalize3(pointDirection[0], pointDirection[1], pointDirection[2]);
-            if (!floatEquals(pointLightDirX, normalized[0]) || !floatEquals(pointLightDirY, normalized[1]) || !floatEquals(pointLightDirZ, normalized[2])) {
-                pointLightDirX = normalized[0];
-                pointLightDirY = normalized[1];
-                pointLightDirZ = normalized[2];
-                changed = true;
-            }
-        }
-        float clampedInner = clamp01(pointInnerCos);
-        float clampedOuter = clamp01(pointOuterCos);
-        if (clampedOuter > clampedInner) {
-            clampedOuter = clampedInner;
-        }
-        if (!floatEquals(pointLightInnerCos, clampedInner) || !floatEquals(pointLightOuterCos, clampedOuter)) {
-            pointLightInnerCos = clampedInner;
-            pointLightOuterCos = clampedOuter;
-            changed = true;
-        }
-        float spotValue = pointIsSpot ? 1f : 0f;
-        if (!floatEquals(pointLightIsSpot, spotValue)) {
-            pointLightIsSpot = spotValue;
-            changed = true;
-        }
-        float clampedRange = Math.max(1.0f, pointRange);
-        if (!floatEquals(pointShadowFarPlane, clampedRange)) {
-            pointShadowFarPlane = clampedRange;
-            changed = true;
-        }
-        if (pointShadowEnabled != pointCastsShadows) {
-            pointShadowEnabled = pointCastsShadows;
-            changed = true;
-        }
-        if (changed) {
+        var result = VulkanLightingParameterMutator.applyLighting(
+                new VulkanLightingParameterMutator.LightingState(
+                        dirLightDirX, dirLightDirY, dirLightDirZ,
+                        dirLightColorR, dirLightColorG, dirLightColorB,
+                        dirLightIntensity,
+                        pointLightPosX, pointLightPosY, pointLightPosZ,
+                        pointLightColorR, pointLightColorG, pointLightColorB,
+                        pointLightIntensity,
+                        pointLightDirX, pointLightDirY, pointLightDirZ,
+                        pointLightInnerCos, pointLightOuterCos, pointLightIsSpot,
+                        pointShadowFarPlane, pointShadowEnabled
+                ),
+                new VulkanLightingParameterMutator.LightingUpdate(
+                        dirDir, dirColor, dirIntensity,
+                        pointPos, pointColor, pointIntensity,
+                        pointDirection, pointInnerCos, pointOuterCos, pointIsSpot, pointRange, pointCastsShadows
+                )
+        );
+        var state = result.state();
+        dirLightDirX = state.dirLightDirX();
+        dirLightDirY = state.dirLightDirY();
+        dirLightDirZ = state.dirLightDirZ();
+        dirLightColorR = state.dirLightColorR();
+        dirLightColorG = state.dirLightColorG();
+        dirLightColorB = state.dirLightColorB();
+        dirLightIntensity = state.dirLightIntensity();
+        pointLightPosX = state.pointLightPosX();
+        pointLightPosY = state.pointLightPosY();
+        pointLightPosZ = state.pointLightPosZ();
+        pointLightColorR = state.pointLightColorR();
+        pointLightColorG = state.pointLightColorG();
+        pointLightColorB = state.pointLightColorB();
+        pointLightIntensity = state.pointLightIntensity();
+        pointLightDirX = state.pointLightDirX();
+        pointLightDirY = state.pointLightDirY();
+        pointLightDirZ = state.pointLightDirZ();
+        pointLightInnerCos = state.pointLightInnerCos();
+        pointLightOuterCos = state.pointLightOuterCos();
+        pointLightIsSpot = state.pointLightIsSpot();
+        pointShadowFarPlane = state.pointShadowFarPlane();
+        pointShadowEnabled = state.pointShadowEnabled();
+        if (result.changed()) {
             markGlobalStateDirty();
         }
     }
 
     void setShadowParameters(boolean enabled, float strength, float bias, int pcfRadius, int cascadeCount, int mapResolution)
             throws EngineException {
-        boolean changed = false;
-        if (shadowEnabled != enabled) {
-            shadowEnabled = enabled;
-            changed = true;
-        }
-        float clampedStrength = Math.max(0f, Math.min(1f, strength));
-        if (!floatEquals(shadowStrength, clampedStrength)) {
-            shadowStrength = clampedStrength;
-            changed = true;
-        }
-        float clampedBias = Math.max(0.00002f, bias);
-        if (!floatEquals(shadowBias, clampedBias)) {
-            shadowBias = clampedBias;
-            changed = true;
-        }
-        int clampedPcf = Math.max(0, pcfRadius);
-        if (shadowPcfRadius != clampedPcf) {
-            shadowPcfRadius = clampedPcf;
-            changed = true;
-        }
-        int clampedCascadeCount = Math.max(1, Math.min(MAX_SHADOW_MATRICES, cascadeCount));
-        if (shadowCascadeCount != clampedCascadeCount) {
-            shadowCascadeCount = clampedCascadeCount;
-            changed = true;
-        }
-        int clampedResolution = Math.max(256, Math.min(4096, mapResolution));
-        if (shadowMapResolution != clampedResolution) {
-            shadowMapResolution = clampedResolution;
-            changed = true;
-            if (device != null) {
-                vkDeviceWaitIdle(device);
-                try (MemoryStack stack = stackPush()) {
-                    destroyShadowResources();
-                    createShadowResources(stack);
-                    if (!gpuMeshes.isEmpty()) {
-                        createTextureDescriptorSets(stack);
-                    }
+        var result = VulkanLightingParameterMutator.applyShadow(
+                new VulkanLightingParameterMutator.ShadowState(
+                        shadowEnabled, shadowStrength, shadowBias, shadowPcfRadius, shadowCascadeCount, shadowMapResolution
+                ),
+                new VulkanLightingParameterMutator.ShadowUpdate(
+                        enabled, strength, bias, pcfRadius, cascadeCount, mapResolution, MAX_SHADOW_MATRICES
+                )
+        );
+        var state = result.state();
+        shadowEnabled = state.shadowEnabled();
+        shadowStrength = state.shadowStrength();
+        shadowBias = state.shadowBias();
+        shadowPcfRadius = state.shadowPcfRadius();
+        shadowCascadeCount = state.shadowCascadeCount();
+        shadowMapResolution = state.shadowMapResolution();
+        if (result.resolutionChanged() && device != null) {
+            vkDeviceWaitIdle(device);
+            try (MemoryStack stack = stackPush()) {
+                destroyShadowResources();
+                createShadowResources(stack);
+                if (!gpuMeshes.isEmpty()) {
+                    createTextureDescriptorSets(stack);
                 }
             }
         }
-        if (changed) {
+        if (result.changed()) {
             markGlobalStateDirty();
         }
     }
 
     void setFogParameters(boolean enabled, float r, float g, float b, float density, int steps) {
-        boolean changed = false;
-        if (fogEnabled != enabled) {
-            fogEnabled = enabled;
-            changed = true;
-        }
-        if (!floatEquals(fogR, r) || !floatEquals(fogG, g) || !floatEquals(fogB, b)) {
-            fogR = r;
-            fogG = g;
-            fogB = b;
-            changed = true;
-        }
-        float clampedDensity = Math.max(0f, density);
-        if (!floatEquals(fogDensity, clampedDensity)) {
-            fogDensity = clampedDensity;
-            changed = true;
-        }
-        int clampedSteps = Math.max(0, steps);
-        if (fogSteps != clampedSteps) {
-            fogSteps = clampedSteps;
-            changed = true;
-        }
-        if (changed) {
+        var result = VulkanRenderParameterMutator.applyFog(
+                new VulkanRenderParameterMutator.FogState(fogEnabled, fogR, fogG, fogB, fogDensity, fogSteps),
+                new VulkanRenderParameterMutator.FogUpdate(enabled, r, g, b, density, steps)
+        );
+        var state = result.state();
+        fogEnabled = state.enabled();
+        fogR = state.r();
+        fogG = state.g();
+        fogB = state.b();
+        fogDensity = state.density();
+        fogSteps = state.steps();
+        if (result.changed()) {
             markGlobalStateDirty();
         }
     }
 
     void setSmokeParameters(boolean enabled, float r, float g, float b, float intensity) {
-        boolean changed = false;
-        if (smokeEnabled != enabled) {
-            smokeEnabled = enabled;
-            changed = true;
-        }
-        if (!floatEquals(smokeR, r) || !floatEquals(smokeG, g) || !floatEquals(smokeB, b)) {
-            smokeR = r;
-            smokeG = g;
-            smokeB = b;
-            changed = true;
-        }
-        float clampedIntensity = Math.max(0f, Math.min(1f, intensity));
-        if (!floatEquals(smokeIntensity, clampedIntensity)) {
-            smokeIntensity = clampedIntensity;
-            changed = true;
-        }
-        if (changed) {
+        var result = VulkanRenderParameterMutator.applySmoke(
+                new VulkanRenderParameterMutator.SmokeState(smokeEnabled, smokeR, smokeG, smokeB, smokeIntensity),
+                new VulkanRenderParameterMutator.SmokeUpdate(enabled, r, g, b, intensity)
+        );
+        var state = result.state();
+        smokeEnabled = state.enabled();
+        smokeR = state.r();
+        smokeG = state.g();
+        smokeB = state.b();
+        smokeIntensity = state.intensity();
+        if (result.changed()) {
             markGlobalStateDirty();
         }
     }
 
     void setIblParameters(boolean enabled, float diffuseStrength, float specularStrength, float prefilterStrength) {
-        boolean changed = false;
-        if (iblEnabled != enabled) {
-            iblEnabled = enabled;
-            changed = true;
-        }
-        float clampedDiffuse = Math.max(0f, Math.min(2.0f, diffuseStrength));
-        float clampedSpecular = Math.max(0f, Math.min(2.0f, specularStrength));
-        float clampedPrefilter = Math.max(0f, Math.min(1.0f, prefilterStrength));
-        if (!floatEquals(iblDiffuseStrength, clampedDiffuse)
-                || !floatEquals(iblSpecularStrength, clampedSpecular)
-                || !floatEquals(iblPrefilterStrength, clampedPrefilter)) {
-            iblDiffuseStrength = clampedDiffuse;
-            iblSpecularStrength = clampedSpecular;
-            iblPrefilterStrength = clampedPrefilter;
-            changed = true;
-        }
-        if (changed) {
+        var result = VulkanRenderParameterMutator.applyIbl(
+                new VulkanRenderParameterMutator.IblState(iblEnabled, iblDiffuseStrength, iblSpecularStrength, iblPrefilterStrength),
+                new VulkanRenderParameterMutator.IblUpdate(enabled, diffuseStrength, specularStrength, prefilterStrength)
+        );
+        var state = result.state();
+        iblEnabled = state.enabled();
+        iblDiffuseStrength = state.diffuseStrength();
+        iblSpecularStrength = state.specularStrength();
+        iblPrefilterStrength = state.prefilterStrength();
+        if (result.changed()) {
             markGlobalStateDirty();
         }
     }
@@ -931,30 +635,32 @@ final class VulkanContext {
             float bloomThreshold,
             float bloomStrength
     ) {
-        boolean changed = false;
-        if (this.tonemapEnabled != tonemapEnabled) {
-            this.tonemapEnabled = tonemapEnabled;
-            changed = true;
-        }
-        float clampedExposure = Math.max(0.05f, Math.min(8.0f, exposure));
-        float clampedGamma = Math.max(0.8f, Math.min(3.2f, gamma));
-        if (!floatEquals(tonemapExposure, clampedExposure) || !floatEquals(tonemapGamma, clampedGamma)) {
-            tonemapExposure = clampedExposure;
-            tonemapGamma = clampedGamma;
-            changed = true;
-        }
-        if (this.bloomEnabled != bloomEnabled) {
-            this.bloomEnabled = bloomEnabled;
-            changed = true;
-        }
-        float clampedThreshold = Math.max(0f, Math.min(4.0f, bloomThreshold));
-        float clampedStrength = Math.max(0f, Math.min(2.0f, bloomStrength));
-        if (!floatEquals(this.bloomThreshold, clampedThreshold) || !floatEquals(this.bloomStrength, clampedStrength)) {
-            this.bloomThreshold = clampedThreshold;
-            this.bloomStrength = clampedStrength;
-            changed = true;
-        }
-        if (changed) {
+        var result = VulkanRenderParameterMutator.applyPost(
+                new VulkanRenderParameterMutator.PostState(
+                        this.tonemapEnabled,
+                        tonemapExposure,
+                        tonemapGamma,
+                        this.bloomEnabled,
+                        this.bloomThreshold,
+                        this.bloomStrength
+                ),
+                new VulkanRenderParameterMutator.PostUpdate(
+                        tonemapEnabled,
+                        exposure,
+                        gamma,
+                        bloomEnabled,
+                        bloomThreshold,
+                        bloomStrength
+                )
+        );
+        var state = result.state();
+        this.tonemapEnabled = state.tonemapEnabled();
+        tonemapExposure = state.exposure();
+        tonemapGamma = state.gamma();
+        this.bloomEnabled = state.bloomEnabled();
+        this.bloomThreshold = state.bloomThreshold();
+        this.bloomStrength = state.bloomStrength();
+        if (result.changed()) {
             markGlobalStateDirty();
         }
     }
@@ -970,59 +676,38 @@ final class VulkanContext {
     }
 
     void shutdown() {
-        if (device != null) {
-            vkDeviceWaitIdle(device);
-        }
-
-        if (device != null) {
-            VulkanFrameSyncResources.destroy(
-                    device,
-                    new VulkanFrameSyncResources.Allocation(
-                            commandPool,
-                            commandBuffers,
-                            imageAvailableSemaphores,
-                            renderFinishedSemaphores,
-                            renderFences
-                    )
-            );
-        }
-        renderFences = new long[0];
-        renderFinishedSemaphores = new long[0];
-        imageAvailableSemaphores = new long[0];
-
-        commandBuffers = new VkCommandBuffer[0];
-        destroySceneMeshes();
-        destroyShadowResources();
-        commandPool = VK_NULL_HANDLE;
-
-        destroySwapchainResources();
-        destroyDescriptorResources();
-
-        if (device != null) {
-            vkDestroyDevice(device, null);
-            device = null;
-        }
-        if (surface != VK_NULL_HANDLE && instance != null) {
-            vkDestroySurfaceKHR(instance, surface, null);
-            surface = VK_NULL_HANDLE;
-        }
-        if (instance != null) {
-            vkDestroyInstance(instance, null);
-            instance = null;
-        }
-        physicalDevice = null;
-        graphicsQueue = null;
-        graphicsQueueFamilyIndex = -1;
-
-        if (window != VK_NULL_HANDLE) {
-            glfwDestroyWindow(window);
-            window = VK_NULL_HANDLE;
-        }
-        glfwTerminate();
-        GLFWErrorCallback callback = org.lwjgl.glfw.GLFW.glfwSetErrorCallback(null);
-        if (callback != null) {
-            callback.free();
-        }
+        VulkanShutdownCoordinator.Result result = VulkanShutdownCoordinator.shutdown(
+                new VulkanShutdownCoordinator.Inputs(
+                        instance,
+                        physicalDevice,
+                        device,
+                        graphicsQueue,
+                        graphicsQueueFamilyIndex,
+                        window,
+                        surface,
+                        commandPool,
+                        commandBuffers,
+                        imageAvailableSemaphores,
+                        renderFinishedSemaphores,
+                        renderFences,
+                        this::destroySceneMeshes,
+                        this::destroyShadowResources,
+                        this::destroySwapchainResources,
+                        this::destroyDescriptorResources
+                )
+        );
+        instance = result.instance();
+        physicalDevice = result.physicalDevice();
+        device = result.device();
+        graphicsQueue = result.graphicsQueue();
+        graphicsQueueFamilyIndex = result.graphicsQueueFamilyIndex();
+        window = result.window();
+        surface = result.surface();
+        commandPool = result.commandPool();
+        commandBuffers = result.commandBuffers();
+        imageAvailableSemaphores = result.imageAvailableSemaphores();
+        renderFinishedSemaphores = result.renderFinishedSemaphores();
+        renderFences = result.renderFences();
     }
 
     private void createDescriptorResources(MemoryStack stack) throws EngineException {
@@ -1060,180 +745,112 @@ final class VulkanContext {
         if (device == null) {
             return;
         }
-        destroyDescriptorAllocation();
-        resetDescriptorUniformState();
-        resetDescriptorUploadTrackingState();
-        resetDescriptorPoolState();
-    }
-
-    private void destroyDescriptorAllocation() {
-        VulkanDescriptorResources.destroy(
-                device,
-                new VulkanDescriptorResources.Allocation(
-                        descriptorSetLayout,
-                        textureDescriptorSetLayout,
-                        descriptorPool,
-                        frameDescriptorSets,
-                        objectUniformBuffer,
-                        objectUniformMemory,
-                        objectUniformStagingBuffer,
-                        objectUniformStagingMemory,
-                        objectUniformStagingMappedAddress,
-                        sceneGlobalUniformBuffer,
-                        sceneGlobalUniformMemory,
-                        sceneGlobalUniformStagingBuffer,
-                        sceneGlobalUniformStagingMemory,
-                        sceneGlobalUniformStagingMappedAddress,
-                        uniformStrideBytes,
-                        uniformFrameSpanBytes,
-                        globalUniformFrameSpanBytes,
-                        estimatedGpuMemoryBytes
+        VulkanDescriptorLifecycleCoordinator.ResetState state = VulkanDescriptorLifecycleCoordinator.destroyAndReset(
+                new VulkanDescriptorLifecycleCoordinator.DestroyRequest(
+                        device,
+                        new VulkanDescriptorResources.Allocation(
+                                descriptorSetLayout,
+                                textureDescriptorSetLayout,
+                                descriptorPool,
+                                frameDescriptorSets,
+                                objectUniformBuffer,
+                                objectUniformMemory,
+                                objectUniformStagingBuffer,
+                                objectUniformStagingMemory,
+                                objectUniformStagingMappedAddress,
+                                sceneGlobalUniformBuffer,
+                                sceneGlobalUniformMemory,
+                                sceneGlobalUniformStagingBuffer,
+                                sceneGlobalUniformStagingMemory,
+                                sceneGlobalUniformStagingMappedAddress,
+                                uniformStrideBytes,
+                                uniformFrameSpanBytes,
+                                globalUniformFrameSpanBytes,
+                                estimatedGpuMemoryBytes
+                        ),
+                        OBJECT_UNIFORM_BYTES,
+                        GLOBAL_SCENE_UNIFORM_BYTES
                 )
         );
-    }
-
-    private void resetDescriptorUniformState() {
-        objectUniformBuffer = VK_NULL_HANDLE;
-        objectUniformMemory = VK_NULL_HANDLE;
-        objectUniformStagingBuffer = VK_NULL_HANDLE;
-        objectUniformStagingMemory = VK_NULL_HANDLE;
-        objectUniformStagingMappedAddress = 0L;
-        sceneGlobalUniformBuffer = VK_NULL_HANDLE;
-        sceneGlobalUniformMemory = VK_NULL_HANDLE;
-        sceneGlobalUniformStagingBuffer = VK_NULL_HANDLE;
-        sceneGlobalUniformStagingMemory = VK_NULL_HANDLE;
-        sceneGlobalUniformStagingMappedAddress = 0L;
-        uniformStrideBytes = OBJECT_UNIFORM_BYTES;
-        uniformFrameSpanBytes = OBJECT_UNIFORM_BYTES;
-        globalUniformFrameSpanBytes = GLOBAL_SCENE_UNIFORM_BYTES;
-        estimatedGpuMemoryBytes = 0;
-    }
-
-    private void resetDescriptorUploadTrackingState() {
-        lastFrameUniformUploadBytes = 0;
-        maxFrameUniformUploadBytes = 0;
-        lastFrameGlobalUploadBytes = 0;
-        maxFrameGlobalUploadBytes = 0;
-        lastFrameUniformObjectCount = 0;
-        maxFrameUniformObjectCount = 0;
-        lastFrameUniformUploadRanges = 0;
-        maxFrameUniformUploadRanges = 0;
-        lastFrameUniformUploadStartObject = 0;
-        maxObservedDynamicObjects = 0;
-        pendingUploadSrcOffset = -1L;
-        pendingUploadDstOffset = -1L;
-        pendingUploadByteCount = 0;
-        pendingUploadObjectCount = 0;
-        pendingUploadStartObject = 0;
-        pendingGlobalUploadSrcOffset = -1L;
-        pendingGlobalUploadDstOffset = -1L;
-        pendingGlobalUploadByteCount = 0;
-        pendingSceneDirtyRangeCount = 0;
-        globalStateRevision = 1;
-        sceneStateRevision = 1;
-        Arrays.fill(frameGlobalRevisionApplied, 0L);
-        Arrays.fill(frameSceneRevisionApplied, 0L);
-    }
-
-    private void resetDescriptorPoolState() {
-        frameDescriptorSets = new long[0];
-        descriptorSet = VK_NULL_HANDLE;
-        descriptorRingSetCapacity = 0;
-        descriptorRingPeakSetCapacity = 0;
-        descriptorRingActiveSetCount = 0;
-        descriptorRingWasteSetCount = 0;
-        descriptorRingPeakWasteSetCount = 0;
-        descriptorRingCapBypassCount = 0;
-        descriptorRingPoolReuseCount = 0;
-        descriptorRingPoolResetFailureCount = 0;
-        descriptorPool = VK_NULL_HANDLE;
-        descriptorSetLayout = VK_NULL_HANDLE;
-        textureDescriptorSetLayout = VK_NULL_HANDLE;
+        objectUniformBuffer = state.objectUniformBuffer();
+        objectUniformMemory = state.objectUniformMemory();
+        objectUniformStagingBuffer = state.objectUniformStagingBuffer();
+        objectUniformStagingMemory = state.objectUniformStagingMemory();
+        objectUniformStagingMappedAddress = state.objectUniformStagingMappedAddress();
+        sceneGlobalUniformBuffer = state.sceneGlobalUniformBuffer();
+        sceneGlobalUniformMemory = state.sceneGlobalUniformMemory();
+        sceneGlobalUniformStagingBuffer = state.sceneGlobalUniformStagingBuffer();
+        sceneGlobalUniformStagingMemory = state.sceneGlobalUniformStagingMemory();
+        sceneGlobalUniformStagingMappedAddress = state.sceneGlobalUniformStagingMappedAddress();
+        uniformStrideBytes = state.uniformStrideBytes();
+        uniformFrameSpanBytes = state.uniformFrameSpanBytes();
+        globalUniformFrameSpanBytes = state.globalUniformFrameSpanBytes();
+        estimatedGpuMemoryBytes = state.estimatedGpuMemoryBytes();
+        frameDescriptorSets = state.frameDescriptorSets();
+        descriptorSet = state.descriptorSet();
+        descriptorRingSetCapacity = state.descriptorRingSetCapacity();
+        descriptorRingPeakSetCapacity = state.descriptorRingPeakSetCapacity();
+        descriptorRingActiveSetCount = state.descriptorRingActiveSetCount();
+        descriptorRingWasteSetCount = state.descriptorRingWasteSetCount();
+        descriptorRingPeakWasteSetCount = state.descriptorRingPeakWasteSetCount();
+        descriptorRingCapBypassCount = state.descriptorRingCapBypassCount();
+        descriptorRingPoolReuseCount = state.descriptorRingPoolReuseCount();
+        descriptorRingPoolResetFailureCount = state.descriptorRingPoolResetFailureCount();
+        descriptorPool = state.descriptorPool();
+        descriptorSetLayout = state.descriptorSetLayout();
+        textureDescriptorSetLayout = state.textureDescriptorSetLayout();
+        lastFrameUniformUploadBytes = state.lastFrameUniformUploadBytes();
+        maxFrameUniformUploadBytes = state.maxFrameUniformUploadBytes();
+        lastFrameGlobalUploadBytes = state.lastFrameGlobalUploadBytes();
+        maxFrameGlobalUploadBytes = state.maxFrameGlobalUploadBytes();
+        lastFrameUniformObjectCount = state.lastFrameUniformObjectCount();
+        maxFrameUniformObjectCount = state.maxFrameUniformObjectCount();
+        lastFrameUniformUploadRanges = state.lastFrameUniformUploadRanges();
+        maxFrameUniformUploadRanges = state.maxFrameUniformUploadRanges();
+        lastFrameUniformUploadStartObject = state.lastFrameUniformUploadStartObject();
+        uploadState.reset();
     }
 
     private void createSwapchainResources(MemoryStack stack, int requestedWidth, int requestedHeight) throws EngineException {
         postIntermediateInitialized = false;
-        VulkanSwapchainResourceCoordinator.Allocation allocation = VulkanSwapchainResourceCoordinator.create(
-                createSwapchainResourceInputs(stack, requestedWidth, requestedHeight)
+        VulkanSwapchainLifecycleCoordinator.State state = VulkanSwapchainLifecycleCoordinator.create(
+                new VulkanSwapchainLifecycleCoordinator.CreateRequest(
+                        physicalDevice,
+                        device,
+                        stack,
+                        surface,
+                        requestedWidth,
+                        requestedHeight,
+                        depthFormat,
+                        VERTEX_STRIDE_BYTES,
+                        descriptorSetLayout,
+                        textureDescriptorSetLayout,
+                        postOffscreenRequested
+                )
         );
-        applySwapchainAllocation(allocation);
-    }
-
-    private VulkanSwapchainResourceCoordinator.CreateInputs createSwapchainResourceInputs(
-            MemoryStack stack,
-            int requestedWidth,
-            int requestedHeight
-    ) {
-        return new VulkanSwapchainResourceCoordinator.CreateInputs(
-                physicalDevice,
-                device,
-                stack,
-                surface,
-                requestedWidth,
-                requestedHeight,
-                depthFormat,
-                VERTEX_STRIDE_BYTES,
-                descriptorSetLayout,
-                textureDescriptorSetLayout,
-                postOffscreenRequested
-        );
-    }
-
-    private void applySwapchainAllocation(VulkanSwapchainResourceCoordinator.Allocation allocation) {
-        swapchain = allocation.swapchain();
-        swapchainImageFormat = allocation.swapchainImageFormat();
-        swapchainWidth = allocation.swapchainWidth();
-        swapchainHeight = allocation.swapchainHeight();
-        swapchainImages = allocation.swapchainImages();
-        swapchainImageViews = allocation.swapchainImageViews();
-        depthImages = allocation.depthImages();
-        depthMemories = allocation.depthMemories();
-        depthImageViews = allocation.depthImageViews();
-        renderPass = allocation.renderPass();
-        pipelineLayout = allocation.pipelineLayout();
-        graphicsPipeline = allocation.graphicsPipeline();
-        framebuffers = allocation.framebuffers();
-        postOffscreenActive = allocation.postOffscreenActive();
-        VulkanPostProcessResources.Allocation postResources = allocation.postProcessResources();
-        offscreenColorImage = postResources.offscreenColorImage();
-        offscreenColorMemory = postResources.offscreenColorMemory();
-        offscreenColorImageView = postResources.offscreenColorImageView();
-        offscreenColorSampler = postResources.offscreenColorSampler();
-        postDescriptorSetLayout = postResources.postDescriptorSetLayout();
-        postDescriptorPool = postResources.postDescriptorPool();
-        postDescriptorSet = postResources.postDescriptorSet();
-        postRenderPass = postResources.postRenderPass();
-        postPipelineLayout = postResources.postPipelineLayout();
-        postGraphicsPipeline = postResources.postGraphicsPipeline();
-        postFramebuffers = postResources.postFramebuffers();
+        applySwapchainState(state);
     }
 
     private void createShadowResources(MemoryStack stack) throws EngineException {
-        VulkanShadowResources.Allocation shadowResources = VulkanShadowResources.create(
-                device,
-                physicalDevice,
-                stack,
-                depthFormat,
-                shadowMapResolution,
-                MAX_SHADOW_MATRICES,
-                VERTEX_STRIDE_BYTES,
-                descriptorSetLayout
+        VulkanShadowLifecycleCoordinator.State state = VulkanShadowLifecycleCoordinator.create(
+                new VulkanShadowLifecycleCoordinator.CreateRequest(
+                        device,
+                        physicalDevice,
+                        stack,
+                        depthFormat,
+                        shadowMapResolution,
+                        MAX_SHADOW_MATRICES,
+                        VERTEX_STRIDE_BYTES,
+                        descriptorSetLayout
+                )
         );
-        shadowDepthImage = shadowResources.shadowDepthImage();
-        shadowDepthMemory = shadowResources.shadowDepthMemory();
-        shadowDepthImageView = shadowResources.shadowDepthImageView();
-        shadowDepthLayerImageViews = shadowResources.shadowDepthLayerImageViews();
-        shadowSampler = shadowResources.shadowSampler();
-        shadowRenderPass = shadowResources.shadowRenderPass();
-        shadowPipelineLayout = shadowResources.shadowPipelineLayout();
-        shadowPipeline = shadowResources.shadowPipeline();
-        shadowFramebuffers = shadowResources.shadowFramebuffers();
+        applyShadowState(state);
     }
 
     private void destroyShadowResources() {
-        VulkanShadowResources.destroy(
-                device,
-                new VulkanShadowResources.Allocation(
+        VulkanShadowLifecycleCoordinator.State state = VulkanShadowLifecycleCoordinator.destroy(
+                new VulkanShadowLifecycleCoordinator.DestroyRequest(
+                        device,
                         shadowDepthImage,
                         shadowDepthMemory,
                         shadowDepthImageView,
@@ -1245,37 +862,37 @@ final class VulkanContext {
                         shadowFramebuffers
                 )
         );
-        shadowFramebuffers = new long[0];
-        shadowPipeline = VK_NULL_HANDLE;
-        shadowPipelineLayout = VK_NULL_HANDLE;
-        shadowRenderPass = VK_NULL_HANDLE;
-        shadowSampler = VK_NULL_HANDLE;
-        shadowDepthImageView = VK_NULL_HANDLE;
-        shadowDepthLayerImageViews = new long[0];
-        shadowDepthImage = VK_NULL_HANDLE;
-        shadowDepthMemory = VK_NULL_HANDLE;
+        applyShadowState(state);
+    }
+
+    private void applyShadowState(VulkanShadowLifecycleCoordinator.State state) {
+        shadowDepthImage = state.shadowDepthImage();
+        shadowDepthMemory = state.shadowDepthMemory();
+        shadowDepthImageView = state.shadowDepthImageView();
+        shadowDepthLayerImageViews = state.shadowDepthLayerImageViews();
+        shadowSampler = state.shadowSampler();
+        shadowRenderPass = state.shadowRenderPass();
+        shadowPipelineLayout = state.shadowPipelineLayout();
+        shadowPipeline = state.shadowPipeline();
+        shadowFramebuffers = state.shadowFramebuffers();
     }
 
     private void destroySwapchainResources() {
-        VulkanSwapchainDestroyCoordinator.Result result = VulkanSwapchainDestroyCoordinator.destroy(
-                createSwapchainDestroyInputs()
-        );
-        applySwapchainDestroyResult(result);
-    }
-
-    private VulkanSwapchainDestroyCoordinator.DestroyInputs createSwapchainDestroyInputs() {
-        return new VulkanSwapchainDestroyCoordinator.DestroyInputs(
-                device,
-                framebuffers,
-                graphicsPipeline,
-                pipelineLayout,
-                renderPass,
-                swapchainImageViews,
-                depthImages,
-                depthMemories,
-                depthImageViews,
-                swapchain,
-                new VulkanPostProcessResources.Allocation(
+        VulkanSwapchainLifecycleCoordinator.State state = VulkanSwapchainLifecycleCoordinator.destroy(
+                new VulkanSwapchainLifecycleCoordinator.DestroyRequest(
+                        device,
+                        framebuffers,
+                        graphicsPipeline,
+                        pipelineLayout,
+                        renderPass,
+                        swapchainImageViews,
+                        depthImages,
+                        depthMemories,
+                        depthImageViews,
+                        swapchain,
+                        swapchainImageFormat,
+                        swapchainWidth,
+                        swapchainHeight,
                         offscreenColorImage,
                         offscreenColorMemory,
                         offscreenColorImageView,
@@ -1289,67 +906,72 @@ final class VulkanContext {
                         postFramebuffers
                 )
         );
+        applySwapchainState(state);
     }
 
-    private void applySwapchainDestroyResult(VulkanSwapchainDestroyCoordinator.Result result) {
-        if (result == null) {
+    private void applySwapchainState(VulkanSwapchainLifecycleCoordinator.State state) {
+        if (state == null) {
             return;
         }
-        framebuffers = result.framebuffers();
-        graphicsPipeline = result.graphicsPipeline();
-        pipelineLayout = result.pipelineLayout();
-        renderPass = result.renderPass();
-        swapchainImageViews = result.swapchainImageViews();
-        depthImages = result.depthImages();
-        depthMemories = result.depthMemories();
-        depthImageViews = result.depthImageViews();
-        swapchainImages = result.swapchainImages();
-        swapchain = result.swapchain();
-        postFramebuffers = result.postFramebuffers();
-        postGraphicsPipeline = result.postGraphicsPipeline();
-        postPipelineLayout = result.postPipelineLayout();
-        postRenderPass = result.postRenderPass();
-        postDescriptorPool = result.postDescriptorPool();
-        postDescriptorSetLayout = result.postDescriptorSetLayout();
-        postDescriptorSet = result.postDescriptorSet();
-        offscreenColorSampler = result.offscreenColorSampler();
-        offscreenColorImageView = result.offscreenColorImageView();
-        offscreenColorImage = result.offscreenColorImage();
-        offscreenColorMemory = result.offscreenColorMemory();
-        postIntermediateInitialized = result.postIntermediateInitialized();
-        postOffscreenActive = result.postOffscreenActive();
+        swapchain = state.swapchain();
+        swapchainImageFormat = state.swapchainImageFormat();
+        swapchainWidth = state.swapchainWidth();
+        swapchainHeight = state.swapchainHeight();
+        swapchainImages = state.swapchainImages();
+        swapchainImageViews = state.swapchainImageViews();
+        depthImages = state.depthImages();
+        depthMemories = state.depthMemories();
+        depthImageViews = state.depthImageViews();
+        renderPass = state.renderPass();
+        pipelineLayout = state.pipelineLayout();
+        graphicsPipeline = state.graphicsPipeline();
+        framebuffers = state.framebuffers();
+        postOffscreenActive = state.postOffscreenActive();
+        offscreenColorImage = state.offscreenColorImage();
+        offscreenColorMemory = state.offscreenColorMemory();
+        offscreenColorImageView = state.offscreenColorImageView();
+        offscreenColorSampler = state.offscreenColorSampler();
+        postDescriptorSetLayout = state.postDescriptorSetLayout();
+        postDescriptorPool = state.postDescriptorPool();
+        postDescriptorSet = state.postDescriptorSet();
+        postRenderPass = state.postRenderPass();
+        postPipelineLayout = state.postPipelineLayout();
+        postGraphicsPipeline = state.postGraphicsPipeline();
+        postFramebuffers = state.postFramebuffers();
+        postIntermediateInitialized = state.postIntermediateInitialized();
     }
 
     private void createFrameSyncResources(MemoryStack stack) throws EngineException {
-        VulkanFrameSyncResources.Allocation frameSyncResources = VulkanFrameSyncResources.create(
-                device,
-                stack,
-                graphicsQueueFamilyIndex,
-                framesInFlight
+        VulkanFrameSyncLifecycleCoordinator.State state = VulkanFrameSyncLifecycleCoordinator.create(
+                new VulkanFrameSyncLifecycleCoordinator.CreateRequest(
+                        device,
+                        stack,
+                        graphicsQueueFamilyIndex,
+                        framesInFlight
+                )
         );
-        commandPool = frameSyncResources.commandPool();
-        commandBuffers = frameSyncResources.commandBuffers();
-        imageAvailableSemaphores = frameSyncResources.imageAvailableSemaphores();
-        renderFinishedSemaphores = frameSyncResources.renderFinishedSemaphores();
-        renderFences = frameSyncResources.renderFences();
-        currentFrame = 0;
+        commandPool = state.commandPool();
+        commandBuffers = state.commandBuffers();
+        imageAvailableSemaphores = state.imageAvailableSemaphores();
+        renderFinishedSemaphores = state.renderFinishedSemaphores();
+        renderFences = state.renderFences();
+        currentFrame = state.currentFrame();
     }
 
     private int acquireNextImage(MemoryStack stack, int frameIdx) throws EngineException {
         VkCommandBuffer commandBuffer = commandBuffers[frameIdx];
-        long imageAvailableSemaphore = imageAvailableSemaphores[frameIdx];
-        long renderFinishedSemaphore = renderFinishedSemaphores[frameIdx];
-        long renderFence = renderFences[frameIdx];
-        return VulkanCommandSubmitter.acquireRecordSubmitPresent(
-                stack,
-                device,
-                graphicsQueue,
-                swapchain,
-                commandBuffer,
-                imageAvailableSemaphore,
-                renderFinishedSemaphore,
-                renderFence,
-                imageIndex -> recordCommandBuffer(stack, commandBuffer, imageIndex, frameIdx)
+        return VulkanFrameSubmitCoordinator.acquireRecordSubmitPresent(
+                new VulkanFrameSubmitCoordinator.Inputs(
+                        stack,
+                        device,
+                        graphicsQueue,
+                        swapchain,
+                        commandBuffer,
+                        imageAvailableSemaphores[frameIdx],
+                        renderFinishedSemaphores[frameIdx],
+                        renderFences[frameIdx],
+                        imageIndex -> recordCommandBuffer(stack, commandBuffer, imageIndex, frameIdx)
+                )
         );
     }
 
@@ -1371,8 +993,8 @@ final class VulkanContext {
     }
 
     private VulkanFrameCommandOrchestrator.Inputs buildCommandInputs(int frameIdx) {
-        return VulkanFrameCommandInputsFactory.create(
-                new VulkanFrameCommandInputsFactory.Inputs(
+        return VulkanFrameCommandInputAssembler.build(
+                new VulkanFrameCommandInputAssembler.AssemblyInputs(
                         gpuMeshes,
                         maxDynamicSceneObjects,
                         swapchainWidth,
@@ -1407,36 +1029,30 @@ final class VulkanContext {
                         offscreenColorImage,
                         swapchainImages,
                         postFramebuffers,
-                        this::descriptorSetForFrame,
-                        meshIndex -> dynamicUniformOffset(frameIdx, meshIndex),
+                        frame -> VulkanUniformFrameCoordinator.descriptorSetForFrame(frameDescriptorSets, descriptorSet, frame),
+                        meshIndex -> VulkanUniformFrameCoordinator.dynamicUniformOffset(uniformStrideBytes, meshIndex),
                         this::vkFailure
                 )
         );
     }
 
     private void recreateSwapchainFromWindow() throws EngineException {
-        if (window == VK_NULL_HANDLE) {
-            return;
-        }
-        try (MemoryStack stack = stackPush()) {
-            var pW = stack.ints(1);
-            var pH = stack.ints(1);
-            glfwGetFramebufferSize(window, pW, pH);
-            int width = Math.max(1, pW.get(0));
-            int height = Math.max(1, pH.get(0));
-            recreateSwapchain(width, height);
-        }
+        VulkanSwapchainRecreateCoordinator.recreateFromWindow(
+                window,
+                this::recreateSwapchain
+        );
     }
 
     private void recreateSwapchain(int width, int height) throws EngineException {
-        if (device == null || physicalDevice == null || surface == VK_NULL_HANDLE) {
-            return;
-        }
-        vkDeviceWaitIdle(device);
-        destroySwapchainResources();
-        try (MemoryStack stack = stackPush()) {
-            createSwapchainResources(stack, width, height);
-        }
+        VulkanSwapchainRecreateCoordinator.recreate(
+                device,
+                physicalDevice,
+                surface,
+                width,
+                height,
+                this::destroySwapchainResources,
+                this::createSwapchainResources
+        );
     }
 
     private EngineException vkFailure(String operation, int result) {
@@ -1445,8 +1061,8 @@ final class VulkanContext {
     }
 
     private void updateShadowLightViewProjMatrices() {
-        VulkanShadowMatrixBuilder.updateMatrices(
-                new VulkanShadowMatrixBuilder.ShadowInputs(
+        VulkanShadowMatrixCoordinator.updateMatrices(
+                new VulkanShadowMatrixCoordinator.UpdateInputs(
                         pointLightIsSpot,
                         pointLightDirX,
                         pointLightDirY,
@@ -1472,19 +1088,9 @@ final class VulkanContext {
         );
     }
 
-    private void updateDynamicSceneState(List<VulkanSceneMeshData> sceneMeshes) {
-        VulkanDynamicSceneUpdater.Result result = VulkanDynamicSceneUpdater.update(gpuMeshes, sceneMeshes);
-        if (result.reordered()) {
-            sceneReorderReuseCount++;
-        }
-        if (result.dirtyEnd() >= result.dirtyStart()) {
-            markSceneStateDirty(result.dirtyStart(), result.dirtyEnd());
-        }
-    }
-
     private void uploadSceneMeshes(MemoryStack stack, List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
-        VulkanSceneUploadCoordinator.UploadResult result = VulkanSceneUploadCoordinator.upload(
-                new VulkanSceneUploadCoordinator.UploadInputs(
+        var result = VulkanSceneRuntimeCoordinator.upload(
+                new VulkanSceneRuntimeCoordinator.UploadRequest(
                         meshBufferRebuildCount,
                         this::destroySceneMeshes,
                         device,
@@ -1513,32 +1119,8 @@ final class VulkanContext {
         estimatedGpuMemoryBytes = result.estimatedGpuMemoryBytes();
     }
 
-    private void rebindSceneTexturesAndDynamicState(List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
-        VulkanSceneUploadCoordinator.RebindResult result = VulkanSceneUploadCoordinator.rebind(
-                new VulkanSceneUploadCoordinator.RebindInputs(
-                        device,
-                        sceneMeshes,
-                        gpuMeshes,
-                        iblIrradianceTexture,
-                        iblRadianceTexture,
-                        iblBrdfLutTexture,
-                        iblIrradiancePath,
-                        iblRadiancePath,
-                        iblBrdfLutPath,
-                        this::createTextureFromPath,
-                        this::resolveOrCreateTexture,
-                        this::textureCacheKey,
-                        this::refreshTextureDescriptorSets,
-                        this::markSceneStateDirty
-                )
-        );
-        iblIrradianceTexture = result.iblIrradianceTexture();
-        iblRadianceTexture = result.iblRadianceTexture();
-        iblBrdfLutTexture = result.iblBrdfLutTexture();
-    }
-
     private void destroySceneMeshes() {
-        VulkanSceneMeshLifecycle.DestroyResult destroyResult = VulkanSceneMeshLifecycle.destroyMeshes(
+        var destroyResult = VulkanSceneRuntimeCoordinator.destroy(
                 device,
                 gpuMeshes,
                 iblIrradianceTexture,
@@ -1559,59 +1141,48 @@ final class VulkanContext {
             boolean normalMap
     )
             throws EngineException {
-        if (texturePath == null || !Files.isRegularFile(texturePath)) {
-            return defaultTexture;
-        }
-        String cacheKey = textureCacheKey(texturePath, normalMap);
-        VulkanGpuTexture cached = cache.get(cacheKey);
-        if (cached != null) {
-            return cached;
-        }
-        VulkanGpuTexture created = createTextureFromPath(texturePath, normalMap);
-        cache.put(cacheKey, created);
-        return created;
+        return VulkanSceneTextureCoordinator.resolveOrCreateTexture(
+                texturePath,
+                cache,
+                defaultTexture,
+                normalMap,
+                this::createTextureFromPath
+        );
     }
 
     private String textureCacheKey(Path texturePath, boolean normalMap) {
-        if (texturePath == null) {
-            return normalMap ? "normal:__default__" : "albedo:__default__";
-        }
-        return (normalMap ? "normal:" : "albedo:") + texturePath.toAbsolutePath().normalize();
+        return VulkanSceneTextureCoordinator.textureCacheKey(texturePath, normalMap);
     }
 
     private void createTextureDescriptorSets(MemoryStack stack) throws EngineException {
-        if (gpuMeshes.isEmpty() || textureDescriptorSetLayout == VK_NULL_HANDLE) {
+        VulkanTextureDescriptorSetCoordinator.Result state = VulkanSceneTextureCoordinator.createTextureDescriptorSets(
+                new VulkanSceneTextureCoordinator.CreateInputs(
+                        device,
+                        stack,
+                        gpuMeshes,
+                        textureDescriptorSetLayout,
+                        textureDescriptorPool,
+                        descriptorRingSetCapacity,
+                        descriptorRingPeakSetCapacity,
+                        descriptorRingPeakWasteSetCount,
+                        descriptorPoolBuildCount,
+                        descriptorPoolRebuildCount,
+                        descriptorRingGrowthRebuildCount,
+                        descriptorRingSteadyRebuildCount,
+                        descriptorRingPoolReuseCount,
+                        descriptorRingPoolResetFailureCount,
+                        descriptorRingMaxSetCapacity,
+                        shadowDepthImageView,
+                        shadowSampler,
+                        iblIrradianceTexture,
+                        iblRadianceTexture,
+                        iblBrdfLutTexture
+                )
+        );
+        if (state == null) {
             return;
         }
-        VulkanTextureDescriptorSetCoordinator.Result state = VulkanTextureDescriptorSetCoordinator.createOrReuse(
-                textureDescriptorCoordinatorInputs(stack)
-        );
         applyTextureDescriptorCoordinatorState(state);
-    }
-
-    private VulkanTextureDescriptorSetCoordinator.Inputs textureDescriptorCoordinatorInputs(MemoryStack stack) {
-        return new VulkanTextureDescriptorSetCoordinator.Inputs(
-                device,
-                stack,
-                gpuMeshes,
-                textureDescriptorSetLayout,
-                textureDescriptorPool,
-                descriptorRingSetCapacity,
-                descriptorRingPeakSetCapacity,
-                descriptorRingPeakWasteSetCount,
-                descriptorPoolBuildCount,
-                descriptorPoolRebuildCount,
-                descriptorRingGrowthRebuildCount,
-                descriptorRingSteadyRebuildCount,
-                descriptorRingPoolReuseCount,
-                descriptorRingPoolResetFailureCount,
-                descriptorRingMaxSetCapacity,
-                shadowDepthImageView,
-                shadowSampler,
-                iblIrradianceTexture,
-                iblRadianceTexture,
-                iblBrdfLutTexture
-        );
     }
 
     private void applyTextureDescriptorCoordinatorState(VulkanTextureDescriptorSetCoordinator.Result state) {
@@ -1644,57 +1215,21 @@ final class VulkanContext {
         }
     }
 
-    private void markGlobalStateDirty() {
-        globalStateRevision++;
-    }
+    private void markGlobalStateDirty() { uploadState.markGlobalStateDirty(); }
 
     private void markSceneStateDirty(int dirtyStart, int dirtyEnd) {
         if (dirtyEnd < dirtyStart) {
             return;
         }
-        sceneStateRevision++;
-        addPendingSceneDirtyRange(Math.max(0, dirtyStart), Math.max(0, dirtyEnd));
-    }
-
-    private void addPendingSceneDirtyRange(int start, int end) {
-        int previousCapacity = pendingSceneDirtyStarts.length;
-        VulkanDirtyRangeTrackerOps.AddResult result = VulkanDirtyRangeTrackerOps.addRange(
-                pendingSceneDirtyStarts,
-                pendingSceneDirtyEnds,
-                pendingSceneDirtyRangeCount,
-                start,
-                end,
-                MAX_PENDING_UPLOAD_RANGES_HARD_CAP
-        );
-        pendingSceneDirtyStarts = result.starts();
-        pendingSceneDirtyEnds = result.ends();
-        if (pendingSceneDirtyStarts.length != previousCapacity) {
-            pendingUploadSrcOffsets = Arrays.copyOf(pendingUploadSrcOffsets, pendingSceneDirtyStarts.length);
-            pendingUploadDstOffsets = Arrays.copyOf(pendingUploadDstOffsets, pendingSceneDirtyStarts.length);
-            pendingUploadByteCounts = Arrays.copyOf(pendingUploadByteCounts, pendingSceneDirtyStarts.length);
-        }
-        pendingSceneDirtyRangeCount = result.count();
-        if (result.overflowed()) {
-            pendingUploadRangeOverflowCount++;
-        }
-        normalizePendingSceneDirtyRanges();
-    }
-
-    private void normalizePendingSceneDirtyRanges() {
-        pendingSceneDirtyRangeCount = VulkanDirtyRangeTrackerOps.normalizeRanges(
-                pendingSceneDirtyStarts,
-                pendingSceneDirtyEnds,
-                pendingSceneDirtyRangeCount,
-                dynamicUploadMergeGapObjects
-        );
+        uploadState.markSceneStateDirty(dirtyStart, dirtyEnd, dynamicUploadMergeGapObjects);
     }
 
     private void prepareFrameUniforms(int frameIdx) throws EngineException {
-        VulkanFrameUniformCoordinator.Result result = VulkanFrameUniformCoordinator.prepare(
-                new VulkanFrameUniformCoordinator.Inputs(
+        VulkanFrameUniformCoordinator.Result result = VulkanUniformFrameCoordinator.prepare(
+                new VulkanUniformFrameCoordinator.PrepareRequest(
                         frameIdx,
                         gpuMeshes.size(),
-                        maxObservedDynamicObjects,
+                        uploadState.maxObservedDynamicObjects(),
                         maxDynamicSceneObjects,
                         framesInFlight,
                         uniformFrameSpanBytes,
@@ -1707,59 +1242,101 @@ final class VulkanContext {
                         sceneGlobalUniformStagingMemory,
                         objectUniformStagingMappedAddress,
                         sceneGlobalUniformStagingMappedAddress,
-                        globalStateRevision,
-                        sceneStateRevision,
-                        frameGlobalRevisionApplied,
-                        frameSceneRevisionApplied,
-                        pendingSceneDirtyRangeCount,
-                        pendingSceneDirtyStarts,
-                        pendingSceneDirtyEnds,
-                        pendingUploadSrcOffsets,
-                        pendingUploadDstOffsets,
-                        pendingUploadByteCounts,
+                        uploadState.globalStateRevision(),
+                        uploadState.sceneStateRevision(),
+                        uploadState.frameGlobalRevisionApplied(),
+                        uploadState.frameSceneRevisionApplied(),
+                        uploadState.pendingSceneDirtyRangeCount(),
+                        uploadState.pendingSceneDirtyStarts(),
+                        uploadState.pendingSceneDirtyEnds(),
+                        uploadState.pendingUploadSrcOffsets(),
+                        uploadState.pendingUploadDstOffsets(),
+                        uploadState.pendingUploadByteCounts(),
                         idx -> gpuMeshes.isEmpty() ? null : gpuMeshes.get(idx),
-                        globalSceneUniformInput(),
+                        VulkanGlobalSceneUniformCoordinator.build(
+                                new VulkanGlobalSceneUniformCoordinator.BuildRequest(
+                                        GLOBAL_SCENE_UNIFORM_BYTES,
+                                        viewMatrix,
+                                        projMatrix,
+                                        dirLightDirX,
+                                        dirLightDirY,
+                                        dirLightDirZ,
+                                        dirLightColorR,
+                                        dirLightColorG,
+                                        dirLightColorB,
+                                        pointLightPosX,
+                                        pointLightPosY,
+                                        pointLightPosZ,
+                                        pointShadowFarPlane,
+                                        pointLightColorR,
+                                        pointLightColorG,
+                                        pointLightColorB,
+                                        pointLightDirX,
+                                        pointLightDirY,
+                                        pointLightDirZ,
+                                        pointLightInnerCos,
+                                        pointLightOuterCos,
+                                        pointLightIsSpot,
+                                        pointShadowEnabled,
+                                        dirLightIntensity,
+                                        pointLightIntensity,
+                                        shadowEnabled,
+                                        shadowStrength,
+                                        shadowBias,
+                                        shadowPcfRadius,
+                                        shadowCascadeCount,
+                                        shadowMapResolution,
+                                        shadowCascadeSplitNdc,
+                                        fogEnabled,
+                                        fogDensity,
+                                        fogR,
+                                        fogG,
+                                        fogB,
+                                        fogSteps,
+                                        smokeEnabled,
+                                        smokeIntensity,
+                                        swapchainWidth,
+                                        swapchainHeight,
+                                        smokeR,
+                                        smokeG,
+                                        smokeB,
+                                        iblEnabled,
+                                        iblDiffuseStrength,
+                                        iblSpecularStrength,
+                                        iblPrefilterStrength,
+                                        postOffscreenActive,
+                                        tonemapEnabled,
+                                        tonemapExposure,
+                                        tonemapGamma,
+                                        bloomEnabled,
+                                        bloomThreshold,
+                                        bloomStrength,
+                                        shadowLightViewProjMatrices
+                                )
+                        ),
                         this::vkFailure
                 )
         );
-        applyFrameUniformPrepareResult(result);
-    }
-
-    private void applyFrameUniformPrepareResult(VulkanFrameUniformCoordinator.Result result) {
-        maxObservedDynamicObjects = result.maxObservedDynamicObjects();
-        if (result.clearPendingOnly()) {
-            clearPendingUploads();
-            return;
-        }
-        pendingGlobalUploadSrcOffset = result.pendingGlobalUploadSrcOffset();
-        pendingGlobalUploadDstOffset = result.pendingGlobalUploadDstOffset();
-        pendingGlobalUploadByteCount = result.pendingGlobalUploadByteCount();
-        pendingUploadRangeCount = result.pendingUploadRangeCount();
-        pendingUploadObjectCount = result.pendingUploadObjectCount();
-        pendingUploadStartObject = result.pendingUploadStartObject();
-        pendingUploadByteCount = result.pendingUploadByteCount();
-        pendingUploadSrcOffset = result.pendingUploadSrcOffset();
-        pendingUploadDstOffset = result.pendingUploadDstOffset();
-        pendingSceneDirtyRangeCount = result.pendingSceneDirtyRangeCount();
+        uploadState.applyPrepareResult(result);
     }
 
     private void uploadFrameUniforms(VkCommandBuffer commandBuffer, int frameIdx) {
-        VulkanUniformUploadRecorder.UploadStats stats = VulkanUniformUploadRecorder.recordUploads(
-                commandBuffer,
-                new VulkanUniformUploadRecorder.UploadInputs(
+        VulkanUniformUploadRecorder.UploadStats stats = VulkanUniformFrameCoordinator.upload(
+                new VulkanUniformFrameCoordinator.UploadRequest(
+                        commandBuffer,
                         sceneGlobalUniformStagingBuffer,
                         sceneGlobalUniformBuffer,
                         objectUniformStagingBuffer,
                         objectUniformBuffer,
-                        pendingGlobalUploadSrcOffset,
-                        pendingGlobalUploadDstOffset,
-                        pendingGlobalUploadByteCount,
-                        pendingUploadObjectCount,
-                        pendingUploadStartObject,
-                        pendingUploadSrcOffsets,
-                        pendingUploadDstOffsets,
-                        pendingUploadByteCounts,
-                        pendingUploadRangeCount
+                        uploadState.pendingGlobalUploadSrcOffset(),
+                        uploadState.pendingGlobalUploadDstOffset(),
+                        uploadState.pendingGlobalUploadByteCount(),
+                        uploadState.pendingUploadObjectCount(),
+                        uploadState.pendingUploadStartObject(),
+                        uploadState.pendingUploadSrcOffsets(),
+                        uploadState.pendingUploadDstOffsets(),
+                        uploadState.pendingUploadByteCounts(),
+                        uploadState.pendingUploadRangeCount()
                 )
         );
         lastFrameGlobalUploadBytes = stats.globalUploadBytes();
@@ -1771,109 +1348,7 @@ final class VulkanContext {
         lastFrameUniformUploadRanges = stats.uniformUploadRanges();
         maxFrameUniformUploadRanges = Math.max(maxFrameUniformUploadRanges, stats.uniformUploadRanges());
         lastFrameUniformUploadStartObject = stats.uniformUploadStartObject();
-        clearPendingUploads();
-    }
-
-    private VulkanUniformWriters.GlobalSceneUniformInput globalSceneUniformInput() {
-        return VulkanGlobalSceneInputBuilder.build(
-                new VulkanGlobalSceneInputBuilder.Inputs(
-                        GLOBAL_SCENE_UNIFORM_BYTES,
-                        viewMatrix,
-                        projMatrix,
-                        dirLightDirX,
-                        dirLightDirY,
-                        dirLightDirZ,
-                        dirLightColorR,
-                        dirLightColorG,
-                        dirLightColorB,
-                        pointLightPosX,
-                        pointLightPosY,
-                        pointLightPosZ,
-                        pointShadowFarPlane,
-                        pointLightColorR,
-                        pointLightColorG,
-                        pointLightColorB,
-                        pointLightDirX,
-                        pointLightDirY,
-                        pointLightDirZ,
-                        pointLightInnerCos,
-                        pointLightOuterCos,
-                        pointLightIsSpot,
-                        pointShadowEnabled,
-                        dirLightIntensity,
-                        pointLightIntensity,
-                        shadowEnabled,
-                        shadowStrength,
-                        shadowBias,
-                        shadowPcfRadius,
-                        shadowCascadeCount,
-                        shadowMapResolution,
-                        shadowCascadeSplitNdc,
-                        fogEnabled,
-                        fogDensity,
-                        fogR,
-                        fogG,
-                        fogB,
-                        fogSteps,
-                        smokeEnabled,
-                        smokeIntensity,
-                        swapchainWidth,
-                        swapchainHeight,
-                        smokeR,
-                        smokeG,
-                        smokeB,
-                        iblEnabled,
-                        iblDiffuseStrength,
-                        iblSpecularStrength,
-                        iblPrefilterStrength,
-                        postOffscreenActive,
-                        tonemapEnabled,
-                        tonemapExposure,
-                        tonemapGamma,
-                        bloomEnabled,
-                        bloomThreshold,
-                        bloomStrength,
-                        shadowLightViewProjMatrices
-                )
-        );
-    }
-
-    private void clearPendingUploads() {
-        pendingUploadSrcOffset = -1L;
-        pendingUploadDstOffset = -1L;
-        pendingUploadByteCount = 0;
-        pendingUploadObjectCount = 0;
-        pendingUploadStartObject = 0;
-        pendingUploadRangeCount = 0;
-        pendingGlobalUploadSrcOffset = -1L;
-        pendingGlobalUploadDstOffset = -1L;
-        pendingGlobalUploadByteCount = 0;
-    }
-
-    private int dynamicUniformOffset(int frameIdx, int meshIndex) {
-        return meshIndex * uniformStrideBytes;
-    }
-
-    private long descriptorSetForFrame(int frameIdx) {
-        if (frameDescriptorSets.length == 0) {
-            return descriptorSet;
-        }
-        int normalizedFrame = Math.floorMod(frameIdx, frameDescriptorSets.length);
-        return frameDescriptorSets[normalizedFrame];
-    }
-
-    private void reallocateFrameTracking() {
-        frameGlobalRevisionApplied = new long[framesInFlight];
-        frameSceneRevisionApplied = new long[framesInFlight];
-    }
-
-    private void reallocateUploadRangeTracking() {
-        int capacity = Math.max(8, maxPendingUploadRanges);
-        pendingSceneDirtyStarts = new int[capacity];
-        pendingSceneDirtyEnds = new int[capacity];
-        pendingUploadSrcOffsets = new long[capacity];
-        pendingUploadDstOffsets = new long[capacity];
-        pendingUploadByteCounts = new int[capacity];
+        uploadState.clearPendingUploads();
     }
 
     private static int clamp(int value, int min, int max) {
@@ -1881,4 +1356,3 @@ final class VulkanContext {
     }
 
 }
-
