@@ -50,6 +50,8 @@ import static org.lwjgl.opengl.GL33.glGetQueryObjecti64;
 import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT;
 import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT_AVAILABLE;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.lwjgl.glfw.GLFW;
@@ -57,6 +59,30 @@ import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 
 final class OpenGlContext {
+    static record MeshGeometry(float[] vertices) {
+        MeshGeometry {
+            if (vertices == null || vertices.length == 0 || vertices.length % 5 != 0) {
+                throw new IllegalArgumentException("Mesh vertices must be non-empty and packed as x,y,r,g,b");
+            }
+        }
+
+        int vertexCount() {
+            return vertices.length / 5;
+        }
+    }
+
+    private static final class MeshBuffer {
+        private final int vaoId;
+        private final int vboId;
+        private final int vertexCount;
+
+        private MeshBuffer(int vaoId, int vboId, int vertexCount) {
+            this.vaoId = vaoId;
+            this.vboId = vboId;
+            this.vertexCount = vertexCount;
+        }
+    }
+
     private static final String VERTEX_SHADER = """
             #version 330 core
             layout (location = 0) in vec2 aPos;
@@ -105,8 +131,7 @@ final class OpenGlContext {
     private int width;
     private int height;
     private int programId;
-    private int vaoId;
-    private int vboId;
+    private final List<MeshBuffer> sceneMeshes = new ArrayList<>();
     private int fogEnabledLocation;
     private int fogColorLocation;
     private int fogDensityLocation;
@@ -128,6 +153,9 @@ final class OpenGlContext {
     private boolean gpuTimerQuerySupported;
     private int gpuTimeQueryId;
     private double lastGpuFrameMs;
+    private long lastDrawCalls;
+    private long lastTriangles;
+    private long lastVisibleObjects;
 
     void initialize(String appName, int width, int height, boolean vsyncEnabled, boolean windowVisible) throws EngineException {
         GLFWErrorCallback.createPrint(System.err).set();
@@ -157,8 +185,9 @@ final class OpenGlContext {
         this.height = height;
         glViewport(0, 0, width, height);
 
-        initializeTrianglePipeline();
+        initializeShaderPipeline();
         initializeGpuQuerySupport();
+        setSceneMeshes(List.of(defaultTriangleGeometry()));
     }
 
     void resize(int width, int height) {
@@ -182,7 +211,8 @@ final class OpenGlContext {
         endFrame();
 
         double cpuMs = (System.nanoTime() - startNs) / 1_000_000.0;
-        return new OpenGlFrameMetrics(cpuMs, cpuMs, 2, 1, 1, 0);
+        double gpuMs = lastGpuFrameMs > 0.0 ? lastGpuFrameMs : cpuMs;
+        return new OpenGlFrameMetrics(cpuMs, gpuMs, lastDrawCalls, lastTriangles, lastVisibleObjects, 0);
     }
 
     void beginFrame() {
@@ -201,8 +231,15 @@ final class OpenGlContext {
         glUseProgram(programId);
         applyFogUniforms();
         applySmokeUniforms();
-        glBindVertexArray(vaoId);
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        lastDrawCalls = 0;
+        lastTriangles = 0;
+        lastVisibleObjects = sceneMeshes.size();
+        for (MeshBuffer mesh : sceneMeshes) {
+            glBindVertexArray(mesh.vaoId);
+            glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
+            lastDrawCalls++;
+            lastTriangles += mesh.vertexCount / 3;
+        }
         glBindVertexArray(0);
         glUseProgram(0);
     }
@@ -228,14 +265,7 @@ final class OpenGlContext {
     }
 
     void shutdown() {
-        if (vboId != 0) {
-            glDeleteBuffers(vboId);
-            vboId = 0;
-        }
-        if (vaoId != 0) {
-            glDeleteVertexArrays(vaoId);
-            vaoId = 0;
-        }
+        clearSceneMeshes();
         if (programId != 0) {
             glDeleteProgram(programId);
             programId = 0;
@@ -278,7 +308,27 @@ final class OpenGlContext {
         return lastGpuFrameMs;
     }
 
-    private void initializeTrianglePipeline() throws EngineException {
+    long lastDrawCalls() {
+        return lastDrawCalls;
+    }
+
+    long lastTriangles() {
+        return lastTriangles;
+    }
+
+    long lastVisibleObjects() {
+        return lastVisibleObjects;
+    }
+
+    void setSceneMeshes(List<MeshGeometry> meshes) {
+        clearSceneMeshes();
+        List<MeshGeometry> effectiveMeshes = meshes == null || meshes.isEmpty() ? List.of(defaultTriangleGeometry()) : meshes;
+        for (MeshGeometry mesh : effectiveMeshes) {
+            sceneMeshes.add(uploadMesh(mesh));
+        }
+    }
+
+    private void initializeShaderPipeline() throws EngineException {
         int vertexShaderId = compileShader(GL_VERTEX_SHADER, VERTEX_SHADER);
         int fragmentShaderId = compileShader(GL_FRAGMENT_SHADER, FRAGMENT_SHADER);
 
@@ -303,20 +353,15 @@ final class OpenGlContext {
         smokeEnabledLocation = glGetUniformLocation(programId, "uSmokeEnabled");
         smokeColorLocation = glGetUniformLocation(programId, "uSmokeColor");
         smokeIntensityLocation = glGetUniformLocation(programId, "uSmokeIntensity");
+    }
 
-        float[] vertices = {
-                // x, y, r, g, b
-                -0.6f, -0.4f, 1.0f, 0.2f, 0.2f,
-                0.6f, -0.4f, 0.2f, 1.0f, 0.2f,
-                0.0f, 0.6f, 0.2f, 0.3f, 1.0f
-        };
-
-        vaoId = glGenVertexArrays();
-        vboId = glGenBuffers();
+    private MeshBuffer uploadMesh(MeshGeometry geometry) {
+        int vaoId = glGenVertexArrays();
+        int vboId = glGenBuffers();
 
         glBindVertexArray(vaoId);
         glBindBuffer(GL_ARRAY_BUFFER, vboId);
-        glBufferData(GL_ARRAY_BUFFER, vertices, GL_STATIC_DRAW);
+        glBufferData(GL_ARRAY_BUFFER, geometry.vertices(), GL_STATIC_DRAW);
 
         glVertexAttribPointer(0, 2, GL_FLOAT, false, 5 * Float.BYTES, 0L);
         glEnableVertexAttribArray(0);
@@ -326,6 +371,15 @@ final class OpenGlContext {
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
+        return new MeshBuffer(vaoId, vboId, geometry.vertexCount());
+    }
+
+    private void clearSceneMeshes() {
+        for (MeshBuffer mesh : sceneMeshes) {
+            glDeleteBuffers(mesh.vboId);
+            glDeleteVertexArrays(mesh.vaoId);
+        }
+        sceneMeshes.clear();
     }
 
     private static int compileShader(int type, String source) throws EngineException {
@@ -361,6 +415,29 @@ final class OpenGlContext {
         if (gpuTimerQuerySupported) {
             gpuTimeQueryId = glGenQueries();
         }
+    }
+
+    static MeshGeometry defaultTriangleGeometry() {
+        return triangleGeometry(1.0f, 0.2f, 0.2f);
+    }
+
+    static MeshGeometry triangleGeometry(float r, float g, float b) {
+        return new MeshGeometry(new float[]{
+                -0.6f, -0.4f, r, g, b,
+                0.6f, -0.4f, r * 0.2f + 0.2f, g * 0.9f + 0.1f, b * 0.2f + 0.2f,
+                0.0f, 0.6f, r * 0.2f + 0.2f, g * 0.3f + 0.3f, b * 0.9f + 0.1f
+        });
+    }
+
+    static MeshGeometry quadGeometry(float r, float g, float b) {
+        return new MeshGeometry(new float[]{
+                -0.55f, -0.55f, r, g, b,
+                0.55f, -0.55f, r, g, b,
+                0.55f, 0.55f, r, g, b,
+                -0.55f, -0.55f, r, g, b,
+                0.55f, 0.55f, r, g, b,
+                -0.55f, 0.55f, r, g, b
+        });
     }
 
     record OpenGlFrameMetrics(

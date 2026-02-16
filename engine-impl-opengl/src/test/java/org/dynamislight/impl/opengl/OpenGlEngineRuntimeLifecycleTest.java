@@ -210,6 +210,18 @@ class OpenGlEngineRuntimeLifecycleTest {
     }
 
     @Test
+    void sceneMeshesDriveDrawCallAndTriangleStatsInMockMode() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(), new RecordingCallbacks());
+        runtime.loadScene(validMultiMeshScene());
+        runtime.render();
+
+        assertEquals(2, runtime.getStats().drawCalls());
+        assertEquals(3, runtime.getStats().triangles());
+        assertEquals(2, runtime.getStats().visibleObjects());
+    }
+
+    @Test
     void resourceServiceTracksSceneAssetsAndReleasesOnShutdown() throws Exception {
         var runtime = new OpenGlEngineRuntime();
         var callbacks = new RecordingCallbacks();
@@ -487,6 +499,30 @@ class OpenGlEngineRuntimeLifecycleTest {
                 "cam",
                 List.of(transform),
                 List.of(mesh),
+                List.of(mat),
+                List.of(light),
+                env,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validMultiMeshScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc meshTriangle = new MeshDesc("mesh-triangle", "xform", "mat", "meshes/triangle.glb");
+        MeshDesc meshQuad = new MeshDesc("mesh-quad", "xform", "mat", "meshes/quad.glb");
+        MaterialDesc mat = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        LightDesc light = new LightDesc("light", new Vec3(0, 2, 0), new Vec3(1, 1, 1), 1.0f, 10f, false);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "multi-mesh-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(meshTriangle, meshQuad),
                 List.of(mat),
                 List.of(light),
                 env,

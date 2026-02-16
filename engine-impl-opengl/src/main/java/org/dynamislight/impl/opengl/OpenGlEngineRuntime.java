@@ -2,6 +2,7 @@ package org.dynamislight.impl.opengl;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.config.EngineConfig;
@@ -11,6 +12,7 @@ import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.FogMode;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
@@ -32,6 +34,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private boolean mockContext;
     private boolean windowVisible;
     private QualityTier qualityTier = QualityTier.MEDIUM;
+    private long plannedDrawCalls = 1;
+    private long plannedTriangles = 1;
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
 
@@ -75,7 +79,11 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     protected void onLoadScene(SceneDescriptor scene) throws EngineException {
         fog = mapFog(scene.fog(), qualityTier);
         smoke = mapSmoke(scene.smokeEmitters(), qualityTier);
+        List<OpenGlContext.MeshGeometry> sceneMeshes = mapSceneMeshes(scene.meshes());
+        plannedDrawCalls = sceneMeshes.size();
+        plannedTriangles = sceneMeshes.stream().mapToLong(mesh -> mesh.vertexCount() / 3).sum();
         if (!mockContext) {
+            context.setSceneMeshes(sceneMeshes);
             context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
             frameGraph = buildFrameGraph();
@@ -85,7 +93,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     @Override
     protected RenderMetrics onRender() throws EngineException {
         if (mockContext) {
-            return null;
+            return renderMetrics(0.2, 0.1, plannedDrawCalls, plannedTriangles, plannedDrawCalls, 0);
         }
         long startNs = System.nanoTime();
         context.beginFrame();
@@ -96,9 +104,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         return renderMetrics(
                 cpuMs,
                 gpuMs,
-                4,
-                1,
-                1,
+                context.lastDrawCalls(),
+                context.lastTriangles(),
+                context.lastVisibleObjects(),
                 0
         );
     }
@@ -223,6 +231,29 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 Math.min(0.85f, baseIntensity * tierScale),
                 degraded
         );
+    }
+
+    private static List<OpenGlContext.MeshGeometry> mapSceneMeshes(List<MeshDesc> meshes) {
+        if (meshes == null || meshes.isEmpty()) {
+            return List.of(OpenGlContext.defaultTriangleGeometry());
+        }
+        List<OpenGlContext.MeshGeometry> geometries = new ArrayList<>(meshes.size());
+        for (int i = 0; i < meshes.size(); i++) {
+            geometries.add(mapMeshGeometry(meshes.get(i), i));
+        }
+        return geometries;
+    }
+
+    private static OpenGlContext.MeshGeometry mapMeshGeometry(MeshDesc mesh, int index) {
+        if (mesh == null) {
+            return OpenGlContext.defaultTriangleGeometry();
+        }
+        String meshPath = mesh.meshAssetPath() == null ? "" : mesh.meshAssetPath().toLowerCase(Locale.ROOT);
+        float tint = (index % 5) * 0.08f;
+        if (meshPath.contains("quad") || meshPath.contains("box")) {
+            return OpenGlContext.quadGeometry(0.25f + tint, 0.55f, 0.9f - tint);
+        }
+        return OpenGlContext.triangleGeometry(0.95f - tint, 0.35f + tint, 0.3f + tint);
     }
 
     private FrameGraph buildFrameGraph() {
