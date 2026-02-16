@@ -90,6 +90,22 @@ public final class VulkanPostProcessResources {
         long taaHistoryMemory = history.memory();
         long taaHistoryImageView = createImageView(device, stack, taaHistoryImage, swapchainImageFormat);
         long taaHistorySampler = createSampler(device, stack);
+        VulkanImageAlloc historyVelocity = VulkanMemoryOps.createImage(
+                device,
+                physicalDevice,
+                stack,
+                swapchainWidth,
+                swapchainHeight,
+                swapchainImageFormat,
+                VK10.VK_IMAGE_TILING_OPTIMAL,
+                VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                1
+        );
+        long taaHistoryVelocityImage = historyVelocity.image();
+        long taaHistoryVelocityMemory = historyVelocity.memory();
+        long taaHistoryVelocityImageView = createImageView(device, stack, taaHistoryVelocityImage, swapchainImageFormat);
+        long taaHistoryVelocitySampler = createSampler(device, stack);
 
         long postDescriptorSetLayout = createPostDescriptorSetLayout(device, stack);
         long postDescriptorPool = createPostDescriptorPool(device, stack);
@@ -103,7 +119,9 @@ public final class VulkanPostProcessResources {
                 taaHistoryImageView,
                 taaHistorySampler,
                 velocityImageView,
-                offscreenColorSampler
+                offscreenColorSampler,
+                taaHistoryVelocityImageView,
+                taaHistoryVelocitySampler
         );
 
         VulkanPostPipelineBuilder.Result postPipeline = VulkanPostPipelineBuilder.create(
@@ -132,6 +150,10 @@ public final class VulkanPostProcessResources {
                 taaHistoryMemory,
                 taaHistoryImageView,
                 taaHistorySampler,
+                taaHistoryVelocityImage,
+                taaHistoryVelocityMemory,
+                taaHistoryVelocityImageView,
+                taaHistoryVelocitySampler,
                 postDescriptorSetLayout,
                 postDescriptorPool,
                 postDescriptorSet,
@@ -144,6 +166,10 @@ public final class VulkanPostProcessResources {
 
     public static Allocation empty() {
         return new Allocation(
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
+                VK_NULL_HANDLE,
                 VK_NULL_HANDLE,
                 VK_NULL_HANDLE,
                 VK_NULL_HANDLE,
@@ -192,11 +218,17 @@ public final class VulkanPostProcessResources {
         if (resources.taaHistorySampler() != VK_NULL_HANDLE) {
             VK10.vkDestroySampler(device, resources.taaHistorySampler(), null);
         }
+        if (resources.taaHistoryVelocitySampler() != VK_NULL_HANDLE) {
+            VK10.vkDestroySampler(device, resources.taaHistoryVelocitySampler(), null);
+        }
         if (resources.offscreenColorImageView() != VK_NULL_HANDLE) {
             vkDestroyImageView(device, resources.offscreenColorImageView(), null);
         }
         if (resources.taaHistoryImageView() != VK_NULL_HANDLE) {
             vkDestroyImageView(device, resources.taaHistoryImageView(), null);
+        }
+        if (resources.taaHistoryVelocityImageView() != VK_NULL_HANDLE) {
+            vkDestroyImageView(device, resources.taaHistoryVelocityImageView(), null);
         }
         if (resources.offscreenColorImage() != VK_NULL_HANDLE) {
             VK10.vkDestroyImage(device, resources.offscreenColorImage(), null);
@@ -204,11 +236,17 @@ public final class VulkanPostProcessResources {
         if (resources.taaHistoryImage() != VK_NULL_HANDLE) {
             VK10.vkDestroyImage(device, resources.taaHistoryImage(), null);
         }
+        if (resources.taaHistoryVelocityImage() != VK_NULL_HANDLE) {
+            VK10.vkDestroyImage(device, resources.taaHistoryVelocityImage(), null);
+        }
         if (resources.offscreenColorMemory() != VK_NULL_HANDLE) {
             vkFreeMemory(device, resources.offscreenColorMemory(), null);
         }
         if (resources.taaHistoryMemory() != VK_NULL_HANDLE) {
             vkFreeMemory(device, resources.taaHistoryMemory(), null);
+        }
+        if (resources.taaHistoryVelocityMemory() != VK_NULL_HANDLE) {
+            vkFreeMemory(device, resources.taaHistoryVelocityMemory(), null);
         }
     }
 
@@ -259,7 +297,7 @@ public final class VulkanPostProcessResources {
     }
 
     private static long createPostDescriptorSetLayout(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(3, stack);
+        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(4, stack);
         bindings.get(0)
                 .binding(0)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
@@ -272,6 +310,11 @@ public final class VulkanPostProcessResources {
                 .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
         bindings.get(2)
                 .binding(2)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
+        bindings.get(3)
+                .binding(3)
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
@@ -290,7 +333,7 @@ public final class VulkanPostProcessResources {
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
         poolSizes.get(0)
                 .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(3);
+                .descriptorCount(4);
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
                 .maxSets(1)
@@ -330,7 +373,9 @@ public final class VulkanPostProcessResources {
             long taaHistoryImageView,
             long taaHistorySampler,
             long velocityImageView,
-            long velocitySampler
+            long velocitySampler,
+            long taaHistoryVelocityImageView,
+            long taaHistoryVelocitySampler
     ) {
         VkDescriptorImageInfo.Buffer imageInfo = VkDescriptorImageInfo.calloc(1, stack);
         imageInfo.get(0)
@@ -347,7 +392,12 @@ public final class VulkanPostProcessResources {
                 .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
                 .imageView(velocityImageView)
                 .sampler(velocitySampler);
-        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(3, stack);
+        VkDescriptorImageInfo.Buffer historyVelocityInfo = VkDescriptorImageInfo.calloc(1, stack);
+        historyVelocityInfo.get(0)
+                .imageLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                .imageView(taaHistoryVelocityImageView)
+                .sampler(taaHistoryVelocitySampler);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(4, stack);
         writes.get(0)
                 .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                 .dstSet(postDescriptorSet)
@@ -369,6 +419,13 @@ public final class VulkanPostProcessResources {
                 .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 .descriptorCount(1)
                 .pImageInfo(velocityInfo);
+        writes.get(3)
+                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                .dstSet(postDescriptorSet)
+                .dstBinding(3)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                .descriptorCount(1)
+                .pImageInfo(historyVelocityInfo);
         vkUpdateDescriptorSets(device, writes, null);
     }
 
@@ -408,6 +465,10 @@ public final class VulkanPostProcessResources {
             long taaHistoryMemory,
             long taaHistoryImageView,
             long taaHistorySampler,
+            long taaHistoryVelocityImage,
+            long taaHistoryVelocityMemory,
+            long taaHistoryVelocityImageView,
+            long taaHistoryVelocitySampler,
             long postDescriptorSetLayout,
             long postDescriptorPool,
             long postDescriptorSet,

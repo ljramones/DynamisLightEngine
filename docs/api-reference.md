@@ -59,7 +59,7 @@ Callbacks must be non-blocking and must not call runtime methods synchronously.
 - cameras (`CameraDesc`) and active camera id
 - transforms (`TransformDesc`)
 - meshes (`MeshDesc`) referencing transform/material ids
-- materials (`MaterialDesc`) with albedo/metallic/roughness + texture paths
+- materials (`MaterialDesc`) with albedo/metallic/roughness, texture paths, and authored temporal-AA reactive controls (`reactiveStrength`, `alphaTested`, `foliage`)
 - lights (`LightDesc`)
 - environment (`EnvironmentDesc`)
 - fog (`FogDesc`, `FogMode`)

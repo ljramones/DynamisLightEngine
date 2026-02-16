@@ -43,6 +43,9 @@ final class VulkanEngineRuntimeSceneAssembly {
             float[] color = materialToColor(material);
             float metallic = material == null ? 0.0f : clamp01(material.metallic());
             float roughness = material == null ? 0.6f : clamp01(material.roughness());
+            float reactiveStrength = material == null ? 0f : clamp01(material.reactiveStrength());
+            boolean alphaTested = material != null && material.alphaTested();
+            boolean foliage = material != null && material.foliage();
             float[] model = VulkanEngineRuntimeCameraMath.modelMatrixOf(transforms.get(mesh.transformId()), i);
             String stableMeshId = (mesh.id() == null || mesh.id().isBlank()) ? ("mesh-index-" + i) : mesh.id();
             VulkanSceneMeshData meshData = new VulkanSceneMeshData(
@@ -53,6 +56,9 @@ final class VulkanEngineRuntimeSceneAssembly {
                     color,
                     metallic,
                     roughness,
+                    reactiveStrength,
+                    alphaTested,
+                    foliage,
                     resolveTexturePath(material == null ? null : material.albedoTexturePath(), assetRoot),
                     resolveTexturePath(material == null ? null : material.normalTexturePath(), assetRoot),
                     resolveTexturePath(material == null ? null : material.metallicRoughnessTexturePath(), assetRoot),

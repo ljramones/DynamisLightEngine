@@ -81,7 +81,10 @@ public final class SceneMapper {
                         m.albedoTexturePath(),
                         m.normalTexturePath(),
                         m.metallicRoughnessTexturePath(),
-                        m.occlusionTexturePath()
+                        m.occlusionTexturePath(),
+                        m.reactiveStrength(),
+                        m.alphaTested(),
+                        m.foliage()
                 ))
                 .toList();
     }

@@ -45,6 +45,14 @@ public final class SceneValidator {
                 throw invalid("mesh " + mesh.id() + " has unknown materialId");
             }
         }
+        for (MaterialDesc material : scene.materials()) {
+            if (material == null) {
+                continue;
+            }
+            if (material.reactiveStrength() < 0f || material.reactiveStrength() > 1f) {
+                throw invalid("material " + material.id() + " reactiveStrength must be in [0,1]");
+            }
+        }
 
         if (scene.lights() != null) {
             for (LightDesc light : scene.lights()) {

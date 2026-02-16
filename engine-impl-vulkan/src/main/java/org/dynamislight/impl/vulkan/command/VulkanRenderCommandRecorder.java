@@ -296,6 +296,32 @@ public final class VulkanRenderCommandRecorder {
                     historyToShaderRead
             );
         }
+        if (in.taaEnabled() && in.taaHistoryVelocityImage() != VK_NULL_HANDLE) {
+            VkImageMemoryBarrier.Buffer historyVelocityToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                    .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                    .srcAccessMask(0)
+                    .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                    .oldLayout(in.taaHistoryInitialized() ? VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED)
+                    .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .image(in.taaHistoryVelocityImage());
+            historyVelocityToShaderRead.get(0).subresourceRange()
+                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                    .baseMipLevel(0)
+                    .levelCount(1)
+                    .baseArrayLayer(0)
+                    .layerCount(1);
+            vkCmdPipelineBarrier(
+                    commandBuffer,
+                    in.taaHistoryInitialized() ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK10.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    0,
+                    null,
+                    null,
+                    historyVelocityToShaderRead
+            );
+        }
 
         VkImageMemoryBarrier.Buffer velocityToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
@@ -469,6 +495,117 @@ public final class VulkanRenderCommandRecorder {
                     historyBackToShaderRead
             );
 
+            if (in.taaHistoryVelocityImage() != VK_NULL_HANDLE) {
+                VkImageMemoryBarrier.Buffer historyVelocityToTransferDst = VkImageMemoryBarrier.calloc(1, stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .srcAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                        .dstAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT)
+                        .oldLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                        .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(in.taaHistoryVelocityImage());
+                historyVelocityToTransferDst.get(0).subresourceRange()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .baseMipLevel(0)
+                        .levelCount(1)
+                        .baseArrayLayer(0)
+                        .layerCount(1);
+                vkCmdPipelineBarrier(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0,
+                        null,
+                        null,
+                        historyVelocityToTransferDst
+                );
+
+                VkImageMemoryBarrier.Buffer velocityToTransferSrc = VkImageMemoryBarrier.calloc(1, stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .srcAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                        .dstAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                        .oldLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                        .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(in.velocityImage());
+                velocityToTransferSrc.get(0).subresourceRange()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .baseMipLevel(0)
+                        .levelCount(1)
+                        .baseArrayLayer(0)
+                        .layerCount(1);
+                vkCmdPipelineBarrier(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0,
+                        null,
+                        null,
+                        velocityToTransferSrc
+                );
+
+                vkCmdCopyImage(
+                        commandBuffer,
+                        in.velocityImage(),
+                        VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        in.taaHistoryVelocityImage(),
+                        VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        copyRegion
+                );
+
+                VkImageMemoryBarrier.Buffer historyVelocityBackToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .srcAccessMask(VK10.VK_ACCESS_TRANSFER_WRITE_BIT)
+                        .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                        .oldLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                        .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(in.taaHistoryVelocityImage());
+                historyVelocityBackToShaderRead.get(0).subresourceRange()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .baseMipLevel(0)
+                        .levelCount(1)
+                        .baseArrayLayer(0)
+                        .layerCount(1);
+                vkCmdPipelineBarrier(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0,
+                        null,
+                        null,
+                        historyVelocityBackToShaderRead
+                );
+
+                VkImageMemoryBarrier.Buffer velocityBackToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                        .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                        .oldLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                        .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(in.velocityImage());
+                velocityBackToShaderRead.get(0).subresourceRange()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .baseMipLevel(0)
+                        .levelCount(1)
+                        .baseArrayLayer(0)
+                        .layerCount(1);
+                vkCmdPipelineBarrier(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0,
+                        null,
+                        null,
+                        velocityBackToShaderRead
+                );
+            }
+
             VkImageMemoryBarrier.Buffer intermediateBackToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
                     .srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
@@ -556,6 +693,7 @@ public final class VulkanRenderCommandRecorder {
             long postDescriptorSet,
             long offscreenColorImage,
             long taaHistoryImage,
+            long taaHistoryVelocityImage,
             long velocityImage,
             long swapchainImage,
             long[] postFramebuffers

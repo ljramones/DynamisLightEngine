@@ -59,7 +59,12 @@ public final class VulkanUniformWriters {
         } else {
             fb.put(mesh.modelMatrix);
             fb.put(new float[]{mesh.colorR, mesh.colorG, mesh.colorB, 1f});
-            fb.put(new float[]{mesh.metallic, mesh.roughness, 0f, 0f});
+            fb.put(new float[]{
+                    mesh.metallic,
+                    mesh.roughness,
+                    mesh.reactiveStrength,
+                    (mesh.alphaTested ? 1f : 0f) + (mesh.foliage ? 2f : 0f)
+            });
         }
     }
 

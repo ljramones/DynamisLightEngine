@@ -195,11 +195,19 @@ public final class VulkanShaderSources {
                     vec3 b = normalize(cross(n0, t));
                     vec3 normalTex = texture(uNormalTexture, vUv).xyz * 2.0 - 1.0;
                     vec3 n = normalize(mat3(t, b, n0) * normalTex);
-                    vec3 sampledAlbedo = texture(uAlbedoTexture, vUv).rgb;
+                    vec4 sampledAlbedoTex = texture(uAlbedoTexture, vUv);
+                    vec3 sampledAlbedo = sampledAlbedoTex.rgb;
+                    float sampledAlpha = sampledAlbedoTex.a;
                     vec3 baseColor = obj.uBaseColor.rgb * sampledAlbedo;
                     vec3 mrTex = texture(uMetallicRoughnessTexture, vUv).rgb;
                     float metallic = clamp(obj.uMaterial.x * mrTex.b, 0.0, 1.0);
                     float roughness = clamp(obj.uMaterial.y * max(mrTex.g, 0.04), 0.04, 1.0);
+                    float reactiveStrength = clamp(obj.uMaterial.z, 0.0, 1.0);
+                    float reactiveFlags = obj.uMaterial.w;
+                    bool alphaTested = mod(reactiveFlags, 2.0) >= 1.0;
+                    bool foliage = mod(floor(reactiveFlags / 2.0), 2.0) >= 1.0;
+                    float normalVariance = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.30, 0.0, 1.0);
+                    roughness = clamp(sqrt(roughness * roughness + normalVariance * 0.36), 0.04, 1.0);
                     float dirIntensity = max(0.0, gbo.uLightIntensity.x);
                     float pointIntensity = max(0.0, gbo.uLightIntensity.y);
 
@@ -435,6 +443,18 @@ public final class VulkanShaderSources {
                         float edge = clamp((edgeDx + edgeDy) * 5.5, 0.0, 1.0);
                         color = mix(color, vec3(luma), edge * aaStrength * 0.20);
                     }
+                    float emissiveMask = smoothstep(0.72, 0.97, dot(baseColor, vec3(0.2126, 0.7152, 0.0722))) * (1.0 - roughness) * 0.6;
+                    float alphaTestMask = 1.0 - smoothstep(0.78, 0.98, sampledAlpha);
+                    float foliageMask = smoothstep(0.06, 0.42, baseColor.g - max(baseColor.r, baseColor.b));
+                    float specularMask = clamp((1.0 - roughness) * mix(0.35, 1.0, metallic), 0.0, 1.0);
+                    float heuristicReactive = clamp(max(alphaTestMask, foliageMask) * 0.85 + specularMask * 0.30 + emissiveMask, 0.0, 1.0);
+                    float authoredReactive = clamp(
+                            reactiveStrength * (1.0 + 0.65 * max(alphaTested ? 1.0 : 0.0, foliage ? 1.0 : 0.0)),
+                            0.0,
+                            1.0
+                    );
+                    bool authoredEnabled = (reactiveStrength > 0.001) || alphaTested || foliage;
+                    float materialReactive = authoredEnabled ? authoredReactive : heuristicReactive;
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                     vec4 currClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
                     vec4 prevClip = gbo.uPrevViewProj * vec4(vWorldPos, 1.0);
@@ -443,7 +463,7 @@ public final class VulkanShaderSources {
                     vec2 currNdc = currClip.xy / currW;
                     vec2 prevNdc = prevClip.xy / prevW;
                     vec2 velocityNdc = clamp(prevNdc - currNdc, vec2(-1.0), vec2(1.0));
-                    outVelocity = vec4(velocityNdc * 0.5 + 0.5, 0.5, 1.0);
+                    outVelocity = vec4(velocityNdc * 0.5 + 0.5, clamp(gl_FragCoord.z, 0.0, 1.0), materialReactive);
                 }
                 """;
     }
@@ -469,6 +489,7 @@ public final class VulkanShaderSources {
                 layout(set = 0, binding = 0) uniform sampler2D uSceneColor;
                 layout(set = 0, binding = 1) uniform sampler2D uHistoryColor;
                 layout(set = 0, binding = 2) uniform sampler2D uVelocityColor;
+                layout(set = 0, binding = 3) uniform sampler2D uHistoryVelocityColor;
                 layout(push_constant) uniform PostPush {
                     vec4 tonemap;
                     vec4 bloom;
@@ -514,6 +535,7 @@ public final class VulkanShaderSources {
                 void main() {
                     vec3 color = texture(uSceneColor, vUv).rgb;
                     float currentDepth = texture(uVelocityColor, vUv).b;
+                    float historyConfidenceOut = 1.0;
                     if (pc.tonemap.x > 0.5) {
                         float exposure = max(pc.tonemap.y, 0.0001);
                         float gamma = max(pc.tonemap.z, 0.0001);
@@ -560,11 +582,14 @@ public final class VulkanShaderSources {
                     }
                     if (pc.taa.x > 0.5 && pc.taa.z > 0.5) {
                         vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
-                        vec2 velocityUv = texture(uVelocityColor, vUv).rg * 2.0 - 1.0;
+                        vec4 velocitySample = texture(uVelocityColor, vUv);
+                        vec2 velocityUv = velocitySample.rg * 2.0 - 1.0;
+                        float materialReactive = velocitySample.a;
                         vec2 historyUv = clamp(vUv + pc.smaa.zw + pc.motion.xy + (velocityUv * 0.5), vec2(0.0), vec2(1.0));
                         vec4 historySample = texture(uHistoryColor, historyUv);
                         vec3 history = historySample.rgb;
-                        float historyDepth = historySample.a;
+                        float historyConfidence = clamp(historySample.a, 0.0, 1.0);
+                        float historyDepth = texture(uHistoryVelocityColor, historyUv).b;
                         vec3 n1 = texture(uSceneColor, clamp(vUv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
                         vec3 n2 = texture(uSceneColor, clamp(vUv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
                         vec3 n3 = texture(uSceneColor, clamp(vUv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
@@ -578,13 +603,15 @@ public final class VulkanShaderSources {
                         float depthEdge = max(max(abs(currentDepth - d1), abs(currentDepth - d2)), max(abs(currentDepth - d3), abs(currentDepth - d4)));
                         float lCurr = dot(color, vec3(0.2126, 0.7152, 0.0722));
                         float lHist = dot(history, vec3(0.2126, 0.7152, 0.0722));
-                        float depthReject = smoothstep(0.002, 0.02, abs(historyDepth - currentDepth) + depthEdge * 0.8);
-                        float reactive = clamp(abs(lCurr - lHist) * 2.6 + length(velocityUv) * 1.25 + depthReject * 1.2, 0.0, 1.0);
+                        float depthReject = smoothstep(0.0012, 0.012, depthEdge + abs(historyDepth - currentDepth));
+                        float reactive = clamp(abs(lCurr - lHist) * 2.4 + length(velocityUv) * 1.25 + depthReject * 0.95 + materialReactive * 1.35, 0.0, 1.0);
                         float clipExpand = mix(0.06, 0.015, reactive);
                         vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand), neighMax + vec3(clipExpand));
-                        float blend = clamp(pc.taa.y, 0.0, 0.95) * (1.0 - reactive * 0.85);
+                        float historyTrust = clamp(historyConfidence * (1.0 - reactive * 0.65), 0.0, 1.0);
+                        float blend = clamp(pc.taa.y, 0.0, 0.95) * historyTrust * (1.0 - reactive * 0.88);
                         color = mix(color, clampedHistory, blend);
                         color = taaSharpen(vUv, color, 0.16 * (1.0 - reactive));
+                        historyConfidenceOut = clamp(max(historyTrust * 0.92, 1.0 - reactive * 0.85), 0.02, 1.0);
                         int debugView = int(pc.taa.w + 0.5);
                         if (debugView == 1) {
                             color = vec3(reactive);
@@ -594,7 +621,7 @@ public final class VulkanShaderSources {
                             color = vec3(abs(velocityUv.x), abs(velocityUv.y), length(velocityUv) * 0.5);
                         }
                     }
-                    outColor = vec4(clamp(color, 0.0, 1.0), clamp(currentDepth, 0.0, 1.0));
+                    outColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);
                 }
                 """;
     }

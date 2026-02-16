@@ -112,6 +112,7 @@ public final class VulkanFrameCommandOrchestrator {
                             inputs.postDescriptorSet(),
                             inputs.offscreenColorImage(),
                             inputs.taaHistoryImage(),
+                            inputs.taaHistoryVelocityImage(),
                             inputs.velocityImage(),
                             inputs.swapchainImages()[imageIndex],
                             inputs.postFramebuffers()
@@ -200,6 +201,7 @@ public final class VulkanFrameCommandOrchestrator {
             long postDescriptorSet,
             long offscreenColorImage,
             long taaHistoryImage,
+            long taaHistoryVelocityImage,
             long velocityImage,
             long[] swapchainImages,
             long[] postFramebuffers,

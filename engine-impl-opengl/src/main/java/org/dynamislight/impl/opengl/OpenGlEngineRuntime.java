@@ -793,6 +793,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     new float[]{1f, 1f, 1f},
                     0.0f,
                     0.6f,
+                    0f,
+                    false,
+                    false,
                     null,
                     null,
                     null,
@@ -826,12 +829,18 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             Path occlusionTexturePath = resolveTexturePath(material == null ? null : material.occlusionTexturePath());
             float metallic = material == null ? 0.0f : clamp01(material.metallic());
             float roughness = material == null ? 0.6f : clamp01(material.roughness());
+            float reactiveStrength = material == null ? 0f : clamp01(material.reactiveStrength());
+            boolean alphaTested = material != null && material.alphaTested();
+            boolean foliage = material != null && material.foliage();
             sceneMeshes.add(new OpenGlContext.SceneMesh(
                     geometry,
                     model,
                     albedo,
                     metallic,
                     roughness,
+                    reactiveStrength,
+                    alphaTested,
+                    foliage,
                     albedoTexturePath,
                     normalTexturePath,
                     metallicRoughnessTexturePath,

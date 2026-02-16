@@ -122,7 +122,10 @@ OpenGL backend provides a real forward render baseline:
   - OpenGL and Vulkan both include per-pixel motion-vector reprojection via dedicated velocity render targets sampled in post.
   - Global camera-motion UV reprojection remains layered as a stabilizing baseline term.
   - Reactive-mask + neighborhood-clipping pass is enabled in both backends to reduce ghosting under high-contrast motion.
-  - History validation includes depth/disocclusion rejection and thin-edge depth neighborhood checks.
+  - Per-material reactive masking is now authored via `MaterialDesc` (`reactiveStrength`, `alphaTested`, `foliage`) and emitted from geometry (velocity alpha).
+  - Specular anti-aliasing baseline is enabled in both backends via roughness filtering from normal variance (`dFdx/dFdy`) to reduce highlight shimmer.
+  - Temporal history alpha now stores confidence (not depth), with confidence decay/recovery driven by reactive signals and depth-edge instability.
+  - History validation includes explicit previous-frame depth rejection (history-velocity depth sample) plus thin-edge depth neighborhood checks.
   - Temporal pass applies mild contrast-aware sharpen after blend to recover detail.
   - SMAA path upgraded with explicit edge-mask + blend-weight phases (shader-stage implementation).
   - Debug output modes are available via backend options (`opengl.taaDebugView` / `vulkan.taaDebugView`: `0=off`, `1=reactive`, `2=weight`, `3=velocity`).

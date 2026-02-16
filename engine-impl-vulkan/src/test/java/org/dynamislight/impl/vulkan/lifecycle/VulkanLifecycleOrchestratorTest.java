@@ -23,9 +23,15 @@ class VulkanLifecycleOrchestratorTest {
         var state = new VulkanSwapchainLifecycleCoordinator.State(
                 11L, 44, 1920, 1080,
                 swapchainImages, new long[]{201L}, new long[]{202L}, new long[]{203L}, new long[]{204L},
-                12L, 13L, 14L, framebuffers, true,
+                12L, 13L, 14L,
+                25L, 26L, 27L,
+                framebuffers, true,
                 15L, 16L, 17L, 18L,
-                19L, 20L, 21L, 22L, 23L, 24L, postFramebuffers, true
+                19L, 20L, 21L, 22L,
+                28L, 29L, 30L, 31L,
+                32L, 33L, 34L,
+                23L, 24L, 35L,
+                postFramebuffers, true, true
         );
 
         VulkanLifecycleOrchestrator.applySwapchainState(backend, render, state);
@@ -37,7 +43,7 @@ class VulkanLifecycleOrchestratorTest {
         assertSame(swapchainImages, backend.swapchainImages);
         assertSame(framebuffers, backend.framebuffers);
         assertSame(postFramebuffers, backend.postFramebuffers);
-        assertEquals(24L, backend.postGraphicsPipeline);
+        assertEquals(35L, backend.postGraphicsPipeline);
         assertEquals(true, render.postOffscreenActive);
         assertEquals(true, render.postIntermediateInitialized);
     }

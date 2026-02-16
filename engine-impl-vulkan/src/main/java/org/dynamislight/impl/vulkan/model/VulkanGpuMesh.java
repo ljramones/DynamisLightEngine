@@ -19,6 +19,9 @@ public final class VulkanGpuMesh {
     public float colorB;
     public float metallic;
     public float roughness;
+    public float reactiveStrength;
+    public boolean alphaTested;
+    public boolean foliage;
     public final VulkanGpuTexture albedoTexture;
     public final VulkanGpuTexture normalTexture;
     public final VulkanGpuTexture metallicRoughnessTexture;
@@ -45,6 +48,9 @@ public final class VulkanGpuMesh {
             float colorB,
             float metallic,
             float roughness,
+            float reactiveStrength,
+            boolean alphaTested,
+            boolean foliage,
             VulkanGpuTexture albedoTexture,
             VulkanGpuTexture normalTexture,
             VulkanGpuTexture metallicRoughnessTexture,
@@ -71,6 +77,9 @@ public final class VulkanGpuMesh {
         this.colorB = colorB;
         this.metallic = metallic;
         this.roughness = roughness;
+        this.reactiveStrength = reactiveStrength;
+        this.alphaTested = alphaTested;
+        this.foliage = foliage;
         this.albedoTexture = albedoTexture;
         this.normalTexture = normalTexture;
         this.metallicRoughnessTexture = metallicRoughnessTexture;
@@ -89,20 +98,29 @@ public final class VulkanGpuMesh {
             float colorG,
             float colorB,
             float metallic,
-            float roughness
+            float roughness,
+            float reactiveStrength,
+            boolean alphaTested,
+            boolean foliage
     ) {
         boolean changed = !Arrays.equals(this.modelMatrix, modelMatrix)
                 || this.colorR != colorR
                 || this.colorG != colorG
                 || this.colorB != colorB
                 || this.metallic != metallic
-                || this.roughness != roughness;
+                || this.roughness != roughness
+                || this.reactiveStrength != reactiveStrength
+                || this.alphaTested != alphaTested
+                || this.foliage != foliage;
         this.modelMatrix = modelMatrix;
         this.colorR = colorR;
         this.colorG = colorG;
         this.colorB = colorB;
         this.metallic = metallic;
         this.roughness = roughness;
+        this.reactiveStrength = reactiveStrength;
+        this.alphaTested = alphaTested;
+        this.foliage = foliage;
         return changed;
     }
 }
