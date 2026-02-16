@@ -489,14 +489,11 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 continue;
             }
             LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
-            if (type == LightType.POINT) {
-                continue;
-            }
             ShadowDesc shadow = light.shadow();
             int kernel = shadow == null ? 3 : Math.max(1, shadow.pcfKernelSize());
             int radius = Math.max(0, (kernel - 1) / 2);
             int cascades = shadow == null ? 1 : Math.max(1, shadow.cascadeCount());
-            if (type == LightType.SPOT) {
+            if (type == LightType.SPOT || type == LightType.POINT) {
                 cascades = 1;
             }
             int resolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));

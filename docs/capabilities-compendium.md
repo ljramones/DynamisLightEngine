@@ -120,6 +120,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - GGX-style PBR-leaning lighting response aligned with OpenGL baseline (directional + point light path).
 - Typed light selection baseline (`LightType`: directional/point/spot) with cone-attenuated spot-light shading path.
 - Directional + spot + point shadow path support in baseline form (OpenGL cubemap baseline; Vulkan 6-face layered point-shadow path aligned to cubemap face directions).
+- Adaptive point-shadow filtering/bias behavior in both backends (PCF kernel scales with configured radius and depth-from-light to reduce near/far acne and shimmer).
 - IBL baseline hook:
   - environment-driven enablement via `EnvironmentDesc` IBL asset paths
   - lightweight diffuse/specular ambient contribution (`IBL_BASELINE_ACTIVE` warning signal)

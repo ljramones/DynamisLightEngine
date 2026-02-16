@@ -62,6 +62,7 @@ Exit criteria:
 - Status: API/runtime light-type expansion delivered (`DIRECTIONAL`/`POINT`/`SPOT`) with backend lighting selection wiring.
 - Status addendum: spot-light cone attenuation is now implemented in OpenGL and Vulkan shading paths (direction + inner/outer cone).
 - Status addendum: OpenGL includes a point-light cubemap baseline; Vulkan now runs a 6-face layered point-shadow path aligned to cubemap face directions for baseline parity.
+- Status addendum: point-shadow filtering now uses adaptive PCF/bias scaling in both backends for improved near/far stability.
 
 3. Optional SSAO pass
 - Add basic SSAO/HBAO-lite as post pass before bloom/tonemap.

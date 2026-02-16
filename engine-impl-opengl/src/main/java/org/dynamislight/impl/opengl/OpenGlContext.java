@@ -363,8 +363,12 @@ final class OpenGlContext {
                 if (uPointShadowEnabled == 0 || currentDepth >= uPointShadowFarPlane) {
                     return 0.0;
                 }
-                float bias = max(uShadowBias, (1.0 - max(dot(normal, lightDir), 0.0)) * uShadowBias * 2.0);
-                float sampleRadius = 0.04;
+                float ndl = max(dot(normal, lightDir), 0.0);
+                float depthRatio = clamp(currentDepth / max(uPointShadowFarPlane, 0.0001), 0.0, 1.0);
+                float bias = max(uShadowBias, (1.0 - ndl) * uShadowBias * 2.0) * mix(0.85, 1.65, depthRatio);
+                int radius = max(uShadowPcfRadius, 0);
+                float diskRadius = (0.005 + depthRatio * 0.035) * (1.0 + float(radius) * 0.6);
+                vec3 fragToLight = vWorldPos - uPointLightPos;
                 vec3 dirs[6] = vec3[](
                     vec3( 1.0,  0.0,  0.0),
                     vec3(-1.0,  0.0,  0.0),
@@ -374,11 +378,19 @@ final class OpenGlContext {
                     vec3( 0.0,  0.0, -1.0)
                 );
                 float occlusion = 0.0;
+                int taps = 0;
                 for (int i = 0; i < 6; i++) {
-                    float closestDepth = texture(uPointShadowMap, (vWorldPos - uPointLightPos) + dirs[i] * sampleRadius).r * uPointShadowFarPlane;
-                    occlusion += (currentDepth - bias) > closestDepth ? 1.0 : 0.0;
+                    for (int r = -4; r <= 4; r++) {
+                        if (abs(r) > radius) {
+                            continue;
+                        }
+                        vec3 sampleVec = fragToLight + dirs[i] * diskRadius * float(r);
+                        float closestDepth = texture(uPointShadowMap, sampleVec).r * uPointShadowFarPlane;
+                        occlusion += (currentDepth - bias) > closestDepth ? 1.0 : 0.0;
+                        taps++;
+                    }
                 }
-                return occlusion / 6.0;
+                return taps > 0 ? (occlusion / float(taps)) : 0.0;
             }
             void main() {
                 vec3 albedo = vColor * uMaterialAlbedo;

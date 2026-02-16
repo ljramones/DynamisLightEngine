@@ -32,6 +32,7 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
   - Spot lights now use cone-attenuated shading (direction + inner/outer cone) in OpenGL and Vulkan.
   - OpenGL shadow-map execution now supports directional + spot + point lights (point via cubemap depth sampling baseline).
   - Vulkan point-light shadows now run through a 6-face layered path aligned to cubemap directions (+X/-X/+Y/-Y/+Z/-Z).
+  - Adaptive point-shadow PCF/bias scaling now applied in both backends to improve near/far stability.
   - Backend tests ensure legacy `SPOT_LIGHT_APPROX_ACTIVE` warning remains absent and verify point/spot shadow warning behavior.
 - Hardened Vulkan frame-resource architecture:
   - expanded to `MAX_FRAMES_IN_FLIGHT=3`

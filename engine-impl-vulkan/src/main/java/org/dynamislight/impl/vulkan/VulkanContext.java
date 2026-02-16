@@ -1869,13 +1869,18 @@ final class VulkanContext {
                                 && pointShadowCoord.z < 1.0
                                 && pointShadowCoord.x >= 0.0 && pointShadowCoord.x <= 1.0
                                 && pointShadowCoord.y >= 0.0 && pointShadowCoord.y <= 1.0) {
-                            float texel = 1.0 / max(ubo.uShadowCascade.y, 1.0);
-                            float compareBias = ubo.uShadow.z * 1.35;
+                            float pointDepthRatio = clamp(dist / max(ubo.uPointLightPos.w, 0.0001), 0.0, 1.0);
+                            int pointRadius = clamp(int(ubo.uShadow.w + 0.5), 0, 4);
+                            float texel = (1.0 / max(ubo.uShadowCascade.y, 1.0)) * mix(0.85, 2.0, pointDepthRatio);
+                            float compareBias = ubo.uShadow.z * mix(0.85, 1.65, pointDepthRatio) * (1.0 + (1.0 - pNdl) * 0.6);
                             float compareDepth = clamp(pointShadowCoord.z - compareBias, 0.0, 1.0);
                             float visibility = 0.0;
                             float taps = 0.0;
-                            for (int y = -1; y <= 1; y++) {
-                                for (int x = -1; x <= 1; x++) {
+                            for (int y = -4; y <= 4; y++) {
+                                for (int x = -4; x <= 4; x++) {
+                                    if (abs(x) > pointRadius || abs(y) > pointRadius) {
+                                        continue;
+                                    }
                                     vec2 offset = vec2(float(x), float(y)) * texel;
                                     visibility += texture(uShadowMap, vec4(pointShadowCoord.xy + offset, float(pointLayer), compareDepth));
                                     taps += 1.0;
