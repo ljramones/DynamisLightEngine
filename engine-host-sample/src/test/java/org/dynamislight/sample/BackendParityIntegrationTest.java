@@ -394,7 +394,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.33, "taa thin-geometry shimmer diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.32, "taa thin-geometry shimmer diff was " + report.diffMetric());
     }
 
     @Test
@@ -411,7 +411,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.33, "taa specular flicker diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.32, "taa specular flicker diff was " + report.diffMetric());
     }
 
     @Test
@@ -493,13 +493,13 @@ class BackendParityIntegrationTest {
                 QualityTier.LOW, 0.54,
                 QualityTier.MEDIUM, 0.46,
                 QualityTier.HIGH, 0.38,
-                QualityTier.ULTRA, 0.33
+                QualityTier.ULTRA, 0.32
         );
         Map<QualityTier, Double> taaSpecularFlickerMaxDiff = Map.of(
                 QualityTier.LOW, 0.54,
                 QualityTier.MEDIUM, 0.46,
                 QualityTier.HIGH, 0.38,
-                QualityTier.ULTRA, 0.33
+                QualityTier.ULTRA, 0.32
         );
 
         for (QualityTier tier : QualityTier.values()) {
@@ -698,8 +698,8 @@ class BackendParityIntegrationTest {
                 Map.entry("material-fog-smoke-shadow-cascade-stress", 0.30),
                 Map.entry("taa-disocclusion-stress", 0.32),
                 Map.entry("taa-reactive-authored-stress", 0.32),
-                Map.entry("taa-thin-geometry-shimmer", 0.33),
-                Map.entry("taa-specular-flicker", 0.33),
+                Map.entry("taa-thin-geometry-shimmer", 0.32),
+                Map.entry("taa-specular-flicker", 0.32),
                 Map.entry("post-process-ssao", 0.35),
                 Map.entry("post-process-ssao-stress", 0.37),
                 Map.entry("post-process-smaa", 0.36)
@@ -1715,10 +1715,10 @@ class BackendParityIntegrationTest {
         MeshDesc m2 = new MeshDesc("mesh-2", "x2", "mat-2", "meshes/quad.gltf");
         MeshDesc m3 = new MeshDesc("mesh-3", "x3", "mat-3", "meshes/quad.gltf");
         MeshDesc m4 = new MeshDesc("mesh-4", "x4", "mat-4", "meshes/quad.gltf");
-        MaterialDesc mat1 = new MaterialDesc("mat-1", new Vec3(0.88f, 0.52f, 0.44f), 0.22f, 0.40f, null, null, null, null, 0.92f, true, false);
-        MaterialDesc mat2 = new MaterialDesc("mat-2", new Vec3(0.46f, 0.86f, 0.46f), 0.34f, 0.36f, null, null, null, null, 0.96f, false, true);
-        MaterialDesc mat3 = new MaterialDesc("mat-3", new Vec3(0.74f, 0.76f, 0.80f), 0.12f, 0.74f, null, null, null, null, 0.70f, true, true);
-        MaterialDesc mat4 = new MaterialDesc("mat-4", new Vec3(0.62f, 0.64f, 0.68f), 0.44f, 0.28f, null, null, null, null, 0.88f, false, false);
+        MaterialDesc mat1 = new MaterialDesc("mat-1", new Vec3(0.88f, 0.52f, 0.44f), 0.22f, 0.40f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 1.0f, true, false);
+        MaterialDesc mat2 = new MaterialDesc("mat-2", new Vec3(0.46f, 0.86f, 0.46f), 0.34f, 0.36f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 1.0f, false, true);
+        MaterialDesc mat3 = new MaterialDesc("mat-3", new Vec3(0.74f, 0.76f, 0.80f), 0.12f, 0.74f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 1.0f, true, true);
+        MaterialDesc mat4 = new MaterialDesc("mat-4", new Vec3(0.62f, 0.64f, 0.68f), 0.44f, 0.28f, "textures/d.png", "textures/d_n.png", "textures/d_mr.png", "textures/d_ao.png", 0.92f, true, false);
         LightDesc shadow = new LightDesc("shadow", new Vec3(9f, 22f, 10f), new Vec3(1f, 0.98f, 0.95f), 1.15f, 300f, true, new ShadowDesc(2048, 0.0006f, 5, 4));
         LightDesc fill = new LightDesc("fill", new Vec3(-6f, 8f, -5f), new Vec3(0.34f, 0.47f, 0.72f), 0.52f, 120f, false, null);
         EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.18f, null);
@@ -1747,9 +1747,9 @@ class BackendParityIntegrationTest {
         MeshDesc meshN = new MeshDesc("mesh-near", "x-near", "mat-near", "meshes/quad.gltf");
         MeshDesc meshM = new MeshDesc("mesh-mid", "x-mid", "mat-mid", "meshes/quad.gltf");
         MeshDesc meshF = new MeshDesc("mesh-far", "x-far", "mat-far", "meshes/quad.gltf");
-        MaterialDesc matNear = new MaterialDesc("mat-near", new Vec3(0.96f, 0.62f, 0.52f), 0.86f, 0.14f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 0.84f, false, false);
-        MaterialDesc matMid = new MaterialDesc("mat-mid", new Vec3(0.52f, 0.84f, 0.96f), 0.82f, 0.12f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 0.84f, false, false);
-        MaterialDesc matFar = new MaterialDesc("mat-far", new Vec3(0.74f, 0.76f, 0.80f), 0.78f, 0.10f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 0.82f, false, false);
+        MaterialDesc matNear = new MaterialDesc("mat-near", new Vec3(0.96f, 0.62f, 0.52f), 0.90f, 0.10f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 0.96f, true, false);
+        MaterialDesc matMid = new MaterialDesc("mat-mid", new Vec3(0.52f, 0.84f, 0.96f), 0.86f, 0.10f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 0.98f, false, true);
+        MaterialDesc matFar = new MaterialDesc("mat-far", new Vec3(0.74f, 0.76f, 0.80f), 0.82f, 0.08f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 0.94f, true, true);
         LightDesc key = new LightDesc("key", new Vec3(10f, 24f, 12f), new Vec3(1f, 0.98f, 0.95f), 1.18f, 320f, true, new ShadowDesc(2048, 0.0006f, 5, 4));
         LightDesc fill = new LightDesc("fill", new Vec3(-6f, 8f, -5f), new Vec3(0.34f, 0.48f, 0.72f), 0.50f, 120f, false, null);
         EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.20f, null);
