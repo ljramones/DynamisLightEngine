@@ -28,13 +28,33 @@ mvn -version
 
 ## Modules
 
-- `engine-api`: immutable DTOs and runtime contracts (`org.dynamislight.api`)
+- `engine-api`: immutable DTOs and runtime contracts (`org.dynamislight.api.*`)
 - `engine-spi`: backend discovery SPI (`ServiceLoader`)
 - `engine-impl-common`: shared lifecycle/runtime base for backend implementations
 - `engine-impl-opengl`: OpenGL backend skeleton
 - `engine-impl-vulkan`: Vulkan backend skeleton
 - `engine-bridge-dynamisfx`: host bridge/mapping layer
 - `engine-host-sample`: minimal console host that runs the lifecycle
+
+## Interface contracts and implementations
+
+### API contract modules
+
+- `org.dynamislight.api.runtime`: lifecycle and execution surface (`EngineRuntime`, callbacks, frame/stats/capabilities)
+- `org.dynamislight.api.config`: runtime config and quality tier
+- `org.dynamislight.api.input`: host input DTOs
+- `org.dynamislight.api.scene`: scene/fog/smoke DTOs
+- `org.dynamislight.api.event`: event/warning DTOs
+- `org.dynamislight.api.error`: engine error model (`EngineException`, `EngineErrorCode`)
+- `org.dynamislight.api.logging`: structured runtime log DTOs
+- `org.dynamislight.api.resource`: resource cache/reload service contracts
+
+### SPI and backend implementations
+
+- SPI contract: `engine-spi` (`EngineBackendProvider`, `BackendRegistry`) discovers backends through `ServiceLoader`.
+- OpenGL implementation: `engine-impl-opengl` (`OpenGlBackendProvider`, `OpenGlEngineRuntime`) is the primary active backend.
+- Vulkan implementation: `engine-impl-vulkan` (`VulkanBackendProvider`, `VulkanEngineRuntime`) is scaffolded and in-progress.
+- Host integration: `engine-bridge-dynamisfx` provides the DynamisFX bridge/session and mappers to engine DTOs.
 
 ## Build and test
 
