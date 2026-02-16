@@ -763,8 +763,29 @@ final class OpenGlContext {
                     float depthEdge = max(max(abs(currentDepth - d1), abs(currentDepth - d2)), max(abs(currentDepth - d3), abs(currentDepth - d4)));
                     float lCurr = dot(color, vec3(0.2126, 0.7152, 0.0722));
                     float lHist = dot(history, vec3(0.2126, 0.7152, 0.0722));
+                    float lN1 = dot(n1, vec3(0.2126, 0.7152, 0.0722));
+                    float lN2 = dot(n2, vec3(0.2126, 0.7152, 0.0722));
+                    float lN3 = dot(n3, vec3(0.2126, 0.7152, 0.0722));
+                    float lN4 = dot(n4, vec3(0.2126, 0.7152, 0.0722));
+                    float lMean = (lCurr + lN1 + lN2 + lN3 + lN4) * 0.2;
+                    float lVar = (
+                            (lCurr - lMean) * (lCurr - lMean) +
+                                    (lN1 - lMean) * (lN1 - lMean) +
+                                    (lN2 - lMean) * (lN2 - lMean) +
+                                    (lN3 - lMean) * (lN3 - lMean) +
+                                    (lN4 - lMean) * (lN4 - lMean)
+                    ) * 0.2;
+                    float varianceReject = smoothstep(0.002, 0.028, lVar);
                     float depthReject = smoothstep(0.0012, 0.012, depthEdge + abs(historyDepth - currentDepth));
-                    float reactive = clamp(abs(lCurr - lHist) * 2.4 + length(velocityUv) * 1.25 + depthReject * 0.95 + materialReactive * 1.35, 0.0, 1.0);
+                    float reactive = clamp(
+                            abs(lCurr - lHist) * 2.4 +
+                                    length(velocityUv) * 1.25 +
+                                    depthReject * 0.95 +
+                                    varianceReject * 1.15 +
+                                    materialReactive * 1.35,
+                            0.0,
+                            1.0
+                    );
                     float clipExpand = mix(0.06, 0.015, reactive);
                     vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand), neighMax + vec3(clipExpand));
                     float historyTrust = clamp(historyConfidence * (1.0 - reactive * 0.65), 0.0, 1.0);

@@ -60,7 +60,10 @@ final class BackendCompareHarness {
     ) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
         EngineConfig config = configFor(backendId, qualityTier);
-        boolean taaStress = profileTag.contains("taa-disocclusion-stress") || profileTag.contains("taa-reactive-authored-stress");
+        boolean taaStress = profileTag.contains("taa-disocclusion-stress")
+                || profileTag.contains("taa-reactive-authored-stress")
+                || profileTag.contains("taa-thin-geometry-shimmer")
+                || profileTag.contains("taa-specular-flicker");
         EngineInput input = taaStress
                 ? new EngineInput(540, 360, 96, -48, false, false, Set.of(KeyCode.A, KeyCode.D), 0.0)
                 : new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);

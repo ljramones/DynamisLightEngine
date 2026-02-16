@@ -382,6 +382,40 @@ class BackendParityIntegrationTest {
 
     @Test
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaThinGeometryShimmerHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-thin-geometry-shimmer");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaThinGeometryShimmerScene(),
+                QualityTier.ULTRA,
+                "taa-thin-geometry-shimmer-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.33, "taa thin-geometry shimmer diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaSpecularFlickerHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-specular-flicker");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaSpecularFlickerScene(),
+                QualityTier.ULTRA,
+                "taa-specular-flicker-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.33, "taa specular flicker diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessTieredGoldenProfilesStayBounded() throws Exception {
         Map<QualityTier, Double> fogSmokeMaxDiff = Map.of(
                 QualityTier.LOW, 0.45,
@@ -454,6 +488,18 @@ class BackendParityIntegrationTest {
                 QualityTier.MEDIUM, 0.44,
                 QualityTier.HIGH, 0.36,
                 QualityTier.ULTRA, 0.32
+        );
+        Map<QualityTier, Double> taaThinGeometryShimmerMaxDiff = Map.of(
+                QualityTier.LOW, 0.54,
+                QualityTier.MEDIUM, 0.46,
+                QualityTier.HIGH, 0.38,
+                QualityTier.ULTRA, 0.33
+        );
+        Map<QualityTier, Double> taaSpecularFlickerMaxDiff = Map.of(
+                QualityTier.LOW, 0.54,
+                QualityTier.MEDIUM, 0.46,
+                QualityTier.HIGH, 0.38,
+                QualityTier.ULTRA, 0.33
         );
 
         for (QualityTier tier : QualityTier.values()) {
@@ -610,6 +656,32 @@ class BackendParityIntegrationTest {
                     "taa-reactive-authored-stress diff " + taaReactiveReport.diffMetric()
                             + " exceeded " + taaReactiveAuthoredMaxDiff.get(tier) + " at " + tier
             );
+
+            Path taaThinDir = compareOutputDir("taa-thin-geometry-shimmer-" + tier.name().toLowerCase());
+            var taaThinReport = BackendCompareHarness.run(
+                    taaThinDir,
+                    taaThinGeometryShimmerScene(),
+                    tier,
+                    "taa-thin-geometry-shimmer-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaThinReport.diffMetric() <= taaThinGeometryShimmerMaxDiff.get(tier),
+                    "taa-thin-geometry-shimmer diff " + taaThinReport.diffMetric()
+                            + " exceeded " + taaThinGeometryShimmerMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path taaSpecDir = compareOutputDir("taa-specular-flicker-" + tier.name().toLowerCase());
+            var taaSpecReport = BackendCompareHarness.run(
+                    taaSpecDir,
+                    taaSpecularFlickerScene(),
+                    tier,
+                    "taa-specular-flicker-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaSpecReport.diffMetric() <= taaSpecularFlickerMaxDiff.get(tier),
+                    "taa-specular-flicker diff " + taaSpecReport.diffMetric()
+                            + " exceeded " + taaSpecularFlickerMaxDiff.get(tier) + " at " + tier
+            );
         }
     }
 
@@ -626,6 +698,8 @@ class BackendParityIntegrationTest {
                 Map.entry("material-fog-smoke-shadow-cascade-stress", 0.30),
                 Map.entry("taa-disocclusion-stress", 0.32),
                 Map.entry("taa-reactive-authored-stress", 0.32),
+                Map.entry("taa-thin-geometry-shimmer", 0.33),
+                Map.entry("taa-specular-flicker", 0.33),
                 Map.entry("post-process-ssao", 0.35),
                 Map.entry("post-process-ssao-stress", 0.37),
                 Map.entry("post-process-smaa", 0.36)
@@ -685,6 +759,18 @@ class BackendParityIntegrationTest {
                         taaReactiveAuthoredStressScene(),
                         QualityTier.ULTRA,
                         "taa-reactive-authored-stress-golden-ultra"
+                )),
+                Map.entry("taa-thin-geometry-shimmer", BackendCompareHarness.run(
+                        compareOutputDir("taa-thin-geometry-shimmer-golden"),
+                        taaThinGeometryShimmerScene(),
+                        QualityTier.ULTRA,
+                        "taa-thin-geometry-shimmer-golden-ultra"
+                )),
+                Map.entry("taa-specular-flicker", BackendCompareHarness.run(
+                        compareOutputDir("taa-specular-flicker-golden"),
+                        taaSpecularFlickerScene(),
+                        QualityTier.ULTRA,
+                        "taa-specular-flicker-golden-ultra"
                 )),
                 Map.entry("post-process-ssao", BackendCompareHarness.run(
                         compareOutputDir("post-process-ssao-golden"),
@@ -1616,6 +1702,71 @@ class BackendParityIntegrationTest {
                 base.fog(),
                 base.smokeEmitters(),
                 base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor taaThinGeometryShimmerScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.0f, 1.4f, 10.8f), new Vec3(-10f, 24f, 0f), 76f, 0.1f, 260f);
+        TransformDesc t1 = new TransformDesc("x1", new Vec3(-1.6f, -0.2f, -1.0f), new Vec3(0, 12, 0), new Vec3(0.25f, 3.0f, 0.25f));
+        TransformDesc t2 = new TransformDesc("x2", new Vec3(-0.6f, -0.2f, -8.0f), new Vec3(0, -18, 0), new Vec3(0.22f, 2.6f, 0.22f));
+        TransformDesc t3 = new TransformDesc("x3", new Vec3(0.8f, -0.2f, -17.0f), new Vec3(0, 20, 0), new Vec3(0.20f, 2.2f, 0.20f));
+        TransformDesc t4 = new TransformDesc("x4", new Vec3(2.0f, -0.2f, -31.0f), new Vec3(0, -10, 0), new Vec3(0.18f, 2.0f, 0.18f));
+        MeshDesc m1 = new MeshDesc("mesh-1", "x1", "mat-1", "meshes/quad.gltf");
+        MeshDesc m2 = new MeshDesc("mesh-2", "x2", "mat-2", "meshes/quad.gltf");
+        MeshDesc m3 = new MeshDesc("mesh-3", "x3", "mat-3", "meshes/quad.gltf");
+        MeshDesc m4 = new MeshDesc("mesh-4", "x4", "mat-4", "meshes/quad.gltf");
+        MaterialDesc mat1 = new MaterialDesc("mat-1", new Vec3(0.88f, 0.52f, 0.44f), 0.22f, 0.40f, null, null, null, null, 0.92f, true, false);
+        MaterialDesc mat2 = new MaterialDesc("mat-2", new Vec3(0.46f, 0.86f, 0.46f), 0.34f, 0.36f, null, null, null, null, 0.96f, false, true);
+        MaterialDesc mat3 = new MaterialDesc("mat-3", new Vec3(0.74f, 0.76f, 0.80f), 0.12f, 0.74f, null, null, null, null, 0.70f, true, true);
+        MaterialDesc mat4 = new MaterialDesc("mat-4", new Vec3(0.62f, 0.64f, 0.68f), 0.44f, 0.28f, null, null, null, null, 0.88f, false, false);
+        LightDesc shadow = new LightDesc("shadow", new Vec3(9f, 22f, 10f), new Vec3(1f, 0.98f, 0.95f), 1.15f, 300f, true, new ShadowDesc(2048, 0.0006f, 5, 4));
+        LightDesc fill = new LightDesc("fill", new Vec3(-6f, 8f, -5f), new Vec3(0.34f, 0.47f, 0.72f), 0.52f, 120f, false, null);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.18f, null);
+        FogDesc fog = new FogDesc(true, FogMode.HEIGHT_EXPONENTIAL, new Vec3(0.52f, 0.57f, 0.64f), 0.36f, 0.32f, 0.72f, 0.10f, 1.0f, 0.20f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.08f, 2.2f, true, 0.95f, 0.80f, true, 0.56f, 1.05f, 0.02f, 1.2f, true, 0.66f, true, 0.68f);
+        return new SceneDescriptor(
+                "parity-taa-thin-geometry-shimmer-scene",
+                List.of(camera),
+                "cam",
+                List.of(t1, t2, t3, t4),
+                List.of(m1, m2, m3, m4),
+                List.of(mat1, mat2, mat3, mat4),
+                List.of(shadow, fill),
+                env,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaSpecularFlickerScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.4f, 1.0f, 9.6f), new Vec3(-6f, 20f, 0f), 72f, 0.1f, 240f);
+        TransformDesc n = new TransformDesc("x-near", new Vec3(-1.1f, -0.2f, -0.8f), new Vec3(0, 16, 0), new Vec3(1.0f, 1.0f, 1.0f));
+        TransformDesc m = new TransformDesc("x-mid", new Vec3(0.5f, -0.25f, -10.5f), new Vec3(0, -20, 0), new Vec3(1.4f, 1.4f, 1.4f));
+        TransformDesc f = new TransformDesc("x-far", new Vec3(2.1f, -0.45f, -33.0f), new Vec3(0, 8, 0), new Vec3(2.2f, 2.2f, 2.2f));
+        MeshDesc meshN = new MeshDesc("mesh-near", "x-near", "mat-near", "meshes/quad.gltf");
+        MeshDesc meshM = new MeshDesc("mesh-mid", "x-mid", "mat-mid", "meshes/quad.gltf");
+        MeshDesc meshF = new MeshDesc("mesh-far", "x-far", "mat-far", "meshes/quad.gltf");
+        MaterialDesc matNear = new MaterialDesc("mat-near", new Vec3(0.96f, 0.62f, 0.52f), 0.86f, 0.14f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 0.84f, false, false);
+        MaterialDesc matMid = new MaterialDesc("mat-mid", new Vec3(0.52f, 0.84f, 0.96f), 0.82f, 0.12f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 0.84f, false, false);
+        MaterialDesc matFar = new MaterialDesc("mat-far", new Vec3(0.74f, 0.76f, 0.80f), 0.78f, 0.10f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 0.82f, false, false);
+        LightDesc key = new LightDesc("key", new Vec3(10f, 24f, 12f), new Vec3(1f, 0.98f, 0.95f), 1.18f, 320f, true, new ShadowDesc(2048, 0.0006f, 5, 4));
+        LightDesc fill = new LightDesc("fill", new Vec3(-6f, 8f, -5f), new Vec3(0.34f, 0.48f, 0.72f), 0.50f, 120f, false, null);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.20f, null);
+        FogDesc fog = new FogDesc(true, FogMode.HEIGHT_EXPONENTIAL, new Vec3(0.51f, 0.56f, 0.63f), 0.34f, 0.30f, 0.70f, 0.08f, 0.95f, 0.18f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.10f, 2.2f, true, 0.92f, 0.84f, true, 0.58f, 1.05f, 0.02f, 1.2f, true, 0.66f, true, 0.70f);
+        return new SceneDescriptor(
+                "parity-taa-specular-flicker-scene",
+                List.of(camera),
+                "cam",
+                List.of(n, m, f),
+                List.of(meshN, meshM, meshF),
+                List.of(matNear, matMid, matFar),
+                List.of(key, fill),
+                env,
+                fog,
+                List.of(),
+                post
         );
     }
 
