@@ -2,11 +2,15 @@ package org.dynamislight.impl.opengl;
 
 import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
+import static org.lwjgl.opengl.GL11.GL_DEPTH_COMPONENT;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_TEST;
 import static org.lwjgl.opengl.GL11.GL_FLOAT;
 import static org.lwjgl.opengl.GL11.GL_LINEAR;
+import static org.lwjgl.opengl.GL11.GL_NEAREST;
+import static org.lwjgl.opengl.GL11.GL_NONE;
 import static org.lwjgl.opengl.GL11.GL_RGBA;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_BORDER_COLOR;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_MAG_FILTER;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_MIN_FILTER;
 import static org.lwjgl.opengl.GL11.GL_TRIANGLES;
@@ -14,11 +18,15 @@ import static org.lwjgl.opengl.GL11.GL_UNSIGNED_BYTE;
 import static org.lwjgl.opengl.GL11.glBindTexture;
 import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11.glClearColor;
+import static org.lwjgl.opengl.GL11.glCullFace;
 import static org.lwjgl.opengl.GL11.glDeleteTextures;
 import static org.lwjgl.opengl.GL11.glDrawArrays;
+import static org.lwjgl.opengl.GL11.glDrawBuffer;
 import static org.lwjgl.opengl.GL11.glEnable;
 import static org.lwjgl.opengl.GL11.glGenTextures;
+import static org.lwjgl.opengl.GL11.glReadBuffer;
 import static org.lwjgl.opengl.GL11.glTexImage2D;
+import static org.lwjgl.opengl.GL11.glTexParameterfv;
 import static org.lwjgl.opengl.GL11.glTexParameteri;
 import static org.lwjgl.opengl.GL11.glViewport;
 import static org.lwjgl.opengl.GL13.GL_TEXTURE0;
@@ -55,6 +63,13 @@ import static org.lwjgl.opengl.GL20.glUniformMatrix4fv;
 import static org.lwjgl.opengl.GL20.glUseProgram;
 import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
 import static org.lwjgl.opengl.GL30.glBindVertexArray;
+import static org.lwjgl.opengl.GL30.GL_DEPTH_ATTACHMENT;
+import static org.lwjgl.opengl.GL30.GL_FRAMEBUFFER;
+import static org.lwjgl.opengl.GL30.glBindFramebuffer;
+import static org.lwjgl.opengl.GL30.glCheckFramebufferStatus;
+import static org.lwjgl.opengl.GL30.glDeleteFramebuffers;
+import static org.lwjgl.opengl.GL30.glFramebufferTexture2D;
+import static org.lwjgl.opengl.GL30.glGenFramebuffers;
 import static org.lwjgl.opengl.GL30.glDeleteVertexArrays;
 import static org.lwjgl.opengl.GL30.glGenVertexArrays;
 import static org.lwjgl.opengl.GL33.GL_QUERY_RESULT;
@@ -65,6 +80,9 @@ import static org.lwjgl.opengl.GL33.glDeleteQueries;
 import static org.lwjgl.opengl.GL33.glEndQuery;
 import static org.lwjgl.opengl.GL33.glGenQueries;
 import static org.lwjgl.opengl.GL33.glGetQueryObjecti64;
+import static org.lwjgl.opengl.GL14.GL_TEXTURE_COMPARE_MODE;
+import static org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE;
+import static org.lwjgl.opengl.GL30.GL_FRAMEBUFFER_COMPLETE;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -173,14 +191,32 @@ final class OpenGlContext {
             out vec3 vWorldPos;
             out float vHeight;
             out vec2 vUv;
+            out vec4 vLightSpacePos;
+            uniform mat4 uLightViewProj;
             void main() {
                 vec4 world = uModel * vec4(aPos, 1.0);
                 vColor = aColor;
                 vWorldPos = world.xyz;
                 vHeight = world.y;
                 vUv = aPos.xy * 0.5 + vec2(0.5);
+                vLightSpacePos = uLightViewProj * world;
                 gl_Position = uProj * uView * world;
             }
+            """;
+
+    private static final String SHADOW_VERTEX_SHADER = """
+            #version 330 core
+            layout (location = 0) in vec3 aPos;
+            uniform mat4 uModel;
+            uniform mat4 uLightViewProj;
+            void main() {
+                gl_Position = uLightViewProj * uModel * vec4(aPos, 1.0);
+            }
+            """;
+
+    private static final String SHADOW_FRAGMENT_SHADER = """
+            #version 330 core
+            void main() { }
             """;
 
     private static final String FRAGMENT_SHADER = """
@@ -189,6 +225,7 @@ final class OpenGlContext {
             in vec3 vWorldPos;
             in float vHeight;
             in vec2 vUv;
+            in vec4 vLightSpacePos;
             uniform vec3 uMaterialAlbedo;
             uniform float uMaterialMetallic;
             uniform float uMaterialRoughness;
@@ -204,6 +241,10 @@ final class OpenGlContext {
             uniform float uPointLightIntensity;
             uniform int uShadowEnabled;
             uniform float uShadowStrength;
+            uniform float uShadowBias;
+            uniform int uShadowPcfRadius;
+            uniform int uShadowCascadeCount;
+            uniform sampler2D uShadowMap;
             uniform int uFogEnabled;
             uniform vec3 uFogColor;
             uniform float uFogDensity;
@@ -228,6 +269,27 @@ final class OpenGlContext {
             }
             vec3 fresnelSchlick(float cosTheta, vec3 f0) {
                 return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
+            }
+            float shadowTerm(vec3 normal, float ndl) {
+                vec3 projCoords = vLightSpacePos.xyz / max(vLightSpacePos.w, 0.0001);
+                projCoords = projCoords * 0.5 + 0.5;
+                if (projCoords.z > 1.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) {
+                    return 0.0;
+                }
+                float cascadeBiasScale = 1.0 + float(max(uShadowCascadeCount - 1, 0)) * 0.12;
+                float bias = max(uShadowBias, (1.0 - ndl) * uShadowBias * 2.0) * cascadeBiasScale;
+                int radius = max(uShadowPcfRadius, 0);
+                vec2 texel = 1.0 / vec2(textureSize(uShadowMap, 0));
+                float occlusion = 0.0;
+                int taps = 0;
+                for (int x = -radius; x <= radius; x++) {
+                    for (int y = -radius; y <= radius; y++) {
+                        float depth = texture(uShadowMap, projCoords.xy + vec2(x, y) * texel).r;
+                        occlusion += (projCoords.z - bias) > depth ? 1.0 : 0.0;
+                        taps++;
+                    }
+                }
+                return taps > 0 ? (occlusion / float(taps)) : 0.0;
             }
             void main() {
                 vec3 albedo = vColor * uMaterialAlbedo;
@@ -268,9 +330,7 @@ final class OpenGlContext {
                 vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * albedo;
                 vec3 color = ambient + directional + pointLit;
                 if (uShadowEnabled == 1) {
-                    float horizon = clamp(1.0 - ndl, 0.0, 1.0);
-                    float slope = clamp(max(-normal.y, 0.0), 0.0, 1.0);
-                    float shadowFactor = clamp((horizon * 0.8 + slope * 0.2) * uShadowStrength, 0.0, 0.85);
+                    float shadowFactor = clamp(shadowTerm(normal, ndl) * uShadowStrength, 0.0, 0.9);
                     color *= (1.0 - shadowFactor);
                 }
                 if (uFogEnabled == 1) {
@@ -298,6 +358,7 @@ final class OpenGlContext {
     private int modelLocation;
     private int viewLocation;
     private int projLocation;
+    private int lightViewProjLocation;
     private int materialAlbedoLocation;
     private int materialMetallicLocation;
     private int materialRoughnessLocation;
@@ -313,6 +374,10 @@ final class OpenGlContext {
     private int pointLightIntensityLocation;
     private int shadowEnabledLocation;
     private int shadowStrengthLocation;
+    private int shadowBiasLocation;
+    private int shadowPcfRadiusLocation;
+    private int shadowCascadeCountLocation;
+    private int shadowMapLocation;
     private int fogEnabledLocation;
     private int fogColorLocation;
     private int fogDensityLocation;
@@ -349,6 +414,16 @@ final class OpenGlContext {
     private float pointLightIntensity = 1.0f;
     private boolean shadowEnabled;
     private float shadowStrength = 0.45f;
+    private float shadowBias = 0.0015f;
+    private int shadowPcfRadius = 1;
+    private int shadowCascadeCount = 1;
+    private int shadowMapResolution = 1024;
+    private int shadowProgramId;
+    private int shadowModelLocation;
+    private int shadowLightViewProjLocation;
+    private int shadowFramebufferId;
+    private int shadowDepthTextureId;
+    private float[] lightViewProjMatrix = identityMatrix();
     private boolean gpuTimerQuerySupported;
     private int gpuTimeQueryId;
     private double lastGpuFrameMs;
@@ -387,6 +462,8 @@ final class OpenGlContext {
         glViewport(0, 0, width, height);
 
         initializeShaderPipeline();
+        initializeShadowPipeline();
+        recreateShadowResources();
         initializeGpuQuerySupport();
         setSceneMeshes(List.of(new SceneMesh(defaultTriangleGeometry(), identityMatrix(), new float[]{1f, 1f, 1f}, 0.0f, 0.6f, null, null)));
     }
@@ -406,6 +483,7 @@ final class OpenGlContext {
 
         beginFrame();
         renderClearPass();
+        renderShadowPass();
         renderGeometryPass();
         renderFogPass();
         renderSmokePass();
@@ -429,11 +507,13 @@ final class OpenGlContext {
     }
 
     void renderGeometryPass() {
+        glViewport(0, 0, width, height);
         glUseProgram(programId);
         applyFogUniforms();
         applySmokeUniforms();
         glUniformMatrix4fv(viewLocation, false, viewMatrix);
         glUniformMatrix4fv(projLocation, false, projMatrix);
+        glUniformMatrix4fv(lightViewProjLocation, false, lightViewProjMatrix);
         lastDrawCalls = 0;
         lastTriangles = 0;
         lastVisibleObjects = sceneMeshes.size();
@@ -450,6 +530,9 @@ final class OpenGlContext {
             glUniform1f(pointLightIntensityLocation, pointLightIntensity);
             glUniform1i(shadowEnabledLocation, shadowEnabled ? 1 : 0);
             glUniform1f(shadowStrengthLocation, shadowStrength);
+            glUniform1f(shadowBiasLocation, shadowBias);
+            glUniform1i(shadowPcfRadiusLocation, shadowPcfRadius);
+            glUniform1i(shadowCascadeCountLocation, shadowCascadeCount);
             if (mesh.textureId != 0) {
                 glActiveTexture(GL_TEXTURE0);
                 glBindTexture(GL_TEXTURE_2D, mesh.textureId);
@@ -464,6 +547,8 @@ final class OpenGlContext {
             } else {
                 glUniform1i(useNormalTextureLocation, 0);
             }
+            glActiveTexture(GL_TEXTURE0 + 2);
+            glBindTexture(GL_TEXTURE_2D, shadowDepthTextureId);
             glBindVertexArray(mesh.vaoId);
             glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
             lastDrawCalls++;
@@ -472,9 +557,31 @@ final class OpenGlContext {
         glBindVertexArray(0);
         glActiveTexture(GL_TEXTURE0 + 1);
         glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE0 + 2);
+        glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
         glUseProgram(0);
+    }
+
+    void renderShadowPass() {
+        if (!shadowEnabled || shadowFramebufferId == 0 || shadowProgramId == 0) {
+            return;
+        }
+        updateLightViewProjMatrix();
+        glViewport(0, 0, shadowMapResolution, shadowMapResolution);
+        glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebufferId);
+        glClear(GL_DEPTH_BUFFER_BIT);
+        glUseProgram(shadowProgramId);
+        glUniformMatrix4fv(shadowLightViewProjLocation, false, lightViewProjMatrix);
+        for (MeshBuffer mesh : sceneMeshes) {
+            glUniformMatrix4fv(shadowModelLocation, false, mesh.modelMatrix);
+            glBindVertexArray(mesh.vaoId);
+            glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
+        }
+        glBindVertexArray(0);
+        glUseProgram(0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
     void renderFogPass() {
@@ -499,6 +606,11 @@ final class OpenGlContext {
 
     void shutdown() {
         clearSceneMeshes();
+        destroyShadowResources();
+        if (shadowProgramId != 0) {
+            glDeleteProgram(shadowProgramId);
+            shadowProgramId = 0;
+        }
         if (programId != 0) {
             glDeleteProgram(programId);
             programId = 0;
@@ -578,9 +690,17 @@ final class OpenGlContext {
         pointLightIntensity = Math.max(0f, pointIntensity);
     }
 
-    void setShadowParameters(boolean enabled, float strength) {
+    void setShadowParameters(boolean enabled, float strength, float bias, int pcfRadius, int cascadeCount, int mapResolution) {
         shadowEnabled = enabled;
         shadowStrength = Math.max(0f, Math.min(1f, strength));
+        shadowBias = Math.max(0.00001f, bias);
+        shadowPcfRadius = Math.max(0, pcfRadius);
+        shadowCascadeCount = Math.max(1, cascadeCount);
+        int clampedResolution = Math.max(256, Math.min(4096, mapResolution));
+        if (shadowMapResolution != clampedResolution) {
+            shadowMapResolution = clampedResolution;
+            recreateShadowResources();
+        }
     }
 
     double lastGpuFrameMs() {
@@ -635,6 +755,7 @@ final class OpenGlContext {
         modelLocation = glGetUniformLocation(programId, "uModel");
         viewLocation = glGetUniformLocation(programId, "uView");
         projLocation = glGetUniformLocation(programId, "uProj");
+        lightViewProjLocation = glGetUniformLocation(programId, "uLightViewProj");
         materialAlbedoLocation = glGetUniformLocation(programId, "uMaterialAlbedo");
         materialMetallicLocation = glGetUniformLocation(programId, "uMaterialMetallic");
         materialRoughnessLocation = glGetUniformLocation(programId, "uMaterialRoughness");
@@ -650,6 +771,10 @@ final class OpenGlContext {
         pointLightIntensityLocation = glGetUniformLocation(programId, "uPointLightIntensity");
         shadowEnabledLocation = glGetUniformLocation(programId, "uShadowEnabled");
         shadowStrengthLocation = glGetUniformLocation(programId, "uShadowStrength");
+        shadowBiasLocation = glGetUniformLocation(programId, "uShadowBias");
+        shadowPcfRadiusLocation = glGetUniformLocation(programId, "uShadowPcfRadius");
+        shadowCascadeCountLocation = glGetUniformLocation(programId, "uShadowCascadeCount");
+        shadowMapLocation = glGetUniformLocation(programId, "uShadowMap");
         fogEnabledLocation = glGetUniformLocation(programId, "uFogEnabled");
         fogColorLocation = glGetUniformLocation(programId, "uFogColor");
         fogDensityLocation = glGetUniformLocation(programId, "uFogDensity");
@@ -661,6 +786,7 @@ final class OpenGlContext {
         glUseProgram(programId);
         glUniform1i(albedoTextureLocation, 0);
         glUniform1i(normalTextureLocation, 1);
+        glUniform1i(shadowMapLocation, 2);
         glUseProgram(0);
     }
 
@@ -791,6 +917,77 @@ final class OpenGlContext {
         glUniform1f(smokeIntensityLocation, smokeIntensity);
     }
 
+    private void initializeShadowPipeline() throws EngineException {
+        int vertexShaderId = compileShader(GL_VERTEX_SHADER, SHADOW_VERTEX_SHADER);
+        int fragmentShaderId = compileShader(GL_FRAGMENT_SHADER, SHADOW_FRAGMENT_SHADER);
+        shadowProgramId = glCreateProgram();
+        glAttachShader(shadowProgramId, vertexShaderId);
+        glAttachShader(shadowProgramId, fragmentShaderId);
+        glLinkProgram(shadowProgramId);
+        if (glGetProgrami(shadowProgramId, GL_LINK_STATUS) == 0) {
+            String info = glGetProgramInfoLog(shadowProgramId);
+            glDeleteShader(vertexShaderId);
+            glDeleteShader(fragmentShaderId);
+            throw new EngineException(EngineErrorCode.SHADER_COMPILATION_FAILED, "Shadow shader link failed: " + info, false);
+        }
+        glDeleteShader(vertexShaderId);
+        glDeleteShader(fragmentShaderId);
+        shadowModelLocation = glGetUniformLocation(shadowProgramId, "uModel");
+        shadowLightViewProjLocation = glGetUniformLocation(shadowProgramId, "uLightViewProj");
+    }
+
+    private void recreateShadowResources() {
+        destroyShadowResources();
+        shadowDepthTextureId = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, shadowDepthTextureId);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowMapResolution, shadowMapResolution, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0L);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+        glTexParameteri(GL_TEXTURE_2D, org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, new float[]{1f, 1f, 1f, 1f});
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        shadowFramebufferId = glGenFramebuffers();
+        glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebufferId);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, shadowDepthTextureId, 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        int status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (status != GL_FRAMEBUFFER_COMPLETE) {
+            throw new IllegalStateException("Shadow framebuffer incomplete: status=" + status);
+        }
+    }
+
+    private void destroyShadowResources() {
+        if (shadowFramebufferId != 0) {
+            glDeleteFramebuffers(shadowFramebufferId);
+            shadowFramebufferId = 0;
+        }
+        if (shadowDepthTextureId != 0) {
+            glDeleteTextures(shadowDepthTextureId);
+            shadowDepthTextureId = 0;
+        }
+    }
+
+    private void updateLightViewProjMatrix() {
+        float len = (float) Math.sqrt(dirLightDirX * dirLightDirX + dirLightDirY * dirLightDirY + dirLightDirZ * dirLightDirZ);
+        if (len < 0.0001f) {
+            len = 1f;
+        }
+        float lx = dirLightDirX / len;
+        float ly = dirLightDirY / len;
+        float lz = dirLightDirZ / len;
+        float eyeX = -lx * 8.0f;
+        float eyeY = -ly * 8.0f;
+        float eyeZ = -lz * 8.0f;
+        float[] lightView = lookAt(eyeX, eyeY, eyeZ, 0f, 0f, 0f, 0f, 1f, 0f);
+        float[] lightProj = ortho(-8f, 8f, -8f, 8f, 0.1f, 32f);
+        lightViewProjMatrix = mul(lightProj, lightView);
+    }
+
     private void initializeGpuQuerySupport() {
         var caps = GL.getCapabilities();
         gpuTimerQuerySupported = caps.OpenGL33 || caps.GL_ARB_timer_query;
@@ -820,6 +1017,70 @@ final class OpenGlContext {
                 0.55f, 0.55f, 0.0f, r, g, b,
                 -0.55f, 0.55f, 0.0f, r, g, b
         });
+    }
+
+    private static float[] lookAt(float eyeX, float eyeY, float eyeZ, float targetX, float targetY, float targetZ,
+                                  float upX, float upY, float upZ) {
+        float fx = targetX - eyeX;
+        float fy = targetY - eyeY;
+        float fz = targetZ - eyeZ;
+        float fLen = (float) Math.sqrt(fx * fx + fy * fy + fz * fz);
+        if (fLen < 0.00001f) {
+            return identityMatrix();
+        }
+        fx /= fLen;
+        fy /= fLen;
+        fz /= fLen;
+
+        float sx = fy * upZ - fz * upY;
+        float sy = fz * upX - fx * upZ;
+        float sz = fx * upY - fy * upX;
+        float sLen = (float) Math.sqrt(sx * sx + sy * sy + sz * sz);
+        if (sLen < 0.00001f) {
+            return identityMatrix();
+        }
+        sx /= sLen;
+        sy /= sLen;
+        sz /= sLen;
+
+        float ux = sy * fz - sz * fy;
+        float uy = sz * fx - sx * fz;
+        float uz = sx * fy - sy * fx;
+
+        return new float[]{
+                sx, ux, -fx, 0f,
+                sy, uy, -fy, 0f,
+                sz, uz, -fz, 0f,
+                -(sx * eyeX + sy * eyeY + sz * eyeZ),
+                -(ux * eyeX + uy * eyeY + uz * eyeZ),
+                (fx * eyeX + fy * eyeY + fz * eyeZ),
+                1f
+        };
+    }
+
+    private static float[] ortho(float left, float right, float bottom, float top, float near, float far) {
+        float rl = right - left;
+        float tb = top - bottom;
+        float fn = far - near;
+        return new float[]{
+                2f / rl, 0f, 0f, 0f,
+                0f, 2f / tb, 0f, 0f,
+                0f, 0f, -2f / fn, 0f,
+                -(right + left) / rl, -(top + bottom) / tb, -(far + near) / fn, 1f
+        };
+    }
+
+    private static float[] mul(float[] a, float[] b) {
+        float[] out = new float[16];
+        for (int c = 0; c < 4; c++) {
+            for (int r = 0; r < 4; r++) {
+                out[c * 4 + r] = a[r] * b[c * 4]
+                        + a[4 + r] * b[c * 4 + 1]
+                        + a[8 + r] * b[c * 4 + 2]
+                        + a[12 + r] * b[c * 4 + 3];
+            }
+        }
+        return out;
     }
 
     private static float[] identityMatrix() {
