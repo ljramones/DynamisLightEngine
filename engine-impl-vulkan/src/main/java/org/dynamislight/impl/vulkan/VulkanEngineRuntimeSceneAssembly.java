@@ -1,0 +1,90 @@
+package org.dynamislight.impl.vulkan;
+
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+
+import org.dynamislight.api.scene.MaterialDesc;
+import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.api.scene.SceneDescriptor;
+import org.dynamislight.api.scene.TransformDesc;
+import org.dynamislight.api.scene.Vec3;
+import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
+import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
+import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
+
+final class VulkanEngineRuntimeSceneAssembly {
+    private VulkanEngineRuntimeSceneAssembly() {
+    }
+
+    static List<VulkanSceneMeshData> buildSceneMeshes(
+            SceneDescriptor scene,
+            VulkanMeshAssetLoader meshLoader,
+            Path assetRoot
+    ) {
+        if (scene == null || scene.meshes() == null || scene.meshes().isEmpty()) {
+            return List.of(VulkanSceneMeshData.defaultTriangle());
+        }
+        Map<String, MaterialDesc> materials = scene.materials() == null ? Map.of() : scene.materials().stream()
+                .filter(m -> m != null && m.id() != null)
+                .collect(java.util.stream.Collectors.toMap(MaterialDesc::id, m -> m, (a, b) -> a));
+        Map<String, TransformDesc> transforms = scene.transforms() == null ? Map.of() : scene.transforms().stream()
+                .filter(t -> t != null && t.id() != null)
+                .collect(java.util.stream.Collectors.toMap(TransformDesc::id, t -> t, (a, b) -> a));
+
+        List<VulkanSceneMeshData> out = new java.util.ArrayList<>(scene.meshes().size());
+        for (int i = 0; i < scene.meshes().size(); i++) {
+            MeshDesc mesh = scene.meshes().get(i);
+            if (mesh == null) {
+                continue;
+            }
+            VulkanGltfMeshParser.MeshGeometry geometry = meshLoader.loadMeshGeometry(mesh, i);
+            MaterialDesc material = materials.get(mesh.materialId());
+            float[] color = materialToColor(material);
+            float metallic = material == null ? 0.0f : clamp01(material.metallic());
+            float roughness = material == null ? 0.6f : clamp01(material.roughness());
+            float[] model = VulkanEngineRuntimeCameraMath.modelMatrixOf(transforms.get(mesh.transformId()), i);
+            String stableMeshId = (mesh.id() == null || mesh.id().isBlank()) ? ("mesh-index-" + i) : mesh.id();
+            VulkanSceneMeshData meshData = new VulkanSceneMeshData(
+                    stableMeshId,
+                    geometry.vertices(),
+                    geometry.indices(),
+                    model,
+                    color,
+                    metallic,
+                    roughness,
+                    resolveTexturePath(material == null ? null : material.albedoTexturePath(), assetRoot),
+                    resolveTexturePath(material == null ? null : material.normalTexturePath(), assetRoot),
+                    resolveTexturePath(material == null ? null : material.metallicRoughnessTexturePath(), assetRoot),
+                    resolveTexturePath(material == null ? null : material.occlusionTexturePath(), assetRoot)
+            );
+            out.add(meshData);
+        }
+        return out.isEmpty() ? List.of(VulkanSceneMeshData.defaultTriangle()) : List.copyOf(out);
+    }
+
+    private static float[] materialToColor(MaterialDesc material) {
+        Vec3 albedo = material == null ? null : material.albedo();
+        if (albedo == null) {
+            return new float[]{1f, 1f, 1f, 1f};
+        }
+        return new float[]{
+                clamp01(albedo.x()),
+                clamp01(albedo.y()),
+                clamp01(albedo.z()),
+                1f
+        };
+    }
+
+    private static Path resolveTexturePath(String texturePath, Path assetRoot) {
+        if (texturePath == null || texturePath.isBlank()) {
+            return null;
+        }
+        Path path = Path.of(texturePath);
+        return path.isAbsolute() ? path.normalize() : assetRoot.resolve(path).normalize();
+    }
+
+    private static float clamp01(float v) {
+        return Math.max(0f, Math.min(1f, v));
+    }
+}
