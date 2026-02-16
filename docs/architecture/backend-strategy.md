@@ -14,7 +14,7 @@
 - `engine-spi`: backend discovery and compatibility checks.
 - `engine-impl-common`: lifecycle policy, standardized logs/events/errors/stats/warnings.
 - `engine-impl-opengl`: OpenGL implementation details (LWJGL + shader/resource setup).
-- `engine-impl-vulkan`: Vulkan implementation details (currently scaffolded).
+- `engine-impl-vulkan`: Vulkan implementation details (real baseline path active).
 
 ## Boundaries
 
@@ -38,6 +38,6 @@ Backend modules may use LWJGL directly, but cross-backend policies (error mappin
 
 | Contract | Primary implementation(s) | Current maturity |
 | --- | --- | --- |
-| `EngineRuntime` | `OpenGlEngineRuntime` (`engine-impl-opengl`), `VulkanEngineRuntime` (`engine-impl-vulkan`) | OpenGL: active baseline, Vulkan: scaffold/in-progress |
-| `EngineBackendProvider` (SPI) | `OpenGlBackendProvider`, `VulkanBackendProvider` | OpenGL: production path for v1, Vulkan: experimental |
+| `EngineRuntime` | `OpenGlEngineRuntime` (`engine-impl-opengl`), `VulkanEngineRuntime` (`engine-impl-vulkan`) | OpenGL: active baseline, Vulkan: active baseline |
+| `EngineBackendProvider` (SPI) | `OpenGlBackendProvider`, `VulkanBackendProvider` | OpenGL: production path for v1, Vulkan: active baseline path |
 | Host bridge/session | `DynamisFxEngineBridge`, `DynamisFxEngineSession` (`engine-bridge-dynamisfx`) | Active integration layer |

@@ -1,8 +1,8 @@
 package org.dynamislight.impl.vulkan;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.nio.file.Path;
 import java.util.Set;
 import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.config.EngineConfig;
@@ -25,6 +25,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
+    private Path assetRoot = Path.of(".");
+    private VulkanMeshAssetLoader meshLoader = new VulkanMeshAssetLoader(assetRoot);
 
     public VulkanEngineRuntime() {
         super(
@@ -49,6 +51,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         mockContext = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.mockContext", "true"));
         windowVisible = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.windowVisible", "false"));
         forceDeviceLostOnRender = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.forceDeviceLostOnRender", "false"));
+        assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
+        meshLoader = new VulkanMeshAssetLoader(assetRoot);
         deviceLostRaised = false;
         if (Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.forceInitFailure", "false"))) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Forced Vulkan init failure", false);
@@ -61,11 +65,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected void onLoadScene(SceneDescriptor scene) throws EngineException {
-        plannedDrawCalls = scene.meshes() == null || scene.meshes().isEmpty() ? 1 : scene.meshes().size();
-        plannedTriangles = estimateTriangles(scene.meshes());
+        List<VulkanContext.SceneMeshData> sceneMeshes = buildSceneMeshes(scene);
+        plannedDrawCalls = sceneMeshes.size();
+        plannedTriangles = sceneMeshes.stream().mapToLong(m -> m.indices().length / 3).sum();
         plannedVisibleObjects = plannedDrawCalls;
         if (!mockContext) {
-            context.setSceneMeshes(buildSceneMeshes(scene));
+            context.setSceneMeshes(sceneMeshes);
             context.setPlannedWorkload(plannedDrawCalls, plannedTriangles, plannedVisibleObjects);
         }
     }
@@ -106,22 +111,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected java.util.List<EngineWarning> baselineWarnings() {
-        return java.util.List.of(new EngineWarning("FEATURE_LIMITED", "Vulkan backend currently renders baseline clear + triangle path"));
+        return java.util.List.of(new EngineWarning("FEATURE_BASELINE", "Vulkan backend active with baseline indexed render path"));
     }
 
-    private static long estimateTriangles(List<MeshDesc> meshes) {
-        if (meshes == null || meshes.isEmpty()) {
-            return 1;
-        }
-        long triangles = 0;
-        for (MeshDesc mesh : meshes) {
-            String path = mesh == null || mesh.meshAssetPath() == null ? "" : mesh.meshAssetPath().toLowerCase(Locale.ROOT);
-            triangles += (path.contains("quad") || path.contains("box")) ? 2 : 1;
-        }
-        return Math.max(1, triangles);
-    }
-
-    private static List<VulkanContext.SceneMeshData> buildSceneMeshes(SceneDescriptor scene) {
+    private List<VulkanContext.SceneMeshData> buildSceneMeshes(SceneDescriptor scene) {
         if (scene == null || scene.meshes() == null || scene.meshes().isEmpty()) {
             return List.of(VulkanContext.SceneMeshData.defaultTriangle());
         }
@@ -137,10 +130,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             MaterialDesc material = materials.get(mesh.materialId());
             float[] color = materialToColor(material);
-            String path = mesh.meshAssetPath() == null ? "" : mesh.meshAssetPath().toLowerCase(Locale.ROOT);
-            VulkanContext.SceneMeshData meshData = path.contains("quad") || path.contains("plane")
-                    ? VulkanContext.SceneMeshData.quad(color, i)
-                    : VulkanContext.SceneMeshData.triangle(color, i);
+            VulkanContext.SceneMeshData meshData = meshLoader.loadMeshData(mesh, color, i);
             out.add(meshData);
         }
         return out.isEmpty() ? List.of(VulkanContext.SceneMeshData.defaultTriangle()) : List.copyOf(out);

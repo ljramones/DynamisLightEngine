@@ -11,7 +11,7 @@ DynamicLightEngine must support multiple rendering backends (`opengl` now, `vulk
 
 Use a two-layer approach:
 
-1. **Backend bindings via LWJGL** in backend modules (`engine-impl-opengl`, future real `engine-impl-vulkan`).
+1. **Backend bindings via LWJGL** in backend modules (`engine-impl-opengl`, `engine-impl-vulkan`).
 2. **Engine-owned abstraction layer** in `engine-impl-common` for lifecycle, error mapping, warning propagation, stats/event/log contracts, and shared runtime policies.
 
 No backend-native objects cross `engine-api`.

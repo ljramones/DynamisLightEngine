@@ -189,7 +189,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected List<EngineWarning> baselineWarnings() {
-        return List.of(new EngineWarning("FEATURE_LIMITED", "OpenGL backend currently uses simplified forward render path"));
+        return List.of(new EngineWarning("FEATURE_BASELINE", "OpenGL backend active with baseline forward render path"));
     }
 
     private static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {

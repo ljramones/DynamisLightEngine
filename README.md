@@ -31,8 +31,8 @@ mvn -version
 - `engine-api`: immutable DTOs and runtime contracts (`org.dynamislight.api.*`)
 - `engine-spi`: backend discovery SPI (`ServiceLoader`)
 - `engine-impl-common`: shared lifecycle/runtime base for backend implementations
-- `engine-impl-opengl`: OpenGL backend skeleton
-- `engine-impl-vulkan`: Vulkan backend skeleton
+- `engine-impl-opengl`: OpenGL backend implementation
+- `engine-impl-vulkan`: Vulkan backend implementation
 - `engine-bridge-dynamisfx`: host bridge/mapping layer
 - `engine-host-sample`: minimal console host that runs the lifecycle
 
@@ -53,7 +53,7 @@ mvn -version
 
 - SPI contract: `engine-spi` (`EngineBackendProvider`, `BackendRegistry`) discovers backends through `ServiceLoader`.
 - OpenGL implementation: `engine-impl-opengl` (`OpenGlBackendProvider`, `OpenGlEngineRuntime`) is the primary active backend.
-- Vulkan implementation: `engine-impl-vulkan` (`VulkanBackendProvider`, `VulkanEngineRuntime`) is scaffolded and in-progress.
+- Vulkan implementation: `engine-impl-vulkan` (`VulkanBackendProvider`, `VulkanEngineRuntime`) provides a real baseline render path (context, swapchain, pipeline, indexed draw).
 - Host integration: `engine-bridge-dynamisfx` provides the DynamisFX bridge/session and mappers to engine DTOs.
 
 ## Build and test
@@ -103,14 +103,14 @@ mvn -f engine-host-sample/pom.xml exec:java -Dexec.args=\"opengl\" -Ddle.opengl.
 
 ## Current status
 
-This is compile-first scaffolding for v1 interface contracts. OpenGL and Vulkan modules currently provide lifecycle-safe stub runtimes to validate API shape, backend discovery, and host integration flow.
+DynamicLightEngine now provides real baseline rendering in both OpenGL and Vulkan backends behind the same API/SPI contracts.
 
-OpenGL now includes a baseline fog path driven by `SceneDescriptor.fog` with quality-tier dependent sampling:
+OpenGL includes a fog path driven by `SceneDescriptor.fog` with quality-tier dependent sampling:
 - `LOW`: coarse fog steps
 - `MEDIUM/HIGH`: progressively smoother fog
 - `ULTRA`: unquantized fog factor
 
-OpenGL also consumes `SceneDescriptor.smokeEmitters` with a baseline screen-space smoke blend.
+OpenGL also consumes `SceneDescriptor.smokeEmitters` with a screen-space smoke blend.
 At lower tiers (`LOW`, `MEDIUM`) smoke quality is degraded intentionally and reported through `EngineWarning` code `SMOKE_QUALITY_DEGRADED`.
 
 Resource baseline is now available through `EngineRuntime.resources()`:
@@ -139,6 +139,7 @@ Optional integration-test flags:
 
 ## Planning
 
+- Capabilities compendium: `docs/capabilities-compendium.md`
 - Milestone and issue backlog: `docs/github-milestones.md`
 - Architecture note: `docs/architecture/backend-strategy.md`
 - ADR: `docs/adr/0001-backend-strategy.md`
