@@ -118,6 +118,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
 - Per-frame descriptor-set ring for global scene uniforms (frame-indexed binding path).
 - Revision-aware per-frame uniform staging for dynamic updates:
   - frame slots track applied global/scene uniform revisions
+  - global-state revision marks are value-aware (no revision bump for unchanged state payloads)
   - uniform copy/barrier is skipped when a frame slot is already synchronized
   - dirty object subranges are uploaded as sparse multi-range copies for dynamic-only scene changes
 - Per-mesh sampled textures for albedo, normal, metallic-roughness, and occlusion.

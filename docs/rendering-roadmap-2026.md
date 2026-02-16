@@ -96,6 +96,7 @@ Current progress:
   - per-frame ring slots now track global/scene uniform revision sync
   - command recording skips uniform copy/barrier when no sync work is needed
   - dynamic-only scene changes upload sparse dirty object uniform ranges (multi-range) where safe
+  - global-state revision updates are value-aware to avoid no-op churn when host re-sends unchanged settings each frame
 
 ## Near-Term Task Queue (Execution Order)
 1. Post-processing baseline (tonemap then bloom).

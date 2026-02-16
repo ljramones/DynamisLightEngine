@@ -594,12 +594,16 @@ final class VulkanContext {
     void setCameraMatrices(float[] view, float[] proj) {
         boolean changed = false;
         if (view != null && view.length == 16) {
-            viewMatrix = view.clone();
-            changed = true;
+            if (!Arrays.equals(viewMatrix, view)) {
+                viewMatrix = view.clone();
+                changed = true;
+            }
         }
         if (proj != null && proj.length == 16) {
-            projMatrix = proj.clone();
-            changed = true;
+            if (!Arrays.equals(projMatrix, proj)) {
+                projMatrix = proj.clone();
+                changed = true;
+            }
         }
         if (changed) {
             markGlobalStateDirty();
@@ -620,55 +624,118 @@ final class VulkanContext {
             float pointRange,
             boolean pointCastsShadows
     ) {
+        boolean changed = false;
         if (dirDir != null && dirDir.length == 3) {
-            dirLightDirX = dirDir[0];
-            dirLightDirY = dirDir[1];
-            dirLightDirZ = dirDir[2];
+            if (!floatEquals(dirLightDirX, dirDir[0]) || !floatEquals(dirLightDirY, dirDir[1]) || !floatEquals(dirLightDirZ, dirDir[2])) {
+                dirLightDirX = dirDir[0];
+                dirLightDirY = dirDir[1];
+                dirLightDirZ = dirDir[2];
+                changed = true;
+            }
         }
         if (dirColor != null && dirColor.length == 3) {
-            dirLightColorR = dirColor[0];
-            dirLightColorG = dirColor[1];
-            dirLightColorB = dirColor[2];
+            if (!floatEquals(dirLightColorR, dirColor[0]) || !floatEquals(dirLightColorG, dirColor[1]) || !floatEquals(dirLightColorB, dirColor[2])) {
+                dirLightColorR = dirColor[0];
+                dirLightColorG = dirColor[1];
+                dirLightColorB = dirColor[2];
+                changed = true;
+            }
         }
-        dirLightIntensity = Math.max(0f, dirIntensity);
+        float clampedDirIntensity = Math.max(0f, dirIntensity);
+        if (!floatEquals(dirLightIntensity, clampedDirIntensity)) {
+            dirLightIntensity = clampedDirIntensity;
+            changed = true;
+        }
         if (pointPos != null && pointPos.length == 3) {
-            pointLightPosX = pointPos[0];
-            pointLightPosY = pointPos[1];
-            pointLightPosZ = pointPos[2];
+            if (!floatEquals(pointLightPosX, pointPos[0]) || !floatEquals(pointLightPosY, pointPos[1]) || !floatEquals(pointLightPosZ, pointPos[2])) {
+                pointLightPosX = pointPos[0];
+                pointLightPosY = pointPos[1];
+                pointLightPosZ = pointPos[2];
+                changed = true;
+            }
         }
         if (pointColor != null && pointColor.length == 3) {
-            pointLightColorR = pointColor[0];
-            pointLightColorG = pointColor[1];
-            pointLightColorB = pointColor[2];
+            if (!floatEquals(pointLightColorR, pointColor[0]) || !floatEquals(pointLightColorG, pointColor[1]) || !floatEquals(pointLightColorB, pointColor[2])) {
+                pointLightColorR = pointColor[0];
+                pointLightColorG = pointColor[1];
+                pointLightColorB = pointColor[2];
+                changed = true;
+            }
         }
-        pointLightIntensity = Math.max(0f, pointIntensity);
+        float clampedPointIntensity = Math.max(0f, pointIntensity);
+        if (!floatEquals(pointLightIntensity, clampedPointIntensity)) {
+            pointLightIntensity = clampedPointIntensity;
+            changed = true;
+        }
         if (pointDirection != null && pointDirection.length == 3) {
             float[] normalized = normalize3(pointDirection[0], pointDirection[1], pointDirection[2]);
-            pointLightDirX = normalized[0];
-            pointLightDirY = normalized[1];
-            pointLightDirZ = normalized[2];
+            if (!floatEquals(pointLightDirX, normalized[0]) || !floatEquals(pointLightDirY, normalized[1]) || !floatEquals(pointLightDirZ, normalized[2])) {
+                pointLightDirX = normalized[0];
+                pointLightDirY = normalized[1];
+                pointLightDirZ = normalized[2];
+                changed = true;
+            }
         }
-        pointLightInnerCos = clamp01(pointInnerCos);
-        pointLightOuterCos = clamp01(pointOuterCos);
-        if (pointLightOuterCos > pointLightInnerCos) {
-            pointLightOuterCos = pointLightInnerCos;
+        float clampedInner = clamp01(pointInnerCos);
+        float clampedOuter = clamp01(pointOuterCos);
+        if (clampedOuter > clampedInner) {
+            clampedOuter = clampedInner;
         }
-        pointLightIsSpot = pointIsSpot ? 1f : 0f;
-        pointShadowFarPlane = Math.max(1.0f, pointRange);
-        pointShadowEnabled = pointCastsShadows;
-        markGlobalStateDirty();
+        if (!floatEquals(pointLightInnerCos, clampedInner) || !floatEquals(pointLightOuterCos, clampedOuter)) {
+            pointLightInnerCos = clampedInner;
+            pointLightOuterCos = clampedOuter;
+            changed = true;
+        }
+        float spotValue = pointIsSpot ? 1f : 0f;
+        if (!floatEquals(pointLightIsSpot, spotValue)) {
+            pointLightIsSpot = spotValue;
+            changed = true;
+        }
+        float clampedRange = Math.max(1.0f, pointRange);
+        if (!floatEquals(pointShadowFarPlane, clampedRange)) {
+            pointShadowFarPlane = clampedRange;
+            changed = true;
+        }
+        if (pointShadowEnabled != pointCastsShadows) {
+            pointShadowEnabled = pointCastsShadows;
+            changed = true;
+        }
+        if (changed) {
+            markGlobalStateDirty();
+        }
     }
 
     void setShadowParameters(boolean enabled, float strength, float bias, int pcfRadius, int cascadeCount, int mapResolution)
             throws EngineException {
-        shadowEnabled = enabled;
-        shadowStrength = Math.max(0f, Math.min(1f, strength));
-        shadowBias = Math.max(0.00002f, bias);
-        shadowPcfRadius = Math.max(0, pcfRadius);
-        shadowCascadeCount = Math.max(1, Math.min(MAX_SHADOW_MATRICES, cascadeCount));
+        boolean changed = false;
+        if (shadowEnabled != enabled) {
+            shadowEnabled = enabled;
+            changed = true;
+        }
+        float clampedStrength = Math.max(0f, Math.min(1f, strength));
+        if (!floatEquals(shadowStrength, clampedStrength)) {
+            shadowStrength = clampedStrength;
+            changed = true;
+        }
+        float clampedBias = Math.max(0.00002f, bias);
+        if (!floatEquals(shadowBias, clampedBias)) {
+            shadowBias = clampedBias;
+            changed = true;
+        }
+        int clampedPcf = Math.max(0, pcfRadius);
+        if (shadowPcfRadius != clampedPcf) {
+            shadowPcfRadius = clampedPcf;
+            changed = true;
+        }
+        int clampedCascadeCount = Math.max(1, Math.min(MAX_SHADOW_MATRICES, cascadeCount));
+        if (shadowCascadeCount != clampedCascadeCount) {
+            shadowCascadeCount = clampedCascadeCount;
+            changed = true;
+        }
         int clampedResolution = Math.max(256, Math.min(4096, mapResolution));
         if (shadowMapResolution != clampedResolution) {
             shadowMapResolution = clampedResolution;
+            changed = true;
             if (device != null) {
                 vkDeviceWaitIdle(device);
                 try (MemoryStack stack = stackPush()) {
@@ -680,34 +747,80 @@ final class VulkanContext {
                 }
             }
         }
-        markGlobalStateDirty();
+        if (changed) {
+            markGlobalStateDirty();
+        }
     }
 
     void setFogParameters(boolean enabled, float r, float g, float b, float density, int steps) {
-        fogEnabled = enabled;
-        fogR = r;
-        fogG = g;
-        fogB = b;
-        fogDensity = Math.max(0f, density);
-        fogSteps = Math.max(0, steps);
-        markGlobalStateDirty();
+        boolean changed = false;
+        if (fogEnabled != enabled) {
+            fogEnabled = enabled;
+            changed = true;
+        }
+        if (!floatEquals(fogR, r) || !floatEquals(fogG, g) || !floatEquals(fogB, b)) {
+            fogR = r;
+            fogG = g;
+            fogB = b;
+            changed = true;
+        }
+        float clampedDensity = Math.max(0f, density);
+        if (!floatEquals(fogDensity, clampedDensity)) {
+            fogDensity = clampedDensity;
+            changed = true;
+        }
+        int clampedSteps = Math.max(0, steps);
+        if (fogSteps != clampedSteps) {
+            fogSteps = clampedSteps;
+            changed = true;
+        }
+        if (changed) {
+            markGlobalStateDirty();
+        }
     }
 
     void setSmokeParameters(boolean enabled, float r, float g, float b, float intensity) {
-        smokeEnabled = enabled;
-        smokeR = r;
-        smokeG = g;
-        smokeB = b;
-        smokeIntensity = Math.max(0f, Math.min(1f, intensity));
-        markGlobalStateDirty();
+        boolean changed = false;
+        if (smokeEnabled != enabled) {
+            smokeEnabled = enabled;
+            changed = true;
+        }
+        if (!floatEquals(smokeR, r) || !floatEquals(smokeG, g) || !floatEquals(smokeB, b)) {
+            smokeR = r;
+            smokeG = g;
+            smokeB = b;
+            changed = true;
+        }
+        float clampedIntensity = Math.max(0f, Math.min(1f, intensity));
+        if (!floatEquals(smokeIntensity, clampedIntensity)) {
+            smokeIntensity = clampedIntensity;
+            changed = true;
+        }
+        if (changed) {
+            markGlobalStateDirty();
+        }
     }
 
     void setIblParameters(boolean enabled, float diffuseStrength, float specularStrength, float prefilterStrength) {
-        iblEnabled = enabled;
-        iblDiffuseStrength = Math.max(0f, Math.min(2.0f, diffuseStrength));
-        iblSpecularStrength = Math.max(0f, Math.min(2.0f, specularStrength));
-        iblPrefilterStrength = Math.max(0f, Math.min(1.0f, prefilterStrength));
-        markGlobalStateDirty();
+        boolean changed = false;
+        if (iblEnabled != enabled) {
+            iblEnabled = enabled;
+            changed = true;
+        }
+        float clampedDiffuse = Math.max(0f, Math.min(2.0f, diffuseStrength));
+        float clampedSpecular = Math.max(0f, Math.min(2.0f, specularStrength));
+        float clampedPrefilter = Math.max(0f, Math.min(1.0f, prefilterStrength));
+        if (!floatEquals(iblDiffuseStrength, clampedDiffuse)
+                || !floatEquals(iblSpecularStrength, clampedSpecular)
+                || !floatEquals(iblPrefilterStrength, clampedPrefilter)) {
+            iblDiffuseStrength = clampedDiffuse;
+            iblSpecularStrength = clampedSpecular;
+            iblPrefilterStrength = clampedPrefilter;
+            changed = true;
+        }
+        if (changed) {
+            markGlobalStateDirty();
+        }
     }
 
     void setIblTexturePaths(Path irradiancePath, Path radiancePath, Path brdfLutPath) {
@@ -724,20 +837,42 @@ final class VulkanContext {
             float bloomThreshold,
             float bloomStrength
     ) {
-        this.tonemapEnabled = tonemapEnabled;
-        tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
-        tonemapGamma = Math.max(0.8f, Math.min(3.2f, gamma));
-        this.bloomEnabled = bloomEnabled;
-        this.bloomThreshold = Math.max(0f, Math.min(4.0f, bloomThreshold));
-        this.bloomStrength = Math.max(0f, Math.min(2.0f, bloomStrength));
-        markGlobalStateDirty();
+        boolean changed = false;
+        if (this.tonemapEnabled != tonemapEnabled) {
+            this.tonemapEnabled = tonemapEnabled;
+            changed = true;
+        }
+        float clampedExposure = Math.max(0.05f, Math.min(8.0f, exposure));
+        float clampedGamma = Math.max(0.8f, Math.min(3.2f, gamma));
+        if (!floatEquals(tonemapExposure, clampedExposure) || !floatEquals(tonemapGamma, clampedGamma)) {
+            tonemapExposure = clampedExposure;
+            tonemapGamma = clampedGamma;
+            changed = true;
+        }
+        if (this.bloomEnabled != bloomEnabled) {
+            this.bloomEnabled = bloomEnabled;
+            changed = true;
+        }
+        float clampedThreshold = Math.max(0f, Math.min(4.0f, bloomThreshold));
+        float clampedStrength = Math.max(0f, Math.min(2.0f, bloomStrength));
+        if (!floatEquals(this.bloomThreshold, clampedThreshold) || !floatEquals(this.bloomStrength, clampedStrength)) {
+            this.bloomThreshold = clampedThreshold;
+            this.bloomStrength = clampedStrength;
+            changed = true;
+        }
+        if (changed) {
+            markGlobalStateDirty();
+        }
     }
 
     void configurePostProcessMode(boolean requestOffscreen) {
+        boolean changed = postOffscreenRequested != requestOffscreen || postOffscreenActive;
         postOffscreenRequested = requestOffscreen;
         // Keep existing shader-driven post as safe fallback until Vulkan offscreen chain is fully wired.
         postOffscreenActive = false;
-        markGlobalStateDirty();
+        if (changed) {
+            markGlobalStateDirty();
+        }
     }
 
     void shutdown() {
@@ -3104,6 +3239,10 @@ final class VulkanContext {
 
     private static float clamp01(float value) {
         return Math.max(0f, Math.min(1f, value));
+    }
+
+    private static boolean floatEquals(float a, float b) {
+        return Math.abs(a - b) <= 1.0e-6f;
     }
 
     private static float[] normalize3(float x, float y, float z) {

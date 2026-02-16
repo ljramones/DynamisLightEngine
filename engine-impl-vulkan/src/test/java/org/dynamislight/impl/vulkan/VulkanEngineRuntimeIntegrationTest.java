@@ -359,6 +359,24 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void realVulkanSparseDynamicUpdateEmitsMultiRangeUniformProfile() throws Exception {
+        assumeRealVulkanReady("real Vulkan sparse dynamic-update integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(false), new RecordingCallbacks());
+        runtime.loadScene(validSparseReusableScene(false));
+        runtime.render();
+
+        runtime.loadScene(validSparseReusableScene(true));
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "VULKAN_FRAME_RESOURCE_PROFILE".equals(w.code())
+                        && w.message().contains("lastUniformUploadRanges=2")));
+        runtime.shutdown();
+    }
+
+    @Test
     void mockVulkanPostFogOnlySceneChangeReusesBuffersWithoutDescriptorRebuild() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
@@ -746,6 +764,41 @@ class VulkanEngineRuntimeIntegrationTest {
                 fog,
                 base.smokeEmitters(),
                 post
+        );
+    }
+
+    private static SceneDescriptor validSparseReusableScene(boolean variant) {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 6), new Vec3(0, 0, 0), 62f, 0.1f, 100f);
+        TransformDesc transformA = new TransformDesc("xform-a", new Vec3(-1.2f, 0f, 0f), new Vec3(0, 0, 0), new Vec3(1f, 1f, 1f));
+        TransformDesc transformB = new TransformDesc("xform-b", new Vec3(-0.4f, 0f, 0f), new Vec3(0, 0, 0), new Vec3(1f, 1f, 1f));
+        TransformDesc transformC = new TransformDesc("xform-c", new Vec3(0.4f, 0f, 0f), new Vec3(0, 0, 0), new Vec3(1f, 1f, 1f));
+        TransformDesc transformD = new TransformDesc("xform-d", new Vec3(1.2f, 0f, 0f), new Vec3(0, 0, 0), new Vec3(1f, 1f, 1f));
+
+        MeshDesc meshA = new MeshDesc("mesh-a", "xform-a", "mat-a", "meshes/triangle.glb");
+        MeshDesc meshB = new MeshDesc("mesh-b", "xform-b", "mat-b", "meshes/quad.glb");
+        MeshDesc meshC = new MeshDesc("mesh-c", "xform-c", "mat-c", "meshes/triangle.glb");
+        MeshDesc meshD = new MeshDesc("mesh-d", "xform-d", "mat-d", "meshes/quad.glb");
+
+        MaterialDesc matA = new MaterialDesc("mat-a", variant ? new Vec3(0.95f, 0.38f, 0.30f) : new Vec3(0.88f, 0.34f, 0.30f), 0.22f, 0.56f, null, null);
+        MaterialDesc matB = new MaterialDesc("mat-b", new Vec3(0.30f, 0.70f, 0.90f), 0.48f, 0.38f, null, null);
+        MaterialDesc matC = new MaterialDesc("mat-c", new Vec3(0.70f, 0.72f, 0.76f), 0.10f, 0.80f, null, null);
+        MaterialDesc matD = new MaterialDesc("mat-d", variant ? new Vec3(0.52f, 0.82f, 0.58f) : new Vec3(0.48f, 0.76f, 0.54f), 0.30f, 0.52f, null, null);
+
+        LightDesc light = new LightDesc("light", new Vec3(1, 3, 2), new Vec3(1, 1, 1), 1.0f, 15f, false, null);
+        EnvironmentDesc env = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                variant ? "vulkan-sparse-reuse-variant" : "vulkan-sparse-reuse-base",
+                List.of(camera),
+                "cam",
+                List.of(transformA, transformB, transformC, transformD),
+                List.of(meshA, meshB, meshC, meshD),
+                List.of(matA, matB, matC, matD),
+                List.of(light),
+                env,
+                fog,
+                List.of()
         );
     }
 
