@@ -23,6 +23,10 @@ on:
         description: 'Run production shadow quality sweeps + threshold lock'
         required: false
         default: 'false'
+      run_shadow_quality_sweeps_strict_bvh:
+        description: 'Run production sweeps with strict BVH lane enforcement'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -189,6 +193,7 @@ jobs:
           DLE_SHADOW_PROD_SWEEP_VULKAN_MODE: real
           DLE_SHADOW_PROD_SWEEP_OUTPUT_ROOT: artifacts/compare/shadow-production-sweeps
           DLE_SHADOW_PROD_SWEEP_LOCK_THRESHOLDS: '1'
+          DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_quality_sweeps_strict_bvh == 'true' && '1' || '0' }}
           DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS: '2'
         run: ./scripts/shadow_production_quality_sweeps.sh
 

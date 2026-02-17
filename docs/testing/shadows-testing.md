@@ -44,6 +44,7 @@ CI always-on rollout:
   - `run_shadow_real_matrix=true`
   - `run_shadow_longrun=true`
   - `run_shadow_quality_sweeps=true`
+  - `run_shadow_quality_sweeps_strict_bvh=true`
 
 Optional real Vulkan depth-format matrix + long-run:
 ```bash
