@@ -132,7 +132,11 @@ if VULKAN_ICD_JSON="$(find_vulkan_icd_json)"; then
 fi
 JVM_ARG_LINE="-XstartOnFirstThread"
 if [[ -n "$VULKAN_LOADER_DIR" ]]; then
-  JVM_ARG_LINE="$JVM_ARG_LINE -Dorg.lwjgl.librarypath=$VULKAN_LOADER_DIR"
+  if [[ -f "$VULKAN_LOADER_DIR/libvulkan.1.dylib" ]]; then
+    JVM_ARG_LINE="$JVM_ARG_LINE -Dorg.lwjgl.vulkan.libname=$VULKAN_LOADER_DIR/libvulkan.1.dylib"
+  elif [[ -f "$VULKAN_LOADER_DIR/libvulkan.dylib" ]]; then
+    JVM_ARG_LINE="$JVM_ARG_LINE -Dorg.lwjgl.vulkan.libname=$VULKAN_LOADER_DIR/libvulkan.dylib"
+  fi
 fi
 OUT_BASE_DIR="$OUT_DIR"
 
