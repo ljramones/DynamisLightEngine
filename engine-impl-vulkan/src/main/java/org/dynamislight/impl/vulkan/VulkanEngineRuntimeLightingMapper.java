@@ -19,7 +19,8 @@ final class VulkanEngineRuntimeLightingMapper {
             PostProcessDesc desc,
             QualityTier qualityTier,
             boolean taaLumaClipEnabledDefault,
-            VulkanEngineRuntime.AaPreset aaPreset
+            VulkanEngineRuntime.AaPreset aaPreset,
+            VulkanEngineRuntime.AaMode aaMode
     ) {
         if (desc == null || !desc.enabled()) {
             return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f);
@@ -86,6 +87,37 @@ final class VulkanEngineRuntimeLightingMapper {
                     taaLumaClipEnabled = true;
                 }
                 case BALANCED -> {
+                }
+            }
+        }
+        if (aaMode != null) {
+            switch (aaMode) {
+                case TUUA -> {
+                    taaEnabled = qualityTier != QualityTier.LOW;
+                    smaaEnabled = false;
+                    smaaStrength = 0f;
+                    taaBlend = Math.min(0.95f, taaBlend + 0.10f);
+                    taaClipScale = Math.max(0.5f, taaClipScale * 0.86f);
+                    taaSharpenStrength = Math.min(0.35f, taaSharpenStrength * 1.16f);
+                    taaLumaClipEnabled = true;
+                }
+                case MSAA_SELECTIVE -> {
+                    smaaEnabled = qualityTier != QualityTier.LOW;
+                    smaaStrength = Math.min(1.0f, smaaStrength + 0.12f);
+                    taaBlend = Math.max(0.0f, taaBlend * 0.72f);
+                    taaClipScale = Math.min(1.6f, taaClipScale * 1.10f);
+                    taaSharpenStrength = Math.max(0f, taaSharpenStrength * 0.75f);
+                }
+                case HYBRID_TUUA_MSAA -> {
+                    taaEnabled = qualityTier != QualityTier.LOW;
+                    smaaEnabled = qualityTier != QualityTier.LOW;
+                    smaaStrength = Math.min(1.0f, smaaStrength * 1.05f);
+                    taaBlend = Math.min(0.95f, taaBlend + 0.06f);
+                    taaClipScale = Math.max(0.5f, taaClipScale * 0.90f);
+                    taaSharpenStrength = Math.min(0.35f, taaSharpenStrength * 0.95f);
+                    taaLumaClipEnabled = true;
+                }
+                case TAA -> {
                 }
             }
         }

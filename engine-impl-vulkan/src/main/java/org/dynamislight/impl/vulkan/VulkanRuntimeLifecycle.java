@@ -50,7 +50,8 @@ final class VulkanRuntimeLifecycle {
             Path assetRoot,
             VulkanMeshAssetLoader meshLoader,
             boolean taaLumaClipEnabledDefault,
-            VulkanEngineRuntime.AaPreset aaPreset
+            VulkanEngineRuntime.AaPreset aaPreset,
+            VulkanEngineRuntime.AaMode aaMode
     ) {
         var camera = VulkanEngineRuntimeSceneMapper.selectActiveCamera(scene);
         var cameraMatrices = VulkanEngineRuntimeSceneMapper.cameraMatricesFor(
@@ -65,7 +66,8 @@ final class VulkanRuntimeLifecycle {
                 scene == null ? null : scene.postProcess(),
                 qualityTier,
                 taaLumaClipEnabledDefault,
-                aaPreset
+                aaPreset,
+                aaMode
         );
         var ibl = VulkanEngineRuntimeSceneMapper.mapIbl(scene == null ? null : scene.environment(), qualityTier, assetRoot);
         boolean nonDirectionalShadowRequested = VulkanEngineRuntimeSceneMapper.hasNonDirectionalShadowRequest(scene == null ? null : scene.lights());

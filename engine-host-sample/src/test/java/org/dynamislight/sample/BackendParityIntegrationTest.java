@@ -601,6 +601,38 @@ class BackendParityIntegrationTest {
 
     @Test
     @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessAaModesAcrossTargetedScenesStayBounded() throws Exception {
+        record SceneCase(String key, SceneDescriptor scene, double taaStrictMax) {
+        }
+        List<SceneCase> scenes = List.of(
+                new SceneCase("taa-subpixel-alpha-foliage-stress", taaSubpixelAlphaFoliageStressScene(), 0.33),
+                new SceneCase("taa-specular-micro-highlights-stress", taaSpecularMicroHighlightsStressScene(), 0.31),
+                new SceneCase("taa-thin-geometry-motion-stress", taaThinGeometryMotionStressScene(), 0.31),
+                new SceneCase("taa-disocclusion-rapid-pan-stress", taaDisocclusionRapidPanStressScene(), 0.33)
+        );
+        List<String> aaModes = List.of("taa", "tuua", "msaa-selective", "hybrid-tuua-msaa");
+
+        for (SceneCase sceneCase : scenes) {
+            for (String mode : aaModes) {
+                String modeProfile = sceneCase.key() + "-" + mode;
+                Path outDir = compareOutputDir(modeProfile);
+                var report = BackendCompareHarness.run(
+                        outDir,
+                        sceneCase.scene(),
+                        QualityTier.ULTRA,
+                        modeProfile + "-ultra"
+                );
+                assertTrue(Files.exists(report.openGlImage()));
+                assertTrue(Files.exists(report.vulkanImage()));
+                assertTrue(report.diffMetric() >= 0.0);
+                double strictMax = strictThresholdForAaMode(sceneCase.taaStrictMax(), mode);
+                assertAaSceneWithinThreshold(modeProfile, report, strictMax, modeProfile);
+            }
+        }
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
     void compareHarnessTieredGoldenProfilesStayBounded() throws Exception {
         Map<QualityTier, Double> fogSmokeMaxDiff = Map.of(
                 QualityTier.LOW, 0.45,
@@ -1226,7 +1258,28 @@ class BackendParityIntegrationTest {
             case "taa-specular-micro-highlights-stress" -> 0.34;
             case "taa-thin-geometry-motion-stress" -> 0.34;
             case "taa-disocclusion-rapid-pan-stress" -> 0.36;
+            case "taa-subpixel-alpha-foliage-stress-tuua",
+                 "taa-disocclusion-rapid-pan-stress-tuua" -> 0.37;
+            case "taa-specular-micro-highlights-stress-tuua",
+                 "taa-thin-geometry-motion-stress-tuua" -> 0.35;
+            case "taa-subpixel-alpha-foliage-stress-msaa-selective",
+                 "taa-disocclusion-rapid-pan-stress-msaa-selective" -> 0.39;
+            case "taa-specular-micro-highlights-stress-msaa-selective",
+                 "taa-thin-geometry-motion-stress-msaa-selective" -> 0.37;
+            case "taa-subpixel-alpha-foliage-stress-hybrid-tuua-msaa",
+                 "taa-disocclusion-rapid-pan-stress-hybrid-tuua-msaa" -> 0.37;
+            case "taa-specular-micro-highlights-stress-hybrid-tuua-msaa",
+                 "taa-thin-geometry-motion-stress-hybrid-tuua-msaa" -> 0.35;
             default -> Math.min(1.0, strictMaxDiff + 0.02);
+        };
+    }
+
+    private static double strictThresholdForAaMode(double taaStrictMax, String mode) {
+        return switch (mode) {
+            case "tuua" -> Math.min(1.0, taaStrictMax + 0.01);
+            case "msaa-selective" -> Math.min(1.0, taaStrictMax + 0.03);
+            case "hybrid-tuua-msaa" -> Math.min(1.0, taaStrictMax + 0.01);
+            default -> taaStrictMax;
         };
     }
 
@@ -1253,10 +1306,11 @@ class BackendParityIntegrationTest {
         double confidenceMeanDrift = Math.abs(gl.taaConfidenceMean() - vk.taaConfidenceMean());
         long confidenceDropDrift = Math.abs(gl.taaConfidenceDropCount() - vk.taaConfidenceDropCount());
 
-        double shimmerMax = adjustedCompareMaxDiff(profile, 0.10);
-        double rejectMax = adjustedCompareMaxDiff(profile, 0.20);
-        double confidenceMeanMax = adjustedCompareMaxDiff(profile, 0.18);
-        long confidenceDropMax = isVulkanMockProfile() ? 10L : 6L;
+        boolean selectiveMsaaMode = profile.contains("-msaa-selective");
+        double shimmerMax = adjustedCompareMaxDiff(profile, selectiveMsaaMode ? 0.14 : 0.10);
+        double rejectMax = adjustedCompareMaxDiff(profile, selectiveMsaaMode ? 0.28 : 0.20);
+        double confidenceMeanMax = adjustedCompareMaxDiff(profile, selectiveMsaaMode ? 0.24 : 0.18);
+        long confidenceDropMax = isVulkanMockProfile() ? (selectiveMsaaMode ? 14L : 10L) : (selectiveMsaaMode ? 9L : 6L);
 
         assertTrue(shimmerDrift <= shimmerMax, profile + " shimmer drift " + shimmerDrift + " exceeded " + shimmerMax);
         assertTrue(rejectDrift <= rejectMax, profile + " reject-rate drift " + rejectDrift + " exceeded " + rejectMax);

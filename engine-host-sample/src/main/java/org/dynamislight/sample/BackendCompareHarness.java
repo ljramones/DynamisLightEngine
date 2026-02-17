@@ -38,16 +38,18 @@ final class BackendCompareHarness {
         Path vulkanPng = outputDir.resolve("vulkan-" + normalizedTag + ".png");
         String vulkanModeTag = vulkanModeTag();
         String acceptanceProfile = acceptanceProfileTag();
+        String aaMode = selectAaMode(normalizedTag);
+        String aaPreset = selectAaPreset(normalizedTag, aaMode);
 
-        BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag);
-        BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag);
+        BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag, aaPreset, aaMode);
+        BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag, aaPreset, aaMode);
 
         writeDiagnosticImage(openGl, openGlPng);
         writeDiagnosticImage(vulkan, vulkanPng);
         openGl = openGl.withShimmerIndex(estimateShimmerIndex(openGlPng));
         vulkan = vulkan.withShimmerIndex(estimateShimmerIndex(vulkanPng));
         double diff = normalizedImageDiff(openGlPng, vulkanPng);
-        writeModeMetadata(outputDir, normalizedTag, qualityTier, vulkanModeTag, acceptanceProfile, diff, openGl, vulkan);
+        writeModeMetadata(outputDir, normalizedTag, qualityTier, vulkanModeTag, acceptanceProfile, aaMode, aaPreset, diff, openGl, vulkan);
         return new CompareReport(openGlPng, vulkanPng, diff, openGl, vulkan);
     }
 
@@ -72,7 +74,9 @@ final class BackendCompareHarness {
             String backendId,
             SceneDescriptor scene,
             QualityTier qualityTier,
-            String profileTag
+            String profileTag,
+            String aaPreset,
+            String aaMode
     ) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
         boolean taaStress = profileTag.contains("taa-disocclusion-stress")
@@ -90,12 +94,11 @@ final class BackendCompareHarness {
                 || profileTag.contains("taa-thin-geometry-motion-stress")
                 || profileTag.contains("taa-disocclusion-rapid-pan-stress");
         boolean smaaStress = profileTag.contains("smaa-full-edge-crawl");
-        String aaPreset = selectAaPreset(profileTag);
         EngineInput input = (taaStress || smaaStress)
                 ? new EngineInput(540, 360, 96, -48, false, false, Set.of(KeyCode.A, KeyCode.D), 0.0)
                 : new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
         try (var runtime = provider.createRuntime()) {
-            runtime.initialize(configFor(backendId, qualityTier, aaPreset), new NoopCallbacks());
+            runtime.initialize(configFor(backendId, qualityTier, aaPreset, aaMode), new NoopCallbacks());
             runtime.loadScene(scene);
             EngineFrameResult frame = null;
             int frames = taaStress ? 5 : (smaaStress ? 3 : 1);
@@ -121,7 +124,16 @@ final class BackendCompareHarness {
         }
     }
 
-    private static String selectAaPreset(String profileTag) {
+    private static String selectAaPreset(String profileTag, String aaMode) {
+        if ("tuua".equals(aaMode)) {
+            return "quality";
+        }
+        if ("hybrid_tuua_msaa".equals(aaMode)) {
+            return "quality";
+        }
+        if ("msaa_selective".equals(aaMode)) {
+            return "stability";
+        }
         if (profileTag.contains("taa-aa-preset-quality")) {
             return "quality";
         }
@@ -131,18 +143,33 @@ final class BackendCompareHarness {
         return System.getProperty("dle.compare.aaPreset", "balanced");
     }
 
-    private static EngineConfig configFor(String backendId, QualityTier qualityTier, String aaPreset) {
+    private static String selectAaMode(String profileTag) {
+        if (profileTag.contains("hybrid-tuua-msaa")) {
+            return "hybrid_tuua_msaa";
+        }
+        if (profileTag.contains("msaa-selective")) {
+            return "msaa_selective";
+        }
+        if (profileTag.contains("tuua")) {
+            return "tuua";
+        }
+        return "taa";
+    }
+
+    private static EngineConfig configFor(String backendId, QualityTier qualityTier, String aaPreset, String aaMode) {
         Map<String, String> options = switch (backendId) {
             case "opengl" -> Map.of(
                     "opengl.mockContext", System.getProperty("dle.compare.opengl.mockContext", "true"),
                     "opengl.taaDebugView", System.getProperty("dle.taa.debugView", "0"),
-                    "opengl.aaPreset", aaPreset
+                    "opengl.aaPreset", aaPreset,
+                    "opengl.aaMode", aaMode
             );
             case "vulkan" -> Map.of(
                     "vulkan.mockContext", System.getProperty("dle.compare.vulkan.mockContext", "true"),
                     "vulkan.postOffscreen", System.getProperty("dle.compare.vulkan.postOffscreen", "true"),
                     "vulkan.taaDebugView", System.getProperty("dle.taa.debugView", "0"),
-                    "vulkan.aaPreset", aaPreset
+                    "vulkan.aaPreset", aaPreset,
+                    "vulkan.aaMode", aaMode
             );
             default -> Map.of();
         };
@@ -262,6 +289,8 @@ final class BackendCompareHarness {
             QualityTier qualityTier,
             String vulkanMode,
             String acceptanceProfile,
+            String aaMode,
+            String aaPreset,
             double diffMetric,
             BackendSnapshot openGl,
             BackendSnapshot vulkan
@@ -271,6 +300,8 @@ final class BackendCompareHarness {
         metadata.setProperty("compare.qualityTier", qualityTier.name());
         metadata.setProperty("compare.vulkan.mode", vulkanMode);
         metadata.setProperty("compare.aa.acceptanceProfile", acceptanceProfile);
+        metadata.setProperty("compare.aa.mode", aaMode);
+        metadata.setProperty("compare.aa.preset", aaPreset);
         metadata.setProperty("compare.diffMetric", Double.toString(diffMetric));
         metadata.setProperty("compare.opengl.shimmerIndex", Double.toString(openGl.shimmerIndex()));
         metadata.setProperty("compare.vulkan.shimmerIndex", Double.toString(vulkan.shimmerIndex()));
