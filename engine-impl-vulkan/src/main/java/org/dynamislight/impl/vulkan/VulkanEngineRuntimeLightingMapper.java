@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.FogDesc;
@@ -356,7 +357,7 @@ final class VulkanEngineRuntimeLightingMapper {
             QualityTier qualityTier,
             int shadowMaxLocalLayers
     ) {
-        return mapLighting(lights, qualityTier, shadowMaxLocalLayers, false, 1, 2, 4, 0L);
+        return mapLighting(lights, qualityTier, shadowMaxLocalLayers, false, 1, 2, 4, 0L, Map.of());
     }
 
     static VulkanEngineRuntime.LightingConfig mapLighting(
@@ -367,7 +368,8 @@ final class VulkanEngineRuntimeLightingMapper {
             int shadowSchedulerHeroPeriod,
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
-            long shadowSchedulerFrameTick
+            long shadowSchedulerFrameTick,
+            Map<String, Long> shadowSchedulerLastRenderedTicks
     ) {
         float[] dir = new float[]{0.35f, -1.0f, 0.25f};
         float[] dirColor = new float[]{1.0f, 0.98f, 0.95f};
@@ -425,7 +427,8 @@ final class VulkanEngineRuntimeLightingMapper {
             }
         }
         if (!localLights.isEmpty()) {
-            localLights.sort((a, b) -> Float.compare(localLightPriority(b), localLightPriority(a)));
+            localLights.sort(Comparator.comparingDouble((LightDesc light) ->
+                    localShadowScore(light, shadowSchedulerLastRenderedTicks, shadowSchedulerFrameTick)).reversed());
             localLightCount = Math.min(VulkanContext.MAX_LOCAL_LIGHTS, localLights.size());
             int maxShadowedLocalLights = switch (qualityTier) {
                 case LOW -> 1;
@@ -585,7 +588,8 @@ final class VulkanEngineRuntimeLightingMapper {
                 1,
                 2,
                 4,
-                0L
+                0L,
+                Map.of()
         );
     }
 
@@ -601,12 +605,13 @@ final class VulkanEngineRuntimeLightingMapper {
             int shadowSchedulerHeroPeriod,
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
-            long shadowSchedulerFrameTick
+            long shadowSchedulerFrameTick,
+            Map<String, Long> shadowSchedulerLastRenderedTicks
     ) {
         String filterPath = shadowFilterPath == null || shadowFilterPath.isBlank() ? "pcf" : shadowFilterPath.trim().toLowerCase(java.util.Locale.ROOT);
         String rtMode = shadowRtMode == null || shadowRtMode.isBlank() ? "off" : shadowRtMode.trim().toLowerCase(java.util.Locale.ROOT);
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0, 0, 0, filterPath, shadowContactShadows, rtMode, false, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0, 0, 0, "", filterPath, shadowContactShadows, rtMode, false, false);
         }
         int maxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -641,7 +646,8 @@ final class VulkanEngineRuntimeLightingMapper {
                 primaryDirectional = light;
             }
         }
-        localShadowCandidates.sort((a, b) -> Float.compare(localLightPriority(b), localLightPriority(a)));
+        localShadowCandidates.sort(Comparator.comparingDouble((LightDesc light) ->
+                localShadowScore(light, shadowSchedulerLastRenderedTicks, shadowSchedulerFrameTick)).reversed());
         int selectedLocalShadowLights = Math.min(maxShadowedLocalLights, localShadowCandidates.size());
         selectedLocalShadowLights = Math.min(maxShadowedLocalLights, selectedLocalShadowLights);
         int selectedSpotShadowLights = 0;
@@ -657,7 +663,7 @@ final class VulkanEngineRuntimeLightingMapper {
         }
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0, 0, 0, filterPath, shadowContactShadows, rtMode, false, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0, 0, 0, "", filterPath, shadowContactShadows, rtMode, false, false);
         }
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
         ShadowDesc shadow = primary.shadow();
@@ -809,6 +815,7 @@ final class VulkanEngineRuntimeLightingMapper {
                 renderedLocalShadowLights,
                 renderedSpotShadowLights,
                 renderedPointShadowCubemaps,
+                schedule.renderedShadowLightIdsCsv(),
                 filterPath,
                 shadowContactShadows,
                 rtMode,
@@ -833,6 +840,7 @@ final class VulkanEngineRuntimeLightingMapper {
         int renderedPoint = 0;
         int assignedLayers = 0;
         int assignedLights = 0;
+        List<String> renderedIds = new ArrayList<>();
         for (int rank = 0; rank < selectedLocalShadowLights && rank < localShadowCandidates.size(); rank++) {
             LightDesc candidate = localShadowCandidates.get(rank);
             if (candidate == null || !candidate.castsShadows()) {
@@ -858,13 +866,14 @@ final class VulkanEngineRuntimeLightingMapper {
             }
             assignedLayers += layerCost;
             assignedLights++;
+            renderedIds.add(shadowLightId(candidate));
             if (localType == LightType.SPOT) {
                 renderedSpot++;
             } else {
                 renderedPoint++;
             }
         }
-        return new LocalShadowSchedule(renderedSpot, renderedPoint);
+        return new LocalShadowSchedule(renderedSpot, renderedPoint, String.join(",", renderedIds));
     }
 
     private static int cadencePeriodForRank(int rank, int heroPeriod, int midPeriod, int distantPeriod) {
@@ -886,8 +895,36 @@ final class VulkanEngineRuntimeLightingMapper {
 
     private record LocalShadowSchedule(
             int renderedSpotShadowLights,
-            int renderedPointShadowCubemaps
+            int renderedPointShadowCubemaps,
+            String renderedShadowLightIdsCsv
     ) {
+    }
+
+    private static String shadowLightId(LightDesc light) {
+        if (light == null) {
+            return "shadow-light";
+        }
+        if (light.id() != null && !light.id().isBlank()) {
+            return light.id();
+        }
+        LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
+        float px = light.position() == null ? 0f : light.position().x();
+        float py = light.position() == null ? 0f : light.position().y();
+        float pz = light.position() == null ? 0f : light.position().z();
+        return type.name().toLowerCase(java.util.Locale.ROOT) + ":" + Math.round(px * 10f) + ":" + Math.round(py * 10f) + ":" + Math.round(pz * 10f);
+    }
+
+    private static double localShadowScore(
+            LightDesc light,
+            Map<String, Long> lastRenderedTicks,
+            long frameTick
+    ) {
+        float base = localLightPriority(light);
+        String id = shadowLightId(light);
+        long lastTick = lastRenderedTicks == null ? Long.MIN_VALUE : lastRenderedTicks.getOrDefault(id, Long.MIN_VALUE);
+        long age = lastTick == Long.MIN_VALUE ? 64 : Math.max(0L, frameTick - lastTick);
+        double ageBoost = 1.0 + (Math.min(age, 64L) * 0.02);
+        return base * ageBoost;
     }
 
     static VulkanEngineRuntime.FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {

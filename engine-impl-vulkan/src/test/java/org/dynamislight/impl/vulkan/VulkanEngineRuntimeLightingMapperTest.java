@@ -152,11 +152,11 @@ class VulkanEngineRuntimeLightingMapperTest {
 
         VulkanEngineRuntime.ShadowRenderConfig cadenceOff = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
-                12, 12, false, 1, 2, 4, 1
+                12, 12, false, 1, 2, 4, 1L, java.util.Map.of()
         );
         VulkanEngineRuntime.ShadowRenderConfig cadenceOn = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
-                12, 12, true, 4, 4, 8, 1
+                12, 12, true, 4, 4, 8, 1L, java.util.Map.of()
         );
 
         assertTrue(cadenceOff.renderedLocalShadowLights() >= cadenceOn.renderedLocalShadowLights());

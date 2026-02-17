@@ -138,6 +138,12 @@ Shadow scheduler override examples:
 - Adjust cadence policy:
   - `-Dvulkan.shadow.scheduler.heroPeriod=1 -Dvulkan.shadow.scheduler.midPeriod=2 -Dvulkan.shadow.scheduler.distantPeriod=6`
 
+Scheduler behavior notes:
+- Vulkan scheduler now uses cadence + age/priority ordering for local shadow lights.
+- Runtime warning telemetry includes:
+  - `shadowSchedulerFrameTick`
+  - `renderedShadowLightIds`
+
 Current default local shadow budgets by tier:
 - `LOW`: 1 local shadow light
 - `MEDIUM`: 2 local shadow lights

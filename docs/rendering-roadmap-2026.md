@@ -90,6 +90,7 @@ Implemented now:
   - `vulkan.shadow.scheduler.midPeriod`
   - `vulkan.shadow.scheduler.distantPeriod`
   - runtime `shadowSchedulerFrameTick` tracking in warnings
+  - runtime age/priority tracking for rendered local shadow IDs (`renderedShadowLightIds`)
 
 Still in progress:
 - Full production multi-point cubemap scalability beyond current matrix/layer bounds.

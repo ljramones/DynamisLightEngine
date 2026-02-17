@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.config.QualityTier;
@@ -65,7 +66,8 @@ final class VulkanRuntimeLifecycle {
             int shadowSchedulerHeroPeriod,
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
-            long shadowSchedulerFrameTick
+            long shadowSchedulerFrameTick,
+            Map<String, Long> shadowSchedulerLastRenderedTicks
     ) {
         var camera = VulkanEngineRuntimeSceneMapper.selectActiveCamera(scene);
         var cameraMatrices = VulkanEngineRuntimeSceneMapper.cameraMatricesFor(
@@ -80,7 +82,8 @@ final class VulkanRuntimeLifecycle {
                 shadowSchedulerHeroPeriod,
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
-                shadowSchedulerFrameTick
+                shadowSchedulerFrameTick,
+                shadowSchedulerLastRenderedTicks
         );
         var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(
                 scene == null ? null : scene.lights(),
@@ -94,7 +97,8 @@ final class VulkanRuntimeLifecycle {
                 shadowSchedulerHeroPeriod,
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
-                shadowSchedulerFrameTick
+                shadowSchedulerFrameTick,
+                shadowSchedulerLastRenderedTicks
         );
         var fog = VulkanEngineRuntimeSceneMapper.mapFog(scene == null ? null : scene.fog(), qualityTier);
         var smoke = VulkanEngineRuntimeSceneMapper.mapSmoke(scene == null ? null : scene.smokeEmitters(), qualityTier);
@@ -246,7 +250,8 @@ final class VulkanRuntimeLifecycle {
             int shadowSchedulerHeroPeriod,
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
-            long shadowSchedulerFrameTick
+            long shadowSchedulerFrameTick,
+            Map<String, Long> shadowSchedulerLastRenderedTicks
     ) {
         var lighting = VulkanEngineRuntimeSceneMapper.mapLighting(
                 lights,
@@ -256,7 +261,8 @@ final class VulkanRuntimeLifecycle {
                 shadowSchedulerHeroPeriod,
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
-                shadowSchedulerFrameTick
+                shadowSchedulerFrameTick,
+                shadowSchedulerLastRenderedTicks
         );
         var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(
                 lights,
@@ -270,7 +276,8 @@ final class VulkanRuntimeLifecycle {
                 shadowSchedulerHeroPeriod,
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
-                shadowSchedulerFrameTick
+                shadowSchedulerFrameTick,
+                shadowSchedulerLastRenderedTicks
         );
         return new ShadowRefreshState(lighting, shadows);
     }

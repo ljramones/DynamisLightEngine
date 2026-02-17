@@ -4,6 +4,8 @@ import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.config.EngineConfig;
@@ -118,6 +120,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             0, 0, 0.0f, 0,
             0L, 0L, 0L,
             0, 0, 0,
+            "",
             "pcf", false, "off", false,
             false
     );
@@ -147,6 +150,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowSchedulerDistantPeriod = 4;
     private long shadowSchedulerFrameTick;
     private List<LightDesc> currentSceneLights = List.of();
+    private final Map<String, Long> shadowSchedulerLastRenderedTicks = new HashMap<>();
 
     public VulkanEngineRuntime() {
         super(
@@ -199,6 +203,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowSchedulerDistantPeriod = options.shadowSchedulerDistantPeriod();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
+        shadowSchedulerLastRenderedTicks.clear();
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -249,7 +254,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowSchedulerHeroPeriod,
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
-                shadowSchedulerFrameTick
+                shadowSchedulerFrameTick,
+                shadowSchedulerLastRenderedTicks
         );
         currentFog = sceneState.fog();
         currentSmoke = sceneState.smoke();
@@ -263,6 +269,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         plannedTriangles = sceneState.plannedTriangles();
         plannedVisibleObjects = sceneState.plannedVisibleObjects();
         currentSceneLights = scene == null || scene.lights() == null ? List.of() : new ArrayList<>(scene.lights());
+        shadowSchedulerLastRenderedTicks.clear();
+        updateShadowSchedulerTicks(currentShadows.renderedShadowLightIdsCsv());
         if (!mockContext) {
             VulkanRuntimeLifecycle.applySceneToContext(context, sceneState);
         }
@@ -284,9 +292,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowSchedulerHeroPeriod,
                     shadowSchedulerMidPeriod,
                     shadowSchedulerDistantPeriod,
-                    shadowSchedulerFrameTick
+                    shadowSchedulerFrameTick,
+                    shadowSchedulerLastRenderedTicks
             );
             currentShadows = refresh.shadows();
+            updateShadowSchedulerTicks(currentShadows.renderedShadowLightIdsCsv());
             context.setLightingParameters(
                     refresh.lighting().directionalDirection(),
                     refresh.lighting().directionalColor(),
@@ -442,6 +452,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " schedulerPeriodMid=" + shadowSchedulerMidPeriod
                             + " schedulerPeriodDistant=" + shadowSchedulerDistantPeriod
                             + " shadowSchedulerFrameTick=" + shadowSchedulerFrameTick
+                            + " renderedShadowLightIds=" + currentShadows.renderedShadowLightIdsCsv()
                             + " filterPath=" + currentShadows.filterPath()
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()
@@ -768,6 +779,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int renderedLocalShadowLights,
             int renderedSpotShadowLights,
             int renderedPointShadowCubemaps,
+            String renderedShadowLightIdsCsv,
             String filterPath,
             boolean contactShadowsRequested,
             String rtShadowMode,
@@ -795,6 +807,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float[] localLightDirInner,
             float[] localLightOuterTypeShadow
     ) {
+    }
+
+    private void updateShadowSchedulerTicks(String renderedShadowLightIdsCsv) {
+        if (renderedShadowLightIdsCsv == null || renderedShadowLightIdsCsv.isBlank()) {
+            return;
+        }
+        String[] ids = renderedShadowLightIdsCsv.split(",");
+        for (String id : ids) {
+            String normalized = id == null ? "" : id.trim();
+            if (!normalized.isEmpty()) {
+                shadowSchedulerLastRenderedTicks.put(normalized, shadowSchedulerFrameTick);
+            }
+        }
     }
 
 }

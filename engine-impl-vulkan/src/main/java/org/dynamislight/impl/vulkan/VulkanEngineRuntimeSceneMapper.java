@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.CameraDesc;
@@ -66,7 +67,8 @@ final class VulkanEngineRuntimeSceneMapper {
             int shadowSchedulerHeroPeriod,
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
-            long shadowSchedulerFrameTick
+            long shadowSchedulerFrameTick,
+            Map<String, Long> shadowSchedulerLastRenderedTicks
     ) {
         return VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights,
@@ -76,7 +78,8 @@ final class VulkanEngineRuntimeSceneMapper {
                 shadowSchedulerHeroPeriod,
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
-                shadowSchedulerFrameTick
+                shadowSchedulerFrameTick,
+                shadowSchedulerLastRenderedTicks
         );
     }
 
@@ -96,7 +99,8 @@ final class VulkanEngineRuntimeSceneMapper {
             int shadowSchedulerHeroPeriod,
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
-            long shadowSchedulerFrameTick
+            long shadowSchedulerFrameTick,
+            Map<String, Long> shadowSchedulerLastRenderedTicks
     ) {
         return VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights,
@@ -110,7 +114,8 @@ final class VulkanEngineRuntimeSceneMapper {
                 shadowSchedulerHeroPeriod,
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
-                shadowSchedulerFrameTick
+                shadowSchedulerFrameTick,
+                shadowSchedulerLastRenderedTicks
         );
     }
 
