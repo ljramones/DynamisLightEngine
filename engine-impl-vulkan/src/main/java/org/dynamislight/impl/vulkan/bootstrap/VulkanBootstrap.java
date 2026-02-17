@@ -11,10 +11,17 @@ import org.lwjgl.vulkan.VkApplicationInfo;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkDeviceCreateInfo;
 import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
+import org.lwjgl.vulkan.VkExtensionProperties;
 import org.lwjgl.vulkan.VkInstance;
 import org.lwjgl.vulkan.VkInstanceCreateInfo;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueue;
+import org.lwjgl.vulkan.KHRPortabilityEnumeration;
+import org.lwjgl.vulkan.KHRPortabilitySubset;
+
+import java.nio.IntBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_FALSE;
@@ -29,6 +36,9 @@ import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
 import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
 import static org.lwjgl.glfw.GLFWVulkan.glfwVulkanSupported;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+import static org.lwjgl.vulkan.KHRPortabilityEnumeration.VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+import static org.lwjgl.vulkan.KHRPortabilityEnumeration.VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+import static org.lwjgl.vulkan.KHRPortabilitySubset.VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK10.VK_ERROR_INITIALIZATION_FAILED;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -38,6 +48,7 @@ import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 import static org.lwjgl.vulkan.VK10.vkCreateDevice;
 import static org.lwjgl.vulkan.VK10.vkCreateInstance;
+import static org.lwjgl.vulkan.VK10.vkEnumerateDeviceExtensionProperties;
 import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
 
 public final class VulkanBootstrap {
@@ -76,10 +87,18 @@ public final class VulkanBootstrap {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "No required Vulkan instance extensions from GLFW", false);
         }
 
+        PointerBuffer instanceExtensions = stack.mallocPointer(requiredExtensions.remaining() + 1);
+        for (int i = requiredExtensions.position(); i < requiredExtensions.limit(); i++) {
+            instanceExtensions.put(requiredExtensions.get(i));
+        }
+        instanceExtensions.put(stack.UTF8(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME));
+        instanceExtensions.flip();
+
         VkInstanceCreateInfo createInfo = VkInstanceCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
                 .pApplicationInfo(appInfo)
-                .ppEnabledExtensionNames(requiredExtensions);
+                .flags(VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR)
+                .ppEnabledExtensionNames(instanceExtensions);
 
         PointerBuffer pInstance = stack.mallocPointer(1);
         int result = vkCreateInstance(createInfo, null, pInstance);
@@ -121,7 +140,16 @@ public final class VulkanBootstrap {
                 .queueFamilyIndex(graphicsQueueFamilyIndex)
                 .pQueuePriorities(queuePriority);
 
-        PointerBuffer extensions = stack.pointers(stack.UTF8(VK_KHR_SWAPCHAIN_EXTENSION_NAME));
+        List<String> requiredDeviceExtensions = new ArrayList<>();
+        requiredDeviceExtensions.add(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+        if (supportsDeviceExtension(physicalDevice, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME, stack)) {
+            requiredDeviceExtensions.add(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+        }
+        PointerBuffer extensions = stack.mallocPointer(requiredDeviceExtensions.size());
+        for (String extensionName : requiredDeviceExtensions) {
+            extensions.put(stack.UTF8(extensionName));
+        }
+        extensions.flip();
         VkDeviceCreateInfo deviceCreateInfo = VkDeviceCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO)
                 .pQueueCreateInfos(queueCreateInfo)
@@ -148,5 +176,24 @@ public final class VulkanBootstrap {
             VkDevice device,
             VkQueue graphicsQueue
     ) {
+    }
+
+    private static boolean supportsDeviceExtension(VkPhysicalDevice physicalDevice, String extensionName, MemoryStack stack) {
+        IntBuffer extCount = stack.ints(0);
+        int enumResult = vkEnumerateDeviceExtensionProperties(physicalDevice, (String) null, extCount, null);
+        if (enumResult != VK_SUCCESS || extCount.get(0) <= 0) {
+            return false;
+        }
+        VkExtensionProperties.Buffer extensions = VkExtensionProperties.calloc(extCount.get(0), stack);
+        enumResult = vkEnumerateDeviceExtensionProperties(physicalDevice, (String) null, extCount, extensions);
+        if (enumResult != VK_SUCCESS) {
+            return false;
+        }
+        for (int i = 0; i < extensions.capacity(); i++) {
+            if (extensionName.equals(extensions.get(i).extensionNameString())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
