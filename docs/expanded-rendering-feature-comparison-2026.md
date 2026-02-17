@@ -27,7 +27,7 @@ Last updated: February 17, 2026.
 - Real OpenGL and Vulkan runtime paths with broad scene parity checks.
 - TAA now includes confidence-buffer decay/recovery on instability/disocclusion, plus authored reactive-mask stress profiles for thin-geometry shimmer and specular flicker.
 - Motion-vector quality is upgraded with per-object previous-transform coverage in both backends for improved thin/fast geometry rejection.
-- ULTRA parity envelopes for AA stress now include tighter bounds (`taa-thin-geometry-shimmer`, `taa-specular-flicker`, `taa-history-confidence-stress`, and `taa-specular-aa-stress` at `<= 0.31`).
+- ULTRA parity envelopes for AA stress now include tighter bounds (`taa-thin-geometry-shimmer` and `taa-specular-flicker` at `<= 0.31`; `taa-history-confidence-stress` and `taa-specular-aa-stress` tightened further to `<= 0.29`).
 - New authored AA stress profiles are gated: `taa-reactive-authored-dense-stress`, `taa-alpha-pan-stress`, `taa-aa-preset-quality-stress`, `taa-confidence-dilation-stress`.
 - Specular AA is reinforced with Toksvig-style roughness filtering in both backends to reduce glossy shimmer.
 - Runtime AA telemetry is now surfaced in frame stats/events (`historyRejectRate`, `confidenceMean`, `confidenceDropEvents`) for data-driven tuning.

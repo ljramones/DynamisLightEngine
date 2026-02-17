@@ -429,7 +429,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.31, "taa history confidence stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.29, "taa history confidence stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -446,7 +446,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.31, "taa specular aa stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.29, "taa specular aa stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -595,7 +595,7 @@ class BackendParityIntegrationTest {
                 QualityTier.LOW, 0.54,
                 QualityTier.MEDIUM, 0.44,
                 QualityTier.HIGH, 0.34,
-                QualityTier.ULTRA, 0.30
+                QualityTier.ULTRA, 0.29
         );
         Map<QualityTier, Double> taaDisocclusionMaxDiff = Map.of(
                 QualityTier.LOW, 0.52,
@@ -613,13 +613,13 @@ class BackendParityIntegrationTest {
                 QualityTier.LOW, 0.54,
                 QualityTier.MEDIUM, 0.46,
                 QualityTier.HIGH, 0.38,
-                QualityTier.ULTRA, 0.31
+                QualityTier.ULTRA, 0.29
         );
         Map<QualityTier, Double> taaSpecularFlickerMaxDiff = Map.of(
                 QualityTier.LOW, 0.54,
                 QualityTier.MEDIUM, 0.46,
                 QualityTier.HIGH, 0.38,
-                QualityTier.ULTRA, 0.31
+                QualityTier.ULTRA, 0.30
         );
         Map<QualityTier, Double> taaHistoryConfidenceMaxDiff = Map.of(
                 QualityTier.LOW, 0.56,
@@ -953,8 +953,8 @@ class BackendParityIntegrationTest {
                 Map.entry("taa-reactive-authored-stress", 0.32),
                 Map.entry("taa-thin-geometry-shimmer", 0.31),
                 Map.entry("taa-specular-flicker", 0.31),
-                Map.entry("taa-history-confidence-stress", 0.31),
-                Map.entry("taa-specular-aa-stress", 0.31),
+                Map.entry("taa-history-confidence-stress", 0.29),
+                Map.entry("taa-specular-aa-stress", 0.29),
                 Map.entry("taa-reactive-authored-dense-stress", 0.31),
                 Map.entry("taa-alpha-pan-stress", 0.31),
                 Map.entry("taa-aa-preset-quality-stress", 0.31),
