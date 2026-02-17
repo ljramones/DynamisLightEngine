@@ -139,6 +139,8 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `SHADOW_LOCAL_RENDER_BASELINE`
 - Vulkan integration tests now also validate multi-spot render policy reporting (`renderedLocalShadows`, `renderedSpotShadows`) and quality-path request tracking fields (`filterPath`, `contactShadows`, `rtMode`).
 - Vulkan mapper tests now validate capability-gated RT active state (`rtShadowActive`) when traversal extensions are available.
+- Vulkan integration tests now validate strict BVH request behavior:
+  - `VulkanEngineRuntimeIntegrationTest#strictBvhModeFailsFastWhenBvhCapabilityIsUnavailable`
 - Vulkan shader/uniform tests now validate packed RT sample count metadata and runtime RT tuning decode (`shadowRtDenoiseStrength`, `shadowRtRayLength`, `shadowRtSampleCount`) feeding traversal/denoise shaping.
 - Vulkan runtime options tests also validate shadow quality tuning clamps:
   - `vulkan.shadow.pcssSoftness`

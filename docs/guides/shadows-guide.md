@@ -128,6 +128,7 @@ Sample host clamps:
   - `vulkan.shadow.contactTemporalMotionScale=0.1..3.0` (default `1.0`)
   - `vulkan.shadow.contactTemporalMinStability=0.2..1.0` (default `0.42`)
   - `vulkan.shadow.rtMode=off|optional|force|bvh`
+  - `vulkan.shadow.rtBvhStrict=true|false` (default `false`; fail fast if `rtMode=bvh` is requested without BVH capability)
   - `vulkan.shadow.rtDenoiseStrength=0..1` (default `0.65`, hybrid traversal denoise shaping)
   - `vulkan.shadow.rtRayLength=1..500` (default `80`, hybrid traversal march distance shaping)
   - `vulkan.shadow.rtSampleCount=1..16` (default `2`, hybrid traversal step budget shaping)

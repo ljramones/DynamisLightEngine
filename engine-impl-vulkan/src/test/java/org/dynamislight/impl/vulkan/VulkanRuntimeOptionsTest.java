@@ -13,6 +13,7 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.maxLocalShadowLayers", "12"),
                         Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "6"),
                         Map.entry("vulkan.shadow.maxShadowedLocalLights", "7"),
+                        Map.entry("vulkan.shadow.rtBvhStrict", "true"),
                         Map.entry("vulkan.shadow.rtDenoiseStrength", "0.8"),
                         Map.entry("vulkan.shadow.rtRayLength", "120"),
                         Map.entry("vulkan.shadow.rtSampleCount", "4"),
@@ -34,6 +35,7 @@ class VulkanRuntimeOptionsTest {
 
         assertEquals("off", VulkanRuntimeOptions.parse(Map.of("vulkan.shadow.rtMode", "invalid"), 256).shadowRtMode());
         assertEquals("bvh", VulkanRuntimeOptions.parse(Map.of("vulkan.shadow.rtMode", "bvh"), 256).shadowRtMode());
+        assertEquals(true, parsed.shadowRtBvhStrict());
         assertEquals(7, parsed.shadowMaxShadowedLocalLights());
         assertEquals(12, parsed.shadowMaxLocalLayers());
         assertEquals(6, parsed.shadowMaxFacesPerFrame());
@@ -87,6 +89,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.25f, parsed.shadowContactStrength());
         assertEquals(0.1f, parsed.shadowContactTemporalMotionScale());
         assertEquals(1.0f, parsed.shadowContactTemporalMinStability());
+        assertEquals(false, parsed.shadowRtBvhStrict());
         assertEquals(true, parsed.shadowSchedulerEnabled());
         assertEquals(1, parsed.shadowSchedulerHeroPeriod());
         assertEquals(2, parsed.shadowSchedulerMidPeriod());

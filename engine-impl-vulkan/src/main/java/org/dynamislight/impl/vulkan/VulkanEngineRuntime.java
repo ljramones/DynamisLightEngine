@@ -145,6 +145,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private String shadowFilterPath = "pcf";
     private boolean shadowContactShadows;
     private String shadowRtMode = "off";
+    private boolean shadowRtBvhStrict;
     private float shadowRtDenoiseStrength = 0.65f;
     private float shadowRtRayLength = 80.0f;
     private int shadowRtSampleCount = 2;
@@ -216,6 +217,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowFilterPath = options.shadowFilterPath();
         shadowContactShadows = options.shadowContactShadows();
         shadowRtMode = options.shadowRtMode();
+        shadowRtBvhStrict = options.shadowRtBvhStrict();
         shadowRtDenoiseStrength = options.shadowRtDenoiseStrength();
         shadowRtRayLength = options.shadowRtRayLength();
         shadowRtSampleCount = options.shadowRtSampleCount();
@@ -263,6 +265,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         VulkanRuntimeLifecycle.initialize(context, config, options, plannedDrawCalls, plannedTriangles, plannedVisibleObjects);
         shadowRtTraversalSupported = !mockContext && context.isHardwareRtShadowTraversalSupported();
         shadowRtBvhSupported = !mockContext && context.isHardwareRtShadowBvhSupported();
+        if ("bvh".equals(shadowRtMode) && shadowRtBvhStrict && !shadowRtBvhSupported) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "Strict BVH RT shadow mode requested but BVH capability is unavailable "
+                            + "(rtMode=bvh, strict=true, mockContext=" + mockContext + ")",
+                    false
+            );
+        }
     }
 
     @Override
@@ -582,6 +592,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " rtActive=" + currentShadows.rtShadowActive()
                             + " rtTraversalSupported=" + shadowRtTraversalSupported
                             + " rtBvhSupported=" + shadowRtBvhSupported
+                            + " rtBvhStrict=" + shadowRtBvhStrict
                             + " rtDenoiseStrength=" + shadowRtDenoiseStrength
                             + " rtRayLength=" + shadowRtRayLength
                             + " rtSampleCount=" + shadowRtSampleCount

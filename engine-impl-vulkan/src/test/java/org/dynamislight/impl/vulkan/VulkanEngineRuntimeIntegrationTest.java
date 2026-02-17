@@ -75,6 +75,25 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void strictBvhModeFailsFastWhenBvhCapabilityIsUnavailable() {
+        var runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.rtMode", "bvh"),
+                    Map.entry("vulkan.shadow.rtBvhStrict", "true")
+            )), new RecordingCallbacks());
+        } catch (EngineException e) {
+            assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, e.code());
+            assertTrue(e.getMessage().contains("Strict BVH RT shadow mode requested"));
+            return;
+        } finally {
+            runtime.shutdown();
+        }
+        throw new AssertionError("Expected strict BVH mode to fail when BVH capability is unavailable");
+    }
+
+    @Test
     void mockVulkanBackendOptionsConfigureFrameAndCacheLimits() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(
