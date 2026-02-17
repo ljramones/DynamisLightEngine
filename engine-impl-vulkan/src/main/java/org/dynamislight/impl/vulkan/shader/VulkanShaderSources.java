@@ -178,6 +178,7 @@ public final class VulkanShaderSources {
                 layout(set = 1, binding = 5) uniform sampler2D uIblIrradianceTexture;
                 layout(set = 1, binding = 6) uniform sampler2D uIblRadianceTexture;
                 layout(set = 1, binding = 7) uniform sampler2D uIblBrdfLutTexture;
+                layout(set = 1, binding = 8) uniform sampler2D uShadowMomentMap;
                 layout(location = 0) out vec4 outColor;
                 layout(location = 1) out vec4 outVelocity;
                 float distributionGGX(float ndh, float roughness) {

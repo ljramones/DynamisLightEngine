@@ -132,6 +132,7 @@ Sample host clamps:
   - `vulkan.shadow.directionalTexelSnapEnabled=true|false` (default `true`)
   - `vulkan.shadow.directionalTexelSnapScale=0.25..4.0` (default `1.0`)
   Runtime tracks and reports these requests. Production-active filter path is `pcf|pcss`; `vsm|evsm` are currently treated as estimate-only moment-path requests (warning + telemetry), with runtime shading on `pcss` fallback until dedicated moment sampling lands. Vulkan now allocates moment-atlas resources for `vsm|evsm` requests and reports this via `momentPipelineActive`, while dedicated moment filtering/sampling is still pending. Dedicated RT traversal remains on fallback.
+  Vulkan fragment texture descriptor sets now include a dedicated shadow-moment binding (`set=1,binding=8`) so moment-map sampling can be wired without further descriptor-layout churn.
 
 Shadow scheduler override examples:
 - Raise local point shadow concurrency ceiling:

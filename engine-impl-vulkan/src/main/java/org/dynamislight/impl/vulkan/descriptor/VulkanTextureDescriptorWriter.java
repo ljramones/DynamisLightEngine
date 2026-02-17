@@ -32,6 +32,8 @@ public final class VulkanTextureDescriptorWriter {
             List<VulkanGpuMesh> meshes,
             long shadowDepthImageView,
             long shadowSampler,
+            long shadowMomentImageView,
+            long shadowMomentSampler,
             VulkanGpuTexture iblIrradianceTexture,
             VulkanGpuTexture iblRadianceTexture,
             VulkanGpuTexture iblBrdfLutTexture
@@ -76,8 +78,9 @@ public final class VulkanTextureDescriptorWriter {
             VkDescriptorImageInfo.Buffer iblIrradianceInfo = imageInfo(stack, iblIrradianceTexture.view(), iblIrradianceTexture.sampler());
             VkDescriptorImageInfo.Buffer iblRadianceInfo = imageInfo(stack, iblRadianceTexture.view(), iblRadianceTexture.sampler());
             VkDescriptorImageInfo.Buffer iblBrdfLutInfo = imageInfo(stack, iblBrdfLutTexture.view(), iblBrdfLutTexture.sampler());
+            VkDescriptorImageInfo.Buffer shadowMomentInfo = imageInfo(stack, shadowMomentImageView, shadowMomentSampler);
 
-            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(8, stack);
+            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(9, stack);
             writes.get(0)
                     .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                     .dstSet(mesh.textureDescriptorSet)
@@ -134,6 +137,13 @@ public final class VulkanTextureDescriptorWriter {
                     .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
                     .pImageInfo(iblBrdfLutInfo);
+            writes.get(8)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(8)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(shadowMomentInfo);
             vkUpdateDescriptorSets(device, writes, null);
         }
     }

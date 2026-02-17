@@ -65,6 +65,8 @@ public final class VulkanSceneTextureCoordinator {
                         in.descriptorRingMaxSetCapacity(),
                         in.shadowDepthImageView(),
                         in.shadowSampler(),
+                        in.shadowMomentImageView(),
+                        in.shadowMomentSampler(),
                         in.iblIrradianceTexture(),
                         in.iblRadianceTexture(),
                         in.iblBrdfLutTexture()
@@ -95,6 +97,8 @@ public final class VulkanSceneTextureCoordinator {
             int descriptorRingMaxSetCapacity,
             long shadowDepthImageView,
             long shadowSampler,
+            long shadowMomentImageView,
+            long shadowMomentSampler,
             VulkanGpuTexture iblIrradianceTexture,
             VulkanGpuTexture iblRadianceTexture,
             VulkanGpuTexture iblBrdfLutTexture

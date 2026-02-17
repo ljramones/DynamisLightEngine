@@ -40,6 +40,8 @@ public final class VulkanTextureDescriptorSetCoordinator {
                 decision.targetCapacity(),
                 inputs.shadowDepthImageView(),
                 inputs.shadowSampler(),
+                inputs.shadowMomentImageView(),
+                inputs.shadowMomentSampler(),
                 inputs.iblIrradianceTexture(),
                 inputs.iblRadianceTexture(),
                 inputs.iblBrdfLutTexture()
@@ -79,6 +81,8 @@ public final class VulkanTextureDescriptorSetCoordinator {
             int descriptorRingMaxSetCapacity,
             long shadowDepthImageView,
             long shadowSampler,
+            long shadowMomentImageView,
+            long shadowMomentSampler,
             VulkanGpuTexture iblIrradianceTexture,
             VulkanGpuTexture iblRadianceTexture,
             VulkanGpuTexture iblBrdfLutTexture

@@ -188,6 +188,12 @@ public final class VulkanSceneMeshCoordinator {
                         in.descriptorRingStats().descriptorRingMaxSetCapacity,
                         in.backendResources().shadowDepthImageView,
                         in.backendResources().shadowSampler,
+                        in.backendResources().shadowMomentImageView != 0L
+                                ? in.backendResources().shadowMomentImageView
+                                : iblBrdfLutTexture.view(),
+                        in.backendResources().shadowMomentSampler != 0L
+                                ? in.backendResources().shadowMomentSampler
+                                : iblBrdfLutTexture.sampler(),
                         iblIrradianceTexture,
                         iblRadianceTexture,
                         iblBrdfLutTexture

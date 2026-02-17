@@ -41,6 +41,8 @@ public final class VulkanTextureDescriptorPoolManager {
             int targetSetCapacity,
             long shadowDepthImageView,
             long shadowSampler,
+            long shadowMomentImageView,
+            long shadowMomentSampler,
             VulkanGpuTexture iblIrradianceTexture,
             VulkanGpuTexture iblRadianceTexture,
             VulkanGpuTexture iblBrdfLutTexture
@@ -75,7 +77,7 @@ public final class VulkanTextureDescriptorPoolManager {
             VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
             poolSizes.get(0)
                     .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                    .descriptorCount(descriptorRingSetCapacity * 8);
+                    .descriptorCount(descriptorRingSetCapacity * 9);
 
             VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
@@ -104,6 +106,8 @@ public final class VulkanTextureDescriptorPoolManager {
                 gpuMeshes,
                 shadowDepthImageView,
                 shadowSampler,
+                shadowMomentImageView,
+                shadowMomentSampler,
                 iblIrradianceTexture,
                 iblRadianceTexture,
                 iblBrdfLutTexture

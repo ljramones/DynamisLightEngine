@@ -224,8 +224,8 @@ public final class VulkanDescriptorResources {
     }
 
     private static long createTextureDescriptorSetLayout(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(8, stack);
-        for (int i = 0; i < 8; i++) {
+        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(9, stack);
+        for (int i = 0; i < 9; i++) {
             textureBindings.get(i)
                     .binding(i)
                     .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
