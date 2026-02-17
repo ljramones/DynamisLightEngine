@@ -98,7 +98,7 @@ Status: In progress (started and partially landed).
 
 3. Contact shadows
 - screen-space near-contact trace + temporal stabilization.
- - Status: In progress (runtime-strength shaping active; motion-adaptive temporal stabilization shaping is active; full history-buffer stabilization remains pending).
+ - Status: In progress (runtime-strength shaping active; motion-adaptive stabilization is active and now includes reject-weighted history blending, while full dedicated history-buffer stabilization remains pending).
 
 4. PCSS refinement depth
 - secondary blocker ring refinement and penumbra stability passes.

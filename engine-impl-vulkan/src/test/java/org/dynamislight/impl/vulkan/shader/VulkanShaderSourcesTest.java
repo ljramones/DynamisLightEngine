@@ -51,6 +51,9 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("soft = mix(soft, neigh, clamp(0.32 * penumbra, 0.0, 0.45));"));
         assertTrue(shader.contains("float contactTemporalStability = mix("));
         assertTrue(shader.contains("vec3 prevWorldPos = (obj.uPrevModel * vec4(vLocalPos, 1.0)).xyz;"));
+        assertTrue(shader.contains("float contactDepthGrad = clamp(length(vec2(dFdx(vWorldPos.z), dFdy(vWorldPos.z)))"));
+        assertTrue(shader.contains("float contactReject = clamp(max(contactMotionMag * (1.05 + taaBlend), max(contactDepthGrad, contactNormalGrad)), 0.0, 1.0);"));
+        assertTrue(shader.contains("float contactTemporalHistoryWeight = mix(contactHistoryProxy, 1.0 - contactReject, 0.58);"));
         assertTrue(shader.contains("float contactTemporalMotionScale = clamp(gbo.uLightIntensity.z, 0.1, 3.0);"));
         assertTrue(shader.contains("float contactTemporalMinStability = clamp(gbo.uLightIntensity.w, 0.2, 1.0);"));
         assertTrue(shader.contains("* contactTemporalStability;"));

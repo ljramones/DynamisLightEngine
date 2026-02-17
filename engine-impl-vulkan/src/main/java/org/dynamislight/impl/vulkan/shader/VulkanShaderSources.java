@@ -740,12 +740,22 @@ public final class VulkanShaderSources {
                     float contactPrevW = abs(contactPrevClip.w) > 0.000001 ? contactPrevClip.w : 1.0;
                     vec2 contactMotionNdc = (contactPrevClip.xy / contactPrevW) - (contactCurrClip.xy / contactCurrW);
                     float contactMotionMag = length(clamp(contactMotionNdc, vec2(-1.0), vec2(1.0)));
+                    vec3 prevWorldPos = (obj.uPrevModel * vec4(vLocalPos, 1.0)).xyz;
+                    float contactDepthGrad = clamp(length(vec2(dFdx(vWorldPos.z), dFdy(vWorldPos.z))) * 22.0, 0.0, 1.0);
+                    float contactNormalGrad = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.85, 0.0, 1.0);
+                    float contactHistoryProxy = clamp(1.0 - length(vWorldPos - prevWorldPos) * 4.0, 0.0, 1.0);
+                    float contactReject = clamp(max(contactMotionMag * (1.05 + taaBlend), max(contactDepthGrad, contactNormalGrad)), 0.0, 1.0);
                     float contactTemporalStability = mix(
                             1.0,
                             clamp(1.0 - contactMotionMag * (0.85 + taaBlend * 0.85) * contactTemporalMotionScale, contactTemporalMinStability, 1.0),
                             taaEnabled
                     );
-                    vec3 prevWorldPos = (obj.uPrevModel * vec4(vLocalPos, 1.0)).xyz;
+                    contactTemporalStability = mix(
+                            contactTemporalStability,
+                            max(contactTemporalMinStability, contactTemporalStability * (1.0 - 0.55 * contactReject)),
+                            taaEnabled
+                    );
+                    float contactTemporalHistoryWeight = mix(contactHistoryProxy, 1.0 - contactReject, 0.58);
 
                     float ndl = max(dot(n, lDir), 0.0);
                     float ndv = max(dot(n, viewDir), 0.0);
@@ -911,8 +921,7 @@ public final class VulkanShaderSources {
                                     * distFade
                                     * contactStrengthScale
                                     * contactTemporalStability;
-                            float historyProxy = clamp(1.0 - length(vWorldPos - prevWorldPos) * 4.0, 0.0, 1.0);
-                            contactStrength *= mix(1.0, 0.78, historyProxy);
+                            contactStrength *= mix(1.0, 0.78, contactTemporalHistoryWeight);
                             contact = clamp(1.0 - contactStrength, 0.50, 1.0);
                         }
                         pointLit += (kd * baseColor / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity * localShadowVisibility * contact);
@@ -987,9 +996,8 @@ public final class VulkanShaderSources {
                         color *= (1.0 - shadowFactor);
                         if (contactShadows) {
                             float contactEdge = clamp(length(dFdx(n)) + length(dFdy(n)), 0.0, 1.0);
-                            float historyProxy = clamp(1.0 - length(vWorldPos - prevWorldPos) * 4.0, 0.0, 1.0);
                             float contactFactor = shadowOcclusion * contactEdge * (1.0 - roughness) * (1.0 - ndl) * contactStrengthScale
-                                    * contactTemporalStability * mix(1.0, 0.80, historyProxy);
+                                    * contactTemporalStability * mix(1.0, 0.80, contactTemporalHistoryWeight);
                             color *= (1.0 - clamp(contactFactor * 0.22, 0.0, 0.24));
                         }
                     }
@@ -1076,9 +1084,8 @@ public final class VulkanShaderSources {
                             color *= (1.0 - pointShadowFactor);
                             if (contactShadows) {
                                 float contactEdge = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.9, 0.0, 1.0);
-                                float historyProxy = clamp(1.0 - length(vWorldPos - prevWorldPos) * 4.0, 0.0, 1.0);
                                 float contactFactor = pointOcclusion * contactEdge * (1.0 - roughness) * (1.0 - pNdl) * contactStrengthScale
-                                        * contactTemporalStability * mix(1.0, 0.80, historyProxy);
+                                        * contactTemporalStability * mix(1.0, 0.80, contactTemporalHistoryWeight);
                                 color *= (1.0 - clamp(contactFactor * 0.20, 0.0, 0.22));
                             }
                         }
