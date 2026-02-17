@@ -22,8 +22,13 @@ final class VulkanEngineRuntimeSceneMapper {
         return VulkanEngineRuntimeSceneAssembly.buildSceneMeshes(scene, meshLoader, assetRoot);
     }
 
-    static VulkanEngineRuntime.PostProcessRenderConfig mapPostProcess(PostProcessDesc desc, QualityTier qualityTier) {
-        return VulkanEngineRuntimeLightingMapper.mapPostProcess(desc, qualityTier);
+    static VulkanEngineRuntime.PostProcessRenderConfig mapPostProcess(
+            PostProcessDesc desc,
+            QualityTier qualityTier,
+            boolean taaLumaClipEnabledDefault,
+            VulkanEngineRuntime.AaPreset aaPreset
+    ) {
+        return VulkanEngineRuntimeLightingMapper.mapPostProcess(desc, qualityTier, taaLumaClipEnabledDefault, aaPreset);
     }
 
     static VulkanEngineRuntime.IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {

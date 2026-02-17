@@ -56,6 +56,7 @@ public final class SampleHostApp {
         boolean overlay = java.util.Arrays.asList(args).contains("--overlay") || interactive;
         int maxFrames = parseIntArg(args, "--frames=", interactive ? Integer.MAX_VALUE : 3, 1, Integer.MAX_VALUE);
         int taaDebugView = parseTaaDebugViewArg(args);
+        System.setProperty("dle.aa.preset", sceneOptions.aaPreset().name().toLowerCase());
         if (compareMode) {
             QualityTier compareTier = parseCompareTier(args);
             String compareTag = parseCompareTag(args, compareTier);
@@ -176,14 +177,17 @@ public final class SampleHostApp {
     }
 
     private static EngineConfig defaultConfig(String backendId, QualityTier qualityTier, int taaDebugView) {
+        String aaPreset = System.getProperty("dle.aa.preset", "balanced");
         Map<String, String> backendOptions = switch (backendId.toLowerCase()) {
             case "opengl" -> Map.of(
                     "opengl.mockContext", System.getProperty("dle.opengl.mockContext", "true"),
-                    "opengl.taaDebugView", Integer.toString(taaDebugView)
+                    "opengl.taaDebugView", Integer.toString(taaDebugView),
+                    "opengl.aaPreset", aaPreset
             );
             case "vulkan" -> Map.of(
                     "vulkan.mockContext", System.getProperty("dle.vulkan.mockContext", "true"),
-                    "vulkan.taaDebugView", Integer.toString(taaDebugView)
+                    "vulkan.taaDebugView", Integer.toString(taaDebugView),
+                    "vulkan.aaPreset", aaPreset
             );
             default -> Map.of();
         };
@@ -335,6 +339,7 @@ public final class SampleHostApp {
 
     private static SceneOptions parseSceneOptions(String[] args) {
         QualityTier tier = parseTierArg(args, "--tier=", QualityTier.MEDIUM);
+        AaPreset aaPreset = parseAaPresetArg(args, "--aa-preset=", AaPreset.BALANCED);
         boolean shadowsEnabled = parseBooleanArg(args, "--shadow=", false);
         int shadowCascades = parseIntArg(args, "--shadow-cascades=", 3, 1, 4);
         int shadowPcfKernel = parseIntArg(args, "--shadow-pcf=", 3, 1, 9);
@@ -349,6 +354,7 @@ public final class SampleHostApp {
         float bloomStrength = parseFloatArg(args, "--bloom-strength=", 0.8f, 0f, 1.6f);
         return new SceneOptions(
                 tier,
+                aaPreset,
                 shadowsEnabled,
                 shadowCascades,
                 shadowPcfKernel,
@@ -457,6 +463,24 @@ public final class SampleHostApp {
         return fallback;
     }
 
+    private static AaPreset parseAaPresetArg(String[] args, String key, AaPreset fallback) {
+        for (String arg : args) {
+            if (!arg.startsWith(key)) {
+                continue;
+            }
+            String raw = arg.substring(key.length()).trim();
+            if (raw.isEmpty()) {
+                break;
+            }
+            try {
+                return AaPreset.valueOf(raw.toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+                break;
+            }
+        }
+        return fallback;
+    }
+
     private static boolean parseBooleanArg(String[] args, String key, boolean fallback) {
         for (String arg : args) {
             if (!arg.startsWith(key)) {
@@ -508,6 +532,7 @@ public final class SampleHostApp {
 
     private record SceneOptions(
             QualityTier qualityTier,
+            AaPreset aaPreset,
             boolean shadowsEnabled,
             int shadowCascades,
             int shadowPcfKernel,
@@ -524,6 +549,26 @@ public final class SampleHostApp {
         SceneOptions withQualityTier(QualityTier tier) {
             return new SceneOptions(
                     tier,
+                    aaPreset,
+                    shadowsEnabled,
+                    shadowCascades,
+                    shadowPcfKernel,
+                    shadowBias,
+                    shadowMapResolution,
+                    postEnabled,
+                    tonemapEnabled,
+                    exposure,
+                    gamma,
+                    bloomEnabled,
+                    bloomThreshold,
+                    bloomStrength
+            );
+        }
+
+        SceneOptions withAaPreset(AaPreset preset) {
+            return new SceneOptions(
+                    qualityTier,
+                    preset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -542,6 +587,7 @@ public final class SampleHostApp {
         SceneOptions withShadowsEnabled(boolean value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     value,
                     shadowCascades,
                     shadowPcfKernel,
@@ -560,6 +606,7 @@ public final class SampleHostApp {
         SceneOptions withShadowCascades(int value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     value,
                     shadowPcfKernel,
@@ -578,6 +625,7 @@ public final class SampleHostApp {
         SceneOptions withShadowPcfKernel(int value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     value,
@@ -596,6 +644,7 @@ public final class SampleHostApp {
         SceneOptions withShadowBias(float value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -614,6 +663,7 @@ public final class SampleHostApp {
         SceneOptions withShadowMapResolution(int value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -632,6 +682,7 @@ public final class SampleHostApp {
         SceneOptions withPostEnabled(boolean value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -650,6 +701,7 @@ public final class SampleHostApp {
         SceneOptions withTonemapEnabled(boolean value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -668,6 +720,7 @@ public final class SampleHostApp {
         SceneOptions withExposure(float value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -686,6 +739,7 @@ public final class SampleHostApp {
         SceneOptions withGamma(float value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -704,6 +758,7 @@ public final class SampleHostApp {
         SceneOptions withBloomEnabled(boolean value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -722,6 +777,7 @@ public final class SampleHostApp {
         SceneOptions withBloomThreshold(float value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -740,6 +796,7 @@ public final class SampleHostApp {
         SceneOptions withBloomStrength(float value) {
             return new SceneOptions(
                     qualityTier,
+                    aaPreset,
                     shadowsEnabled,
                     shadowCascades,
                     shadowPcfKernel,
@@ -754,6 +811,13 @@ public final class SampleHostApp {
                     value
             );
         }
+    }
+
+    private enum AaPreset {
+        PERFORMANCE,
+        BALANCED,
+        QUALITY,
+        STABILITY
     }
 
     private record CommandResult(SceneOptions updatedOptions, boolean reloadScene, boolean quit, String message) {

@@ -33,6 +33,7 @@ import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.api.scene.ReactivePreset;
 import org.dynamislight.api.event.SceneLoadedEvent;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
@@ -428,7 +429,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.32, "taa history confidence stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.31, "taa history confidence stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -445,7 +446,75 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.32, "taa specular aa stress diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.31, "taa specular aa stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaReactiveAuthoredDenseStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-reactive-authored-dense-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaReactiveAuthoredDenseStressScene(),
+                QualityTier.ULTRA,
+                "taa-reactive-authored-dense-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.31, "taa reactive authored dense stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaAlphaPanStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-alpha-pan-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaAlphaPanStressScene(),
+                QualityTier.ULTRA,
+                "taa-alpha-pan-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.31, "taa alpha pan stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaAaPresetQualityStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-aa-preset-quality-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaSpecularFlickerScene(),
+                QualityTier.ULTRA,
+                "taa-aa-preset-quality-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.31, "taa aa-preset-quality stress diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaConfidenceDilationStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-confidence-dilation-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaHistoryConfidenceStressScene(),
+                QualityTier.ULTRA,
+                "taa-confidence-dilation-stress-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.31, "taa confidence dilation stress diff was " + report.diffMetric());
     }
 
     @Test
@@ -556,13 +625,37 @@ class BackendParityIntegrationTest {
                 QualityTier.LOW, 0.56,
                 QualityTier.MEDIUM, 0.48,
                 QualityTier.HIGH, 0.40,
-                QualityTier.ULTRA, 0.32
+                QualityTier.ULTRA, 0.31
         );
         Map<QualityTier, Double> taaSpecularAaMaxDiff = Map.of(
                 QualityTier.LOW, 0.56,
                 QualityTier.MEDIUM, 0.48,
                 QualityTier.HIGH, 0.40,
-                QualityTier.ULTRA, 0.32
+                QualityTier.ULTRA, 0.31
+        );
+        Map<QualityTier, Double> taaReactiveAuthoredDenseMaxDiff = Map.of(
+                QualityTier.LOW, 0.56,
+                QualityTier.MEDIUM, 0.48,
+                QualityTier.HIGH, 0.40,
+                QualityTier.ULTRA, 0.31
+        );
+        Map<QualityTier, Double> taaAlphaPanMaxDiff = Map.of(
+                QualityTier.LOW, 0.56,
+                QualityTier.MEDIUM, 0.48,
+                QualityTier.HIGH, 0.40,
+                QualityTier.ULTRA, 0.31
+        );
+        Map<QualityTier, Double> taaAaPresetQualityMaxDiff = Map.of(
+                QualityTier.LOW, 0.56,
+                QualityTier.MEDIUM, 0.48,
+                QualityTier.HIGH, 0.40,
+                QualityTier.ULTRA, 0.31
+        );
+        Map<QualityTier, Double> taaConfidenceDilationMaxDiff = Map.of(
+                QualityTier.LOW, 0.56,
+                QualityTier.MEDIUM, 0.48,
+                QualityTier.HIGH, 0.40,
+                QualityTier.ULTRA, 0.31
         );
         Map<QualityTier, Double> smaaFullEdgeCrawlMaxDiff = Map.of(
                 QualityTier.LOW, 0.57,
@@ -778,6 +871,58 @@ class BackendParityIntegrationTest {
                             + " exceeded " + taaSpecularAaMaxDiff.get(tier) + " at " + tier
             );
 
+            Path taaReactiveDenseDir = compareOutputDir("taa-reactive-authored-dense-stress-" + tier.name().toLowerCase());
+            var taaReactiveDenseReport = BackendCompareHarness.run(
+                    taaReactiveDenseDir,
+                    taaReactiveAuthoredDenseStressScene(),
+                    tier,
+                    "taa-reactive-authored-dense-stress-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaReactiveDenseReport.diffMetric() <= taaReactiveAuthoredDenseMaxDiff.get(tier),
+                    "taa-reactive-authored-dense-stress diff " + taaReactiveDenseReport.diffMetric()
+                            + " exceeded " + taaReactiveAuthoredDenseMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path taaAlphaPanDir = compareOutputDir("taa-alpha-pan-stress-" + tier.name().toLowerCase());
+            var taaAlphaPanReport = BackendCompareHarness.run(
+                    taaAlphaPanDir,
+                    taaAlphaPanStressScene(),
+                    tier,
+                    "taa-alpha-pan-stress-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaAlphaPanReport.diffMetric() <= taaAlphaPanMaxDiff.get(tier),
+                    "taa-alpha-pan-stress diff " + taaAlphaPanReport.diffMetric()
+                            + " exceeded " + taaAlphaPanMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path taaPresetQualityDir = compareOutputDir("taa-aa-preset-quality-stress-" + tier.name().toLowerCase());
+            var taaPresetQualityReport = BackendCompareHarness.run(
+                    taaPresetQualityDir,
+                    taaSpecularFlickerScene(),
+                    tier,
+                    "taa-aa-preset-quality-stress-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaPresetQualityReport.diffMetric() <= taaAaPresetQualityMaxDiff.get(tier),
+                    "taa-aa-preset-quality-stress diff " + taaPresetQualityReport.diffMetric()
+                            + " exceeded " + taaAaPresetQualityMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path taaConfidenceDilationDir = compareOutputDir("taa-confidence-dilation-stress-" + tier.name().toLowerCase());
+            var taaConfidenceDilationReport = BackendCompareHarness.run(
+                    taaConfidenceDilationDir,
+                    taaHistoryConfidenceStressScene(),
+                    tier,
+                    "taa-confidence-dilation-stress-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    taaConfidenceDilationReport.diffMetric() <= taaConfidenceDilationMaxDiff.get(tier),
+                    "taa-confidence-dilation-stress diff " + taaConfidenceDilationReport.diffMetric()
+                            + " exceeded " + taaConfidenceDilationMaxDiff.get(tier) + " at " + tier
+            );
+
             Path smaaFullDir = compareOutputDir("smaa-full-edge-crawl-" + tier.name().toLowerCase());
             var smaaFullReport = BackendCompareHarness.run(
                     smaaFullDir,
@@ -808,8 +953,12 @@ class BackendParityIntegrationTest {
                 Map.entry("taa-reactive-authored-stress", 0.32),
                 Map.entry("taa-thin-geometry-shimmer", 0.31),
                 Map.entry("taa-specular-flicker", 0.31),
-                Map.entry("taa-history-confidence-stress", 0.32),
-                Map.entry("taa-specular-aa-stress", 0.32),
+                Map.entry("taa-history-confidence-stress", 0.31),
+                Map.entry("taa-specular-aa-stress", 0.31),
+                Map.entry("taa-reactive-authored-dense-stress", 0.31),
+                Map.entry("taa-alpha-pan-stress", 0.31),
+                Map.entry("taa-aa-preset-quality-stress", 0.31),
+                Map.entry("taa-confidence-dilation-stress", 0.31),
                 Map.entry("smaa-full-edge-crawl", 0.34),
                 Map.entry("post-process-ssao", 0.35),
                 Map.entry("post-process-ssao-stress", 0.37),
@@ -894,6 +1043,30 @@ class BackendParityIntegrationTest {
                         taaSpecularAaStressScene(),
                         QualityTier.ULTRA,
                         "taa-specular-aa-stress-golden-ultra"
+                )),
+                Map.entry("taa-reactive-authored-dense-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-reactive-authored-dense-stress-golden"),
+                        taaReactiveAuthoredDenseStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-reactive-authored-dense-stress-golden-ultra"
+                )),
+                Map.entry("taa-alpha-pan-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-alpha-pan-stress-golden"),
+                        taaAlphaPanStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-alpha-pan-stress-golden-ultra"
+                )),
+                Map.entry("taa-aa-preset-quality-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-aa-preset-quality-stress-golden"),
+                        taaSpecularFlickerScene(),
+                        QualityTier.ULTRA,
+                        "taa-aa-preset-quality-stress-golden-ultra"
+                )),
+                Map.entry("taa-confidence-dilation-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-confidence-dilation-stress-golden"),
+                        taaHistoryConfidenceStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-confidence-dilation-stress-golden-ultra"
                 )),
                 Map.entry("smaa-full-edge-crawl", BackendCompareHarness.run(
                         compareOutputDir("smaa-full-edge-crawl-golden"),
@@ -1831,6 +2004,146 @@ class BackendParityIntegrationTest {
                 base.fog(),
                 base.smokeEmitters(),
                 base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor taaReactiveAuthoredDenseStressScene() {
+        SceneDescriptor base = taaDisocclusionStressScene();
+        MaterialDesc alphaA = new MaterialDesc(
+                "mat-near",
+                new Vec3(0.86f, 0.46f, 0.38f),
+                0.20f,
+                0.42f,
+                "textures/a.png",
+                "textures/a_n.png",
+                "textures/a_mr.png",
+                "textures/a_ao.png",
+                1.0f,
+                true,
+                false,
+                1.25f,
+                0.68f,
+                1.30f,
+                ReactivePreset.AGGRESSIVE
+        );
+        MaterialDesc foliageB = new MaterialDesc(
+                "mat-mid",
+                new Vec3(0.40f, 0.88f, 0.42f),
+                0.36f,
+                0.38f,
+                "textures/b.png",
+                "textures/b_n.png",
+                "textures/b_mr.png",
+                "textures/b_ao.png",
+                1.0f,
+                false,
+                true,
+                1.30f,
+                0.62f,
+                1.35f,
+                ReactivePreset.AGGRESSIVE
+        );
+        MaterialDesc neutralC = new MaterialDesc(
+                "mat-far",
+                new Vec3(0.74f, 0.76f, 0.80f),
+                0.12f,
+                0.72f,
+                "textures/c.png",
+                "textures/c_n.png",
+                "textures/c_mr.png",
+                "textures/c_ao.png",
+                0.72f,
+                false,
+                false,
+                1.10f,
+                0.80f,
+                1.15f,
+                ReactivePreset.BALANCED
+        );
+        MaterialDesc alphaFoliageD = new MaterialDesc(
+                "mat-occ",
+                new Vec3(0.56f, 0.68f, 0.56f),
+                0.06f,
+                0.86f,
+                "textures/d.png",
+                "textures/d_n.png",
+                "textures/d_mr.png",
+                "textures/d_ao.png",
+                1.0f,
+                true,
+                true,
+                1.35f,
+                0.58f,
+                1.40f,
+                ReactivePreset.AGGRESSIVE
+        );
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.10f,
+                2.2f,
+                true,
+                0.92f,
+                0.86f,
+                true,
+                0.60f,
+                1.16f,
+                0.02f,
+                1.30f,
+                true,
+                0.72f,
+                true,
+                0.74f,
+                true
+        );
+        return new SceneDescriptor(
+                "parity-taa-reactive-authored-dense-stress-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(alphaA, foliageB, neutralC, alphaFoliageD),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaAlphaPanStressScene() {
+        SceneDescriptor base = taaReactiveAuthoredDenseStressScene();
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.10f,
+                2.2f,
+                true,
+                0.90f,
+                0.88f,
+                true,
+                0.62f,
+                1.20f,
+                0.02f,
+                1.34f,
+                true,
+                0.70f,
+                true,
+                0.76f,
+                true
+        );
+        return new SceneDescriptor(
+                "parity-taa-alpha-pan-stress-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
         );
     }
 

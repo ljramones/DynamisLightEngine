@@ -35,6 +35,13 @@ import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
 
 public final class VulkanEngineRuntime extends AbstractEngineRuntime {
+    enum AaPreset {
+        PERFORMANCE,
+        BALANCED,
+        QUALITY,
+        STABILITY
+    }
+
     private static final int DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES = 256;
     private final VulkanContext context = new VulkanContext();
     private final VulkanRuntimeWarningPolicy warningPolicy = new VulkanRuntimeWarningPolicy();
@@ -61,6 +68,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f);
     private boolean taaLumaClipEnabledDefault;
+    private AaPreset aaPreset = AaPreset.BALANCED;
     private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
@@ -105,6 +113,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         warningConfig.descriptorRingActiveWarnCooldownFrames = options.descriptorRingActiveWarnCooldownFrames();
         context.setTaaDebugView(options.taaDebugView());
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
+        aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
         qualityTier = config.qualityTier();
@@ -123,7 +132,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 viewportWidth,
                 viewportHeight,
                 assetRoot,
-                meshLoader
+                meshLoader,
+                taaLumaClipEnabledDefault,
+                aaPreset
         );
         currentFog = sceneState.fog();
         currentSmoke = sceneState.smoke();
@@ -234,6 +245,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
+    }
+
+    private static AaPreset parseAaPreset(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return AaPreset.BALANCED;
+        }
+        try {
+            return AaPreset.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ignored) {
+            return AaPreset.BALANCED;
+        }
     }
 
     record FrameResourceConfig(

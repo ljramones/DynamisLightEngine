@@ -1,6 +1,6 @@
 # DynamicLightEngine Capabilities Compendium
 
-Last updated: February 16, 2026
+Last updated: February 17, 2026
 
 ## 1) Scope and intent
 This document describes **implemented capabilities** in the current repository state across API, SPI, runtimes, bridge, and sample host. It is a practical “what works now” reference, not a roadmap.
@@ -128,6 +128,7 @@ OpenGL backend provides a real forward render baseline:
   - Optional luminance clipping mode is available for temporal acceptance control (`PostProcessDesc.taaLumaClipEnabled`).
   - Specular anti-aliasing is enabled in both backends with Toksvig-style roughness filtering (`normalMapVariance + dFdx/dFdy` normal variance) to reduce glossy shimmer.
   - Temporal history alpha stores confidence with explicit decay/recovery policy driven by instability/disocclusion, then modulates TAA blend acceptance.
+  - Temporal history confidence now applies neighborhood dilation before blend trust to reduce ghosting/flicker on thin disoccluding edges.
   - History validation includes explicit previous-frame depth rejection (history-velocity depth sample) plus thin-edge depth neighborhood checks.
   - Temporal pass applies mild contrast-aware sharpen after blend with tiered strength (`LOW/MEDIUM/HIGH/ULTRA`) to recover detail.
   - SMAA path upgraded with explicit edge-mask + blend-weight phases (shader-stage implementation).
@@ -142,6 +143,9 @@ OpenGL backend provides a real forward render baseline:
   - `taaHistoryRejectRate`
   - `taaConfidenceMean`
   - `taaConfidenceDropEvents`
+- Runtime AA preset mode override is supported through backend options:
+  - `opengl.aaPreset` and `vulkan.aaPreset`
+  - accepted values: `performance`, `balanced`, `quality`, `stability`
 
 ### OpenGL limitations (current)
 - Material model is intentionally simplified (not full PBR correctness).
@@ -231,6 +235,7 @@ Vulkan backend provides a real rendering bootstrap and advanced baseline draw fl
   - quality-tier selection (`--tier=...`)
   - shadow tuning flags (`--shadow`, `--shadow-cascades`, `--shadow-pcf`, `--shadow-bias`, `--shadow-res`)
   - post-process tuning flags (`--post`, `--tonemap`, `--exposure`, `--gamma`, `--bloom`, `--bloom-threshold`, `--bloom-strength`)
+  - AA preset startup flag (`--aa-preset=performance|balanced|quality|stability`)
   - lifecycle run loop
   - callback logging/event/error output
   - optional resource inspection/hot-reload workflow

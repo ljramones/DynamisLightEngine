@@ -48,7 +48,9 @@ final class VulkanRuntimeLifecycle {
             int viewportWidth,
             int viewportHeight,
             Path assetRoot,
-            VulkanMeshAssetLoader meshLoader
+            VulkanMeshAssetLoader meshLoader,
+            boolean taaLumaClipEnabledDefault,
+            VulkanEngineRuntime.AaPreset aaPreset
     ) {
         var camera = VulkanEngineRuntimeSceneMapper.selectActiveCamera(scene);
         var cameraMatrices = VulkanEngineRuntimeSceneMapper.cameraMatricesFor(
@@ -59,7 +61,12 @@ final class VulkanRuntimeLifecycle {
         var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(scene == null ? null : scene.lights(), qualityTier);
         var fog = VulkanEngineRuntimeSceneMapper.mapFog(scene == null ? null : scene.fog(), qualityTier);
         var smoke = VulkanEngineRuntimeSceneMapper.mapSmoke(scene == null ? null : scene.smokeEmitters(), qualityTier);
-        var post = VulkanEngineRuntimeSceneMapper.mapPostProcess(scene == null ? null : scene.postProcess(), qualityTier);
+        var post = VulkanEngineRuntimeSceneMapper.mapPostProcess(
+                scene == null ? null : scene.postProcess(),
+                qualityTier,
+                taaLumaClipEnabledDefault,
+                aaPreset
+        );
         var ibl = VulkanEngineRuntimeSceneMapper.mapIbl(scene == null ? null : scene.environment(), qualityTier, assetRoot);
         boolean nonDirectionalShadowRequested = VulkanEngineRuntimeSceneMapper.hasNonDirectionalShadowRequest(scene == null ? null : scene.lights());
         List<VulkanSceneMeshData> sceneMeshes = VulkanEngineRuntimeSceneMapper.buildSceneMeshes(scene, meshLoader, assetRoot);

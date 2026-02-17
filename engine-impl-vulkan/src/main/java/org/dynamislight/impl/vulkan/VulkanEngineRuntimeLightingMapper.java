@@ -15,7 +15,12 @@ final class VulkanEngineRuntimeLightingMapper {
     private VulkanEngineRuntimeLightingMapper() {
     }
 
-    static VulkanEngineRuntime.PostProcessRenderConfig mapPostProcess(PostProcessDesc desc, QualityTier qualityTier) {
+    static VulkanEngineRuntime.PostProcessRenderConfig mapPostProcess(
+            PostProcessDesc desc,
+            QualityTier qualityTier,
+            boolean taaLumaClipEnabledDefault,
+            VulkanEngineRuntime.AaPreset aaPreset
+    ) {
         if (desc == null || !desc.enabled()) {
             return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f);
         }
@@ -51,12 +56,38 @@ final class VulkanEngineRuntimeLightingMapper {
             case HIGH -> 0.16f;
             case ULTRA -> 0.20f;
         };
-        boolean taaLumaClipEnabled = desc.taaLumaClipEnabled();
+        boolean taaLumaClipEnabled = desc.taaLumaClipEnabled() || taaLumaClipEnabledDefault;
         if (qualityTier == QualityTier.MEDIUM) {
             ssaoStrength *= 0.8f;
             ssaoRadius *= 0.9f;
             smaaStrength *= 0.8f;
             taaBlend *= 0.85f;
+        }
+        if (aaPreset != null) {
+            switch (aaPreset) {
+                case PERFORMANCE -> {
+                    smaaStrength *= 0.80f;
+                    taaBlend *= 0.82f;
+                    taaClipScale = Math.min(1.6f, taaClipScale * 1.12f);
+                    taaSharpenStrength = Math.max(0f, taaSharpenStrength * 0.70f);
+                }
+                case QUALITY -> {
+                    smaaStrength = Math.min(1.0f, smaaStrength * 1.12f);
+                    taaBlend = Math.min(0.95f, taaBlend + 0.05f);
+                    taaClipScale = Math.max(0.5f, taaClipScale * 0.94f);
+                    taaSharpenStrength = Math.min(0.35f, taaSharpenStrength * 1.10f);
+                    taaLumaClipEnabled = true;
+                }
+                case STABILITY -> {
+                    smaaStrength = Math.min(1.0f, smaaStrength * 0.90f);
+                    taaBlend = Math.min(0.95f, taaBlend + 0.08f);
+                    taaClipScale = Math.min(1.6f, taaClipScale * 1.08f);
+                    taaSharpenStrength = Math.max(0f, taaSharpenStrength * 0.82f);
+                    taaLumaClipEnabled = true;
+                }
+                case BALANCED -> {
+                }
+            }
         }
         return new VulkanEngineRuntime.PostProcessRenderConfig(
                 desc.tonemapEnabled(),

@@ -59,19 +59,23 @@ final class BackendCompareHarness {
             String profileTag
     ) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
-        EngineConfig config = configFor(backendId, qualityTier);
         boolean taaStress = profileTag.contains("taa-disocclusion-stress")
                 || profileTag.contains("taa-reactive-authored-stress")
                 || profileTag.contains("taa-thin-geometry-shimmer")
                 || profileTag.contains("taa-specular-flicker")
                 || profileTag.contains("taa-history-confidence-stress")
-                || profileTag.contains("taa-specular-aa-stress");
+                || profileTag.contains("taa-specular-aa-stress")
+                || profileTag.contains("taa-reactive-authored-dense-stress")
+                || profileTag.contains("taa-alpha-pan-stress")
+                || profileTag.contains("taa-aa-preset-quality-stress")
+                || profileTag.contains("taa-confidence-dilation-stress");
         boolean smaaStress = profileTag.contains("smaa-full-edge-crawl");
+        String aaPreset = selectAaPreset(profileTag);
         EngineInput input = (taaStress || smaaStress)
                 ? new EngineInput(540, 360, 96, -48, false, false, Set.of(KeyCode.A, KeyCode.D), 0.0)
                 : new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
         try (var runtime = provider.createRuntime()) {
-            runtime.initialize(config, new NoopCallbacks());
+            runtime.initialize(configFor(backendId, qualityTier, aaPreset), new NoopCallbacks());
             runtime.loadScene(scene);
             EngineFrameResult frame = null;
             int frames = taaStress ? 5 : (smaaStress ? 3 : 1);
@@ -93,16 +97,28 @@ final class BackendCompareHarness {
         }
     }
 
-    private static EngineConfig configFor(String backendId, QualityTier qualityTier) {
+    private static String selectAaPreset(String profileTag) {
+        if (profileTag.contains("taa-aa-preset-quality")) {
+            return "quality";
+        }
+        if (profileTag.contains("taa-alpha-pan")) {
+            return "stability";
+        }
+        return System.getProperty("dle.compare.aaPreset", "balanced");
+    }
+
+    private static EngineConfig configFor(String backendId, QualityTier qualityTier, String aaPreset) {
         Map<String, String> options = switch (backendId) {
             case "opengl" -> Map.of(
                     "opengl.mockContext", System.getProperty("dle.compare.opengl.mockContext", "true"),
-                    "opengl.taaDebugView", System.getProperty("dle.taa.debugView", "0")
+                    "opengl.taaDebugView", System.getProperty("dle.taa.debugView", "0"),
+                    "opengl.aaPreset", aaPreset
             );
             case "vulkan" -> Map.of(
                     "vulkan.mockContext", System.getProperty("dle.compare.vulkan.mockContext", "true"),
                     "vulkan.postOffscreen", System.getProperty("dle.compare.vulkan.postOffscreen", "true"),
-                    "vulkan.taaDebugView", System.getProperty("dle.taa.debugView", "0")
+                    "vulkan.taaDebugView", System.getProperty("dle.taa.debugView", "0"),
+                    "vulkan.aaPreset", aaPreset
             );
             default -> Map.of();
         };

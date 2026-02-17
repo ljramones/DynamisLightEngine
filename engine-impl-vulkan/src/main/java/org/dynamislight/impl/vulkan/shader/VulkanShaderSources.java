@@ -648,6 +648,11 @@ public final class VulkanShaderSources {
                         vec4 historySample = texture(uHistoryColor, historyUv);
                         vec3 history = historySample.rgb;
                         float historyConfidence = clamp(historySample.a, 0.0, 1.0);
+                        float hc1 = texture(uHistoryColor, clamp(historyUv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).a;
+                        float hc2 = texture(uHistoryColor, clamp(historyUv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).a;
+                        float hc3 = texture(uHistoryColor, clamp(historyUv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).a;
+                        float hc4 = texture(uHistoryColor, clamp(historyUv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).a;
+                        float dilatedHistoryConfidence = clamp(max(historyConfidence, max(max(hc1, hc2), max(hc3, hc4)) * 0.92), 0.0, 1.0);
                         float historyDepth = texture(uHistoryVelocityColor, historyUv).b;
                         vec3 n1 = texture(uSceneColor, clamp(vUv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
                         vec3 n2 = texture(uSceneColor, clamp(vUv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
@@ -708,7 +713,7 @@ public final class VulkanShaderSources {
                         float confidenceDecay = clamp(max(disocclusionReject, instability * 0.72), 0.0, 1.0);
                         float confidenceRecover = clamp((1.0 - confidenceDecay) * (1.0 - varianceReject) * (1.0 - depthReject), 0.0, 1.0);
                         float confidenceState = clamp(
-                                historyConfidence + confidenceRecover * 0.13 - confidenceDecay * 0.30,
+                                dilatedHistoryConfidence + confidenceRecover * 0.13 - confidenceDecay * 0.30,
                                 0.02,
                                 1.0
                         );
