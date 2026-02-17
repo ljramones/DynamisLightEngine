@@ -27,6 +27,10 @@ on:
         description: 'Run production sweeps with strict BVH lane enforcement'
         required: false
         default: 'false'
+      run_shadow_lockdown_full:
+        description: 'Run full shadow lockdown sequence (matrix + longrun + sweeps)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -204,6 +208,36 @@ jobs:
         with:
           name: shadow-production-sweeps-artifacts-macos
           path: artifacts/compare/shadow-production-sweeps
+          if-no-files-found: warn
+
+  shadow-lockdown-full:
+    name: Shadow Lockdown Full (JDK 25, macos-latest)
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_lockdown_full == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run full shadow lockdown sequence (guarded real Vulkan)
+        env:
+          DLE_SHADOW_LOCKDOWN_OUTPUT_ROOT: artifacts/compare/shadow-lockdown-full
+          DLE_SHADOW_LOCKDOWN_RUNS: ${{ github.event_name == 'schedule' && '3' || '2' }}
+          DLE_SHADOW_LOCKDOWN_MIN_RUNS: ${{ github.event_name == 'schedule' && '3' || '2' }}
+        run: ./scripts/shadow_ci_lockdown_full.sh
+
+      - name: Upload full lockdown artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-lockdown-full-artifacts-macos
+          path: artifacts/compare/shadow-lockdown-full
           if-no-files-found: warn
 
   vulkan-real-guarded-matrix:
