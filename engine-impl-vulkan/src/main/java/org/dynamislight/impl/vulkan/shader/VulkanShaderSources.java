@@ -527,6 +527,37 @@ public final class VulkanShaderSources {
                     float denoise = mix(0.34, 0.84, shadowRtDenoiseStrength);
                     return clamp(mix(traversal, wide, denoise), 0.0, 1.0);
                 }
+                float rtDedicatedDenoiseStack(
+                        float baseVisibility,
+                        vec2 uv,
+                        float texel,
+                        int layer,
+                        float compareDepth,
+                        float shadowRtDenoiseStrength,
+                        float shadowTemporalStability
+                ) {
+                    float ringNear = 0.0;
+                    float ringNearW = 0.0;
+                    float ringFar = 0.0;
+                    float ringFarW = 0.0;
+                    for (int i = 0; i < 8; i++) {
+                        float a = (6.2831853 * float(i)) / 8.0;
+                        vec2 dir = vec2(cos(a), sin(a));
+                        vec2 nearUv = clamp(uv + dir * texel * 1.8, vec2(0.0), vec2(1.0));
+                        vec2 farUv = clamp(uv + dir * texel * 4.0, vec2(0.0), vec2(1.0));
+                        float wNear = mix(1.0, 0.62, float(i & 1));
+                        float wFar = mix(0.70, 0.40, float(i & 1));
+                        ringNear += texture(uShadowMap, vec4(nearUv, float(layer), compareDepth)) * wNear;
+                        ringNearW += wNear;
+                        ringFar += texture(uShadowMap, vec4(farUv, float(layer), compareDepth)) * wFar;
+                        ringFarW += wFar;
+                    }
+                    float nearAvg = ringNear / max(ringNearW, 0.0001);
+                    float farAvg = ringFar / max(ringFarW, 0.0001);
+                    float stageA = mix(baseVisibility, nearAvg, clamp(0.30 + 0.35 * shadowRtDenoiseStrength, 0.10, 0.75));
+                    float stageB = mix(stageA, farAvg, clamp(0.16 + 0.34 * shadowRtDenoiseStrength * (1.0 - shadowTemporalStability), 0.06, 0.45));
+                    return clamp(stageB, 0.0, 1.0);
+                }
                 float finalizeShadowVisibility(
                         float pcfVisibility,
                         int shadowFilterMode,
@@ -540,7 +571,8 @@ public final class VulkanShaderSources {
                         int layer,
                         float ndl,
                         float depthRatio,
-                        float pcssSoftness
+                        float pcssSoftness,
+                        float shadowTemporalStability
                 ) {
                     float visibility = clamp(pcfVisibility, 0.0, 1.0);
                     if (shadowFilterMode == 1) {
@@ -656,7 +688,16 @@ public final class VulkanShaderSources {
                                         shadowRtDenoiseStrength,
                                         shadowRtRayLength
                                 );
-                                visibility = mix(visibility, bvhDedicatedVis, 0.68);
+                                float bvhDedicatedDenoised = rtDedicatedDenoiseStack(
+                                        bvhDedicatedVis,
+                                        uv,
+                                        texel,
+                                        layer,
+                                        compareDepth,
+                                        shadowRtDenoiseStrength,
+                                        shadowTemporalStability
+                                );
+                                visibility = mix(visibility, bvhDedicatedDenoised, 0.68);
                             } else {
                                 visibility = mix(visibility, bvhVis, 0.62);
                             }
@@ -845,7 +886,8 @@ public final class VulkanShaderSources {
                                         localShadowLayer,
                                         localNdl,
                                         localShadowCoord.z,
-                                        pcssSoftness
+                                        pcssSoftness,
+                                        contactTemporalStability
                                 );
                             }
                         }
@@ -903,7 +945,8 @@ public final class VulkanShaderSources {
                                         pointLayer,
                                         localNdl,
                                         localShadowCoord.z,
-                                        pcssSoftness
+                                        pcssSoftness,
+                                        contactTemporalStability
                                 );
                                 localShadowVisibility *= pointLocalVisibility;
                             }
@@ -988,7 +1031,8 @@ public final class VulkanShaderSources {
                                     cascadeIndex,
                                     ndl,
                                     shadowCoord.z,
-                                    pcssSoftness
+                                    pcssSoftness,
+                                    contactTemporalStability
                             );
                         }
                         float shadowOcclusion = 1.0 - shadowVisibility;
@@ -1077,7 +1121,8 @@ public final class VulkanShaderSources {
                                     pointLayer,
                                     pNdl,
                                     pointDepthRatio,
-                                    pcssSoftness
+                                    pcssSoftness,
+                                    contactTemporalStability
                             );
                             float pointOcclusion = 1.0 - pointVisibility;
                             float pointShadowFactor = clamp(pointOcclusion * min(clamp(gbo.uShadow.y, 0.0, 1.0), 0.85), 0.0, 0.9);
