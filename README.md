@@ -82,6 +82,18 @@ mvn -pl engine-host-sample -am test -Ddle.compare.tests=true -Ddle.compare.outpu
 ```
 This includes tiered fog/smoke, shadow, and texture-heavy checks plus `shadow-cascade-stress`, `fog-shadow-cascade-stress`, `smoke-shadow-cascade-stress`, and `texture-heavy` compare profiles.
 
+Run real-hardware AA compare rebaseline on macOS (OpenGL/Vulkan, non-mock, first-thread JVM):
+
+```bash
+./scripts/aa_rebaseline_real_mac.sh
+```
+
+Optional overrides:
+
+```bash
+DLE_COMPARE_OUTPUT_DIR=artifacts/compare/aa-real-manual ./scripts/aa_rebaseline_real_mac.sh
+```
+
 GitHub Actions CI runs:
 - matrix build/test (`mvn test`) on `main` and pull requests using JDK 25 across Linux, macOS, and Windows
 - guarded backend parity compare harness tests on Ubuntu (`dle.compare.tests=true`)
