@@ -362,5 +362,6 @@ class VulkanEngineRuntimeLightingMapperTest {
         );
 
         assertTrue(cfg.renderedShadowLightIdsCsv().contains("spotStale"));
+        assertTrue(cfg.staleBypassShadowLightCount() >= 1);
     }
 }

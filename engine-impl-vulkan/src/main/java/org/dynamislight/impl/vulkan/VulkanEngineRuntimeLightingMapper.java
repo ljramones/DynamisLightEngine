@@ -704,7 +704,7 @@ final class VulkanEngineRuntimeLightingMapper {
         };
         String rtMode = shadowRtMode == null || shadowRtMode.isBlank() ? "off" : shadowRtMode.trim().toLowerCase(java.util.Locale.ROOT);
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", 0, filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
         }
         int tierMaxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -759,7 +759,7 @@ final class VulkanEngineRuntimeLightingMapper {
         }
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", 0, filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
         }
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
         ShadowDesc shadow = primary.shadow();
@@ -928,6 +928,7 @@ final class VulkanEngineRuntimeLightingMapper {
                 schedule.renderedShadowLightIdsCsv(),
                 schedule.deferredShadowLightCount(),
                 schedule.deferredShadowLightIdsCsv(),
+                schedule.staleBypassShadowLightCount(),
                 filterPath,
                 runtimeFilterPath,
                 momentFilterEstimateOnly,
@@ -955,6 +956,7 @@ final class VulkanEngineRuntimeLightingMapper {
     ) {
         int renderedSpot = 0;
         int renderedPoint = 0;
+        int staleBypassCount = 0;
         int assignedLayers = 0;
         int assignedLights = 0;
         List<String> renderedIds = new ArrayList<>();
@@ -975,12 +977,13 @@ final class VulkanEngineRuntimeLightingMapper {
             int cadencePeriod = cadencePeriodForRank(rank, heroPeriod, midPeriod, distantPeriod);
             String candidateId = shadowLightId(candidate);
             boolean cadenceDue = isCadenceDue(frameTick, rank, cadencePeriod);
-            if (schedulerEnabled && !cadenceDue && !isStalenessBypassDue(
+            boolean stalenessBypass = schedulerEnabled && !cadenceDue && isStalenessBypassDue(
                     frameTick,
                     candidateId,
                     cadencePeriod,
                     lastRenderedTicks
-            )) {
+            );
+            if (schedulerEnabled && !cadenceDue && !stalenessBypass) {
                 deferredIds.add(shadowLightId(candidate));
                 continue;
             }
@@ -995,6 +998,9 @@ final class VulkanEngineRuntimeLightingMapper {
             }
             assignedLayers += layerCost;
             assignedLights++;
+            if (stalenessBypass) {
+                staleBypassCount++;
+            }
             renderedIds.add(candidateId);
             if (localType == LightType.SPOT) {
                 renderedSpot++;
@@ -1007,7 +1013,8 @@ final class VulkanEngineRuntimeLightingMapper {
                 renderedPoint,
                 String.join(",", renderedIds),
                 deferredIds.size(),
-                String.join(",", deferredIds)
+                String.join(",", deferredIds),
+                staleBypassCount
         );
     }
 
@@ -1078,7 +1085,8 @@ final class VulkanEngineRuntimeLightingMapper {
             int renderedPointShadowCubemaps,
             String renderedShadowLightIdsCsv,
             int deferredShadowLightCount,
-            String deferredShadowLightIdsCsv
+            String deferredShadowLightIdsCsv,
+            int staleBypassShadowLightCount
     ) {
     }
 

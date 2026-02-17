@@ -124,6 +124,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             "",
             0,
             "",
+            0,
             "pcf", "pcf", false, false, false, false, "off", false,
             false
     );
@@ -579,6 +580,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " renderedShadowLightIds=" + currentShadows.renderedShadowLightIdsCsv()
                             + " deferredShadowLightCount=" + currentShadows.deferredShadowLightCount()
                             + " deferredShadowLightIds=" + currentShadows.deferredShadowLightIdsCsv()
+                            + " staleBypassShadowLightCount=" + currentShadows.staleBypassShadowLightCount()
                             + " shadowAllocatorAssignedLights=" + shadowAllocatorAssignedLights
                             + " shadowAllocatorReusedAssignments=" + shadowAllocatorReusedAssignments
                             + " shadowAllocatorEvictions=" + shadowAllocatorEvictions
@@ -994,6 +996,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             String renderedShadowLightIdsCsv,
             int deferredShadowLightCount,
             String deferredShadowLightIdsCsv,
+            int staleBypassShadowLightCount,
             String filterPath,
             String runtimeFilterPath,
             boolean momentFilterEstimateOnly,
@@ -1072,6 +1075,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 base.renderedShadowLightIdsCsv(),
                 base.deferredShadowLightCount(),
                 base.deferredShadowLightIdsCsv(),
+                base.staleBypassShadowLightCount(),
                 base.filterPath(),
                 runtimeFilterPath,
                 momentFilterEstimateOnly,

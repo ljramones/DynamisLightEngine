@@ -163,6 +163,7 @@ Scheduler behavior notes:
   - `renderedShadowLightIds`
   - `deferredShadowLightCount`
   - `deferredShadowLightIds`
+  - `staleBypassShadowLightCount`
   - `shadowMomentAtlasBytesEstimate` (non-zero when `vsm`/`evsm` is requested)
   - `runtimeFilterPath` (active filter path used by runtime shading)
   - `momentFilterEstimateOnly`

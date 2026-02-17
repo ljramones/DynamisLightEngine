@@ -722,6 +722,7 @@ class VulkanEngineRuntimeIntegrationTest {
                         && w.message().contains("renderedShadowLightIds=")
                         && w.message().contains("deferredShadowLightCount=")
                         && w.message().contains("deferredShadowLightIds=")
+                        && w.message().contains("staleBypassShadowLightCount=")
                         && w.message().contains("shadowMomentAtlasBytesEstimate=")
                         && w.message().contains("atlasMemoryD16Bytes=")
                         && w.message().contains("atlasMemoryD32Bytes=")
