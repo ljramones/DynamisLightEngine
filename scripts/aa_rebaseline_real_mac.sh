@@ -14,8 +14,8 @@ if ! command -v /usr/libexec/java_home >/dev/null 2>&1; then
   exit 1
 fi
 
-export JAVA_HOME="${JAVA_HOME:-$(/usr/libexec/java_home -v 25)}"
-export PATH="$JAVA_HOME/bin:$PATH"
+source "$ROOT_DIR/scripts/check_java25.sh"
+enforce_java25_for_maven
 
 OUT_DIR="${DLE_COMPARE_OUTPUT_DIR:-artifacts/compare/aa-real-$(date +%Y%m%d-%H%M%S)}"
 TEST_CLASS="${DLE_COMPARE_TEST_CLASS:-BackendParityIntegrationTest}"

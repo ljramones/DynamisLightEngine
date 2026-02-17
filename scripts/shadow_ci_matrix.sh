@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+source "$ROOT_DIR/scripts/check_java25.sh"
+enforce_java25_for_maven
+
 RUN_REAL_MATRIX="${DLE_SHADOW_CI_REAL_MATRIX:-0}"
 RUN_LONGRUN="${DLE_SHADOW_CI_LONGRUN:-0}"
 VULKAN_MODE="${DLE_COMPARE_VULKAN_MODE:-mock}"
