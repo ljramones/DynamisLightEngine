@@ -94,6 +94,11 @@ Optional overrides:
 DLE_COMPARE_OUTPUT_DIR=artifacts/compare/aa-real-manual ./scripts/aa_rebaseline_real_mac.sh
 ```
 
+```bash
+# Vulkan mode: mock (default), auto, or real
+DLE_COMPARE_VULKAN_MODE=real ./scripts/aa_rebaseline_real_mac.sh
+```
+
 GitHub Actions CI runs:
 - matrix build/test (`mvn test`) on `main` and pull requests using JDK 25 across Linux, macOS, and Windows
 - guarded backend parity compare harness tests on Ubuntu (`dle.compare.tests=true`)

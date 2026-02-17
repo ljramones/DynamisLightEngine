@@ -153,6 +153,22 @@ public final class VulkanSceneMeshCoordinator {
     }
 
     public static void createTextureDescriptorSets(TextureDescriptorRequest in) throws EngineException {
+        org.dynamislight.impl.vulkan.model.VulkanGpuTexture iblIrradianceTexture = in.iblState().irradianceTexture;
+        org.dynamislight.impl.vulkan.model.VulkanGpuTexture iblRadianceTexture = in.iblState().radianceTexture;
+        org.dynamislight.impl.vulkan.model.VulkanGpuTexture iblBrdfLutTexture = in.iblState().brdfLutTexture;
+        if ((!in.sceneResources().gpuMeshes.isEmpty())
+                && (iblIrradianceTexture == null || iblRadianceTexture == null || iblBrdfLutTexture == null)) {
+            org.dynamislight.impl.vulkan.model.VulkanGpuTexture fallback = in.sceneResources().gpuMeshes.get(0).albedoTexture;
+            if (iblIrradianceTexture == null) {
+                iblIrradianceTexture = fallback;
+            }
+            if (iblRadianceTexture == null) {
+                iblRadianceTexture = fallback;
+            }
+            if (iblBrdfLutTexture == null) {
+                iblBrdfLutTexture = fallback;
+            }
+        }
         VulkanTextureDescriptorSetCoordinator.Result state = VulkanSceneTextureCoordinator.createTextureDescriptorSets(
                 new VulkanSceneTextureCoordinator.CreateInputs(
                         in.backendResources().device,
@@ -172,9 +188,9 @@ public final class VulkanSceneMeshCoordinator {
                         in.descriptorRingStats().descriptorRingMaxSetCapacity,
                         in.backendResources().shadowDepthImageView,
                         in.backendResources().shadowSampler,
-                        in.iblState().irradianceTexture,
-                        in.iblState().radianceTexture,
-                        in.iblState().brdfLutTexture
+                        iblIrradianceTexture,
+                        iblRadianceTexture,
+                        iblBrdfLutTexture
                 )
         );
         if (state == null) {

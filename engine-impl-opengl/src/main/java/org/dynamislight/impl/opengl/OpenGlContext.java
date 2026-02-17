@@ -370,6 +370,7 @@ final class OpenGlContext {
             uniform float uSmaaStrength;
             uniform int uTaaEnabled;
             uniform float uTaaBlend;
+            uniform mat4 uView;
             layout(location = 0) out vec4 FragColor;
             layout(location = 1) out vec4 VelocityColor;
             float distributionGGX(float ndh, float roughness) {
