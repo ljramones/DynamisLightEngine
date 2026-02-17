@@ -43,6 +43,9 @@ CI always-on rollout:
 - CI lockdown policy now runs stricter scheduled lanes:
   - `shadow-real-longrun-guarded`: 3-run schedule cadence (2 runs on push/PR)
   - `shadow-production-quality-sweeps`: 3-run schedule cadence with strict BVH lane enabled by default (2 runs on push/PR)
+- Local one-shot lockdown parity runner:
+  - `./scripts/shadow_ci_lockdown_full.sh`
+  - env overrides: `DLE_SHADOW_LOCKDOWN_OUTPUT_ROOT`, `DLE_SHADOW_LOCKDOWN_RUNS`, `DLE_SHADOW_LOCKDOWN_MIN_RUNS`
 - Manual `workflow_dispatch` toggles:
   - `run_shadow_real_matrix=true`
   - `run_shadow_longrun=true`
