@@ -22,6 +22,7 @@ TEST_CLASS="${DLE_COMPARE_TEST_CLASS:-BackendParityIntegrationTest}"
 VULKAN_MODE="${DLE_COMPARE_VULKAN_MODE:-mock}" # mock(default) | auto | real
 SCRIPT_COMMAND="${1:-run}" # run(default) | preflight
 LOCK_SOURCE_DIR="${2:-artifacts/compare}"
+THRESHOLDS_FILE="${DLE_COMPARE_THRESHOLDS_FILE:-}"
 
 find_vulkan_loader_dir() {
   local candidate
@@ -212,6 +213,9 @@ echo "Forked JVM stack size: $STACK_SIZE"
 echo "Temporal frames override: ${DLE_COMPARE_TEMPORAL_FRAMES:-0}"
 echo "TSR frame boost: ${DLE_COMPARE_TSR_FRAME_BOOST:-3}"
 echo "Upscaler hook: mode=${DLE_COMPARE_UPSCALER_MODE:-none} quality=${DLE_COMPARE_UPSCALER_QUALITY:-quality}"
+if [[ -n "$THRESHOLDS_FILE" ]]; then
+  echo "Threshold overrides file: $THRESHOLDS_FILE"
+fi
 if [[ -n "$VULKAN_LOADER_DIR" ]]; then
   echo "Vulkan loader dir: $VULKAN_LOADER_DIR"
 fi
@@ -222,6 +226,14 @@ fi
 run_compare_tests() {
   local mock_context="$1"
   local log_file="$2"
+  local thresholds_arg=()
+  if [[ -n "$THRESHOLDS_FILE" ]]; then
+    if [[ "$THRESHOLDS_FILE" = /* ]]; then
+      thresholds_arg+=("-Ddle.compare.thresholds.file=$THRESHOLDS_FILE")
+    else
+      thresholds_arg+=("-Ddle.compare.thresholds.file=$ROOT_DIR/$THRESHOLDS_FILE")
+    fi
+  fi
   set +e
   mvn -q -pl engine-host-sample -am test \
     -DargLine="$JVM_ARG_LINE" \
@@ -234,6 +246,7 @@ run_compare_tests() {
     -Ddle.compare.tsr.frameBoost="${DLE_COMPARE_TSR_FRAME_BOOST:-3}" \
     -Ddle.compare.upscaler.mode="${DLE_COMPARE_UPSCALER_MODE:-none}" \
     -Ddle.compare.upscaler.quality="${DLE_COMPARE_UPSCALER_QUALITY:-quality}" \
+    "${thresholds_arg[@]}" \
     -Dtest="$TEST_CLASS" \
     -Dsurefire.failIfNoSpecifiedTests=false 2>&1 | tee "$log_file"
   local status=${PIPESTATUS[0]}

@@ -114,6 +114,13 @@ DLE_COMPARE_VULKAN_MODE=real \
 ./scripts/aa_rebaseline_real_mac.sh lock-thresholds artifacts/compare
 ```
 
+```bash
+# Apply locked thresholds automatically during compare runs
+DLE_COMPARE_THRESHOLDS_FILE=artifacts/compare/threshold-lock/recommended-thresholds.properties \
+DLE_COMPARE_VULKAN_MODE=real \
+./scripts/aa_rebaseline_real_mac.sh
+```
+
 GitHub Actions CI runs:
 - matrix build/test (`mvn test`) on `main` and pull requests using JDK 25 across Linux, macOS, and Windows
 - guarded backend parity compare harness tests on Ubuntu (`dle.compare.tests=true`)
