@@ -53,6 +53,10 @@ public final class VulkanBootstrap {
     }
 
     private static final boolean IS_MAC = System.getProperty("os.name", "").toLowerCase().contains("mac");
+    private static final String EXT_RAY_QUERY = "VK_KHR_ray_query";
+    private static final String EXT_ACCELERATION_STRUCTURE = "VK_KHR_acceleration_structure";
+    private static final String EXT_RT_PIPELINE = "VK_KHR_ray_tracing_pipeline";
+    private static final String EXT_DEFERRED_HOST_OPS = "VK_KHR_deferred_host_operations";
 
     public static long initWindow(String appName, int width, int height, boolean windowVisible) throws EngineException {
         GLFWErrorCallback.createPrint(System.err).set();
@@ -127,6 +131,8 @@ public final class VulkanBootstrap {
     public static DeviceAndQueue createLogicalDevice(
             VkPhysicalDevice physicalDevice,
             int graphicsQueueFamilyIndex,
+            boolean shadowRtTraversalSupported,
+            boolean shadowRtBvhSupported,
             MemoryStack stack
     ) throws EngineException {
         if (physicalDevice == null || graphicsQueueFamilyIndex < 0) {
@@ -143,6 +149,14 @@ public final class VulkanBootstrap {
         requiredDeviceExtensions.add(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
         if (IS_MAC) {
             requiredDeviceExtensions.add(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+        }
+        if (shadowRtTraversalSupported) {
+            requiredDeviceExtensions.add(EXT_RAY_QUERY);
+            requiredDeviceExtensions.add(EXT_ACCELERATION_STRUCTURE);
+            if (shadowRtBvhSupported) {
+                requiredDeviceExtensions.add(EXT_RT_PIPELINE);
+                requiredDeviceExtensions.add(EXT_DEFERRED_HOST_OPS);
+            }
         }
         PointerBuffer extensions = stack.mallocPointer(requiredDeviceExtensions.size());
         for (String extensionName : requiredDeviceExtensions) {

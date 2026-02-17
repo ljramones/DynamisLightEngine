@@ -13,6 +13,8 @@ import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueueFamilyProperties;
 
 import java.nio.IntBuffer;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_QUEUE_GRAPHICS_BIT;
@@ -22,6 +24,11 @@ import static org.lwjgl.vulkan.VK10.vkEnumeratePhysicalDevices;
 import static org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceQueueFamilyProperties;
 
 public final class VulkanDeviceSelector {
+    private static final String EXT_RAY_QUERY = "VK_KHR_ray_query";
+    private static final String EXT_ACCELERATION_STRUCTURE = "VK_KHR_acceleration_structure";
+    private static final String EXT_RT_PIPELINE = "VK_KHR_ray_tracing_pipeline";
+    private static final String EXT_DEFERRED_HOST_OPS = "VK_KHR_deferred_host_operations";
+
     private VulkanDeviceSelector() {
     }
 
@@ -39,10 +46,13 @@ public final class VulkanDeviceSelector {
         for (int i = 0; i < devices.capacity(); i++) {
             VkPhysicalDevice candidate = new VkPhysicalDevice(devices.get(i), instance);
             int queueFamily = findGraphicsPresentQueueFamily(candidate, surface, stack);
-            if (queueFamily >= 0 && supportsSwapchainExtension(candidate, stack)) {
+            Set<String> extensions = enumerateDeviceExtensions(candidate, stack);
+            if (queueFamily >= 0 && supportsSwapchainExtension(extensions)) {
                 chosen = candidate;
                 chosenQueueFamily = queueFamily;
-                break;
+                boolean rtSupported = supportsShadowRtTraversalExtensions(extensions);
+                boolean bvhSupported = supportsShadowRtBvhExtensions(extensions);
+                return new Selection(chosen, chosenQueueFamily, rtSupported, bvhSupported);
             }
         }
         if (chosen == null || chosenQueueFamily < 0) {
@@ -52,7 +62,7 @@ public final class VulkanDeviceSelector {
                     false
             );
         }
-        return new Selection(chosen, chosenQueueFamily);
+        return new Selection(chosen, chosenQueueFamily, false, false);
     }
 
     private static int findGraphicsPresentQueueFamily(VkPhysicalDevice candidate, long surface, MemoryStack stack) {
@@ -77,23 +87,40 @@ public final class VulkanDeviceSelector {
         return -1;
     }
 
-    private static boolean supportsSwapchainExtension(VkPhysicalDevice candidate, MemoryStack stack) {
+    private static Set<String> enumerateDeviceExtensions(VkPhysicalDevice candidate, MemoryStack stack) {
         IntBuffer extCount = stack.ints(0);
         int extResult = vkEnumerateDeviceExtensionProperties(candidate, (String) null, extCount, null);
         if (extResult != VK_SUCCESS || extCount.get(0) == 0) {
-            return false;
+            return Set.of();
         }
         VkExtensionProperties.Buffer extensions = VkExtensionProperties.calloc(extCount.get(0), stack);
         vkEnumerateDeviceExtensionProperties(candidate, (String) null, extCount, extensions);
+        Set<String> names = new HashSet<>();
         for (int i = 0; i < extensions.capacity(); i++) {
-            String extName = extensions.get(i).extensionNameString();
-            if (KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME.equals(extName)) {
-                return true;
-            }
+            names.add(extensions.get(i).extensionNameString());
         }
-        return false;
+        return names;
     }
 
-    public record Selection(VkPhysicalDevice physicalDevice, int graphicsQueueFamilyIndex) {
+    private static boolean supportsSwapchainExtension(Set<String> extensions) {
+        return extensions.contains(KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+    }
+
+    private static boolean supportsShadowRtTraversalExtensions(Set<String> extensions) {
+        return extensions.contains(EXT_RAY_QUERY) && extensions.contains(EXT_ACCELERATION_STRUCTURE);
+    }
+
+    private static boolean supportsShadowRtBvhExtensions(Set<String> extensions) {
+        return supportsShadowRtTraversalExtensions(extensions)
+                && extensions.contains(EXT_RT_PIPELINE)
+                && extensions.contains(EXT_DEFERRED_HOST_OPS);
+    }
+
+    public record Selection(
+            VkPhysicalDevice physicalDevice,
+            int graphicsQueueFamilyIndex,
+            boolean shadowRtTraversalSupported,
+            boolean shadowRtBvhSupported
+    ) {
     }
 }

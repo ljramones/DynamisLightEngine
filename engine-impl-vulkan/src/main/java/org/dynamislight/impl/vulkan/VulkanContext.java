@@ -502,6 +502,7 @@ final class VulkanContext {
         int rtModeInt = switch (rtMode == null ? "off" : rtMode.trim().toLowerCase()) {
             case "optional" -> 1;
             case "force" -> 2;
+            case "bvh" -> 3;
             default -> 0;
         };
         boolean changed = false;
@@ -583,6 +584,28 @@ final class VulkanContext {
         }
     }
 
+    void setShadowRtTuning(float denoiseStrength, float rayLength, int sampleCount) {
+        boolean changed = false;
+        float clampedDenoise = Math.max(0.0f, Math.min(1.0f, denoiseStrength));
+        float clampedRayLength = Math.max(1.0f, Math.min(500.0f, rayLength));
+        int clampedSamples = Math.max(1, Math.min(16, sampleCount));
+        if (Math.abs(renderState.shadowRtDenoiseStrength - clampedDenoise) > 0.000001f) {
+            renderState.shadowRtDenoiseStrength = clampedDenoise;
+            changed = true;
+        }
+        if (Math.abs(renderState.shadowRtRayLength - clampedRayLength) > 0.000001f) {
+            renderState.shadowRtRayLength = clampedRayLength;
+            changed = true;
+        }
+        if (renderState.shadowRtSampleCount != clampedSamples) {
+            renderState.shadowRtSampleCount = clampedSamples;
+            changed = true;
+        }
+        if (changed) {
+            markGlobalStateDirty();
+        }
+    }
+
     boolean isShadowMomentPipelineActive() {
         return renderState.shadowMomentPipelineRequested
                 && backendResources.shadowMomentImage != VK_NULL_HANDLE
@@ -600,6 +623,14 @@ final class VulkanContext {
 
     boolean isShadowMomentInitialized() {
         return renderState.shadowMomentInitialized;
+    }
+
+    boolean isHardwareRtShadowTraversalSupported() {
+        return backendResources.shadowRtTraversalSupported;
+    }
+
+    boolean isHardwareRtShadowBvhSupported() {
+        return backendResources.shadowRtBvhSupported;
     }
 
     void setShadowDirectionalTexelSnap(boolean enabled, float scale) {
@@ -1310,6 +1341,11 @@ final class VulkanContext {
                                         localLightDirInner,
                                         localLightOuterTypeShadow,
                                         renderState.shadowFilterMode,
+                                        renderState.shadowRtMode,
+                                        backendResources.shadowRtTraversalSupported && renderState.shadowRtMode > 0,
+                                        renderState.shadowRtDenoiseStrength,
+                                        renderState.shadowRtRayLength,
+                                        renderState.shadowRtSampleCount,
                                         renderState.shadowContactShadows,
                                         lightingState.dirLightIntensity(),
                                         lightingState.pointLightIntensity(),

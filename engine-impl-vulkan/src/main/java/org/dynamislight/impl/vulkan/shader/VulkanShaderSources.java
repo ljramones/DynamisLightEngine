@@ -334,6 +334,11 @@ public final class VulkanShaderSources {
                 float finalizeShadowVisibility(
                         float pcfVisibility,
                         int shadowFilterMode,
+                        bool shadowRtEnabled,
+                        int shadowRtMode,
+                        int shadowRtSampleCount,
+                        float shadowRtDenoiseStrength,
+                        float shadowRtRayLength,
                         vec2 uv,
                         float compareDepth,
                         int layer,
@@ -343,8 +348,27 @@ public final class VulkanShaderSources {
                 ) {
                     float visibility = clamp(pcfVisibility, 0.0, 1.0);
                     if (shadowFilterMode == 1) {
-                        float penumbra = clamp(((1.0 - ndl) * 0.78 + depthRatio * 0.92) * pcssSoftness, 0.0, 1.0);
                         float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
+                        int blockerRadius = clamp(int(mix(1.0, 6.0, clamp(depthRatio * 0.9 + (1.0 - ndl) * 0.45, 0.0, 1.0))), 1, 6);
+                        float blockerAccum = 0.0;
+                        float blockerWeight = 0.0;
+                        for (int y = -6; y <= 6; y++) {
+                            for (int x = -6; x <= 6; x++) {
+                                if (abs(x) > blockerRadius || abs(y) > blockerRadius) {
+                                    continue;
+                                }
+                                vec2 bo = vec2(float(x), float(y));
+                                vec2 offset = bo * texel;
+                                float sampleDepth = texture(uShadowMap, vec4(clamp(uv + offset, vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                                float blocker = 1.0 - sampleDepth;
+                                float radial = 1.0 / (1.0 + dot(bo, bo) * 0.35);
+                                blockerAccum += blocker * radial;
+                                blockerWeight += radial;
+                            }
+                        }
+                        float blockerMean = blockerWeight > 0.0 ? blockerAccum / blockerWeight : 0.0;
+                        float blockerDepth = clamp(depthRatio + blockerMean * 0.35, 0.0, 1.0);
+                        float penumbra = clamp((depthRatio - blockerDepth + (1.0 - ndl) * 0.82) * pcssSoftness * 1.8, 0.0, 1.0);
                         float neigh = 0.0;
                         neigh += texture(uShadowMap, vec4(clamp(uv + vec2(texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
                         neigh += texture(uShadowMap, vec4(clamp(uv + vec2(-texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
@@ -361,6 +385,32 @@ public final class VulkanShaderSources {
                     } else if (shadowFilterMode == 3) {
                         float evsmVis = evsmVisibilityApprox(uv, compareDepth, layer);
                         visibility = min(visibility + 0.07, mix(visibility, evsmVis, 0.84));
+                    }
+                    if (shadowRtEnabled) {
+                        float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
+                        float rayScale = clamp(shadowRtRayLength / 120.0, 0.35, 4.0);
+                        vec2 rayDir = normalize(vec2(0.57 + (1.0 - ndl) * 0.65, 0.44 + depthRatio * 0.55));
+                        int rtSteps = clamp(shadowRtSampleCount * (shadowRtMode > 1 ? 2 : 1), 4, 24);
+                        float traversal = 0.0;
+                        float traversalW = 0.0;
+                        for (int i = 0; i < rtSteps; i++) {
+                            float t = (float(i) + 1.0) / float(rtSteps);
+                            float stride = mix(0.8, 6.5, t * t) * rayScale;
+                            vec2 sampleUv = clamp(uv + rayDir * texel * stride, vec2(0.0), vec2(1.0));
+                            float sampleVis = texture(uShadowMap, vec4(sampleUv, float(layer), compareDepth));
+                            float w = 1.0 - (0.65 * t);
+                            traversal += sampleVis * w;
+                            traversalW += w;
+                        }
+                        float rtVis = traversalW > 0.0 ? traversal / traversalW : visibility;
+                        vec2 o = texel * vec2(1.0, 1.0);
+                        float rtN = texture(uShadowMap, vec4(clamp(uv + vec2(0.0, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        float rtS = texture(uShadowMap, vec4(clamp(uv - vec2(0.0, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        float rtE = texture(uShadowMap, vec4(clamp(uv + vec2(o.x, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        float rtW = texture(uShadowMap, vec4(clamp(uv - vec2(o.x, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        float rtKernelBlend = mix(shadowRtMode > 1 ? 0.30 : 0.18, shadowRtMode > 1 ? 0.60 : 0.45, shadowRtDenoiseStrength);
+                        float rtDenoised = mix(rtVis, (rtN + rtS + rtE + rtW) * 0.25, rtKernelBlend);
+                        visibility = mix(visibility, clamp(rtDenoised, 0.0, 1.0), shadowRtMode > 1 ? 0.55 : 0.38);
                     }
                     return clamp(visibility, 0.0, 1.0);
                 }
@@ -390,7 +440,14 @@ public final class VulkanShaderSources {
                     float toksvigVariance = clamp(normalVariance * 0.70 + normalMapVariance * 0.65, 0.0, 1.0);
                     roughness = clamp(sqrt(roughness * roughness + toksvigVariance * 0.52), 0.04, 1.0);
                     float dirIntensity = max(0.0, gbo.uLightIntensity.x);
-                    int shadowFilterMode = clamp(int(gbo.uLocalLightMeta.z + 0.5), 0, 3);
+                    int shadowModePacked = max(int(gbo.uLocalLightMeta.z + 0.5), 0);
+                    int shadowFilterMode = shadowModePacked & 3;
+                    int shadowRtMode = (shadowModePacked >> 2) & 3;
+                    bool shadowRtActive = ((shadowModePacked >> 4) & 1) == 1;
+                    int shadowRtSampleCount = max((shadowModePacked >> 5) & 31, 1);
+                    bool shadowRtEnabled = shadowRtMode > 0 && shadowRtActive;
+                    float shadowRtDenoiseStrength = clamp(gbo.uLightIntensity.y, 0.0, 1.0);
+                    float shadowRtRayLength = clamp(gbo.uShadowCascadeExt.x, 1.0, 500.0);
                     bool contactShadows = gbo.uLocalLightMeta.w > 0.5;
 
                     float ao = clamp(texture(uOcclusionTexture, vUv).r, 0.0, 1.0);
@@ -414,6 +471,7 @@ public final class VulkanShaderSources {
                             clamp(1.0 - contactMotionMag * (0.85 + taaBlend * 0.85) * contactTemporalMotionScale, contactTemporalMinStability, 1.0),
                             taaEnabled
                     );
+                    vec3 prevWorldPos = (obj.uPrevModel * vec4(vLocalPos, 1.0)).xyz;
 
                     float ndl = max(dot(n, lDir), 0.0);
                     float ndv = max(dot(n, viewDir), 0.0);
@@ -493,6 +551,11 @@ public final class VulkanShaderSources {
                                 localShadowVisibility = finalizeShadowVisibility(
                                         localPcfVisibility,
                                         shadowFilterMode,
+                                        shadowRtEnabled,
+                                        shadowRtMode,
+                                        shadowRtSampleCount,
+                                        shadowRtDenoiseStrength,
+                                        shadowRtRayLength,
                                         localShadowCoord.xy,
                                         compareDepth,
                                         localShadowLayer,
@@ -546,6 +609,11 @@ public final class VulkanShaderSources {
                                 float pointLocalVisibility = finalizeShadowVisibility(
                                         pointPcfVisibility,
                                         shadowFilterMode,
+                                        shadowRtEnabled,
+                                        shadowRtMode,
+                                        shadowRtSampleCount,
+                                        shadowRtDenoiseStrength,
+                                        shadowRtRayLength,
                                         localShadowCoord.xy,
                                         compareDepth,
                                         pointLayer,
@@ -569,6 +637,8 @@ public final class VulkanShaderSources {
                                     * distFade
                                     * contactStrengthScale
                                     * contactTemporalStability;
+                            float historyProxy = clamp(1.0 - length(vWorldPos - prevWorldPos) * 4.0, 0.0, 1.0);
+                            contactStrength *= mix(1.0, 0.78, historyProxy);
                             contact = clamp(1.0 - contactStrength, 0.50, 1.0);
                         }
                         pointLit += (kd * baseColor / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity * localShadowVisibility * contact);
@@ -625,6 +695,11 @@ public final class VulkanShaderSources {
                             shadowVisibility = finalizeShadowVisibility(
                                     pcfVisibility,
                                     shadowFilterMode,
+                                    shadowRtEnabled,
+                                    shadowRtMode,
+                                    shadowRtSampleCount,
+                                    shadowRtDenoiseStrength,
+                                    shadowRtRayLength,
                                     shadowCoord.xy,
                                     compareDepth,
                                     cascadeIndex,
@@ -638,7 +713,9 @@ public final class VulkanShaderSources {
                         color *= (1.0 - shadowFactor);
                         if (contactShadows) {
                             float contactEdge = clamp(length(dFdx(n)) + length(dFdy(n)), 0.0, 1.0);
-                            float contactFactor = shadowOcclusion * contactEdge * (1.0 - roughness) * (1.0 - ndl) * contactStrengthScale * contactTemporalStability;
+                            float historyProxy = clamp(1.0 - length(vWorldPos - prevWorldPos) * 4.0, 0.0, 1.0);
+                            float contactFactor = shadowOcclusion * contactEdge * (1.0 - roughness) * (1.0 - ndl) * contactStrengthScale
+                                    * contactTemporalStability * mix(1.0, 0.80, historyProxy);
                             color *= (1.0 - clamp(contactFactor * 0.22, 0.0, 0.24));
                         }
                     }
@@ -708,6 +785,11 @@ public final class VulkanShaderSources {
                             float pointVisibility = finalizeShadowVisibility(
                                     pointPcfVisibility,
                                     shadowFilterMode,
+                                    shadowRtEnabled,
+                                    shadowRtMode,
+                                    shadowRtSampleCount,
+                                    shadowRtDenoiseStrength,
+                                    shadowRtRayLength,
                                     pointShadowCoord.xy,
                                     compareDepth,
                                     pointLayer,
@@ -720,7 +802,9 @@ public final class VulkanShaderSources {
                             color *= (1.0 - pointShadowFactor);
                             if (contactShadows) {
                                 float contactEdge = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.9, 0.0, 1.0);
-                                float contactFactor = pointOcclusion * contactEdge * (1.0 - roughness) * (1.0 - pNdl) * contactStrengthScale * contactTemporalStability;
+                                float historyProxy = clamp(1.0 - length(vWorldPos - prevWorldPos) * 4.0, 0.0, 1.0);
+                                float contactFactor = pointOcclusion * contactEdge * (1.0 - roughness) * (1.0 - pNdl) * contactStrengthScale
+                                        * contactTemporalStability * mix(1.0, 0.80, historyProxy);
                                 color *= (1.0 - clamp(contactFactor * 0.20, 0.0, 0.22));
                             }
                         }

@@ -30,10 +30,15 @@ public final class VulkanUniformWriters {
                 localShadowSlots++;
             }
         }
+        int rtSamplesPacked = in.shadowRtMode() > 0 ? Math.max(1, Math.min(31, in.shadowRtSampleCount())) : 0;
+        int packedShadowMode = (in.shadowFilterMode() & 0x3)
+                | ((Math.max(0, Math.min(3, in.shadowRtMode())) & 0x3) << 2)
+                | (in.shadowRtActive() ? (1 << 4) : 0)
+                | ((rtSamplesPacked & 0x1F) << 5);
         fb.put(new float[]{
                 (float) in.localLightCount(),
                 (float) localShadowSlots,
-                (float) in.shadowFilterMode(),
+                (float) packedShadowMode,
                 in.shadowContactShadows() ? 1f : 0f
         });
         for (int i = 0; i < in.maxLocalLights(); i++) {
@@ -74,7 +79,7 @@ public final class VulkanUniformWriters {
         }
         fb.put(new float[]{
                 in.dirLightIntensity(),
-                in.pointLightIntensity(),
+                in.shadowRtDenoiseStrength(),
                 in.shadowContactTemporalMotionScale(),
                 in.shadowContactTemporalMinStability()
         });
@@ -83,7 +88,7 @@ public final class VulkanUniformWriters {
         float split2 = in.shadowCascadeSplitNdc()[1];
         float split3 = in.shadowCascadeSplitNdc()[2];
         fb.put(new float[]{(float) in.shadowCascadeCount(), (float) in.shadowMapResolution(), split1, split2});
-        fb.put(new float[]{0f, split3, in.shadowNormalBiasScale(), in.shadowSlopeBiasScale()});
+        fb.put(new float[]{in.shadowRtRayLength(), split3, in.shadowNormalBiasScale(), in.shadowSlopeBiasScale()});
         fb.put(new float[]{in.fogEnabled() ? 1f : 0f, in.fogDensity(), in.ssaoRadius(), in.ssaoBias()});
         fb.put(new float[]{in.fogR(), in.fogG(), in.fogB(), (float) in.fogSteps()});
         float viewportW = (float) Math.max(1, in.swapchainWidth());
@@ -161,6 +166,11 @@ public final class VulkanUniformWriters {
             float[] localLightDirInner,
             float[] localLightOuterTypeShadow,
             int shadowFilterMode,
+            int shadowRtMode,
+            boolean shadowRtActive,
+            float shadowRtDenoiseStrength,
+            float shadowRtRayLength,
+            int shadowRtSampleCount,
             boolean shadowContactShadows,
             float dirLightIntensity,
             float pointLightIntensity,

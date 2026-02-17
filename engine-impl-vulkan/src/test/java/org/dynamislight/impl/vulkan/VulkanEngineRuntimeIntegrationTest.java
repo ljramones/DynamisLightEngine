@@ -854,6 +854,37 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void bvhShadowModeRequestEmitsExplicitFallbackContext() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.filterPath", "pcss",
+                "vulkan.shadow.rtMode", "bvh",
+                "vulkan.shadow.rtDenoiseStrength", "0.82",
+                "vulkan.shadow.rtRayLength", "140",
+                "vulkan.shadow.rtSampleCount", "6"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("rtMode=bvh")
+                        && w.message().contains("rtSampleCount=6")));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_PATH_REQUESTED".equals(w.code())
+                        && w.message().contains("RT shadow mode requested: bvh")
+                        && w.message().contains("denoiseStrength=0.82")
+                        && w.message().contains("rayLength=140.0")
+                        && w.message().contains("sampleCount=6")));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_PATH_FALLBACK_ACTIVE".equals(w.code())
+                        && w.message().contains("BVH mode requested")));
+        runtime.shutdown();
+    }
+
+    @Test
     void pcssShadowQualityRequestTracksActivePathWithoutMomentWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of(

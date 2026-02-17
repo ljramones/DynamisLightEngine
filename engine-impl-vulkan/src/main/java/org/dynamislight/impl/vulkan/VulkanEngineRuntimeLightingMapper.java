@@ -617,7 +617,8 @@ final class VulkanEngineRuntimeLightingMapper {
                 shadowRtMode,
                 0,
                 shadowMaxLocalLayers,
-                shadowMaxFacesPerFrame
+                shadowMaxFacesPerFrame,
+                false
         );
     }
 
@@ -640,6 +641,32 @@ final class VulkanEngineRuntimeLightingMapper {
                 shadowMaxShadowedLocalLights,
                 shadowMaxLocalLayers,
                 shadowMaxFacesPerFrame,
+                false
+        );
+    }
+
+    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(
+            List<LightDesc> lights,
+            QualityTier qualityTier,
+            String shadowFilterPath,
+            boolean shadowContactShadows,
+            String shadowRtMode,
+            int shadowMaxShadowedLocalLights,
+            int shadowMaxLocalLayers,
+            int shadowMaxFacesPerFrame,
+            boolean shadowRtTraversalSupported
+    ) {
+        return mapShadows(
+                lights,
+                qualityTier,
+                shadowFilterPath,
+                shadowContactShadows,
+                shadowRtMode,
+                shadowMaxShadowedLocalLights,
+                shadowMaxLocalLayers,
+                shadowMaxFacesPerFrame,
+                shadowRtTraversalSupported,
+                false,
                 false,
                 1,
                 2,
@@ -658,6 +685,8 @@ final class VulkanEngineRuntimeLightingMapper {
             int shadowMaxShadowedLocalLights,
             int shadowMaxLocalLayers,
             int shadowMaxFacesPerFrame,
+            boolean shadowRtTraversalSupported,
+            boolean shadowRtBvhSupported,
             boolean shadowSchedulerEnabled,
             int shadowSchedulerHeroPeriod,
             int shadowSchedulerMidPeriod,
@@ -861,7 +890,12 @@ final class VulkanEngineRuntimeLightingMapper {
         int renderedSpotShadowLights = schedule.renderedSpotShadowLights();
         int renderedPointShadowCubemaps = schedule.renderedPointShadowCubemaps();
         int renderedLocalShadowLights = renderedSpotShadowLights + renderedPointShadowCubemaps;
-        boolean rtShadowActive = false;
+        boolean rtShadowActive;
+        if ("bvh".equals(rtMode)) {
+            rtShadowActive = shadowRtBvhSupported;
+        } else {
+            rtShadowActive = !"off".equals(rtMode) && shadowRtTraversalSupported;
+        }
         boolean degraded = kernelClamped != kernel || cascadesClamped != cascades || resolution != requestedResolution
                 || qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
         return new VulkanEngineRuntime.ShadowRenderConfig(

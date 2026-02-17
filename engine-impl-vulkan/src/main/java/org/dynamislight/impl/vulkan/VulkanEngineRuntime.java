@@ -170,6 +170,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowAllocatorAssignedLights;
     private int shadowAllocatorReusedAssignments;
     private int shadowAllocatorEvictions;
+    private boolean shadowRtTraversalSupported;
+    private boolean shadowRtBvhSupported;
 
     public VulkanEngineRuntime() {
         super(
@@ -259,6 +261,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         deviceLostRaised = false;
         warningPolicy.reset(warningState);
         VulkanRuntimeLifecycle.initialize(context, config, options, plannedDrawCalls, plannedTriangles, plannedVisibleObjects);
+        shadowRtTraversalSupported = !mockContext && context.isHardwareRtShadowTraversalSupported();
+        shadowRtBvhSupported = !mockContext && context.isHardwareRtShadowBvhSupported();
     }
 
     @Override
@@ -286,6 +290,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowMaxShadowedLocalLights,
                 shadowMaxLocalLayers,
                 shadowMaxFacesPerFrame,
+                shadowRtTraversalSupported,
+                shadowRtBvhSupported,
                 shadowSchedulerEnabled,
                 shadowSchedulerHeroPeriod,
                 shadowSchedulerMidPeriod,
@@ -330,6 +336,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowContactTemporalMotionScale,
                     shadowContactTemporalMinStability
             );
+            context.setShadowRtTuning(
+                    shadowRtDenoiseStrength,
+                    shadowRtRayLength,
+                    shadowRtSampleCount
+            );
         }
     }
 
@@ -346,6 +357,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowMaxShadowedLocalLights,
                     shadowMaxLocalLayers,
                     shadowMaxFacesPerFrame,
+                    shadowRtTraversalSupported,
+                    shadowRtBvhSupported,
                     shadowSchedulerEnabled,
                     shadowSchedulerHeroPeriod,
                     shadowSchedulerMidPeriod,
@@ -401,6 +414,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowContactStrength,
                     shadowContactTemporalMotionScale,
                     shadowContactTemporalMinStability
+            );
+            context.setShadowRtTuning(
+                    shadowRtDenoiseStrength,
+                    shadowRtRayLength,
+                    shadowRtSampleCount
             );
             context.setShadowDirectionalTexelSnap(
                     shadowDirectionalTexelSnapEnabled,
@@ -562,6 +580,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()
                             + " rtActive=" + currentShadows.rtShadowActive()
+                            + " rtTraversalSupported=" + shadowRtTraversalSupported
+                            + " rtBvhSupported=" + shadowRtBvhSupported
                             + " rtDenoiseStrength=" + shadowRtDenoiseStrength
                             + " rtRayLength=" + shadowRtRayLength
                             + " rtSampleCount=" + shadowRtSampleCount
@@ -630,6 +650,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     warnings.add(new EngineWarning(
                             "SHADOW_RT_PATH_FALLBACK_ACTIVE",
                             "RT shadow traversal/denoise path unavailable; using non-RT shadow fallback stack"
+                                    + ("bvh".equals(currentShadows.rtShadowMode())
+                                    ? " (BVH mode requested but dedicated BVH traversal pipeline is not active)"
+                                    : "")
                     ));
                 }
             }

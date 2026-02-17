@@ -120,7 +120,7 @@ final class VulkanRuntimeOptions {
         }
         String normalized = raw.trim().toLowerCase();
         return switch (normalized) {
-            case "off", "optional", "force" -> normalized;
+            case "off", "optional", "force", "bvh" -> normalized;
             default -> "off";
         };
     }

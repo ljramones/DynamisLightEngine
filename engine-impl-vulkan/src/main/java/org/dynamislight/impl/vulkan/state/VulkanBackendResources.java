@@ -16,6 +16,8 @@ public final class VulkanBackendResources {
     public VkDevice device;
     public VkQueue graphicsQueue;
     public int graphicsQueueFamilyIndex = -1;
+    public boolean shadowRtTraversalSupported;
+    public boolean shadowRtBvhSupported;
     public long window = VK_NULL_HANDLE;
     public long surface = VK_NULL_HANDLE;
 

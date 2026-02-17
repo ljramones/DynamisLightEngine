@@ -16,8 +16,17 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("float momentVisibilityApprox(vec2 uv, float compareDepth, int layer)"));
         assertTrue(shader.contains("float evsmVisibilityApprox(vec2 uv, float compareDepth, int layer)"));
         assertTrue(shader.contains("float finalizeShadowVisibility("));
+        assertTrue(shader.contains("int blockerRadius = clamp(int(mix(1.0, 6.0"));
+        assertTrue(shader.contains("if (shadowRtEnabled) {"));
+        assertTrue(shader.contains("int shadowRtSampleCount = max((shadowModePacked >> 5) & 31, 1);"));
+        assertTrue(shader.contains("float shadowRtDenoiseStrength = clamp(gbo.uLightIntensity.y, 0.0, 1.0);"));
+        assertTrue(shader.contains("float shadowRtRayLength = clamp(gbo.uShadowCascadeExt.x, 1.0, 500.0);"));
+        assertTrue(shader.contains("int rtSteps = clamp(shadowRtSampleCount * (shadowRtMode > 1 ? 2 : 1), 4, 24);"));
+        assertTrue(shader.contains("float rtKernelBlend = mix(shadowRtMode > 1 ? 0.30 : 0.18, shadowRtMode > 1 ? 0.60 : 0.45, shadowRtDenoiseStrength);"));
+        assertTrue(shader.contains("int shadowModePacked = max(int(gbo.uLocalLightMeta.z + 0.5), 0);"));
         assertTrue(shader.contains("soft = mix(soft, neigh, clamp(0.32 * penumbra, 0.0, 0.45));"));
         assertTrue(shader.contains("float contactTemporalStability = mix("));
+        assertTrue(shader.contains("vec3 prevWorldPos = (obj.uPrevModel * vec4(vLocalPos, 1.0)).xyz;"));
         assertTrue(shader.contains("float contactTemporalMotionScale = clamp(gbo.uLightIntensity.z, 0.1, 3.0);"));
         assertTrue(shader.contains("float contactTemporalMinStability = clamp(gbo.uLightIntensity.w, 0.2, 1.0);"));
         assertTrue(shader.contains("* contactTemporalStability;"));

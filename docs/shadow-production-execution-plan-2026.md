@@ -45,11 +45,12 @@ Implemented now:
   - `shadowAllocatorAssignedLights`
   - `shadowAllocatorReusedAssignments`
   - `shadowAllocatorEvictions`
+- RT mode gating now distinguishes generic traversal support from BVH-capable support for `rtMode=bvh` requests (falls back deterministically when BVH capability is unavailable).
 
 Still pending:
 - full production multi-point cubemap scalability (beyond current matrix/layer bounds)
 - hardware-quality tuning/validation for the dedicated VSM/EVSM moment pipeline (write + mip prefilter is now active; neighborhood-weighted denoise/filtering landed, thresholds/quality sweeps remain)
-- hardware RT shadow traversal/denoise pipeline
+- hardware RT shadow traversal/denoise pipeline (capability-gated hybrid traversal path is now wired end-to-end with runtime tuning inputs for denoise/ray-length/sample-count; full dedicated BVH traversal/denoiser stack remains)
 
 ## Phased Execution
 
@@ -117,6 +118,7 @@ Status: In progress (started and partially landed).
 
 2. CI matrix expansion
 - D16/D32 divergence, cadence/static-cache correctness, long-run motion stress.
+ - Status: In progress (always-on guarded lanes are live for shadow matrix + scheduled real-Vulkan long-run + scheduled production quality sweeps; guarded threshold-lock emission is integrated in both long-run and quality-sweep scripts).
 
 3. Report quality
 - explicit fail reasons and metric drift windows.
@@ -125,4 +127,5 @@ Status: In progress (started and partially landed).
 
 1. Add temporal accumulation/rejection control for contact-shadow stability in high-motion sweeps.
 2. Add deeper moment-filter stress tests (`vsm`/`evsm`) in compare-harness matrix and lock updated thresholds.
-3. Implement hardware RT shadow traversal + denoise path behind capability/profile gating.
+3. Implement dedicated BVH RT shadow traversal + denoise path behind capability/profile gating (current hybrid RT traversal remains fallback-compatible baseline).
+4. Keep `scripts/shadow_production_quality_sweeps.sh` outputs feeding threshold-lock recommendations and periodically promote stable recommendations into repo-level locked threshold profiles.

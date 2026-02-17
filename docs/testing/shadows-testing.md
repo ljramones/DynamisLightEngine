@@ -37,9 +37,12 @@ End-to-end shadow CI matrix automation:
 CI always-on rollout:
 - GitHub Actions `shadow-matrix` runs on `push`/`pull_request` with mock Vulkan safety.
 - Weekly scheduled run (`schedule`) also executes long-run AA/shadow motion sampling.
+- GitHub Actions `shadow-real-longrun-guarded` runs on `schedule` (or manual dispatch) and emits guarded threshold-lock recommendations when real Vulkan is available.
+- GitHub Actions `shadow-production-quality-sweeps` runs on `schedule` (or manual dispatch) and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`) with guarded threshold-lock output.
 - Manual `workflow_dispatch` toggles:
   - `run_shadow_real_matrix=true`
   - `run_shadow_longrun=true`
+  - `run_shadow_quality_sweeps=true`
 
 Optional real Vulkan depth-format matrix + long-run:
 ```bash
@@ -52,7 +55,7 @@ DLE_COMPARE_VULKAN_MODE=real \
 Unit policy + matrix checks:
 ```bash
 mvn -pl engine-impl-vulkan -am test \
-  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#shadowAllocatorTelemetryShowsReuseAcrossFrames+shadowQualityPathRequestsEmitTrackingWarnings+pcssShadowQualityRequestTracksActivePathWithoutMomentWarning \
+  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#shadowAllocatorTelemetryShowsReuseAcrossFrames+shadowQualityPathRequestsEmitTrackingWarnings+bvhShadowModeRequestEmitsExplicitFallbackContext+pcssShadowQualityRequestTracksActivePathWithoutMomentWarning \
   -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
@@ -102,6 +105,11 @@ DLE_COMPARE_EXTRA_MVN_ARGS="-Dvulkan.shadow.filterPath=evsm -Dvulkan.shadow.mome
 ./scripts/aa_rebaseline_real_mac.sh
 ```
 
+Production quality parity sweeps + threshold lock (guarded real Vulkan by default):
+```bash
+./scripts/shadow_production_quality_sweeps.sh
+```
+
 Cadence scheduler check (real Vulkan):
 ```bash
 DLE_COMPARE_VULKAN_MODE=real \
@@ -129,6 +137,8 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Vulkan integration tests surface explicit rollout warning context when local shadow requests exceed currently guaranteed render parity paths:
   - `SHADOW_LOCAL_RENDER_BASELINE`
 - Vulkan integration tests now also validate multi-spot render policy reporting (`renderedLocalShadows`, `renderedSpotShadows`) and quality-path request tracking fields (`filterPath`, `contactShadows`, `rtMode`).
+- Vulkan mapper tests now validate capability-gated RT active state (`rtShadowActive`) when traversal extensions are available.
+- Vulkan shader/uniform tests now validate packed RT sample count metadata and runtime RT tuning decode (`shadowRtDenoiseStrength`, `shadowRtRayLength`, `shadowRtSampleCount`) feeding traversal/denoise shaping.
 - Vulkan runtime options tests also validate shadow quality tuning clamps:
   - `vulkan.shadow.pcssSoftness`
   - `vulkan.shadow.momentBlend`
@@ -184,6 +194,7 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.
 - Vulkan tier/override-bounded multi-point cubemap concurrency is now covered (`HIGH`: 1, `ULTRA`: 2, overrides up to scheduler/local-light limits); further scalability beyond current scheduler/budget caps remains pending.
 - Dedicated moment-atlas write/prefilter VSM/EVSM is active in Vulkan; hardware RT traversal/denoise is still pending.
+- Current RT path is capability-gated hybrid traversal with tunable denoise/ray-length/sample-count shaping; dedicated BVH traversal + full denoiser chain is still pending.
 - Need dedicated long-run shimmer/flicker analysis for shadow-only camera sweeps.
 
 ## 7. Planned Additions
@@ -191,6 +202,9 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Expand cadence tests (hero lights full-rate vs distant lights throttled update rates) from current baseline checks into longer frame windows.
 - Expand static-cache correctness tests (beyond current allocator reuse/eviction checks) to include stale-shadow scene transitions.
 - Add CI matrix axis for shadow depth format (`D16_UNORM`, `D32_SFLOAT`) and publish drift deltas in reports.
+- Keep guarded real-Vulkan shadow long-run sweep enabled in CI (`scripts/shadow_real_longrun_guarded.sh`) so hosts with real Vulkan support continuously sample shadow stress scenes.
+- Keep guarded threshold-lock generation enabled for real Vulkan outputs (`scripts/shadow_lock_thresholds_guarded.sh`) so repeated stable runs produce updated lock recommendations.
+- Keep production profile parity sweeps enabled in CI (`scripts/shadow_production_quality_sweeps.sh`) so `pcss/contact` and `vsm/evsm` lanes are repeatedly sampled and re-lock recommendations are generated from stable real-Vulkan datasets.
 - Add CI gate that verifies `SHADOW_LOCAL_RENDER_BASELINE` clears once Vulkan multi-local render parity lands.
 
 Cadence/static-cache planned test shape:

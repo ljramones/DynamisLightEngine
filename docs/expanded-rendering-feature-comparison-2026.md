@@ -46,13 +46,16 @@ Last updated: February 17, 2026.
 - Shadow telemetry now includes atlas memory/update-byte estimates and Vulkan depth-format compare controls (`d16`/`d32`) for CI divergence checks.
 - VSM/EVSM request-state telemetry now reports correctly (`momentPipelineRequested=true` for `vsm|evsm`), with pending/initializing warnings emitted when requested moment resources are not active.
 - Moment shadow filtering now adds edge-aware denoise weighting on top of neighborhood-weighted sampling to reduce blur bleeding across high-depth-gradient edges.
+- Capability-gated RT shadow hybrid traversal now consumes runtime tuning values (`vulkan.shadow.rtDenoiseStrength`, `vulkan.shadow.rtRayLength`, `vulkan.shadow.rtSampleCount`) directly in shader traversal/denoise shaping.
 - Shadow CI matrix now includes an explicit cadence guard (`shadowSchedulerCadenceDefersPointWorkUnderFaceBudget`) to enforce deferred-work behavior under local face-budget pressure.
+- Guarded real-Vulkan long-run shadow CI lane now auto-generates threshold-lock recommendations from collected compare metadata when hardware support is present.
+- Guarded production shadow quality sweeps now run as a dedicated CI lane (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`) and auto-generate threshold-lock recommendations from repeated real-Vulkan runs when available.
 - Good diagnostics/warnings for quality fallback and runtime pressure.
 - Shadow roadmap alignment is explicit: multi-local atlas rollout, temporal stability controls (texel snapping/jitter), static-vs-dynamic cache layering, cadence policy validation, and CI depth-format divergence checks (`D16_UNORM` vs `D32_SFLOAT`).
 
 ### Where DynamicLightEngine still trails AAA engines
 - No full dynamic GI framework (Lumen/SVOGI-class).
-- No dedicated production BVH traversal/reflection-denoiser RT pipeline yet (RT mode is currently request+fallback oriented).
+- No dedicated production BVH traversal/reflection-denoiser RT pipeline yet (RT mode is currently request+fallback oriented; `bvh` request mode is parsed/gated but still maps to the hybrid baseline path until dedicated BVH traversal lands).
 - Remaining shadow gap is explicit: full Vulkan per-light atlas/cubemap parity is still rolling out, and hardware RT traversal/denoise shadow path is still pending. Multi-point cubemap concurrency is now landed within current tier/override scheduler budgets, and dedicated Vulkan moment-atlas write/prefilter is active for `vsm|evsm`.
 - No production-grade virtual geometry/streaming system.
 - Smaller post/VFX stack (intentional scope for current phase).

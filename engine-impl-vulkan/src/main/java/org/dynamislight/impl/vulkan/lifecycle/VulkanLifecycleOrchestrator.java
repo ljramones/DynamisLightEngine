@@ -41,9 +41,13 @@ public final class VulkanLifecycleOrchestrator {
             );
             request.backendResources().physicalDevice = selection.physicalDevice();
             request.backendResources().graphicsQueueFamilyIndex = selection.graphicsQueueFamilyIndex();
+            request.backendResources().shadowRtTraversalSupported = selection.shadowRtTraversalSupported();
+            request.backendResources().shadowRtBvhSupported = selection.shadowRtBvhSupported();
             var deviceAndQueue = VulkanBootstrap.createLogicalDevice(
                     request.backendResources().physicalDevice,
                     request.backendResources().graphicsQueueFamilyIndex,
+                    request.backendResources().shadowRtTraversalSupported,
+                    request.backendResources().shadowRtBvhSupported,
                     stack
             );
             request.backendResources().device = deviceAndQueue.device();

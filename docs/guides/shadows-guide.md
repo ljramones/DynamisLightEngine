@@ -127,10 +127,10 @@ Sample host clamps:
   - `vulkan.shadow.contactStrength=0.25..2.0` (default `1.0`)
   - `vulkan.shadow.contactTemporalMotionScale=0.1..3.0` (default `1.0`)
   - `vulkan.shadow.contactTemporalMinStability=0.2..1.0` (default `0.42`)
-  - `vulkan.shadow.rtMode=off|optional|force`
-  - `vulkan.shadow.rtDenoiseStrength=0..1` (default `0.65`, groundwork control)
-  - `vulkan.shadow.rtRayLength=1..500` (default `80`, groundwork control)
-  - `vulkan.shadow.rtSampleCount=1..16` (default `2`, groundwork control)
+  - `vulkan.shadow.rtMode=off|optional|force|bvh`
+  - `vulkan.shadow.rtDenoiseStrength=0..1` (default `0.65`, hybrid traversal denoise shaping)
+  - `vulkan.shadow.rtRayLength=1..500` (default `80`, hybrid traversal march distance shaping)
+  - `vulkan.shadow.rtSampleCount=1..16` (default `2`, hybrid traversal step budget shaping)
   - `vulkan.shadow.maxShadowedLocalLights=0..8` (`0` = tier default)
   - `vulkan.shadow.maxLocalShadowLayers=0..24` (`0` = tier default scheduler budget)
   - `vulkan.shadow.maxShadowFacesPerFrame=0..24` (`0` = tier default scheduler budget)
@@ -140,7 +140,7 @@ Sample host clamps:
   - `vulkan.shadow.scheduler.distantPeriod=1..64` (default `4`)
   - `vulkan.shadow.directionalTexelSnapEnabled=true|false` (default `true`)
   - `vulkan.shadow.directionalTexelSnapScale=0.25..4.0` (default `1.0`)
-  Runtime tracks and reports these requests. Production-active runtime filter path now follows requested mode (`pcf|pcss|vsm|evsm`) with mode-specific shader shaping for PCSS/VSM/EVSM and strengthened contact-shadow modulation. Vulkan now also runs a dedicated layered moment pipeline for `vsm|evsm` (moment write + mip prefilter + mip-aware sampling), including light-bleed reduction and tuned penumbra/contact shaping. Dedicated hardware RT traversal/denoise remains on fallback.
+  Runtime tracks and reports these requests. Production-active runtime filter path now follows requested mode (`pcf|pcss|vsm|evsm`) with mode-specific shader shaping for PCSS/VSM/EVSM and strengthened contact-shadow modulation. Vulkan now also runs a dedicated layered moment pipeline for `vsm|evsm` (moment write + mip prefilter + mip-aware sampling), including light-bleed reduction and tuned penumbra/contact shaping. Capability-gated RT hybrid shadow traversal/denoise shaping is now wired (`rtActive=true` only when traversal extensions are available); full dedicated BVH traversal remains a separate step.
   Advanced quality tuning is now runtime-configurable via backend options (`pcssSoftness`, `momentBlend`, `momentBleedReduction`, `contactStrength`) without shader edits. Current Vulkan shading path also applies neighborhood-weighted plus edge-aware moment denoise and motion-adaptive contact stabilization to reduce high-motion flicker and edge bleeding.
   Motion-adaptive contact stabilization is further tunable via `contactTemporalMotionScale` and `contactTemporalMinStability`.
   Vulkan fragment texture descriptor sets now include a dedicated shadow-moment binding (`set=1,binding=8`) so moment-map sampling can be wired without further descriptor-layout churn.
@@ -248,6 +248,16 @@ DLE_SHADOW_CI_REAL_MATRIX=1 \
 DLE_SHADOW_CI_LONGRUN=1 \
 DLE_COMPARE_VULKAN_MODE=real \
 ./scripts/shadow_ci_matrix.sh
+```
+
+Guarded threshold-lock generation from real-Vulkan long-run outputs:
+```bash
+./scripts/shadow_lock_thresholds_guarded.sh artifacts/compare/shadow-real-longrun artifacts/compare/shadow-threshold-lock
+```
+
+Production profile quality sweeps + threshold lock (guarded real Vulkan):
+```bash
+./scripts/shadow_production_quality_sweeps.sh
 ```
 
 Parity/stress suite (includes shadow profiles):

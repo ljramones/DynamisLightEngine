@@ -32,6 +32,8 @@ class VulkanRuntimeOptionsTest {
                 256
         );
 
+        assertEquals("off", VulkanRuntimeOptions.parse(Map.of("vulkan.shadow.rtMode", "invalid"), 256).shadowRtMode());
+        assertEquals("bvh", VulkanRuntimeOptions.parse(Map.of("vulkan.shadow.rtMode", "bvh"), 256).shadowRtMode());
         assertEquals(7, parsed.shadowMaxShadowedLocalLights());
         assertEquals(12, parsed.shadowMaxLocalLayers());
         assertEquals(6, parsed.shadowMaxFacesPerFrame());

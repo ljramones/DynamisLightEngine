@@ -23,6 +23,9 @@ public final class VulkanRenderState {
     public float shadowContactTemporalMotionScale = 1.0f;
     public float shadowContactTemporalMinStability = 0.42f;
     public int shadowRtMode = 0; // 0=off,1=optional,2=force
+    public float shadowRtDenoiseStrength = 0.65f;
+    public float shadowRtRayLength = 80.0f;
+    public int shadowRtSampleCount = 2;
     public final float[] shadowCascadeSplitNdc = new float[]{1f, 1f, 1f};
     public final float[][] shadowLightViewProjMatrices = new float[][]{
             identityMatrix(),
