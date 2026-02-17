@@ -584,22 +584,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + " (runtime active filter path=" + currentShadows.runtimeFilterPath()
                                 + ", moment atlas sizing/telemetry is estimate-only)"
                 ));
-                if (!currentShadows.momentPipelineActive()) {
-                    if (context.hasShadowMomentResources() && !context.isShadowMomentInitialized()) {
-                        warnings.add(new EngineWarning(
-                                "SHADOW_MOMENT_PIPELINE_INITIALIZING",
-                                "Shadow moment resources are allocated but awaiting first-use initialization "
-                                        + "(requested=" + currentShadows.momentPipelineRequested()
-                                        + ", active=" + currentShadows.momentPipelineActive() + ")"
-                        ));
-                    } else {
-                        warnings.add(new EngineWarning(
-                                "SHADOW_MOMENT_PIPELINE_PENDING",
-                                "Shadow moment pipeline requested but not yet active "
-                                        + "(requested=" + currentShadows.momentPipelineRequested()
-                                        + ", active=" + currentShadows.momentPipelineActive() + ")"
-                        ));
-                    }
+            }
+            if (currentShadows.momentPipelineRequested() && !currentShadows.momentPipelineActive()) {
+                if (context.hasShadowMomentResources() && !context.isShadowMomentInitialized()) {
+                    warnings.add(new EngineWarning(
+                            "SHADOW_MOMENT_PIPELINE_INITIALIZING",
+                            "Shadow moment resources are allocated but awaiting first-use initialization "
+                                    + "(requested=" + currentShadows.momentPipelineRequested()
+                                    + ", active=" + currentShadows.momentPipelineActive() + ")"
+                    ));
+                } else {
+                    warnings.add(new EngineWarning(
+                            "SHADOW_MOMENT_PIPELINE_PENDING",
+                            "Shadow moment pipeline requested but not yet active "
+                                    + "(requested=" + currentShadows.momentPipelineRequested()
+                                    + ", active=" + currentShadows.momentPipelineActive() + ")"
+                    ));
                 }
             } else if (currentShadows.momentPipelineActive()) {
                 warnings.add(new EngineWarning(

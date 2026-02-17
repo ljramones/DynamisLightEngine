@@ -795,7 +795,7 @@ class VulkanEngineRuntimeIntegrationTest {
                         && w.message().contains("filterPath=evsm")
                         && w.message().contains("runtimeFilterPath=evsm")
                         && w.message().contains("momentFilterEstimateOnly=false")
-                        && w.message().contains("momentPipelineRequested=false")
+                        && w.message().contains("momentPipelineRequested=true")
                         && w.message().contains("momentPipelineActive=false")
                         && w.message().contains("momentResourceAllocated=false")
                         && w.message().contains("momentResourceFormat=none")
@@ -807,7 +807,7 @@ class VulkanEngineRuntimeIntegrationTest {
                         && w.message().contains("rtRayLength=120.0")
                         && w.message().contains("rtSampleCount=4")));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY".equals(w.code())));
-        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_PIPELINE_PENDING".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_PIPELINE_PENDING".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_PIPELINE_INITIALIZING".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_APPROX_ACTIVE".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w ->

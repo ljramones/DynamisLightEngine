@@ -40,6 +40,7 @@ Implemented now:
   - `momentFilterEstimateOnly`
   - `momentPipelineRequested`
   - `momentPipelineActive`
+  - note: `vsm|evsm` now correctly mark `momentPipelineRequested=true`, so pending/initializing/active warnings reflect real runtime state
 - allocator telemetry for reuse/eviction pressure:
   - `shadowAllocatorAssignedLights`
   - `shadowAllocatorReusedAssignments`

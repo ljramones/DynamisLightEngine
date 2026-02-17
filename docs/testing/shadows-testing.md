@@ -150,7 +150,9 @@ Long-run motion/shimmer sweep (real Vulkan):
 - For `vsm|evsm` requests, verify warning stream includes:
   - `SHADOW_POLICY_ACTIVE` fields: `runtimeFilterPath` matches requested `vsm|evsm`
   - `SHADOW_POLICY_ACTIVE` field: `momentFilterEstimateOnly=false`
-  - `SHADOW_POLICY_ACTIVE` fields: `momentPipelineRequested=true`, `momentPipelineActive=true`
+  - `SHADOW_POLICY_ACTIVE` field: `momentPipelineRequested=true` (request-state must be explicit in both mock and real Vulkan runs)
+  - `SHADOW_POLICY_ACTIVE` fields: `momentPipelineActive=true` on real Vulkan
+  - `SHADOW_MOMENT_PIPELINE_PENDING` expected in mock mode when requested path is unavailable
   - `SHADOW_POLICY_ACTIVE` fields: `momentResourceAllocated`, `momentResourceFormat`
   - `SHADOW_POLICY_ACTIVE` fields: `momentInitialized=true`, `momentPhase=active`
   - `SHADOW_POLICY_ACTIVE` field: `momentPhase` should not remain `pending` for real Vulkan `vsm|evsm`.

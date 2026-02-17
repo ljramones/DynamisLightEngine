@@ -667,7 +667,7 @@ final class VulkanEngineRuntimeLightingMapper {
     ) {
         String filterPath = shadowFilterPath == null || shadowFilterPath.isBlank() ? "pcf" : shadowFilterPath.trim().toLowerCase(java.util.Locale.ROOT);
         boolean momentFilterEstimateOnly = false;
-        boolean momentPipelineRequested = momentFilterEstimateOnly;
+        boolean momentPipelineRequested = "vsm".equals(filterPath) || "evsm".equals(filterPath);
         boolean momentPipelineActive = false;
         String runtimeFilterPath = switch (filterPath) {
             case "pcss", "vsm", "evsm" -> filterPath;

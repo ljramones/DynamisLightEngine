@@ -97,7 +97,7 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertEquals("evsm", ultra.filterPath());
         assertEquals("evsm", ultra.runtimeFilterPath());
         assertFalse(ultra.momentFilterEstimateOnly());
-        assertFalse(ultra.momentPipelineRequested());
+        assertTrue(ultra.momentPipelineRequested());
         assertFalse(ultra.momentPipelineActive());
         assertTrue(ultra.contactShadowsRequested());
         assertEquals("optional", ultra.rtShadowMode());
