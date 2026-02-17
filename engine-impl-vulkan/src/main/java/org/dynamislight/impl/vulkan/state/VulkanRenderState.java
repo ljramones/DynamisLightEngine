@@ -9,8 +9,17 @@ public final class VulkanRenderState {
     public int shadowPcfRadius = 1;
     public int shadowCascadeCount = 1;
     public int shadowMapResolution = 1024;
+    public int shadowFilterMode = 0; // 0=pcf,1=pcss,2=vsm,3=evsm
+    public boolean shadowContactShadows;
+    public int shadowRtMode = 0; // 0=off,1=optional,2=force
     public final float[] shadowCascadeSplitNdc = new float[]{1f, 1f, 1f};
     public final float[][] shadowLightViewProjMatrices = new float[][]{
+            identityMatrix(),
+            identityMatrix(),
+            identityMatrix(),
+            identityMatrix(),
+            identityMatrix(),
+            identityMatrix(),
             identityMatrix(),
             identityMatrix(),
             identityMatrix(),

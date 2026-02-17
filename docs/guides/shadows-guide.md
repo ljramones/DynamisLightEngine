@@ -116,13 +116,13 @@ Sample host clamps:
   - `-Ddle.vulkan.shadow.depthFormat=d16`
   - `-Ddle.vulkan.shadow.depthFormat=d32`
 - Non-directional shadow coverage is supported at baseline level but may differ in quality/perf characteristics by backend/profile.
-- OpenGL now applies local spot shadows through an atlas path in the main local-light loop; Vulkan keeps primary-local render baseline while atlas/cubemap render rollout continues.
-- Vulkan now renders multi-local **spot** shadow layers (within current shadow-layer budget) when spot shadow slots are assigned; full multi-point cubemap parity is still rolling out.
+- OpenGL now applies local spot shadows through an atlas path in the main local-light loop.
+- Vulkan now renders multi-local **spot** shadow layers and provides tier-bounded point-cubemap scheduling metadata, while full per-light atlas/cubemap parity remains in rollout.
 - Shadow quality-path requests are now first-class backend options:
   - `vulkan.shadow.filterPath=pcf|pcss|vsm|evsm`
   - `vulkan.shadow.contactShadows=true|false`
   - `vulkan.shadow.rtMode=off|optional|force`
-  Runtime currently tracks and reports these requests, with production fallback still on the PCF/non-RT stack until dedicated implementations land.
+  Runtime tracks and reports these requests; current shader path applies tiered kernel behavior (`pcf` baseline with `pcss`/`vsm`/`evsm` request shaping) and optional contact-shadow modulation, while dedicated RT traversal remains on fallback.
 
 Current default local shadow budgets by tier:
 - `LOW`: 1 local shadow light
@@ -215,6 +215,7 @@ Targeted shadow stress outputs are generated in compare artifacts:
 
 ## 7. Remaining Rollout Gaps
 
-- Full concurrent multi-point cubemap shadow rendering (`>1` point-shadow cubemap) is still pending.
-- Dedicated VSM/EVSM/PCSS/contact-shadow production filtering paths are still pending (request+tracking is live).
+- Full production multi-point cubemap concurrency (>1 fully rendered point-shadow cubemap at once across all targeted tiers/profiles) is still pending.
+- Dedicated VSM/EVSM variance-moment storage/filter pipeline is still pending (current mode uses compare-sampler shaping).
+- Dedicated PCSS penumbra/contact-shadow production filtering is still pending (current mode uses request-driven shaping/modulation).
 - Hardware RT shadow traversal/denoise path is still pending (request+fallback tracking is live).

@@ -135,6 +135,11 @@ final class VulkanRuntimeLifecycle {
                 state.shadows().cascadeCount(),
                 state.shadows().mapResolution()
         );
+        context.setShadowQualityModes(
+                state.shadows().filterPath(),
+                state.shadows().contactShadowsRequested(),
+                state.shadows().rtShadowMode()
+        );
         context.setFogParameters(state.fog().enabled(), state.fog().r(), state.fog().g(), state.fog().b(), state.fog().density(), state.fog().steps());
         context.setSmokeParameters(state.smoke().enabled(), state.smoke().r(), state.smoke().g(), state.smoke().b(), state.smoke().intensity());
         context.setIblParameters(state.ibl().enabled(), state.ibl().diffuseStrength(), state.ibl().specularStrength(), state.ibl().prefilterStrength());

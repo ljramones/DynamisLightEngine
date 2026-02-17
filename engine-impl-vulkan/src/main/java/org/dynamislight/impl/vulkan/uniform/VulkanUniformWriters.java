@@ -30,7 +30,12 @@ public final class VulkanUniformWriters {
                 localShadowSlots++;
             }
         }
-        fb.put(new float[]{(float) in.localLightCount(), (float) localShadowSlots, 0f, 0f});
+        fb.put(new float[]{
+                (float) in.localLightCount(),
+                (float) localShadowSlots,
+                (float) in.shadowFilterMode(),
+                in.shadowContactShadows() ? 1f : 0f
+        });
         for (int i = 0; i < in.maxLocalLights(); i++) {
             int offset = i * 4;
             fb.put(new float[]{
@@ -146,6 +151,8 @@ public final class VulkanUniformWriters {
             float[] localLightColorIntensity,
             float[] localLightDirInner,
             float[] localLightOuterTypeShadow,
+            int shadowFilterMode,
+            boolean shadowContactShadows,
             float dirLightIntensity,
             float pointLightIntensity,
             boolean shadowEnabled,

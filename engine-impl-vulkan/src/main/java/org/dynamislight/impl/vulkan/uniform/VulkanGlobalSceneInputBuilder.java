@@ -35,6 +35,8 @@ public final class VulkanGlobalSceneInputBuilder {
                 in.localLightColorIntensity(),
                 in.localLightDirInner(),
                 in.localLightOuterTypeShadow(),
+                in.shadowFilterMode(),
+                in.shadowContactShadows(),
                 in.dirLightIntensity(),
                 in.pointLightIntensity(),
                 in.shadowEnabled(),
@@ -122,6 +124,8 @@ public final class VulkanGlobalSceneInputBuilder {
                 lighting.localLightColorIntensity(),
                 lighting.localLightDirInner(),
                 lighting.localLightOuterTypeShadow(),
+                shadow.shadowFilterMode(),
+                shadow.shadowContactShadows(),
                 lighting.dirLightIntensity(),
                 lighting.pointLightIntensity(),
                 shadow.shadowEnabled(),
@@ -199,6 +203,8 @@ public final class VulkanGlobalSceneInputBuilder {
             float[] localLightColorIntensity,
             float[] localLightDirInner,
             float[] localLightOuterTypeShadow,
+            int shadowFilterMode,
+            boolean shadowContactShadows,
             float dirLightIntensity,
             float pointLightIntensity,
             boolean shadowEnabled,
@@ -287,7 +293,9 @@ public final class VulkanGlobalSceneInputBuilder {
             int shadowPcfRadius,
             int shadowCascadeCount,
             int shadowMapResolution,
-            float[] shadowCascadeSplitNdc
+            float[] shadowCascadeSplitNdc,
+            int shadowFilterMode,
+            boolean shadowContactShadows
     ) {
     }
 

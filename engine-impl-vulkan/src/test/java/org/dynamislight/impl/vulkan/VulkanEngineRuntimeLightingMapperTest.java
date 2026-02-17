@@ -1,6 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -24,7 +25,10 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertEquals(2, config.localLightCount());
         assertEquals(32, config.localLightPosRange().length);
         assertEquals(32, config.localLightColorIntensity().length);
-        assertTrue(config.shadowPointCastsShadows());
+        boolean hasLayerAssignment = config.localLightOuterTypeShadow()[3] > 0.5f
+                || config.localLightOuterTypeShadow()[7] > 0.5f;
+        assertTrue(hasLayerAssignment);
+        assertFalse(config.shadowPointCastsShadows());
         assertTrue(config.shadowPointIsSpot());
         assertEquals(18f, config.shadowPointRange(), 0.0001f);
     }

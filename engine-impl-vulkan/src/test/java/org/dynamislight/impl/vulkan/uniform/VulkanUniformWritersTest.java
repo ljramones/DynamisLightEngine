@@ -30,7 +30,7 @@ class VulkanUniformWritersTest {
         outerTypeShadow[2] = 1.0f;
 
         VulkanUniformWriters.GlobalSceneUniformInput in = new VulkanUniformWriters.GlobalSceneUniformInput(
-                1392,
+                1776,
                 identity(),
                 identity(),
                 0f, -1f, 0f,
@@ -46,6 +46,8 @@ class VulkanUniformWritersTest {
                 colorIntensity,
                 dirInner,
                 outerTypeShadow,
+                0,
+                false,
                 1f, 1f,
                 false, 0.4f, 0.001f, 1.0f, 1.0f, 1, 1, 1024, new float[]{0.25f, 0.5f, 0.75f},
                 false, 0f, 0f, 0f, 0f, 0,
@@ -56,10 +58,13 @@ class VulkanUniformWritersTest {
                 false, 0f, 1f, 0.02f, 1f,
                 false, 0f,
                 identity(),
-                new float[][]{identity(), identity(), identity(), identity(), identity(), identity()}
+                new float[][]{
+                        identity(), identity(), identity(), identity(), identity(), identity(),
+                        identity(), identity(), identity(), identity(), identity(), identity()
+                }
         );
 
-        ByteBuffer target = ByteBuffer.allocateDirect(1392).order(ByteOrder.nativeOrder());
+        ByteBuffer target = ByteBuffer.allocateDirect(1776).order(ByteOrder.nativeOrder());
         VulkanUniformWriters.writeGlobalSceneUniform(target, in);
         FloatBuffer fb = target.order(ByteOrder.nativeOrder()).asFloatBuffer();
         int metaIndex = findSequenceStart(fb, new float[]{2f, 0f, 0f, 0f, 4f, 5f, 6f, 12f});

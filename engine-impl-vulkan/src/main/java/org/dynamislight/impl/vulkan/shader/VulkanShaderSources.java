@@ -35,7 +35,7 @@ public final class VulkanShaderSources {
                     vec4 uBloom;
                     vec4 uAntiAlias;
                     mat4 uPrevViewProj;
-                    mat4 uShadowLightViewProj[6];
+                    mat4 uShadowLightViewProj[12];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
@@ -48,7 +48,7 @@ public final class VulkanShaderSources {
                     int uCascadeIndex;
                 } pc;
                 void main() {
-                    int cascadeIndex = clamp(pc.uCascadeIndex, 0, 5);
+                    int cascadeIndex = clamp(pc.uCascadeIndex, 0, 11);
                     gl_Position = gbo.uShadowLightViewProj[cascadeIndex] * obj.uModel * vec4(inPos, 1.0);
                 }
                 """;
@@ -101,7 +101,7 @@ public final class VulkanShaderSources {
                     vec4 uBloom;
                     vec4 uAntiAlias;
                     mat4 uPrevViewProj;
-                    mat4 uShadowLightViewProj[6];
+                    mat4 uShadowLightViewProj[12];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
@@ -161,7 +161,7 @@ public final class VulkanShaderSources {
                     vec4 uBloom;
                     vec4 uAntiAlias;
                     mat4 uPrevViewProj;
-                    mat4 uShadowLightViewProj[6];
+                    mat4 uShadowLightViewProj[12];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
@@ -239,6 +239,8 @@ public final class VulkanShaderSources {
                     float toksvigVariance = clamp(normalVariance * 0.70 + normalMapVariance * 0.65, 0.0, 1.0);
                     roughness = clamp(sqrt(roughness * roughness + toksvigVariance * 0.52), 0.04, 1.0);
                     float dirIntensity = max(0.0, gbo.uLightIntensity.x);
+                    int shadowFilterMode = clamp(int(gbo.uLocalLightMeta.z + 0.5), 0, 3);
+                    bool contactShadows = gbo.uLocalLightMeta.w > 0.5;
 
                     float ao = clamp(texture(uOcclusionTexture, vUv).r, 0.0, 1.0);
                     vec3 lDir = normalize(-gbo.uDirLightDir.xyz);
@@ -262,7 +264,7 @@ public final class VulkanShaderSources {
                     vec3 directional = (diffuse + specular) * gbo.uDirLightColor.rgb * (ndl * dirIntensity);
                     vec3 pointLit = vec3(0.0);
                     int localCount = clamp(int(gbo.uLocalLightMeta.x + 0.5), 0, 8);
-                    int localShadowSlots = clamp(int(gbo.uLocalLightMeta.y + 0.5), 0, 6);
+                    int localShadowSlots = clamp(int(gbo.uLocalLightMeta.y + 0.5), 0, 12);
                     for (int i = 0; i < localCount; i++) {
                         vec3 localPos = gbo.uLocalLightPosRange[i].xyz;
                         float localRange = max(gbo.uLocalLightPosRange[i].w, 0.1);
@@ -273,7 +275,7 @@ public final class VulkanShaderSources {
                         float localOuter = gbo.uLocalLightOuterTypeShadow[i].x;
                         float localIsSpot = gbo.uLocalLightOuterTypeShadow[i].y;
                         float localCastsShadow = gbo.uLocalLightOuterTypeShadow[i].z;
-                        int localShadowLayer = clamp(int(gbo.uLocalLightOuterTypeShadow[i].w + 0.5) - 1, -1, 5);
+                        int localShadowLayer = clamp(int(gbo.uLocalLightOuterTypeShadow[i].w + 0.5) - 1, -1, 11);
                         vec3 localToLight = localPos - vWorldPos;
                         vec3 localLightDir = normalize(localToLight);
                         float localDist = max(length(localToLight), 0.1);
@@ -300,6 +302,11 @@ public final class VulkanShaderSources {
                                     && localShadowCoord.x >= 0.0 && localShadowCoord.x <= 1.0
                                     && localShadowCoord.y >= 0.0 && localShadowCoord.y <= 1.0) {
                                 int localRadius = clamp(int(gbo.uShadow.w + 0.5), 0, 4);
+                                if (shadowFilterMode == 1) {
+                                    localRadius = clamp(localRadius + int(clamp(localShadowCoord.z * 3.0, 0.0, 2.0)), 0, 4);
+                                } else if (shadowFilterMode == 2 || shadowFilterMode == 3) {
+                                    localRadius = clamp(localRadius + 1, 0, 4);
+                                }
                                 float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
                                 float compareDepth = clamp(localShadowCoord.z - gbo.uShadow.z, 0.0, 1.0);
                                 float total = 0.0;
@@ -317,7 +324,54 @@ public final class VulkanShaderSources {
                                 localShadowVisibility = (taps > 0.0) ? (total / taps) : 1.0;
                             }
                         }
-                        pointLit += (kd * baseColor / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity * localShadowVisibility);
+                        if (localIsSpot <= 0.5 && localCastsShadow > 0.5 && localShadowSlots > 0 && localShadowLayer >= 0) {
+                            vec3 pointVec = normalize(vWorldPos - localPos);
+                            int pointLayer = localShadowLayer;
+                            if (localShadowLayer + 5 <= 11) {
+                                vec3 absVec = abs(pointVec);
+                                if (absVec.x >= absVec.y && absVec.x >= absVec.z) {
+                                    pointLayer = localShadowLayer + (pointVec.x >= 0.0 ? 0 : 1);
+                                } else if (absVec.y >= absVec.z) {
+                                    pointLayer = localShadowLayer + (pointVec.y >= 0.0 ? 2 : 3);
+                                } else {
+                                    pointLayer = localShadowLayer + (pointVec.z >= 0.0 ? 4 : 5);
+                                }
+                            }
+                            vec4 localShadowPos = gbo.uShadowLightViewProj[pointLayer] * vec4(vWorldPos, 1.0);
+                            vec3 localShadowCoord = localShadowPos.xyz / max(localShadowPos.w, 0.0001);
+                            localShadowCoord = localShadowCoord * 0.5 + 0.5;
+                            if (localShadowCoord.z > 0.0
+                                    && localShadowCoord.z < 1.0
+                                    && localShadowCoord.x >= 0.0 && localShadowCoord.x <= 1.0
+                                    && localShadowCoord.y >= 0.0 && localShadowCoord.y <= 1.0) {
+                                int localRadius = clamp(int(gbo.uShadow.w + 0.5), 0, 4);
+                                if (shadowFilterMode == 1) {
+                                    localRadius = clamp(localRadius + int(clamp(localShadowCoord.z * 3.0, 0.0, 2.0)), 0, 4);
+                                } else if (shadowFilterMode == 2 || shadowFilterMode == 3) {
+                                    localRadius = clamp(localRadius + 1, 0, 4);
+                                }
+                                float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
+                                float compareDepth = clamp(localShadowCoord.z - gbo.uShadow.z, 0.0, 1.0);
+                                float total = 0.0;
+                                float taps = 0.0;
+                                for (int y = -4; y <= 4; y++) {
+                                    for (int x = -4; x <= 4; x++) {
+                                        if (abs(x) > localRadius || abs(y) > localRadius) {
+                                            continue;
+                                        }
+                                        vec2 offset = vec2(float(x), float(y)) * texel;
+                                        total += texture(uShadowMap, vec4(localShadowCoord.xy + offset, float(pointLayer), compareDepth));
+                                        taps += 1.0;
+                                    }
+                                }
+                                localShadowVisibility *= (taps > 0.0) ? (total / taps) : 1.0;
+                            }
+                        }
+                        float contact = 1.0;
+                        if (contactShadows) {
+                            contact = clamp(1.0 - (1.0 - localNdl) * 0.22 * (1.0 - roughness), 0.55, 1.0);
+                        }
+                        pointLit += (kd * baseColor / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity * localShadowVisibility * contact);
                     }
                     vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * baseColor * ao;
 
@@ -345,6 +399,11 @@ public final class VulkanShaderSources {
                                 && shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0) {
                             float cascadeT = float(cascadeIndex) / max(float(cascadeCount - 1), 1.0);
                             int radius = clamp(int(gbo.uShadow.w + 0.5) + (cascadeIndex / 2), 0, 4);
+                            if (shadowFilterMode == 1) {
+                                radius = clamp(radius + int(clamp(shadowCoord.z * 3.0, 0.0, 2.0)), 0, 4);
+                            } else if (shadowFilterMode == 2 || shadowFilterMode == 3) {
+                                radius = clamp(radius + 1, 0, 4);
+                            }
                             float texel = (1.0 / max(gbo.uShadowCascade.y, 1.0)) * mix(1.0, 2.25, cascadeT);
                             float normalBiasScale = max(gbo.uShadowCascadeExt.z, 0.25);
                             float slopeBiasScale = max(gbo.uShadowCascadeExt.w, 0.25);
@@ -408,6 +467,11 @@ public final class VulkanShaderSources {
                                 && pointShadowCoord.y >= 0.0 && pointShadowCoord.y <= 1.0) {
                             float pointDepthRatio = clamp(dist / max(gbo.uPointLightPos.w, 0.0001), 0.0, 1.0);
                             int pointRadius = clamp(int(gbo.uShadow.w + 0.5), 0, 4);
+                            if (shadowFilterMode == 1) {
+                                pointRadius = clamp(pointRadius + int(clamp(pointDepthRatio * 3.0, 0.0, 2.0)), 0, 4);
+                            } else if (shadowFilterMode == 2 || shadowFilterMode == 3) {
+                                pointRadius = clamp(pointRadius + 1, 0, 4);
+                            }
                             float texel = (1.0 / max(gbo.uShadowCascade.y, 1.0)) * mix(0.85, 2.0, pointDepthRatio);
                             float normalBiasScale = max(gbo.uShadowCascadeExt.z, 0.25);
                             float slopeBiasScale = max(gbo.uShadowCascadeExt.w, 0.25);

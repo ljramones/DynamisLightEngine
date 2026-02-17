@@ -97,13 +97,15 @@ Long-run motion/shimmer sweep (real Vulkan):
 - D16 vs D32 runs show no unacceptable acne/peter-panning divergence for locked profiles.
 - OpenGL lifecycle tests stay green with local shadow-atlas loop active:
   - `OpenGlEngineRuntimeLifecycleTest`
-- Vulkan integration tests surface explicit baseline warning when multiple local shadow casters are requested but render-side multi-local atlas/cubemap rollout is still pending:
+- Vulkan integration tests surface explicit rollout warning context when local shadow requests exceed currently guaranteed render parity paths:
   - `SHADOW_LOCAL_RENDER_BASELINE`
 - Vulkan integration tests now also validate multi-spot render policy reporting (`renderedLocalShadows`, `renderedSpotShadows`) and quality-path request tracking fields (`filterPath`, `contactShadows`, `rtMode`).
+- Vulkan policy checks now include concurrent point-cubemap scheduling counters (`renderedPointShadowCubemaps`) for tier-bounded multi-point coverage.
 
 ## 6. Known Gaps
 - Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.
-- Vulkan multi-point cubemap shadow rendering (>1 concurrent point-shadow map) is still pending.
+- Vulkan full production multi-point cubemap concurrency (>1 fully rendered point-shadow map at once across target profiles) is still pending.
+- Production VSM/EVSM/PCSS/contact/RT shadow paths are still pending; request/config + tracking coverage exists.
 - Need dedicated long-run shimmer/flicker analysis for shadow-only camera sweeps.
 
 ## 7. Planned Additions

@@ -63,11 +63,11 @@ final class VulkanContext {
     private static final int DEFAULT_DYNAMIC_UPLOAD_MERGE_GAP_OBJECTS = 1;
     private static final int DEFAULT_DYNAMIC_OBJECT_SOFT_LIMIT = 1536;
     private static final int MAX_PENDING_UPLOAD_RANGES_HARD_CAP = 4096;
-    private static final int MAX_SHADOW_CASCADES = 4;
+    private static final int MAX_SHADOW_CASCADES = 12;
     private static final int POINT_SHADOW_FACES = 6;
-    private static final int MAX_SHADOW_MATRICES = 6;
+    private static final int MAX_SHADOW_MATRICES = 12;
     static final int MAX_LOCAL_LIGHTS = 8;
-    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 1392;
+    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 1776;
     private static final int OBJECT_UNIFORM_BYTES = 176;
     private static final String SHADOW_DEPTH_FORMAT_PROPERTY = "dle.vulkan.shadow.depthFormat";
     private final VulkanBackendResources backendResources = new VulkanBackendResources();
@@ -468,6 +468,36 @@ final class VulkanContext {
             }
         }
         if (result.changed()) {
+            markGlobalStateDirty();
+        }
+    }
+
+    void setShadowQualityModes(String filterPath, boolean contactShadows, String rtMode) {
+        int filterMode = switch (filterPath == null ? "pcf" : filterPath.trim().toLowerCase()) {
+            case "pcss" -> 1;
+            case "vsm" -> 2;
+            case "evsm" -> 3;
+            default -> 0;
+        };
+        int rtModeInt = switch (rtMode == null ? "off" : rtMode.trim().toLowerCase()) {
+            case "optional" -> 1;
+            case "force" -> 2;
+            default -> 0;
+        };
+        boolean changed = false;
+        if (renderState.shadowFilterMode != filterMode) {
+            renderState.shadowFilterMode = filterMode;
+            changed = true;
+        }
+        if (renderState.shadowContactShadows != contactShadows) {
+            renderState.shadowContactShadows = contactShadows;
+            changed = true;
+        }
+        if (renderState.shadowRtMode != rtModeInt) {
+            renderState.shadowRtMode = rtModeInt;
+            changed = true;
+        }
+        if (changed) {
             markGlobalStateDirty();
         }
     }
@@ -1147,6 +1177,8 @@ final class VulkanContext {
                                         localLightColorIntensity,
                                         localLightDirInner,
                                         localLightOuterTypeShadow,
+                                        renderState.shadowFilterMode,
+                                        renderState.shadowContactShadows,
                                         lightingState.dirLightIntensity(),
                                         lightingState.pointLightIntensity(),
                                         renderState.shadowEnabled,
