@@ -91,7 +91,7 @@ Status: In progress (started and partially landed).
 
 1. VSM/EVSM
 - moment render targets, prefilter/blur, variance resolve, bleed control.
- - Status: In progress (dedicated moment write + mip prefilter + mip-aware sampling + neighborhood-weighted denoise active, now extended with deep/ultra wide bilateral consistency passes, moment-neighborhood bounds clamp, and leak-risk anti-bleed shaping for higher stability).
+ - Status: In progress (dedicated moment write + mip prefilter + mip-aware sampling + neighborhood-weighted denoise active, now extended with deep/ultra wide bilateral consistency passes, ring-bilateral production refinement + variance-confidence stabilization, moment-neighborhood bounds clamp, and leak-risk anti-bleed shaping for higher stability).
 
 2. PCSS
 - blocker search + penumbra estimation + tiered kernel path.

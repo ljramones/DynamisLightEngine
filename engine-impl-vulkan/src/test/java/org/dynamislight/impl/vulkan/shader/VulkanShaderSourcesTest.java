@@ -12,12 +12,18 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("float reduceLightBleed(float visibility, float amount)"));
         assertTrue(shader.contains("vec2 sampleMomentsWeighted(vec2 uv, int layer, float lod, float texel, float depthRef, float blendStrength)"));
         assertTrue(shader.contains("vec2 sampleMomentsWideBilateral(vec2 uv, int layer, float lod, float texel, float depthRef, float blendStrength)"));
+        assertTrue(shader.contains("vec2 sampleMomentsRingBilateral(vec2 uv, int layer, float lod, float texel, float depthRef, float blendStrength)"));
         assertTrue(shader.contains("vec4 sampleMomentBounds(vec2 uv, int layer, float lod, float texel)"));
         assertTrue(shader.contains("vec2 clampMomentsToBounds(vec2 moments, vec4 bounds, float edgeFactor)"));
+        assertTrue(shader.contains("float momentVarianceConfidence(vec2 moments, float edgeFactor, float blendStrength)"));
         assertTrue(shader.contains("vec2 wideMoments = sampleMomentsWeighted("));
         assertTrue(shader.contains("vec2 deepMoments = sampleMomentsWideBilateral("));
         assertTrue(shader.contains("vec2 ultraMoments = sampleMomentsWideBilateral("));
+        assertTrue(shader.contains("vec2 ringMoments = sampleMomentsRingBilateral("));
         assertTrue(shader.contains("vec4 momentBounds = sampleMomentBounds("));
+        assertTrue(shader.contains("float productionChainBoost = clamp((momentBlend - 0.75) * 1.25, 0.0, 1.0);"));
+        assertTrue(shader.contains("float ringWeight = clamp((0.05 + 0.16 * denoiseStability) * productionChainBoost, 0.0, 0.24);"));
+        assertTrue(shader.contains("float varianceConfidence = momentVarianceConfidence(moments, denoiseEdgeFactor, momentBlend);"));
         assertTrue(shader.contains("moments = clampMomentsToBounds(moments, momentBounds, denoiseEdgeFactor);"));
         assertTrue(shader.contains("float consistency = clamp(abs(deepMoments.x - baseMoments.x)"));
         assertTrue(shader.contains("float leakRisk = clamp((compareDepth - mean)"));
