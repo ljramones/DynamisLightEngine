@@ -34,7 +34,10 @@ final class VulkanRuntimeOptions {
                 parseIntOption(safe, "vulkan.pendingUploadRangeWarnCooldownFrames", 120, 0, 10000),
                 parseIntOption(safe, "vulkan.descriptorRingActiveSoftLimit", 2048, 64, 32768),
                 parseIntOption(safe, "vulkan.descriptorRingActiveWarnCooldownFrames", 120, 0, 10000),
-                parseIntOption(safe, "vulkan.taaDebugView", 0, 0, 5)
+                parseIntOption(safe, "vulkan.taaDebugView", 0, 0, 5),
+                parseShadowFilterPath(safe.get("vulkan.shadow.filterPath")),
+                parseBoolean(safe, "vulkan.shadow.contactShadows", false),
+                parseShadowRtMode(safe.get("vulkan.shadow.rtMode"))
         );
     }
 
@@ -82,6 +85,28 @@ final class VulkanRuntimeOptions {
         }
     }
 
+    private static String parseShadowFilterPath(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "pcf";
+        }
+        String normalized = raw.trim().toLowerCase();
+        return switch (normalized) {
+            case "pcf", "pcss", "vsm", "evsm" -> normalized;
+            default -> "pcf";
+        };
+    }
+
+    private static String parseShadowRtMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "off";
+        }
+        String normalized = raw.trim().toLowerCase();
+        return switch (normalized) {
+            case "off", "optional", "force" -> normalized;
+            default -> "off";
+        };
+    }
+
     record Parsed(
             boolean mockContext,
             boolean windowVisible,
@@ -108,7 +133,10 @@ final class VulkanRuntimeOptions {
             int pendingUploadRangeWarnCooldownFrames,
             int descriptorRingActiveSoftLimit,
             int descriptorRingActiveWarnCooldownFrames,
-            int taaDebugView
+            int taaDebugView,
+            String shadowFilterPath,
+            boolean shadowContactShadows,
+            String shadowRtMode
     ) {
     }
 }

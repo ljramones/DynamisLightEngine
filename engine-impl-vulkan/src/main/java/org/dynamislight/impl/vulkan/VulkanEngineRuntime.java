@@ -116,6 +116,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             0, 0, "none", "none",
             0, 0, 0.0f, 0,
             0L, 0L, 0L,
+            0, 0, 0,
+            "pcf", false, "off", false,
             false
     );
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
@@ -133,6 +135,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private String nativeUpscalerDetail = "inactive";
     private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
+    private String shadowFilterPath = "pcf";
+    private boolean shadowContactShadows;
+    private String shadowRtMode = "off";
 
     public VulkanEngineRuntime() {
         super(
@@ -174,6 +179,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         warningConfig.descriptorRingActiveSoftLimit = options.descriptorRingActiveSoftLimit();
         warningConfig.descriptorRingActiveWarnCooldownFrames = options.descriptorRingActiveWarnCooldownFrames();
         taaDebugView = options.taaDebugView();
+        shadowFilterPath = options.shadowFilterPath();
+        shadowContactShadows = options.shadowContactShadows();
+        shadowRtMode = options.shadowRtMode();
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -214,7 +222,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 upscalerMode,
                 upscalerQuality,
                 tsrControls,
-                reflectionProfile
+                reflectionProfile,
+                shadowFilterPath,
+                shadowContactShadows,
+                shadowRtMode
         );
         currentFog = sceneState.fog();
         currentSmoke = sceneState.smoke();
@@ -347,15 +358,37 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " shadowUpdateBytesEstimate=" + currentShadows.shadowUpdateBytesEstimate()
                             + " shadowDepthFormat=" + context.shadowDepthFormatTag()
                             + " cadencePolicy=hero:1 mid:2 distant:4"
+                            + " renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
+                            + " renderedSpotShadows=" + currentShadows.renderedSpotShadowLights()
+                            + " renderedPointShadowCubemaps=" + currentShadows.renderedPointShadowCubemaps()
+                            + " filterPath=" + currentShadows.filterPath()
+                            + " contactShadows=" + currentShadows.contactShadowsRequested()
+                            + " rtMode=" + currentShadows.rtShadowMode()
+                            + " rtActive=" + currentShadows.rtShadowActive()
                             + " normalBiasScale=" + currentShadows.normalBiasScale()
                             + " slopeBiasScale=" + currentShadows.slopeBiasScale()
             ));
-            if (currentShadows.selectedLocalShadowLights() > 1) {
+            if (currentShadows.renderedLocalShadowLights() < currentShadows.selectedLocalShadowLights()) {
                 warnings.add(new EngineWarning(
                         "SHADOW_LOCAL_RENDER_BASELINE",
                         "Vulkan local-shadow render path is still primary-local baseline "
                                 + "(requestedLocalShadows=" + currentShadows.selectedLocalShadowLights()
-                                + ", renderedLocalShadows=1, atlas/cubemap multi-local rollout pending)"
+                                + ", renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
+                                + ", atlas/cubemap multi-local rollout pending)"
+                ));
+            }
+            if (!"pcf".equals(currentShadows.filterPath())) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_FILTER_PATH_REQUESTED",
+                        "Shadow filter path requested: " + currentShadows.filterPath()
+                                + " (runtime currently falls back to PCF shading path for production output)"
+                ));
+            }
+            if (!"off".equals(currentShadows.rtShadowMode())) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_RT_PATH_REQUESTED",
+                        "RT shadow mode requested: " + currentShadows.rtShadowMode()
+                                + " (active=" + currentShadows.rtShadowActive() + ", fallback stack in use)"
                 ));
             }
         }
@@ -651,6 +684,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             long atlasMemoryBytesD16,
             long atlasMemoryBytesD32,
             long shadowUpdateBytesEstimate,
+            int renderedLocalShadowLights,
+            int renderedSpotShadowLights,
+            int renderedPointShadowCubemaps,
+            String filterPath,
+            boolean contactShadowsRequested,
+            String rtShadowMode,
+            boolean rtShadowActive,
             boolean degraded
     ) {
     }

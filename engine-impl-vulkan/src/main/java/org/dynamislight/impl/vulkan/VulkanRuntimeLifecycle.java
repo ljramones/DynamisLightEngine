@@ -55,15 +55,24 @@ final class VulkanRuntimeLifecycle {
             VulkanEngineRuntime.UpscalerMode upscalerMode,
             VulkanEngineRuntime.UpscalerQuality upscalerQuality,
             VulkanEngineRuntime.TsrControls tsrControls,
-            VulkanEngineRuntime.ReflectionProfile reflectionProfile
+            VulkanEngineRuntime.ReflectionProfile reflectionProfile,
+            String shadowFilterPath,
+            boolean shadowContactShadows,
+            String shadowRtMode
     ) {
         var camera = VulkanEngineRuntimeSceneMapper.selectActiveCamera(scene);
         var cameraMatrices = VulkanEngineRuntimeSceneMapper.cameraMatricesFor(
                 camera,
                 VulkanEngineRuntimeSceneMapper.safeAspect(viewportWidth, viewportHeight)
         );
-        var lighting = VulkanEngineRuntimeSceneMapper.mapLighting(scene == null ? null : scene.lights());
-        var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(scene == null ? null : scene.lights(), qualityTier);
+        var lighting = VulkanEngineRuntimeSceneMapper.mapLighting(scene == null ? null : scene.lights(), qualityTier);
+        var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(
+                scene == null ? null : scene.lights(),
+                qualityTier,
+                shadowFilterPath,
+                shadowContactShadows,
+                shadowRtMode
+        );
         var fog = VulkanEngineRuntimeSceneMapper.mapFog(scene == null ? null : scene.fog(), qualityTier);
         var smoke = VulkanEngineRuntimeSceneMapper.mapSmoke(scene == null ? null : scene.smokeEmitters(), qualityTier);
         var post = VulkanEngineRuntimeSceneMapper.mapPostProcess(

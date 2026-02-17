@@ -262,6 +262,7 @@ public final class VulkanShaderSources {
                     vec3 directional = (diffuse + specular) * gbo.uDirLightColor.rgb * (ndl * dirIntensity);
                     vec3 pointLit = vec3(0.0);
                     int localCount = clamp(int(gbo.uLocalLightMeta.x + 0.5), 0, 8);
+                    int localShadowSlots = clamp(int(gbo.uLocalLightMeta.y + 0.5), 0, 6);
                     for (int i = 0; i < localCount; i++) {
                         vec3 localPos = gbo.uLocalLightPosRange[i].xyz;
                         float localRange = max(gbo.uLocalLightPosRange[i].w, 0.1);
@@ -271,6 +272,8 @@ public final class VulkanShaderSources {
                         float localInner = gbo.uLocalLightDirInner[i].w;
                         float localOuter = gbo.uLocalLightOuterTypeShadow[i].x;
                         float localIsSpot = gbo.uLocalLightOuterTypeShadow[i].y;
+                        float localCastsShadow = gbo.uLocalLightOuterTypeShadow[i].z;
+                        int localShadowLayer = clamp(int(gbo.uLocalLightOuterTypeShadow[i].w + 0.5) - 1, -1, 5);
                         vec3 localToLight = localPos - vWorldPos;
                         vec3 localLightDir = normalize(localToLight);
                         float localDist = max(length(localToLight), 0.1);
@@ -287,12 +290,39 @@ public final class VulkanShaderSources {
                             spotAttenuation = clamp((cosTheta - localOuter) / coneRange, 0.0, 1.0);
                             spotAttenuation *= spotAttenuation;
                         }
-                        pointLit += (kd * baseColor / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity);
+                        float localShadowVisibility = 1.0;
+                        if (localIsSpot > 0.5 && localCastsShadow > 0.5 && localShadowSlots > 0 && localShadowLayer >= 0) {
+                            vec4 localShadowPos = gbo.uShadowLightViewProj[localShadowLayer] * vec4(vWorldPos, 1.0);
+                            vec3 localShadowCoord = localShadowPos.xyz / max(localShadowPos.w, 0.0001);
+                            localShadowCoord = localShadowCoord * 0.5 + 0.5;
+                            if (localShadowCoord.z > 0.0
+                                    && localShadowCoord.z < 1.0
+                                    && localShadowCoord.x >= 0.0 && localShadowCoord.x <= 1.0
+                                    && localShadowCoord.y >= 0.0 && localShadowCoord.y <= 1.0) {
+                                int localRadius = clamp(int(gbo.uShadow.w + 0.5), 0, 4);
+                                float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
+                                float compareDepth = clamp(localShadowCoord.z - gbo.uShadow.z, 0.0, 1.0);
+                                float total = 0.0;
+                                float taps = 0.0;
+                                for (int y = -4; y <= 4; y++) {
+                                    for (int x = -4; x <= 4; x++) {
+                                        if (abs(x) > localRadius || abs(y) > localRadius) {
+                                            continue;
+                                        }
+                                        vec2 offset = vec2(float(x), float(y)) * texel;
+                                        total += texture(uShadowMap, vec4(localShadowCoord.xy + offset, float(localShadowLayer), compareDepth));
+                                        taps += 1.0;
+                                    }
+                                }
+                                localShadowVisibility = (taps > 0.0) ? (total / taps) : 1.0;
+                            }
+                        }
+                        pointLit += (kd * baseColor / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity * localShadowVisibility);
                     }
                     vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * baseColor * ao;
 
                     vec3 color = ambient + directional + pointLit;
-                    if (gbo.uShadow.x > 0.5 && gbo.uPointLightCone.w < 0.5) {
+                    if (gbo.uShadow.x > 0.5 && gbo.uPointLightCone.w < 0.5 && localShadowSlots == 0) {
                         int cascadeCount = clamp(int(gbo.uShadowCascade.x + 0.5), 1, 4);
                         int cascadeIndex = 0;
                         float depthNdc = clamp(gl_FragCoord.z, 0.0, 1.0);

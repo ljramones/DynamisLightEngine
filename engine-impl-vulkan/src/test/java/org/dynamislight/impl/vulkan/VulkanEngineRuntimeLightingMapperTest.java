@@ -19,7 +19,7 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("spotB", new Vec3(4f, 3f, 2f), new Vec3(0.1f, 0.9f, 0.1f), 2.0f, 18f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(lights);
+        VulkanEngineRuntime.LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(lights, org.dynamislight.api.config.QualityTier.HIGH);
 
         assertEquals(2, config.localLightCount());
         assertEquals(32, config.localLightPosRange().length);
@@ -49,7 +49,7 @@ class VulkanEngineRuntimeLightingMapperTest {
             ));
         }
 
-        VulkanEngineRuntime.LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(lights);
+        VulkanEngineRuntime.LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(lights, org.dynamislight.api.config.QualityTier.HIGH);
 
         assertEquals(VulkanContext.MAX_LOCAL_LIGHTS, config.localLightCount());
         for (int i = config.localLightCount(); i < VulkanContext.MAX_LOCAL_LIGHTS; i++) {
@@ -67,8 +67,8 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("spotB", new Vec3(-2f, 3f, 2f), new Vec3(0.7f, 0.9f, 1f), 2.4f, 18f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 18f, 32f)
         );
 
-        VulkanEngineRuntime.ShadowRenderConfig low = VulkanEngineRuntimeLightingMapper.mapShadows(lights, org.dynamislight.api.config.QualityTier.LOW);
-        VulkanEngineRuntime.ShadowRenderConfig ultra = VulkanEngineRuntimeLightingMapper.mapShadows(lights, org.dynamislight.api.config.QualityTier.ULTRA);
+        VulkanEngineRuntime.ShadowRenderConfig low = VulkanEngineRuntimeLightingMapper.mapShadows(lights, org.dynamislight.api.config.QualityTier.LOW, "pcf", false, "off");
+        VulkanEngineRuntime.ShadowRenderConfig ultra = VulkanEngineRuntimeLightingMapper.mapShadows(lights, org.dynamislight.api.config.QualityTier.ULTRA, "evsm", true, "optional");
 
         assertTrue(low.enabled());
         assertEquals("sun", low.primaryShadowLightId());
@@ -86,5 +86,8 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertTrue(ultra.shadowUpdateBytesEstimate() >= 0L);
         assertTrue(ultra.normalBiasScale() >= 1.0f);
         assertTrue(ultra.slopeBiasScale() >= 1.0f);
+        assertEquals("evsm", ultra.filterPath());
+        assertTrue(ultra.contactShadowsRequested());
+        assertEquals("optional", ultra.rtShadowMode());
     }
 }

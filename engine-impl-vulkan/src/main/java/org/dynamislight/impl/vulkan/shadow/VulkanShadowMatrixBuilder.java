@@ -72,6 +72,52 @@ public final class VulkanShadowMatrixBuilder {
             setPointSplitDefaults(shadowCascadeSplitNdc);
             return;
         }
+        if (!inputs.pointShadowEnabled() && inputs.localLightCount() > 0
+                && inputs.localLightPosRange() != null
+                && inputs.localLightDirInner() != null
+                && inputs.localLightOuterTypeShadow() != null) {
+            int localSpotLayers = 0;
+            for (int i = 0; i < Math.min(inputs.localLightCount(), 8); i++) {
+                int offset = i * 4;
+                if (offset + 3 >= inputs.localLightOuterTypeShadow().length) {
+                    continue;
+                }
+                float isSpot = inputs.localLightOuterTypeShadow()[offset + 1];
+                float castsShadows = inputs.localLightOuterTypeShadow()[offset + 2];
+                int layerIndex = Math.round(inputs.localLightOuterTypeShadow()[offset + 3]) - 1;
+                if (isSpot > 0.5f && castsShadows > 0.5f && layerIndex >= 0 && layerIndex < inputs.maxShadowMatrices()) {
+                    float[] spotDir = normalize3(
+                            inputs.localLightDirInner()[offset],
+                            inputs.localLightDirInner()[offset + 1],
+                            inputs.localLightDirInner()[offset + 2]
+                    );
+                    float px = inputs.localLightPosRange()[offset];
+                    float py = inputs.localLightPosRange()[offset + 1];
+                    float pz = inputs.localLightPosRange()[offset + 2];
+                    float range = Math.max(1.0f, inputs.localLightPosRange()[offset + 3]);
+                    float outerCos = Math.max(0.0001f, Math.min(1f, inputs.localLightOuterTypeShadow()[offset]));
+                    float coneHalfAngle = (float) Math.acos(outerCos);
+                    float fov = Math.max((float) Math.toRadians(20.0), Math.min((float) Math.toRadians(120.0), coneHalfAngle * 2.0f));
+                    float[] lightView = lookAt(
+                            px, py, pz,
+                            px + spotDir[0], py + spotDir[1], pz + spotDir[2],
+                            0f, Math.abs(spotDir[1]) > 0.95f ? 0f : 1f, Math.abs(spotDir[1]) > 0.95f ? 1f : 0f
+                    );
+                    float[] lightProj = perspective(fov, 1f, 0.1f, range);
+                    shadowLightViewProjMatrices[layerIndex] = mul(lightProj, lightView);
+                    localSpotLayers = Math.max(localSpotLayers, layerIndex + 1);
+                }
+            }
+            if (localSpotLayers > 0) {
+                for (int i = 0; i < inputs.maxShadowMatrices(); i++) {
+                    if (shadowLightViewProjMatrices[i] == null) {
+                        shadowLightViewProjMatrices[i] = identityMatrix();
+                    }
+                }
+                setPointSplitDefaults(shadowCascadeSplitNdc);
+                return;
+            }
+        }
         if (inputs.pointShadowEnabled()) {
             float[][] pointDirs = new float[][]{
                     {1f, 0f, 0f},
@@ -294,6 +340,10 @@ public final class VulkanShadowMatrixBuilder {
             int shadowCascadeCount,
             float[] viewMatrix,
             float[] projMatrix,
+            int localLightCount,
+            float[] localLightPosRange,
+            float[] localLightDirInner,
+            float[] localLightOuterTypeShadow,
             float dirLightDirX,
             float dirLightDirY,
             float dirLightDirZ,

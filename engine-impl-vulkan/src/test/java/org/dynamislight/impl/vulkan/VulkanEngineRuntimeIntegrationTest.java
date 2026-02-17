@@ -686,7 +686,7 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
-    void multiLocalShadowSceneEmitsRenderBaselineWarning() throws Exception {
+    void multiSpotLocalShadowSceneUsesMultiLocalRenderPath() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.ULTRA), new RecordingCallbacks());
         runtime.loadScene(validMultiSpotShadowScene());
@@ -694,9 +694,33 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w ->
-                "SHADOW_LOCAL_RENDER_BASELINE".equals(w.code())
-                        && w.message().contains("requestedLocalShadows=")
-                        && w.message().contains("renderedLocalShadows=1")));
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("renderedLocalShadows=3")
+                        && w.message().contains("renderedSpotShadows=3")));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_LOCAL_RENDER_BASELINE".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void shadowQualityPathRequestsEmitTrackingWarnings() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.filterPath", "evsm",
+                "vulkan.shadow.contactShadows", "true",
+                "vulkan.shadow.rtMode", "optional"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("filterPath=evsm")
+                        && w.message().contains("contactShadows=true")
+                        && w.message().contains("rtMode=optional")));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_PATH_REQUESTED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_RT_PATH_REQUESTED".equals(w.code())));
         runtime.shutdown();
     }
 

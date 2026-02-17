@@ -117,6 +117,12 @@ Sample host clamps:
   - `-Ddle.vulkan.shadow.depthFormat=d32`
 - Non-directional shadow coverage is supported at baseline level but may differ in quality/perf characteristics by backend/profile.
 - OpenGL now applies local spot shadows through an atlas path in the main local-light loop; Vulkan keeps primary-local render baseline while atlas/cubemap render rollout continues.
+- Vulkan now renders multi-local **spot** shadow layers (within current shadow-layer budget) when spot shadow slots are assigned; full multi-point cubemap parity is still rolling out.
+- Shadow quality-path requests are now first-class backend options:
+  - `vulkan.shadow.filterPath=pcf|pcss|vsm|evsm`
+  - `vulkan.shadow.contactShadows=true|false`
+  - `vulkan.shadow.rtMode=off|optional|force`
+  Runtime currently tracks and reports these requests, with production fallback still on the PCF/non-RT stack until dedicated implementations land.
 
 Current default local shadow budgets by tier:
 - `LOW`: 1 local shadow light
@@ -209,6 +215,6 @@ Targeted shadow stress outputs are generated in compare artifacts:
 
 ## 7. Remaining Rollout Gaps
 
-- Vulkan render path still uses primary-local shadow rendering baseline for non-directional shadows.
-- Vulkan runtime now emits `SHADOW_LOCAL_RENDER_BASELINE` when multiple local shadow casters are requested, making the remaining atlas/cubemap parity gap explicit in tests/CI.
-- Full concurrent multi-point cubemap shadow rendering is still pending.
+- Full concurrent multi-point cubemap shadow rendering (`>1` point-shadow cubemap) is still pending.
+- Dedicated VSM/EVSM/PCSS/contact-shadow production filtering paths are still pending (request+tracking is live).
+- Hardware RT shadow traversal/denoise path is still pending (request+fallback tracking is live).

@@ -977,6 +977,13 @@ final class VulkanContext {
         key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirX());
         key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirY());
         key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirZ());
+        key = 31L * key + localLightCount;
+        int localFloats = Math.min(localLightCount * 4, localLightPosRange.length);
+        for (int i = 0; i < localFloats; i++) {
+            key = 31L * key + Float.floatToIntBits(localLightPosRange[i]);
+            key = 31L * key + Float.floatToIntBits(localLightDirInner[i]);
+            key = 31L * key + Float.floatToIntBits(localLightOuterTypeShadow[i]);
+        }
         for (int i = 0; i < 16; i++) {
             key = 31L * key + Float.floatToIntBits(viewMatrix[i]);
             key = 31L * key + Float.floatToIntBits(projMatrix[i]);
@@ -1000,6 +1007,10 @@ final class VulkanContext {
                         renderState.shadowCascadeCount,
                         viewMatrix,
                         projMatrix,
+                        localLightCount,
+                        localLightPosRange,
+                        localLightDirInner,
+                        localLightOuterTypeShadow,
                         lightingState.dirLightDirX(),
                         lightingState.dirLightDirY(),
                         lightingState.dirLightDirZ(),

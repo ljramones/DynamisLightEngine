@@ -23,7 +23,14 @@ public final class VulkanUniformWriters {
         fb.put(new float[]{in.pointLightColorR(), in.pointLightColorG(), in.pointLightColorB(), 0f});
         fb.put(new float[]{in.pointLightDirX(), in.pointLightDirY(), in.pointLightDirZ(), 0f});
         fb.put(new float[]{in.pointLightInnerCos(), in.pointLightOuterCos(), in.pointLightIsSpot(), in.pointShadowEnabled() ? 1f : 0f});
-        fb.put(new float[]{(float) in.localLightCount(), 0f, 0f, 0f});
+        int localShadowSlots = 0;
+        for (int i = 0; i < in.maxLocalLights(); i++) {
+            int offset = i * 4;
+            if (offset + 3 < in.localLightOuterTypeShadow().length && in.localLightOuterTypeShadow()[offset + 3] > 0.5f) {
+                localShadowSlots++;
+            }
+        }
+        fb.put(new float[]{(float) in.localLightCount(), (float) localShadowSlots, 0f, 0f});
         for (int i = 0; i < in.maxLocalLights(); i++) {
             int offset = i * 4;
             fb.put(new float[]{

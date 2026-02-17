@@ -349,7 +349,7 @@ final class VulkanEngineRuntimeLightingMapper {
         return packed;
     }
 
-    static VulkanEngineRuntime.LightingConfig mapLighting(List<LightDesc> lights) {
+    static VulkanEngineRuntime.LightingConfig mapLighting(List<LightDesc> lights, QualityTier qualityTier) {
         float[] dir = new float[]{0.35f, -1.0f, 0.25f};
         float[] dirColor = new float[]{1.0f, 0.98f, 0.95f};
         float dirIntensity = 1.0f;
@@ -408,6 +408,13 @@ final class VulkanEngineRuntimeLightingMapper {
         if (!localLights.isEmpty()) {
             localLights.sort((a, b) -> Float.compare(localLightPriority(b), localLightPriority(a)));
             localLightCount = Math.min(VulkanContext.MAX_LOCAL_LIGHTS, localLights.size());
+            int maxShadowedLocalLights = switch (qualityTier) {
+                case LOW -> 1;
+                case MEDIUM -> 2;
+                case HIGH -> 3;
+                case ULTRA -> 4;
+            };
+            int assignedSpotShadowLayers = 0;
             for (int i = 0; i < localLightCount; i++) {
                 LightDesc light = localLights.get(i);
                 int offset = i * 4;
@@ -449,6 +456,12 @@ final class VulkanEngineRuntimeLightingMapper {
                 localLightOuterTypeShadow[offset] = outer;
                 localLightOuterTypeShadow[offset + 1] = isSpot;
                 localLightOuterTypeShadow[offset + 2] = castsShadows;
+                if (isSpot > 0.5f && castsShadows > 0.5f && assignedSpotShadowLayers < maxShadowedLocalLights) {
+                    localLightOuterTypeShadow[offset + 3] = (float) (assignedSpotShadowLayers + 1);
+                    assignedSpotShadowLayers++;
+                } else {
+                    localLightOuterTypeShadow[offset + 3] = 0f;
+                }
             }
             LightDesc shadowLight = localLights.stream().filter(LightDesc::castsShadows).findFirst().orElse(localLights.getFirst());
             if (shadowLight.position() != null) {
@@ -505,9 +518,17 @@ final class VulkanEngineRuntimeLightingMapper {
         return intensity * (1.0f + (range * 0.08f)) * shadowBoost * spotBoost;
     }
 
-    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
+    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(
+            List<LightDesc> lights,
+            QualityTier qualityTier,
+            String shadowFilterPath,
+            boolean shadowContactShadows,
+            String shadowRtMode
+    ) {
+        String filterPath = shadowFilterPath == null || shadowFilterPath.isBlank() ? "pcf" : shadowFilterPath.trim().toLowerCase(java.util.Locale.ROOT);
+        String rtMode = shadowRtMode == null || shadowRtMode.isBlank() ? "off" : shadowRtMode.trim().toLowerCase(java.util.Locale.ROOT);
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0, 0, 0, filterPath, shadowContactShadows, rtMode, false, false);
         }
         int maxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -536,16 +557,27 @@ final class VulkanEngineRuntimeLightingMapper {
         localShadowCandidates.sort((a, b) -> Float.compare(localLightPriority(b), localLightPriority(a)));
         int selectedLocalShadowLights = Math.min(maxShadowedLocalLights, localShadowCandidates.size());
         selectedLocalShadowLights = Math.min(maxShadowedLocalLights, selectedLocalShadowLights);
+        int selectedSpotShadowLights = 0;
+        int selectedPointShadowLights = 0;
+        for (int i = 0; i < selectedLocalShadowLights; i++) {
+            LightDesc candidate = localShadowCandidates.get(i);
+            LightType localType = candidate.type() == null ? LightType.DIRECTIONAL : candidate.type();
+            if (localType == LightType.SPOT) {
+                selectedSpotShadowLights++;
+            } else if (localType == LightType.POINT) {
+                selectedPointShadowLights++;
+            }
+        }
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0, 0, 0, filterPath, shadowContactShadows, rtMode, false, false);
         }
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
         ShadowDesc shadow = primary.shadow();
         int kernel = shadow == null ? 3 : Math.max(1, shadow.pcfKernelSize());
         int cascades = shadow == null ? 1 : Math.max(1, shadow.cascadeCount());
         if (type == LightType.SPOT) {
-            cascades = 1;
+            cascades = Math.max(1, Math.min(4, selectedSpotShadowLights));
         } else if (type == LightType.POINT) {
             cascades = 6;
         }
@@ -628,6 +660,14 @@ final class VulkanEngineRuntimeLightingMapper {
             case HIGH -> 1.0f;
             case ULTRA -> 1.15f;
         };
+        int renderedSpotShadowLights = type == LightType.SPOT
+                ? Math.max(1, Math.min(cascadesClamped, selectedSpotShadowLights))
+                : 0;
+        int renderedPointShadowCubemaps = type == LightType.POINT
+                ? 1
+                : 0;
+        int renderedLocalShadowLights = renderedSpotShadowLights + renderedPointShadowCubemaps;
+        boolean rtShadowActive = false;
         boolean degraded = kernelClamped != kernel || cascadesClamped != cascades || resolution != requestedResolution
                 || qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
         return new VulkanEngineRuntime.ShadowRenderConfig(
@@ -650,6 +690,13 @@ final class VulkanEngineRuntimeLightingMapper {
                 atlasMemoryBytesD16,
                 atlasMemoryBytesD32,
                 shadowUpdateBytesEstimate,
+                renderedLocalShadowLights,
+                renderedSpotShadowLights,
+                renderedPointShadowCubemaps,
+                filterPath,
+                shadowContactShadows,
+                rtMode,
+                rtShadowActive,
                 degraded
         );
     }

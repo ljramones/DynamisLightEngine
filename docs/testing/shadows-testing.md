@@ -17,6 +17,9 @@ Validate shadow stability, policy selection, and quality-tier fallback behavior 
 - Shadow-related warning stream:
   - `SHADOW_POLICY_ACTIVE`
   - `SHADOW_QUALITY_DEGRADED`
+  - `SHADOW_LOCAL_RENDER_BASELINE`
+  - `SHADOW_FILTER_PATH_REQUESTED`
+  - `SHADOW_RT_PATH_REQUESTED`
 - Shadow matrix deterministic equality in unit tests.
 - Shadow memory telemetry:
   - atlas allocation bytes
@@ -96,9 +99,10 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `OpenGlEngineRuntimeLifecycleTest`
 - Vulkan integration tests surface explicit baseline warning when multiple local shadow casters are requested but render-side multi-local atlas/cubemap rollout is still pending:
   - `SHADOW_LOCAL_RENDER_BASELINE`
+- Vulkan integration tests now also validate multi-spot render policy reporting (`renderedLocalShadows`, `renderedSpotShadows`) and quality-path request tracking fields (`filterPath`, `contactShadows`, `rtMode`).
 
 ## 6. Known Gaps
-- Vulkan per-light shadow atlas/array rendering for multiple simultaneous local shadow casters is still pending.
+- Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.
 - Vulkan multi-point cubemap shadow rendering (>1 concurrent point-shadow map) is still pending.
 - Need dedicated long-run shimmer/flicker analysis for shadow-only camera sweeps.
 
