@@ -1,6 +1,8 @@
 package org.dynamislight.impl.vulkan;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.FogDesc;
@@ -13,6 +15,7 @@ import org.dynamislight.api.scene.ReflectionAdvancedDesc;
 import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
+import org.dynamislight.impl.common.shadow.ShadowAtlasPlanner;
 
 final class VulkanEngineRuntimeLightingMapper {
     private VulkanEngineRuntimeLightingMapper() {
@@ -504,7 +507,7 @@ final class VulkanEngineRuntimeLightingMapper {
 
     static VulkanEngineRuntime.ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, false);
         }
         int maxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -512,7 +515,7 @@ final class VulkanEngineRuntimeLightingMapper {
             case HIGH -> 3;
             case ULTRA -> 4;
         };
-        int selectedLocalShadowLights = 0;
+        List<LightDesc> localShadowCandidates = new ArrayList<>();
         LightDesc primaryDirectional = null;
         LightDesc bestLocal = null;
         for (LightDesc light : lights) {
@@ -521,7 +524,7 @@ final class VulkanEngineRuntimeLightingMapper {
             }
             LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
             if (type == LightType.POINT || type == LightType.SPOT) {
-                selectedLocalShadowLights++;
+                localShadowCandidates.add(light);
                 if (bestLocal == null || localLightPriority(light) > localLightPriority(bestLocal)) {
                     bestLocal = light;
                 }
@@ -530,10 +533,12 @@ final class VulkanEngineRuntimeLightingMapper {
                 primaryDirectional = light;
             }
         }
+        localShadowCandidates.sort((a, b) -> Float.compare(localLightPriority(b), localLightPriority(a)));
+        int selectedLocalShadowLights = Math.min(maxShadowedLocalLights, localShadowCandidates.size());
         selectedLocalShadowLights = Math.min(maxShadowedLocalLights, selectedLocalShadowLights);
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, false);
         }
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
         ShadowDesc shadow = primary.shadow();
@@ -551,6 +556,22 @@ final class VulkanEngineRuntimeLightingMapper {
             case POINT -> 0.75f;
         };
         int resolution = Math.max(256, Math.min(4096, Math.round(requestedResolution * typeResolutionScale)));
+        int atlasCapacityTiles = Math.max(1, (resolution / 256) * (resolution / 256));
+        List<ShadowAtlasPlanner.Request> atlasRequests = new ArrayList<>();
+        for (int i = 0; i < selectedLocalShadowLights; i++) {
+            LightDesc local = localShadowCandidates.get(i);
+            LightType localType = local.type() == null ? LightType.DIRECTIONAL : local.type();
+            if (localType != LightType.SPOT) {
+                continue;
+            }
+            int tileSize = Math.max(256, Math.round(resolution * 0.5f));
+            atlasRequests.add(new ShadowAtlasPlanner.Request(
+                    local.id() == null || local.id().isBlank() ? ("local-shadow-" + i) : local.id(),
+                    tileSize,
+                    0
+            ));
+        }
+        ShadowAtlasPlanner.PlanResult atlasPlan = ShadowAtlasPlanner.plan(resolution, atlasRequests, Map.of());
         float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
         int maxKernel = switch (type) {
             case DIRECTIONAL -> switch (qualityTier) {
@@ -615,6 +636,10 @@ final class VulkanEngineRuntimeLightingMapper {
                 selectedLocalShadowLights,
                 type.name().toLowerCase(java.util.Locale.ROOT),
                 primary.id() == null ? "unnamed" : primary.id(),
+                atlasCapacityTiles,
+                atlasPlan.allocations().size(),
+                atlasPlan.utilization(),
+                atlasPlan.evictedIds().size(),
                 degraded
         );
     }

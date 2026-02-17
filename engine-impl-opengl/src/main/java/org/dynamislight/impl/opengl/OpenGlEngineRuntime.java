@@ -36,6 +36,7 @@ import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
+import org.dynamislight.impl.common.shadow.ShadowAtlasPlanner;
 import org.dynamislight.impl.common.texture.KtxDecodeUtil;
 import org.dynamislight.impl.common.framegraph.FrameGraph;
 import org.dynamislight.impl.common.framegraph.FrameGraphBuilder;
@@ -178,7 +179,12 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SceneDescriptor activeScene;
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
-    private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", false);
+    private ShadowRenderConfig shadows = new ShadowRenderConfig(
+            false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024,
+            0, 0, "none", "none",
+            0, 0, 0.0f, 0,
+            false
+    );
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, ReflectionMode.IBL_ONLY.ordinal(), 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
     private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
@@ -444,6 +450,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                             + " type=" + shadows.primaryShadowType()
                             + " localBudget=" + shadows.maxShadowedLocalLights()
                             + " localSelected=" + shadows.selectedLocalShadowLights()
+                            + " atlasTiles=" + shadows.atlasAllocatedTiles() + "/" + shadows.atlasCapacityTiles()
+                            + " atlasUtilization=" + shadows.atlasUtilization()
+                            + " atlasEvictions=" + shadows.atlasEvictions()
                             + " normalBiasScale=" + shadows.normalBiasScale()
                             + " slopeBiasScale=" + shadows.slopeBiasScale()
             ));
@@ -1397,7 +1406,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
         if (lights == null || lights.isEmpty()) {
-            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", false);
+            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, false);
         }
         int maxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -1405,7 +1414,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             case HIGH -> 3;
             case ULTRA -> 4;
         };
-        int selectedLocalShadowLights = 0;
+        List<LightDesc> localShadowCandidates = new ArrayList<>();
         LightDesc primaryDirectional = null;
         LightDesc bestLocal = null;
         for (LightDesc light : lights) {
@@ -1414,7 +1423,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             }
             LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
             if (type == LightType.POINT || type == LightType.SPOT) {
-                selectedLocalShadowLights++;
+                localShadowCandidates.add(light);
                 if (bestLocal == null || localLightPriority(light) > localLightPriority(bestLocal)) {
                     bestLocal = light;
                 }
@@ -1423,10 +1432,12 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 primaryDirectional = light;
             }
         }
+        localShadowCandidates.sort((a, b) -> Float.compare(localLightPriority(b), localLightPriority(a)));
+        int selectedLocalShadowLights = Math.min(maxShadowedLocalLights, localShadowCandidates.size());
         selectedLocalShadowLights = Math.min(maxShadowedLocalLights, selectedLocalShadowLights);
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", false);
+            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, false);
         }
 
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
@@ -1472,6 +1483,22 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             case POINT -> 0.75f;
         };
         int resolution = Math.max(256, Math.min(4096, Math.round(requestedResolution * typeResolutionScale)));
+        int atlasCapacityTiles = Math.max(1, (resolution / 256) * (resolution / 256));
+        List<ShadowAtlasPlanner.Request> atlasRequests = new ArrayList<>();
+        for (int i = 0; i < selectedLocalShadowLights; i++) {
+            LightDesc local = localShadowCandidates.get(i);
+            LightType localType = local.type() == null ? LightType.DIRECTIONAL : local.type();
+            if (localType != LightType.SPOT) {
+                continue;
+            }
+            int tileSize = Math.max(256, Math.round(resolution * 0.5f));
+            atlasRequests.add(new ShadowAtlasPlanner.Request(
+                    local.id() == null || local.id().isBlank() ? ("local-shadow-" + i) : local.id(),
+                    tileSize,
+                    0
+            ));
+        }
+        ShadowAtlasPlanner.PlanResult atlasPlan = ShadowAtlasPlanner.plan(resolution, atlasRequests, Map.of());
         float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
         float biasScale = 1.0f + (radius * 0.15f) + (Math.max(0, cascades - 1) * 0.05f);
         bias = Math.max(0.00002f, Math.min(0.02f, bias * biasScale));
@@ -1508,6 +1535,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 selectedLocalShadowLights,
                 type.name().toLowerCase(java.util.Locale.ROOT),
                 primary.id() == null ? "unnamed" : primary.id(),
+                atlasCapacityTiles,
+                atlasPlan.allocations().size(),
+                atlasPlan.utilization(),
+                atlasPlan.evictedIds().size(),
                 degraded
         );
     }
@@ -1791,6 +1822,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             int selectedLocalShadowLights,
             String primaryShadowType,
             String primaryShadowLightId,
+            int atlasCapacityTiles,
+            int atlasAllocatedTiles,
+            float atlasUtilization,
+            int atlasEvictions,
             boolean degraded
     ) {
     }

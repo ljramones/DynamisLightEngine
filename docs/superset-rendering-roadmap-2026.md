@@ -24,8 +24,8 @@ Effort: 2
 Status: major gap.  
 Effort: 5
 
-4. Shadows: VSM/contact/inset plus existing cascades.  
-Status: cascades/PCF present.  
+4. Shadows: VSM/contact/inset plus existing cascades, multi-local atlas/cubemap path, static-cache and cadence-aware updates.  
+Status: cascades/PCF + policy budgets/bias scaling present; atlas/cubemap/static-cache lane in progress.  
 Effort: 3
 
 5. Reflections: SSR + planar + IBL hybrid, RT path later.  
@@ -94,4 +94,3 @@ Effort: 2
 2. Real Vulkan runs must remain deterministic on macOS preflight path.
 3. Temporal metric gates remain primary for AA/upsampling validation.
 4. SPI/API remain additive and backward-compatible.
-

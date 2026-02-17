@@ -18,6 +18,11 @@ Validate shadow stability, policy selection, and quality-tier fallback behavior 
   - `SHADOW_POLICY_ACTIVE`
   - `SHADOW_QUALITY_DEGRADED`
 - Shadow matrix deterministic equality in unit tests.
+- Shadow memory telemetry:
+  - atlas allocation bytes
+  - per-frame shadow update/upload bytes
+- Depth-format divergence:
+  - compare `D16_UNORM` and `D32_SFLOAT` shadow runs for acne/peter-panning drift.
 
 ## 4. Execution Commands
 
@@ -25,6 +30,13 @@ Unit policy + matrix checks:
 ```bash
 mvn -pl engine-impl-vulkan -am test \
   -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanShadowMatrixBuilderTest \
+  -Dsurefire.failIfNoSpecifiedTests=false
+```
+
+Shadow-atlas planner checks:
+```bash
+mvn -pl engine-impl-common -am test \
+  -Dtest=ShadowAtlasPlannerTest \
   -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
@@ -50,3 +62,9 @@ mvn -pl engine-host-sample -am test \
 ## 6. Known Gaps
 - Per-light shadow atlas/array rendering for multiple simultaneous local shadow casters is still pending.
 - Need dedicated long-run shimmer/flicker analysis for shadow-only camera sweeps.
+
+## 7. Planned Additions
+- Add targeted high-motion shadow sweeps (fast pan + thin-geo + animated casters).
+- Add cadence tests (hero lights full-rate vs distant lights throttled update rates).
+- Add static-cache correctness tests (no stale shadows after object/light state transitions).
+- Add CI matrix axis for shadow depth format (`D16_UNORM`, `D32_SFLOAT`) and publish drift deltas in reports.

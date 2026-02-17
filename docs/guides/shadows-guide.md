@@ -105,6 +105,10 @@ Sample host clamps:
 - Both OpenGL and Vulkan support core shadow baseline behavior.
 - Runtime can emit `SHADOW_QUALITY_DEGRADED` on lower tiers.
 - Runtime emits `SHADOW_POLICY_ACTIVE` with primary shadow light/type and current local-light budget/selection.
+- `SHADOW_POLICY_ACTIVE` now also includes atlas planning telemetry:
+  - `atlasTiles=<allocated>/<capacity>`
+  - `atlasUtilization=<0..1>`
+  - `atlasEvictions=<count>`
 - Non-directional shadow coverage is supported at baseline level but may differ in quality/perf characteristics by backend/profile.
 
 Current default local shadow budgets by tier:
@@ -112,6 +116,15 @@ Current default local shadow budgets by tier:
 - `MEDIUM`: 2 local shadow lights
 - `HIGH`: 3 local shadow lights
 - `ULTRA`: 4 local shadow lights
+
+Implementation policy notes:
+- Local shadow-atlas allocation should remain power-of-two aligned.
+- Atlas packing should sort requested shadow pages by descending size before placement.
+- Eviction should prefer least-recently-visible local lights, keeping pages warm until reused.
+- Directional cascades should use texel snapping to reduce camera-motion shimmer.
+- For temporal pipelines, optional shadow-projection jitter may be enabled and resolved through TAA/TUUA/TSR.
+- Static geometry should move to a static-shadow cache layer; dynamic casters remain in per-frame update layers.
+- Local-shadow updates should be cadence-aware (hero lights full-rate, distant lights throttled).
 
 ## 5. Troubleshooting
 

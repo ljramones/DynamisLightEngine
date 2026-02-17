@@ -111,7 +111,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int viewportHeight = 720;
     private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
-    private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", false);
+    private ShadowRenderConfig currentShadows = new ShadowRenderConfig(
+            false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024,
+            0, 0, "none", "none",
+            0, 0, 0.0f, 0,
+            false
+    );
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
     private int taaDebugView;
     private boolean taaLumaClipEnabledDefault;
@@ -333,6 +338,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " type=" + currentShadows.primaryShadowType()
                             + " localBudget=" + currentShadows.maxShadowedLocalLights()
                             + " localSelected=" + currentShadows.selectedLocalShadowLights()
+                            + " atlasTiles=" + currentShadows.atlasAllocatedTiles() + "/" + currentShadows.atlasCapacityTiles()
+                            + " atlasUtilization=" + currentShadows.atlasUtilization()
+                            + " atlasEvictions=" + currentShadows.atlasEvictions()
                             + " normalBiasScale=" + currentShadows.normalBiasScale()
                             + " slopeBiasScale=" + currentShadows.slopeBiasScale()
             ));
@@ -622,6 +630,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int selectedLocalShadowLights,
             String primaryShadowType,
             String primaryShadowLightId,
+            int atlasCapacityTiles,
+            int atlasAllocatedTiles,
+            float atlasUtilization,
+            int atlasEvictions,
             boolean degraded
     ) {
     }

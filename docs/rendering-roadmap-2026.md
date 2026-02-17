@@ -52,6 +52,34 @@ Remaining:
 1. Additional OpenGL/Vulkan parity tuning passes on real-device captures.
 2. Further quality-tier consistency checks for extreme material/shadow mixes.
 
+### Phase B.1 Shadow Expansion Plan (active)
+1. Multi-local shadow atlas core:
+   - add power-of-two atlas hierarchy
+   - pack local shadow allocations largest-to-smallest (decreasing-size shelf/quadtree strategy)
+   - use least-recently-visible eviction before forced repack
+2. Multi-light local shadow rendering:
+   - render multiple selected spot-light shadows each frame from policy budget
+   - keep single-primary fallback only when budget pressure requires it
+   - add point-light cubemap shadow lane with strict per-tier update budget
+3. Temporal shadow stability:
+   - directional cascade texel snapping to reduce shimmer
+   - optional shadow-projection jitter integration for TAA-assisted softening
+4. Static shadow cache + update throttling:
+   - static atlas layer for static geometry/light contributions
+   - mixed dynamic layer for moving casters
+   - far/low-priority shadow updates at reduced cadence (e.g. ~15 Hz), hero shadows full-rate
+5. CI/runtime hardening for shadows:
+   - shadow memory telemetry counters (atlas bytes, per-frame update bytes)
+   - depth-format divergence checks (`D16_UNORM` vs `D32_SFLOAT`) in shadow regression matrix
+
+Implemented now:
+- Shared power-of-two shadow-atlas planner in `engine-impl-common` with descending-size packing.
+- Runtime shadow-policy telemetry now reports atlas tile usage/utilization and eviction count in `SHADOW_POLICY_ACTIVE`.
+- OpenGL and Vulkan shadow mapping now compute atlas planning metrics from selected local shadow candidates.
+
+Still in progress:
+- Full per-light local shadow atlas rendering/sampling path (current runtime still renders primary local shadow path).
+
 ## Phase C: Runtime Hardening and Scalability
 Status: In progress.
 

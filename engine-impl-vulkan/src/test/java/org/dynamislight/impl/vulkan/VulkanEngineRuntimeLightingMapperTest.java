@@ -77,6 +77,10 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertEquals(1, low.selectedLocalShadowLights());
         assertEquals(4, ultra.maxShadowedLocalLights());
         assertEquals(2, ultra.selectedLocalShadowLights());
+        assertTrue(ultra.atlasCapacityTiles() > 0);
+        assertTrue(ultra.atlasAllocatedTiles() >= 0);
+        assertTrue(ultra.atlasUtilization() >= 0.0f);
+        assertTrue(ultra.atlasUtilization() <= 1.0f);
         assertTrue(ultra.normalBiasScale() >= 1.0f);
         assertTrue(ultra.slopeBiasScale() >= 1.0f);
     }
