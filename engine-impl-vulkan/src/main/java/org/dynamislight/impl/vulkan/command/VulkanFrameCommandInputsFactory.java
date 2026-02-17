@@ -30,6 +30,7 @@ public final class VulkanFrameCommandInputsFactory {
                 inputs.shadowPipelineLayout(),
                 inputs.shadowFramebuffers(),
                 inputs.shadowMomentImage(),
+                inputs.shadowMomentMipLevels(),
                 inputs.shadowMomentPipelineRequested(),
                 inputs.shadowMomentInitialized(),
                 inputs.postOffscreenActive(),
@@ -110,6 +111,7 @@ public final class VulkanFrameCommandInputsFactory {
                 common.shadowPipelineLayout(),
                 common.shadowFramebuffers(),
                 common.shadowMomentImage(),
+                common.shadowMomentMipLevels(),
                 common.shadowMomentPipelineRequested(),
                 common.shadowMomentInitialized(),
                 post.postOffscreenActive(),
@@ -183,6 +185,7 @@ public final class VulkanFrameCommandInputsFactory {
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowMomentImage,
+            int shadowMomentMipLevels,
             boolean shadowMomentPipelineRequested,
             boolean shadowMomentInitialized,
             boolean postOffscreenActive,
@@ -256,6 +259,7 @@ public final class VulkanFrameCommandInputsFactory {
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowMomentImage,
+            int shadowMomentMipLevels,
             boolean shadowMomentPipelineRequested,
             boolean shadowMomentInitialized
     ) {

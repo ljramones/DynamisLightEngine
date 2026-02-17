@@ -123,12 +123,11 @@ Long-run motion/shimmer sweep (real Vulkan):
 - For `vsm|evsm` requests, verify warning stream includes:
   - `SHADOW_POLICY_ACTIVE` fields: `runtimeFilterPath` matches requested `vsm|evsm`
   - `SHADOW_POLICY_ACTIVE` field: `momentFilterEstimateOnly=false`
-  - `SHADOW_POLICY_ACTIVE` fields: `momentPipelineRequested=false`, `momentPipelineActive=false`
+  - `SHADOW_POLICY_ACTIVE` fields: `momentPipelineRequested=true`, `momentPipelineActive=true`
   - `SHADOW_POLICY_ACTIVE` fields: `momentResourceAllocated`, `momentResourceFormat`
-  - `SHADOW_POLICY_ACTIVE` field: `momentInitialized`
-  - `SHADOW_POLICY_ACTIVE` field: `momentPhase` (`pending|initializing|active`)
-  - In mock runs, expect `runtimeFilterPath` to match requested `vsm|evsm`, `momentFilterEstimateOnly=false`, `momentPipelineActive=false`, `momentPhase=pending`, and no `SHADOW_MOMENT_PIPELINE_PENDING`.
-  - As hardware moment/RT paths evolve, keep current runtime shaping regression checks by scene diff/temporal metrics.
+  - `SHADOW_POLICY_ACTIVE` fields: `momentInitialized=true`, `momentPhase=active`
+  - `SHADOW_POLICY_ACTIVE` field: `momentPhase` should not remain `pending` for real Vulkan `vsm|evsm`.
+  - As hardware RT path evolves, keep current moment-pipeline regression checks plus scene diff/temporal metrics.
 - Vulkan policy checks now include concurrent point-cubemap scheduling counters (`renderedPointShadowCubemaps`) for tier-bounded multi-point coverage.
 - Verify current tier cap behavior explicitly:
   - `HIGH` should cap to `1` rendered point cubemap (`6` shadow passes).
@@ -153,7 +152,7 @@ Long-run motion/shimmer sweep (real Vulkan):
 ## 6. Known Gaps
 - Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.
 - Vulkan tier/override-bounded multi-point cubemap concurrency is now covered (`HIGH`: 1, `ULTRA`: 2, overrides up to scheduler/local-light limits); further scalability beyond current scheduler/budget caps remains pending.
-- Dedicated moment-atlas write/prefilter VSM/EVSM and hardware RT traversal/denoise are still pending; current runtime path uses production mode-specific shaping for `pcss|vsm|evsm` and strengthened contact-shadow modulation.
+- Dedicated moment-atlas write/prefilter VSM/EVSM is active in Vulkan; hardware RT traversal/denoise is still pending.
 - Need dedicated long-run shimmer/flicker analysis for shadow-only camera sweeps.
 
 ## 7. Planned Additions

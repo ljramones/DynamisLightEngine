@@ -61,6 +61,18 @@ public final class VulkanShaderSources {
                 """;
     }
 
+    public static String shadowFragmentMoments() {
+        return """
+                #version 450
+                layout(location = 0) out vec4 outMoments;
+                void main() {
+                    float d = clamp(gl_FragCoord.z, 0.0, 1.0);
+                    float d2 = d * d;
+                    outMoments = vec4(d, d2, 0.0, 0.0);
+                }
+                """;
+    }
+
     public static String mainVertex() {
         return """
                 #version 450
@@ -178,7 +190,7 @@ public final class VulkanShaderSources {
                 layout(set = 1, binding = 5) uniform sampler2D uIblIrradianceTexture;
                 layout(set = 1, binding = 6) uniform sampler2D uIblRadianceTexture;
                 layout(set = 1, binding = 7) uniform sampler2D uIblBrdfLutTexture;
-                layout(set = 1, binding = 8) uniform sampler2D uShadowMomentMap;
+                layout(set = 1, binding = 8) uniform sampler2DArray uShadowMomentMap;
                 layout(location = 0) out vec4 outColor;
                 layout(location = 1) out vec4 outVelocity;
                 float distributionGGX(float ndh, float roughness) {
@@ -214,8 +226,13 @@ public final class VulkanShaderSources {
                     vec3 c4 = textureLod(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
                     return (c0 * 0.44) + (c1 * 0.18) + (c2 * 0.18) + (c3 * 0.10) + (c4 * 0.10);
                 }
-                float momentVisibilityApprox(vec2 uv, float compareDepth) {
-                    vec2 moments = texture(uShadowMomentMap, clamp(uv, vec2(0.0), vec2(1.0))).rg;
+                float momentVisibilityApprox(vec2 uv, float compareDepth, int layer) {
+                    vec3 momentUv = vec3(clamp(uv, vec2(0.0), vec2(1.0)), float(clamp(layer, 0, 23)));
+                    float maxLod = float(max(textureQueryLevels(uShadowMomentMap) - 1, 0));
+                    float lod = min(1.5, maxLod);
+                    vec2 baseMoments = textureLod(uShadowMomentMap, momentUv, 0.0).rg;
+                    vec2 filteredMoments = textureLod(uShadowMomentMap, momentUv, lod).rg;
+                    vec2 moments = mix(baseMoments, filteredMoments, 0.68);
                     // Neutral fallback for uninitialized/provisional moment data.
                     if (moments.y <= 0.000001) {
                         return 1.0;
@@ -230,8 +247,13 @@ public final class VulkanShaderSources {
                     float pMax = variance / (variance + diff * diff);
                     return clamp(pMax, 0.0, 1.0);
                 }
-                float evsmVisibilityApprox(vec2 uv, float compareDepth) {
-                    vec2 moments = texture(uShadowMomentMap, clamp(uv, vec2(0.0), vec2(1.0))).rg;
+                float evsmVisibilityApprox(vec2 uv, float compareDepth, int layer) {
+                    vec3 momentUv = vec3(clamp(uv, vec2(0.0), vec2(1.0)), float(clamp(layer, 0, 23)));
+                    float maxLod = float(max(textureQueryLevels(uShadowMomentMap) - 1, 0));
+                    float lod = min(2.0, maxLod);
+                    vec2 baseMoments = textureLod(uShadowMomentMap, momentUv, 0.0).rg;
+                    vec2 filteredMoments = textureLod(uShadowMomentMap, momentUv, lod).rg;
+                    vec2 moments = mix(baseMoments, filteredMoments, 0.75);
                     if (moments.y <= 0.000001) {
                         return 1.0;
                     }
@@ -251,6 +273,7 @@ public final class VulkanShaderSources {
                         int shadowFilterMode,
                         vec2 uv,
                         float compareDepth,
+                        int layer,
                         float ndl,
                         float depthRatio
                 ) {
@@ -259,10 +282,10 @@ public final class VulkanShaderSources {
                         float edgeSoftness = clamp((1.0 - ndl) * 0.55 + depthRatio * 0.35, 0.0, 1.0);
                         visibility = mix(visibility, sqrt(max(visibility, 0.0)), 0.25 * edgeSoftness);
                     } else if (shadowFilterMode == 2) {
-                        float momentVis = momentVisibilityApprox(uv, compareDepth);
+                        float momentVis = momentVisibilityApprox(uv, compareDepth, layer);
                         visibility = min(visibility + 0.06, mix(visibility, momentVis, 0.70));
                     } else if (shadowFilterMode == 3) {
-                        float evsmVis = evsmVisibilityApprox(uv, compareDepth);
+                        float evsmVis = evsmVisibilityApprox(uv, compareDepth, layer);
                         visibility = min(visibility + 0.08, mix(visibility, evsmVis, 0.80));
                     }
                     return clamp(visibility, 0.0, 1.0);
@@ -381,6 +404,7 @@ public final class VulkanShaderSources {
                                         shadowFilterMode,
                                         localShadowCoord.xy,
                                         compareDepth,
+                                        localShadowLayer,
                                         localNdl,
                                         localShadowCoord.z
                                 );
@@ -432,6 +456,7 @@ public final class VulkanShaderSources {
                                         shadowFilterMode,
                                         localShadowCoord.xy,
                                         compareDepth,
+                                        pointLayer,
                                         localNdl,
                                         localShadowCoord.z
                                 );
@@ -501,6 +526,7 @@ public final class VulkanShaderSources {
                                     shadowFilterMode,
                                     shadowCoord.xy,
                                     compareDepth,
+                                    cascadeIndex,
                                     ndl,
                                     shadowCoord.z
                             );
@@ -577,6 +603,7 @@ public final class VulkanShaderSources {
                                     shadowFilterMode,
                                     pointShadowCoord.xy,
                                     compareDepth,
+                                    pointLayer,
                                     pNdl,
                                     pointDepthRatio
                             );

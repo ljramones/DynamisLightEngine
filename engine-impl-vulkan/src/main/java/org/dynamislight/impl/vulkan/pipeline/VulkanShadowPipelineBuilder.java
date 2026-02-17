@@ -70,16 +70,20 @@ public final class VulkanShadowPipelineBuilder {
             VkDevice device,
             MemoryStack stack,
             int depthFormat,
+            int momentFormat,
+            boolean momentPipelineEnabled,
             int shadowMapResolution,
             int vertexStrideBytes,
             long descriptorSetLayout
     ) throws EngineException {
-        long shadowRenderPass = createRenderPass(device, stack, depthFormat);
+        long shadowRenderPass = createRenderPass(device, stack, depthFormat, momentFormat, momentPipelineEnabled);
         long shadowPipelineLayout = VK_NULL_HANDLE;
         long shadowPipeline = VK_NULL_HANDLE;
         try {
             String shadowVertSource = VulkanShaderSources.shadowVertex();
-            String shadowFragSource = VulkanShaderSources.shadowFragment();
+            String shadowFragSource = momentPipelineEnabled
+                    ? VulkanShaderSources.shadowFragmentMoments()
+                    : VulkanShaderSources.shadowFragment();
 
             ByteBuffer vertSpv = VulkanShaderCompiler.compileGlslToSpv(shadowVertSource, shaderc_glsl_vertex_shader, "shadow.vert");
             ByteBuffer fragSpv = VulkanShaderCompiler.compileGlslToSpv(shadowFragSource, shaderc_fragment_shader, "shadow.frag");
@@ -158,7 +162,19 @@ public final class VulkanShadowPipelineBuilder {
                 VkPipelineColorBlendStateCreateInfo colorBlending = VkPipelineColorBlendStateCreateInfo.calloc(stack)
                         .sType(VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO)
                         .logicOpEnable(false)
-                        .attachmentCount(0);
+                        .attachmentCount(momentPipelineEnabled ? 1 : 0);
+                if (momentPipelineEnabled) {
+                    var blendAttachment = org.lwjgl.vulkan.VkPipelineColorBlendAttachmentState.calloc(1, stack);
+                    blendAttachment.get(0)
+                            .blendEnable(false)
+                            .colorWriteMask(
+                                    VK10.VK_COLOR_COMPONENT_R_BIT
+                                            | VK10.VK_COLOR_COMPONENT_G_BIT
+                                            | VK10.VK_COLOR_COMPONENT_B_BIT
+                                            | VK10.VK_COLOR_COMPONENT_A_BIT
+                            );
+                    colorBlending.pAttachments(blendAttachment);
+                }
 
                 VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
                         .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
@@ -214,8 +230,15 @@ public final class VulkanShadowPipelineBuilder {
         return new Result(shadowRenderPass, shadowPipelineLayout, shadowPipeline);
     }
 
-    private static long createRenderPass(VkDevice device, MemoryStack stack, int depthFormat) throws EngineException {
-        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(1, stack)
+    private static long createRenderPass(
+            VkDevice device,
+            MemoryStack stack,
+            int depthFormat,
+            int momentFormat,
+            boolean momentPipelineEnabled
+    ) throws EngineException {
+        VkAttachmentDescription.Buffer attachments = VkAttachmentDescription.calloc(momentPipelineEnabled ? 2 : 1, stack);
+        attachments.get(0)
                 .format(depthFormat)
                 .samples(VK_SAMPLE_COUNT_1_BIT)
                 .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
@@ -224,6 +247,17 @@ public final class VulkanShadowPipelineBuilder {
                 .stencilStoreOp(VK10.VK_ATTACHMENT_STORE_OP_DONT_CARE)
                 .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
                 .finalLayout(VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+        if (momentPipelineEnabled) {
+            attachments.get(1)
+                    .format(momentFormat)
+                    .samples(VK_SAMPLE_COUNT_1_BIT)
+                    .loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR)
+                    .storeOp(VK_ATTACHMENT_STORE_OP_STORE)
+                    .stencilLoadOp(VK10.VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+                    .stencilStoreOp(VK10.VK_ATTACHMENT_STORE_OP_DONT_CARE)
+                    .initialLayout(VK_IMAGE_LAYOUT_UNDEFINED)
+                    .finalLayout(VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        }
 
         VkAttachmentReference.Buffer depthRef = VkAttachmentReference.calloc(1, stack)
                 .attachment(0)
@@ -232,6 +266,12 @@ public final class VulkanShadowPipelineBuilder {
         VkSubpassDescription.Buffer subpass = VkSubpassDescription.calloc(1, stack)
                 .pipelineBindPoint(VK_PIPELINE_BIND_POINT_GRAPHICS)
                 .pDepthStencilAttachment(depthRef.get(0));
+        if (momentPipelineEnabled) {
+            VkAttachmentReference.Buffer colorRef = VkAttachmentReference.calloc(1, stack)
+                    .attachment(1)
+                    .layout(VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            subpass.pColorAttachments(colorRef);
+        }
 
         VkSubpassDependency.Buffer dependencies = VkSubpassDependency.calloc(2, stack);
         dependencies.get(0)

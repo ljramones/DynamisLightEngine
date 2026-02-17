@@ -72,6 +72,7 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.shadowPipelineLayout(),
                         inputs.shadowFramebuffers(),
                         inputs.shadowMomentImage(),
+                        inputs.shadowMomentMipLevels(),
                         inputs.shadowMomentPipelineRequested(),
                         inputs.shadowMomentInitialized()
                 ),
@@ -187,6 +188,7 @@ public final class VulkanFrameCommandOrchestrator {
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowMomentImage,
+            int shadowMomentMipLevels,
             boolean shadowMomentPipelineRequested,
             boolean shadowMomentInitialized,
             boolean postOffscreenActive,

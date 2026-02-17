@@ -8,6 +8,7 @@ import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkClearValue;
 import org.lwjgl.vulkan.VkClearColorValue;
 import org.lwjgl.vulkan.VkCommandBuffer;
+import org.lwjgl.vulkan.VkImageBlit;
 import org.lwjgl.vulkan.VkImageCopy;
 import org.lwjgl.vulkan.VkImageMemoryBarrier;
 import org.lwjgl.vulkan.VkImageSubresourceRange;
@@ -21,6 +22,8 @@ import static org.lwjgl.vulkan.VK10.VK_ACCESS_TRANSFER_WRITE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_INDEX_TYPE_UINT32;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
@@ -40,6 +43,7 @@ import static org.lwjgl.vulkan.VK10.vkCmdBindDescriptorSets;
 import static org.lwjgl.vulkan.VK10.vkCmdBindIndexBuffer;
 import static org.lwjgl.vulkan.VK10.vkCmdBindPipeline;
 import static org.lwjgl.vulkan.VK10.vkCmdBindVertexBuffers;
+import static org.lwjgl.vulkan.VK10.vkCmdBlitImage;
 import static org.lwjgl.vulkan.VK10.vkCmdClearColorImage;
 import static org.lwjgl.vulkan.VK10.vkCmdCopyImage;
 import static org.lwjgl.vulkan.VK10.vkCmdDraw;
@@ -72,73 +76,34 @@ public final class VulkanRenderCommandRecorder {
             IntUnaryOperator dynamicUniformOffset
     ) {
         if (in.shadowMomentPipelineRequested()
-                && !in.shadowMomentInitialized()
                 && in.shadowMomentImage() != VK_NULL_HANDLE) {
-            VkImageMemoryBarrier.Buffer toTransferDst = VkImageMemoryBarrier.calloc(1, stack)
+            int mipLevels = Math.max(1, in.shadowMomentMipLevels());
+            int oldLayout = in.shadowMomentInitialized()
+                    ? VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                    : VK_IMAGE_LAYOUT_UNDEFINED;
+            VkImageMemoryBarrier.Buffer toColorAttachment = VkImageMemoryBarrier.calloc(1, stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
-                    .srcAccessMask(0)
-                    .dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
-                    .oldLayout(VK_IMAGE_LAYOUT_UNDEFINED)
-                    .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                    .srcAccessMask(in.shadowMomentInitialized() ? VK_ACCESS_SHADER_READ_BIT : 0)
+                    .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                    .oldLayout(oldLayout)
+                    .newLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
                     .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                     .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                     .image(in.shadowMomentImage());
-            toTransferDst.get(0).subresourceRange()
+            toColorAttachment.get(0).subresourceRange()
                     .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
                     .baseMipLevel(0)
-                    .levelCount(1)
+                    .levelCount(mipLevels)
                     .baseArrayLayer(0)
-                    .layerCount(1);
+                    .layerCount(in.maxShadowMatrices());
             vkCmdPipelineBarrier(
                     commandBuffer,
-                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    in.shadowMomentInitialized() ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                     0,
                     null,
                     null,
-                    toTransferDst
-            );
-            VkClearColorValue clearMoment = VkClearColorValue.calloc(stack);
-            clearMoment.float32(0, 1.0f);
-            clearMoment.float32(1, 1.0f);
-            clearMoment.float32(2, 0.0f);
-            clearMoment.float32(3, 0.0f);
-            VkImageSubresourceRange.Buffer momentRange = VkImageSubresourceRange.calloc(1, stack)
-                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
-                    .baseMipLevel(0)
-                    .levelCount(1)
-                    .baseArrayLayer(0)
-                    .layerCount(1);
-            vkCmdClearColorImage(
-                    commandBuffer,
-                    in.shadowMomentImage(),
-                    VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    clearMoment,
-                    momentRange
-            );
-            VkImageMemoryBarrier.Buffer toShaderRead = VkImageMemoryBarrier.calloc(1, stack)
-                    .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
-                    .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
-                    .dstAccessMask(VK_ACCESS_SHADER_READ_BIT)
-                    .oldLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-                    .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                    .image(in.shadowMomentImage());
-            toShaderRead.get(0).subresourceRange()
-                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
-                    .baseMipLevel(0)
-                    .levelCount(1)
-                    .baseArrayLayer(0)
-                    .layerCount(1);
-            vkCmdPipelineBarrier(
-                    commandBuffer,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                    0,
-                    null,
-                    null,
-                    toShaderRead
+                    toColorAttachment
             );
         }
 
@@ -150,8 +115,15 @@ public final class VulkanRenderCommandRecorder {
                 && !meshes.isEmpty()
                 && in.shadowFramebuffers().length >= shadowPassCount) {
             for (int cascadeIndex = 0; cascadeIndex < shadowPassCount; cascadeIndex++) {
-                VkClearValue.Buffer shadowClearValues = VkClearValue.calloc(1, stack);
+                int shadowClearCount = in.shadowMomentPipelineRequested() ? 2 : 1;
+                VkClearValue.Buffer shadowClearValues = VkClearValue.calloc(shadowClearCount, stack);
                 shadowClearValues.get(0).depthStencil().depth(1.0f).stencil(0);
+                if (in.shadowMomentPipelineRequested()) {
+                    shadowClearValues.get(1).color().float32(0, 1.0f);
+                    shadowClearValues.get(1).color().float32(1, 1.0f);
+                    shadowClearValues.get(1).color().float32(2, 0.0f);
+                    shadowClearValues.get(1).color().float32(3, 0.0f);
+                }
                 VkRenderPassBeginInfo shadowPassInfo = VkRenderPassBeginInfo.calloc(stack)
                         .sType(VK10.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
                         .renderPass(in.shadowRenderPass())
@@ -188,6 +160,196 @@ public final class VulkanRenderCommandRecorder {
                     vkCmdDrawIndexed(commandBuffer, mesh.indexCount(), 1, 0, 0, 0);
                 }
                 vkCmdEndRenderPass(commandBuffer);
+            }
+        }
+
+        if (in.shadowMomentPipelineRequested()
+                && in.shadowMomentImage() != VK_NULL_HANDLE) {
+            int mipLevels = Math.max(1, in.shadowMomentMipLevels());
+            if (mipLevels > 1) {
+                VkImageMemoryBarrier.Buffer baseToSrc = VkImageMemoryBarrier.calloc(1, stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .srcAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                        .dstAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                        .oldLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                        .newLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(in.shadowMomentImage());
+                baseToSrc.get(0).subresourceRange()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .baseMipLevel(0)
+                        .levelCount(1)
+                        .baseArrayLayer(0)
+                        .layerCount(in.maxShadowMatrices());
+                vkCmdPipelineBarrier(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0,
+                        null,
+                        null,
+                        baseToSrc
+                );
+                VkImageMemoryBarrier.Buffer restToDst = VkImageMemoryBarrier.calloc(1, stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .srcAccessMask(in.shadowMomentInitialized() ? VK_ACCESS_SHADER_READ_BIT : 0)
+                        .dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                        .oldLayout(in.shadowMomentInitialized()
+                                ? VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                : VK_IMAGE_LAYOUT_UNDEFINED)
+                        .newLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(in.shadowMomentImage());
+                restToDst.get(0).subresourceRange()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .baseMipLevel(1)
+                        .levelCount(mipLevels - 1)
+                        .baseArrayLayer(0)
+                        .layerCount(in.maxShadowMatrices());
+                vkCmdPipelineBarrier(
+                        commandBuffer,
+                        in.shadowMomentInitialized() ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0,
+                        null,
+                        null,
+                        restToDst
+                );
+                int width = Math.max(1, in.shadowMapResolution());
+                int height = Math.max(1, in.shadowMapResolution());
+                for (int mip = 1; mip < mipLevels; mip++) {
+                    int srcWidth = width;
+                    int srcHeight = height;
+                    width = Math.max(1, width >> 1);
+                    height = Math.max(1, height >> 1);
+                    VkImageBlit.Buffer blit = VkImageBlit.calloc(1, stack);
+                    blit.get(0).srcSubresource()
+                            .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                            .mipLevel(mip - 1)
+                            .baseArrayLayer(0)
+                            .layerCount(in.maxShadowMatrices());
+                    blit.get(0).srcOffsets(0).set(0, 0, 0);
+                    blit.get(0).srcOffsets(1).set(srcWidth, srcHeight, 1);
+                    blit.get(0).dstSubresource()
+                            .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                            .mipLevel(mip)
+                            .baseArrayLayer(0)
+                            .layerCount(in.maxShadowMatrices());
+                    blit.get(0).dstOffsets(0).set(0, 0, 0);
+                    blit.get(0).dstOffsets(1).set(width, height, 1);
+                    vkCmdBlitImage(
+                            commandBuffer,
+                            in.shadowMomentImage(),
+                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                            in.shadowMomentImage(),
+                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                            blit,
+                            VK10.VK_FILTER_LINEAR
+                    );
+                    if (mip < mipLevels - 1) {
+                        VkImageMemoryBarrier.Buffer mipToSrc = VkImageMemoryBarrier.calloc(1, stack)
+                                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                                .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                                .dstAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                                .oldLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                                .newLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                                .image(in.shadowMomentImage());
+                        mipToSrc.get(0).subresourceRange()
+                                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                                .baseMipLevel(mip)
+                                .levelCount(1)
+                                .baseArrayLayer(0)
+                                .layerCount(in.maxShadowMatrices());
+                        vkCmdPipelineBarrier(
+                                commandBuffer,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                0,
+                                null,
+                                null,
+                                mipToSrc
+                        );
+                    }
+                }
+            }
+            if (mipLevels > 1) {
+                VkImageMemoryBarrier.Buffer srcMipsToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                        .dstAccessMask(VK_ACCESS_SHADER_READ_BIT)
+                        .oldLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                        .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(in.shadowMomentImage());
+                srcMipsToShaderRead.get(0).subresourceRange()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .baseMipLevel(0)
+                        .levelCount(mipLevels - 1)
+                        .baseArrayLayer(0)
+                        .layerCount(in.maxShadowMatrices());
+                vkCmdPipelineBarrier(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0,
+                        null,
+                        null,
+                        srcMipsToShaderRead
+                );
+                VkImageMemoryBarrier.Buffer lastMipToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                        .dstAccessMask(VK_ACCESS_SHADER_READ_BIT)
+                        .oldLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                        .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(in.shadowMomentImage());
+                lastMipToShaderRead.get(0).subresourceRange()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .baseMipLevel(mipLevels - 1)
+                        .levelCount(1)
+                        .baseArrayLayer(0)
+                        .layerCount(in.maxShadowMatrices());
+                vkCmdPipelineBarrier(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0,
+                        null,
+                        null,
+                        lastMipToShaderRead
+                );
+            } else {
+                VkImageMemoryBarrier.Buffer toShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                        .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                        .srcAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                        .dstAccessMask(VK_ACCESS_SHADER_READ_BIT)
+                        .oldLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                        .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                        .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                        .image(in.shadowMomentImage());
+                toShaderRead.get(0).subresourceRange()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .baseMipLevel(0)
+                        .levelCount(1)
+                        .baseArrayLayer(0)
+                        .layerCount(in.maxShadowMatrices());
+                vkCmdPipelineBarrier(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        0,
+                        null,
+                        null,
+                        toShaderRead
+                );
             }
         }
 
@@ -749,6 +911,7 @@ public final class VulkanRenderCommandRecorder {
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowMomentImage,
+            int shadowMomentMipLevels,
             boolean shadowMomentPipelineRequested,
             boolean shadowMomentInitialized
     ) {

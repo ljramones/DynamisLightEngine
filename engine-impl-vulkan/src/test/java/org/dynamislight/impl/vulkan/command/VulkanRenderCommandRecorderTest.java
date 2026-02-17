@@ -28,6 +28,7 @@ class VulkanRenderCommandRecorderTest {
                 1L,
                 new long[12],
                 0L,
+                1,
                 false,
                 false
         );
@@ -57,6 +58,7 @@ class VulkanRenderCommandRecorderTest {
                 1L,
                 new long[12],
                 0L,
+                1,
                 false,
                 false
         );
@@ -86,6 +88,7 @@ class VulkanRenderCommandRecorderTest {
                 1L,
                 new long[24],
                 0L,
+                1,
                 false,
                 false
         );

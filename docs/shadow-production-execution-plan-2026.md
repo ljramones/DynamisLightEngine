@@ -47,7 +47,7 @@ Implemented now:
 
 Still pending:
 - full production multi-point cubemap scalability (beyond current matrix/layer bounds)
-- dedicated VSM/EVSM moment write/prefilter pipeline (runtime shader shaping is active; dedicated write/prefilter pass is pending)
+- hardware-quality tuning/validation for the dedicated VSM/EVSM moment pipeline (write + mip prefilter is now active; thresholds/quality sweeps remain)
 - hardware RT shadow traversal/denoise pipeline
 
 ## Phased Execution

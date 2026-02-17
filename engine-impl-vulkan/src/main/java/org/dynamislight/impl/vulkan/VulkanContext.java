@@ -990,6 +990,7 @@ final class VulkanContext {
                         backendResources.shadowPipelineLayout,
                         backendResources.shadowFramebuffers,
                         backendResources.shadowMomentImage,
+                        backendResources.shadowMomentMipLevels,
                         renderState.shadowMomentPipelineRequested,
                         renderState.shadowMomentInitialized,
                         renderState.postOffscreenActive,

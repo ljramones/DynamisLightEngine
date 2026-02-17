@@ -45,8 +45,10 @@ public final class VulkanBackendResources {
     public long shadowMomentImage = VK_NULL_HANDLE;
     public long shadowMomentMemory = VK_NULL_HANDLE;
     public long shadowMomentImageView = VK_NULL_HANDLE;
+    public long[] shadowMomentLayerImageViews = new long[0];
     public long shadowMomentSampler = VK_NULL_HANDLE;
     public int shadowMomentFormat = 0;
+    public int shadowMomentMipLevels = 1;
 
     public long renderPass = VK_NULL_HANDLE;
     public long pipelineLayout = VK_NULL_HANDLE;

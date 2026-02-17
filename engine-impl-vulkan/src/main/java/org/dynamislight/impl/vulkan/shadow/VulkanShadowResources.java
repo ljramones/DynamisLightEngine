@@ -95,7 +95,9 @@ public final class VulkanShadowResources {
                 VK_IMAGE_ASPECT_DEPTH_BIT,
                 VK10.VK_IMAGE_VIEW_TYPE_2D_ARRAY,
                 0,
-                maxShadowMatrices
+                maxShadowMatrices,
+                0,
+                1
         );
         long[] shadowDepthLayerImageViews = new long[maxShadowMatrices];
         for (int i = 0; i < maxShadowMatrices; i++) {
@@ -107,35 +109,39 @@ public final class VulkanShadowResources {
                     VK_IMAGE_ASPECT_DEPTH_BIT,
                     VK_IMAGE_VIEW_TYPE_2D,
                     i,
+                    1,
+                    0,
                     1
             );
         }
         long shadowSampler = createShadowSampler(device, stack);
-        VulkanShadowPipelineBuilder.Result shadowPipeline = VulkanShadowPipelineBuilder.create(
-                device,
-                stack,
-                depthFormat,
-                shadowMapResolution,
-                vertexStrideBytes,
-                descriptorSetLayout
-        );
-        long[] shadowFramebuffers = createShadowFramebuffers(
-                device,
-                stack,
-                shadowPipeline.renderPass(),
-                shadowDepthLayerImageViews,
-                shadowMapResolution
-        );
-        long shadowMomentImage = VK_NULL_HANDLE;
-        long shadowMomentMemory = VK_NULL_HANDLE;
-        long shadowMomentImageView = VK_NULL_HANDLE;
-        long shadowMomentSampler = VK_NULL_HANDLE;
         int shadowMomentFormat = 0;
-        if (momentPipelineRequested && momentMode > 0) {
+        boolean momentPipelineEnabled = momentPipelineRequested && momentMode > 0;
+        if (momentPipelineEnabled) {
             shadowMomentFormat = switch (momentMode) {
                 case 2 -> VK_FORMAT_R16G16B16A16_SFLOAT;
                 default -> VK_FORMAT_R16G16_SFLOAT;
             };
+        }
+        VulkanShadowPipelineBuilder.Result shadowPipeline = VulkanShadowPipelineBuilder.create(
+                device,
+                stack,
+                depthFormat,
+                shadowMomentFormat,
+                momentPipelineEnabled,
+                shadowMapResolution,
+                vertexStrideBytes,
+                descriptorSetLayout
+        );
+        int shadowMomentMipLevels = 1;
+        long[] shadowFramebuffers;
+        long shadowMomentImage = VK_NULL_HANDLE;
+        long shadowMomentMemory = VK_NULL_HANDLE;
+        long shadowMomentImageView = VK_NULL_HANDLE;
+        long[] shadowMomentLayerImageViews = new long[0];
+        long shadowMomentSampler = VK_NULL_HANDLE;
+        if (momentPipelineEnabled) {
+            shadowMomentMipLevels = mipLevelsForResolution(shadowMapResolution);
             VulkanImageAlloc shadowMoment = VulkanMemoryOps.createImage(
                     device,
                     physicalDevice,
@@ -144,9 +150,13 @@ public final class VulkanShadowResources {
                     shadowMapResolution,
                     shadowMomentFormat,
                     VK10.VK_IMAGE_TILING_OPTIMAL,
-                    VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                            | VK10.VK_IMAGE_USAGE_SAMPLED_BIT
+                            | VK10.VK_IMAGE_USAGE_TRANSFER_SRC_BIT
+                            | VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                     VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                    1
+                    maxShadowMatrices,
+                    shadowMomentMipLevels
             );
             shadowMomentImage = shadowMoment.image();
             shadowMomentMemory = shadowMoment.memory();
@@ -156,12 +166,37 @@ public final class VulkanShadowResources {
                     shadowMomentImage,
                     shadowMomentFormat,
                     VK10.VK_IMAGE_ASPECT_COLOR_BIT,
-                    VK_IMAGE_VIEW_TYPE_2D,
+                    VK10.VK_IMAGE_VIEW_TYPE_2D_ARRAY,
                     0,
-                    1
+                    maxShadowMatrices,
+                    0,
+                    shadowMomentMipLevels
             );
+            shadowMomentLayerImageViews = new long[maxShadowMatrices];
+            for (int i = 0; i < maxShadowMatrices; i++) {
+                shadowMomentLayerImageViews[i] = createImageView(
+                        device,
+                        stack,
+                        shadowMomentImage,
+                        shadowMomentFormat,
+                        VK10.VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_VIEW_TYPE_2D,
+                        i,
+                        1,
+                        0,
+                        1
+                );
+            }
             shadowMomentSampler = createMomentSampler(device, stack);
         }
+        shadowFramebuffers = createShadowFramebuffers(
+                device,
+                stack,
+                shadowPipeline.renderPass(),
+                shadowDepthLayerImageViews,
+                shadowMomentLayerImageViews.length == 0 ? null : shadowMomentLayerImageViews,
+                shadowMapResolution
+        );
         return new Allocation(
                 shadowDepthImage,
                 shadowDepthMemory,
@@ -175,8 +210,10 @@ public final class VulkanShadowResources {
                 shadowMomentImage,
                 shadowMomentMemory,
                 shadowMomentImageView,
+                shadowMomentLayerImageViews,
                 shadowMomentSampler,
-                shadowMomentFormat
+                shadowMomentFormat,
+                shadowMomentMipLevels
         );
     }
 
@@ -230,6 +267,11 @@ public final class VulkanShadowResources {
         if (resources.shadowMomentImageView() != VK_NULL_HANDLE) {
             vkDestroyImageView(device, resources.shadowMomentImageView(), null);
         }
+        for (long layerView : resources.shadowMomentLayerImageViews()) {
+            if (layerView != VK_NULL_HANDLE) {
+                vkDestroyImageView(device, layerView, null);
+            }
+        }
         if (resources.shadowMomentImage() != VK_NULL_HANDLE) {
             VK10.vkDestroyImage(device, resources.shadowMomentImage(), null);
         }
@@ -258,14 +300,20 @@ public final class VulkanShadowResources {
             MemoryStack stack,
             long shadowRenderPass,
             long[] shadowDepthLayerImageViews,
+            long[] shadowMomentLayerImageViews,
             int shadowMapResolution
     ) throws EngineException {
         long[] framebuffers = new long[shadowDepthLayerImageViews.length];
+        boolean hasMoments = shadowMomentLayerImageViews != null
+                && shadowMomentLayerImageViews.length == shadowDepthLayerImageViews.length;
         for (int i = 0; i < shadowDepthLayerImageViews.length; i++) {
+            long[] attachments = hasMoments
+                    ? new long[]{shadowDepthLayerImageViews[i], shadowMomentLayerImageViews[i]}
+                    : new long[]{shadowDepthLayerImageViews[i]};
             VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO)
                     .renderPass(shadowRenderPass)
-                    .pAttachments(stack.longs(shadowDepthLayerImageViews[i]))
+                    .pAttachments(stack.longs(attachments))
                     .width(shadowMapResolution)
                     .height(shadowMapResolution)
                     .layers(1);
@@ -302,7 +350,9 @@ public final class VulkanShadowResources {
             int aspectMask,
             int viewType,
             int baseArrayLayer,
-            int layerCount
+            int layerCount,
+            int baseMipLevel,
+            int levelCount
     ) throws EngineException {
         VkImageViewCreateInfo viewInfo = VkImageViewCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
@@ -311,8 +361,8 @@ public final class VulkanShadowResources {
                 .format(format);
         viewInfo.subresourceRange()
                 .aspectMask(aspectMask)
-                .baseMipLevel(0)
-                .levelCount(1)
+                .baseMipLevel(baseMipLevel)
+                .levelCount(levelCount)
                 .baseArrayLayer(baseArrayLayer)
                 .layerCount(layerCount);
         var pView = stack.longs(VK_NULL_HANDLE);
@@ -376,7 +426,7 @@ public final class VulkanShadowResources {
                 .mipmapMode(VK10.VK_SAMPLER_MIPMAP_MODE_NEAREST)
                 .mipLodBias(0.0f)
                 .minLod(0.0f)
-                .maxLod(0.0f);
+                .maxLod(16.0f);
         var pSampler = stack.longs(VK_NULL_HANDLE);
         int result = VK10.vkCreateSampler(device, samplerInfo, null, pSampler);
         if (result != VK_SUCCESS || pSampler.get(0) == VK_NULL_HANDLE) {
@@ -407,8 +457,15 @@ public final class VulkanShadowResources {
             long shadowMomentImage,
             long shadowMomentMemory,
             long shadowMomentImageView,
+            long[] shadowMomentLayerImageViews,
             long shadowMomentSampler,
-            int shadowMomentFormat
+            int shadowMomentFormat,
+            int shadowMomentMipLevels
     ) {
+    }
+
+    private static int mipLevelsForResolution(int resolution) {
+        int clamped = Math.max(1, resolution);
+        return 32 - Integer.numberOfLeadingZeros(clamped);
     }
 }

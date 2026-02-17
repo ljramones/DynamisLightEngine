@@ -198,8 +198,10 @@ public final class VulkanLifecycleOrchestrator {
                         backendResources.shadowMomentImage,
                         backendResources.shadowMomentMemory,
                         backendResources.shadowMomentImageView,
+                        backendResources.shadowMomentLayerImageViews,
                         backendResources.shadowMomentSampler,
-                        backendResources.shadowMomentFormat
+                        backendResources.shadowMomentFormat,
+                        backendResources.shadowMomentMipLevels
                 )
         );
     }
@@ -217,8 +219,10 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.shadowMomentImage = state.shadowMomentImage();
         backendResources.shadowMomentMemory = state.shadowMomentMemory();
         backendResources.shadowMomentImageView = state.shadowMomentImageView();
+        backendResources.shadowMomentLayerImageViews = state.shadowMomentLayerImageViews();
         backendResources.shadowMomentSampler = state.shadowMomentSampler();
         backendResources.shadowMomentFormat = state.shadowMomentFormat();
+        backendResources.shadowMomentMipLevels = state.shadowMomentMipLevels();
     }
 
     public static VulkanFrameSyncLifecycleCoordinator.State createFrameSync(CreateFrameSyncRequest request) throws EngineException {

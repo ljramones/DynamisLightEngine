@@ -56,8 +56,10 @@ public final class VulkanShadowLifecycleCoordinator {
                 shadowResources.shadowMomentImage(),
                 shadowResources.shadowMomentMemory(),
                 shadowResources.shadowMomentImageView(),
+                shadowResources.shadowMomentLayerImageViews(),
                 shadowResources.shadowMomentSampler(),
-                shadowResources.shadowMomentFormat()
+                shadowResources.shadowMomentFormat(),
+                shadowResources.shadowMomentMipLevels()
         );
     }
 
@@ -87,8 +89,10 @@ public final class VulkanShadowLifecycleCoordinator {
                         request.shadowMomentImage(),
                         request.shadowMomentMemory(),
                         request.shadowMomentImageView(),
+                        request.shadowMomentLayerImageViews(),
                         request.shadowMomentSampler(),
-                        request.shadowMomentFormat()
+                        request.shadowMomentFormat(),
+                        request.shadowMomentMipLevels()
                 )
         );
         return State.empty();
@@ -160,8 +164,10 @@ public final class VulkanShadowLifecycleCoordinator {
             long shadowMomentImage,
             long shadowMomentMemory,
             long shadowMomentImageView,
+            long[] shadowMomentLayerImageViews,
             long shadowMomentSampler,
-            int shadowMomentFormat
+            int shadowMomentFormat,
+            int shadowMomentMipLevels
     ) {
     }
 
@@ -185,8 +191,10 @@ public final class VulkanShadowLifecycleCoordinator {
             long shadowMomentImage,
             long shadowMomentMemory,
             long shadowMomentImageView,
+            long[] shadowMomentLayerImageViews,
             long shadowMomentSampler,
-            int shadowMomentFormat
+            int shadowMomentFormat,
+            int shadowMomentMipLevels
     ) {
         /**
          * Creates and returns an empty State instance where all Vulkan handles are set
@@ -209,8 +217,10 @@ public final class VulkanShadowLifecycleCoordinator {
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
+                    new long[0],
                     VK_NULL_HANDLE,
-                    0
+                    0,
+                    1
             );
         }
     }
