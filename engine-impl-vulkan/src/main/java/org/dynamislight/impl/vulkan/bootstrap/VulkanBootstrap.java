@@ -11,7 +11,6 @@ import org.lwjgl.vulkan.VkApplicationInfo;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkDeviceCreateInfo;
 import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
-import org.lwjgl.vulkan.VkExtensionProperties;
 import org.lwjgl.vulkan.VkInstance;
 import org.lwjgl.vulkan.VkInstanceCreateInfo;
 import org.lwjgl.vulkan.VkPhysicalDevice;
@@ -19,7 +18,6 @@ import org.lwjgl.vulkan.VkQueue;
 import org.lwjgl.vulkan.KHRPortabilityEnumeration;
 import org.lwjgl.vulkan.KHRPortabilitySubset;
 
-import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -48,12 +46,13 @@ import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 import static org.lwjgl.vulkan.VK10.vkCreateDevice;
 import static org.lwjgl.vulkan.VK10.vkCreateInstance;
-import static org.lwjgl.vulkan.VK10.vkEnumerateDeviceExtensionProperties;
 import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
 
 public final class VulkanBootstrap {
     private VulkanBootstrap() {
     }
+
+    private static final boolean IS_MAC = System.getProperty("os.name", "").toLowerCase().contains("mac");
 
     public static long initWindow(String appName, int width, int height, boolean windowVisible) throws EngineException {
         GLFWErrorCallback.createPrint(System.err).set();
@@ -142,7 +141,7 @@ public final class VulkanBootstrap {
 
         List<String> requiredDeviceExtensions = new ArrayList<>();
         requiredDeviceExtensions.add(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-        if (supportsDeviceExtension(physicalDevice, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME, stack)) {
+        if (IS_MAC) {
             requiredDeviceExtensions.add(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
         }
         PointerBuffer extensions = stack.mallocPointer(requiredDeviceExtensions.size());
@@ -176,24 +175,5 @@ public final class VulkanBootstrap {
             VkDevice device,
             VkQueue graphicsQueue
     ) {
-    }
-
-    private static boolean supportsDeviceExtension(VkPhysicalDevice physicalDevice, String extensionName, MemoryStack stack) {
-        IntBuffer extCount = stack.ints(0);
-        int enumResult = vkEnumerateDeviceExtensionProperties(physicalDevice, (String) null, extCount, null);
-        if (enumResult != VK_SUCCESS || extCount.get(0) <= 0) {
-            return false;
-        }
-        VkExtensionProperties.Buffer extensions = VkExtensionProperties.calloc(extCount.get(0), stack);
-        enumResult = vkEnumerateDeviceExtensionProperties(physicalDevice, (String) null, extCount, extensions);
-        if (enumResult != VK_SUCCESS) {
-            return false;
-        }
-        for (int i = 0; i < extensions.capacity(); i++) {
-            if (extensionName.equals(extensions.get(i).extensionNameString())) {
-                return true;
-            }
-        }
-        return false;
     }
 }
