@@ -20,6 +20,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 OUT_DIR="${DLE_COMPARE_OUTPUT_DIR:-artifacts/compare/aa-real-$(date +%Y%m%d-%H%M%S)}"
 TEST_CLASS="${DLE_COMPARE_TEST_CLASS:-BackendParityIntegrationTest}"
 VULKAN_MODE="${DLE_COMPARE_VULKAN_MODE:-mock}" # mock(default) | auto | real
+SCRIPT_COMMAND="${1:-run}" # run(default) | preflight
 
 find_vulkan_loader_dir() {
   local candidate
@@ -39,12 +40,67 @@ find_vulkan_loader_dir() {
   return 1
 }
 
+run_vulkan_preflight() {
+  local loader_dir="$1"
+  local preflight_log
+  local loader_file=""
+  local failures=()
+  if [[ -z "$loader_dir" ]]; then
+    failures+=("Vulkan loader not found (missing libvulkan.1.dylib / libvulkan.dylib).")
+  else
+    if [[ -f "$loader_dir/libvulkan.1.dylib" ]]; then
+      loader_file="$loader_dir/libvulkan.1.dylib"
+    elif [[ -f "$loader_dir/libvulkan.dylib" ]]; then
+      loader_file="$loader_dir/libvulkan.dylib"
+    else
+      failures+=("Vulkan loader directory '$loader_dir' does not contain libvulkan.1.dylib or libvulkan.dylib.")
+    fi
+  fi
+
+  if ! command -v vulkaninfo >/dev/null 2>&1; then
+    failures+=("vulkaninfo command not found (install Vulkan SDK tools).")
+  fi
+
+  if [[ "${#failures[@]}" -eq 0 ]]; then
+    preflight_log="$(mktemp -t dle-vulkan-preflight.XXXXXX.log)"
+    if ! vulkaninfo >"$preflight_log" 2>&1; then
+      failures+=("vulkaninfo failed to initialize Vulkan (check ICD/loader setup).")
+    else
+      if ! grep -qi "VK_KHR_surface" "$preflight_log"; then
+        failures+=("Required Vulkan extension VK_KHR_surface is missing.")
+      fi
+      if ! grep -qi "VK_EXT_metal_surface" "$preflight_log"; then
+        failures+=("Required Vulkan extension VK_EXT_metal_surface is missing.")
+      fi
+      if ! grep -qi "GPU id" "$preflight_log"; then
+        failures+=("No Vulkan GPU enumerated by loader (ICD may be missing/broken).")
+      fi
+    fi
+  fi
+
+  if [[ "${#failures[@]}" -ne 0 ]]; then
+    echo "Real Vulkan preflight: FAILED" >&2
+    for item in "${failures[@]}"; do
+      echo "  - $item" >&2
+    done
+    echo "Hints:" >&2
+    echo "  - Ensure Homebrew vulkan-loader/molten-vk are installed." >&2
+    echo "  - Ensure your loader path exposes libvulkan.1.dylib." >&2
+    echo "  - Ensure vulkaninfo reports VK_KHR_surface and VK_EXT_metal_surface." >&2
+    return 1
+  fi
+
+  echo "Real Vulkan preflight: OK"
+  echo "Loader: $loader_file"
+}
+
 MODE_NORMALIZED="$(printf '%s' "$VULKAN_MODE" | tr '[:upper:]' '[:lower:]')"
 VULKAN_LOADER_DIR=""
 if VULKAN_LOADER_DIR="$(find_vulkan_loader_dir)"; then
   export DYLD_FALLBACK_LIBRARY_PATH="${VULKAN_LOADER_DIR}${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
 fi
 JVM_ARG_LINE="-XstartOnFirstThread"
+OUT_BASE_DIR="$OUT_DIR"
 
 case "$MODE_NORMALIZED" in
   real)
@@ -71,6 +127,28 @@ case "$MODE_NORMALIZED" in
     exit 1
     ;;
 esac
+
+if [[ "$SCRIPT_COMMAND" == "preflight" ]]; then
+  run_vulkan_preflight "$VULKAN_LOADER_DIR"
+  exit 0
+fi
+
+if [[ "$SCRIPT_COMMAND" != "run" ]]; then
+  echo "Invalid command '$SCRIPT_COMMAND' (expected: run|preflight)." >&2
+  exit 1
+fi
+
+if [[ "$MODE_NORMALIZED" == "real" || "$MODE_NORMALIZED" == "auto" ]]; then
+  if [[ "$VULKAN_MOCK_CONTEXT" == "false" ]]; then
+    run_vulkan_preflight "$VULKAN_LOADER_DIR"
+  fi
+fi
+
+if [[ "$VULKAN_MOCK_CONTEXT" == "true" ]]; then
+  OUT_DIR="${OUT_BASE_DIR%/}/vulkan_mock"
+else
+  OUT_DIR="${OUT_BASE_DIR%/}/vulkan_real"
+fi
 
 echo "Using JAVA_HOME=$JAVA_HOME"
 java -version
@@ -104,6 +182,7 @@ if ! run_compare_tests "$VULKAN_MOCK_CONTEXT" "$LOG_FILE"; then
     rg -q "No required Vulkan instance extensions from GLFW|Failed to locate library: libvulkan\\.1\\.dylib|Could not initialize class org\\.lwjgl\\.glfw\\.GLFWVulkan" "$LOG_FILE"; then
     echo "Real Vulkan initialization failed; auto mode is retrying with Vulkan mock context." >&2
     VULKAN_MOCK_CONTEXT=true
+    OUT_DIR="${OUT_BASE_DIR%/}/vulkan_mock"
     run_compare_tests "$VULKAN_MOCK_CONTEXT" "$LOG_FILE"
   else
     exit 1

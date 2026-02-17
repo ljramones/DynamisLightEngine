@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import javax.imageio.ImageIO;
 import org.dynamislight.api.runtime.EngineApiVersion;
@@ -35,14 +36,29 @@ final class BackendCompareHarness {
         String normalizedTag = normalizeTag(profileTag);
         Path openGlPng = outputDir.resolve("opengl-" + normalizedTag + ".png");
         Path vulkanPng = outputDir.resolve("vulkan-" + normalizedTag + ".png");
+        String vulkanModeTag = vulkanModeTag();
+        String acceptanceProfile = acceptanceProfileTag();
 
         BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag);
         BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag);
 
         writeDiagnosticImage(openGl, openGlPng);
         writeDiagnosticImage(vulkan, vulkanPng);
+        openGl = openGl.withShimmerIndex(estimateShimmerIndex(openGlPng));
+        vulkan = vulkan.withShimmerIndex(estimateShimmerIndex(vulkanPng));
         double diff = normalizedImageDiff(openGlPng, vulkanPng);
+        writeModeMetadata(outputDir, normalizedTag, qualityTier, vulkanModeTag, acceptanceProfile, diff, openGl, vulkan);
         return new CompareReport(openGlPng, vulkanPng, diff, openGl, vulkan);
+    }
+
+    private static String vulkanModeTag() {
+        boolean vulkanMock = Boolean.parseBoolean(System.getProperty("dle.compare.vulkan.mockContext", "true"));
+        return vulkanMock ? "vulkan_mock" : "vulkan_real";
+    }
+
+    private static String acceptanceProfileTag() {
+        boolean vulkanMock = Boolean.parseBoolean(System.getProperty("dle.compare.vulkan.mockContext", "true"));
+        return vulkanMock ? "fallback" : "strict";
     }
 
     private static String normalizeTag(String tag) {
@@ -68,7 +84,11 @@ final class BackendCompareHarness {
                 || profileTag.contains("taa-reactive-authored-dense-stress")
                 || profileTag.contains("taa-alpha-pan-stress")
                 || profileTag.contains("taa-aa-preset-quality-stress")
-                || profileTag.contains("taa-confidence-dilation-stress");
+                || profileTag.contains("taa-confidence-dilation-stress")
+                || profileTag.contains("taa-subpixel-alpha-foliage-stress")
+                || profileTag.contains("taa-specular-micro-highlights-stress")
+                || profileTag.contains("taa-thin-geometry-motion-stress")
+                || profileTag.contains("taa-disocclusion-rapid-pan-stress");
         boolean smaaStress = profileTag.contains("smaa-full-edge-crawl");
         String aaPreset = selectAaPreset(profileTag);
         EngineInput input = (taaStress || smaaStress)
@@ -91,6 +111,10 @@ final class BackendCompareHarness {
                     stats.visibleObjects(),
                     stats.cpuFrameMs(),
                     stats.gpuFrameMs(),
+                    0.0,
+                    stats.taaHistoryRejectRate(),
+                    stats.taaConfidenceMean(),
+                    stats.taaConfidenceDropEvents(),
                     frame.warnings().size(),
                     frame.warnings().stream().map(w -> w.code()).sorted().toList()
             );
@@ -206,6 +230,61 @@ final class BackendCompareHarness {
         return accum / (pixelCount * 3.0 * 255.0);
     }
 
+    private static double estimateShimmerIndex(Path png) throws IOException {
+        BufferedImage image = ImageIO.read(png.toFile());
+        if (image == null || image.getWidth() < 2 || image.getHeight() < 2) {
+            return 0.0;
+        }
+        double accum = 0.0;
+        long samples = 0L;
+        for (int y = 0; y < image.getHeight() - 1; y++) {
+            for (int x = 0; x < image.getWidth() - 1; x++) {
+                double luma = luma(image.getRGB(x, y));
+                double lumaRight = luma(image.getRGB(x + 1, y));
+                double lumaDown = luma(image.getRGB(x, y + 1));
+                accum += Math.abs(luma - lumaRight) + Math.abs(luma - lumaDown);
+                samples += 2L;
+            }
+        }
+        return samples == 0L ? 0.0 : accum / samples;
+    }
+
+    private static double luma(int rgba) {
+        double r = ((rgba >> 16) & 0xFF) / 255.0;
+        double g = ((rgba >> 8) & 0xFF) / 255.0;
+        double b = (rgba & 0xFF) / 255.0;
+        return (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
+    }
+
+    private static void writeModeMetadata(
+            Path outputDir,
+            String profileTag,
+            QualityTier qualityTier,
+            String vulkanMode,
+            String acceptanceProfile,
+            double diffMetric,
+            BackendSnapshot openGl,
+            BackendSnapshot vulkan
+    ) throws IOException {
+        Properties metadata = new Properties();
+        metadata.setProperty("compare.profileTag", profileTag);
+        metadata.setProperty("compare.qualityTier", qualityTier.name());
+        metadata.setProperty("compare.vulkan.mode", vulkanMode);
+        metadata.setProperty("compare.aa.acceptanceProfile", acceptanceProfile);
+        metadata.setProperty("compare.diffMetric", Double.toString(diffMetric));
+        metadata.setProperty("compare.opengl.shimmerIndex", Double.toString(openGl.shimmerIndex()));
+        metadata.setProperty("compare.vulkan.shimmerIndex", Double.toString(vulkan.shimmerIndex()));
+        metadata.setProperty("compare.opengl.taaHistoryRejectRate", Double.toString(openGl.taaHistoryRejectRate()));
+        metadata.setProperty("compare.vulkan.taaHistoryRejectRate", Double.toString(vulkan.taaHistoryRejectRate()));
+        metadata.setProperty("compare.opengl.taaConfidenceMean", Double.toString(openGl.taaConfidenceMean()));
+        metadata.setProperty("compare.vulkan.taaConfidenceMean", Double.toString(vulkan.taaConfidenceMean()));
+        metadata.setProperty("compare.opengl.taaConfidenceDropCount", Long.toString(openGl.taaConfidenceDropCount()));
+        metadata.setProperty("compare.vulkan.taaConfidenceDropCount", Long.toString(vulkan.taaConfidenceDropCount()));
+        try (var out = Files.newOutputStream(outputDir.resolve("compare-metadata.properties"))) {
+            metadata.store(out, "DynamisLightEngine compare metadata");
+        }
+    }
+
     record CompareReport(
             Path openGlImage,
             Path vulkanImage,
@@ -222,9 +301,29 @@ final class BackendCompareHarness {
             long visibleObjects,
             double cpuFrameMs,
             double gpuFrameMs,
+            double shimmerIndex,
+            double taaHistoryRejectRate,
+            double taaConfidenceMean,
+            long taaConfidenceDropCount,
             int warningCount,
             java.util.List<String> warningCodes
     ) {
+        BackendSnapshot withShimmerIndex(double value) {
+            return new BackendSnapshot(
+                    backendId,
+                    drawCalls,
+                    triangles,
+                    visibleObjects,
+                    cpuFrameMs,
+                    gpuFrameMs,
+                    value,
+                    taaHistoryRejectRate,
+                    taaConfidenceMean,
+                    taaConfidenceDropCount,
+                    warningCount,
+                    warningCodes
+            );
+        }
     }
 
     private static final class NoopCallbacks implements EngineHostCallbacks {

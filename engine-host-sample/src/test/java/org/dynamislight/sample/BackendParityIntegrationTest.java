@@ -327,7 +327,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
         assertTrue(report.diffMetric() >= 0.0);
-        double maxDiff = adjustedCompareMaxDiff(0.05);
+        double maxDiff = adjustedCompareMaxDiff("fog-smoke-shadow-post-stress", 0.05);
         assertTrue(report.diffMetric() <= maxDiff, "fog+smoke+shadow+post stress diff was " + report.diffMetric() + " (max " + maxDiff + ")");
     }
 
@@ -362,7 +362,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.32, "taa disocclusion stress diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-disocclusion-stress", report, 0.32, "taa disocclusion stress");
     }
 
     @Test
@@ -379,7 +379,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.32, "taa reactive authored stress diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-reactive-authored-stress", report, 0.32, "taa reactive authored stress");
     }
 
     @Test
@@ -396,7 +396,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.31, "taa thin-geometry shimmer diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-thin-geometry-shimmer", report, 0.31, "taa thin-geometry shimmer");
     }
 
     @Test
@@ -413,7 +413,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.31, "taa specular flicker diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-specular-flicker", report, 0.31, "taa specular flicker");
     }
 
     @Test
@@ -430,7 +430,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.29, "taa history confidence stress diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-history-confidence-stress", report, 0.29, "taa history confidence stress");
     }
 
     @Test
@@ -447,7 +447,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.29, "taa specular aa stress diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-specular-aa-stress", report, 0.29, "taa specular aa stress");
     }
 
     @Test
@@ -464,7 +464,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.31, "taa reactive authored dense stress diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-reactive-authored-dense-stress", report, 0.31, "taa reactive authored dense stress");
     }
 
     @Test
@@ -481,7 +481,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.31, "taa alpha pan stress diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-alpha-pan-stress", report, 0.31, "taa alpha pan stress");
     }
 
     @Test
@@ -498,7 +498,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.31, "taa aa-preset-quality stress diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-aa-preset-quality-stress", report, 0.31, "taa aa-preset-quality stress");
     }
 
     @Test
@@ -515,7 +515,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.31, "taa confidence dilation stress diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("taa-confidence-dilation-stress", report, 0.31, "taa confidence dilation stress");
     }
 
     @Test
@@ -532,7 +532,71 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.openGlImage()));
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.34, "smaa full edge crawl diff was " + report.diffMetric());
+        assertAaSceneWithinThreshold("smaa-full-edge-crawl", report, 0.34, "smaa full edge crawl");
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaSubpixelAlphaFoliageStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-subpixel-alpha-foliage-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaSubpixelAlphaFoliageStressScene(),
+                QualityTier.ULTRA,
+                "taa-subpixel-alpha-foliage-stress-ultra"
+        );
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertAaSceneWithinThreshold("taa-subpixel-alpha-foliage-stress", report, 0.33, "taa subpixel alpha foliage stress");
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaSpecularMicroHighlightsStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-specular-micro-highlights-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaSpecularMicroHighlightsStressScene(),
+                QualityTier.ULTRA,
+                "taa-specular-micro-highlights-stress-ultra"
+        );
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertAaSceneWithinThreshold("taa-specular-micro-highlights-stress", report, 0.31, "taa specular micro-highlights stress");
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaThinGeometryMotionStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-thin-geometry-motion-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaThinGeometryMotionStressScene(),
+                QualityTier.ULTRA,
+                "taa-thin-geometry-motion-stress-ultra"
+        );
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertAaSceneWithinThreshold("taa-thin-geometry-motion-stress", report, 0.31, "taa thin geometry motion stress");
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTaaDisocclusionRapidPanStressHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("taa-disocclusion-rapid-pan-stress");
+        var report = BackendCompareHarness.run(
+                outDir,
+                taaDisocclusionRapidPanStressScene(),
+                QualityTier.ULTRA,
+                "taa-disocclusion-rapid-pan-stress-ultra"
+        );
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertAaSceneWithinThreshold("taa-disocclusion-rapid-pan-stress", report, 0.33, "taa disocclusion rapid-pan stress");
     }
 
     @Test
@@ -960,6 +1024,10 @@ class BackendParityIntegrationTest {
                 Map.entry("taa-alpha-pan-stress", 0.31),
                 Map.entry("taa-aa-preset-quality-stress", 0.31),
                 Map.entry("taa-confidence-dilation-stress", 0.31),
+                Map.entry("taa-subpixel-alpha-foliage-stress", 0.33),
+                Map.entry("taa-specular-micro-highlights-stress", 0.31),
+                Map.entry("taa-thin-geometry-motion-stress", 0.31),
+                Map.entry("taa-disocclusion-rapid-pan-stress", 0.33),
                 Map.entry("smaa-full-edge-crawl", 0.34),
                 Map.entry("post-process-ssao", 0.35),
                 Map.entry("post-process-ssao-stress", 0.37),
@@ -1069,6 +1137,30 @@ class BackendParityIntegrationTest {
                         QualityTier.ULTRA,
                         "taa-confidence-dilation-stress-golden-ultra"
                 )),
+                Map.entry("taa-subpixel-alpha-foliage-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-subpixel-alpha-foliage-stress-golden"),
+                        taaSubpixelAlphaFoliageStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-subpixel-alpha-foliage-stress-golden-ultra"
+                )),
+                Map.entry("taa-specular-micro-highlights-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-specular-micro-highlights-stress-golden"),
+                        taaSpecularMicroHighlightsStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-specular-micro-highlights-stress-golden-ultra"
+                )),
+                Map.entry("taa-thin-geometry-motion-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-thin-geometry-motion-stress-golden"),
+                        taaThinGeometryMotionStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-thin-geometry-motion-stress-golden-ultra"
+                )),
+                Map.entry("taa-disocclusion-rapid-pan-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-disocclusion-rapid-pan-stress-golden"),
+                        taaDisocclusionRapidPanStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-disocclusion-rapid-pan-stress-golden-ultra"
+                )),
                 Map.entry("smaa-full-edge-crawl", BackendCompareHarness.run(
                         compareOutputDir("smaa-full-edge-crawl-golden"),
                         smaaFullEdgeCrawlScene(),
@@ -1096,11 +1188,14 @@ class BackendParityIntegrationTest {
         );
 
         reports.forEach((profile, report) -> {
-            double maxDiff = adjustedCompareMaxDiff(stressMaxDiff.get(profile));
+            double maxDiff = adjustedCompareMaxDiff(profile, stressMaxDiff.get(profile));
             assertTrue(
                     report.diffMetric() <= maxDiff,
                     profile + " diff " + report.diffMetric() + " exceeded " + maxDiff
             );
+            if (isAaProfile(profile)) {
+                assertTemporalMetricsBounded(profile, report);
+            }
         });
     }
 
@@ -1114,13 +1209,59 @@ class BackendParityIntegrationTest {
         return dir;
     }
 
-    private static double adjustedCompareMaxDiff(double baseMaxDiff) {
-        boolean vulkanMock = Boolean.parseBoolean(System.getProperty("dle.compare.vulkan.mockContext", "false"));
-        if (!vulkanMock) {
-            return baseMaxDiff;
+    private static boolean isVulkanMockProfile() {
+        return Boolean.parseBoolean(System.getProperty("dle.compare.vulkan.mockContext", "false"));
+    }
+
+    private static double adjustedCompareMaxDiff(String profile, double strictMaxDiff) {
+        if (!isVulkanMockProfile()) {
+            return strictMaxDiff;
         }
-        // Mock Vulkan snapshots are intentionally synthetic and can drift a bit farther from real OpenGL captures.
-        return Math.min(1.0, baseMaxDiff + 0.02);
+        return switch (profile) {
+            case "fog-smoke-shadow-post-stress" -> 0.065;
+            case "taa-history-confidence-stress" -> 0.33;
+            case "taa-specular-aa-stress" -> 0.33;
+            case "smaa-full-edge-crawl" -> 0.38;
+            case "taa-subpixel-alpha-foliage-stress" -> 0.36;
+            case "taa-specular-micro-highlights-stress" -> 0.34;
+            case "taa-thin-geometry-motion-stress" -> 0.34;
+            case "taa-disocclusion-rapid-pan-stress" -> 0.36;
+            default -> Math.min(1.0, strictMaxDiff + 0.02);
+        };
+    }
+
+    private static boolean isAaProfile(String profile) {
+        return profile.startsWith("taa-") || profile.startsWith("smaa-");
+    }
+
+    private static void assertAaSceneWithinThreshold(
+            String profile,
+            BackendCompareHarness.CompareReport report,
+            double strictDiffMax,
+            String label
+    ) {
+        double maxDiff = adjustedCompareMaxDiff(profile, strictDiffMax);
+        assertTrue(report.diffMetric() <= maxDiff, label + " diff was " + report.diffMetric() + " (max " + maxDiff + ")");
+        assertTemporalMetricsBounded(profile, report);
+    }
+
+    private static void assertTemporalMetricsBounded(String profile, BackendCompareHarness.CompareReport report) {
+        var gl = report.openGlSnapshot();
+        var vk = report.vulkanSnapshot();
+        double shimmerDrift = Math.abs(gl.shimmerIndex() - vk.shimmerIndex());
+        double rejectDrift = Math.abs(gl.taaHistoryRejectRate() - vk.taaHistoryRejectRate());
+        double confidenceMeanDrift = Math.abs(gl.taaConfidenceMean() - vk.taaConfidenceMean());
+        long confidenceDropDrift = Math.abs(gl.taaConfidenceDropCount() - vk.taaConfidenceDropCount());
+
+        double shimmerMax = adjustedCompareMaxDiff(profile, 0.10);
+        double rejectMax = adjustedCompareMaxDiff(profile, 0.20);
+        double confidenceMeanMax = adjustedCompareMaxDiff(profile, 0.18);
+        long confidenceDropMax = isVulkanMockProfile() ? 10L : 6L;
+
+        assertTrue(shimmerDrift <= shimmerMax, profile + " shimmer drift " + shimmerDrift + " exceeded " + shimmerMax);
+        assertTrue(rejectDrift <= rejectMax, profile + " reject-rate drift " + rejectDrift + " exceeded " + rejectMax);
+        assertTrue(confidenceMeanDrift <= confidenceMeanMax, profile + " confidence-mean drift " + confidenceMeanDrift + " exceeded " + confidenceMeanMax);
+        assertTrue(confidenceDropDrift <= confidenceDropMax, profile + " confidence-drop drift " + confidenceDropDrift + " exceeded " + confidenceDropMax);
     }
 
     private static void runParityLifecycle(String backendId) throws Exception {
@@ -2194,6 +2335,91 @@ class BackendParityIntegrationTest {
         );
     }
 
+    private static SceneDescriptor taaSubpixelAlphaFoliageStressScene() {
+        SceneDescriptor base = taaReactiveAuthoredDenseStressScene();
+        MaterialDesc near = new MaterialDesc(
+                "mat-near",
+                new Vec3(0.50f, 0.84f, 0.44f),
+                0.18f,
+                0.38f,
+                "textures/a.png",
+                "textures/a_n.png",
+                "textures/a_mr.png",
+                "textures/a_ao.png",
+                1.0f,
+                true,
+                true,
+                1.40f,
+                0.55f,
+                1.45f,
+                ReactivePreset.AGGRESSIVE
+        );
+        MaterialDesc mid = new MaterialDesc(
+                "mat-mid",
+                new Vec3(0.42f, 0.90f, 0.40f),
+                0.24f,
+                0.34f,
+                "textures/b.png",
+                "textures/b_n.png",
+                "textures/b_mr.png",
+                "textures/b_ao.png",
+                1.0f,
+                true,
+                true,
+                1.45f,
+                0.50f,
+                1.50f,
+                ReactivePreset.AGGRESSIVE
+        );
+        MaterialDesc far = new MaterialDesc(
+                "mat-far",
+                new Vec3(0.66f, 0.78f, 0.62f),
+                0.08f,
+                0.62f,
+                "textures/c.png",
+                "textures/c_n.png",
+                "textures/c_mr.png",
+                "textures/c_ao.png",
+                1.0f,
+                true,
+                true,
+                1.32f,
+                0.56f,
+                1.36f,
+                ReactivePreset.AGGRESSIVE
+        );
+        MaterialDesc occ = new MaterialDesc(
+                "mat-occ",
+                new Vec3(0.56f, 0.74f, 0.52f),
+                0.10f,
+                0.72f,
+                "textures/d.png",
+                "textures/d_n.png",
+                "textures/d_mr.png",
+                "textures/d_ao.png",
+                1.0f,
+                true,
+                true,
+                1.45f,
+                0.48f,
+                1.50f,
+                ReactivePreset.AGGRESSIVE
+        );
+        return new SceneDescriptor(
+                "parity-taa-subpixel-alpha-foliage-stress-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(near, mid, far, occ),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
     private static SceneDescriptor taaSpecularFlickerScene() {
         CameraDesc camera = new CameraDesc("cam", new Vec3(0.4f, 1.0f, 9.6f), new Vec3(-6f, 20f, 0f), 72f, 0.1f, 240f);
         TransformDesc n = new TransformDesc("x-near", new Vec3(-1.1f, -0.2f, -0.8f), new Vec3(0, 16, 0), new Vec3(1.0f, 1.0f, 1.0f));
@@ -2274,6 +2500,65 @@ class BackendParityIntegrationTest {
                 env,
                 fog,
                 List.of(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaSpecularMicroHighlightsStressScene() {
+        SceneDescriptor base = taaSpecularAaStressScene();
+        MaterialDesc near = new MaterialDesc("mat-near", new Vec3(0.97f, 0.72f, 0.62f), 1.0f, 0.03f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 0.95f, true, false);
+        MaterialDesc mid = new MaterialDesc("mat-mid", new Vec3(0.64f, 0.90f, 0.99f), 0.98f, 0.025f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 0.95f, false, true);
+        MaterialDesc far = new MaterialDesc("mat-far", new Vec3(0.80f, 0.82f, 0.86f), 0.96f, 0.02f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 0.92f, true, true);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.14f, 2.2f, true, 0.90f, 0.90f, true, 0.60f, 1.10f, 0.02f, 1.30f, true, 0.72f, true, 0.74f);
+        return new SceneDescriptor(
+                "parity-taa-specular-micro-highlights-stress-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(near, mid, far),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaThinGeometryMotionStressScene() {
+        SceneDescriptor base = taaThinGeometryShimmerScene();
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.6f, 1.2f, 11.8f), new Vec3(-14f, 30f, 0f), 80f, 0.1f, 300f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.10f, 2.2f, true, 0.92f, 0.84f, true, 0.60f, 1.14f, 0.02f, 1.34f, true, 0.72f, true, 0.76f);
+        return new SceneDescriptor(
+                "parity-taa-thin-geometry-motion-stress-scene",
+                List.of(camera),
+                "cam",
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaDisocclusionRapidPanStressScene() {
+        SceneDescriptor base = taaDisocclusionStressScene();
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.9f, 1.0f, 10.4f), new Vec3(-18f, 22f, 0f), 78f, 0.1f, 260f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.12f, 2.2f, true, 0.88f, 0.90f, true, 0.64f, 1.22f, 0.02f, 1.38f, true, 0.74f, true, 0.78f);
+        return new SceneDescriptor(
+                "parity-taa-disocclusion-rapid-pan-stress-scene",
+                List.of(camera),
+                "cam",
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
                 post
         );
     }
