@@ -84,7 +84,7 @@ DLE_COMPARE_VULKAN_SHADOW_DEPTH_FORMAT=d32 \
 Scheduler override check (real Vulkan):
 ```bash
 DLE_COMPARE_VULKAN_MODE=real \
-DLE_COMPARE_EXTRA_MVN_ARGS="-Dvulkan.shadow.maxLocalShadowLayers=12 -Dvulkan.shadow.maxShadowFacesPerFrame=6" \
+DLE_COMPARE_EXTRA_MVN_ARGS="-Dvulkan.shadow.maxLocalShadowLayers=24 -Dvulkan.shadow.maxShadowFacesPerFrame=6" \
 ./scripts/aa_rebaseline_real_mac.sh
 ```
 
@@ -121,6 +121,7 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Verify scheduler override behavior:
   - `HIGH` with `vulkan.shadow.maxLocalShadowLayers=12` can render `2` point cubemaps.
   - `vulkan.shadow.maxShadowFacesPerFrame=6` caps point shadow passes to one cubemap.
+  - `ULTRA` with `vulkan.shadow.maxLocalShadowLayers=24` can schedule up to `4` point cubemaps (subject to local-light budget).
 - Verify cadence scheduler behavior:
   - policy warning includes scheduler fields (`schedulerEnabled`, `schedulerPeriodHero`, `schedulerPeriodMid`, `schedulerPeriodDistant`, `shadowSchedulerFrameTick`).
   - at fixed face budget, rendered local shadow counts stay within cadence-gated budget envelope.

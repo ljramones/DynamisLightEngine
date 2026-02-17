@@ -23,6 +23,7 @@ Implemented now:
 - scheduler override controls (execution milestone 1):
   - `vulkan.shadow.maxLocalShadowLayers`
   - `vulkan.shadow.maxShadowFacesPerFrame`
+  - hard ceiling now expanded to `24` layers/faces for Vulkan rollout validation
 - cadence scheduler controls (execution milestone 2):
   - `vulkan.shadow.scheduler.enabled`
   - `vulkan.shadow.scheduler.heroPeriod`

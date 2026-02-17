@@ -19,7 +19,7 @@ import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.impl.common.shadow.ShadowAtlasPlanner;
 
 final class VulkanEngineRuntimeLightingMapper {
-    private static final int VULKAN_MAX_SHADOW_MATRICES = 12;
+    private static final int VULKAN_MAX_SHADOW_MATRICES = 24;
 
     private VulkanEngineRuntimeLightingMapper() {
     }

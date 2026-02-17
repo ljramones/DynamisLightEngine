@@ -38,7 +38,7 @@ class VulkanRuntimeOptionsTest {
                 256
         );
 
-        assertEquals(12, parsed.shadowMaxLocalLayers());
+        assertEquals(24, parsed.shadowMaxLocalLayers());
         assertEquals(0, parsed.shadowMaxFacesPerFrame());
         assertEquals(true, parsed.shadowSchedulerEnabled());
         assertEquals(1, parsed.shadowSchedulerHeroPeriod());

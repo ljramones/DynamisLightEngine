@@ -35,7 +35,7 @@ public final class VulkanShaderSources {
                     vec4 uBloom;
                     vec4 uAntiAlias;
                     mat4 uPrevViewProj;
-                    mat4 uShadowLightViewProj[12];
+                    mat4 uShadowLightViewProj[24];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
@@ -48,7 +48,7 @@ public final class VulkanShaderSources {
                     int uCascadeIndex;
                 } pc;
                 void main() {
-                    int cascadeIndex = clamp(pc.uCascadeIndex, 0, 11);
+                    int cascadeIndex = clamp(pc.uCascadeIndex, 0, 23);
                     gl_Position = gbo.uShadowLightViewProj[cascadeIndex] * obj.uModel * vec4(inPos, 1.0);
                 }
                 """;
@@ -101,7 +101,7 @@ public final class VulkanShaderSources {
                     vec4 uBloom;
                     vec4 uAntiAlias;
                     mat4 uPrevViewProj;
-                    mat4 uShadowLightViewProj[12];
+                    mat4 uShadowLightViewProj[24];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
@@ -161,7 +161,7 @@ public final class VulkanShaderSources {
                     vec4 uBloom;
                     vec4 uAntiAlias;
                     mat4 uPrevViewProj;
-                    mat4 uShadowLightViewProj[12];
+                    mat4 uShadowLightViewProj[24];
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
@@ -264,7 +264,7 @@ public final class VulkanShaderSources {
                     vec3 directional = (diffuse + specular) * gbo.uDirLightColor.rgb * (ndl * dirIntensity);
                     vec3 pointLit = vec3(0.0);
                     int localCount = clamp(int(gbo.uLocalLightMeta.x + 0.5), 0, 8);
-                    int localShadowSlots = clamp(int(gbo.uLocalLightMeta.y + 0.5), 0, 12);
+                    int localShadowSlots = clamp(int(gbo.uLocalLightMeta.y + 0.5), 0, 24);
                     for (int i = 0; i < localCount; i++) {
                         vec3 localPos = gbo.uLocalLightPosRange[i].xyz;
                         float localRange = max(gbo.uLocalLightPosRange[i].w, 0.1);
@@ -275,7 +275,7 @@ public final class VulkanShaderSources {
                         float localOuter = gbo.uLocalLightOuterTypeShadow[i].x;
                         float localIsSpot = gbo.uLocalLightOuterTypeShadow[i].y;
                         float localCastsShadow = gbo.uLocalLightOuterTypeShadow[i].z;
-                        int localShadowLayer = clamp(int(gbo.uLocalLightOuterTypeShadow[i].w + 0.5) - 1, -1, 11);
+                        int localShadowLayer = clamp(int(gbo.uLocalLightOuterTypeShadow[i].w + 0.5) - 1, -1, 23);
                         vec3 localToLight = localPos - vWorldPos;
                         vec3 localLightDir = normalize(localToLight);
                         float localDist = max(length(localToLight), 0.1);
@@ -327,7 +327,7 @@ public final class VulkanShaderSources {
                         if (localIsSpot <= 0.5 && localCastsShadow > 0.5 && localShadowSlots > 0 && localShadowLayer >= 0) {
                             vec3 pointVec = normalize(vWorldPos - localPos);
                             int pointLayer = localShadowLayer;
-                            if (localShadowLayer + 5 <= 11) {
+                            if (localShadowLayer + 5 <= 23) {
                                 vec3 absVec = abs(pointVec);
                                 if (absVec.x >= absVec.y && absVec.x >= absVec.z) {
                                     pointLayer = localShadowLayer + (pointVec.x >= 0.0 ? 0 : 1);
