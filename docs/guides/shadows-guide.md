@@ -131,7 +131,7 @@ Sample host clamps:
   - `vulkan.shadow.scheduler.distantPeriod=1..64` (default `4`)
   - `vulkan.shadow.directionalTexelSnapEnabled=true|false` (default `true`)
   - `vulkan.shadow.directionalTexelSnapScale=0.25..4.0` (default `1.0`)
-  Runtime tracks and reports these requests. Production-active filter path is `pcf|pcss`; `vsm|evsm` requests start as fallback (`runtimeFilterPath=pcss`) and promote to requested runtime mode once moment resources are active (`momentPipelineActive=true`). Vulkan now allocates moment-atlas resources for `vsm|evsm` requests and reports this via `momentPipelineActive`, while dedicated production filtering/sampling is still pending. Dedicated RT traversal remains on fallback.
+  Runtime tracks and reports these requests. Production-active runtime filter path now follows requested mode (`pcf|pcss|vsm|evsm`) with mode-specific shader shaping for PCSS/VSM/EVSM and strengthened contact-shadow modulation. Dedicated hardware RT traversal/denoise remains on fallback.
   Vulkan fragment texture descriptor sets now include a dedicated shadow-moment binding (`set=1,binding=8`) so moment-map sampling can be wired without further descriptor-layout churn.
 
 Shadow scheduler override examples:
@@ -152,12 +152,12 @@ Scheduler behavior notes:
   - `deferredShadowLightIds`
   - `shadowMomentAtlasBytesEstimate` (non-zero when `vsm`/`evsm` is requested)
   - `runtimeFilterPath` (active filter path used by runtime shading)
-  - `momentFilterEstimateOnly` (`true` for current `vsm`/`evsm` fallback behavior)
+  - `momentFilterEstimateOnly`
   - `momentPipelineRequested` / `momentPipelineActive`
   - `momentResourceAllocated` / `momentResourceFormat`
   - `momentInitialized`
   - `momentPhase` (`pending|initializing|active`)
-  - warning codes: `SHADOW_MOMENT_PIPELINE_PENDING`, `SHADOW_MOMENT_PIPELINE_INITIALIZING`, `SHADOW_MOMENT_APPROX_ACTIVE`
+  - warning codes: `SHADOW_MOMENT_PIPELINE_PENDING`, `SHADOW_MOMENT_PIPELINE_INITIALIZING`, `SHADOW_MOMENT_APPROX_ACTIVE`, `SHADOW_RT_PATH_REQUESTED`, `SHADOW_RT_PATH_FALLBACK_ACTIVE`
   - `directionalTexelSnapEnabled`
   - `directionalTexelSnapScale`
   - `shadowAllocatorAssignedLights`
@@ -259,6 +259,5 @@ Targeted shadow stress outputs are generated in compare artifacts:
 ## 7. Remaining Rollout Gaps
 
 - Tier/override-bounded multi-point cubemap concurrency is now active in Vulkan local-shadow layering (`HIGH`: 1, `ULTRA`: 2, overrides controlled by scheduler/budgets); further scale-up beyond current scheduler/budget caps is still pending.
-- Dedicated VSM/EVSM variance-moment storage/filter pipeline is still pending (current mode uses compare-sampler shaping).
-- Dedicated PCSS penumbra/contact-shadow production filtering is still pending (current mode uses request-driven shaping/modulation).
-- Hardware RT shadow traversal/denoise path is still pending (request+fallback tracking is live).
+- Dedicated VSM/EVSM moment-atlas write/prefilter pipeline is still pending (current mode uses production runtime shaping without a dedicated moment write pass).
+- Dedicated hardware RT shadow traversal/denoise path is still pending (request+fallback tracking is live).

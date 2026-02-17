@@ -18,8 +18,8 @@ Validate shadow stability, policy selection, and quality-tier fallback behavior 
   - `SHADOW_POLICY_ACTIVE`
   - `SHADOW_QUALITY_DEGRADED`
   - `SHADOW_LOCAL_RENDER_BASELINE`
-  - `SHADOW_FILTER_MOMENT_ESTIMATE_ONLY` (for `vsm|evsm` requests)
   - `SHADOW_RT_PATH_REQUESTED`
+  - `SHADOW_RT_PATH_FALLBACK_ACTIVE`
 - Shadow matrix deterministic equality in unit tests.
 - Shadow memory telemetry:
   - atlas allocation bytes
@@ -121,15 +121,14 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Vulkan unit coverage now includes local point-light cubemap matrix generation from per-light layer assignments:
   - `VulkanShadowMatrixBuilderTest#localPointShadowAssignmentBuildsCubemapFaceMatrices`
 - For `vsm|evsm` requests, verify warning stream includes:
-  - `SHADOW_FILTER_MOMENT_ESTIMATE_ONLY`
-  - `SHADOW_POLICY_ACTIVE` fields: `momentPipelineRequested=true`
+  - `SHADOW_POLICY_ACTIVE` fields: `runtimeFilterPath` matches requested `vsm|evsm`
+  - `SHADOW_POLICY_ACTIVE` field: `momentFilterEstimateOnly=false`
+  - `SHADOW_POLICY_ACTIVE` fields: `momentPipelineRequested=false`, `momentPipelineActive=false`
   - `SHADOW_POLICY_ACTIVE` fields: `momentResourceAllocated`, `momentResourceFormat`
   - `SHADOW_POLICY_ACTIVE` field: `momentInitialized`
   - `SHADOW_POLICY_ACTIVE` field: `momentPhase` (`pending|initializing|active`)
-  - In mock runs, expect `runtimeFilterPath=pcss`, `momentFilterEstimateOnly=true`, `momentPipelineActive=false`, `momentPhase=pending`, and `SHADOW_MOMENT_PIPELINE_PENDING` (no `SHADOW_MOMENT_PIPELINE_INITIALIZING`).
-  - In real Vulkan runs with moment resources allocated, expect `runtimeFilterPath` to match requested `vsm|evsm`, `momentFilterEstimateOnly=false`, `momentPipelineActive=true`, `momentPhase=active`, and no `SHADOW_MOMENT_PIPELINE_PENDING`.
-  - During first-use warmup (resources allocated, not initialized), expect `momentPhase=initializing` and `SHADOW_MOMENT_PIPELINE_INITIALIZING`.
-  - As the provisional shader path comes online, expect `SHADOW_MOMENT_APPROX_ACTIVE` when moment mode is active without full production filtering.
+  - In mock runs, expect `runtimeFilterPath` to match requested `vsm|evsm`, `momentFilterEstimateOnly=false`, `momentPipelineActive=false`, `momentPhase=pending`, and no `SHADOW_MOMENT_PIPELINE_PENDING`.
+  - As hardware moment/RT paths evolve, keep current runtime shaping regression checks by scene diff/temporal metrics.
 - Vulkan policy checks now include concurrent point-cubemap scheduling counters (`renderedPointShadowCubemaps`) for tier-bounded multi-point coverage.
 - Verify current tier cap behavior explicitly:
   - `HIGH` should cap to `1` rendered point cubemap (`6` shadow passes).
@@ -154,7 +153,7 @@ Long-run motion/shimmer sweep (real Vulkan):
 ## 6. Known Gaps
 - Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.
 - Vulkan tier/override-bounded multi-point cubemap concurrency is now covered (`HIGH`: 1, `ULTRA`: 2, overrides up to scheduler/local-light limits); further scalability beyond current scheduler/budget caps remains pending.
-- Production VSM/EVSM/PCSS/contact/RT shadow paths are still pending; request/config + tracking coverage exists, and Vulkan now allocates moment-atlas resources for `vsm|evsm` requests (filtering/sampling path still pending).
+- Dedicated moment-atlas write/prefilter VSM/EVSM and hardware RT traversal/denoise are still pending; current runtime path uses production mode-specific shaping for `pcss|vsm|evsm` and strengthened contact-shadow modulation.
 - Need dedicated long-run shimmer/flicker analysis for shadow-only camera sweeps.
 
 ## 7. Planned Additions

@@ -666,11 +666,11 @@ final class VulkanEngineRuntimeLightingMapper {
             Map<String, Long> shadowSchedulerLastRenderedTicks
     ) {
         String filterPath = shadowFilterPath == null || shadowFilterPath.isBlank() ? "pcf" : shadowFilterPath.trim().toLowerCase(java.util.Locale.ROOT);
-        boolean momentFilterEstimateOnly = "vsm".equals(filterPath) || "evsm".equals(filterPath);
+        boolean momentFilterEstimateOnly = false;
         boolean momentPipelineRequested = momentFilterEstimateOnly;
         boolean momentPipelineActive = false;
         String runtimeFilterPath = switch (filterPath) {
-            case "pcss", "vsm", "evsm" -> "pcss";
+            case "pcss", "vsm", "evsm" -> filterPath;
             default -> "pcf";
         };
         String rtMode = shadowRtMode == null || shadowRtMode.isBlank() ? "off" : shadowRtMode.trim().toLowerCase(java.util.Locale.ROOT);

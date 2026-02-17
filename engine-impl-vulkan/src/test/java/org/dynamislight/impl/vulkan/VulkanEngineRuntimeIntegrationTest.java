@@ -790,9 +790,9 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frame.warnings().stream().anyMatch(w ->
                 "SHADOW_POLICY_ACTIVE".equals(w.code())
                         && w.message().contains("filterPath=evsm")
-                        && w.message().contains("runtimeFilterPath=pcss")
-                        && w.message().contains("momentFilterEstimateOnly=true")
-                        && w.message().contains("momentPipelineRequested=true")
+                        && w.message().contains("runtimeFilterPath=evsm")
+                        && w.message().contains("momentFilterEstimateOnly=false")
+                        && w.message().contains("momentPipelineRequested=false")
                         && w.message().contains("momentPipelineActive=false")
                         && w.message().contains("momentResourceAllocated=false")
                         && w.message().contains("momentResourceFormat=none")
@@ -800,11 +800,12 @@ class VulkanEngineRuntimeIntegrationTest {
                         && w.message().contains("momentPhase=pending")
                         && w.message().contains("contactShadows=true")
                         && w.message().contains("rtMode=optional")));
-        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY".equals(w.code())));
-        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_PIPELINE_PENDING".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_PIPELINE_PENDING".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_PIPELINE_INITIALIZING".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_APPROX_ACTIVE".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_RT_PATH_REQUESTED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_RT_PATH_FALLBACK_ACTIVE".equals(w.code())));
         runtime.shutdown();
     }
 

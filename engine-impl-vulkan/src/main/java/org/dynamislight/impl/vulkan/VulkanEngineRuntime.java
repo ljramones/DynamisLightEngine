@@ -578,6 +578,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         "RT shadow mode requested: " + currentShadows.rtShadowMode()
                                 + " (active=" + currentShadows.rtShadowActive() + ", fallback stack in use)"
                 ));
+                if (!currentShadows.rtShadowActive()) {
+                    warnings.add(new EngineWarning(
+                            "SHADOW_RT_PATH_FALLBACK_ACTIVE",
+                            "RT shadow traversal/denoise path unavailable; using non-RT shadow fallback stack"
+                    ));
+                }
             }
         }
         return warnings;
