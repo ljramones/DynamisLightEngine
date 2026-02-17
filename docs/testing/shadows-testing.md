@@ -20,6 +20,7 @@ Validate shadow stability, policy selection, and quality-tier fallback behavior 
   - `SHADOW_LOCAL_RENDER_BASELINE`
   - `SHADOW_RT_PATH_REQUESTED`
   - `SHADOW_RT_PATH_FALLBACK_ACTIVE`
+  - `SHADOW_RT_BVH_PIPELINE_PENDING`
 - Shadow matrix deterministic equality in unit tests.
 - Shadow memory telemetry:
   - atlas allocation bytes

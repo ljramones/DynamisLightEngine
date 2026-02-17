@@ -655,6 +655,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                     : "")
                     ));
                 }
+                if ("bvh".equals(currentShadows.rtShadowMode())) {
+                    warnings.add(new EngineWarning(
+                            "SHADOW_RT_BVH_PIPELINE_PENDING",
+                            "BVH RT shadow mode requested, but runtime is using the hybrid traversal path "
+                                    + "(rtActive=" + currentShadows.rtShadowActive()
+                                    + ", rtBvhSupported=" + shadowRtBvhSupported
+                                    + "); dedicated BVH traversal/denoise pipeline remains pending"
+                    ));
+                }
             }
         }
         return warnings;

@@ -881,6 +881,9 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frame.warnings().stream().anyMatch(w ->
                 "SHADOW_RT_PATH_FALLBACK_ACTIVE".equals(w.code())
                         && w.message().contains("BVH mode requested")));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_BVH_PIPELINE_PENDING".equals(w.code())
+                        && w.message().contains("dedicated BVH traversal/denoise pipeline remains pending")));
         runtime.shutdown();
     }
 

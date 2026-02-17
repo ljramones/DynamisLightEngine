@@ -168,7 +168,7 @@ Scheduler behavior notes:
   - `momentResourceAllocated` / `momentResourceFormat`
   - `momentInitialized`
   - `momentPhase` (`pending|initializing|active`)
-  - warning codes: `SHADOW_MOMENT_PIPELINE_PENDING`, `SHADOW_MOMENT_PIPELINE_INITIALIZING`, `SHADOW_MOMENT_APPROX_ACTIVE`, `SHADOW_RT_PATH_REQUESTED`, `SHADOW_RT_PATH_FALLBACK_ACTIVE`
+  - warning codes: `SHADOW_MOMENT_PIPELINE_PENDING`, `SHADOW_MOMENT_PIPELINE_INITIALIZING`, `SHADOW_MOMENT_APPROX_ACTIVE`, `SHADOW_RT_PATH_REQUESTED`, `SHADOW_RT_PATH_FALLBACK_ACTIVE`, `SHADOW_RT_BVH_PIPELINE_PENDING`
   - RT groundwork telemetry: `rtDenoiseStrength`, `rtRayLength`, `rtSampleCount`
   - `directionalTexelSnapEnabled`
   - `directionalTexelSnapScale`
