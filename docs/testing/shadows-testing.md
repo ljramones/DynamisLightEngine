@@ -115,6 +115,11 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Vulkan integration tests surface explicit rollout warning context when local shadow requests exceed currently guaranteed render parity paths:
   - `SHADOW_LOCAL_RENDER_BASELINE`
 - Vulkan integration tests now also validate multi-spot render policy reporting (`renderedLocalShadows`, `renderedSpotShadows`) and quality-path request tracking fields (`filterPath`, `contactShadows`, `rtMode`).
+- Vulkan runtime options tests also validate shadow quality tuning clamps:
+  - `vulkan.shadow.pcssSoftness`
+  - `vulkan.shadow.momentBlend`
+  - `vulkan.shadow.momentBleedReduction`
+  - `vulkan.shadow.contactStrength`
 - Vulkan integration tests validate multi-point cubemap concurrency policy under ULTRA and override budgets:
   - `VulkanEngineRuntimeIntegrationTest#multiPointLocalShadowSceneUsesConcurrentPointCubemapBudgetAtUltra`
   - `VulkanEngineRuntimeIntegrationTest#multiPointLocalShadowSceneHonorsOverrideForThreeConcurrentCubemaps`

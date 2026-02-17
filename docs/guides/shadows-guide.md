@@ -121,6 +121,10 @@ Sample host clamps:
 - Shadow quality-path requests are now first-class backend options:
   - `vulkan.shadow.filterPath=pcf|pcss|vsm|evsm`
   - `vulkan.shadow.contactShadows=true|false`
+  - `vulkan.shadow.pcssSoftness=0.25..2.0` (default `1.0`)
+  - `vulkan.shadow.momentBlend=0.25..1.5` (default `1.0`)
+  - `vulkan.shadow.momentBleedReduction=0.25..1.5` (default `1.0`)
+  - `vulkan.shadow.contactStrength=0.25..2.0` (default `1.0`)
   - `vulkan.shadow.rtMode=off|optional|force`
   - `vulkan.shadow.maxShadowedLocalLights=0..8` (`0` = tier default)
   - `vulkan.shadow.maxLocalShadowLayers=0..24` (`0` = tier default scheduler budget)
@@ -132,6 +136,7 @@ Sample host clamps:
   - `vulkan.shadow.directionalTexelSnapEnabled=true|false` (default `true`)
   - `vulkan.shadow.directionalTexelSnapScale=0.25..4.0` (default `1.0`)
   Runtime tracks and reports these requests. Production-active runtime filter path now follows requested mode (`pcf|pcss|vsm|evsm`) with mode-specific shader shaping for PCSS/VSM/EVSM and strengthened contact-shadow modulation. Vulkan now also runs a dedicated layered moment pipeline for `vsm|evsm` (moment write + mip prefilter + mip-aware sampling), including light-bleed reduction and tuned penumbra/contact shaping. Dedicated hardware RT traversal/denoise remains on fallback.
+  Advanced quality tuning is now runtime-configurable via backend options (`pcssSoftness`, `momentBlend`, `momentBleedReduction`, `contactStrength`) without shader edits.
   Vulkan fragment texture descriptor sets now include a dedicated shadow-moment binding (`set=1,binding=8`) so moment-map sampling can be wired without further descriptor-layout churn.
 
 Shadow scheduler override examples:

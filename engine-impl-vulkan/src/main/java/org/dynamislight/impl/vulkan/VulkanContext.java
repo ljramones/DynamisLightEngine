@@ -539,6 +539,38 @@ final class VulkanContext {
         }
     }
 
+    void setShadowQualityTuning(
+            float pcssSoftness,
+            float momentBlend,
+            float momentBleedReduction,
+            float contactStrength
+    ) {
+        boolean changed = false;
+        float clampedPcssSoftness = Math.max(0.25f, Math.min(2.0f, pcssSoftness));
+        float clampedMomentBlend = Math.max(0.25f, Math.min(1.5f, momentBlend));
+        float clampedMomentBleedReduction = Math.max(0.25f, Math.min(1.5f, momentBleedReduction));
+        float clampedContactStrength = Math.max(0.25f, Math.min(2.0f, contactStrength));
+        if (Math.abs(renderState.shadowPcssSoftness - clampedPcssSoftness) > 0.000001f) {
+            renderState.shadowPcssSoftness = clampedPcssSoftness;
+            changed = true;
+        }
+        if (Math.abs(renderState.shadowMomentBlend - clampedMomentBlend) > 0.000001f) {
+            renderState.shadowMomentBlend = clampedMomentBlend;
+            changed = true;
+        }
+        if (Math.abs(renderState.shadowMomentBleedReduction - clampedMomentBleedReduction) > 0.000001f) {
+            renderState.shadowMomentBleedReduction = clampedMomentBleedReduction;
+            changed = true;
+        }
+        if (Math.abs(renderState.shadowContactStrength - clampedContactStrength) > 0.000001f) {
+            renderState.shadowContactStrength = clampedContactStrength;
+            changed = true;
+        }
+        if (changed) {
+            markGlobalStateDirty();
+        }
+    }
+
     boolean isShadowMomentPipelineActive() {
         return renderState.shadowMomentPipelineRequested
                 && backendResources.shadowMomentImage != VK_NULL_HANDLE
@@ -1238,9 +1270,11 @@ final class VulkanContext {
                                         lightingState.dirLightDirX(),
                                         lightingState.dirLightDirY(),
                                         lightingState.dirLightDirZ(),
+                                        renderState.shadowPcssSoftness,
                                         lightingState.dirLightColorR(),
                                         lightingState.dirLightColorG(),
                                         lightingState.dirLightColorB(),
+                                        renderState.shadowMomentBlend,
                                         lightingState.pointLightPosX(),
                                         lightingState.pointLightPosY(),
                                         lightingState.pointLightPosZ(),
@@ -1248,9 +1282,11 @@ final class VulkanContext {
                                         lightingState.pointLightColorR(),
                                         lightingState.pointLightColorG(),
                                         lightingState.pointLightColorB(),
+                                        renderState.shadowMomentBleedReduction,
                                         lightingState.pointLightDirX(),
                                         lightingState.pointLightDirY(),
                                         lightingState.pointLightDirZ(),
+                                        renderState.shadowContactStrength,
                                         lightingState.pointLightInnerCos(),
                                         lightingState.pointLightOuterCos(),
                                         lightingState.pointLightIsSpot(),

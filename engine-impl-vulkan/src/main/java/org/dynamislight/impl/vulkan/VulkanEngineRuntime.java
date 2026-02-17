@@ -145,6 +145,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private String shadowFilterPath = "pcf";
     private boolean shadowContactShadows;
     private String shadowRtMode = "off";
+    private float shadowPcssSoftness = 1.0f;
+    private float shadowMomentBlend = 1.0f;
+    private float shadowMomentBleedReduction = 1.0f;
+    private float shadowContactStrength = 1.0f;
     private int shadowMaxShadowedLocalLights;
     private int shadowMaxLocalLayers;
     private int shadowMaxFacesPerFrame;
@@ -205,6 +209,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowFilterPath = options.shadowFilterPath();
         shadowContactShadows = options.shadowContactShadows();
         shadowRtMode = options.shadowRtMode();
+        shadowPcssSoftness = options.shadowPcssSoftness();
+        shadowMomentBlend = options.shadowMomentBlend();
+        shadowMomentBleedReduction = options.shadowMomentBleedReduction();
+        shadowContactStrength = options.shadowContactStrength();
         shadowMaxShadowedLocalLights = options.shadowMaxShadowedLocalLights();
         shadowMaxLocalLayers = options.shadowMaxLocalLayers();
         shadowMaxFacesPerFrame = options.shadowMaxFacesPerFrame();
@@ -304,6 +312,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     currentShadows.rtShadowMode(),
                     currentShadows.filterPath()
             );
+            context.setShadowQualityTuning(
+                    shadowPcssSoftness,
+                    shadowMomentBlend,
+                    shadowMomentBleedReduction,
+                    shadowContactStrength
+            );
         }
     }
 
@@ -367,6 +381,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     currentShadows.contactShadowsRequested(),
                     currentShadows.rtShadowMode(),
                     currentShadows.filterPath()
+            );
+            context.setShadowQualityTuning(
+                    shadowPcssSoftness,
+                    shadowMomentBlend,
+                    shadowMomentBleedReduction,
+                    shadowContactStrength
             );
             context.setShadowDirectionalTexelSnap(
                     shadowDirectionalTexelSnapEnabled,
@@ -512,6 +532,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " shadowAllocatorEvictions=" + shadowAllocatorEvictions
                             + " filterPath=" + currentShadows.filterPath()
                             + " runtimeFilterPath=" + currentShadows.runtimeFilterPath()
+                            + " shadowPcssSoftness=" + shadowPcssSoftness
+                            + " shadowMomentBlend=" + shadowMomentBlend
+                            + " shadowMomentBleedReduction=" + shadowMomentBleedReduction
+                            + " shadowContactStrength=" + shadowContactStrength
                             + " momentFilterEstimateOnly=" + currentShadows.momentFilterEstimateOnly()
                             + " momentPipelineRequested=" + currentShadows.momentPipelineRequested()
                             + " momentPipelineActive=" + currentShadows.momentPipelineActive()

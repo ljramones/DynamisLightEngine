@@ -17,11 +17,11 @@ public final class VulkanUniformWriters {
         FloatBuffer fb = target.slice().order(ByteOrder.nativeOrder()).asFloatBuffer();
         fb.put(in.viewMatrix());
         fb.put(in.projMatrix());
-        fb.put(new float[]{in.dirLightDirX(), in.dirLightDirY(), in.dirLightDirZ(), 0f});
-        fb.put(new float[]{in.dirLightColorR(), in.dirLightColorG(), in.dirLightColorB(), 0f});
+        fb.put(new float[]{in.dirLightDirX(), in.dirLightDirY(), in.dirLightDirZ(), in.shadowPcssSoftness()});
+        fb.put(new float[]{in.dirLightColorR(), in.dirLightColorG(), in.dirLightColorB(), in.shadowMomentBlend()});
         fb.put(new float[]{in.pointLightPosX(), in.pointLightPosY(), in.pointLightPosZ(), in.pointShadowFarPlane()});
-        fb.put(new float[]{in.pointLightColorR(), in.pointLightColorG(), in.pointLightColorB(), 0f});
-        fb.put(new float[]{in.pointLightDirX(), in.pointLightDirY(), in.pointLightDirZ(), 0f});
+        fb.put(new float[]{in.pointLightColorR(), in.pointLightColorG(), in.pointLightColorB(), in.shadowMomentBleedReduction()});
+        fb.put(new float[]{in.pointLightDirX(), in.pointLightDirY(), in.pointLightDirZ(), in.shadowContactStrength()});
         fb.put(new float[]{in.pointLightInnerCos(), in.pointLightOuterCos(), in.pointLightIsSpot(), in.pointShadowEnabled() ? 1f : 0f});
         int localShadowSlots = 0;
         for (int i = 0; i < in.maxLocalLights(); i++) {
@@ -128,9 +128,11 @@ public final class VulkanUniformWriters {
             float dirLightDirX,
             float dirLightDirY,
             float dirLightDirZ,
+            float shadowPcssSoftness,
             float dirLightColorR,
             float dirLightColorG,
             float dirLightColorB,
+            float shadowMomentBlend,
             float pointLightPosX,
             float pointLightPosY,
             float pointLightPosZ,
@@ -138,9 +140,11 @@ public final class VulkanUniformWriters {
             float pointLightColorR,
             float pointLightColorG,
             float pointLightColorB,
+            float shadowMomentBleedReduction,
             float pointLightDirX,
             float pointLightDirY,
             float pointLightDirZ,
+            float shadowContactStrength,
             float pointLightInnerCos,
             float pointLightOuterCos,
             float pointLightIsSpot,

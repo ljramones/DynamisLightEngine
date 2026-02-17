@@ -13,7 +13,10 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("float momentVisibilityApprox(vec2 uv, float compareDepth, int layer)"));
         assertTrue(shader.contains("float evsmVisibilityApprox(vec2 uv, float compareDepth, int layer)"));
         assertTrue(shader.contains("float finalizeShadowVisibility("));
+        assertTrue(shader.contains("float pcssSoftness = clamp(gbo.uDirLightDir.w, 0.25, 2.0);"));
+        assertTrue(shader.contains("float momentBlend = clamp(gbo.uDirLightColor.w, 0.25, 1.5);"));
+        assertTrue(shader.contains("float momentBleedReduction = clamp(gbo.uPointLightColor.w, 0.25, 1.5);"));
+        assertTrue(shader.contains("float contactStrengthScale = clamp(gbo.uPointLightDir.w, 0.25, 2.0);"));
         assertTrue(shader.contains("if (contactShadows) {"));
     }
 }
-

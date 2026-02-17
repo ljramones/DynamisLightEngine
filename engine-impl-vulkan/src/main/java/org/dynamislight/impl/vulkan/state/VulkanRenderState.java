@@ -16,6 +16,10 @@ public final class VulkanRenderState {
     public int shadowMomentMode; // 0=none,1=vsm,2=evsm
     public boolean shadowMomentInitialized;
     public boolean shadowContactShadows;
+    public float shadowPcssSoftness = 1.0f;
+    public float shadowMomentBlend = 1.0f;
+    public float shadowMomentBleedReduction = 1.0f;
+    public float shadowContactStrength = 1.0f;
     public int shadowRtMode = 0; // 0=off,1=optional,2=force
     public final float[] shadowCascadeSplitNdc = new float[]{1f, 1f, 1f};
     public final float[][] shadowLightViewProjMatrices = new float[][]{
