@@ -54,10 +54,31 @@ mvn -pl engine-host-sample -am test \
   -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
+Depth-format divergence check (real Vulkan):
+```bash
+DLE_COMPARE_VULKAN_MODE=real \
+DLE_COMPARE_VULKAN_SHADOW_DEPTH_FORMAT=d16 \
+./scripts/aa_rebaseline_real_mac.sh
+
+DLE_COMPARE_VULKAN_MODE=real \
+DLE_COMPARE_VULKAN_SHADOW_DEPTH_FORMAT=d32 \
+./scripts/aa_rebaseline_real_mac.sh
+```
+
+Long-run motion/shimmer sweep (real Vulkan):
+```bash
+./scripts/aa_longrun_motion_sampling_mac.sh
+```
+
 ## 5. Pass/Fail Criteria
 - Unit tests pass for selection policy and matrix stability.
 - Compare scenes pass configured thresholds for target profile.
 - No unexpected shadow warning regressions for selected quality tier.
+- `SHADOW_POLICY_ACTIVE` contains atlas telemetry fields:
+  - `atlasMemoryD16Bytes`
+  - `atlasMemoryD32Bytes`
+  - `shadowUpdateBytesEstimate`
+- D16 vs D32 runs show no unacceptable acne/peter-panning divergence for locked profiles.
 
 ## 6. Known Gaps
 - Per-light shadow atlas/array rendering for multiple simultaneous local shadow casters is still pending.
@@ -68,3 +89,17 @@ mvn -pl engine-host-sample -am test \
 - Add cadence tests (hero lights full-rate vs distant lights throttled update rates).
 - Add static-cache correctness tests (no stale shadows after object/light state transitions).
 - Add CI matrix axis for shadow depth format (`D16_UNORM`, `D32_SFLOAT`) and publish drift deltas in reports.
+
+Cadence/static-cache planned test shape:
+- Cadence behavior:
+  - verify hero light updates every frame.
+  - verify distant lights update at throttled cadence and promote immediately under visibility pressure.
+- Static-cache correctness:
+  - verify unchanged static scene reuses cached shadow data.
+  - verify cache invalidates on static transform/material/light changes.
+  - verify no stale silhouettes after invalidation.
+
+Long-run motion/shimmer expansion notes:
+- Add camera-rail shadow sweeps (slow pan, fast pan, roll+pitch combinations).
+- Add animated caster set (thin props, alpha foliage, emissive movers) for shimmer sensitivity.
+- Track drift windows, not only single-frame peaks, when deciding regressions.

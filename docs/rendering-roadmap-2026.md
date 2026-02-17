@@ -76,6 +76,8 @@ Implemented now:
 - Shared power-of-two shadow-atlas planner in `engine-impl-common` with descending-size packing.
 - Runtime shadow-policy telemetry now reports atlas tile usage/utilization and eviction count in `SHADOW_POLICY_ACTIVE`.
 - OpenGL and Vulkan shadow mapping now compute atlas planning metrics from selected local shadow candidates.
+- Shadow telemetry now includes memory/update-byte estimates (`atlasMemoryD16Bytes`, `atlasMemoryD32Bytes`, `shadowUpdateBytesEstimate`) for CI budget checks.
+- Vulkan compare workflow now supports depth-format toggles via `dle.vulkan.shadow.depthFormat` (`d16`/`d32`) for divergence validation.
 
 Still in progress:
 - Full per-light local shadow atlas rendering/sampling path (current runtime still renders primary local shadow path).

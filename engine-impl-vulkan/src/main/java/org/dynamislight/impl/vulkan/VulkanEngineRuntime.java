@@ -115,6 +115,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024,
             0, 0, "none", "none",
             0, 0, 0.0f, 0,
+            0L, 0L, 0L,
             false
     );
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
@@ -341,6 +342,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " atlasTiles=" + currentShadows.atlasAllocatedTiles() + "/" + currentShadows.atlasCapacityTiles()
                             + " atlasUtilization=" + currentShadows.atlasUtilization()
                             + " atlasEvictions=" + currentShadows.atlasEvictions()
+                            + " atlasMemoryD16Bytes=" + currentShadows.atlasMemoryBytesD16()
+                            + " atlasMemoryD32Bytes=" + currentShadows.atlasMemoryBytesD32()
+                            + " shadowUpdateBytesEstimate=" + currentShadows.shadowUpdateBytesEstimate()
+                            + " shadowDepthFormat=" + context.shadowDepthFormatTag()
                             + " normalBiasScale=" + currentShadows.normalBiasScale()
                             + " slopeBiasScale=" + currentShadows.slopeBiasScale()
             ));
@@ -634,6 +639,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int atlasAllocatedTiles,
             float atlasUtilization,
             int atlasEvictions,
+            long atlasMemoryBytesD16,
+            long atlasMemoryBytesD32,
+            long shadowUpdateBytesEstimate,
             boolean degraded
     ) {
     }

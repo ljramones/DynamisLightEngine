@@ -109,6 +109,12 @@ Sample host clamps:
   - `atlasTiles=<allocated>/<capacity>`
   - `atlasUtilization=<0..1>`
   - `atlasEvictions=<count>`
+  - `atlasMemoryD16Bytes=<bytes>`
+  - `atlasMemoryD32Bytes=<bytes>`
+  - `shadowUpdateBytesEstimate=<bytes>`
+- Vulkan shadow depth format can be selected for validation runs with:
+  - `-Ddle.vulkan.shadow.depthFormat=d16`
+  - `-Ddle.vulkan.shadow.depthFormat=d32`
 - Non-directional shadow coverage is supported at baseline level but may differ in quality/perf characteristics by backend/profile.
 
 Current default local shadow budgets by tier:

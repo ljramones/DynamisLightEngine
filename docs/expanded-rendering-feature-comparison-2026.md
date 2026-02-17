@@ -42,6 +42,7 @@ Last updated: February 17, 2026.
 - Strong regression harness (`--compare`, tiered golden thresholds, stress profiles including post/SSAO).
 - Reflection stress coverage now includes Hi-Z/probe and RT-fallback scenes (`reflections-hiz-probe`, `reflections-rt-fallback`) in addition to SSR/planar/hybrid parity gates.
 - Local light management now supports multiple point/spot lights in both backends with per-light GPU array packing; shadow policy now includes atlas-planner telemetry (tile usage/utilization/evictions), while rendering still uses a selected primary local light path.
+- Shadow telemetry now includes atlas memory/update-byte estimates and Vulkan depth-format compare controls (`d16`/`d32`) for CI divergence checks.
 - Good diagnostics/warnings for quality fallback and runtime pressure.
 - Shadow roadmap is now explicitly staged for multi-local atlas rendering, temporal stabilization (texel snapping/jitter), static-cache layering, and depth-format CI divergence checks.
 

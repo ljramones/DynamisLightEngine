@@ -69,6 +69,7 @@ final class VulkanContext {
     static final int MAX_LOCAL_LIGHTS = 8;
     private static final int GLOBAL_SCENE_UNIFORM_BYTES = 1392;
     private static final int OBJECT_UNIFORM_BYTES = 176;
+    private static final String SHADOW_DEPTH_FORMAT_PROPERTY = "dle.vulkan.shadow.depthFormat";
     private final VulkanBackendResources backendResources = new VulkanBackendResources();
     private final VulkanDescriptorResourceState descriptorResources = new VulkanDescriptorResourceState();
     private int framesInFlight = DEFAULT_FRAMES_IN_FLIGHT;
@@ -119,7 +120,17 @@ final class VulkanContext {
     private final float[] localLightOuterTypeShadow = new float[MAX_LOCAL_LIGHTS * 4];
     private final VulkanIblState iblState = new VulkanIblState();
 
-    VulkanContext() {}
+    VulkanContext() {
+        backendResources.depthFormat = resolveConfiguredDepthFormat();
+    }
+
+    String shadowDepthFormatTag() {
+        return switch (backendResources.depthFormat) {
+            case VK_FORMAT_D16_UNORM -> "d16";
+            case VK_FORMAT_D32_SFLOAT -> "d32";
+            default -> "vk_format_" + backendResources.depthFormat;
+        };
+    }
 
     void configureFrameResources(int framesInFlight, int maxDynamicSceneObjects, int maxPendingUploadRanges) {
         if (backendResources.device != null) {
@@ -1189,6 +1200,16 @@ final class VulkanContext {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static int resolveConfiguredDepthFormat() {
+        String raw = System.getProperty(SHADOW_DEPTH_FORMAT_PROPERTY, "d32");
+        String normalized = raw == null ? "d32" : raw.trim().toLowerCase(java.util.Locale.ROOT);
+        return switch (normalized) {
+            case "d16", "d16_unorm", "vk_format_d16_unorm", "124" -> VK_FORMAT_D16_UNORM;
+            case "d32", "d32_sfloat", "vk_format_d32_sfloat", "126" -> VK_FORMAT_D32_SFLOAT;
+            default -> VK_FORMAT_D32_SFLOAT;
+        };
     }
 
     private void updateTemporalJitterState() {

@@ -24,6 +24,7 @@ SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds | longru
 LOCK_SOURCE_DIR="${2:-artifacts/compare}"
 THRESHOLDS_FILE="${DLE_COMPARE_THRESHOLDS_FILE:-}"
 REQUIRED_MOLTENVK_VERSION="${DLE_COMPARE_REQUIRE_MOLTENVK_VERSION:-}"
+SHADOW_DEPTH_FORMAT="${DLE_COMPARE_VULKAN_SHADOW_DEPTH_FORMAT:-d32}"
 
 find_vulkan_loader_dir() {
   local candidate
@@ -280,6 +281,7 @@ echo "Temporal frames override: ${DLE_COMPARE_TEMPORAL_FRAMES:-0}"
 echo "Temporal rolling window: ${DLE_COMPARE_TEMPORAL_WINDOW:-5}"
 echo "TSR frame boost: ${DLE_COMPARE_TSR_FRAME_BOOST:-3}"
 echo "Upscaler hook: mode=${DLE_COMPARE_UPSCALER_MODE:-none} quality=${DLE_COMPARE_UPSCALER_QUALITY:-quality}"
+echo "Vulkan shadow depth format: $SHADOW_DEPTH_FORMAT"
 if [[ -n "$THRESHOLDS_FILE" ]]; then
   echo "Threshold overrides file: $THRESHOLDS_FILE"
 fi
@@ -317,6 +319,7 @@ run_compare_tests() {
     -Ddle.compare.tsr.frameBoost="${DLE_COMPARE_TSR_FRAME_BOOST:-3}" \
     -Ddle.compare.upscaler.mode="${DLE_COMPARE_UPSCALER_MODE:-none}" \
     -Ddle.compare.upscaler.quality="${DLE_COMPARE_UPSCALER_QUALITY:-quality}" \
+    -Ddle.vulkan.shadow.depthFormat="$SHADOW_DEPTH_FORMAT" \
     "${thresholds_arg[@]}" \
     -Dtest="$TEST_CLASS" \
     -Dsurefire.failIfNoSpecifiedTests=false 2>&1 | tee "$log_file"

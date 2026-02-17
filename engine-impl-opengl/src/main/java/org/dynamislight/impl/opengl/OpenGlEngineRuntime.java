@@ -183,6 +183,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024,
             0, 0, "none", "none",
             0, 0, 0.0f, 0,
+            0L, 0L, 0L,
             false
     );
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, ReflectionMode.IBL_ONLY.ordinal(), 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
@@ -453,6 +454,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                             + " atlasTiles=" + shadows.atlasAllocatedTiles() + "/" + shadows.atlasCapacityTiles()
                             + " atlasUtilization=" + shadows.atlasUtilization()
                             + " atlasEvictions=" + shadows.atlasEvictions()
+                            + " atlasMemoryD16Bytes=" + shadows.atlasMemoryBytesD16()
+                            + " atlasMemoryD32Bytes=" + shadows.atlasMemoryBytesD32()
+                            + " shadowUpdateBytesEstimate=" + shadows.shadowUpdateBytesEstimate()
                             + " normalBiasScale=" + shadows.normalBiasScale()
                             + " slopeBiasScale=" + shadows.slopeBiasScale()
             ));
@@ -1406,7 +1410,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
         if (lights == null || lights.isEmpty()) {
-            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, false);
+            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, false);
         }
         int maxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -1437,7 +1441,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         selectedLocalShadowLights = Math.min(maxShadowedLocalLights, selectedLocalShadowLights);
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, false);
+            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, false);
         }
 
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
@@ -1499,6 +1503,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             ));
         }
         ShadowAtlasPlanner.PlanResult atlasPlan = ShadowAtlasPlanner.plan(resolution, atlasRequests, Map.of());
+        long atlasMemoryBytesD16 = (long) resolution * (long) resolution * 2L;
+        long atlasMemoryBytesD32 = (long) resolution * (long) resolution * 4L;
+        long shadowUpdateBytesEstimate = 0L;
+        for (ShadowAtlasPlanner.Allocation allocation : atlasPlan.allocations()) {
+            long tilePixels = (long) allocation.tileSizePx() * (long) allocation.tileSizePx();
+            shadowUpdateBytesEstimate += tilePixels * 2L;
+        }
         float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
         float biasScale = 1.0f + (radius * 0.15f) + (Math.max(0, cascades - 1) * 0.05f);
         bias = Math.max(0.00002f, Math.min(0.02f, bias * biasScale));
@@ -1539,6 +1550,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 atlasPlan.allocations().size(),
                 atlasPlan.utilization(),
                 atlasPlan.evictedIds().size(),
+                atlasMemoryBytesD16,
+                atlasMemoryBytesD32,
+                shadowUpdateBytesEstimate,
                 degraded
         );
     }
@@ -1826,6 +1840,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             int atlasAllocatedTiles,
             float atlasUtilization,
             int atlasEvictions,
+            long atlasMemoryBytesD16,
+            long atlasMemoryBytesD32,
+            long shadowUpdateBytesEstimate,
             boolean degraded
     ) {
     }

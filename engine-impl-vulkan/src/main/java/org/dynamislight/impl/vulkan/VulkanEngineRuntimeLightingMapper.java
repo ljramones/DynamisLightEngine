@@ -507,7 +507,7 @@ final class VulkanEngineRuntimeLightingMapper {
 
     static VulkanEngineRuntime.ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, false);
         }
         int maxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -538,7 +538,7 @@ final class VulkanEngineRuntimeLightingMapper {
         selectedLocalShadowLights = Math.min(maxShadowedLocalLights, selectedLocalShadowLights);
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, false);
         }
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
         ShadowDesc shadow = primary.shadow();
@@ -572,6 +572,13 @@ final class VulkanEngineRuntimeLightingMapper {
             ));
         }
         ShadowAtlasPlanner.PlanResult atlasPlan = ShadowAtlasPlanner.plan(resolution, atlasRequests, Map.of());
+        long atlasMemoryBytesD16 = (long) resolution * (long) resolution * 2L;
+        long atlasMemoryBytesD32 = (long) resolution * (long) resolution * 4L;
+        long shadowUpdateBytesEstimate = 0L;
+        for (ShadowAtlasPlanner.Allocation allocation : atlasPlan.allocations()) {
+            long tilePixels = (long) allocation.tileSizePx() * (long) allocation.tileSizePx();
+            shadowUpdateBytesEstimate += tilePixels * 2L;
+        }
         float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
         int maxKernel = switch (type) {
             case DIRECTIONAL -> switch (qualityTier) {
@@ -640,6 +647,9 @@ final class VulkanEngineRuntimeLightingMapper {
                 atlasPlan.allocations().size(),
                 atlasPlan.utilization(),
                 atlasPlan.evictedIds().size(),
+                atlasMemoryBytesD16,
+                atlasMemoryBytesD32,
+                shadowUpdateBytesEstimate,
                 degraded
         );
     }

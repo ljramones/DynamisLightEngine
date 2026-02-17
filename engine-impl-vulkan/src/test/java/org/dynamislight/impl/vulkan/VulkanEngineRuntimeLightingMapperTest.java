@@ -81,6 +81,9 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertTrue(ultra.atlasAllocatedTiles() >= 0);
         assertTrue(ultra.atlasUtilization() >= 0.0f);
         assertTrue(ultra.atlasUtilization() <= 1.0f);
+        assertTrue(ultra.atlasMemoryBytesD16() > 0L);
+        assertTrue(ultra.atlasMemoryBytesD32() > ultra.atlasMemoryBytesD16());
+        assertTrue(ultra.shadowUpdateBytesEstimate() >= 0L);
         assertTrue(ultra.normalBiasScale() >= 1.0f);
         assertTrue(ultra.slopeBiasScale() >= 1.0f);
     }
