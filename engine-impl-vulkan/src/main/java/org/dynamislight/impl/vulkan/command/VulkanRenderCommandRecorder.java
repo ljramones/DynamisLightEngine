@@ -71,15 +71,14 @@ public final class VulkanRenderCommandRecorder {
             List<MeshDrawCmd> meshes,
             IntUnaryOperator dynamicUniformOffset
     ) {
-        if (in.shadowMomentPipelineRequested() && in.shadowMomentImage() != VK_NULL_HANDLE) {
-            int oldLayout = in.shadowMomentInitialized()
-                    ? VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                    : VK_IMAGE_LAYOUT_UNDEFINED;
+        if (in.shadowMomentPipelineRequested()
+                && !in.shadowMomentInitialized()
+                && in.shadowMomentImage() != VK_NULL_HANDLE) {
             VkImageMemoryBarrier.Buffer toTransferDst = VkImageMemoryBarrier.calloc(1, stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
-                    .srcAccessMask(in.shadowMomentInitialized() ? VK_ACCESS_SHADER_READ_BIT : 0)
+                    .srcAccessMask(0)
                     .dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
-                    .oldLayout(oldLayout)
+                    .oldLayout(VK_IMAGE_LAYOUT_UNDEFINED)
                     .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
                     .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                     .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
@@ -92,7 +91,7 @@ public final class VulkanRenderCommandRecorder {
                     .layerCount(1);
             vkCmdPipelineBarrier(
                     commandBuffer,
-                    in.shadowMomentInitialized() ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                     VK_PIPELINE_STAGE_TRANSFER_BIT,
                     0,
                     null,
