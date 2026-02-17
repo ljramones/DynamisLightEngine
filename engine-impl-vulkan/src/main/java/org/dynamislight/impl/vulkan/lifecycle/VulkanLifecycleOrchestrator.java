@@ -175,7 +175,9 @@ public final class VulkanLifecycleOrchestrator {
                         request.renderState().shadowMapResolution,
                         request.maxShadowMatrices(),
                         request.vertexStrideBytes(),
-                        request.descriptorResources().descriptorSetLayout
+                        request.descriptorResources().descriptorSetLayout,
+                        request.renderState().shadowMomentPipelineRequested,
+                        request.renderState().shadowMomentMode
                 )
         );
     }
@@ -192,7 +194,12 @@ public final class VulkanLifecycleOrchestrator {
                         backendResources.shadowRenderPass,
                         backendResources.shadowPipelineLayout,
                         backendResources.shadowPipeline,
-                        backendResources.shadowFramebuffers
+                        backendResources.shadowFramebuffers,
+                        backendResources.shadowMomentImage,
+                        backendResources.shadowMomentMemory,
+                        backendResources.shadowMomentImageView,
+                        backendResources.shadowMomentSampler,
+                        backendResources.shadowMomentFormat
                 )
         );
     }
@@ -207,6 +214,11 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.shadowPipelineLayout = state.shadowPipelineLayout();
         backendResources.shadowPipeline = state.shadowPipeline();
         backendResources.shadowFramebuffers = state.shadowFramebuffers();
+        backendResources.shadowMomentImage = state.shadowMomentImage();
+        backendResources.shadowMomentMemory = state.shadowMomentMemory();
+        backendResources.shadowMomentImageView = state.shadowMomentImageView();
+        backendResources.shadowMomentSampler = state.shadowMomentSampler();
+        backendResources.shadowMomentFormat = state.shadowMomentFormat();
     }
 
     public static VulkanFrameSyncLifecycleCoordinator.State createFrameSync(CreateFrameSyncRequest request) throws EngineException {

@@ -14,6 +14,8 @@ import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkSamplerCreateInfo;
 
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT;
+import static org.lwjgl.vulkan.VK10.VK_FORMAT_R16G16B16A16_SFLOAT;
+import static org.lwjgl.vulkan.VK10.VK_FORMAT_R16G16_SFLOAT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_2D;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -67,7 +69,9 @@ public final class VulkanShadowResources {
             int shadowMapResolution,
             int maxShadowMatrices,
             int vertexStrideBytes,
-            long descriptorSetLayout
+            long descriptorSetLayout,
+            boolean momentPipelineRequested,
+            int momentMode
     ) throws EngineException {
         VulkanImageAlloc shadowDepth = VulkanMemoryOps.createImage(
                 device,
@@ -122,6 +126,42 @@ public final class VulkanShadowResources {
                 shadowDepthLayerImageViews,
                 shadowMapResolution
         );
+        long shadowMomentImage = VK_NULL_HANDLE;
+        long shadowMomentMemory = VK_NULL_HANDLE;
+        long shadowMomentImageView = VK_NULL_HANDLE;
+        long shadowMomentSampler = VK_NULL_HANDLE;
+        int shadowMomentFormat = 0;
+        if (momentPipelineRequested && momentMode > 0) {
+            shadowMomentFormat = switch (momentMode) {
+                case 2 -> VK_FORMAT_R16G16B16A16_SFLOAT;
+                default -> VK_FORMAT_R16G16_SFLOAT;
+            };
+            VulkanImageAlloc shadowMoment = VulkanMemoryOps.createImage(
+                    device,
+                    physicalDevice,
+                    stack,
+                    shadowMapResolution,
+                    shadowMapResolution,
+                    shadowMomentFormat,
+                    VK10.VK_IMAGE_TILING_OPTIMAL,
+                    VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    1
+            );
+            shadowMomentImage = shadowMoment.image();
+            shadowMomentMemory = shadowMoment.memory();
+            shadowMomentImageView = createImageView(
+                    device,
+                    stack,
+                    shadowMomentImage,
+                    shadowMomentFormat,
+                    VK10.VK_IMAGE_ASPECT_COLOR_BIT,
+                    VK_IMAGE_VIEW_TYPE_2D,
+                    0,
+                    1
+            );
+            shadowMomentSampler = createMomentSampler(device, stack);
+        }
         return new Allocation(
                 shadowDepthImage,
                 shadowDepthMemory,
@@ -131,7 +171,12 @@ public final class VulkanShadowResources {
                 shadowPipeline.renderPass(),
                 shadowPipeline.pipelineLayout(),
                 shadowPipeline.graphicsPipeline(),
-                shadowFramebuffers
+                shadowFramebuffers,
+                shadowMomentImage,
+                shadowMomentMemory,
+                shadowMomentImageView,
+                shadowMomentSampler,
+                shadowMomentFormat
         );
     }
 
@@ -178,6 +223,18 @@ public final class VulkanShadowResources {
         }
         if (resources.shadowDepthMemory() != VK_NULL_HANDLE) {
             vkFreeMemory(device, resources.shadowDepthMemory(), null);
+        }
+        if (resources.shadowMomentSampler() != VK_NULL_HANDLE) {
+            VK10.vkDestroySampler(device, resources.shadowMomentSampler(), null);
+        }
+        if (resources.shadowMomentImageView() != VK_NULL_HANDLE) {
+            vkDestroyImageView(device, resources.shadowMomentImageView(), null);
+        }
+        if (resources.shadowMomentImage() != VK_NULL_HANDLE) {
+            VK10.vkDestroyImage(device, resources.shadowMomentImage(), null);
+        }
+        if (resources.shadowMomentMemory() != VK_NULL_HANDLE) {
+            vkFreeMemory(device, resources.shadowMomentMemory(), null);
         }
     }
 
@@ -302,6 +359,32 @@ public final class VulkanShadowResources {
         return pSampler.get(0);
     }
 
+    private static long createMomentSampler(VkDevice device, MemoryStack stack) throws EngineException {
+        VkSamplerCreateInfo samplerInfo = VkSamplerCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO)
+                .magFilter(VK10.VK_FILTER_LINEAR)
+                .minFilter(VK10.VK_FILTER_LINEAR)
+                .addressModeU(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+                .addressModeV(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+                .addressModeW(VK10.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)
+                .anisotropyEnable(false)
+                .maxAnisotropy(1.0f)
+                .borderColor(VK10.VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK)
+                .unnormalizedCoordinates(false)
+                .compareEnable(false)
+                .compareOp(VK10.VK_COMPARE_OP_ALWAYS)
+                .mipmapMode(VK10.VK_SAMPLER_MIPMAP_MODE_NEAREST)
+                .mipLodBias(0.0f)
+                .minLod(0.0f)
+                .maxLod(0.0f);
+        var pSampler = stack.longs(VK_NULL_HANDLE);
+        int result = VK10.vkCreateSampler(device, samplerInfo, null, pSampler);
+        if (result != VK_SUCCESS || pSampler.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateSampler(shadow moment) failed: " + result, false);
+        }
+        return pSampler.get(0);
+    }
+
     /**
      * Represents a collection of Vulkan resources required for shadow mapping in
      * a Vulkan graphics pipeline. This record encapsulates the Vulkan objects
@@ -320,7 +403,12 @@ public final class VulkanShadowResources {
             long shadowRenderPass,
             long shadowPipelineLayout,
             long shadowPipeline,
-            long[] shadowFramebuffers
+            long[] shadowFramebuffers,
+            long shadowMomentImage,
+            long shadowMomentMemory,
+            long shadowMomentImageView,
+            long shadowMomentSampler,
+            int shadowMomentFormat
     ) {
     }
 }

@@ -39,7 +39,9 @@ public final class VulkanShadowLifecycleCoordinator {
                 request.shadowMapResolution(),
                 request.maxShadowMatrices(),
                 request.vertexStrideBytes(),
-                request.descriptorSetLayout()
+                request.descriptorSetLayout(),
+                request.momentPipelineRequested(),
+                request.momentMode()
         );
         return new State(
                 shadowResources.shadowDepthImage(),
@@ -50,7 +52,12 @@ public final class VulkanShadowLifecycleCoordinator {
                 shadowResources.shadowRenderPass(),
                 shadowResources.shadowPipelineLayout(),
                 shadowResources.shadowPipeline(),
-                shadowResources.shadowFramebuffers()
+                shadowResources.shadowFramebuffers(),
+                shadowResources.shadowMomentImage(),
+                shadowResources.shadowMomentMemory(),
+                shadowResources.shadowMomentImageView(),
+                shadowResources.shadowMomentSampler(),
+                shadowResources.shadowMomentFormat()
         );
     }
 
@@ -76,7 +83,12 @@ public final class VulkanShadowLifecycleCoordinator {
                         request.shadowRenderPass(),
                         request.shadowPipelineLayout(),
                         request.shadowPipeline(),
-                        request.shadowFramebuffers()
+                        request.shadowFramebuffers(),
+                        request.shadowMomentImage(),
+                        request.shadowMomentMemory(),
+                        request.shadowMomentImageView(),
+                        request.shadowMomentSampler(),
+                        request.shadowMomentFormat()
                 )
         );
         return State.empty();
@@ -112,7 +124,9 @@ public final class VulkanShadowLifecycleCoordinator {
             int shadowMapResolution,
             int maxShadowMatrices,
             int vertexStrideBytes,
-            long descriptorSetLayout
+            long descriptorSetLayout,
+            boolean momentPipelineRequested,
+            int momentMode
     ) {
     }
 
@@ -142,7 +156,12 @@ public final class VulkanShadowLifecycleCoordinator {
             long shadowRenderPass,
             long shadowPipelineLayout,
             long shadowPipeline,
-            long[] shadowFramebuffers
+            long[] shadowFramebuffers,
+            long shadowMomentImage,
+            long shadowMomentMemory,
+            long shadowMomentImageView,
+            long shadowMomentSampler,
+            int shadowMomentFormat
     ) {
     }
 
@@ -162,7 +181,12 @@ public final class VulkanShadowLifecycleCoordinator {
             long shadowRenderPass,
             long shadowPipelineLayout,
             long shadowPipeline,
-            long[] shadowFramebuffers
+            long[] shadowFramebuffers,
+            long shadowMomentImage,
+            long shadowMomentMemory,
+            long shadowMomentImageView,
+            long shadowMomentSampler,
+            int shadowMomentFormat
     ) {
         /**
          * Creates and returns an empty State instance where all Vulkan handles are set
@@ -181,7 +205,12 @@ public final class VulkanShadowLifecycleCoordinator {
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
-                    new long[0]
+                    new long[0],
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    0
             );
         }
     }

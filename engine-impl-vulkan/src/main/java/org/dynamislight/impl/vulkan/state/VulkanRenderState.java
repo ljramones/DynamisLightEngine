@@ -12,6 +12,8 @@ public final class VulkanRenderState {
     public boolean shadowDirectionalTexelSnapEnabled = true;
     public float shadowDirectionalTexelSnapScale = 1.0f;
     public int shadowFilterMode = 0; // 0=pcf,1=pcss,2=vsm,3=evsm
+    public boolean shadowMomentPipelineRequested;
+    public int shadowMomentMode; // 0=none,1=vsm,2=evsm
     public boolean shadowContactShadows;
     public int shadowRtMode = 0; // 0=off,1=optional,2=force
     public final float[] shadowCascadeSplitNdc = new float[]{1f, 1f, 1f};

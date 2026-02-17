@@ -297,6 +297,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         updateShadowSchedulerTicks(currentShadows.renderedShadowLightIdsCsv());
         if (!mockContext) {
             VulkanRuntimeLifecycle.applySceneToContext(context, sceneState);
+            currentShadows = withRuntimeMomentPipelineState(currentShadows);
         }
     }
 
@@ -357,12 +358,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             context.setShadowQualityModes(
                     currentShadows.runtimeFilterPath(),
                     currentShadows.contactShadowsRequested(),
-                    currentShadows.rtShadowMode()
+                    currentShadows.rtShadowMode(),
+                    currentShadows.filterPath()
             );
             context.setShadowDirectionalTexelSnap(
                     shadowDirectionalTexelSnapEnabled,
                     shadowDirectionalTexelSnapScale
             );
+            currentShadows = withRuntimeMomentPipelineState(currentShadows);
         }
         VulkanRuntimeLifecycle.RenderState frame = VulkanRuntimeLifecycle.render(
                 context,
@@ -881,6 +884,53 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int shadowAllocatorReusedAssignments,
             int shadowAllocatorEvictions
     ) {
+    }
+
+    private ShadowRenderConfig withRuntimeMomentPipelineState(ShadowRenderConfig base) {
+        if (base == null || !base.momentPipelineRequested()) {
+            return base;
+        }
+        boolean active = context.isShadowMomentPipelineActive();
+        if (base.momentPipelineActive() == active) {
+            return base;
+        }
+        return new ShadowRenderConfig(
+                base.enabled(),
+                base.strength(),
+                base.bias(),
+                base.normalBiasScale(),
+                base.slopeBiasScale(),
+                base.pcfRadius(),
+                base.cascadeCount(),
+                base.mapResolution(),
+                base.maxShadowedLocalLights(),
+                base.selectedLocalShadowLights(),
+                base.primaryShadowType(),
+                base.primaryShadowLightId(),
+                base.atlasCapacityTiles(),
+                base.atlasAllocatedTiles(),
+                base.atlasUtilization(),
+                base.atlasEvictions(),
+                base.atlasMemoryBytesD16(),
+                base.atlasMemoryBytesD32(),
+                base.shadowUpdateBytesEstimate(),
+                base.shadowMomentAtlasBytesEstimate(),
+                base.renderedLocalShadowLights(),
+                base.renderedSpotShadowLights(),
+                base.renderedPointShadowCubemaps(),
+                base.renderedShadowLightIdsCsv(),
+                base.deferredShadowLightCount(),
+                base.deferredShadowLightIdsCsv(),
+                base.filterPath(),
+                base.runtimeFilterPath(),
+                base.momentFilterEstimateOnly(),
+                base.momentPipelineRequested(),
+                active,
+                base.contactShadowsRequested(),
+                base.rtShadowMode(),
+                base.rtShadowActive(),
+                base.degraded()
+        );
     }
 
     private void updateShadowSchedulerTicks(String renderedShadowLightIdsCsv) {

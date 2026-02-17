@@ -472,13 +472,20 @@ final class VulkanContext {
         }
     }
 
-    void setShadowQualityModes(String filterPath, boolean contactShadows, String rtMode) {
+    void setShadowQualityModes(String filterPath, boolean contactShadows, String rtMode, String requestedFilterPath)
+            throws EngineException {
         int filterMode = switch (filterPath == null ? "pcf" : filterPath.trim().toLowerCase()) {
             case "pcss" -> 1;
             case "vsm" -> 2;
             case "evsm" -> 3;
             default -> 0;
         };
+        int momentMode = switch (requestedFilterPath == null ? "pcf" : requestedFilterPath.trim().toLowerCase()) {
+            case "vsm" -> 1;
+            case "evsm" -> 2;
+            default -> 0;
+        };
+        boolean momentPipelineRequested = momentMode > 0;
         int rtModeInt = switch (rtMode == null ? "off" : rtMode.trim().toLowerCase()) {
             case "optional" -> 1;
             case "force" -> 2;
@@ -497,9 +504,33 @@ final class VulkanContext {
             renderState.shadowRtMode = rtModeInt;
             changed = true;
         }
+        if (renderState.shadowMomentPipelineRequested != momentPipelineRequested
+                || renderState.shadowMomentMode != momentMode) {
+            renderState.shadowMomentPipelineRequested = momentPipelineRequested;
+            renderState.shadowMomentMode = momentMode;
+            if (backendResources.device != null) {
+                vkDeviceWaitIdle(backendResources.device);
+                try (MemoryStack stack = stackPush()) {
+                    destroyShadowResources();
+                    createShadowResources(stack);
+                    if (!sceneResources.gpuMeshes.isEmpty()) {
+                        createTextureDescriptorSets(stack);
+                    }
+                }
+            }
+            changed = true;
+        }
         if (changed) {
             markGlobalStateDirty();
         }
+    }
+
+    boolean isShadowMomentPipelineActive() {
+        return renderState.shadowMomentPipelineRequested
+                && backendResources.shadowMomentImage != VK_NULL_HANDLE
+                && backendResources.shadowMomentImageView != VK_NULL_HANDLE
+                && backendResources.shadowMomentSampler != VK_NULL_HANDLE
+                && backendResources.shadowMomentFormat != 0;
     }
 
     void setShadowDirectionalTexelSnap(boolean enabled, float scale) {

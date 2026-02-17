@@ -54,7 +54,8 @@ class VulkanLifecycleOrchestratorTest {
         long[] layerViews = new long[]{7L, 8L};
         long[] framebuffers = new long[]{9L};
         var state = new VulkanShadowLifecycleCoordinator.State(
-                1L, 2L, 3L, layerViews, 4L, 5L, 6L, 10L, framebuffers
+                1L, 2L, 3L, layerViews, 4L, 5L, 6L, 10L, framebuffers,
+                11L, 12L, 13L, 14L, 97
         );
 
         VulkanLifecycleOrchestrator.applyShadowState(backend, state);
@@ -68,6 +69,11 @@ class VulkanLifecycleOrchestratorTest {
         assertEquals(6L, backend.shadowPipelineLayout);
         assertEquals(10L, backend.shadowPipeline);
         assertSame(framebuffers, backend.shadowFramebuffers);
+        assertEquals(11L, backend.shadowMomentImage);
+        assertEquals(12L, backend.shadowMomentMemory);
+        assertEquals(13L, backend.shadowMomentImageView);
+        assertEquals(14L, backend.shadowMomentSampler);
+        assertEquals(97, backend.shadowMomentFormat);
     }
 
     @Test
