@@ -11,6 +11,7 @@ import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
+import org.dynamislight.api.scene.ReflectionAdvancedDesc;
 import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
@@ -169,7 +170,8 @@ public final class SceneMapper {
                 post.taaBlend(),
                 post.taaLumaClipEnabled(),
                 mapAntiAliasing(post.antiAliasing()),
-                mapReflections(post.reflections())
+                mapReflections(post.reflections()),
+                mapReflectionAdvanced(post.reflectionAdvanced())
         );
     }
 
@@ -201,6 +203,27 @@ public final class SceneMapper {
                 reflections.ssrStepScale(),
                 reflections.temporalWeight(),
                 reflections.planarStrength()
+        );
+    }
+
+    private static ReflectionAdvancedDesc mapReflectionAdvanced(ReflectionAdvancedDesc advanced) {
+        if (advanced == null) {
+            return null;
+        }
+        return new ReflectionAdvancedDesc(
+                advanced.hiZEnabled(),
+                advanced.hiZMipCount(),
+                advanced.denoisePasses(),
+                advanced.planarClipPlaneEnabled(),
+                advanced.planarPlaneHeight(),
+                advanced.planarFadeStart(),
+                advanced.planarFadeEnd(),
+                advanced.probeVolumeEnabled(),
+                advanced.probeBoxProjectionEnabled(),
+                advanced.probeBlendDistance(),
+                advanced.rtEnabled(),
+                advanced.rtMaxRoughness(),
+                advanced.rtFallbackMode()
         );
     }
 }

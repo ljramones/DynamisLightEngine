@@ -9,6 +9,7 @@ import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
+import org.dynamislight.api.scene.ReflectionAdvancedDesc;
 import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
@@ -204,6 +205,7 @@ final class VulkanEngineRuntimeLightingMapper {
             taaRenderScale = Math.max(0.5f, Math.min(1.0f, aa.renderScale()));
         }
         ReflectionDesc reflectionDesc = desc.reflections();
+        ReflectionAdvancedDesc reflectionAdvancedDesc = desc.reflectionAdvanced();
         boolean reflectionsEnabled = false;
         int reflectionsMode = 0;
         float reflectionsSsrStrength = 0.6f;
@@ -225,6 +227,28 @@ final class VulkanEngineRuntimeLightingMapper {
                 reflectionsSsrStrength *= 0.85f;
                 reflectionsSsrStepScale = Math.min(3.0f, reflectionsSsrStepScale * 1.15f);
                 reflectionsPlanarStrength *= 0.9f;
+            }
+        }
+        if (reflectionAdvancedDesc != null && reflectionsEnabled) {
+            if (!reflectionAdvancedDesc.hiZEnabled()) {
+                reflectionsSsrStepScale = Math.max(0.5f, Math.min(3.0f, reflectionsSsrStepScale * 1.08f));
+            } else {
+                reflectionsSsrStepScale = Math.max(0.5f, Math.min(3.0f, reflectionsSsrStepScale * 0.92f));
+            }
+            int denoisePasses = Math.max(0, Math.min(6, reflectionAdvancedDesc.denoisePasses()));
+            reflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, reflectionsTemporalWeight + (denoisePasses * 0.02f)));
+            if (reflectionAdvancedDesc.planarClipPlaneEnabled()) {
+                reflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, reflectionsPlanarStrength + 0.05f));
+            }
+            if (reflectionAdvancedDesc.probeVolumeEnabled()) {
+                reflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, reflectionsPlanarStrength + 0.03f));
+                reflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, reflectionsTemporalWeight + 0.02f));
+            }
+            if (reflectionAdvancedDesc.rtEnabled()) {
+                int fallbackMode = parseReflectionMode(reflectionAdvancedDesc.rtFallbackMode());
+                reflectionsMode = fallbackMode == 0 ? 3 : fallbackMode;
+                reflectionsSsrMaxRoughness = Math.max(0f, Math.min(1.0f, Math.max(reflectionsSsrMaxRoughness, reflectionAdvancedDesc.rtMaxRoughness())));
+                reflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, reflectionsTemporalWeight + 0.04f));
             }
         }
         if (reflectionsEnabled && reflectionProfile != null) {
@@ -271,7 +295,7 @@ final class VulkanEngineRuntimeLightingMapper {
                 taaSharpenStrength,
                 taaRenderScale,
                 reflectionsEnabled,
-                reflectionsMode,
+                packReflectionMode(reflectionsMode, reflectionAdvancedDesc),
                 reflectionsSsrStrength,
                 reflectionsSsrMaxRoughness,
                 reflectionsSsrStepScale,
@@ -292,8 +316,34 @@ final class VulkanEngineRuntimeLightingMapper {
             case "ssr" -> 1;
             case "planar" -> 2;
             case "hybrid" -> 3;
+            case "rt_hybrid", "rt" -> 4;
             default -> 0;
         };
+    }
+
+    private static int packReflectionMode(int baseMode, ReflectionAdvancedDesc advanced) {
+        int packed = baseMode & 0x7;
+        if (advanced == null) {
+            return packed;
+        }
+        if (advanced.hiZEnabled()) {
+            packed |= 1 << 3;
+        }
+        int denoisePasses = Math.max(0, Math.min(6, advanced.denoisePasses()));
+        packed |= (denoisePasses & 0x7) << 4;
+        if (advanced.planarClipPlaneEnabled()) {
+            packed |= 1 << 7;
+        }
+        if (advanced.probeVolumeEnabled()) {
+            packed |= 1 << 8;
+        }
+        if (advanced.probeBoxProjectionEnabled()) {
+            packed |= 1 << 9;
+        }
+        if (advanced.rtEnabled()) {
+            packed |= 1 << 10;
+        }
+        return packed;
     }
 
     static VulkanEngineRuntime.LightingConfig mapLighting(List<LightDesc> lights) {

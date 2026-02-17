@@ -305,13 +305,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 )
         ));
         if (currentPost.reflectionsEnabled()) {
+            int reflectionBaseMode = currentPost.reflectionsMode() & 0x7;
             warnings.add(new EngineWarning(
                     "REFLECTIONS_BASELINE_ACTIVE",
                     "Reflections baseline active (mode="
-                            + switch (currentPost.reflectionsMode()) {
+                            + switch (reflectionBaseMode) {
                         case 1 -> "ssr";
                         case 2 -> "planar";
                         case 3 -> "hybrid";
+                        case 4 -> "rt_hybrid_fallback";
                         default -> "ibl_only";
                     }
                             + ", ssrStrength=" + currentPost.reflectionsSsrStrength()

@@ -28,6 +28,7 @@ import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.scene.ReactivePreset;
+import org.dynamislight.api.scene.ReflectionAdvancedDesc;
 import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
@@ -79,7 +80,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         IBL_ONLY,
         SSR,
         PLANAR,
-        HYBRID
+        HYBRID,
+        RT_HYBRID
     }
 
     private enum ReflectionProfile {
@@ -456,13 +458,15 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             ));
         }
         if (postProcess.reflectionsEnabled()) {
+            int reflectionBaseMode = postProcess.reflectionsMode() & 0x7;
             warnings.add(new EngineWarning(
                     "REFLECTIONS_BASELINE_ACTIVE",
                     "Reflections baseline active (mode="
-                            + switch (postProcess.reflectionsMode()) {
+                            + switch (reflectionBaseMode) {
                         case 1 -> "ssr";
                         case 2 -> "planar";
                         case 3 -> "hybrid";
+                        case 4 -> "rt_hybrid_fallback";
                         default -> "ibl_only";
                     }
                             + ", ssrStrength=" + postProcess.reflectionsSsrStrength()
@@ -875,6 +879,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             taaRenderScale = clamp(aa.renderScale(), 0.5f, 1.0f);
         }
         ReflectionDesc reflectionDesc = desc.reflections();
+        ReflectionAdvancedDesc reflectionAdvancedDesc = desc.reflectionAdvanced();
         ReflectionMode reflectionsMode = ReflectionMode.IBL_ONLY;
         boolean reflectionsEnabled = false;
         float reflectionsSsrStrength = 0.6f;
@@ -896,6 +901,32 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 reflectionsSsrStrength *= 0.85f;
                 reflectionsSsrStepScale = Math.min(3.0f, reflectionsSsrStepScale * 1.15f);
                 reflectionsPlanarStrength *= 0.9f;
+            }
+        }
+        if (reflectionAdvancedDesc != null && reflectionsEnabled) {
+            if (!reflectionAdvancedDesc.hiZEnabled()) {
+                reflectionsSsrStepScale = clamp(reflectionsSsrStepScale * 1.08f, 0.5f, 3.0f);
+            } else {
+                reflectionsSsrStepScale = clamp(reflectionsSsrStepScale * 0.92f, 0.5f, 3.0f);
+            }
+            int denoisePasses = Math.max(0, Math.min(6, reflectionAdvancedDesc.denoisePasses()));
+            reflectionsTemporalWeight = clamp(reflectionsTemporalWeight + (denoisePasses * 0.02f), 0f, 0.98f);
+            if (reflectionAdvancedDesc.planarClipPlaneEnabled()) {
+                reflectionsPlanarStrength = clamp(reflectionsPlanarStrength + 0.05f, 0f, 1.0f);
+            }
+            if (reflectionAdvancedDesc.probeVolumeEnabled()) {
+                reflectionsPlanarStrength = clamp(reflectionsPlanarStrength + 0.03f, 0f, 1.0f);
+                reflectionsTemporalWeight = clamp(reflectionsTemporalWeight + 0.02f, 0f, 0.98f);
+            }
+            if (reflectionAdvancedDesc.rtEnabled()) {
+                ReflectionMode fallbackMode = parseReflectionMode(reflectionAdvancedDesc.rtFallbackMode());
+                reflectionsMode = fallbackMode == ReflectionMode.IBL_ONLY ? ReflectionMode.HYBRID : fallbackMode;
+                reflectionsSsrMaxRoughness = clamp(
+                        Math.max(reflectionsSsrMaxRoughness, reflectionAdvancedDesc.rtMaxRoughness()),
+                        0f,
+                        1.0f
+                );
+                reflectionsTemporalWeight = clamp(reflectionsTemporalWeight + 0.04f, 0f, 0.98f);
             }
         }
         if (reflectionsEnabled && reflectionProfile != null) {
@@ -942,7 +973,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 taaSharpenStrength,
                 taaRenderScale,
                 reflectionsEnabled,
-                reflectionsMode.ordinal(),
+                packReflectionMode(reflectionsMode, reflectionAdvancedDesc),
                 reflectionsSsrStrength,
                 reflectionsSsrMaxRoughness,
                 reflectionsSsrStepScale,
@@ -1038,8 +1069,34 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             case "ssr" -> ReflectionMode.SSR;
             case "planar" -> ReflectionMode.PLANAR;
             case "hybrid" -> ReflectionMode.HYBRID;
+            case "rt_hybrid", "rt" -> ReflectionMode.RT_HYBRID;
             default -> ReflectionMode.IBL_ONLY;
         };
+    }
+
+    private static int packReflectionMode(ReflectionMode baseMode, ReflectionAdvancedDesc advanced) {
+        int packed = baseMode.ordinal() & 0x7;
+        if (advanced == null) {
+            return packed;
+        }
+        if (advanced.hiZEnabled()) {
+            packed |= 1 << 3;
+        }
+        int denoisePasses = Math.max(0, Math.min(6, advanced.denoisePasses()));
+        packed |= (denoisePasses & 0x7) << 4;
+        if (advanced.planarClipPlaneEnabled()) {
+            packed |= 1 << 7;
+        }
+        if (advanced.probeVolumeEnabled()) {
+            packed |= 1 << 8;
+        }
+        if (advanced.probeBoxProjectionEnabled()) {
+            packed |= 1 << 9;
+        }
+        if (advanced.rtEnabled()) {
+            packed |= 1 << 10;
+        }
+        return packed;
     }
 
     private static ReflectionProfile parseReflectionProfile(String raw) {

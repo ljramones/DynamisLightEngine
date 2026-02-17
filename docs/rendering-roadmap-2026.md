@@ -1,6 +1,6 @@
 # DynamicLightEngine Rendering Roadmap (2026)
 
-Last updated: February 16, 2026
+Last updated: February 17, 2026
 
 ## Scope
 This roadmap tracks the current targeted execution lanes for rendering and runtime maturity while preserving API stability and OpenGL/Vulkan parity.
@@ -28,11 +28,16 @@ In progress:
 - SMAA-lite baseline implemented in both backends (shader-driven fallback + dedicated post-pass path).
 - TAA baseline temporal-history blend is now active in both OpenGL and Vulkan post paths.
 - Tighten post-process parity envelopes after each shader-quality upgrade.
+- Reflections upgrade lane: Hi-Z-style SSR stepping, denoise chain, planar clip-plane weighting, probe volume blending, and `rt_hybrid` request mode with fallback tuning.
+
+Current gap:
+- Hardware RT reflections are now first-class as an API/runtime mode request (`rt_hybrid`) with fallback stack and tuning, but not yet a dedicated BVH traversal RT pipeline (that is still the remaining production RT step).
 
 Next:
 1. Add richer SSAO/HBAO-lite controls and tier policy.
 2. Add anti-aliasing baseline track (SMAA-lite or TAA prototype).
 3. Add deterministic post-quality golden scene set expansion.
+4. Implement dedicated production BVH traversal + reflection-denoiser RT pipeline behind the existing `rt_hybrid` API lane.
 
 ## Phase B: Lighting and Shadow Realism
 Status: Mostly complete; polish lane active.

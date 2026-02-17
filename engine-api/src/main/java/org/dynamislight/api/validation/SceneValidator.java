@@ -13,6 +13,7 @@ import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
+import org.dynamislight.api.scene.ReflectionAdvancedDesc;
 import org.dynamislight.api.scene.ReflectionDesc;
 
 /**
@@ -124,8 +125,9 @@ public final class SceneValidator {
                         && !mode.equals("ibl_only")
                         && !mode.equals("ssr")
                         && !mode.equals("planar")
-                        && !mode.equals("hybrid")) {
-                    throw invalid("postProcess.reflections mode must be one of ibl_only|ssr|planar|hybrid");
+                        && !mode.equals("hybrid")
+                        && !mode.equals("rt_hybrid")) {
+                    throw invalid("postProcess.reflections mode must be one of ibl_only|ssr|planar|hybrid|rt_hybrid");
                 }
                 if (reflections.ssrStrength() < 0f || reflections.ssrStrength() > 1f) {
                     throw invalid("postProcess.reflections ssrStrength must be in [0,1]");
@@ -141,6 +143,39 @@ public final class SceneValidator {
                 }
                 if (reflections.planarStrength() < 0f || reflections.planarStrength() > 1f) {
                     throw invalid("postProcess.reflections planarStrength must be in [0,1]");
+                }
+            }
+            ReflectionAdvancedDesc reflectionAdvanced = scene.postProcess().reflectionAdvanced();
+            if (reflectionAdvanced != null) {
+                if (reflectionAdvanced.hiZMipCount() < 1 || reflectionAdvanced.hiZMipCount() > 12) {
+                    throw invalid("postProcess.reflectionAdvanced hiZMipCount must be in [1,12]");
+                }
+                if (reflectionAdvanced.denoisePasses() < 0 || reflectionAdvanced.denoisePasses() > 6) {
+                    throw invalid("postProcess.reflectionAdvanced denoisePasses must be in [0,6]");
+                }
+                if (reflectionAdvanced.planarFadeStart() < 0f || reflectionAdvanced.planarFadeStart() > 1000f) {
+                    throw invalid("postProcess.reflectionAdvanced planarFadeStart must be in [0,1000]");
+                }
+                if (reflectionAdvanced.planarFadeEnd() < reflectionAdvanced.planarFadeStart()
+                        || reflectionAdvanced.planarFadeEnd() > 2000f) {
+                    throw invalid("postProcess.reflectionAdvanced planarFadeEnd must be >= planarFadeStart and <= 2000");
+                }
+                if (reflectionAdvanced.probeBlendDistance() < 0f || reflectionAdvanced.probeBlendDistance() > 100f) {
+                    throw invalid("postProcess.reflectionAdvanced probeBlendDistance must be in [0,100]");
+                }
+                if (reflectionAdvanced.rtMaxRoughness() < 0f || reflectionAdvanced.rtMaxRoughness() > 1f) {
+                    throw invalid("postProcess.reflectionAdvanced rtMaxRoughness must be in [0,1]");
+                }
+                String rtFallbackMode = reflectionAdvanced.rtFallbackMode() == null
+                        ? ""
+                        : reflectionAdvanced.rtFallbackMode().trim().toLowerCase();
+                if (!rtFallbackMode.isEmpty()
+                        && !rtFallbackMode.equals("ibl_only")
+                        && !rtFallbackMode.equals("ssr")
+                        && !rtFallbackMode.equals("planar")
+                        && !rtFallbackMode.equals("hybrid")
+                        && !rtFallbackMode.equals("rt_hybrid")) {
+                    throw invalid("postProcess.reflectionAdvanced rtFallbackMode must be one of ibl_only|ssr|planar|hybrid|rt_hybrid");
                 }
             }
         }

@@ -35,6 +35,7 @@ import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.ReactivePreset;
+import org.dynamislight.api.scene.ReflectionAdvancedDesc;
 import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.event.SceneLoadedEvent;
 import org.dynamislight.api.scene.SceneDescriptor;
@@ -364,6 +365,40 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.diffMetric() >= 0.0);
         assertTrue(report.diffMetric() <= 0.36, "reflections hybrid diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessReflectionsHiZProbeSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("reflections-hiz-probe");
+        var report = BackendCompareHarness.run(
+                outDir,
+                reflectionsScene("hybrid_hiz_probe"),
+                QualityTier.ULTRA,
+                "reflections-hiz-probe-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.40, "reflections hiz+probe diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessReflectionsRtFallbackSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("reflections-rt-fallback");
+        var report = BackendCompareHarness.run(
+                outDir,
+                reflectionsScene("rt_hybrid"),
+                QualityTier.ULTRA,
+                "reflections-rt-fallback-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.40, "reflections rt fallback diff was " + report.diffMetric());
     }
 
     @Test
@@ -2278,6 +2313,15 @@ class BackendParityIntegrationTest {
 
     private static SceneDescriptor reflectionsScene(String mode) {
         SceneDescriptor base = materialLightingScene();
+        String baseMode = mode;
+        ReflectionAdvancedDesc advanced = null;
+        if ("hybrid_hiz_probe".equals(mode)) {
+            baseMode = "hybrid";
+            advanced = new ReflectionAdvancedDesc(true, 6, 3, true, 0.0f, 0.4f, 4.8f, true, true, 2.5f, false, 0.80f, "hybrid");
+        } else if ("rt_hybrid".equals(mode)) {
+            baseMode = "rt_hybrid";
+            advanced = new ReflectionAdvancedDesc(true, 6, 2, true, 0.0f, 0.3f, 4.5f, true, true, 2.0f, true, 0.85f, "hybrid");
+        }
         PostProcessDesc post = new PostProcessDesc(
                 true,
                 true,
@@ -2297,7 +2341,8 @@ class BackendParityIntegrationTest {
                 0.68f,
                 true,
                 null,
-                new ReflectionDesc(true, mode, 0.75f, 0.82f, 1.25f, 0.84f, 0.44f)
+                new ReflectionDesc(true, baseMode, 0.75f, 0.82f, 1.25f, 0.84f, 0.44f),
+                advanced
         );
         return new SceneDescriptor(
                 "reflections-" + mode + "-scene",

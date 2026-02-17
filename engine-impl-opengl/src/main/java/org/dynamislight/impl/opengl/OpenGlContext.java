@@ -815,6 +815,14 @@ final class OpenGlContext {
                 if (uReflectionsEnabled == 0 || uReflectionsMode == 0) {
                     return color;
                 }
+                int packedMode = max(uReflectionsMode, 0);
+                int mode = packedMode & 7;
+                bool hiZEnabled = (packedMode & (1 << 3)) != 0;
+                int denoisePasses = (packedMode >> 4) & 7;
+                bool planarClipEnabled = (packedMode & (1 << 7)) != 0;
+                bool probeVolumeEnabled = (packedMode & (1 << 8)) != 0;
+                bool probeBoxProjectionEnabled = (packedMode & (1 << 9)) != 0;
+                bool rtRequested = (packedMode & (1 << 10)) != 0;
                 vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
                 float roughnessProxy = clamp(1.0 - dot(color, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
                 float roughnessMask = 1.0 - smoothstep(clamp(uReflectionsSsrMaxRoughness, 0.05, 1.0), 1.0, roughnessProxy);
@@ -824,17 +832,30 @@ final class OpenGlContext {
                 vec2 traceUv = uv;
                 vec3 ssrColor = color;
                 float ssrHit = 0.0;
-                for (int i = 0; i < 14; i++) {
-                    float stepMul = (float(i) + 1.0) * stepScale;
+                float mipBias = hiZEnabled ? 0.8 : 0.0;
+                for (int i = 0; i < 16; i++) {
+                    float hiZStep = hiZEnabled ? pow(1.24, float(i)) : 1.0;
+                    float stepMul = (float(i) + 1.0) * stepScale * hiZStep;
                     traceUv = clamp(traceUv + rayDir * texel * stepMul, vec2(0.0), vec2(1.0));
-                    vec3 sampleColor = texture(uSceneColor, traceUv).rgb;
+                    vec3 sampleColor = textureLod(uSceneColor, traceUv, mipBias).rgb;
                     float sampleDepth = texture(uSceneVelocity, traceUv).b;
-                    float depthMatch = 1.0 - smoothstep(0.01, 0.12, abs(sampleDepth - currentDepth));
+                    float depthMatch = 1.0 - smoothstep(0.008, hiZEnabled ? 0.16 : 0.12, abs(sampleDepth - currentDepth));
                     float sampleLuma = dot(sampleColor, vec3(0.2126, 0.7152, 0.0722));
                     float gate = sampleLuma * depthMatch;
                     if (gate > ssrHit) {
                         ssrHit = gate;
                         ssrColor = sampleColor;
+                    }
+                }
+                if (denoisePasses > 0) {
+                    for (int i = 0; i < denoisePasses; i++) {
+                        float radius = float(i + 1);
+                        vec2 o = texel * radius;
+                        vec3 n0 = texture(uSceneColor, clamp(traceUv + vec2(o.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 n1 = texture(uSceneColor, clamp(traceUv - vec2(o.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 n2 = texture(uSceneColor, clamp(traceUv + vec2(0.0, o.y), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 n3 = texture(uSceneColor, clamp(traceUv - vec2(0.0, o.y), vec2(0.0), vec2(1.0))).rgb;
+                        ssrColor = mix(ssrColor, (n0 + n1 + n2 + n3) * 0.25, 0.28);
                     }
                 }
                 vec2 planarUv = vec2(uv.x, 1.0 - uv.y);
@@ -843,14 +864,29 @@ final class OpenGlContext {
                 vec3 historyColor = texture(uTaaHistory, clamp(uv + uTaaMotionUv, vec2(0.0), vec2(1.0))).rgb;
                 vec3 temporalColor = mix(ssrColor, historyColor, temporalWeight * clamp(historyConfidenceOut, 0.0, 1.0));
                 float planarStrength = clamp(uReflectionsPlanarStrength, 0.0, 1.0);
+                if (planarClipEnabled) {
+                    float planeFade = 1.0 - smoothstep(0.05, 0.75, currentDepth);
+                    planarStrength *= planeFade;
+                }
+                if (probeVolumeEnabled) {
+                    vec2 boxUv = probeBoxProjectionEnabled ? clamp((uv - 0.5) * 1.35 + 0.5, vec2(0.0), vec2(1.0)) : uv;
+                    vec3 probeColor = texture(uSceneColor, boxUv).rgb;
+                    float dist = length((uv - 0.5) * vec2(2.0));
+                    float probeBlend = clamp(1.0 - dist, 0.0, 1.0) * 0.42;
+                    planarColor = mix(planarColor, probeColor, probeBlend);
+                }
                 vec3 reflected = color;
-                if (uReflectionsMode == 1) {
+                if (mode == 1) {
                     reflected = mix(color, temporalColor, ssrStrength * clamp(ssrHit * 1.15, 0.0, 1.0));
-                } else if (uReflectionsMode == 2) {
+                } else if (mode == 2) {
                     reflected = mix(color, planarColor, planarStrength * (0.75 + 0.25 * (1.0 - roughnessProxy)));
                 } else {
                     vec3 hybrid = mix(temporalColor, planarColor, planarStrength);
-                    reflected = mix(color, hybrid, clamp(max(ssrStrength, planarStrength), 0.0, 1.0));
+                    float hybridWeight = clamp(max(ssrStrength, planarStrength), 0.0, 1.0);
+                    if (mode == 4 || rtRequested) {
+                        hybridWeight = clamp(hybridWeight * 1.08, 0.0, 1.0);
+                    }
+                    reflected = mix(color, hybrid, hybridWeight);
                 }
                 return clamp(reflected, vec3(0.0), vec3(1.0));
             }
@@ -1750,7 +1786,7 @@ final class OpenGlContext {
         this.taaLumaClipEnabled = taaLumaClipEnabled;
         this.taaSharpenStrength = Math.max(0f, Math.min(0.35f, taaSharpenStrength));
         this.reflectionsEnabled = reflectionsEnabled;
-        this.reflectionsMode = Math.max(0, Math.min(3, reflectionsMode));
+        this.reflectionsMode = Math.max(0, Math.min(2047, reflectionsMode));
         this.reflectionsSsrStrength = Math.max(0f, Math.min(1f, reflectionsSsrStrength));
         this.reflectionsSsrMaxRoughness = Math.max(0f, Math.min(1f, reflectionsSsrMaxRoughness));
         this.reflectionsSsrStepScale = Math.max(0.5f, Math.min(3f, reflectionsSsrStepScale));

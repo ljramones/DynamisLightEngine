@@ -12,7 +12,7 @@ Last updated: February 17, 2026.
 | PBR/Shading | PBR-leaning GGX baseline, BRDF LUT + IBL integration, tier-aware degradation | Full PBS/PBR | Full PBR | Full PBR | Full PBR |
 | Global Illumination | IBL baseline + environment-driven ambient; no full dynamic GI system yet | SVOGI | Lumen | Baked probes + RTGI/SSGI variants | SDFGI/VoxelGI |
 | Shadows | Cascaded directional shadows, spot/point baseline, PCF + tier controls | Advanced shadow stack | VSM + RT paths | Cascaded + RT options | Clustered shadows + CSM |
-| Reflections | IBL + roughness-aware prefilter plus post-pass reflection modes (`ssr`, `planar`, `hybrid`) in OpenGL/Vulkan, with backend reflection quality profiles (`performance`/`balanced`/`quality`/`stability`) and parity stress gates for reflection scenes; RT reflections not implemented | SSR | Lumen/SSR/RT | SSR/planar/RT options | SSR + RTR (renderer-dependent) |
+| Reflections | IBL + roughness-aware prefilter plus post-pass reflection modes (`ssr`, `planar`, `hybrid`, `rt_hybrid`) in OpenGL/Vulkan, reflection quality profiles (`performance`/`balanced`/`quality`/`stability`), Hi-Z-style SSR stepping + denoise chain, planar clip-plane weighting, probe-volume/box-projection blend controls, and RT-requested fallback stack (full hardware RT traversal not yet a dedicated pipeline) | SSR | Lumen/SSR/RT | SSR/planar/RT options | SSR + RTR (renderer-dependent) |
 | Anti-Aliasing | Full SMAA baseline (edge detect + blend weights + neighborhood resolve) + temporal AA stack in OpenGL/Vulkan with runtime `aaMode` (`taa`, `tuua`, `tsr`, `msaa_selective`, `hybrid_tuua_msaa`, plus `dlaa`/`fxaa_low` profile hooks), per-pixel velocity reprojection, per-object previous-transform velocity support, per-material reactive controls (`reactiveBoost`, `taaHistoryClamp`, `emissiveReactiveBoost`, `reactivePreset`), tiered neighborhood clipping, optional luminance clipping, tiered sharpen strength, confidence-buffer decay/recovery, neighborhood confidence dilation, and TSR controls (`tsrHistoryWeight`, `tsrResponsiveMask`, `tsrNeighborhoodClamp`, `tsrReprojectionConfidence`, `tsrSharpen`, `tsrAntiRinging`); runtime AA presets (`performance`, `balanced`, `quality`, `stability`) | TAA | TSR/TAA | TAAU (+ upscalers) | TAA/MSAA |
 | Geometry/Detail | glTF mesh path with normals/UV/tangents; no Nanite-class virtual geometry | Tessellation/POM | Nanite | LOD + GPU-driven options | LOD + compute-assisted paths |
 | Post-Processing | Tonemap + bloom + SSAO-lite + SMAA-lite baseline (OpenGL FBO chain, Vulkan post path with fallback) | Mature cinematic stack | Extensive post suite | Extensive HDRP post suite | Compositor-driven post |
@@ -40,11 +40,12 @@ Last updated: February 17, 2026.
 - External native upscaler bridge path is available for FSR/XeSS/DLSS integration (`<backend>.upscaler.bridgeClass` plus optional bridge library preload).
 - Upscaler vendor-matrix workflow is available (`aa_rebaseline_real_mac.sh upscaler-matrix`) and records hook/native warning states in compare metadata for FSR/XeSS/DLSS qualification passes.
 - Strong regression harness (`--compare`, tiered golden thresholds, stress profiles including post/SSAO).
+- Reflection stress coverage now includes Hi-Z/probe and RT-fallback scenes (`reflections-hiz-probe`, `reflections-rt-fallback`) in addition to SSR/planar/hybrid parity gates.
 - Good diagnostics/warnings for quality fallback and runtime pressure.
 
 ### Where DynamicLightEngine still trails AAA engines
 - No full dynamic GI framework (Lumen/SVOGI-class).
-- No mature RT feature stack.
+- No dedicated production BVH traversal/reflection-denoiser RT pipeline yet (RT mode is currently request+fallback oriented).
 - No production-grade virtual geometry/streaming system.
 - Smaller post/VFX stack (intentional scope for current phase).
 
