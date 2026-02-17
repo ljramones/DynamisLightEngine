@@ -44,12 +44,12 @@ Last updated: February 17, 2026.
 - Local light management now supports multiple point/spot lights in both backends with per-light GPU array packing; shadow policy now includes atlas-planner telemetry (tile usage/utilization/evictions), while rendering still uses a selected primary local light path.
 - Shadow telemetry now includes atlas memory/update-byte estimates and Vulkan depth-format compare controls (`d16`/`d32`) for CI divergence checks.
 - Good diagnostics/warnings for quality fallback and runtime pressure.
-- Shadow roadmap is now explicitly staged for multi-local atlas rendering, temporal stabilization (texel snapping/jitter), static-cache layering, and depth-format CI divergence checks.
+- Shadow roadmap alignment is explicit: multi-local atlas rollout, temporal stability controls (texel snapping/jitter), static-vs-dynamic cache layering, cadence policy validation, and CI depth-format divergence checks (`D16_UNORM` vs `D32_SFLOAT`).
 
 ### Where DynamicLightEngine still trails AAA engines
 - No full dynamic GI framework (Lumen/SVOGI-class).
 - No dedicated production BVH traversal/reflection-denoiser RT pipeline yet (RT mode is currently request+fallback oriented).
-- Local-light shadowing is not yet full per-light atlas/cubemap production (primary-local path remains the active baseline while atlas rollout is in progress).
+- Remaining shadow gap is explicit: primary-local shadow rendering is still the active baseline; full per-light local atlas plus cubemap shadow rendering is still rolling out.
 - No production-grade virtual geometry/streaming system.
 - Smaller post/VFX stack (intentional scope for current phase).
 
