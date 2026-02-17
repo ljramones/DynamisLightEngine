@@ -226,6 +226,9 @@ public final class VulkanShaderSources {
                     vec3 c4 = textureLod(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
                     return (c0 * 0.44) + (c1 * 0.18) + (c2 * 0.18) + (c3 * 0.10) + (c4 * 0.10);
                 }
+                float reduceLightBleed(float visibility, float amount) {
+                    return clamp((visibility - amount) / max(1.0 - amount, 0.0001), 0.0, 1.0);
+                }
                 float momentVisibilityApprox(vec2 uv, float compareDepth, int layer) {
                     vec3 momentUv = vec3(clamp(uv, vec2(0.0), vec2(1.0)), float(clamp(layer, 0, 23)));
                     float maxLod = float(max(textureQueryLevels(uShadowMomentMap) - 1, 0));
@@ -242,10 +245,11 @@ public final class VulkanShaderSources {
                         return 1.0;
                     }
                     float second = max(moments.y, mean * mean);
-                    float variance = max(second - (mean * mean), 0.00002);
+                    float variance = max(second - (mean * mean), 0.00003 + (1.0 - mean) * 0.00006);
                     float diff = compareDepth - mean;
                     float pMax = variance / (variance + diff * diff);
-                    return clamp(pMax, 0.0, 1.0);
+                    float antiBleed = reduceLightBleed(clamp(pMax, 0.0, 1.0), 0.22);
+                    return clamp(mix(pMax, antiBleed, 0.86), 0.0, 1.0);
                 }
                 float evsmVisibilityApprox(vec2 uv, float compareDepth, int layer) {
                     vec3 momentUv = vec3(clamp(uv, vec2(0.0), vec2(1.0)), float(clamp(layer, 0, 23)));
@@ -260,13 +264,15 @@ public final class VulkanShaderSources {
                     float warp = 40.0;
                     float mean = clamp(moments.x, 0.0, 1.0);
                     float second = max(moments.y, mean * mean);
-                    float variance = max(second - (mean * mean), 0.00005);
+                    float variance = max(second - (mean * mean), 0.00008 + (1.0 - mean) * 0.00010);
                     float warpedCompare = exp(warp * clamp(compareDepth, 0.0, 1.0));
                     float warpedMean = exp(warp * clamp(mean, 0.0, 1.0));
                     float warpedVariance = variance * (1.0 + 0.45 * warp);
                     float diff = max(warpedCompare - warpedMean, 0.0);
                     float pMax = warpedVariance / (warpedVariance + diff * diff);
-                    return clamp(pMax, 0.0, 1.0);
+                    float momentBase = momentVisibilityApprox(uv, compareDepth, layer);
+                    float antiBleed = reduceLightBleed(clamp(pMax, 0.0, 1.0), 0.30);
+                    return clamp(mix(momentBase, antiBleed, 0.72), 0.0, 1.0);
                 }
                 float finalizeShadowVisibility(
                         float pcfVisibility,
@@ -279,14 +285,16 @@ public final class VulkanShaderSources {
                 ) {
                     float visibility = clamp(pcfVisibility, 0.0, 1.0);
                     if (shadowFilterMode == 1) {
-                        float edgeSoftness = clamp((1.0 - ndl) * 0.55 + depthRatio * 0.35, 0.0, 1.0);
-                        visibility = mix(visibility, sqrt(max(visibility, 0.0)), 0.25 * edgeSoftness);
+                        float penumbra = clamp((1.0 - ndl) * 0.78 + depthRatio * 0.92, 0.0, 1.0);
+                        float soft = mix(visibility, sqrt(max(visibility, 0.0)), 0.42 * penumbra);
+                        float edgeProtect = smoothstep(0.12, 0.50, visibility);
+                        visibility = mix(soft, visibility, edgeProtect * 0.40);
                     } else if (shadowFilterMode == 2) {
                         float momentVis = momentVisibilityApprox(uv, compareDepth, layer);
-                        visibility = min(visibility + 0.06, mix(visibility, momentVis, 0.70));
+                        visibility = min(visibility + 0.05, mix(visibility, momentVis, 0.76));
                     } else if (shadowFilterMode == 3) {
                         float evsmVis = evsmVisibilityApprox(uv, compareDepth, layer);
-                        visibility = min(visibility + 0.08, mix(visibility, evsmVis, 0.80));
+                        visibility = min(visibility + 0.07, mix(visibility, evsmVis, 0.84));
                     }
                     return clamp(visibility, 0.0, 1.0);
                 }
@@ -466,9 +474,15 @@ public final class VulkanShaderSources {
                         float contact = 1.0;
                         if (contactShadows) {
                             float depthEdge = clamp(length(vec2(dFdx(gl_FragCoord.z), dFdy(gl_FragCoord.z))) * 220.0, 0.0, 1.0);
+                            float normalEdge = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.55, 0.0, 1.0);
+                            float viewGrazing = clamp(pow(1.0 - ndv, 2.0), 0.0, 1.0);
                             float distFade = clamp(1.0 - normalizedDistance, 0.0, 1.0);
-                            float contactStrength = (1.0 - localNdl) * (0.22 + 0.24 * depthEdge) * (1.0 - roughness) * distFade;
-                            contact = clamp(1.0 - contactStrength, 0.42, 1.0);
+                            float contactStrength = (1.0 - localNdl)
+                                    * (0.18 + 0.18 * depthEdge + 0.14 * normalEdge)
+                                    * (1.0 - roughness)
+                                    * (0.58 + 0.42 * viewGrazing)
+                                    * distFade;
+                            contact = clamp(1.0 - contactStrength, 0.50, 1.0);
                         }
                         pointLit += (kd * baseColor / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity * localShadowVisibility * contact);
                     }
@@ -534,6 +548,11 @@ public final class VulkanShaderSources {
                         float shadowOcclusion = 1.0 - shadowVisibility;
                         float shadowFactor = clamp(shadowOcclusion * clamp(gbo.uShadow.y, 0.0, 1.0), 0.0, 0.9);
                         color *= (1.0 - shadowFactor);
+                        if (contactShadows) {
+                            float contactEdge = clamp(length(dFdx(n)) + length(dFdy(n)), 0.0, 1.0);
+                            float contactFactor = shadowOcclusion * contactEdge * (1.0 - roughness) * (1.0 - ndl);
+                            color *= (1.0 - clamp(contactFactor * 0.22, 0.0, 0.24));
+                        }
                     }
                     if (gbo.uPointLightCone.w > 0.5) {
                         vec3 pDir = normalize(gbo.uPointLightPos.xyz - vWorldPos);
@@ -610,6 +629,11 @@ public final class VulkanShaderSources {
                             float pointOcclusion = 1.0 - pointVisibility;
                             float pointShadowFactor = clamp(pointOcclusion * min(clamp(gbo.uShadow.y, 0.0, 1.0), 0.85), 0.0, 0.9);
                             color *= (1.0 - pointShadowFactor);
+                            if (contactShadows) {
+                                float contactEdge = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.9, 0.0, 1.0);
+                                float contactFactor = pointOcclusion * contactEdge * (1.0 - roughness) * (1.0 - pNdl);
+                                color *= (1.0 - clamp(contactFactor * 0.20, 0.0, 0.22));
+                            }
                         }
                     }
                     if (gbo.uFog.x > 0.5) {
