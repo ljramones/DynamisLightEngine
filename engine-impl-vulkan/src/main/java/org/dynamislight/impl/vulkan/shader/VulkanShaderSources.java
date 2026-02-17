@@ -395,6 +395,9 @@ public final class VulkanShaderSources {
                         int blockerRadius = clamp(int(mix(1.0, 6.0, clamp(depthRatio * 0.9 + (1.0 - ndl) * 0.45, 0.0, 1.0))), 1, 6);
                         float blockerAccum = 0.0;
                         float blockerWeight = 0.0;
+                        float blockerDepthAccum = 0.0;
+                        float blockerDepthWeight = 0.0;
+                        float hasMoments = textureQueryLevels(uShadowMomentMap) > 0 ? 1.0 : 0.0;
                         for (int y = -6; y <= 6; y++) {
                             for (int x = -6; x <= 6; x++) {
                                 if (abs(x) > blockerRadius || abs(y) > blockerRadius) {
@@ -407,11 +410,27 @@ public final class VulkanShaderSources {
                                 float radial = 1.0 / (1.0 + dot(bo, bo) * 0.35);
                                 blockerAccum += blocker * radial;
                                 blockerWeight += radial;
+                                if (hasMoments > 0.5) {
+                                    vec2 blockerMoments = textureLod(
+                                            uShadowMomentMap,
+                                            vec3(clamp(uv + offset, vec2(0.0), vec2(1.0)), float(layer)),
+                                            0.0
+                                    ).rg;
+                                    float blockerDepth = clamp(blockerMoments.x, 0.0, 1.0);
+                                    float w = radial * (0.35 + blocker * 0.65);
+                                    blockerDepthAccum += blockerDepth * w;
+                                    blockerDepthWeight += w;
+                                }
                             }
                         }
                         float blockerMean = blockerWeight > 0.0 ? blockerAccum / blockerWeight : 0.0;
-                        float blockerDepth = clamp(depthRatio + blockerMean * 0.35, 0.0, 1.0);
+                        float blockerMeanDepth = blockerDepthWeight > 0.0
+                                ? (blockerDepthAccum / blockerDepthWeight)
+                                : clamp(compareDepth - blockerMean * 0.22, 0.0, 1.0);
+                        float blockerDepth = clamp(mix(compareDepth - blockerMean * 0.24, blockerMeanDepth, hasMoments), 0.0, 1.0);
                         float penumbra = clamp((depthRatio - blockerDepth + (1.0 - ndl) * 0.82) * pcssSoftness * 1.8, 0.0, 1.0);
+                        float blockerSeparation = clamp(compareDepth - blockerDepth, 0.0, 1.0);
+                        penumbra = clamp(penumbra * mix(0.85, 1.25, blockerSeparation), 0.0, 1.0);
                         float neigh = 0.0;
                         neigh += texture(uShadowMap, vec4(clamp(uv + vec2(texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
                         neigh += texture(uShadowMap, vec4(clamp(uv + vec2(-texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));

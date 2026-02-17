@@ -94,7 +94,7 @@ Status: In progress (started and partially landed).
 
 2. PCSS
 - blocker search + penumbra estimation + tiered kernel path.
- - Status: In progress (edge-aware penumbra neighborhood blend active; full blocker-search path still pending).
+ - Status: In progress (edge-aware penumbra neighborhood blend active; blocker estimate is now moment-informed when moment data exists, but a full final production blocker-search path is still pending).
 
 3. Contact shadows
 - screen-space near-contact trace + temporal stabilization.

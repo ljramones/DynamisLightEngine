@@ -20,6 +20,8 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("float evsmVisibilityApprox(vec2 uv, float compareDepth, int layer)"));
         assertTrue(shader.contains("float finalizeShadowVisibility("));
         assertTrue(shader.contains("int blockerRadius = clamp(int(mix(1.0, 6.0"));
+        assertTrue(shader.contains("float hasMoments = textureQueryLevels(uShadowMomentMap) > 0 ? 1.0 : 0.0;"));
+        assertTrue(shader.contains("float blockerMeanDepth = blockerDepthWeight > 0.0"));
         assertTrue(shader.contains("if (shadowRtEnabled) {"));
         assertTrue(shader.contains("int shadowRtSampleCount = max((shadowModePacked >> 5) & 31, 1);"));
         assertTrue(shader.contains("float shadowRtDenoiseStrength = clamp(gbo.uLightIntensity.y, 0.0, 1.0);"));
