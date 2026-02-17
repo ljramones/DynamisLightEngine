@@ -13,10 +13,31 @@ import static org.dynamislight.impl.vulkan.math.VulkanMath.transformPoint;
 import static org.dynamislight.impl.vulkan.math.VulkanMath.unproject;
 import static org.dynamislight.impl.vulkan.math.VulkanMath.viewDistanceToNdcDepth;
 
+/**
+ * A utility class for constructing shadow matrices used in Vulkan-based rendering.
+ * This class handles the computation of shadow view-projection matrices for point lights,
+ * spotlights, and directional light cascades to support shadow mapping in a variety
+ * of lighting scenarios.
+ *
+ * The {@code VulkanShadowMatrixBuilder} is designed to work with light inputs such as
+ * position, direction, and projection parameters. Based on the type of light and its
+ * shadowing requirements, it computes appropriate transformation matrices.
+ */
 public final class VulkanShadowMatrixBuilder {
     private VulkanShadowMatrixBuilder() {
     }
 
+    /**
+     * Updates shadow light view projection matrices and shadow cascade split NDC based on the provided shadow inputs.
+     * This method handles spotlights, point lights, and directional lights, setting up the appropriate transformations
+     * for shadow mapping.
+     *
+     * @param inputs The input parameters related to the lighting and shadow configuration, such as light position,
+     *               direction, and shadow settings.
+     * @param shadowLightViewProjMatrices A 2D array to store the calculated light view projection matrices for shadows.
+     *                                    Each row corresponds to a cascade or face of the shadow map.
+     * @param shadowCascadeSplitNdc An array to hold the computed cascaded shadow split distances in normalized device coordinates.
+     */
     public static void updateMatrices(
             ShadowInputs inputs,
             float[][] shadowLightViewProjMatrices,
@@ -218,12 +239,47 @@ public final class VulkanShadowMatrixBuilder {
         }
     }
 
+    /**
+     * Sets the default normalized device coordinate (NDC) values for point light shadow cascades.
+     * This method initializes the provided array to default values, typically used to represent
+     * fully utilized shadow cascades for point lights. Each element in the array is set to 1.0.
+     *
+     * @param shadowCascadeSplitNdc An array representing the normalized device coordinate split
+     *                              distances for shadow cascades. The array should have a length
+     *                              of at least 3, as this method sets the first three elements to 1.0.
+     */
     private static void setPointSplitDefaults(float[] shadowCascadeSplitNdc) {
         shadowCascadeSplitNdc[0] = 1f;
         shadowCascadeSplitNdc[1] = 1f;
         shadowCascadeSplitNdc[2] = 1f;
     }
 
+    /**
+     * Represents the input parameters required for shadow computation in a Vulkan-based rendering engine.
+     * This record encapsulates information about lights (point, directional, and spot), shadow settings,
+     * and the necessary matrices for shadow mapping calculations.
+     *
+     * Fields:
+     * - `pointLightIsSpot`: Indicates whether the point light functions as a spotlight (1.0 for true, 0.0 for false).
+     * - `pointLightDirX`: X component of the point light's direction.
+     * - `pointLightDirY`: Y component of the point light's direction.
+     * - `pointLightDirZ`: Z component of the point light's direction.
+     * - `pointLightPosX`: X position of the point light in world space.
+     * - `pointLightPosY`: Y position of the point light in world space.
+     * - `pointLightPosZ`: Z position of the point light in world space.
+     * - `pointLightOuterCos`: The cosine of the outer angle for spotlights, used for spot light attenuation.
+     * - `pointShadowEnabled`: Indicates whether shadows are enabled for point lights.
+     * - `pointShadowFarPlane`: The far clipping plane distance for point light shadow maps.
+     * - `shadowCascadeCount`: The number of cascades used in cascaded shadow mapping for directional lights.
+     * - `viewMatrix`: A flat array representing a 4x4 matrix describing the view transformations for shadows.
+     * - `projMatrix`: A flat array representing a 4x4 matrix describing the projection transformations for shadows.
+     * - `dirLightDirX`: X component of the direction of the directional light.
+     * - `dirLightDirY`: Y component of the direction of the directional light.
+     * - `dirLightDirZ`: Z component of the direction of the directional light.
+     * - `maxShadowMatrices`: The maximum number of shadow matrices supported for shadow mapping.
+     * - `maxShadowCascades`: The maximum number of shadow cascades supported by the system.
+     * - `pointShadowFaces`: The number of shadow map faces for point lights, typically 6 for cube maps.
+     */
     public record ShadowInputs(
             float pointLightIsSpot,
             float pointLightDirX,

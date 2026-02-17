@@ -29,10 +29,36 @@ import static org.lwjgl.vulkan.VK10.vkDestroyPipelineLayout;
 import static org.lwjgl.vulkan.VK10.vkDestroyRenderPass;
 import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 
+/**
+ * Utility class for managing Vulkan resources required for shadow rendering.
+ * Provides methods to create and destroy shadow-related Vulkan resources.
+ * This class operates in the context of Vulkan's API and manages objects
+ * such as images, image views, framebuffers, and samplers used for shadow mapping.
+ *
+ * Note: This class is not instantiable.
+ */
 public final class VulkanShadowResources {
     private VulkanShadowResources() {
     }
 
+    /**
+     * Creates a Vulkan shadow allocation, including depth images, samplers, framebuffers,
+     * and shadow pipeline resources, for rendering shadow maps in a Vulkan graphics pipeline.
+     *
+     * This method sets up the necessary Vulkan resources required to handle shadow mapping
+     * with multiple shadow matrices and specified resolution.
+     *
+     * @param device                The Vulkan logical device used for resource creation.
+     * @param physicalDevice        The Vulkan physical device (graphics adapter) used for memory allocation.
+     * @param stack                 The memory stack for Vulkan function calls, enabling efficient memory allocation.
+     * @param depthFormat           The format of the depth image used for shadow mapping.
+     * @param shadowMapResolution   The resolution (width and height) of the shadow map texture.
+     * @param maxShadowMatrices     The maximum number of shadow matrices supported for rendering.
+     * @param vertexStrideBytes     The size, in bytes, of a single vertex in the vertex buffer.
+     * @param descriptorSetLayout   The descriptor set layout associated with the shadow pipeline.
+     * @return An {@link Allocation} instance containing the created Vulkan resources for shadow mapping.
+     * @throws EngineException      If any Vulkan resource creation or operation fails.
+     */
     public static Allocation create(
             VkDevice device,
             VkPhysicalDevice physicalDevice,
@@ -109,6 +135,15 @@ public final class VulkanShadowResources {
         );
     }
 
+    /**
+     * Destroys Vulkan resources allocated for shadow mapping.
+     * This method ensures proper cleanup of Vulkan objects such as framebuffers,
+     * pipelines, render passes, samplers, image views, images, and memory
+     * to prevent resource leaks.
+     *
+     * @param device    The Vulkan logical device associated with the resources.
+     * @param resources The {@link Allocation} instance containing the Vulkan resources to clean up.
+     */
     public static void destroy(VkDevice device, Allocation resources) {
         if (device == null || resources == null) {
             return;
@@ -146,6 +181,21 @@ public final class VulkanShadowResources {
         }
     }
 
+    /**
+     * Creates an array of Vulkan framebuffers for shadow mapping.
+     *
+     * This method initializes and allocates Vulkan framebuffers, each associated with
+     * one of the provided depth layer image views, for rendering shadow maps. The framebuffers
+     * are configured using the specified render pass and shadow map resolution.
+     *
+     * @param device                 The Vulkan logical device used for framebuffer creation.
+     * @param stack                  The memory stack used for temporary allocations during Vulkan calls.
+     * @param shadowRenderPass       The Vulkan render pass associated with shadow map rendering.
+     * @param shadowDepthLayerImageViews An array of image views used as depth attachments for the framebuffers.
+     * @param shadowMapResolution    The resolution (width and height) for each shadow map framebuffer.
+     * @return                       An array of Vulkan framebuffer handles corresponding to the provided image views.
+     * @throws EngineException       If framebuffer creation fails or returns an invalid handle.
+     */
     private static long[] createShadowFramebuffers(
             VkDevice device,
             MemoryStack stack,
@@ -172,6 +222,21 @@ public final class VulkanShadowResources {
         return framebuffers;
     }
 
+    /**
+     * Creates a Vulkan image view with specified parameters, configuring how the image
+     * will be accessed and interpreted within the Vulkan pipeline.
+     *
+     * @param device         The Vulkan logical device used for creating the image view.
+     * @param stack          The memory stack used for temporary allocations during Vulkan calls.
+     * @param image          The handle of the Vulkan image for which the view is to be created.
+     * @param format         The format of the image view, specifying how image data should be interpreted.
+     * @param aspectMask     A bitmask describing which aspects of the image should be accessible (e.g., color, depth).
+     * @param viewType       The type of the image view (e.g., 2D, 3D, cube map).
+     * @param baseArrayLayer The first array layer of the image to be accessed by the view.
+     * @param layerCount     The number of array layers to be accessible starting from {@code baseArrayLayer}.
+     * @return A handle to the created Vulkan image view.
+     * @throws EngineException If the image view creation fails or an invalid handle is returned.
+     */
     private static long createImageView(
             VkDevice device,
             MemoryStack stack,
@@ -201,6 +266,16 @@ public final class VulkanShadowResources {
         return pView.get(0);
     }
 
+    /**
+     * Creates a Vulkan sampler object configured for shadow mapping.
+     * This method sets up a sampler with properties optimized for shadow map sampling,
+     * including linear filtering, clamp-to-edge addressing mode, and depth comparison.
+     *
+     * @param device The Vulkan logical device used for creating the sampler.
+     * @param stack  The memory stack used for temporary allocations during Vulkan calls.
+     * @return A handle to the created Vulkan sampler object.
+     * @throws EngineException If the sampler creation fails or an invalid handle is returned.
+     */
     private static long createShadowSampler(VkDevice device, MemoryStack stack) throws EngineException {
         VkSamplerCreateInfo samplerInfo = VkSamplerCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO)
@@ -227,6 +302,15 @@ public final class VulkanShadowResources {
         return pSampler.get(0);
     }
 
+    /**
+     * Represents a collection of Vulkan resources required for shadow mapping in
+     * a Vulkan graphics pipeline. This record encapsulates the Vulkan objects
+     * necessary to render shadow maps, including depth images, samplers, image
+     * views, render passes, pipelines, framebuffers, and other related resources.
+     *
+     * Instances of this class are typically created as part of higher-level
+     * functionalities for rendering shadow maps and managing Vulkan resources.
+     */
     public record Allocation(
             long shadowDepthImage,
             long shadowDepthMemory,
