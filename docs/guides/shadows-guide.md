@@ -156,7 +156,7 @@ Scheduler behavior notes:
   - `momentPipelineRequested` / `momentPipelineActive`
   - `momentResourceAllocated` / `momentResourceFormat`
   - `momentInitialized`
-  - warning codes: `SHADOW_MOMENT_PIPELINE_PENDING`, `SHADOW_MOMENT_APPROX_ACTIVE`
+  - warning codes: `SHADOW_MOMENT_PIPELINE_PENDING`, `SHADOW_MOMENT_PIPELINE_INITIALIZING`, `SHADOW_MOMENT_APPROX_ACTIVE`
   - `directionalTexelSnapEnabled`
   - `directionalTexelSnapScale`
   - `shadowAllocatorAssignedLights`
