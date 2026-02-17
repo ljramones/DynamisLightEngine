@@ -11,7 +11,10 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("uniform sampler2DArray uShadowMomentMap;"));
         assertTrue(shader.contains("float reduceLightBleed(float visibility, float amount)"));
         assertTrue(shader.contains("vec2 sampleMomentsWeighted(vec2 uv, int layer, float lod, float texel, float depthRef, float blendStrength)"));
+        assertTrue(shader.contains("vec2 sampleMomentsWideBilateral(vec2 uv, int layer, float lod, float texel, float depthRef, float blendStrength)"));
         assertTrue(shader.contains("vec2 wideMoments = sampleMomentsWeighted("));
+        assertTrue(shader.contains("vec2 deepMoments = sampleMomentsWideBilateral("));
+        assertTrue(shader.contains("float consistency = clamp(abs(deepMoments.x - baseMoments.x)"));
         assertTrue(shader.contains("float denoiseEdgeFactor = clamp(length(vec2(dFdx(compareDepth), dFdy(compareDepth)))"));
         assertTrue(shader.contains("float momentVisibilityApprox(vec2 uv, float compareDepth, int layer)"));
         assertTrue(shader.contains("float evsmVisibilityApprox(vec2 uv, float compareDepth, int layer)"));

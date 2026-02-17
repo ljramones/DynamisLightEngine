@@ -47,6 +47,7 @@ Last updated: February 17, 2026.
 - VSM/EVSM request-state telemetry now reports correctly (`momentPipelineRequested=true` for `vsm|evsm`), with pending/initializing warnings emitted when requested moment resources are not active.
 - Moment shadow filtering now adds edge-aware denoise weighting on top of neighborhood-weighted sampling to reduce blur bleeding across high-depth-gradient edges.
 - Capability-gated RT shadow hybrid traversal now consumes runtime tuning values (`vulkan.shadow.rtDenoiseStrength`, `vulkan.shadow.rtRayLength`, `vulkan.shadow.rtSampleCount`) directly in shader traversal/denoise shaping.
+- Vulkan moment filtering now includes a deep wide bilateral consistency pass on top of neighborhood/edge-aware denoise for higher VSM/EVSM stability in motion-heavy scenes.
 - Shadow CI matrix now includes an explicit cadence guard (`shadowSchedulerCadenceDefersPointWorkUnderFaceBudget`) to enforce deferred-work behavior under local face-budget pressure.
 - Guarded real-Vulkan long-run shadow CI lane now auto-generates threshold-lock recommendations from collected compare metadata when hardware support is present.
 - Guarded production shadow quality sweeps now run as a dedicated CI lane (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`) and auto-generate threshold-lock recommendations from repeated real-Vulkan runs when available.

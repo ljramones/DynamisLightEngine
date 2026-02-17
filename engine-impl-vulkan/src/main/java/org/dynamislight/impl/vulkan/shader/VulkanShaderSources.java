@@ -252,6 +252,25 @@ public final class VulkanShaderSources {
                     }
                     return accum / max(weightSum, 0.0001);
                 }
+                vec2 sampleMomentsWideBilateral(vec2 uv, int layer, float lod, float texel, float depthRef, float blendStrength) {
+                    vec2 accum = vec2(0.0);
+                    float weightSum = 0.0;
+                    for (int y = -2; y <= 2; y++) {
+                        for (int x = -2; x <= 2; x++) {
+                            vec2 tap = vec2(float(x), float(y));
+                            vec2 offset = tap * texel;
+                            vec3 coord = vec3(clamp(uv + offset, vec2(0.0), vec2(1.0)), float(clamp(layer, 0, 23)));
+                            vec2 moments = textureLod(uShadowMomentMap, coord, lod).rg;
+                            float depthDelta = abs(moments.x - depthRef);
+                            float radial = exp(-(dot(tap, tap)) * 0.42);
+                            float bilateral = exp(-depthDelta * (28.0 + blendStrength * 24.0));
+                            float w = radial * bilateral;
+                            accum += moments * w;
+                            weightSum += w;
+                        }
+                    }
+                    return accum / max(weightSum, 0.0001);
+                }
                 float momentVisibilityApprox(vec2 uv, float compareDepth, int layer) {
                     float momentBlend = clamp(gbo.uDirLightColor.w, 0.25, 1.5);
                     float momentBleedReduction = clamp(gbo.uPointLightColor.w, 0.25, 1.5);
@@ -271,10 +290,22 @@ public final class VulkanShaderSources {
                             compareDepth,
                             momentBlend
                     );
+                    vec2 deepMoments = sampleMomentsWideBilateral(
+                            momentUv.xy,
+                            layer,
+                            min(lod + 1.5, maxLod),
+                            texel * 2.2,
+                            compareDepth,
+                            momentBlend
+                    );
                     float filteredWeight = clamp(mix(0.68 * momentBlend, 0.34 * momentBlend, denoiseEdgeFactor), 0.20, 0.95);
                     float wideWeight = clamp(0.20 * momentBlend * denoiseStability, 0.02, 0.35);
                     vec2 moments = mix(baseMoments, filteredMoments, filteredWeight);
                     moments = mix(moments, wideMoments, wideWeight);
+                    float deepWeight = clamp(0.10 + 0.22 * denoiseStability * momentBlend, 0.04, 0.32);
+                    moments = mix(moments, deepMoments, deepWeight);
+                    float consistency = clamp(abs(deepMoments.x - baseMoments.x) * 18.0, 0.0, 1.0);
+                    moments = mix(moments, baseMoments, consistency * 0.35);
                     // Neutral fallback for uninitialized/provisional moment data.
                     if (moments.y <= 0.000001) {
                         return 1.0;
@@ -310,10 +341,22 @@ public final class VulkanShaderSources {
                             compareDepth,
                             momentBlend
                     );
+                    vec2 deepMoments = sampleMomentsWideBilateral(
+                            momentUv.xy,
+                            layer,
+                            min(lod + 1.5, maxLod),
+                            texel * 2.8,
+                            compareDepth,
+                            momentBlend
+                    );
                     float filteredWeight = clamp(mix(0.75 * momentBlend, 0.40 * momentBlend, denoiseEdgeFactor), 0.25, 0.97);
                     float wideWeight = clamp(0.28 * momentBlend * denoiseStability, 0.03, 0.42);
                     vec2 moments = mix(baseMoments, filteredMoments, filteredWeight);
                     moments = mix(moments, wideMoments, wideWeight);
+                    float deepWeight = clamp(0.14 + 0.24 * denoiseStability * momentBlend, 0.05, 0.36);
+                    moments = mix(moments, deepMoments, deepWeight);
+                    float consistency = clamp(abs(deepMoments.x - baseMoments.x) * 16.0, 0.0, 1.0);
+                    moments = mix(moments, baseMoments, consistency * 0.32);
                     if (moments.y <= 0.000001) {
                         return 1.0;
                     }
