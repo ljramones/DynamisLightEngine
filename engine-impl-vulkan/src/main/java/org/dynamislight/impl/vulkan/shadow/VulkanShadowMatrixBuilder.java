@@ -76,7 +76,23 @@ public final class VulkanShadowMatrixBuilder {
                 && inputs.localLightPosRange() != null
                 && inputs.localLightDirInner() != null
                 && inputs.localLightOuterTypeShadow() != null) {
-            int localSpotLayers = 0;
+            int localShadowLayers = 0;
+            float[][] pointDirs = new float[][]{
+                    {1f, 0f, 0f},
+                    {-1f, 0f, 0f},
+                    {0f, 1f, 0f},
+                    {0f, -1f, 0f},
+                    {0f, 0f, 1f},
+                    {0f, 0f, -1f}
+            };
+            float[][] pointUp = new float[][]{
+                    {0f, -1f, 0f},
+                    {0f, -1f, 0f},
+                    {0f, 0f, 1f},
+                    {0f, 0f, -1f},
+                    {0f, -1f, 0f},
+                    {0f, -1f, 0f}
+            };
             for (int i = 0; i < Math.min(inputs.localLightCount(), 8); i++) {
                 int offset = i * 4;
                 if (offset + 3 >= inputs.localLightOuterTypeShadow().length) {
@@ -85,16 +101,19 @@ public final class VulkanShadowMatrixBuilder {
                 float isSpot = inputs.localLightOuterTypeShadow()[offset + 1];
                 float castsShadows = inputs.localLightOuterTypeShadow()[offset + 2];
                 int layerIndex = Math.round(inputs.localLightOuterTypeShadow()[offset + 3]) - 1;
-                if (isSpot > 0.5f && castsShadows > 0.5f && layerIndex >= 0 && layerIndex < inputs.maxShadowMatrices()) {
+                if (castsShadows <= 0.5f || layerIndex < 0 || layerIndex >= inputs.maxShadowMatrices()) {
+                    continue;
+                }
+                float px = inputs.localLightPosRange()[offset];
+                float py = inputs.localLightPosRange()[offset + 1];
+                float pz = inputs.localLightPosRange()[offset + 2];
+                float range = Math.max(1.0f, inputs.localLightPosRange()[offset + 3]);
+                if (isSpot > 0.5f) {
                     float[] spotDir = normalize3(
                             inputs.localLightDirInner()[offset],
                             inputs.localLightDirInner()[offset + 1],
                             inputs.localLightDirInner()[offset + 2]
                     );
-                    float px = inputs.localLightPosRange()[offset];
-                    float py = inputs.localLightPosRange()[offset + 1];
-                    float pz = inputs.localLightPosRange()[offset + 2];
-                    float range = Math.max(1.0f, inputs.localLightPosRange()[offset + 3]);
                     float outerCos = Math.max(0.0001f, Math.min(1f, inputs.localLightOuterTypeShadow()[offset]));
                     float coneHalfAngle = (float) Math.acos(outerCos);
                     float fov = Math.max((float) Math.toRadians(20.0), Math.min((float) Math.toRadians(120.0), coneHalfAngle * 2.0f));
@@ -105,10 +124,30 @@ public final class VulkanShadowMatrixBuilder {
                     );
                     float[] lightProj = perspective(fov, 1f, 0.1f, range);
                     shadowLightViewProjMatrices[layerIndex] = mul(lightProj, lightView);
-                    localSpotLayers = Math.max(localSpotLayers, layerIndex + 1);
+                    localShadowLayers = Math.max(localShadowLayers, layerIndex + 1);
+                } else {
+                    float[] pointProj = perspective((float) Math.toRadians(90.0), 1f, 0.1f, range);
+                    for (int face = 0; face < 6; face++) {
+                        int layer = layerIndex + face;
+                        if (layer >= inputs.maxShadowMatrices()) {
+                            break;
+                        }
+                        float[] dir = pointDirs[face];
+                        float[] lightView = lookAt(
+                                px,
+                                py,
+                                pz,
+                                px + dir[0],
+                                py + dir[1],
+                                pz + dir[2],
+                                pointUp[face][0], pointUp[face][1], pointUp[face][2]
+                        );
+                        shadowLightViewProjMatrices[layer] = mul(pointProj, lightView);
+                        localShadowLayers = Math.max(localShadowLayers, layer + 1);
+                    }
                 }
             }
-            if (localSpotLayers > 0) {
+            if (localShadowLayers > 0) {
                 for (int i = 0; i < inputs.maxShadowMatrices(); i++) {
                     if (shadowLightViewProjMatrices[i] == null) {
                         shadowLightViewProjMatrices[i] = identityMatrix();
