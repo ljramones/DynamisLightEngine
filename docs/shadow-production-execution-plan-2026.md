@@ -104,8 +104,13 @@ Status: In progress (started and partially landed).
 
 1. Capability-gated RT path
 - dedicated RT traversal pipeline and denoiser.
- - Note: current hybrid RT path now includes a dedicated BVH-mode traversal approximation lane (`bvhTraversalVisibilityApprox`) with denoise refinement; runtime explicitly emits `SHADOW_RT_BVH_PIPELINE_PENDING` when `rtMode=bvh` is requested, because dedicated hardware BVH traversal/denoise pipeline is still pending.
- - Strict rollout guard now exists via `vulkan.shadow.rtBvhStrict=true` to fail fast when `rtMode=bvh` lacks capability or when `rtMode=bvh_dedicated` is requested before dedicated pipeline availability.
+ - Note: current RT path now exposes two approximation lanes with denoise refinement:
+   - `rtMode=bvh` -> `bvhTraversalVisibilityApprox` (hybrid traversal path)
+   - `rtMode=bvh_dedicated` -> `bvhDedicatedTraversalVisibilityApprox` (dedicated-preview traversal path)
+ - Runtime still emits `SHADOW_RT_BVH_PIPELINE_PENDING` for both BVH modes because full production hardware BVH traversal + dedicated denoiser pipeline is still pending.
+ - Strict rollout guard via `vulkan.shadow.rtBvhStrict=true` remains available:
+   - `rtMode=bvh` fails fast if BVH capability is unavailable.
+   - `rtMode=bvh_dedicated` fails fast until the full dedicated hardware BVH traversal pipeline is landed.
 
 2. Fallback stack
 - deterministic fallback to non-RT paths when unsupported.

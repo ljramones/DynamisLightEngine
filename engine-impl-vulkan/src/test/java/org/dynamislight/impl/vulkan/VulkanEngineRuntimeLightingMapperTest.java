@@ -154,7 +154,7 @@ class VulkanEngineRuntimeLightingMapperTest {
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "bvh_dedicated",
                 0, 0, 0, true, true, false, 1, 2, 4, 1L, java.util.Map.of()
         );
-        assertFalse(config.rtShadowActive());
+        assertTrue(config.rtShadowActive());
     }
 
     @Test

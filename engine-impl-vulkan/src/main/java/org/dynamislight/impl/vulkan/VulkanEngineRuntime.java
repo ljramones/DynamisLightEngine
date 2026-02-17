@@ -680,10 +680,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     ));
                 }
                 if ("bvh".equals(currentShadows.rtShadowMode()) || "bvh_dedicated".equals(currentShadows.rtShadowMode())) {
+                    String activePath = "bvh_dedicated".equals(currentShadows.rtShadowMode())
+                            ? (currentShadows.rtShadowActive() ? "dedicated-preview traversal" : "fallback")
+                            : "hybrid traversal";
                     warnings.add(new EngineWarning(
                             "SHADOW_RT_BVH_PIPELINE_PENDING",
                             "BVH RT shadow mode requested, but runtime is using the "
-                                    + ("bvh_dedicated".equals(currentShadows.rtShadowMode()) ? "fallback" : "hybrid traversal")
+                                    + activePath
                                     + " path "
                                     + "(rtActive=" + currentShadows.rtShadowActive()
                                     + ", rtBvhSupported=" + shadowRtBvhSupported

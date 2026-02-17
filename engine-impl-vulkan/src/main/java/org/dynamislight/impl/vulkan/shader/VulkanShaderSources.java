@@ -417,6 +417,49 @@ public final class VulkanShaderSources {
                     float denoise = mix(0.28, 0.72, shadowRtDenoiseStrength);
                     return clamp(mix(traversal, neighborhood, denoise), 0.0, 1.0);
                 }
+                float bvhDedicatedTraversalVisibilityApprox(
+                        vec2 uv,
+                        float texel,
+                        int layer,
+                        float compareDepth,
+                        float ndl,
+                        float depthRatio,
+                        int shadowRtSampleCount,
+                        float shadowRtDenoiseStrength,
+                        float shadowRtRayLength
+                ) {
+                    float rayScale = clamp(shadowRtRayLength / 120.0, 0.55, 5.0);
+                    int rtSteps = clamp(shadowRtSampleCount * 4, 12, 48);
+                    vec2 axisA = normalize(vec2(0.68 + (1.0 - ndl) * 0.55, 0.36 + depthRatio * 0.62));
+                    vec2 axisB = vec2(-axisA.y, axisA.x);
+                    float accum = 0.0;
+                    float weightSum = 0.0;
+                    for (int i = 0; i < rtSteps; i++) {
+                        float t = (float(i) + 0.5) / float(rtSteps);
+                        float stride = mix(0.5, 10.0, t * t) * rayScale;
+                        float fan = mix(-1.0, 1.0, t);
+                        vec2 fanDir = normalize(mix(axisA, axisB, fan * 0.72));
+                        vec2 sampleUv = clamp(uv + fanDir * texel * stride, vec2(0.0), vec2(1.0));
+                        float sampleVis = texture(uShadowMap, vec4(sampleUv, float(layer), compareDepth));
+                        float w = mix(1.0, 0.18, t) * mix(1.0, 0.62, abs(fan));
+                        accum += sampleVis * w;
+                        weightSum += w;
+                    }
+                    float traversal = weightSum > 0.0 ? (accum / weightSum) : 1.0;
+                    float n = texture(uShadowMap, vec4(clamp(uv + vec2(0.0, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float s = texture(uShadowMap, vec4(clamp(uv + vec2(0.0, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float e = texture(uShadowMap, vec4(clamp(uv + vec2(texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float w = texture(uShadowMap, vec4(clamp(uv + vec2(-texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float ne = texture(uShadowMap, vec4(clamp(uv + vec2(texel, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float nw = texture(uShadowMap, vec4(clamp(uv + vec2(-texel, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float se = texture(uShadowMap, vec4(clamp(uv + vec2(texel, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float sw = texture(uShadowMap, vec4(clamp(uv + vec2(-texel, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float ring1 = (n + s + e + w) * 0.25;
+                    float ring2 = (ne + nw + se + sw) * 0.25;
+                    float wide = mix(ring1, ring2, 0.52);
+                    float denoise = mix(0.34, 0.84, shadowRtDenoiseStrength);
+                    return clamp(mix(traversal, wide, denoise), 0.0, 1.0);
+                }
                 float finalizeShadowVisibility(
                         float pcfVisibility,
                         int shadowFilterMode,
@@ -505,7 +548,22 @@ public final class VulkanShaderSources {
                                     shadowRtDenoiseStrength,
                                     shadowRtRayLength
                             );
-                            visibility = mix(visibility, bvhVis, 0.62);
+                            if (shadowRtMode > 3) {
+                                float bvhDedicatedVis = bvhDedicatedTraversalVisibilityApprox(
+                                        uv,
+                                        texel,
+                                        layer,
+                                        compareDepth,
+                                        ndl,
+                                        depthRatio,
+                                        shadowRtSampleCount,
+                                        shadowRtDenoiseStrength,
+                                        shadowRtRayLength
+                                );
+                                visibility = mix(visibility, bvhDedicatedVis, 0.68);
+                            } else {
+                                visibility = mix(visibility, bvhVis, 0.62);
+                            }
                         } else {
                             float rayScale = clamp(shadowRtRayLength / 120.0, 0.35, 4.0);
                             vec2 rayDir = normalize(vec2(0.57 + (1.0 - ndl) * 0.65, 0.44 + depthRatio * 0.55));

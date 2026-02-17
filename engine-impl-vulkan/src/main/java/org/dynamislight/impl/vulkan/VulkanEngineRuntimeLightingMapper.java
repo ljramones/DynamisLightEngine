@@ -892,7 +892,7 @@ final class VulkanEngineRuntimeLightingMapper {
         int renderedLocalShadowLights = renderedSpotShadowLights + renderedPointShadowCubemaps;
         boolean rtShadowActive;
         if ("bvh_dedicated".equals(rtMode)) {
-            rtShadowActive = false;
+            rtShadowActive = shadowRtBvhSupported;
         } else if ("bvh".equals(rtMode)) {
             rtShadowActive = shadowRtBvhSupported;
         } else {

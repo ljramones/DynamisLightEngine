@@ -57,7 +57,7 @@ Last updated: February 17, 2026.
 
 ### Where DynamicLightEngine still trails AAA engines
 - No full dynamic GI framework (Lumen/SVOGI-class).
-- No dedicated production BVH traversal/reflection-denoiser RT pipeline yet (RT mode is currently request+fallback oriented; `bvh` request mode is parsed/gated but still maps to the hybrid baseline path until dedicated BVH traversal lands).
+- No dedicated production BVH traversal/reflection-denoiser RT pipeline yet (RT mode now includes BVH approximation lanes: `bvh` uses hybrid traversal shaping and `bvh_dedicated` uses a dedicated-preview traversal shaping lane, but both still gate/fallback and remain pre-production until true hardware BVH traversal + denoise lands).
 - Remaining shadow gap is explicit: full Vulkan per-light atlas/cubemap parity is still rolling out, and hardware RT traversal/denoise shadow path is still pending. Multi-point cubemap concurrency is now landed within current tier/override scheduler budgets, and dedicated Vulkan moment-atlas write/prefilter is active for `vsm|evsm`.
 - No production-grade virtual geometry/streaming system.
 - Smaller post/VFX stack (intentional scope for current phase).
