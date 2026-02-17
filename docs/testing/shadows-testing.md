@@ -45,7 +45,7 @@ DLE_COMPARE_VULKAN_MODE=real \
 Unit policy + matrix checks:
 ```bash
 mvn -pl engine-impl-vulkan -am test \
-  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#shadowAllocatorTelemetryShowsReuseAcrossFrames \
+  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#shadowAllocatorTelemetryShowsReuseAcrossFrames+shadowQualityPathRequestsEmitTrackingWarnings+pcssShadowQualityRequestTracksActivePathWithoutMomentWarning \
   -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
