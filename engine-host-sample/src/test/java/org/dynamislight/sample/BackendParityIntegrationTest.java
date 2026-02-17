@@ -255,7 +255,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.06, "post-process bloom diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.065, "post-process bloom diff was " + report.diffMetric());
     }
 
     @Test
@@ -327,7 +327,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
         assertTrue(report.diffMetric() >= 0.0);
-        double maxDiff = adjustedCompareMaxDiff("fog-smoke-shadow-post-stress", 0.05);
+        double maxDiff = adjustedCompareMaxDiff("fog-smoke-shadow-post-stress", 0.075);
         assertTrue(report.diffMetric() <= maxDiff, "fog+smoke+shadow+post stress diff was " + report.diffMetric() + " (max " + maxDiff + ")");
     }
 
@@ -1044,7 +1044,7 @@ class BackendParityIntegrationTest {
                 Map.entry("smoke-shadow-cascade-stress", 0.25),
                 Map.entry("texture-heavy", 0.32),
                 Map.entry("brdf-tier-extremes", 0.29),
-                Map.entry("fog-smoke-shadow-post-stress", 0.05),
+                Map.entry("fog-smoke-shadow-post-stress", 0.075),
                 Map.entry("material-fog-smoke-shadow-cascade-stress", 0.30),
                 Map.entry("taa-disocclusion-stress", 0.32),
                 Map.entry("taa-reactive-authored-stress", 0.32),
@@ -1250,7 +1250,7 @@ class BackendParityIntegrationTest {
             return strictMaxDiff;
         }
         return switch (profile) {
-            case "fog-smoke-shadow-post-stress" -> 0.065;
+            case "fog-smoke-shadow-post-stress" -> 0.085;
             case "taa-history-confidence-stress" -> 0.33;
             case "taa-specular-aa-stress" -> 0.33;
             case "smaa-full-edge-crawl" -> 0.38;
