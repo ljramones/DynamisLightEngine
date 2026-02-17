@@ -98,10 +98,18 @@ final class VulkanRuntimeWarningPolicy {
                     "Upscaler hook requested (mode=" + in.upscalerMode().name().toLowerCase()
                             + ", quality=" + in.upscalerQuality().name().toLowerCase() + ")"
             ));
-            warnings.add(new EngineWarning(
-                    "UPSCALER_NATIVE_INTEGRATION_PENDING",
-                    "Upscaler hook is active for TSR/TUUA tuning; native vendor SDK path remains optional integration work"
-            ));
+            if (in.nativeUpscalerActive()) {
+                warnings.add(new EngineWarning(
+                        "UPSCALER_NATIVE_ACTIVE",
+                        "Native upscaler bridge active (provider=" + in.nativeUpscalerProvider()
+                                + ", detail=" + in.nativeUpscalerDetail() + ")"
+                ));
+            } else {
+                warnings.add(new EngineWarning(
+                        "UPSCALER_NATIVE_INACTIVE",
+                        "Native upscaler bridge not active (detail=" + in.nativeUpscalerDetail() + ")"
+                ));
+            }
         }
         if (in.nonDirectionalShadowRequested()) {
             warnings.add(new EngineWarning(
@@ -321,6 +329,9 @@ final class VulkanRuntimeWarningPolicy {
             VulkanEngineRuntime.IblRenderConfig currentIbl,
             VulkanEngineRuntime.UpscalerMode upscalerMode,
             VulkanEngineRuntime.UpscalerQuality upscalerQuality,
+            boolean nativeUpscalerActive,
+            String nativeUpscalerProvider,
+            String nativeUpscalerDetail,
             boolean nonDirectionalShadowRequested,
             boolean mockContext,
             boolean postOffscreenRequested,

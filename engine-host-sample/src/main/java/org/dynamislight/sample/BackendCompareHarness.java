@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
 import org.dynamislight.api.runtime.EngineApiVersion;
 import org.dynamislight.api.config.EngineConfig;
@@ -44,6 +45,7 @@ final class BackendCompareHarness {
         String upscalerMode = selectUpscalerMode(normalizedTag);
         String upscalerQuality = System.getProperty("dle.compare.upscaler.quality", "quality");
         int temporalWindow = clamp(intProperty("dle.compare.temporalWindow", 5), 1, 10);
+        String tsrSceneTuning = describeTsrSceneTuning(normalizedTag, aaMode);
 
         BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag, aaPreset, aaMode, upscalerMode, upscalerQuality);
         BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag, aaPreset, aaMode, upscalerMode, upscalerQuality);
@@ -63,6 +65,7 @@ final class BackendCompareHarness {
                 aaPreset,
                 upscalerMode,
                 upscalerQuality,
+                tsrSceneTuning,
                 temporalWindow,
                 diff,
                 openGl,
@@ -118,7 +121,7 @@ final class BackendCompareHarness {
                 ? new EngineInput(540, 360, 96, -48, false, false, Set.of(KeyCode.A, KeyCode.D), 0.0)
                 : new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
         try (var runtime = provider.createRuntime()) {
-            runtime.initialize(configFor(backendId, qualityTier, aaPreset, aaMode, upscalerMode, upscalerQuality), new NoopCallbacks());
+            runtime.initialize(configFor(backendId, qualityTier, profileTag, aaPreset, aaMode, upscalerMode, upscalerQuality), new NoopCallbacks());
             runtime.loadScene(scene);
             EngineFrameResult frame = null;
             int baseFrames = taaStress ? 5 : (smaaStress ? 3 : 1);
@@ -226,24 +229,34 @@ final class BackendCompareHarness {
     private static EngineConfig configFor(
             String backendId,
             QualityTier qualityTier,
+            String profileTag,
             String aaPreset,
             String aaMode,
             String upscalerMode,
             String upscalerQuality
     ) {
+        Map<String, String> tsrTuning = tsrSceneTuning(profileTag, aaMode);
+        String tsrHistoryWeight = tsrTuning.getOrDefault("historyWeight", System.getProperty("dle.compare.tsr.historyWeight", "0.90"));
+        String tsrResponsiveMask = tsrTuning.getOrDefault("responsiveMask", System.getProperty("dle.compare.tsr.responsiveMask", "0.65"));
+        String tsrNeighborhoodClamp = tsrTuning.getOrDefault("neighborhoodClamp", System.getProperty("dle.compare.tsr.neighborhoodClamp", "0.88"));
+        String tsrReprojectionConfidence = tsrTuning.getOrDefault("reprojectionConfidence", System.getProperty("dle.compare.tsr.reprojectionConfidence", "0.85"));
+        String tsrSharpen = tsrTuning.getOrDefault("sharpen", System.getProperty("dle.compare.tsr.sharpen", "0.14"));
+        String tsrAntiRinging = tsrTuning.getOrDefault("antiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75"));
+        String tsrRenderScale = tsrTuning.getOrDefault("renderScale", System.getProperty("dle.compare.tsr.renderScale", "0.60"));
+
         Map<String, String> options = switch (backendId) {
             case "opengl" -> Map.ofEntries(
                     Map.entry("opengl.mockContext", System.getProperty("dle.compare.opengl.mockContext", "true")),
                     Map.entry("opengl.taaDebugView", System.getProperty("dle.taa.debugView", "0")),
                     Map.entry("opengl.aaPreset", aaPreset),
                     Map.entry("opengl.aaMode", aaMode),
-                    Map.entry("opengl.tsrHistoryWeight", System.getProperty("dle.compare.tsr.historyWeight", "0.90")),
-                    Map.entry("opengl.tsrResponsiveMask", System.getProperty("dle.compare.tsr.responsiveMask", "0.65")),
-                    Map.entry("opengl.tsrNeighborhoodClamp", System.getProperty("dle.compare.tsr.neighborhoodClamp", "0.88")),
-                    Map.entry("opengl.tsrReprojectionConfidence", System.getProperty("dle.compare.tsr.reprojectionConfidence", "0.85")),
-                    Map.entry("opengl.tsrSharpen", System.getProperty("dle.compare.tsr.sharpen", "0.14")),
-                    Map.entry("opengl.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75")),
-                    Map.entry("opengl.tsrRenderScale", System.getProperty("dle.compare.tsr.renderScale", "0.60")),
+                    Map.entry("opengl.tsrHistoryWeight", tsrHistoryWeight),
+                    Map.entry("opengl.tsrResponsiveMask", tsrResponsiveMask),
+                    Map.entry("opengl.tsrNeighborhoodClamp", tsrNeighborhoodClamp),
+                    Map.entry("opengl.tsrReprojectionConfidence", tsrReprojectionConfidence),
+                    Map.entry("opengl.tsrSharpen", tsrSharpen),
+                    Map.entry("opengl.tsrAntiRinging", tsrAntiRinging),
+                    Map.entry("opengl.tsrRenderScale", tsrRenderScale),
                     Map.entry("opengl.tuuaRenderScale", System.getProperty("dle.compare.tuua.renderScale", "0.72")),
                     Map.entry("opengl.upscalerMode", upscalerMode),
                     Map.entry("opengl.upscalerQuality", upscalerQuality)
@@ -254,13 +267,13 @@ final class BackendCompareHarness {
                     Map.entry("vulkan.taaDebugView", System.getProperty("dle.taa.debugView", "0")),
                     Map.entry("vulkan.aaPreset", aaPreset),
                     Map.entry("vulkan.aaMode", aaMode),
-                    Map.entry("vulkan.tsrHistoryWeight", System.getProperty("dle.compare.tsr.historyWeight", "0.90")),
-                    Map.entry("vulkan.tsrResponsiveMask", System.getProperty("dle.compare.tsr.responsiveMask", "0.65")),
-                    Map.entry("vulkan.tsrNeighborhoodClamp", System.getProperty("dle.compare.tsr.neighborhoodClamp", "0.88")),
-                    Map.entry("vulkan.tsrReprojectionConfidence", System.getProperty("dle.compare.tsr.reprojectionConfidence", "0.85")),
-                    Map.entry("vulkan.tsrSharpen", System.getProperty("dle.compare.tsr.sharpen", "0.14")),
-                    Map.entry("vulkan.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75")),
-                    Map.entry("vulkan.tsrRenderScale", System.getProperty("dle.compare.tsr.renderScale", "0.60")),
+                    Map.entry("vulkan.tsrHistoryWeight", tsrHistoryWeight),
+                    Map.entry("vulkan.tsrResponsiveMask", tsrResponsiveMask),
+                    Map.entry("vulkan.tsrNeighborhoodClamp", tsrNeighborhoodClamp),
+                    Map.entry("vulkan.tsrReprojectionConfidence", tsrReprojectionConfidence),
+                    Map.entry("vulkan.tsrSharpen", tsrSharpen),
+                    Map.entry("vulkan.tsrAntiRinging", tsrAntiRinging),
+                    Map.entry("vulkan.tsrRenderScale", tsrRenderScale),
                     Map.entry("vulkan.tuuaRenderScale", System.getProperty("dle.compare.tuua.renderScale", "0.72")),
                     Map.entry("vulkan.upscalerMode", upscalerMode),
                     Map.entry("vulkan.upscalerQuality", upscalerQuality)
@@ -279,6 +292,68 @@ final class BackendCompareHarness {
                 Path.of("assets"),
                 options
         );
+    }
+
+    private static Map<String, String> tsrSceneTuning(String profileTag, String aaMode) {
+        if (!"tsr".equals(aaMode)) {
+            return Map.of();
+        }
+        if (profileTag.contains("foliage")) {
+            return Map.of(
+                    "historyWeight", "0.88",
+                    "responsiveMask", "0.82",
+                    "neighborhoodClamp", "0.86",
+                    "reprojectionConfidence", "0.84",
+                    "sharpen", "0.12",
+                    "antiRinging", "0.80",
+                    "renderScale", "0.62"
+            );
+        }
+        if (profileTag.contains("micro-highlights") || profileTag.contains("specular")) {
+            return Map.of(
+                    "historyWeight", "0.92",
+                    "responsiveMask", "0.70",
+                    "neighborhoodClamp", "0.83",
+                    "reprojectionConfidence", "0.90",
+                    "sharpen", "0.10",
+                    "antiRinging", "0.88",
+                    "renderScale", "0.64"
+            );
+        }
+        if (profileTag.contains("thin-geometry") || profileTag.contains("thin-geo")) {
+            return Map.of(
+                    "historyWeight", "0.87",
+                    "responsiveMask", "0.84",
+                    "neighborhoodClamp", "0.82",
+                    "reprojectionConfidence", "0.82",
+                    "sharpen", "0.11",
+                    "antiRinging", "0.84",
+                    "renderScale", "0.64"
+            );
+        }
+        if (profileTag.contains("disocclusion") || profileTag.contains("rapid-pan")) {
+            return Map.of(
+                    "historyWeight", "0.84",
+                    "responsiveMask", "0.92",
+                    "neighborhoodClamp", "0.80",
+                    "reprojectionConfidence", "0.79",
+                    "sharpen", "0.13",
+                    "antiRinging", "0.86",
+                    "renderScale", "0.66"
+            );
+        }
+        return Map.of();
+    }
+
+    private static String describeTsrSceneTuning(String profileTag, String aaMode) {
+        Map<String, String> tuning = tsrSceneTuning(profileTag, aaMode);
+        if (tuning.isEmpty()) {
+            return "default";
+        }
+        return tuning.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .collect(Collectors.joining(","));
     }
 
     private static void writeDiagnosticImage(BackendSnapshot snapshot, Path outputFile) throws IOException {
@@ -387,6 +462,7 @@ final class BackendCompareHarness {
             String aaPreset,
             String upscalerMode,
             String upscalerQuality,
+            String tsrSceneTuning,
             int temporalWindow,
             double diffMetric,
             BackendSnapshot openGl,
@@ -401,6 +477,7 @@ final class BackendCompareHarness {
         metadata.setProperty("compare.aa.preset", aaPreset);
         metadata.setProperty("compare.upscaler.mode", upscalerMode);
         metadata.setProperty("compare.upscaler.quality", upscalerQuality);
+        metadata.setProperty("compare.tsr.sceneTuning", tsrSceneTuning);
         metadata.setProperty("compare.temporal.windowSize", Integer.toString(temporalWindow));
         metadata.setProperty("compare.diffMetric", Double.toString(diffMetric));
         metadata.setProperty("compare.opengl.shimmerIndex", Double.toString(openGl.shimmerIndex()));

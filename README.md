@@ -111,6 +111,12 @@ DLE_COMPARE_VULKAN_MODE=real \
 ```
 
 ```bash
+# Run repeated real-Vulkan AA samples and lock thresholds from the aggregate
+DLE_COMPARE_LONGRUN_RUNS=5 \
+./scripts/aa_longrun_real_sampling_mac.sh
+```
+
+```bash
 # Build threshold-lock recommendations from repeated real-Vulkan compare metadata
 # Default minimum profile samples: 3 (override with DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS)
 ./scripts/aa_rebaseline_real_mac.sh lock-thresholds artifacts/compare
@@ -131,6 +137,22 @@ DLE_COMPARE_VULKAN_MODE=real \
 ```
 
 TSR implementation reference: `docs/tsr-temporal-upsampling-notes-2026.md`
+
+External native upscaler bridge options (OpenGL and Vulkan):
+- `<backend>.upscaler.nativeEnabled=true|false`
+- `<backend>.upscaler.bridgeClass=com.example.MyUpscalerBridge`
+- `<backend>.upscaler.bridgeLibrary=/abs/path/libvendor_upscaler.dylib` (or comma-separated list)
+
+Example (`vulkan` backend):
+
+```bash
+MAVEN_OPTS="-Dvulkan.upscaler.nativeEnabled=true \
+  -Dvulkan.upscaler.bridgeClass=com.acme.upscale.VulkanDlssBridge \
+  -Dvulkan.upscaler.bridgeLibrary=/opt/acme/lib/libacme_dlss_bridge.dylib" \
+DLE_COMPARE_UPSCALER_MODE=dlss \
+DLE_COMPARE_VULKAN_MODE=real \
+./scripts/aa_rebaseline_real_mac.sh
+```
 
 GitHub Actions CI runs:
 - matrix build/test (`mvn test`) on `main` and pull requests using JDK 25 across Linux, macOS, and Windows

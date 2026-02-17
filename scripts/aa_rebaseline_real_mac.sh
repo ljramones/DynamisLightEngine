@@ -20,7 +20,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 OUT_DIR="${DLE_COMPARE_OUTPUT_DIR:-artifacts/compare/aa-real-$(date +%Y%m%d-%H%M%S)}"
 TEST_CLASS="${DLE_COMPARE_TEST_CLASS:-BackendParityIntegrationTest}"
 VULKAN_MODE="${DLE_COMPARE_VULKAN_MODE:-mock}" # mock(default) | auto | real
-SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds
+SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds | longrun
 LOCK_SOURCE_DIR="${2:-artifacts/compare}"
 THRESHOLDS_FILE="${DLE_COMPARE_THRESHOLDS_FILE:-}"
 REQUIRED_MOLTENVK_VERSION="${DLE_COMPARE_REQUIRE_MOLTENVK_VERSION:-}"
@@ -236,8 +236,13 @@ if [[ "$SCRIPT_COMMAND" == "lock-thresholds" ]]; then
   exit 0
 fi
 
+if [[ "$SCRIPT_COMMAND" == "longrun" ]]; then
+  "$ROOT_DIR/scripts/aa_longrun_real_sampling_mac.sh"
+  exit 0
+fi
+
 if [[ "$SCRIPT_COMMAND" != "run" ]]; then
-  echo "Invalid command '$SCRIPT_COMMAND' (expected: run|preflight|lock-thresholds)." >&2
+  echo "Invalid command '$SCRIPT_COMMAND' (expected: run|preflight|lock-thresholds|longrun)." >&2
   exit 1
 fi
 

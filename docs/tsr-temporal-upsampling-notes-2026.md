@@ -142,3 +142,29 @@ DLE_COMPARE_TEMPORAL_WINDOW=5
 ```
 
 Recommended range: `5..10` frames for stress scenes.
+
+## 6) External Native Upscaler Bridge (FSR/XeSS/DLSS)
+
+Backends can activate a real vendor path by loading an `ExternalUpscalerBridge` implementation from classpath:
+
+- `opengl.upscaler.nativeEnabled=true`
+- `opengl.upscaler.bridgeClass=com.acme.upscale.OpenGlXessBridge`
+- `opengl.upscaler.bridgeLibrary=/abs/path/libacme_xess_bridge.dylib`
+- `vulkan.*` equivalents for Vulkan runtime
+
+Bridge interface:
+
+```java
+public interface ExternalUpscalerBridge {
+  String id();
+  boolean initialize(InitContext context);
+  Decision evaluate(DecisionInput input);
+}
+```
+
+Runtime behavior:
+
+- If bridge initializes and returns `nativeActive=true`, runtime applies bridge overrides for `taaBlend`, `taaClipScale`, `taaSharpenStrength`, `taaRenderScale`, and `taaLumaClipEnabled`.
+- Warnings expose status:
+  - `UPSCALER_NATIVE_ACTIVE`
+  - `UPSCALER_NATIVE_INACTIVE` (fallback reason)

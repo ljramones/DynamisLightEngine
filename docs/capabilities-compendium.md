@@ -146,6 +146,9 @@ OpenGL backend provides a real forward render baseline:
 - Runtime AA preset mode override is supported through backend options:
   - `opengl.aaPreset` and `vulkan.aaPreset`
   - accepted values: `performance`, `balanced`, `quality`, `stability`
+- Native external upscaler bridge path is supported (optional):
+  - backend options: `<backend>.upscaler.nativeEnabled`, `<backend>.upscaler.bridgeClass`, `<backend>.upscaler.bridgeLibrary`
+  - when active, runtime emits `UPSCALER_NATIVE_ACTIVE`; otherwise `UPSCALER_NATIVE_INACTIVE` explains fallback reason.
 
 ### OpenGL limitations (current)
 - Material model is intentionally simplified (not full PBR correctness).

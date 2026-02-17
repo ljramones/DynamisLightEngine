@@ -38,6 +38,8 @@ import org.dynamislight.impl.common.framegraph.FrameGraph;
 import org.dynamislight.impl.common.framegraph.FrameGraphBuilder;
 import org.dynamislight.impl.common.framegraph.FrameGraphExecutor;
 import org.dynamislight.impl.common.framegraph.FrameGraphPass;
+import org.dynamislight.impl.common.upscale.ExternalUpscalerBridge;
+import org.dynamislight.impl.common.upscale.ExternalUpscalerIntegration;
 
 public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private enum AaPreset {
@@ -162,6 +164,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private UpscalerMode upscalerMode = UpscalerMode.NONE;
     private UpscalerQuality upscalerQuality = UpscalerQuality.QUALITY;
     private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f, 0.60f, 0.72f);
+    private ExternalUpscalerIntegration externalUpscaler = ExternalUpscalerIntegration.inactive("not initialized");
+    private boolean nativeUpscalerActive;
+    private String nativeUpscalerProvider = "none";
+    private String nativeUpscalerDetail = "inactive";
 
     public OpenGlEngineRuntime() {
         super(
@@ -197,6 +203,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         upscalerMode = parseUpscalerMode(config.backendOptions().get("opengl.upscalerMode"));
         upscalerQuality = parseUpscalerQuality(config.backendOptions().get("opengl.upscalerQuality"));
         tsrControls = parseTsrControls(config.backendOptions(), "opengl.");
+        externalUpscaler = ExternalUpscalerIntegration.create("opengl", "opengl.", config.backendOptions());
+        nativeUpscalerActive = false;
+        nativeUpscalerProvider = externalUpscaler.providerId();
+        nativeUpscalerDetail = externalUpscaler.statusDetail();
         qualityTier = config.qualityTier();
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new OpenGlMeshAssetLoader(assetRoot);
@@ -246,6 +256,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         shadows = mapShadows(scene.lights(), qualityTier);
         nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene.lights());
         postProcess = mapPostProcess(scene.postProcess(), qualityTier, taaLumaClipEnabledDefault, aaPreset, aaMode, upscalerMode, upscalerQuality, tsrControls);
+        postProcess = applyExternalUpscalerDecision(postProcess);
         ibl = mapIbl(scene.environment(), qualityTier);
 
         List<OpenGlContext.SceneMesh> sceneMeshes = mapSceneMeshes(scene);
@@ -408,10 +419,17 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     "UPSCALER_HOOK_ACTIVE",
                     "Upscaler hook requested (mode=" + upscalerMode.name().toLowerCase() + ", quality=" + upscalerQuality.name().toLowerCase() + ")"
             ));
-            warnings.add(new EngineWarning(
-                    "UPSCALER_NATIVE_INTEGRATION_PENDING",
-                    "Upscaler hook is active for TSR/TUUA tuning; native vendor SDK path remains optional integration work"
-            ));
+            if (nativeUpscalerActive) {
+                warnings.add(new EngineWarning(
+                        "UPSCALER_NATIVE_ACTIVE",
+                        "Native upscaler bridge active (provider=" + nativeUpscalerProvider + ", detail=" + nativeUpscalerDetail + ")"
+                ));
+            } else {
+                warnings.add(new EngineWarning(
+                        "UPSCALER_NATIVE_INACTIVE",
+                        "Native upscaler bridge not active (detail=" + nativeUpscalerDetail + ")"
+                ));
+            }
         }
         if (nonDirectionalShadowRequested) {
             warnings.add(new EngineWarning(
@@ -807,6 +825,78 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 taaSharpenStrength,
                 taaRenderScale
         );
+    }
+
+    private PostProcessRenderConfig applyExternalUpscalerDecision(PostProcessRenderConfig base) {
+        if (base == null) {
+            nativeUpscalerActive = false;
+            nativeUpscalerProvider = externalUpscaler.providerId();
+            nativeUpscalerDetail = "no post-process config";
+            return null;
+        }
+        nativeUpscalerProvider = externalUpscaler.providerId();
+        if (!base.taaEnabled() || upscalerMode == UpscalerMode.NONE || (aaMode != AaMode.TSR && aaMode != AaMode.TUUA)) {
+            nativeUpscalerActive = false;
+            nativeUpscalerDetail = "inactive for current aaMode/upscaler selection";
+            return base;
+        }
+        ExternalUpscalerBridge.Decision decision = externalUpscaler.evaluate(new ExternalUpscalerBridge.DecisionInput(
+                "opengl",
+                aaMode.name().toLowerCase(),
+                upscalerMode.name().toLowerCase(),
+                upscalerQuality.name().toLowerCase(),
+                qualityTier.name().toLowerCase(),
+                base.taaBlend(),
+                base.taaClipScale(),
+                base.taaSharpenStrength(),
+                base.taaRenderScale(),
+                base.taaLumaClipEnabled(),
+                tsrControls.historyWeight(),
+                tsrControls.responsiveMask(),
+                tsrControls.neighborhoodClamp(),
+                tsrControls.reprojectionConfidence(),
+                tsrControls.sharpen(),
+                tsrControls.antiRinging()
+        ));
+        if (decision == null || !decision.nativeActive()) {
+            nativeUpscalerActive = false;
+            nativeUpscalerDetail = decision == null ? "null external decision" : decision.detail();
+            return base;
+        }
+        nativeUpscalerActive = true;
+        nativeUpscalerDetail = decision.detail() == null || decision.detail().isBlank()
+                ? "native overrides applied"
+                : decision.detail();
+        float taaBlend = decision.taaBlendOverride() == null ? base.taaBlend() : clamp(decision.taaBlendOverride(), 0f, 0.95f);
+        float taaClipScale = decision.taaClipScaleOverride() == null ? base.taaClipScale() : clamp(decision.taaClipScaleOverride(), 0.5f, 1.6f);
+        float taaSharpen = decision.taaSharpenStrengthOverride() == null ? base.taaSharpenStrength() : clamp(decision.taaSharpenStrengthOverride(), 0f, 0.35f);
+        float taaRenderScale = decision.taaRenderScaleOverride() == null ? base.taaRenderScale() : clamp(decision.taaRenderScaleOverride(), 0.5f, 1.0f);
+        boolean taaLumaClip = decision.taaLumaClipEnabledOverride() == null ? base.taaLumaClipEnabled() : decision.taaLumaClipEnabledOverride();
+        return new PostProcessRenderConfig(
+                base.tonemapEnabled(),
+                base.exposure(),
+                base.gamma(),
+                base.bloomEnabled(),
+                base.bloomThreshold(),
+                base.bloomStrength(),
+                base.ssaoEnabled(),
+                base.ssaoStrength(),
+                base.ssaoRadius(),
+                base.ssaoBias(),
+                base.ssaoPower(),
+                base.smaaEnabled(),
+                base.smaaStrength(),
+                base.taaEnabled(),
+                taaBlend,
+                taaClipScale,
+                taaLumaClip,
+                taaSharpen,
+                taaRenderScale
+        );
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static AaPreset parseAaPreset(String raw) {
