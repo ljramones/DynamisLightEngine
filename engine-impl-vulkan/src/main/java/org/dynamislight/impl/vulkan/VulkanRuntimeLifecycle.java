@@ -54,7 +54,8 @@ final class VulkanRuntimeLifecycle {
             VulkanEngineRuntime.AaMode aaMode,
             VulkanEngineRuntime.UpscalerMode upscalerMode,
             VulkanEngineRuntime.UpscalerQuality upscalerQuality,
-            VulkanEngineRuntime.TsrControls tsrControls
+            VulkanEngineRuntime.TsrControls tsrControls,
+            VulkanEngineRuntime.ReflectionProfile reflectionProfile
     ) {
         var camera = VulkanEngineRuntimeSceneMapper.selectActiveCamera(scene);
         var cameraMatrices = VulkanEngineRuntimeSceneMapper.cameraMatricesFor(
@@ -73,7 +74,8 @@ final class VulkanRuntimeLifecycle {
                 aaMode,
                 upscalerMode,
                 upscalerQuality,
-                tsrControls
+                tsrControls,
+                reflectionProfile
         );
         var ibl = VulkanEngineRuntimeSceneMapper.mapIbl(scene == null ? null : scene.environment(), qualityTier, assetRoot);
         boolean nonDirectionalShadowRequested = VulkanEngineRuntimeSceneMapper.hasNonDirectionalShadowRequest(scene == null ? null : scene.lights());

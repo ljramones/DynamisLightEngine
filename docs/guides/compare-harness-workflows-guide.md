@@ -6,6 +6,7 @@ Last updated: February 17, 2026
 - Cross-backend image parity checks
 - Real vs mock Vulkan profile separation
 - Temporal metric gating for AA scenes
+- Reflection scene parity gates (`reflections-ssr`, `reflections-planar`, `reflections-hybrid`)
 - Threshold lock workflow from sampled runs
 - Vendor upscaler matrix workflow hooks
 
@@ -55,6 +56,9 @@ Examples:
 - `DLE_COMPARE_UPSCALER_MODE=none|fsr|xess|dlss`
 - `DLE_COMPARE_UPSCALER_QUALITY=performance|balanced|quality|ultra_quality`
 - `DLE_COMPARE_JVM_STACK_SIZE=<size>`
+
+Optional JVM property for reflection profile during compare:
+- `-Ddle.compare.reflections.profile=performance|balanced|quality|stability`
 
 ## 5. Artifact Expectations
 - Output is mode-separated (`vulkan_real` / `vulkan_mock`).

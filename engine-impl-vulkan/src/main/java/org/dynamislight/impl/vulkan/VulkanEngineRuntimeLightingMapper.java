@@ -25,7 +25,8 @@ final class VulkanEngineRuntimeLightingMapper {
             VulkanEngineRuntime.AaMode aaMode,
             VulkanEngineRuntime.UpscalerMode upscalerMode,
             VulkanEngineRuntime.UpscalerQuality upscalerQuality,
-            VulkanEngineRuntime.TsrControls tsrControls
+            VulkanEngineRuntime.TsrControls tsrControls,
+            VulkanEngineRuntime.ReflectionProfile reflectionProfile
     ) {
         if (desc == null || !desc.enabled()) {
             return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
@@ -224,6 +225,29 @@ final class VulkanEngineRuntimeLightingMapper {
                 reflectionsSsrStrength *= 0.85f;
                 reflectionsSsrStepScale = Math.min(3.0f, reflectionsSsrStepScale * 1.15f);
                 reflectionsPlanarStrength *= 0.9f;
+            }
+        }
+        if (reflectionsEnabled && reflectionProfile != null) {
+            switch (reflectionProfile) {
+                case PERFORMANCE -> {
+                    reflectionsSsrStrength = Math.max(0f, Math.min(1.0f, reflectionsSsrStrength * 0.80f));
+                    reflectionsSsrStepScale = Math.max(0.5f, Math.min(3.0f, reflectionsSsrStepScale * 1.20f));
+                    reflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, reflectionsTemporalWeight * 0.75f));
+                    reflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, reflectionsPlanarStrength * 0.90f));
+                }
+                case QUALITY -> {
+                    reflectionsSsrStrength = Math.max(0f, Math.min(1.0f, reflectionsSsrStrength * 1.10f));
+                    reflectionsSsrStepScale = Math.max(0.5f, Math.min(3.0f, reflectionsSsrStepScale * 0.90f));
+                    reflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, reflectionsTemporalWeight + 0.08f));
+                    reflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, reflectionsPlanarStrength + 0.05f));
+                }
+                case STABILITY -> {
+                    reflectionsSsrStrength = Math.max(0f, Math.min(1.0f, reflectionsSsrStrength * 0.95f));
+                    reflectionsSsrStepScale = Math.max(0.5f, Math.min(3.0f, reflectionsSsrStepScale * 1.05f));
+                    reflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, reflectionsTemporalWeight + 0.12f));
+                }
+                case BALANCED -> {
+                }
             }
         }
         return new VulkanEngineRuntime.PostProcessRenderConfig(

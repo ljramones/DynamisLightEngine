@@ -30,7 +30,8 @@ final class VulkanEngineRuntimeSceneMapper {
             VulkanEngineRuntime.AaMode aaMode,
             VulkanEngineRuntime.UpscalerMode upscalerMode,
             VulkanEngineRuntime.UpscalerQuality upscalerQuality,
-            VulkanEngineRuntime.TsrControls tsrControls
+            VulkanEngineRuntime.TsrControls tsrControls,
+            VulkanEngineRuntime.ReflectionProfile reflectionProfile
     ) {
         return VulkanEngineRuntimeLightingMapper.mapPostProcess(
                 desc,
@@ -40,7 +41,8 @@ final class VulkanEngineRuntimeSceneMapper {
                 aaMode,
                 upscalerMode,
                 upscalerQuality,
-                tsrControls
+                tsrControls,
+                reflectionProfile
         );
     }
 

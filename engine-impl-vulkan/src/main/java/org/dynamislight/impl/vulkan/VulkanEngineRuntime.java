@@ -69,6 +69,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         ULTRA_QUALITY
     }
 
+    enum ReflectionProfile {
+        PERFORMANCE,
+        BALANCED,
+        QUALITY,
+        STABILITY
+    }
+
     record TsrControls(
             float historyWeight,
             float responsiveMask,
@@ -112,6 +119,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private AaMode aaMode = AaMode.TAA;
     private UpscalerMode upscalerMode = UpscalerMode.NONE;
     private UpscalerQuality upscalerQuality = UpscalerQuality.QUALITY;
+    private ReflectionProfile reflectionProfile = ReflectionProfile.BALANCED;
     private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f, 0.60f, 0.72f);
     private ExternalUpscalerIntegration externalUpscaler = ExternalUpscalerIntegration.inactive("not initialized");
     private boolean nativeUpscalerActive;
@@ -166,6 +174,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         aaMode = parseAaMode(config.backendOptions().get("vulkan.aaMode"));
         upscalerMode = parseUpscalerMode(config.backendOptions().get("vulkan.upscalerMode"));
         upscalerQuality = parseUpscalerQuality(config.backendOptions().get("vulkan.upscalerQuality"));
+        reflectionProfile = parseReflectionProfile(config.backendOptions().get("vulkan.reflectionsProfile"));
         tsrControls = parseTsrControls(config.backendOptions(), "vulkan.");
         externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", config.backendOptions());
         nativeUpscalerActive = false;
@@ -198,7 +207,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 aaMode,
                 upscalerMode,
                 upscalerQuality,
-                tsrControls
+                tsrControls,
+                reflectionProfile
         );
         currentFog = sceneState.fog();
         currentSmoke = sceneState.smoke();
@@ -415,6 +425,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static ReflectionProfile parseReflectionProfile(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return ReflectionProfile.BALANCED;
+        }
+        return switch (raw.trim().toLowerCase()) {
+            case "performance" -> ReflectionProfile.PERFORMANCE;
+            case "quality" -> ReflectionProfile.QUALITY;
+            case "stability" -> ReflectionProfile.STABILITY;
+            default -> ReflectionProfile.BALANCED;
+        };
     }
 
     private AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {

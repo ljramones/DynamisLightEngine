@@ -42,13 +42,14 @@ final class BackendCompareHarness {
         String acceptanceProfile = acceptanceProfileTag();
         String aaMode = selectAaMode(normalizedTag);
         String aaPreset = selectAaPreset(normalizedTag, aaMode);
+        String reflectionsProfile = selectReflectionsProfile(normalizedTag);
         String upscalerMode = selectUpscalerMode(normalizedTag);
         String upscalerQuality = System.getProperty("dle.compare.upscaler.quality", "quality");
         int temporalWindow = clamp(intProperty("dle.compare.temporalWindow", 5), 1, 10);
         String tsrSceneTuning = describeTsrSceneTuning(normalizedTag, aaMode);
 
-        BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag, aaPreset, aaMode, upscalerMode, upscalerQuality);
-        BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag, aaPreset, aaMode, upscalerMode, upscalerQuality);
+        BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag, aaPreset, aaMode, reflectionsProfile, upscalerMode, upscalerQuality);
+        BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag, aaPreset, aaMode, reflectionsProfile, upscalerMode, upscalerQuality);
 
         writeDiagnosticImage(openGl, openGlPng);
         writeDiagnosticImage(vulkan, vulkanPng);
@@ -98,6 +99,7 @@ final class BackendCompareHarness {
             String profileTag,
             String aaPreset,
             String aaMode,
+            String reflectionsProfile,
             String upscalerMode,
             String upscalerQuality
     ) throws Exception {
@@ -121,7 +123,7 @@ final class BackendCompareHarness {
                 ? new EngineInput(540, 360, 96, -48, false, false, Set.of(KeyCode.A, KeyCode.D), 0.0)
                 : new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
         try (var runtime = provider.createRuntime()) {
-            runtime.initialize(configFor(backendId, qualityTier, profileTag, aaPreset, aaMode, upscalerMode, upscalerQuality), new NoopCallbacks());
+            runtime.initialize(configFor(backendId, qualityTier, profileTag, aaPreset, aaMode, reflectionsProfile, upscalerMode, upscalerQuality), new NoopCallbacks());
             runtime.loadScene(scene);
             EngineFrameResult frame = null;
             int baseFrames = taaStress ? 5 : (smaaStress ? 3 : 1);
@@ -226,12 +228,26 @@ final class BackendCompareHarness {
         return System.getProperty("dle.compare.upscaler.mode", "none");
     }
 
+    private static String selectReflectionsProfile(String profileTag) {
+        if (profileTag.contains("reflections-planar")) {
+            return "stability";
+        }
+        if (profileTag.contains("reflections-ssr")) {
+            return "quality";
+        }
+        if (profileTag.contains("reflections-hybrid")) {
+            return "balanced";
+        }
+        return System.getProperty("dle.compare.reflections.profile", "balanced");
+    }
+
     private static EngineConfig configFor(
             String backendId,
             QualityTier qualityTier,
             String profileTag,
             String aaPreset,
             String aaMode,
+            String reflectionsProfile,
             String upscalerMode,
             String upscalerQuality
     ) {
@@ -250,6 +266,7 @@ final class BackendCompareHarness {
                     Map.entry("opengl.taaDebugView", System.getProperty("dle.taa.debugView", "0")),
                     Map.entry("opengl.aaPreset", aaPreset),
                     Map.entry("opengl.aaMode", aaMode),
+                    Map.entry("opengl.reflectionsProfile", reflectionsProfile),
                     Map.entry("opengl.tsrHistoryWeight", tsrHistoryWeight),
                     Map.entry("opengl.tsrResponsiveMask", tsrResponsiveMask),
                     Map.entry("opengl.tsrNeighborhoodClamp", tsrNeighborhoodClamp),
@@ -267,6 +284,7 @@ final class BackendCompareHarness {
                     Map.entry("vulkan.taaDebugView", System.getProperty("dle.taa.debugView", "0")),
                     Map.entry("vulkan.aaPreset", aaPreset),
                     Map.entry("vulkan.aaMode", aaMode),
+                    Map.entry("vulkan.reflectionsProfile", reflectionsProfile),
                     Map.entry("vulkan.tsrHistoryWeight", tsrHistoryWeight),
                     Map.entry("vulkan.tsrResponsiveMask", tsrResponsiveMask),
                     Map.entry("vulkan.tsrNeighborhoodClamp", tsrNeighborhoodClamp),

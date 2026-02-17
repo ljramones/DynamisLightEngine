@@ -18,6 +18,10 @@ This document defines reflection validation for OpenGL and Vulkan.
 - Reflection-enabled scenes emit `REFLECTIONS_BASELINE_ACTIVE`.
 - MEDIUM-tier reflection scenes emit `REFLECTIONS_QUALITY_DEGRADED`.
 
+3. Profile validation
+- Run each reflection mode with `performance`, `balanced`, `quality`, `stability`.
+- Confirm profile changes are reflected in metadata/warnings and bounded diffs.
+
 3. Scene-level rendering checks
 - `ssr` scene: confirm visible reflected highlights from on-screen content.
 - `planar` scene: confirm vertical mirror sample behavior.
@@ -43,6 +47,12 @@ mvn -pl engine-impl-vulkan -am -Dtest=VulkanEngineRuntimeIntegrationTest -Dsuref
   - planar mirror stress
   - hybrid motion stress
 - Track per-scene diff and temporal metrics, same as AA gates.
+
+Current profile tags in parity tests:
+
+- `reflections-ssr`
+- `reflections-planar`
+- `reflections-hybrid`
 
 ## Regression Triggers
 

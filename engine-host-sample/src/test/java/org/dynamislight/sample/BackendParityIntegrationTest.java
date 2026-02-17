@@ -35,6 +35,7 @@ import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.ReactivePreset;
+import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.event.SceneLoadedEvent;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
@@ -312,6 +313,57 @@ class BackendParityIntegrationTest {
         assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
         assertTrue(report.diffMetric() >= 0.0);
         assertTrue(report.diffMetric() <= 0.36, "post-process smaa diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessReflectionsSsrSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("reflections-ssr");
+        var report = BackendCompareHarness.run(
+                outDir,
+                reflectionsScene("ssr"),
+                QualityTier.HIGH,
+                "reflections-ssr-high"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.37, "reflections ssr diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessReflectionsPlanarSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("reflections-planar");
+        var report = BackendCompareHarness.run(
+                outDir,
+                reflectionsScene("planar"),
+                QualityTier.HIGH,
+                "reflections-planar-high"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.40, "reflections planar diff was " + report.diffMetric());
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessReflectionsHybridSceneHasBoundedDiff() throws Exception {
+        Path outDir = compareOutputDir("reflections-hybrid");
+        var report = BackendCompareHarness.run(
+                outDir,
+                reflectionsScene("hybrid"),
+                QualityTier.ULTRA,
+                "reflections-hybrid-ultra"
+        );
+
+        assertTrue(Files.exists(report.openGlImage()));
+        assertTrue(Files.exists(report.vulkanImage()));
+        assertTrue(report.diffMetric() >= 0.0);
+        assertTrue(report.diffMetric() <= 0.36, "reflections hybrid diff was " + report.diffMetric());
     }
 
     @Test
@@ -805,6 +857,24 @@ class BackendParityIntegrationTest {
                 QualityTier.HIGH, 0.36,
                 QualityTier.ULTRA, 0.36
         );
+        Map<QualityTier, Double> reflectionsSsrMaxDiff = Map.of(
+                QualityTier.LOW, 0.45,
+                QualityTier.MEDIUM, 0.40,
+                QualityTier.HIGH, 0.37,
+                QualityTier.ULTRA, 0.35
+        );
+        Map<QualityTier, Double> reflectionsPlanarMaxDiff = Map.of(
+                QualityTier.LOW, 0.48,
+                QualityTier.MEDIUM, 0.43,
+                QualityTier.HIGH, 0.40,
+                QualityTier.ULTRA, 0.38
+        );
+        Map<QualityTier, Double> reflectionsHybridMaxDiff = Map.of(
+                QualityTier.LOW, 0.46,
+                QualityTier.MEDIUM, 0.41,
+                QualityTier.HIGH, 0.38,
+                QualityTier.ULTRA, 0.36
+        );
         Map<QualityTier, Double> materialFogSmokeShadowMaxDiff = Map.of(
                 QualityTier.LOW, 0.54,
                 QualityTier.MEDIUM, 0.44,
@@ -992,6 +1062,45 @@ class BackendParityIntegrationTest {
                     postSmaaReport.diffMetric() <= postProcessSmaaMaxDiff.get(tier),
                     "post-process smaa diff " + postSmaaReport.diffMetric()
                             + " exceeded " + postProcessSmaaMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path reflectionsSsrDir = compareOutputDir("reflections-ssr-" + tier.name().toLowerCase());
+            var reflectionsSsrReport = BackendCompareHarness.run(
+                    reflectionsSsrDir,
+                    reflectionsScene("ssr"),
+                    tier,
+                    "reflections-ssr-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    reflectionsSsrReport.diffMetric() <= reflectionsSsrMaxDiff.get(tier),
+                    "reflections-ssr diff " + reflectionsSsrReport.diffMetric()
+                            + " exceeded " + reflectionsSsrMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path reflectionsPlanarDir = compareOutputDir("reflections-planar-" + tier.name().toLowerCase());
+            var reflectionsPlanarReport = BackendCompareHarness.run(
+                    reflectionsPlanarDir,
+                    reflectionsScene("planar"),
+                    tier,
+                    "reflections-planar-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    reflectionsPlanarReport.diffMetric() <= reflectionsPlanarMaxDiff.get(tier),
+                    "reflections-planar diff " + reflectionsPlanarReport.diffMetric()
+                            + " exceeded " + reflectionsPlanarMaxDiff.get(tier) + " at " + tier
+            );
+
+            Path reflectionsHybridDir = compareOutputDir("reflections-hybrid-" + tier.name().toLowerCase());
+            var reflectionsHybridReport = BackendCompareHarness.run(
+                    reflectionsHybridDir,
+                    reflectionsScene("hybrid"),
+                    tier,
+                    "reflections-hybrid-" + tier.name().toLowerCase()
+            );
+            assertTrue(
+                    reflectionsHybridReport.diffMetric() <= reflectionsHybridMaxDiff.get(tier),
+                    "reflections-hybrid diff " + reflectionsHybridReport.diffMetric()
+                            + " exceeded " + reflectionsHybridMaxDiff.get(tier) + " at " + tier
             );
 
             Path materialFogSmokeShadowDir = compareOutputDir("material-fog-smoke-shadow-" + tier.name().toLowerCase());
@@ -1183,7 +1292,10 @@ class BackendParityIntegrationTest {
                 Map.entry("smaa-full-edge-crawl", 0.34),
                 Map.entry("post-process-ssao", 0.35),
                 Map.entry("post-process-ssao-stress", 0.37),
-                Map.entry("post-process-smaa", 0.36)
+                Map.entry("post-process-smaa", 0.36),
+                Map.entry("reflections-ssr", 0.35),
+                Map.entry("reflections-planar", 0.38),
+                Map.entry("reflections-hybrid", 0.36)
         );
 
         var reports = Map.ofEntries(
@@ -1354,6 +1466,24 @@ class BackendParityIntegrationTest {
                         postProcessSmaaScene(),
                         QualityTier.ULTRA,
                         "post-process-smaa-golden-ultra"
+                )),
+                Map.entry("reflections-ssr", BackendCompareHarness.run(
+                        compareOutputDir("reflections-ssr-golden"),
+                        reflectionsScene("ssr"),
+                        QualityTier.ULTRA,
+                        "reflections-ssr-golden-ultra"
+                )),
+                Map.entry("reflections-planar", BackendCompareHarness.run(
+                        compareOutputDir("reflections-planar-golden"),
+                        reflectionsScene("planar"),
+                        QualityTier.ULTRA,
+                        "reflections-planar-golden-ultra"
+                )),
+                Map.entry("reflections-hybrid", BackendCompareHarness.run(
+                        compareOutputDir("reflections-hybrid-golden"),
+                        reflectionsScene("hybrid"),
+                        QualityTier.ULTRA,
+                        "reflections-hybrid-golden-ultra"
                 ))
         );
 
@@ -1445,6 +1575,9 @@ class BackendParityIntegrationTest {
                  "taa-emissive-alpha-motion-stress-fxaa-low" -> 0.42;
             case "taa-specular-micro-highlights-stress-fxaa-low",
                  "taa-thin-geometry-motion-stress-fxaa-low" -> 0.40;
+            case "reflections-ssr" -> 0.38;
+            case "reflections-planar" -> 0.41;
+            case "reflections-hybrid" -> 0.39;
             default -> Math.min(1.0, strictMaxDiff + 0.02);
         };
     }
@@ -2130,6 +2263,44 @@ class BackendParityIntegrationTest {
         );
         return new SceneDescriptor(
                 "parity-post-process-smaa-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor reflectionsScene(String mode) {
+        SceneDescriptor base = materialLightingScene();
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.10f,
+                2.2f,
+                true,
+                0.92f,
+                0.86f,
+                true,
+                0.56f,
+                1.08f,
+                0.02f,
+                1.24f,
+                true,
+                0.68f,
+                true,
+                0.68f,
+                true,
+                null,
+                new ReflectionDesc(true, mode, 0.75f, 0.82f, 1.25f, 0.84f, 0.44f)
+        );
+        return new SceneDescriptor(
+                "reflections-" + mode + "-scene",
                 base.cameras(),
                 base.activeCameraId(),
                 base.transforms(),

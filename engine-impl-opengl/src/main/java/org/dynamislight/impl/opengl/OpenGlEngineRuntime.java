@@ -82,6 +82,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         HYBRID
     }
 
+    private enum ReflectionProfile {
+        PERFORMANCE,
+        BALANCED,
+        QUALITY,
+        STABILITY
+    }
+
     private record TsrControls(
             float historyWeight,
             float responsiveMask,
@@ -179,6 +186,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private AaMode aaMode = AaMode.TAA;
     private UpscalerMode upscalerMode = UpscalerMode.NONE;
     private UpscalerQuality upscalerQuality = UpscalerQuality.QUALITY;
+    private ReflectionProfile reflectionProfile = ReflectionProfile.BALANCED;
     private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f, 0.60f, 0.72f);
     private ExternalUpscalerIntegration externalUpscaler = ExternalUpscalerIntegration.inactive("not initialized");
     private boolean nativeUpscalerActive;
@@ -218,6 +226,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         aaMode = parseAaMode(config.backendOptions().get("opengl.aaMode"));
         upscalerMode = parseUpscalerMode(config.backendOptions().get("opengl.upscalerMode"));
         upscalerQuality = parseUpscalerQuality(config.backendOptions().get("opengl.upscalerQuality"));
+        reflectionProfile = parseReflectionProfile(config.backendOptions().get("opengl.reflectionsProfile"));
         tsrControls = parseTsrControls(config.backendOptions(), "opengl.");
         externalUpscaler = ExternalUpscalerIntegration.create("opengl", "opengl.", config.backendOptions());
         nativeUpscalerActive = false;
@@ -280,7 +289,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         smoke = mapSmoke(scene.smokeEmitters(), qualityTier);
         shadows = mapShadows(scene.lights(), qualityTier);
         nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene.lights());
-        postProcess = mapPostProcess(scene.postProcess(), qualityTier, taaLumaClipEnabledDefault, aaPreset, aaMode, upscalerMode, upscalerQuality, tsrControls);
+        postProcess = mapPostProcess(scene.postProcess(), qualityTier, taaLumaClipEnabledDefault, aaPreset, aaMode, upscalerMode, upscalerQuality, tsrControls, reflectionProfile);
         postProcess = applyExternalUpscalerDecision(postProcess);
         ibl = mapIbl(scene.environment(), qualityTier);
 
@@ -682,7 +691,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             AaMode aaMode,
             UpscalerMode upscalerMode,
             UpscalerQuality upscalerQuality,
-            TsrControls tsrControls
+            TsrControls tsrControls,
+            ReflectionProfile reflectionProfile
     ) {
         if (desc == null || !desc.enabled()) {
             return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f, false, ReflectionMode.IBL_ONLY.ordinal(), 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
@@ -888,6 +898,29 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 reflectionsPlanarStrength *= 0.9f;
             }
         }
+        if (reflectionsEnabled && reflectionProfile != null) {
+            switch (reflectionProfile) {
+                case PERFORMANCE -> {
+                    reflectionsSsrStrength = clamp(reflectionsSsrStrength * 0.80f, 0f, 1f);
+                    reflectionsSsrStepScale = clamp(reflectionsSsrStepScale * 1.20f, 0.5f, 3f);
+                    reflectionsTemporalWeight = clamp(reflectionsTemporalWeight * 0.75f, 0f, 0.98f);
+                    reflectionsPlanarStrength = clamp(reflectionsPlanarStrength * 0.90f, 0f, 1f);
+                }
+                case QUALITY -> {
+                    reflectionsSsrStrength = clamp(reflectionsSsrStrength * 1.10f, 0f, 1f);
+                    reflectionsSsrStepScale = clamp(reflectionsSsrStepScale * 0.90f, 0.5f, 3f);
+                    reflectionsTemporalWeight = clamp(reflectionsTemporalWeight + 0.08f, 0f, 0.98f);
+                    reflectionsPlanarStrength = clamp(reflectionsPlanarStrength + 0.05f, 0f, 1f);
+                }
+                case STABILITY -> {
+                    reflectionsSsrStrength = clamp(reflectionsSsrStrength * 0.95f, 0f, 1f);
+                    reflectionsSsrStepScale = clamp(reflectionsSsrStepScale * 1.05f, 0.5f, 3f);
+                    reflectionsTemporalWeight = clamp(reflectionsTemporalWeight + 0.12f, 0f, 0.98f);
+                }
+                case BALANCED -> {
+                }
+            }
+        }
         return new PostProcessRenderConfig(
                 desc.tonemapEnabled(),
                 exposure,
@@ -1006,6 +1039,18 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             case "planar" -> ReflectionMode.PLANAR;
             case "hybrid" -> ReflectionMode.HYBRID;
             default -> ReflectionMode.IBL_ONLY;
+        };
+    }
+
+    private static ReflectionProfile parseReflectionProfile(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return ReflectionProfile.BALANCED;
+        }
+        return switch (raw.trim().toLowerCase()) {
+            case "performance" -> ReflectionProfile.PERFORMANCE;
+            case "quality" -> ReflectionProfile.QUALITY;
+            case "stability" -> ReflectionProfile.STABILITY;
+            default -> ReflectionProfile.BALANCED;
         };
     }
 

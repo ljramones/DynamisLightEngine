@@ -21,6 +21,20 @@ This guide covers reflection controls in `PostProcessDesc`.
 - `planar`: mirrored screen-space planar sample.
 - `hybrid`: SSR + planar blend.
 
+## Backend Profiles
+
+Reflection quality profiles are available through backend options:
+
+- OpenGL: `opengl.reflectionsProfile`
+- Vulkan: `vulkan.reflectionsProfile`
+
+Allowed values:
+
+- `performance`: reduces SSR intensity/history cost.
+- `balanced`: default.
+- `quality`: increases reflection stability/intensity.
+- `stability`: favors temporal stability over aggressive SSR.
+
 ## Example
 
 ```java

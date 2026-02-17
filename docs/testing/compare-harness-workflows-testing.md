@@ -10,6 +10,7 @@ Validate end-to-end compare harness operation, threshold management, and artifac
 - Preflight + lock-thresholds workflow
 - Long-run and longrun-motion sampling workflows
 - Upscaler matrix workflow
+- Reflection profile and reflection-scene compare sweeps
 
 ## 3. Primary Metrics
 - compare execution success/failure
@@ -41,6 +42,12 @@ Long-run motion:
 Upscaler matrix:
 ```bash
 ./scripts/aa_rebaseline_real_mac.sh upscaler-matrix
+```
+
+Reflection profile override run:
+```bash
+MAVEN_OPTS="-Ddle.compare.reflections.profile=quality" \
+./scripts/aa_rebaseline_real_mac.sh
 ```
 
 ## 5. Pass/Fail Criteria
