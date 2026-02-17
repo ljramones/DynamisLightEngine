@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.nio.file.Files;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -1633,19 +1634,37 @@ class BackendParityIntegrationTest {
 
     private static Map<String, Double> loadThresholdOverrides() {
         String path = System.getProperty("dle.compare.thresholds.file", "").trim();
-        if (path.isEmpty()) {
-            return Map.of();
+        if (!path.isEmpty()) {
+            Path thresholdFile = Path.of(path);
+            if (!Files.isRegularFile(thresholdFile)) {
+                return Map.of();
+            }
+            Properties p = new Properties();
+            try (var in = Files.newInputStream(thresholdFile)) {
+                p.load(in);
+            } catch (Exception ignored) {
+                return Map.of();
+            }
+            return parseThresholdOverrides(p);
         }
-        Path thresholdFile = Path.of(path);
-        if (!Files.isRegularFile(thresholdFile)) {
+
+        String defaultResource = isVulkanMockProfile()
+                ? "thresholds/vulkan-mock.properties"
+                : "thresholds/vulkan-real.properties";
+        InputStream resource = BackendParityIntegrationTest.class.getClassLoader().getResourceAsStream(defaultResource);
+        if (resource == null) {
             return Map.of();
         }
         Properties p = new Properties();
-        try (var in = Files.newInputStream(thresholdFile)) {
+        try (var in = resource) {
             p.load(in);
         } catch (Exception ignored) {
             return Map.of();
         }
+        return parseThresholdOverrides(p);
+    }
+
+    private static Map<String, Double> parseThresholdOverrides(Properties p) {
         Map<String, Double> out = new java.util.HashMap<>();
         for (String key : p.stringPropertyNames()) {
             if (!key.startsWith("threshold.")) {

@@ -8,6 +8,8 @@ Validate end-to-end compare harness operation, threshold management, and artifac
 ## 2. Coverage
 - Default/mock and real Vulkan runs
 - Preflight + lock-thresholds workflow
+- Repo-default threshold loading by mode (`vulkan-real.properties` / `vulkan-mock.properties`)
+- Threshold recommendation promotion workflow (`scripts/promote_compare_thresholds.sh`)
 - Long-run and longrun-motion sampling workflows
 - Upscaler matrix workflow
 - Reflection profile and reflection-scene compare sweeps
@@ -32,6 +34,12 @@ DLE_COMPARE_VULKAN_MODE=real ./scripts/aa_rebaseline_real_mac.sh
 Threshold lock:
 ```bash
 ./scripts/aa_rebaseline_real_mac.sh lock-thresholds artifacts/compare
+```
+
+Promote recommended thresholds into repo defaults:
+```bash
+./scripts/promote_compare_thresholds.sh artifacts/compare/threshold-lock/recommended-thresholds.properties real
+./scripts/promote_compare_thresholds.sh artifacts/compare/threshold-lock/recommended-thresholds.properties mock
 ```
 
 Long-run motion:

@@ -69,6 +69,9 @@ Optional JVM property for reflection profile during compare:
 - Threshold lock outputs:
   - `threshold-lock-report.tsv`
   - `recommended-thresholds.properties`
+- Default repo-owned threshold files are auto-loaded when no explicit `DLE_COMPARE_THRESHOLDS_FILE` is provided:
+  - `engine-host-sample/src/test/resources/thresholds/vulkan-real.properties`
+  - `engine-host-sample/src/test/resources/thresholds/vulkan-mock.properties`
 
 ## 6. Troubleshooting
 If script fails in real mode:
@@ -94,6 +97,12 @@ Real + threshold override run:
 DLE_COMPARE_THRESHOLDS_FILE=artifacts/compare/threshold-lock/recommended-thresholds.properties \
 DLE_COMPARE_VULKAN_MODE=real \
 ./scripts/aa_rebaseline_real_mac.sh
+```
+
+Promote generated recommendations into repo defaults:
+```bash
+./scripts/promote_compare_thresholds.sh artifacts/compare/threshold-lock/recommended-thresholds.properties real
+./scripts/promote_compare_thresholds.sh artifacts/compare/threshold-lock/recommended-thresholds.properties mock
 ```
 
 ## 8. Known Gaps / Next Steps

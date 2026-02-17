@@ -134,6 +134,12 @@ DLE_COMPARE_LONGRUN_MOTION_RUNS=4 \
 ```
 
 ```bash
+# Promote generated recommendations into repo-owned default threshold files
+./scripts/promote_compare_thresholds.sh artifacts/compare/threshold-lock/recommended-thresholds.properties real
+./scripts/promote_compare_thresholds.sh artifacts/compare/threshold-lock/recommended-thresholds.properties mock
+```
+
+```bash
 # Apply locked thresholds automatically during compare runs
 DLE_COMPARE_THRESHOLDS_FILE=artifacts/compare/threshold-lock/recommended-thresholds.properties \
 DLE_COMPARE_VULKAN_MODE=real \
