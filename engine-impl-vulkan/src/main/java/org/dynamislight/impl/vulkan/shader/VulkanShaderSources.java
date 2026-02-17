@@ -581,8 +581,29 @@ public final class VulkanShaderSources {
                                 ? (blockerDepthAccum / blockerDepthWeight)
                                 : clamp(compareDepth - blockerMean * 0.22, 0.0, 1.0);
                         float blockerDepth = clamp(mix(compareDepth - blockerMean * 0.24, blockerMeanDepth, hasMoments), 0.0, 1.0);
-                        float penumbra = clamp((depthRatio - blockerDepth + (1.0 - ndl) * 0.82) * pcssSoftness * 1.8, 0.0, 1.0);
                         float blockerSeparation = clamp(compareDepth - blockerDepth, 0.0, 1.0);
+                        int refineRadius = clamp(int(mix(1.0, 4.0, blockerSeparation * 1.6 + (1.0 - ndl) * 0.4)), 1, 4);
+                        float refineDepthAccum = 0.0;
+                        float refineDepthWeight = 0.0;
+                        for (int i = 0; i < 8; i++) {
+                            float ang = (6.2831853 * float(i)) / 8.0;
+                            vec2 dir = vec2(cos(ang), sin(ang));
+                            vec2 offset = dir * texel * float(refineRadius);
+                            vec2 sampleUv = clamp(uv + offset, vec2(0.0), vec2(1.0));
+                            float radial = mix(1.0, 0.45, float(i & 1));
+                            float localDepth = compareDepth - (1.0 - texture(uShadowMap, vec4(sampleUv, float(layer), compareDepth))) * 0.24;
+                            if (hasMoments > 0.5) {
+                                vec2 localMoments = textureLod(uShadowMomentMap, vec3(sampleUv, float(layer)), 0.0).rg;
+                                localDepth = mix(localDepth, clamp(localMoments.x, 0.0, 1.0), 0.72);
+                            }
+                            refineDepthAccum += localDepth * radial;
+                            refineDepthWeight += radial;
+                        }
+                        float refinedBlockerDepth = refineDepthWeight > 0.0
+                                ? clamp(refineDepthAccum / refineDepthWeight, 0.0, 1.0)
+                                : blockerDepth;
+                        blockerDepth = mix(blockerDepth, refinedBlockerDepth, clamp(0.55 + blockerSeparation * 0.35, 0.35, 0.90));
+                        float penumbra = clamp((depthRatio - blockerDepth + (1.0 - ndl) * 0.82) * pcssSoftness * 1.8, 0.0, 1.0);
                         penumbra = clamp(penumbra * mix(0.85, 1.25, blockerSeparation), 0.0, 1.0);
                         float neigh = 0.0;
                         neigh += texture(uShadowMap, vec4(clamp(uv + vec2(texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
@@ -590,8 +611,16 @@ public final class VulkanShaderSources {
                         neigh += texture(uShadowMap, vec4(clamp(uv + vec2(0.0, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
                         neigh += texture(uShadowMap, vec4(clamp(uv + vec2(0.0, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
                         neigh *= 0.25;
+                        float neighDiag = 0.0;
+                        neighDiag += texture(uShadowMap, vec4(clamp(uv + vec2(texel, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        neighDiag += texture(uShadowMap, vec4(clamp(uv + vec2(texel, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        neighDiag += texture(uShadowMap, vec4(clamp(uv + vec2(-texel, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        neighDiag += texture(uShadowMap, vec4(clamp(uv + vec2(-texel, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        neighDiag *= 0.25;
+                        float neighEdge = abs(neigh - neighDiag);
                         float soft = mix(visibility, sqrt(max(visibility, 0.0)), 0.42 * penumbra);
                         soft = mix(soft, neigh, clamp(0.32 * penumbra, 0.0, 0.45));
+                        soft = mix(soft, mix(neigh, neighDiag, 0.5), clamp(0.18 * penumbra * (1.0 - neighEdge), 0.0, 0.20));
                         float edgeProtect = smoothstep(0.12, 0.50, visibility);
                         visibility = mix(soft, visibility, edgeProtect * 0.40);
                     } else if (shadowFilterMode == 2) {

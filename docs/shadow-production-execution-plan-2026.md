@@ -100,6 +100,10 @@ Status: In progress (started and partially landed).
 - screen-space near-contact trace + temporal stabilization.
  - Status: In progress (runtime-strength shaping active; motion-adaptive temporal stabilization shaping is active; full history-buffer stabilization remains pending).
 
+4. PCSS refinement depth
+- secondary blocker ring refinement and penumbra stability passes.
+ - Status: In progress (moment-informed blocker estimate + secondary ring refinement path active; full final production blocker-search parity still pending).
+
 ## Phase 4: Hardware RT Shadows
 
 1. Capability-gated RT path

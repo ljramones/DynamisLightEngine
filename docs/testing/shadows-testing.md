@@ -171,6 +171,7 @@ Long-run motion/shimmer sweep (real Vulkan):
   - deep wide bilateral moment consistency pass (`deepMoments` + `consistency` blend)
   - ultra-wide bilateral refinement + moment-neighborhood bounds clamp (`ultraMoments`, `momentBounds`, `clampMomentsToBounds`)
   - leak-risk adaptive anti-bleed shaping (`leakRisk`, `antiBleedMix`)
+  - PCSS secondary blocker-ring refinement and penumbra neighborhood balancing (`refineRadius`, `refinedBlockerDepth`, `neighDiag`)
   - motion-adaptive contact temporal stabilization shaping (`contactTemporalStability`)
 - Vulkan integration tests validate multi-point cubemap concurrency policy under ULTRA and override budgets:
   - `VulkanEngineRuntimeIntegrationTest#multiPointLocalShadowSceneUsesConcurrentPointCubemapBudgetAtUltra`
