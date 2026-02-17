@@ -472,6 +472,17 @@ public final class VulkanShaderSources {
                         float rtW = texture(uShadowMap, vec4(clamp(uv - vec2(o.x, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
                         float rtKernelBlend = mix(shadowRtMode > 1 ? 0.30 : 0.18, shadowRtMode > 1 ? 0.60 : 0.45, shadowRtDenoiseStrength);
                         float rtDenoised = mix(rtVis, (rtN + rtS + rtE + rtW) * 0.25, rtKernelBlend);
+                        if (shadowRtMode > 2) {
+                            float rtNE = texture(uShadowMap, vec4(clamp(uv + vec2(o.x, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                            float rtNW = texture(uShadowMap, vec4(clamp(uv + vec2(-o.x, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                            float rtSE = texture(uShadowMap, vec4(clamp(uv + vec2(o.x, -o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                            float rtSW = texture(uShadowMap, vec4(clamp(uv + vec2(-o.x, -o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                            float cross = (rtN + rtS + rtE + rtW) * 0.25;
+                            float diag = (rtNE + rtNW + rtSE + rtSW) * 0.25;
+                            float rtWide = mix(cross, diag, 0.42);
+                            float wideBlend = clamp(0.30 + shadowRtDenoiseStrength * 0.38, 0.25, 0.78);
+                            rtDenoised = mix(rtDenoised, rtWide, wideBlend);
+                        }
                         visibility = mix(visibility, clamp(rtDenoised, 0.0, 1.0), shadowRtMode > 1 ? 0.55 : 0.38);
                     }
                     return clamp(visibility, 0.0, 1.0);

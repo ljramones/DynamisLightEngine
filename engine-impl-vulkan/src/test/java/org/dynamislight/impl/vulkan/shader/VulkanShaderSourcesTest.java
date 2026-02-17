@@ -28,6 +28,8 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("float shadowRtRayLength = clamp(gbo.uShadowCascadeExt.x, 1.0, 500.0);"));
         assertTrue(shader.contains("int rtSteps = clamp(shadowRtSampleCount * (shadowRtMode > 1 ? 2 : 1), 4, 24);"));
         assertTrue(shader.contains("float rtKernelBlend = mix(shadowRtMode > 1 ? 0.30 : 0.18, shadowRtMode > 1 ? 0.60 : 0.45, shadowRtDenoiseStrength);"));
+        assertTrue(shader.contains("if (shadowRtMode > 2) {"));
+        assertTrue(shader.contains("float rtWide = mix(cross, diag, 0.42);"));
         assertTrue(shader.contains("int shadowModePacked = max(int(gbo.uLocalLightMeta.z + 0.5), 0);"));
         assertTrue(shader.contains("soft = mix(soft, neigh, clamp(0.32 * penumbra, 0.0, 0.45));"));
         assertTrue(shader.contains("float contactTemporalStability = mix("));

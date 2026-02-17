@@ -104,6 +104,7 @@ Status: In progress (started and partially landed).
 
 1. Capability-gated RT path
 - dedicated RT traversal pipeline and denoiser.
+ - Note: current hybrid RT path now includes BVH-mode-specific cross-neighborhood denoise refinement; dedicated BVH traversal/denoise pipeline is still pending.
 
 2. Fallback stack
 - deterministic fallback to non-RT paths when unsupported.
