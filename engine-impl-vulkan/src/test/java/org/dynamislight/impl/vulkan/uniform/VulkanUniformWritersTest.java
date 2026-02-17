@@ -53,6 +53,7 @@ class VulkanUniformWritersTest {
                 0,
                 false,
                 1f, 1f,
+                1.0f, 0.42f,
                 false, 0.4f, 0.001f, 1.0f, 1.0f, 1, 1, 1024, new float[]{0.25f, 0.5f, 0.75f},
                 false, 0f, 0f, 0f, 0f, 0,
                 false, 0f, 1280, 720, 0f, 0f, 0f,

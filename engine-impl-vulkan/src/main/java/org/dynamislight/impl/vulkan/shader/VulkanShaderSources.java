@@ -391,6 +391,8 @@ public final class VulkanShaderSources {
                     float contactStrengthScale = clamp(gbo.uPointLightDir.w, 0.25, 2.0);
                     float taaEnabled = gbo.uAntiAlias.x > 0.5 ? 1.0 : 0.0;
                     float taaBlend = clamp(gbo.uAntiAlias.y, 0.0, 1.0);
+                    float contactTemporalMotionScale = clamp(gbo.uLightIntensity.z, 0.1, 3.0);
+                    float contactTemporalMinStability = clamp(gbo.uLightIntensity.w, 0.2, 1.0);
                     vec4 contactCurrClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
                     vec4 contactPrevClip = gbo.uPrevViewProj * (obj.uPrevModel * vec4(vLocalPos, 1.0));
                     float contactCurrW = abs(contactCurrClip.w) > 0.000001 ? contactCurrClip.w : 1.0;
@@ -399,7 +401,7 @@ public final class VulkanShaderSources {
                     float contactMotionMag = length(clamp(contactMotionNdc, vec2(-1.0), vec2(1.0)));
                     float contactTemporalStability = mix(
                             1.0,
-                            clamp(1.0 - contactMotionMag * (0.85 + taaBlend * 0.85), 0.42, 1.0),
+                            clamp(1.0 - contactMotionMag * (0.85 + taaBlend * 0.85) * contactTemporalMotionScale, contactTemporalMinStability, 1.0),
                             taaEnabled
                     );
 

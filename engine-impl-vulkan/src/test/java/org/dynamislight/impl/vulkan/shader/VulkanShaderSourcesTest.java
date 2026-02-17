@@ -17,6 +17,8 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("float finalizeShadowVisibility("));
         assertTrue(shader.contains("soft = mix(soft, neigh, clamp(0.32 * penumbra, 0.0, 0.45));"));
         assertTrue(shader.contains("float contactTemporalStability = mix("));
+        assertTrue(shader.contains("float contactTemporalMotionScale = clamp(gbo.uLightIntensity.z, 0.1, 3.0);"));
+        assertTrue(shader.contains("float contactTemporalMinStability = clamp(gbo.uLightIntensity.w, 0.2, 1.0);"));
         assertTrue(shader.contains("* contactTemporalStability;"));
         assertTrue(shader.contains("float pcssSoftness = clamp(gbo.uDirLightDir.w, 0.25, 2.0);"));
         assertTrue(shader.contains("float momentBlend = clamp(gbo.uDirLightColor.w, 0.25, 1.5);"));

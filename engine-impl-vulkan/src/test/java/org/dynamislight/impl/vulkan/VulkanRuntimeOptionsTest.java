@@ -20,6 +20,8 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.momentBlend", "0.9"),
                         Map.entry("vulkan.shadow.momentBleedReduction", "1.2"),
                         Map.entry("vulkan.shadow.contactStrength", "1.5"),
+                        Map.entry("vulkan.shadow.contactTemporalMotionScale", "1.8"),
+                        Map.entry("vulkan.shadow.contactTemporalMinStability", "0.55"),
                         Map.entry("vulkan.shadow.scheduler.enabled", "false"),
                         Map.entry("vulkan.shadow.scheduler.heroPeriod", "2"),
                         Map.entry("vulkan.shadow.scheduler.midPeriod", "3"),
@@ -40,6 +42,8 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.9f, parsed.shadowMomentBlend());
         assertEquals(1.2f, parsed.shadowMomentBleedReduction());
         assertEquals(1.5f, parsed.shadowContactStrength());
+        assertEquals(1.8f, parsed.shadowContactTemporalMotionScale());
+        assertEquals(0.55f, parsed.shadowContactTemporalMinStability());
         assertEquals(false, parsed.shadowSchedulerEnabled());
         assertEquals(2, parsed.shadowSchedulerHeroPeriod());
         assertEquals(3, parsed.shadowSchedulerMidPeriod());
@@ -62,6 +66,8 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.momentBlend", "0.1"),
                         Map.entry("vulkan.shadow.momentBleedReduction", "7.0"),
                         Map.entry("vulkan.shadow.contactStrength", "-1.0"),
+                        Map.entry("vulkan.shadow.contactTemporalMotionScale", "-1.0"),
+                        Map.entry("vulkan.shadow.contactTemporalMinStability", "1.5"),
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "10.0")
                 ),
                 256
@@ -77,6 +83,8 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.25f, parsed.shadowMomentBlend());
         assertEquals(1.5f, parsed.shadowMomentBleedReduction());
         assertEquals(0.25f, parsed.shadowContactStrength());
+        assertEquals(0.1f, parsed.shadowContactTemporalMotionScale());
+        assertEquals(1.0f, parsed.shadowContactTemporalMinStability());
         assertEquals(true, parsed.shadowSchedulerEnabled());
         assertEquals(1, parsed.shadowSchedulerHeroPeriod());
         assertEquals(2, parsed.shadowSchedulerMidPeriod());

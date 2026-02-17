@@ -543,13 +543,17 @@ final class VulkanContext {
             float pcssSoftness,
             float momentBlend,
             float momentBleedReduction,
-            float contactStrength
+            float contactStrength,
+            float contactTemporalMotionScale,
+            float contactTemporalMinStability
     ) {
         boolean changed = false;
         float clampedPcssSoftness = Math.max(0.25f, Math.min(2.0f, pcssSoftness));
         float clampedMomentBlend = Math.max(0.25f, Math.min(1.5f, momentBlend));
         float clampedMomentBleedReduction = Math.max(0.25f, Math.min(1.5f, momentBleedReduction));
         float clampedContactStrength = Math.max(0.25f, Math.min(2.0f, contactStrength));
+        float clampedContactTemporalMotionScale = Math.max(0.1f, Math.min(3.0f, contactTemporalMotionScale));
+        float clampedContactTemporalMinStability = Math.max(0.2f, Math.min(1.0f, contactTemporalMinStability));
         if (Math.abs(renderState.shadowPcssSoftness - clampedPcssSoftness) > 0.000001f) {
             renderState.shadowPcssSoftness = clampedPcssSoftness;
             changed = true;
@@ -564,6 +568,14 @@ final class VulkanContext {
         }
         if (Math.abs(renderState.shadowContactStrength - clampedContactStrength) > 0.000001f) {
             renderState.shadowContactStrength = clampedContactStrength;
+            changed = true;
+        }
+        if (Math.abs(renderState.shadowContactTemporalMotionScale - clampedContactTemporalMotionScale) > 0.000001f) {
+            renderState.shadowContactTemporalMotionScale = clampedContactTemporalMotionScale;
+            changed = true;
+        }
+        if (Math.abs(renderState.shadowContactTemporalMinStability - clampedContactTemporalMinStability) > 0.000001f) {
+            renderState.shadowContactTemporalMinStability = clampedContactTemporalMinStability;
             changed = true;
         }
         if (changed) {
@@ -1301,6 +1313,8 @@ final class VulkanContext {
                                         renderState.shadowContactShadows,
                                         lightingState.dirLightIntensity(),
                                         lightingState.pointLightIntensity(),
+                                        renderState.shadowContactTemporalMotionScale,
+                                        renderState.shadowContactTemporalMinStability,
                                         renderState.shadowEnabled,
                                         renderState.shadowStrength,
                                         renderState.shadowBias,

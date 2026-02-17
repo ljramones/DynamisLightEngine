@@ -72,7 +72,12 @@ public final class VulkanUniformWriters {
                     in.localLightOuterTypeShadow()[offset + 3]
             });
         }
-        fb.put(new float[]{in.dirLightIntensity(), in.pointLightIntensity(), 0f, 0f});
+        fb.put(new float[]{
+                in.dirLightIntensity(),
+                in.pointLightIntensity(),
+                in.shadowContactTemporalMotionScale(),
+                in.shadowContactTemporalMinStability()
+        });
         fb.put(new float[]{in.shadowEnabled() ? 1f : 0f, in.shadowStrength(), in.shadowBias(), (float) in.shadowPcfRadius()});
         float split1 = in.shadowCascadeSplitNdc()[0];
         float split2 = in.shadowCascadeSplitNdc()[1];
@@ -159,6 +164,8 @@ public final class VulkanUniformWriters {
             boolean shadowContactShadows,
             float dirLightIntensity,
             float pointLightIntensity,
+            float shadowContactTemporalMotionScale,
+            float shadowContactTemporalMinStability,
             boolean shadowEnabled,
             float shadowStrength,
             float shadowBias,

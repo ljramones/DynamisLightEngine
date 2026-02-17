@@ -134,6 +134,8 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `vulkan.shadow.momentBlend`
   - `vulkan.shadow.momentBleedReduction`
   - `vulkan.shadow.contactStrength`
+  - `vulkan.shadow.contactTemporalMotionScale`
+  - `vulkan.shadow.contactTemporalMinStability`
   - `vulkan.shadow.rtDenoiseStrength`
   - `vulkan.shadow.rtRayLength`
   - `vulkan.shadow.rtSampleCount`

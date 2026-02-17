@@ -152,6 +152,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private float shadowMomentBlend = 1.0f;
     private float shadowMomentBleedReduction = 1.0f;
     private float shadowContactStrength = 1.0f;
+    private float shadowContactTemporalMotionScale = 1.0f;
+    private float shadowContactTemporalMinStability = 0.42f;
     private int shadowMaxShadowedLocalLights;
     private int shadowMaxLocalLayers;
     private int shadowMaxFacesPerFrame;
@@ -219,6 +221,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowMomentBlend = options.shadowMomentBlend();
         shadowMomentBleedReduction = options.shadowMomentBleedReduction();
         shadowContactStrength = options.shadowContactStrength();
+        shadowContactTemporalMotionScale = options.shadowContactTemporalMotionScale();
+        shadowContactTemporalMinStability = options.shadowContactTemporalMinStability();
         shadowMaxShadowedLocalLights = options.shadowMaxShadowedLocalLights();
         shadowMaxLocalLayers = options.shadowMaxLocalLayers();
         shadowMaxFacesPerFrame = options.shadowMaxFacesPerFrame();
@@ -322,7 +326,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowPcssSoftness,
                     shadowMomentBlend,
                     shadowMomentBleedReduction,
-                    shadowContactStrength
+                    shadowContactStrength,
+                    shadowContactTemporalMotionScale,
+                    shadowContactTemporalMinStability
             );
         }
     }
@@ -392,7 +398,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowPcssSoftness,
                     shadowMomentBlend,
                     shadowMomentBleedReduction,
-                    shadowContactStrength
+                    shadowContactStrength,
+                    shadowContactTemporalMotionScale,
+                    shadowContactTemporalMinStability
             );
             context.setShadowDirectionalTexelSnap(
                     shadowDirectionalTexelSnapEnabled,
@@ -542,6 +550,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " shadowMomentBlend=" + shadowMomentBlend
                             + " shadowMomentBleedReduction=" + shadowMomentBleedReduction
                             + " shadowContactStrength=" + shadowContactStrength
+                            + " shadowContactTemporalMotionScale=" + shadowContactTemporalMotionScale
+                            + " shadowContactTemporalMinStability=" + shadowContactTemporalMinStability
                             + " momentFilterEstimateOnly=" + currentShadows.momentFilterEstimateOnly()
                             + " momentPipelineRequested=" + currentShadows.momentPipelineRequested()
                             + " momentPipelineActive=" + currentShadows.momentPipelineActive()

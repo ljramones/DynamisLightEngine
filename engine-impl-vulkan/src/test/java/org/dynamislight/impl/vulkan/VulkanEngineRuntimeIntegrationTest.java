@@ -855,7 +855,9 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.shadow.pcssSoftness", "1.35",
                 "vulkan.shadow.momentBlend", "0.85",
                 "vulkan.shadow.momentBleedReduction", "1.10",
-                "vulkan.shadow.contactStrength", "1.40"
+                "vulkan.shadow.contactStrength", "1.40",
+                "vulkan.shadow.contactTemporalMotionScale", "1.7",
+                "vulkan.shadow.contactTemporalMinStability", "0.6"
         )), new RecordingCallbacks());
         runtime.loadScene(validSpotShadowScene());
 
@@ -866,7 +868,9 @@ class VulkanEngineRuntimeIntegrationTest {
                         && w.message().contains("shadowPcssSoftness=1.35")
                         && w.message().contains("shadowMomentBlend=0.85")
                         && w.message().contains("shadowMomentBleedReduction=1.1")
-                        && w.message().contains("shadowContactStrength=1.4")));
+                        && w.message().contains("shadowContactStrength=1.4")
+                        && w.message().contains("shadowContactTemporalMotionScale=1.7")
+                        && w.message().contains("shadowContactTemporalMinStability=0.6")));
         runtime.shutdown();
     }
 
