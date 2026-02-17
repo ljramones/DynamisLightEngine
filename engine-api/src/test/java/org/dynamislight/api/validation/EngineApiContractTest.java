@@ -31,6 +31,7 @@ import org.dynamislight.api.scene.ReflectionAdvancedDesc;
 import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
+import org.dynamislight.api.scene.SpotLightDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
 import org.junit.jupiter.api.Test;
@@ -296,5 +297,26 @@ class EngineApiContractTest {
         assertTrue(EngineApiVersions.isRuntimeCompatible(new EngineApiVersion(1, 1, 0), new EngineApiVersion(1, 2, 0)));
         assertFalse(EngineApiVersions.isRuntimeCompatible(new EngineApiVersion(1, 2, 0), new EngineApiVersion(1, 1, 9)));
         assertFalse(EngineApiVersions.isRuntimeCompatible(new EngineApiVersion(1, 0, 0), new EngineApiVersion(2, 0, 0)));
+    }
+
+    @Test
+    void spotLightDescConvertsToSpotLightDesc() {
+        SpotLightDesc spot = new SpotLightDesc(
+                "spot-main",
+                new Vec3(1f, 3f, 2f),
+                new Vec3(0f, -1f, 0f),
+                new Vec3(1f, 0.95f, 0.9f),
+                3.2f,
+                18f,
+                18f,
+                32f,
+                true,
+                new org.dynamislight.api.scene.ShadowDesc(1024, 0.0008f, 3, 1)
+        );
+        LightDesc light = spot.toLightDesc();
+        assertEquals(org.dynamislight.api.scene.LightType.SPOT, light.type());
+        assertEquals("spot-main", light.id());
+        assertTrue(light.castsShadows());
+        assertTrue(light.range() > 0f);
     }
 }

@@ -134,6 +134,8 @@ public final class VulkanLightingParameterMutator {
         boolean shadowEnabled = current.shadowEnabled();
         float shadowStrength = current.shadowStrength();
         float shadowBias = current.shadowBias();
+        float shadowNormalBiasScale = current.shadowNormalBiasScale();
+        float shadowSlopeBiasScale = current.shadowSlopeBiasScale();
         int shadowPcfRadius = current.shadowPcfRadius();
         int shadowCascadeCount = current.shadowCascadeCount();
         int shadowMapResolution = current.shadowMapResolution();
@@ -150,6 +152,16 @@ public final class VulkanLightingParameterMutator {
         float clampedBias = Math.max(0.00002f, update.bias());
         if (!floatEquals(shadowBias, clampedBias)) {
             shadowBias = clampedBias;
+            changed = true;
+        }
+        float clampedNormalScale = Math.max(0.25f, Math.min(4.0f, update.normalBiasScale()));
+        if (!floatEquals(shadowNormalBiasScale, clampedNormalScale)) {
+            shadowNormalBiasScale = clampedNormalScale;
+            changed = true;
+        }
+        float clampedSlopeScale = Math.max(0.25f, Math.min(4.0f, update.slopeBiasScale()));
+        if (!floatEquals(shadowSlopeBiasScale, clampedSlopeScale)) {
+            shadowSlopeBiasScale = clampedSlopeScale;
             changed = true;
         }
         int clampedPcf = Math.max(0, update.pcfRadius());
@@ -172,6 +184,8 @@ public final class VulkanLightingParameterMutator {
                 shadowEnabled,
                 shadowStrength,
                 shadowBias,
+                shadowNormalBiasScale,
+                shadowSlopeBiasScale,
                 shadowPcfRadius,
                 shadowCascadeCount,
                 shadowMapResolution
@@ -244,6 +258,8 @@ public final class VulkanLightingParameterMutator {
             boolean shadowEnabled,
             float shadowStrength,
             float shadowBias,
+            float shadowNormalBiasScale,
+            float shadowSlopeBiasScale,
             int shadowPcfRadius,
             int shadowCascadeCount,
             int shadowMapResolution
@@ -254,6 +270,8 @@ public final class VulkanLightingParameterMutator {
             boolean enabled,
             float strength,
             float bias,
+            float normalBiasScale,
+            float slopeBiasScale,
             int pcfRadius,
             int cascadeCount,
             int mapResolution,

@@ -111,7 +111,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int viewportHeight = 720;
     private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
-    private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
+    private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", false);
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
     private int taaDebugView;
     private boolean taaLumaClipEnabledDefault;
@@ -325,6 +325,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         "Reflections quality is reduced at MEDIUM tier to stabilize frame time"
                 ));
             }
+        }
+        if (currentShadows.enabled()) {
+            warnings.add(new EngineWarning(
+                    "SHADOW_POLICY_ACTIVE",
+                    "Shadow policy active: primary=" + currentShadows.primaryShadowLightId()
+                            + " type=" + currentShadows.primaryShadowType()
+                            + " localBudget=" + currentShadows.maxShadowedLocalLights()
+                            + " localSelected=" + currentShadows.selectedLocalShadowLights()
+                            + " normalBiasScale=" + currentShadows.normalBiasScale()
+                            + " slopeBiasScale=" + currentShadows.slopeBiasScale()
+            ));
         }
         return warnings;
     }
@@ -602,9 +613,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean enabled,
             float strength,
             float bias,
+            float normalBiasScale,
+            float slopeBiasScale,
             int pcfRadius,
             int cascadeCount,
             int mapResolution,
+            int maxShadowedLocalLights,
+            int selectedLocalShadowLights,
+            String primaryShadowType,
+            String primaryShadowLightId,
             boolean degraded
     ) {
     }
@@ -616,15 +633,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float[] directionalDirection,
             float[] directionalColor,
             float directionalIntensity,
-            float[] pointPosition,
-            float[] pointColor,
-            float pointIntensity,
-            float[] pointDirection,
-            float pointInnerCos,
-            float pointOuterCos,
-            boolean pointIsSpot,
-            float pointRange,
-            boolean pointCastsShadows
+            float[] shadowPointPosition,
+            float[] shadowPointDirection,
+            boolean shadowPointIsSpot,
+            float shadowPointOuterCos,
+            float shadowPointRange,
+            boolean shadowPointCastsShadows,
+            int localLightCount,
+            float[] localLightPosRange,
+            float[] localLightColorIntensity,
+            float[] localLightDirInner,
+            float[] localLightOuterTypeShadow
     ) {
     }
 

@@ -65,6 +65,7 @@ import static org.lwjgl.opengl.GL20.glUniform1i;
 import static org.lwjgl.opengl.GL20.glUniform2f;
 import static org.lwjgl.opengl.GL20.glUniform3f;
 import static org.lwjgl.opengl.GL20.glUniform4f;
+import static org.lwjgl.opengl.GL20.glUniform4fv;
 import static org.lwjgl.opengl.GL20.glUniformMatrix4fv;
 import static org.lwjgl.opengl.GL20.glUseProgram;
 import static org.lwjgl.opengl.GL20.glVertexAttribPointer;
@@ -126,6 +127,7 @@ import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 
 final class OpenGlContext {
+    static final int MAX_LOCAL_LIGHTS = 8;
     static record MeshGeometry(float[] vertices) {
         MeshGeometry {
             if (vertices == null || vertices.length == 0 || vertices.length % 6 != 0) {
@@ -327,19 +329,21 @@ final class OpenGlContext {
             uniform vec3 uDirLightDir;
             uniform vec3 uDirLightColor;
             uniform float uDirLightIntensity;
+            uniform int uLocalLightCount;
+            uniform vec4 uLocalLightPosRange[8];
+            uniform vec4 uLocalLightColorIntensity[8];
+            uniform vec4 uLocalLightDirInner[8];
+            uniform vec4 uLocalLightOuterTypeShadow[8];
             uniform vec3 uPointLightPos;
-            uniform vec3 uPointLightColor;
-            uniform float uPointLightIntensity;
             uniform vec3 uPointLightDir;
-            uniform float uPointLightInnerCos;
-            uniform float uPointLightOuterCos;
-            uniform float uPointLightIsSpot;
             uniform int uPointShadowEnabled;
             uniform samplerCube uPointShadowMap;
             uniform float uPointShadowFarPlane;
             uniform int uShadowEnabled;
             uniform float uShadowStrength;
             uniform float uShadowBias;
+            uniform float uShadowNormalBiasScale;
+            uniform float uShadowSlopeBiasScale;
             uniform int uShadowPcfRadius;
             uniform int uShadowCascadeCount;
             uniform sampler2D uShadowMap;
@@ -413,7 +417,9 @@ final class OpenGlContext {
                     return 0.0;
                 }
                 float cascadeBiasScale = 1.0 + float(max(uShadowCascadeCount - 1, 0)) * 0.12;
-                float bias = max(uShadowBias, (1.0 - ndl) * uShadowBias * 2.0) * cascadeBiasScale;
+                float baseBias = uShadowBias * max(uShadowNormalBiasScale, 0.25);
+                float slopeBias = (1.0 - ndl) * uShadowBias * 2.0 * max(uShadowSlopeBiasScale, 0.25);
+                float bias = max(baseBias, slopeBias) * cascadeBiasScale;
                 int radius = max(uShadowPcfRadius, 0);
                 vec2 texel = 1.0 / vec2(textureSize(uShadowMap, 0));
                 float occlusion = 0.0;
@@ -433,7 +439,9 @@ final class OpenGlContext {
                 }
                 float ndl = max(dot(normal, lightDir), 0.0);
                 float depthRatio = clamp(currentDepth / max(uPointShadowFarPlane, 0.0001), 0.0, 1.0);
-                float bias = max(uShadowBias, (1.0 - ndl) * uShadowBias * 2.0) * mix(0.85, 1.65, depthRatio);
+                float baseBias = uShadowBias * max(uShadowNormalBiasScale, 0.25);
+                float slopeBias = (1.0 - ndl) * uShadowBias * 2.0 * max(uShadowSlopeBiasScale, 0.25);
+                float bias = max(baseBias, slopeBias) * mix(0.85, 1.65, depthRatio);
                 int radius = max(uShadowPcfRadius, 0);
                 float diskRadius = (0.005 + depthRatio * 0.035) * (1.0 + float(radius) * 0.6);
                 vec3 fragToLight = vWorldPos - uPointLightPos;
@@ -507,21 +515,35 @@ final class OpenGlContext {
                 vec3 diffuse = kd * albedo / 3.14159;
                 vec3 directional = (diffuse + specular) * uDirLightColor * (ndl * uDirLightIntensity);
 
-                vec3 pDir = normalize(uPointLightPos - vWorldPos);
-                float pNdl = max(dot(normal, pDir), 0.0);
-                float dist = max(length(uPointLightPos - vWorldPos), 0.1);
-                float attenuation = 1.0 / (1.0 + 0.35 * dist + 0.1 * dist * dist);
-                float spotAttenuation = 1.0;
-                if (uPointLightIsSpot > 0.5) {
-                    vec3 lightToFrag = normalize(vWorldPos - uPointLightPos);
-                    float cosTheta = dot(normalize(uPointLightDir), lightToFrag);
-                    float coneRange = max(uPointLightInnerCos - uPointLightOuterCos, 0.0001);
-                    spotAttenuation = clamp((cosTheta - uPointLightOuterCos) / coneRange, 0.0, 1.0);
-                    spotAttenuation *= spotAttenuation;
+                vec3 pointLit = vec3(0.0);
+                int lightCount = clamp(uLocalLightCount, 0, 8);
+                for (int i = 0; i < lightCount; i++) {
+                    vec3 localPos = uLocalLightPosRange[i].xyz;
+                    float localRange = max(uLocalLightPosRange[i].w, 0.1);
+                    vec3 localColor = uLocalLightColorIntensity[i].rgb;
+                    float localIntensity = max(uLocalLightColorIntensity[i].a, 0.0);
+                    vec3 localDir = normalize(uLocalLightDirInner[i].xyz);
+                    float localInner = uLocalLightDirInner[i].w;
+                    float localOuter = uLocalLightOuterTypeShadow[i].x;
+                    float localIsSpot = uLocalLightOuterTypeShadow[i].y;
+                    vec3 localToLight = localPos - vWorldPos;
+                    vec3 localLightDir = normalize(localToLight);
+                    float localDist = max(length(localToLight), 0.1);
+                    float localNdl = max(dot(normal, localLightDir), 0.0);
+                    float normalizedDistance = clamp(localDist / localRange, 0.0, 1.0);
+                    float rangeFade = 1.0 - pow(normalizedDistance, 4.0);
+                    rangeFade = clamp(rangeFade * rangeFade, 0.0, 1.0);
+                    float attenuation = (1.0 / (1.0 + 0.35 * localDist + 0.1 * localDist * localDist)) * rangeFade;
+                    float spotAttenuation = 1.0;
+                    if (localIsSpot > 0.5) {
+                        vec3 lightToFrag = normalize(vWorldPos - localPos);
+                        float cosTheta = dot(localDir, lightToFrag);
+                        float coneRange = max(localInner - localOuter, 0.0001);
+                        spotAttenuation = clamp((cosTheta - localOuter) / coneRange, 0.0, 1.0);
+                        spotAttenuation *= spotAttenuation;
+                    }
+                    pointLit += (kd * albedo / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity);
                 }
-                vec3 pointLit = (kd * albedo / 3.14159)
-                        * uPointLightColor
-                        * (pNdl * attenuation * spotAttenuation * uPointLightIntensity);
                 float ao = 1.0;
                 vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * albedo;
                 if (uUseOcclusionTexture == 1) {
@@ -573,7 +595,9 @@ final class OpenGlContext {
                     float shadowFactor = clamp(shadowTerm(normal, ndl) * uShadowStrength, 0.0, 0.9);
                     color *= (1.0 - shadowFactor);
                 }
-                float pointShadowFactor = clamp(pointShadowTerm(normal, pDir, dist) * min(uShadowStrength, 0.85), 0.0, 0.9);
+                vec3 shadowLocalDir = normalize(uPointLightPos - vWorldPos);
+                float shadowLocalDist = max(length(uPointLightPos - vWorldPos), 0.1);
+                float pointShadowFactor = clamp(pointShadowTerm(normal, shadowLocalDir, shadowLocalDist) * min(uShadowStrength, 0.85), 0.0, 0.9);
                 color *= (1.0 - pointShadowFactor);
                 if (uFogEnabled == 1) {
                     float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
@@ -1061,19 +1085,21 @@ final class OpenGlContext {
     private int dirLightDirLocation;
     private int dirLightColorLocation;
     private int dirLightIntensityLocation;
+    private int localLightCountLocation;
+    private int localLightPosRangeLocation;
+    private int localLightColorIntensityLocation;
+    private int localLightDirInnerLocation;
+    private int localLightOuterTypeShadowLocation;
     private int pointLightPosLocation;
-    private int pointLightColorLocation;
-    private int pointLightIntensityLocation;
     private int pointLightDirLocation;
-    private int pointLightInnerCosLocation;
-    private int pointLightOuterCosLocation;
-    private int pointLightIsSpotLocation;
     private int pointShadowEnabledLocation;
     private int pointShadowMapLocation;
     private int pointShadowFarPlaneLocation;
     private int shadowEnabledLocation;
     private int shadowStrengthLocation;
     private int shadowBiasLocation;
+    private int shadowNormalBiasScaleLocation;
+    private int shadowSlopeBiasScaleLocation;
     private int shadowPcfRadiusLocation;
     private int shadowCascadeCountLocation;
     private int shadowMapLocation;
@@ -1210,17 +1236,17 @@ final class OpenGlContext {
     private float dirLightColorG = 0.98f;
     private float dirLightColorB = 0.95f;
     private float dirLightIntensity = 1.0f;
+    private int localLightCount;
+    private final float[] localLightPosRange = new float[MAX_LOCAL_LIGHTS * 4];
+    private final float[] localLightColorIntensity = new float[MAX_LOCAL_LIGHTS * 4];
+    private final float[] localLightDirInner = new float[MAX_LOCAL_LIGHTS * 4];
+    private final float[] localLightOuterTypeShadow = new float[MAX_LOCAL_LIGHTS * 4];
     private float pointLightPosX = 0.0f;
     private float pointLightPosY = 1.2f;
     private float pointLightPosZ = 1.8f;
-    private float pointLightColorR = 0.95f;
-    private float pointLightColorG = 0.62f;
-    private float pointLightColorB = 0.22f;
-    private float pointLightIntensity = 1.0f;
     private float pointLightDirX = 0.0f;
     private float pointLightDirY = -1.0f;
     private float pointLightDirZ = 0.0f;
-    private float pointLightInnerCos = 1.0f;
     private float pointLightOuterCos = 1.0f;
     private float pointLightIsSpot;
     private boolean pointShadowEnabled;
@@ -1228,6 +1254,8 @@ final class OpenGlContext {
     private boolean shadowEnabled;
     private float shadowStrength = 0.45f;
     private float shadowBias = 0.0015f;
+    private float shadowNormalBiasScale = 1.0f;
+    private float shadowSlopeBiasScale = 1.0f;
     private int shadowPcfRadius = 1;
     private int shadowCascadeCount = 1;
     private int shadowMapResolution = 1024;
@@ -1249,6 +1277,7 @@ final class OpenGlContext {
     private long lastTriangles;
     private long lastVisibleObjects;
     private long estimatedGpuMemoryBytes;
+    private long shadowMatrixStateKey = Long.MIN_VALUE;
 
     void initialize(String appName, int width, int height, boolean vsyncEnabled, boolean windowVisible) throws EngineException {
         GLFWErrorCallback.createPrint(System.err).set();
@@ -1392,18 +1421,20 @@ final class OpenGlContext {
             glUniform3f(dirLightDirLocation, dirLightDirX, dirLightDirY, dirLightDirZ);
             glUniform3f(dirLightColorLocation, dirLightColorR, dirLightColorG, dirLightColorB);
             glUniform1f(dirLightIntensityLocation, dirLightIntensity);
+            glUniform1i(localLightCountLocation, localLightCount);
+            glUniform4fv(localLightPosRangeLocation, localLightPosRange);
+            glUniform4fv(localLightColorIntensityLocation, localLightColorIntensity);
+            glUniform4fv(localLightDirInnerLocation, localLightDirInner);
+            glUniform4fv(localLightOuterTypeShadowLocation, localLightOuterTypeShadow);
             glUniform3f(pointLightPosLocation, pointLightPosX, pointLightPosY, pointLightPosZ);
-            glUniform3f(pointLightColorLocation, pointLightColorR, pointLightColorG, pointLightColorB);
-            glUniform1f(pointLightIntensityLocation, pointLightIntensity);
             glUniform3f(pointLightDirLocation, pointLightDirX, pointLightDirY, pointLightDirZ);
-            glUniform1f(pointLightInnerCosLocation, pointLightInnerCos);
-            glUniform1f(pointLightOuterCosLocation, pointLightOuterCos);
-            glUniform1f(pointLightIsSpotLocation, pointLightIsSpot);
             glUniform1i(pointShadowEnabledLocation, pointShadowEnabled ? 1 : 0);
             glUniform1f(pointShadowFarPlaneLocation, pointShadowFarPlane);
             glUniform1i(shadowEnabledLocation, shadowEnabled ? 1 : 0);
             glUniform1f(shadowStrengthLocation, shadowStrength);
             glUniform1f(shadowBiasLocation, shadowBias);
+            glUniform1f(shadowNormalBiasScaleLocation, shadowNormalBiasScale);
+            glUniform1f(shadowSlopeBiasScaleLocation, shadowSlopeBiasScale);
             glUniform1i(shadowPcfRadiusLocation, shadowPcfRadius);
             glUniform1i(shadowCascadeCountLocation, shadowCascadeCount);
             glUniform4f(
@@ -1831,15 +1862,17 @@ final class OpenGlContext {
             float[] dirDir,
             float[] dirColor,
             float dirIntensity,
-            float[] pointPos,
-            float[] pointColor,
-            float pointIntensity,
-            float[] pointDirection,
-            float pointInnerCos,
-            float pointOuterCos,
-            boolean pointIsSpot,
-            float pointRange,
-            boolean pointCastsShadows
+            float[] shadowPointPos,
+            float[] shadowPointDirection,
+            boolean shadowPointIsSpot,
+            float shadowPointOuterCos,
+            float shadowPointRange,
+            boolean shadowPointCastsShadows,
+            int localCount,
+            float[] localPosRange,
+            float[] localColorIntensity,
+            float[] localDirInner,
+            float[] localOuterTypeShadow
     ) {
         if (dirDir != null && dirDir.length == 3) {
             dirLightDirX = dirDir[0];
@@ -1852,37 +1885,57 @@ final class OpenGlContext {
             dirLightColorB = dirColor[2];
         }
         dirLightIntensity = Math.max(0f, dirIntensity);
-        if (pointPos != null && pointPos.length == 3) {
-            pointLightPosX = pointPos[0];
-            pointLightPosY = pointPos[1];
-            pointLightPosZ = pointPos[2];
+        if (shadowPointPos != null && shadowPointPos.length == 3) {
+            pointLightPosX = shadowPointPos[0];
+            pointLightPosY = shadowPointPos[1];
+            pointLightPosZ = shadowPointPos[2];
         }
-        if (pointColor != null && pointColor.length == 3) {
-            pointLightColorR = pointColor[0];
-            pointLightColorG = pointColor[1];
-            pointLightColorB = pointColor[2];
-        }
-        pointLightIntensity = Math.max(0f, pointIntensity);
-        if (pointDirection != null && pointDirection.length == 3) {
-            float[] normalized = normalize3(pointDirection[0], pointDirection[1], pointDirection[2]);
+        if (shadowPointDirection != null && shadowPointDirection.length == 3) {
+            float[] normalized = normalize3(shadowPointDirection[0], shadowPointDirection[1], shadowPointDirection[2]);
             pointLightDirX = normalized[0];
             pointLightDirY = normalized[1];
             pointLightDirZ = normalized[2];
         }
-        pointLightInnerCos = clamp01(pointInnerCos);
-        pointLightOuterCos = clamp01(pointOuterCos);
-        if (pointLightOuterCos > pointLightInnerCos) {
-            pointLightOuterCos = pointLightInnerCos;
+        pointLightOuterCos = clamp01(shadowPointOuterCos);
+        pointLightIsSpot = shadowPointIsSpot ? 1f : 0f;
+        pointShadowFarPlane = Math.max(1.0f, shadowPointRange);
+        pointShadowEnabled = shadowPointCastsShadows;
+        localLightCount = Math.max(0, Math.min(MAX_LOCAL_LIGHTS, localCount));
+        for (int i = 0; i < localLightPosRange.length; i++) {
+            localLightPosRange[i] = 0f;
+            localLightColorIntensity[i] = 0f;
+            localLightDirInner[i] = 0f;
+            localLightOuterTypeShadow[i] = 0f;
         }
-        pointLightIsSpot = pointIsSpot ? 1f : 0f;
-        pointShadowFarPlane = Math.max(1.0f, pointRange);
-        pointShadowEnabled = pointCastsShadows;
+        if (localPosRange != null) {
+            System.arraycopy(localPosRange, 0, localLightPosRange, 0, Math.min(localPosRange.length, localLightPosRange.length));
+        }
+        if (localColorIntensity != null) {
+            System.arraycopy(localColorIntensity, 0, localLightColorIntensity, 0, Math.min(localColorIntensity.length, localLightColorIntensity.length));
+        }
+        if (localDirInner != null) {
+            System.arraycopy(localDirInner, 0, localLightDirInner, 0, Math.min(localDirInner.length, localLightDirInner.length));
+        }
+        if (localOuterTypeShadow != null) {
+            System.arraycopy(localOuterTypeShadow, 0, localLightOuterTypeShadow, 0, Math.min(localOuterTypeShadow.length, localLightOuterTypeShadow.length));
+        }
     }
 
-    void setShadowParameters(boolean enabled, float strength, float bias, int pcfRadius, int cascadeCount, int mapResolution) {
+    void setShadowParameters(
+            boolean enabled,
+            float strength,
+            float bias,
+            float normalBiasScale,
+            float slopeBiasScale,
+            int pcfRadius,
+            int cascadeCount,
+            int mapResolution
+    ) {
         shadowEnabled = enabled;
         shadowStrength = Math.max(0f, Math.min(1f, strength));
         shadowBias = Math.max(0.00001f, bias);
+        shadowNormalBiasScale = Math.max(0.25f, Math.min(4.0f, normalBiasScale));
+        shadowSlopeBiasScale = Math.max(0.25f, Math.min(4.0f, slopeBiasScale));
         shadowPcfRadius = Math.max(0, pcfRadius);
         shadowCascadeCount = Math.max(1, cascadeCount);
         int clampedResolution = Math.max(256, Math.min(4096, mapResolution));
@@ -1991,19 +2044,21 @@ final class OpenGlContext {
         dirLightDirLocation = glGetUniformLocation(programId, "uDirLightDir");
         dirLightColorLocation = glGetUniformLocation(programId, "uDirLightColor");
         dirLightIntensityLocation = glGetUniformLocation(programId, "uDirLightIntensity");
+        localLightCountLocation = glGetUniformLocation(programId, "uLocalLightCount");
+        localLightPosRangeLocation = glGetUniformLocation(programId, "uLocalLightPosRange");
+        localLightColorIntensityLocation = glGetUniformLocation(programId, "uLocalLightColorIntensity");
+        localLightDirInnerLocation = glGetUniformLocation(programId, "uLocalLightDirInner");
+        localLightOuterTypeShadowLocation = glGetUniformLocation(programId, "uLocalLightOuterTypeShadow");
         pointLightPosLocation = glGetUniformLocation(programId, "uPointLightPos");
-        pointLightColorLocation = glGetUniformLocation(programId, "uPointLightColor");
-        pointLightIntensityLocation = glGetUniformLocation(programId, "uPointLightIntensity");
         pointLightDirLocation = glGetUniformLocation(programId, "uPointLightDir");
-        pointLightInnerCosLocation = glGetUniformLocation(programId, "uPointLightInnerCos");
-        pointLightOuterCosLocation = glGetUniformLocation(programId, "uPointLightOuterCos");
-        pointLightIsSpotLocation = glGetUniformLocation(programId, "uPointLightIsSpot");
         pointShadowEnabledLocation = glGetUniformLocation(programId, "uPointShadowEnabled");
         pointShadowMapLocation = glGetUniformLocation(programId, "uPointShadowMap");
         pointShadowFarPlaneLocation = glGetUniformLocation(programId, "uPointShadowFarPlane");
         shadowEnabledLocation = glGetUniformLocation(programId, "uShadowEnabled");
         shadowStrengthLocation = glGetUniformLocation(programId, "uShadowStrength");
         shadowBiasLocation = glGetUniformLocation(programId, "uShadowBias");
+        shadowNormalBiasScaleLocation = glGetUniformLocation(programId, "uShadowNormalBiasScale");
+        shadowSlopeBiasScaleLocation = glGetUniformLocation(programId, "uShadowSlopeBiasScale");
         shadowPcfRadiusLocation = glGetUniformLocation(programId, "uShadowPcfRadius");
         shadowCascadeCountLocation = glGetUniformLocation(programId, "uShadowCascadeCount");
         shadowMapLocation = glGetUniformLocation(programId, "uShadowMap");
@@ -2728,6 +2783,23 @@ final class OpenGlContext {
     }
 
     private void updateLightViewProjMatrix() {
+        long key = 17L;
+        key = 31L * key + Float.floatToIntBits(pointLightIsSpot);
+        key = 31L * key + Float.floatToIntBits(pointLightPosX);
+        key = 31L * key + Float.floatToIntBits(pointLightPosY);
+        key = 31L * key + Float.floatToIntBits(pointLightPosZ);
+        key = 31L * key + Float.floatToIntBits(pointLightDirX);
+        key = 31L * key + Float.floatToIntBits(pointLightDirY);
+        key = 31L * key + Float.floatToIntBits(pointLightDirZ);
+        key = 31L * key + Float.floatToIntBits(pointLightOuterCos);
+        key = 31L * key + Float.floatToIntBits(dirLightDirX);
+        key = 31L * key + Float.floatToIntBits(dirLightDirY);
+        key = 31L * key + Float.floatToIntBits(dirLightDirZ);
+        key = 31L * key + shadowCascadeCount;
+        if (key == shadowMatrixStateKey) {
+            return;
+        }
+        shadowMatrixStateKey = key;
         if (pointLightIsSpot > 0.5f) {
             float[] spotDir = normalize3(pointLightDirX, pointLightDirY, pointLightDirZ);
             float targetX = pointLightPosX + spotDir[0];

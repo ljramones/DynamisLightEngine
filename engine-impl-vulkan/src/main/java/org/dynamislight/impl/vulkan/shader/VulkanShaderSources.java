@@ -17,6 +17,11 @@ public final class VulkanShaderSources {
                     vec4 uPointLightColor;
                     vec4 uPointLightDir;
                     vec4 uPointLightCone;
+                    vec4 uLocalLightMeta;
+                    vec4 uLocalLightPosRange[8];
+                    vec4 uLocalLightColorIntensity[8];
+                    vec4 uLocalLightDirInner[8];
+                    vec4 uLocalLightOuterTypeShadow[8];
                     vec4 uLightIntensity;
                     vec4 uShadow;
                     vec4 uShadowCascade;
@@ -78,6 +83,11 @@ public final class VulkanShaderSources {
                     vec4 uPointLightColor;
                     vec4 uPointLightDir;
                     vec4 uPointLightCone;
+                    vec4 uLocalLightMeta;
+                    vec4 uLocalLightPosRange[8];
+                    vec4 uLocalLightColorIntensity[8];
+                    vec4 uLocalLightDirInner[8];
+                    vec4 uLocalLightOuterTypeShadow[8];
                     vec4 uLightIntensity;
                     vec4 uShadow;
                     vec4 uShadowCascade;
@@ -133,6 +143,11 @@ public final class VulkanShaderSources {
                     vec4 uPointLightColor;
                     vec4 uPointLightDir;
                     vec4 uPointLightCone;
+                    vec4 uLocalLightMeta;
+                    vec4 uLocalLightPosRange[8];
+                    vec4 uLocalLightColorIntensity[8];
+                    vec4 uLocalLightDirInner[8];
+                    vec4 uLocalLightOuterTypeShadow[8];
                     vec4 uLightIntensity;
                     vec4 uShadow;
                     vec4 uShadowCascade;
@@ -224,21 +239,9 @@ public final class VulkanShaderSources {
                     float toksvigVariance = clamp(normalVariance * 0.70 + normalMapVariance * 0.65, 0.0, 1.0);
                     roughness = clamp(sqrt(roughness * roughness + toksvigVariance * 0.52), 0.04, 1.0);
                     float dirIntensity = max(0.0, gbo.uLightIntensity.x);
-                    float pointIntensity = max(0.0, gbo.uLightIntensity.y);
 
                     float ao = clamp(texture(uOcclusionTexture, vUv).r, 0.0, 1.0);
                     vec3 lDir = normalize(-gbo.uDirLightDir.xyz);
-                    vec3 pDir = normalize(gbo.uPointLightPos.xyz - vWorldPos);
-                    float dist = max(length(gbo.uPointLightPos.xyz - vWorldPos), 0.1);
-                    float attenuation = 1.0 / (1.0 + 0.35 * dist + 0.1 * dist * dist);
-                    float spotAttenuation = 1.0;
-                    if (gbo.uPointLightCone.z > 0.5) {
-                        vec3 lightToFrag = normalize(vWorldPos - gbo.uPointLightPos.xyz);
-                        float cosTheta = dot(normalize(gbo.uPointLightDir.xyz), lightToFrag);
-                        float coneRange = max(gbo.uPointLightCone.x - gbo.uPointLightCone.y, 0.0001);
-                        spotAttenuation = clamp((cosTheta - gbo.uPointLightCone.y) / coneRange, 0.0, 1.0);
-                        spotAttenuation *= spotAttenuation;
-                    }
                     vec3 viewPos = (gbo.uView * vec4(vWorldPos, 1.0)).xyz;
                     vec3 viewDir = normalize(-viewPos);
 
@@ -257,11 +260,35 @@ public final class VulkanShaderSources {
                     vec3 kd = (1.0 - f) * (1.0 - metallic);
                     vec3 diffuse = kd * baseColor / 3.14159;
                     vec3 directional = (diffuse + specular) * gbo.uDirLightColor.rgb * (ndl * dirIntensity);
-
-                    float pNdl = max(dot(n, pDir), 0.0);
-                    vec3 pointLit = (kd * baseColor / 3.14159)
-                            * gbo.uPointLightColor.rgb
-                            * (pNdl * attenuation * spotAttenuation * pointIntensity);
+                    vec3 pointLit = vec3(0.0);
+                    int localCount = clamp(int(gbo.uLocalLightMeta.x + 0.5), 0, 8);
+                    for (int i = 0; i < localCount; i++) {
+                        vec3 localPos = gbo.uLocalLightPosRange[i].xyz;
+                        float localRange = max(gbo.uLocalLightPosRange[i].w, 0.1);
+                        vec3 localColor = gbo.uLocalLightColorIntensity[i].rgb;
+                        float localIntensity = max(gbo.uLocalLightColorIntensity[i].a, 0.0);
+                        vec3 localDir = normalize(gbo.uLocalLightDirInner[i].xyz);
+                        float localInner = gbo.uLocalLightDirInner[i].w;
+                        float localOuter = gbo.uLocalLightOuterTypeShadow[i].x;
+                        float localIsSpot = gbo.uLocalLightOuterTypeShadow[i].y;
+                        vec3 localToLight = localPos - vWorldPos;
+                        vec3 localLightDir = normalize(localToLight);
+                        float localDist = max(length(localToLight), 0.1);
+                        float normalizedDistance = clamp(localDist / localRange, 0.0, 1.0);
+                        float rangeFade = 1.0 - pow(normalizedDistance, 4.0);
+                        rangeFade = clamp(rangeFade * rangeFade, 0.0, 1.0);
+                        float attenuation = (1.0 / (1.0 + 0.35 * localDist + 0.1 * localDist * localDist)) * rangeFade;
+                        float localNdl = max(dot(n, localLightDir), 0.0);
+                        float spotAttenuation = 1.0;
+                        if (localIsSpot > 0.5) {
+                            vec3 lightToFrag = normalize(vWorldPos - localPos);
+                            float cosTheta = dot(localDir, lightToFrag);
+                            float coneRange = max(localInner - localOuter, 0.0001);
+                            spotAttenuation = clamp((cosTheta - localOuter) / coneRange, 0.0, 1.0);
+                            spotAttenuation *= spotAttenuation;
+                        }
+                        pointLit += (kd * baseColor / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity);
+                    }
                     vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * baseColor * ao;
 
                     vec3 color = ambient + directional + pointLit;
@@ -289,7 +316,9 @@ public final class VulkanShaderSources {
                             float cascadeT = float(cascadeIndex) / max(float(cascadeCount - 1), 1.0);
                             int radius = clamp(int(gbo.uShadow.w + 0.5) + (cascadeIndex / 2), 0, 4);
                             float texel = (1.0 / max(gbo.uShadowCascade.y, 1.0)) * mix(1.0, 2.25, cascadeT);
-                            float compareBias = gbo.uShadow.z * mix(0.7, 1.8, cascadeT);
+                            float normalBiasScale = max(gbo.uShadowCascadeExt.z, 0.25);
+                            float slopeBiasScale = max(gbo.uShadowCascadeExt.w, 0.25);
+                            float compareBias = (gbo.uShadow.z * normalBiasScale) * mix(0.7, 1.8 * slopeBiasScale, cascadeT);
                             float compareDepth = clamp(shadowCoord.z - compareBias, 0.0, 1.0);
                             float total = 0.0;
                             float taps = 0.0;
@@ -310,6 +339,9 @@ public final class VulkanShaderSources {
                         color *= (1.0 - shadowFactor);
                     }
                     if (gbo.uPointLightCone.w > 0.5) {
+                        vec3 pDir = normalize(gbo.uPointLightPos.xyz - vWorldPos);
+                        float pNdl = max(dot(n, pDir), 0.0);
+                        float dist = max(length(gbo.uPointLightPos.xyz - vWorldPos), 0.1);
                         int pointLayerCount = clamp(int(gbo.uShadowCascade.x + 0.5), 1, 6);
                         vec3 pointVec = normalize(vWorldPos - gbo.uPointLightPos.xyz);
                         int pointLayer = 0;
@@ -347,7 +379,9 @@ public final class VulkanShaderSources {
                             float pointDepthRatio = clamp(dist / max(gbo.uPointLightPos.w, 0.0001), 0.0, 1.0);
                             int pointRadius = clamp(int(gbo.uShadow.w + 0.5), 0, 4);
                             float texel = (1.0 / max(gbo.uShadowCascade.y, 1.0)) * mix(0.85, 2.0, pointDepthRatio);
-                            float compareBias = gbo.uShadow.z * mix(0.85, 1.65, pointDepthRatio) * (1.0 + (1.0 - pNdl) * 0.6);
+                            float normalBiasScale = max(gbo.uShadowCascadeExt.z, 0.25);
+                            float slopeBiasScale = max(gbo.uShadowCascadeExt.w, 0.25);
+                            float compareBias = (gbo.uShadow.z * normalBiasScale) * mix(0.85, 1.65, pointDepthRatio) * (1.0 + (1.0 - pNdl) * 0.6 * slopeBiasScale);
                             float compareDepth = clamp(pointShadowCoord.z - compareBias, 0.0, 1.0);
                             float visibility = 0.0;
                             float taps = 0.0;

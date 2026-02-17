@@ -8,6 +8,8 @@ DynamicLightEngine currently supports:
 - Spot-light shadow baseline
 - Point-light shadow baseline (with backend-dependent maturity/perf)
 - PCF filtering and depth-bias controls
+- Shadow policy budgeting per quality tier (`maxShadowedLocalLights`)
+- Per-type shadow bias scaling (normal/slope bias multipliers)
 - Quality-tier shadow degradation/warnings
 
 ## 2. Quick Start
@@ -102,7 +104,14 @@ Sample host clamps:
 
 - Both OpenGL and Vulkan support core shadow baseline behavior.
 - Runtime can emit `SHADOW_QUALITY_DEGRADED` on lower tiers.
+- Runtime emits `SHADOW_POLICY_ACTIVE` with primary shadow light/type and current local-light budget/selection.
 - Non-directional shadow coverage is supported at baseline level but may differ in quality/perf characteristics by backend/profile.
+
+Current default local shadow budgets by tier:
+- `LOW`: 1 local shadow light
+- `MEDIUM`: 2 local shadow lights
+- `HIGH`: 3 local shadow lights
+- `ULTRA`: 4 local shadow lights
 
 ## 5. Troubleshooting
 

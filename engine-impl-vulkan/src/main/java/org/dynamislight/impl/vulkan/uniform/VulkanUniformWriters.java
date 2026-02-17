@@ -23,13 +23,50 @@ public final class VulkanUniformWriters {
         fb.put(new float[]{in.pointLightColorR(), in.pointLightColorG(), in.pointLightColorB(), 0f});
         fb.put(new float[]{in.pointLightDirX(), in.pointLightDirY(), in.pointLightDirZ(), 0f});
         fb.put(new float[]{in.pointLightInnerCos(), in.pointLightOuterCos(), in.pointLightIsSpot(), in.pointShadowEnabled() ? 1f : 0f});
+        fb.put(new float[]{(float) in.localLightCount(), 0f, 0f, 0f});
+        for (int i = 0; i < in.maxLocalLights(); i++) {
+            int offset = i * 4;
+            fb.put(new float[]{
+                    in.localLightPosRange()[offset],
+                    in.localLightPosRange()[offset + 1],
+                    in.localLightPosRange()[offset + 2],
+                    in.localLightPosRange()[offset + 3]
+            });
+        }
+        for (int i = 0; i < in.maxLocalLights(); i++) {
+            int offset = i * 4;
+            fb.put(new float[]{
+                    in.localLightColorIntensity()[offset],
+                    in.localLightColorIntensity()[offset + 1],
+                    in.localLightColorIntensity()[offset + 2],
+                    in.localLightColorIntensity()[offset + 3]
+            });
+        }
+        for (int i = 0; i < in.maxLocalLights(); i++) {
+            int offset = i * 4;
+            fb.put(new float[]{
+                    in.localLightDirInner()[offset],
+                    in.localLightDirInner()[offset + 1],
+                    in.localLightDirInner()[offset + 2],
+                    in.localLightDirInner()[offset + 3]
+            });
+        }
+        for (int i = 0; i < in.maxLocalLights(); i++) {
+            int offset = i * 4;
+            fb.put(new float[]{
+                    in.localLightOuterTypeShadow()[offset],
+                    in.localLightOuterTypeShadow()[offset + 1],
+                    in.localLightOuterTypeShadow()[offset + 2],
+                    in.localLightOuterTypeShadow()[offset + 3]
+            });
+        }
         fb.put(new float[]{in.dirLightIntensity(), in.pointLightIntensity(), 0f, 0f});
         fb.put(new float[]{in.shadowEnabled() ? 1f : 0f, in.shadowStrength(), in.shadowBias(), (float) in.shadowPcfRadius()});
         float split1 = in.shadowCascadeSplitNdc()[0];
         float split2 = in.shadowCascadeSplitNdc()[1];
         float split3 = in.shadowCascadeSplitNdc()[2];
         fb.put(new float[]{(float) in.shadowCascadeCount(), (float) in.shadowMapResolution(), split1, split2});
-        fb.put(new float[]{0f, split3, 0f, 0f});
+        fb.put(new float[]{0f, split3, in.shadowNormalBiasScale(), in.shadowSlopeBiasScale()});
         fb.put(new float[]{in.fogEnabled() ? 1f : 0f, in.fogDensity(), in.ssaoRadius(), in.ssaoBias()});
         fb.put(new float[]{in.fogR(), in.fogG(), in.fogB(), (float) in.fogSteps()});
         float viewportW = (float) Math.max(1, in.swapchainWidth());
@@ -96,11 +133,19 @@ public final class VulkanUniformWriters {
             float pointLightOuterCos,
             float pointLightIsSpot,
             boolean pointShadowEnabled,
+            int localLightCount,
+            int maxLocalLights,
+            float[] localLightPosRange,
+            float[] localLightColorIntensity,
+            float[] localLightDirInner,
+            float[] localLightOuterTypeShadow,
             float dirLightIntensity,
             float pointLightIntensity,
             boolean shadowEnabled,
             float shadowStrength,
             float shadowBias,
+            float shadowNormalBiasScale,
+            float shadowSlopeBiasScale,
             int shadowPcfRadius,
             int shadowCascadeCount,
             int shadowMapResolution,

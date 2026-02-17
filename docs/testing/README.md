@@ -12,6 +12,7 @@ Current documents:
 - `scene-assembly-testing.md` - scene graph validity and baseline load/parity checks.
 - `camera-testing.md` - camera motion/disocclusion and animated-motion validation.
 - `materials-lighting-testing.md` - material/reactive/lighting stress and parity plan.
+- `shadows-testing.md` - shadow policy, stability, and tier-fallback validation plan.
 - `fog-smoke-testing.md` - fog/smoke/shadow combined stress validation plan.
 - `post-process-testing.md` - post chain regression and stress validation plan.
 - `environment-ibl-testing.md` - environment/IBL parity and interaction validation plan.

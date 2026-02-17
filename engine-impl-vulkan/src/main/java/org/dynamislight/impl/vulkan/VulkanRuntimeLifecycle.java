@@ -104,20 +104,24 @@ final class VulkanRuntimeLifecycle {
                 state.lighting().directionalDirection(),
                 state.lighting().directionalColor(),
                 state.lighting().directionalIntensity(),
-                state.lighting().pointPosition(),
-                state.lighting().pointColor(),
-                state.lighting().pointIntensity(),
-                state.lighting().pointDirection(),
-                state.lighting().pointInnerCos(),
-                state.lighting().pointOuterCos(),
-                state.lighting().pointIsSpot(),
-                state.lighting().pointRange(),
-                state.lighting().pointCastsShadows()
+                state.lighting().shadowPointPosition(),
+                state.lighting().shadowPointDirection(),
+                state.lighting().shadowPointIsSpot(),
+                state.lighting().shadowPointOuterCos(),
+                state.lighting().shadowPointRange(),
+                state.lighting().shadowPointCastsShadows(),
+                state.lighting().localLightCount(),
+                state.lighting().localLightPosRange(),
+                state.lighting().localLightColorIntensity(),
+                state.lighting().localLightDirInner(),
+                state.lighting().localLightOuterTypeShadow()
         );
         context.setShadowParameters(
                 state.shadows().enabled(),
                 state.shadows().strength(),
                 state.shadows().bias(),
+                state.shadows().normalBiasScale(),
+                state.shadows().slopeBiasScale(),
                 state.shadows().pcfRadius(),
                 state.shadows().cascadeCount(),
                 state.shadows().mapResolution()

@@ -111,12 +111,6 @@ final class VulkanRuntimeWarningPolicy {
                 ));
             }
         }
-        if (in.nonDirectionalShadowRequested()) {
-            warnings.add(new EngineWarning(
-                    "SHADOW_TYPE_UNSUPPORTED",
-                    "Point shadow maps are not implemented yet; current shadow-map path supports directional and spot lights"
-            ));
-        }
         if (in.currentIbl().enabled()) {
             warnings.add(new EngineWarning(
                     "IBL_BASELINE_ACTIVE",

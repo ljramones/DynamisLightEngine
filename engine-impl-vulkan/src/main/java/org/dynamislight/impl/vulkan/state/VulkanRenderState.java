@@ -4,6 +4,8 @@ public final class VulkanRenderState {
     public boolean shadowEnabled;
     public float shadowStrength = 0.45f;
     public float shadowBias = 0.0015f;
+    public float shadowNormalBiasScale = 1.0f;
+    public float shadowSlopeBiasScale = 1.0f;
     public int shadowPcfRadius = 1;
     public int shadowCascadeCount = 1;
     public int shadowMapResolution = 1024;

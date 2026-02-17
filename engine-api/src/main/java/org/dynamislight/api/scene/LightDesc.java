@@ -71,4 +71,20 @@ public record LightDesc(
                 30f
         );
     }
+
+    public LightDesc(SpotLightDesc spot) {
+        this(
+                spot.id(),
+                spot.position(),
+                spot.color(),
+                spot.intensity(),
+                spot.range(),
+                spot.castsShadows(),
+                spot.shadow(),
+                LightType.SPOT,
+                spot.direction(),
+                spot.innerConeDegrees(),
+                spot.outerConeDegrees()
+        );
+    }
 }

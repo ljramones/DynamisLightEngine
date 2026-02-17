@@ -350,24 +350,26 @@ final class VulkanEngineRuntimeLightingMapper {
         float[] dir = new float[]{0.35f, -1.0f, 0.25f};
         float[] dirColor = new float[]{1.0f, 0.98f, 0.95f};
         float dirIntensity = 1.0f;
-        float[] pointPos = new float[]{0f, 1.3f, 1.8f};
-        float[] pointColor = new float[]{0.95f, 0.62f, 0.22f};
-        float pointIntensity = 1.0f;
-        float[] pointDir = new float[]{0f, -1f, 0f};
-        float pointInnerCos = 1.0f;
-        float pointOuterCos = 1.0f;
-        boolean pointIsSpot = false;
-        float pointRange = 15f;
-        boolean pointCastsShadows = false;
+        float[] shadowPointPos = new float[]{0f, 1.3f, 1.8f};
+        float[] shadowPointDir = new float[]{0f, -1f, 0f};
+        boolean shadowPointIsSpot = false;
+        float shadowPointOuterCos = 1.0f;
+        float shadowPointRange = 15f;
+        boolean shadowPointCastsShadows = false;
+        int localLightCount = 0;
+        float[] localLightPosRange = new float[VulkanContext.MAX_LOCAL_LIGHTS * 4];
+        float[] localLightColorIntensity = new float[VulkanContext.MAX_LOCAL_LIGHTS * 4];
+        float[] localLightDirInner = new float[VulkanContext.MAX_LOCAL_LIGHTS * 4];
+        float[] localLightOuterTypeShadow = new float[VulkanContext.MAX_LOCAL_LIGHTS * 4];
         if (lights == null || lights.isEmpty()) {
             return new VulkanEngineRuntime.LightingConfig(
                     dir, dirColor, dirIntensity,
-                    pointPos, pointColor, pointIntensity,
-                    pointDir, pointInnerCos, pointOuterCos, pointIsSpot, pointRange, pointCastsShadows
+                    shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
+                    localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow
             );
         }
         LightDesc directional = null;
-        LightDesc pointLike = null;
+        List<LightDesc> localLights = new java.util.ArrayList<>();
         for (LightDesc light : lights) {
             if (light == null) {
                 continue;
@@ -376,15 +378,12 @@ final class VulkanEngineRuntimeLightingMapper {
             if (directional == null && type == LightType.DIRECTIONAL) {
                 directional = light;
             }
-            if (pointLike == null && (type == LightType.POINT || type == LightType.SPOT)) {
-                pointLike = light;
+            if (type == LightType.SPOT || type == LightType.POINT) {
+                localLights.add(light);
             }
         }
         if (directional == null) {
             directional = lights.getFirst();
-        }
-        if (pointLike == null && lights.size() > 1) {
-            pointLike = lights.get(1);
         }
         if (directional != null && directional.color() != null) {
             dirColor = new float[]{
@@ -403,103 +402,221 @@ final class VulkanEngineRuntimeLightingMapper {
                 });
             }
         }
-        if (pointLike != null && pointLike.color() != null) {
-            pointColor = new float[]{
-                    clamp01(pointLike.color().x()),
-                    clamp01(pointLike.color().y()),
-                    clamp01(pointLike.color().z())
-            };
-        }
-        if (pointLike != null) {
-            pointIntensity = Math.max(0f, pointLike.intensity());
-            pointRange = pointLike.range() > 0f ? pointLike.range() : 15f;
-            if (pointLike.position() != null) {
-                pointPos = new float[]{pointLike.position().x(), pointLike.position().y(), pointLike.position().z()};
-            }
-            LightType pointType = pointLike.type() == null ? LightType.DIRECTIONAL : pointLike.type();
-            if (pointType == LightType.SPOT) {
-                pointIsSpot = true;
-                if (pointLike.direction() != null) {
-                    pointDir = VulkanEngineRuntimeCameraMath.normalize3(new float[]{
-                            pointLike.direction().x(),
-                            pointLike.direction().y(),
-                            pointLike.direction().z()
-                    });
+        if (!localLights.isEmpty()) {
+            localLights.sort((a, b) -> Float.compare(localLightPriority(b), localLightPriority(a)));
+            localLightCount = Math.min(VulkanContext.MAX_LOCAL_LIGHTS, localLights.size());
+            for (int i = 0; i < localLightCount; i++) {
+                LightDesc light = localLights.get(i);
+                int offset = i * 4;
+                LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
+                float[] pos = light.position() == null
+                        ? new float[]{0f, 1.3f, 1.8f}
+                        : new float[]{light.position().x(), light.position().y(), light.position().z()};
+                float range = light.range() > 0f ? light.range() : 15f;
+                float[] color = light.color() == null
+                        ? new float[]{0.95f, 0.62f, 0.22f}
+                        : new float[]{clamp01(light.color().x()), clamp01(light.color().y()), clamp01(light.color().z())};
+                float intensity = Math.max(0f, light.intensity());
+                float[] direction = light.direction() == null
+                        ? new float[]{0f, -1f, 0f}
+                        : VulkanEngineRuntimeCameraMath.normalize3(new float[]{light.direction().x(), light.direction().y(), light.direction().z()});
+                float inner = 1.0f;
+                float outer = 1.0f;
+                float isSpot = 0f;
+                if (type == LightType.SPOT) {
+                    float innerCos = VulkanEngineRuntimeCameraMath.cosFromDegrees(light.innerConeDegrees());
+                    float outerCos = VulkanEngineRuntimeCameraMath.cosFromDegrees(light.outerConeDegrees());
+                    inner = Math.max(innerCos, outerCos);
+                    outer = Math.min(innerCos, outerCos);
+                    isSpot = 1f;
                 }
-                float inner = VulkanEngineRuntimeCameraMath.cosFromDegrees(pointLike.innerConeDegrees());
-                float outer = VulkanEngineRuntimeCameraMath.cosFromDegrees(pointLike.outerConeDegrees());
-                pointInnerCos = Math.max(inner, outer);
-                pointOuterCos = Math.min(inner, outer);
+                float castsShadows = light.castsShadows() ? 1f : 0f;
+                localLightPosRange[offset] = pos[0];
+                localLightPosRange[offset + 1] = pos[1];
+                localLightPosRange[offset + 2] = pos[2];
+                localLightPosRange[offset + 3] = range;
+                localLightColorIntensity[offset] = color[0];
+                localLightColorIntensity[offset + 1] = color[1];
+                localLightColorIntensity[offset + 2] = color[2];
+                localLightColorIntensity[offset + 3] = intensity;
+                localLightDirInner[offset] = direction[0];
+                localLightDirInner[offset + 1] = direction[1];
+                localLightDirInner[offset + 2] = direction[2];
+                localLightDirInner[offset + 3] = inner;
+                localLightOuterTypeShadow[offset] = outer;
+                localLightOuterTypeShadow[offset + 1] = isSpot;
+                localLightOuterTypeShadow[offset + 2] = castsShadows;
             }
-            pointCastsShadows = pointType == LightType.POINT && pointLike.castsShadows();
+            LightDesc shadowLight = localLights.stream().filter(LightDesc::castsShadows).findFirst().orElse(localLights.getFirst());
+            if (shadowLight.position() != null) {
+                shadowPointPos = new float[]{shadowLight.position().x(), shadowLight.position().y(), shadowLight.position().z()};
+            }
+            shadowPointRange = shadowLight.range() > 0f ? shadowLight.range() : 15f;
+            LightType shadowType = shadowLight.type() == null ? LightType.DIRECTIONAL : shadowLight.type();
+            shadowPointIsSpot = shadowType == LightType.SPOT;
+            shadowPointCastsShadows = shadowLight.castsShadows();
+            if (shadowLight.direction() != null) {
+                shadowPointDir = VulkanEngineRuntimeCameraMath.normalize3(new float[]{
+                        shadowLight.direction().x(),
+                        shadowLight.direction().y(),
+                        shadowLight.direction().z()
+                });
+            }
+            if (shadowPointIsSpot) {
+                float innerCos = VulkanEngineRuntimeCameraMath.cosFromDegrees(shadowLight.innerConeDegrees());
+                float outerCos = VulkanEngineRuntimeCameraMath.cosFromDegrees(shadowLight.outerConeDegrees());
+                shadowPointOuterCos = Math.min(innerCos, outerCos);
+            }
         }
         return new VulkanEngineRuntime.LightingConfig(
                 dir, dirColor, dirIntensity,
-                pointPos, pointColor, pointIntensity,
-                pointDir, pointInnerCos, pointOuterCos, pointIsSpot, pointRange, pointCastsShadows
+                shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
+                localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow
         );
     }
 
     static boolean hasNonDirectionalShadowRequest(List<LightDesc> lights) {
-        return false;
-    }
-
-    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
+            return false;
         }
         for (LightDesc light : lights) {
             if (light == null || !light.castsShadows()) {
                 continue;
             }
             LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
-            ShadowDesc shadow = light.shadow();
-            int kernel = shadow == null ? 3 : Math.max(1, shadow.pcfKernelSize());
-            int cascades = shadow == null ? 1 : Math.max(1, shadow.cascadeCount());
-            if (type == LightType.SPOT) {
-                cascades = 1;
-            } else if (type == LightType.POINT) {
-                cascades = 6;
+            if (type == LightType.POINT || type == LightType.SPOT) {
+                return true;
             }
-            int resolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));
-            float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
-            int maxKernel = switch (qualityTier) {
+        }
+        return false;
+    }
+
+    private static float localLightPriority(LightDesc light) {
+        if (light == null) {
+            return Float.NEGATIVE_INFINITY;
+        }
+        float intensity = Math.max(0f, light.intensity());
+        float range = Math.max(0f, light.range());
+        float shadowBoost = light.castsShadows() ? 1.15f : 1.0f;
+        float spotBoost = (light.type() == LightType.SPOT) ? 1.05f : 1.0f;
+        return intensity * (1.0f + (range * 0.08f)) * shadowBoost * spotBoost;
+    }
+
+    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
+        if (lights == null || lights.isEmpty()) {
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", false);
+        }
+        int maxShadowedLocalLights = switch (qualityTier) {
+            case LOW -> 1;
+            case MEDIUM -> 2;
+            case HIGH -> 3;
+            case ULTRA -> 4;
+        };
+        int selectedLocalShadowLights = 0;
+        LightDesc primaryDirectional = null;
+        LightDesc bestLocal = null;
+        for (LightDesc light : lights) {
+            if (light == null || !light.castsShadows()) {
+                continue;
+            }
+            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
+            if (type == LightType.POINT || type == LightType.SPOT) {
+                selectedLocalShadowLights++;
+                if (bestLocal == null || localLightPriority(light) > localLightPriority(bestLocal)) {
+                    bestLocal = light;
+                }
+            }
+            if (primaryDirectional == null && type == LightType.DIRECTIONAL) {
+                primaryDirectional = light;
+            }
+        }
+        selectedLocalShadowLights = Math.min(maxShadowedLocalLights, selectedLocalShadowLights);
+        LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
+        if (primary == null) {
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", false);
+        }
+        LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
+        ShadowDesc shadow = primary.shadow();
+        int kernel = shadow == null ? 3 : Math.max(1, shadow.pcfKernelSize());
+        int cascades = shadow == null ? 1 : Math.max(1, shadow.cascadeCount());
+        if (type == LightType.SPOT) {
+            cascades = 1;
+        } else if (type == LightType.POINT) {
+            cascades = 6;
+        }
+        int requestedResolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));
+        float typeResolutionScale = switch (type) {
+            case DIRECTIONAL -> 1.0f;
+            case SPOT -> 0.85f;
+            case POINT -> 0.75f;
+        };
+        int resolution = Math.max(256, Math.min(4096, Math.round(requestedResolution * typeResolutionScale)));
+        float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
+        int maxKernel = switch (type) {
+            case DIRECTIONAL -> switch (qualityTier) {
                 case LOW -> 3;
                 case MEDIUM -> 5;
                 case HIGH -> 7;
                 case ULTRA -> 9;
             };
-            int kernelClamped = Math.min(kernel, maxKernel);
-            int radius = Math.max(0, (kernelClamped - 1) / 2);
-            int maxCascades = switch (qualityTier) {
-                case LOW -> type == LightType.POINT ? 6 : 1;
-                case MEDIUM -> type == LightType.POINT ? 6 : 2;
-                case HIGH -> type == LightType.POINT ? 6 : 3;
-                case ULTRA -> type == LightType.POINT ? 6 : 4;
+            case SPOT -> switch (qualityTier) {
+                case LOW -> 3;
+                case MEDIUM -> 5;
+                case HIGH -> 5;
+                case ULTRA -> 7;
             };
-            int cascadesClamped = Math.min(cascades, maxCascades);
-            float biasScale = 1.0f + (radius * 0.15f) + (Math.max(0, cascadesClamped - 1) * 0.05f);
-            bias = Math.max(0.00002f, Math.min(0.02f, bias * biasScale));
-            float base = Math.min(0.9f, 0.25f + (kernelClamped * 0.04f) + (cascadesClamped * 0.05f));
-            float tierScale = switch (qualityTier) {
-                case LOW -> 0.55f;
-                case MEDIUM -> 0.75f;
-                case HIGH -> 1.0f;
-                case ULTRA -> 1.15f;
+            case POINT -> switch (qualityTier) {
+                case LOW -> 3;
+                case MEDIUM -> 3;
+                case HIGH -> 5;
+                case ULTRA -> 5;
             };
-            boolean degraded = kernelClamped != kernel || cascadesClamped != cascades
-                    || qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
-            return new VulkanEngineRuntime.ShadowRenderConfig(
-                    true,
-                    Math.max(0.2f, Math.min(0.9f, base * tierScale)),
-                    bias,
-                    radius,
-                    cascadesClamped,
-                    resolution,
-                    degraded
-            );
-        }
-        return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
+        };
+        int kernelClamped = Math.min(kernel, maxKernel);
+        int radius = Math.max(0, (kernelClamped - 1) / 2);
+        int maxCascades = switch (qualityTier) {
+            case LOW -> type == LightType.POINT ? 6 : 1;
+            case MEDIUM -> type == LightType.POINT ? 6 : 2;
+            case HIGH -> type == LightType.POINT ? 6 : 3;
+            case ULTRA -> type == LightType.POINT ? 6 : 4;
+        };
+        int cascadesClamped = Math.min(cascades, maxCascades);
+        float biasScale = 1.0f + (radius * 0.15f) + (Math.max(0, cascadesClamped - 1) * 0.05f);
+        bias = Math.max(0.00002f, Math.min(0.02f, bias * biasScale));
+        float normalBiasScale = switch (type) {
+            case DIRECTIONAL -> 1.0f;
+            case SPOT -> 1.2f;
+            case POINT -> 1.35f;
+        };
+        float slopeBiasScale = switch (type) {
+            case DIRECTIONAL -> 1.0f;
+            case SPOT -> 1.15f;
+            case POINT -> 1.30f;
+        };
+        float base = Math.min(0.9f, 0.25f + (kernelClamped * 0.04f) + (cascadesClamped * 0.05f));
+        float tierScale = switch (qualityTier) {
+            case LOW -> 0.55f;
+            case MEDIUM -> 0.75f;
+            case HIGH -> 1.0f;
+            case ULTRA -> 1.15f;
+        };
+        boolean degraded = kernelClamped != kernel || cascadesClamped != cascades || resolution != requestedResolution
+                || qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
+        return new VulkanEngineRuntime.ShadowRenderConfig(
+                true,
+                Math.max(0.2f, Math.min(0.9f, base * tierScale)),
+                bias,
+                normalBiasScale,
+                slopeBiasScale,
+                radius,
+                cascadesClamped,
+                resolution,
+                maxShadowedLocalLights,
+                selectedLocalShadowLights,
+                type.name().toLowerCase(java.util.Locale.ROOT),
+                primary.id() == null ? "unnamed" : primary.id(),
+                degraded
+        );
     }
 
     static VulkanEngineRuntime.FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {

@@ -66,7 +66,8 @@ final class VulkanContext {
     private static final int MAX_SHADOW_CASCADES = 4;
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 6;
-    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 864;
+    static final int MAX_LOCAL_LIGHTS = 8;
+    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 1392;
     private static final int OBJECT_UNIFORM_BYTES = 176;
     private final VulkanBackendResources backendResources = new VulkanBackendResources();
     private final VulkanDescriptorResourceState descriptorResources = new VulkanDescriptorResourceState();
@@ -97,6 +98,7 @@ final class VulkanContext {
     private double taaHistoryRejectRate;
     private double taaConfidenceMean = 1.0;
     private long taaConfidenceDropEvents;
+    private long shadowMatrixStateKey = Long.MIN_VALUE;
     private VulkanLightingParameterMutator.LightingState lightingState = new VulkanLightingParameterMutator.LightingState(
             0.35f, -1.0f, 0.25f,
             1.0f, 0.98f, 0.95f,
@@ -110,6 +112,11 @@ final class VulkanContext {
             15f,
             false
     );
+    private int localLightCount;
+    private final float[] localLightPosRange = new float[MAX_LOCAL_LIGHTS * 4];
+    private final float[] localLightColorIntensity = new float[MAX_LOCAL_LIGHTS * 4];
+    private final float[] localLightDirInner = new float[MAX_LOCAL_LIGHTS * 4];
+    private final float[] localLightOuterTypeShadow = new float[MAX_LOCAL_LIGHTS * 4];
     private final VulkanIblState iblState = new VulkanIblState();
 
     VulkanContext() {}
@@ -361,44 +368,81 @@ final class VulkanContext {
             float[] dirDir,
             float[] dirColor,
             float dirIntensity,
-            float[] pointPos,
-            float[] pointColor,
-            float pointIntensity,
-            float[] pointDirection,
-            float pointInnerCos,
-            float pointOuterCos,
-            boolean pointIsSpot,
-            float pointRange,
-            boolean pointCastsShadows
+            float[] shadowPointPos,
+            float[] shadowPointDirection,
+            boolean shadowPointIsSpot,
+            float shadowPointOuterCos,
+            float shadowPointRange,
+            boolean shadowPointCastsShadows,
+            int localCount,
+            float[] localPosRange,
+            float[] localColorIntensity,
+            float[] localDirInner,
+            float[] localOuterTypeShadow
     ) {
         var result = VulkanLightingParameterMutator.applyLighting(
                 lightingState,
                 new VulkanLightingParameterMutator.LightingUpdate(
                         dirDir, dirColor, dirIntensity,
-                        pointPos, pointColor, pointIntensity,
-                        pointDirection, pointInnerCos, pointOuterCos, pointIsSpot, pointRange, pointCastsShadows
+                        shadowPointPos, new float[]{1f, 1f, 1f}, 1f,
+                        shadowPointDirection, 1f, shadowPointOuterCos, shadowPointIsSpot, shadowPointRange, shadowPointCastsShadows
                 )
         );
         lightingState = result.state();
-        if (result.changed()) {
-            markGlobalStateDirty();
+        localLightCount = Math.max(0, Math.min(MAX_LOCAL_LIGHTS, localCount));
+        for (int i = 0; i < localLightPosRange.length; i++) {
+            localLightPosRange[i] = 0f;
+            localLightColorIntensity[i] = 0f;
+            localLightDirInner[i] = 0f;
+            localLightOuterTypeShadow[i] = 0f;
         }
+        if (localPosRange != null) {
+            System.arraycopy(localPosRange, 0, localLightPosRange, 0, Math.min(localPosRange.length, localLightPosRange.length));
+        }
+        if (localColorIntensity != null) {
+            System.arraycopy(localColorIntensity, 0, localLightColorIntensity, 0, Math.min(localColorIntensity.length, localLightColorIntensity.length));
+        }
+        if (localDirInner != null) {
+            System.arraycopy(localDirInner, 0, localLightDirInner, 0, Math.min(localDirInner.length, localLightDirInner.length));
+        }
+        if (localOuterTypeShadow != null) {
+            System.arraycopy(localOuterTypeShadow, 0, localLightOuterTypeShadow, 0, Math.min(localOuterTypeShadow.length, localLightOuterTypeShadow.length));
+        }
+        markGlobalStateDirty();
     }
 
-    void setShadowParameters(boolean enabled, float strength, float bias, int pcfRadius, int cascadeCount, int mapResolution)
+    void setShadowParameters(
+            boolean enabled,
+            float strength,
+            float bias,
+            float normalBiasScale,
+            float slopeBiasScale,
+            int pcfRadius,
+            int cascadeCount,
+            int mapResolution
+    )
             throws EngineException {
         var result = VulkanLightingParameterMutator.applyShadow(
                 new VulkanLightingParameterMutator.ShadowState(
-                        renderState.shadowEnabled, renderState.shadowStrength, renderState.shadowBias, renderState.shadowPcfRadius, renderState.shadowCascadeCount, renderState.shadowMapResolution
+                        renderState.shadowEnabled,
+                        renderState.shadowStrength,
+                        renderState.shadowBias,
+                        renderState.shadowNormalBiasScale,
+                        renderState.shadowSlopeBiasScale,
+                        renderState.shadowPcfRadius,
+                        renderState.shadowCascadeCount,
+                        renderState.shadowMapResolution
                 ),
                 new VulkanLightingParameterMutator.ShadowUpdate(
-                        enabled, strength, bias, pcfRadius, cascadeCount, mapResolution, MAX_SHADOW_MATRICES
+                        enabled, strength, bias, normalBiasScale, slopeBiasScale, pcfRadius, cascadeCount, mapResolution, MAX_SHADOW_MATRICES
                 )
         );
         var state = result.state();
         renderState.shadowEnabled = state.shadowEnabled();
         renderState.shadowStrength = state.shadowStrength();
         renderState.shadowBias = state.shadowBias();
+        renderState.shadowNormalBiasScale = state.shadowNormalBiasScale();
+        renderState.shadowSlopeBiasScale = state.shadowSlopeBiasScale();
         renderState.shadowPcfRadius = state.shadowPcfRadius();
         renderState.shadowCascadeCount = state.shadowCascadeCount();
         renderState.shadowMapResolution = state.shadowMapResolution();
@@ -907,6 +951,29 @@ final class VulkanContext {
     }
 
     private void updateShadowLightViewProjMatrices() {
+        long key = 17L;
+        key = 31L * key + Float.floatToIntBits(lightingState.pointLightIsSpot());
+        key = 31L * key + Float.floatToIntBits(lightingState.pointLightDirX());
+        key = 31L * key + Float.floatToIntBits(lightingState.pointLightDirY());
+        key = 31L * key + Float.floatToIntBits(lightingState.pointLightDirZ());
+        key = 31L * key + Float.floatToIntBits(lightingState.pointLightPosX());
+        key = 31L * key + Float.floatToIntBits(lightingState.pointLightPosY());
+        key = 31L * key + Float.floatToIntBits(lightingState.pointLightPosZ());
+        key = 31L * key + Float.floatToIntBits(lightingState.pointLightOuterCos());
+        key = 31L * key + Float.floatToIntBits(lightingState.pointShadowFarPlane());
+        key = 31L * key + (lightingState.pointShadowEnabled() ? 1 : 0);
+        key = 31L * key + renderState.shadowCascadeCount;
+        key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirX());
+        key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirY());
+        key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirZ());
+        for (int i = 0; i < 16; i++) {
+            key = 31L * key + Float.floatToIntBits(viewMatrix[i]);
+            key = 31L * key + Float.floatToIntBits(projMatrix[i]);
+        }
+        if (key == shadowMatrixStateKey) {
+            return;
+        }
+        shadowMatrixStateKey = key;
         VulkanShadowMatrixCoordinator.updateMatrices(
                 new VulkanShadowMatrixCoordinator.UpdateInputs(
                         lightingState.pointLightIsSpot(),
@@ -1052,11 +1119,19 @@ final class VulkanContext {
                                         lightingState.pointLightOuterCos(),
                                         lightingState.pointLightIsSpot(),
                                         lightingState.pointShadowEnabled(),
+                                        localLightCount,
+                                        MAX_LOCAL_LIGHTS,
+                                        localLightPosRange,
+                                        localLightColorIntensity,
+                                        localLightDirInner,
+                                        localLightOuterTypeShadow,
                                         lightingState.dirLightIntensity(),
                                         lightingState.pointLightIntensity(),
                                         renderState.shadowEnabled,
                                         renderState.shadowStrength,
                                         renderState.shadowBias,
+                                        renderState.shadowNormalBiasScale,
+                                        renderState.shadowSlopeBiasScale,
                                         renderState.shadowPcfRadius,
                                         renderState.shadowCascadeCount,
                                         renderState.shadowMapResolution,

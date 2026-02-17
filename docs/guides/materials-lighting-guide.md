@@ -6,6 +6,7 @@ Last updated: February 17, 2026
 - PBR-leaning material inputs via `MaterialDesc`
 - Temporal/reactive authoring controls per material
 - Directional/spot/point lights via `LightDesc` + `LightType`
+- Optional authored spot convenience via `SpotLightDesc` (convert with `toLightDesc()`)
 - Shadow integration via `ShadowDesc`
 
 ## 2. Quick Start
@@ -58,6 +59,20 @@ LightDesc key = new LightDesc(
     15f,
     30f
 );
+
+SpotLightDesc rimSpot = new SpotLightDesc(
+    "rim-spot",
+    new Vec3(-3f, 5f, 2f),
+    new Vec3(0.25f, -1f, -0.2f),
+    new Vec3(0.85f, 0.90f, 1.0f),
+    2.4f,
+    18f,
+    16f,
+    30f,
+    true,
+    new ShadowDesc(1024, 0.0008f, 3, 1)
+);
+LightDesc rim = rimSpot.toLightDesc();
 ```
 
 ## 3. Validation Rules and Constraints
@@ -71,7 +86,11 @@ LightDesc key = new LightDesc(
 
 ## 4. Backend Notes
 - OpenGL/Vulkan both support material reactive tuning and PBR baseline.
-- Spot/point behavior exists in baseline path; validate profile-specific output in parity tests.
+- OpenGL/Vulkan now pack and shade multiple non-directional local lights per frame (current cap: `8` point/spot lights).
+- Local lights are uploaded as per-light GPU array data (`pos+range`, `color+intensity`, `dir+innerCone`, `outerCone+type+shadowFlag`) in both backends.
+- A primary local light is still selected for the existing shadow map path (until full per-light shadow atlas/clustered shadowing is introduced).
+- Non-directional attenuation is range-aware in both backends.
+- Non-directional shadow requests apply to both point and spot lights.
 
 ## 5. Troubleshooting
 If specular shimmer is high:
