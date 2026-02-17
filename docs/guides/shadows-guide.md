@@ -136,7 +136,7 @@ Sample host clamps:
   - `vulkan.shadow.directionalTexelSnapEnabled=true|false` (default `true`)
   - `vulkan.shadow.directionalTexelSnapScale=0.25..4.0` (default `1.0`)
   Runtime tracks and reports these requests. Production-active runtime filter path now follows requested mode (`pcf|pcss|vsm|evsm`) with mode-specific shader shaping for PCSS/VSM/EVSM and strengthened contact-shadow modulation. Vulkan now also runs a dedicated layered moment pipeline for `vsm|evsm` (moment write + mip prefilter + mip-aware sampling), including light-bleed reduction and tuned penumbra/contact shaping. Dedicated hardware RT traversal/denoise remains on fallback.
-  Advanced quality tuning is now runtime-configurable via backend options (`pcssSoftness`, `momentBlend`, `momentBleedReduction`, `contactStrength`) without shader edits.
+  Advanced quality tuning is now runtime-configurable via backend options (`pcssSoftness`, `momentBlend`, `momentBleedReduction`, `contactStrength`) without shader edits. Current Vulkan shading path also applies neighborhood-weighted moment denoise and motion-adaptive contact stabilization to reduce high-motion flicker.
   Vulkan fragment texture descriptor sets now include a dedicated shadow-moment binding (`set=1,binding=8`) so moment-map sampling can be wired without further descriptor-layout churn.
 
 Shadow scheduler override examples:

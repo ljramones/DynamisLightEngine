@@ -261,7 +261,16 @@ public final class VulkanShaderSources {
                     float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
                     vec2 baseMoments = sampleMomentsWeighted(momentUv.xy, layer, 0.0, texel, compareDepth, momentBlend);
                     vec2 filteredMoments = sampleMomentsWeighted(momentUv.xy, layer, lod, texel * 1.5, compareDepth, momentBlend);
+                    vec2 wideMoments = sampleMomentsWeighted(
+                            momentUv.xy,
+                            layer,
+                            min(lod + 1.0, maxLod),
+                            texel * 2.5,
+                            compareDepth,
+                            momentBlend
+                    );
                     vec2 moments = mix(baseMoments, filteredMoments, clamp(0.68 * momentBlend, 0.20, 0.95));
+                    moments = mix(moments, wideMoments, clamp(0.20 * momentBlend, 0.05, 0.35));
                     // Neutral fallback for uninitialized/provisional moment data.
                     if (moments.y <= 0.000001) {
                         return 1.0;
@@ -286,7 +295,16 @@ public final class VulkanShaderSources {
                     float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
                     vec2 baseMoments = sampleMomentsWeighted(momentUv.xy, layer, 0.0, texel, compareDepth, momentBlend);
                     vec2 filteredMoments = sampleMomentsWeighted(momentUv.xy, layer, lod, texel * 2.0, compareDepth, momentBlend);
+                    vec2 wideMoments = sampleMomentsWeighted(
+                            momentUv.xy,
+                            layer,
+                            min(lod + 1.0, maxLod),
+                            texel * 3.0,
+                            compareDepth,
+                            momentBlend
+                    );
                     vec2 moments = mix(baseMoments, filteredMoments, clamp(0.75 * momentBlend, 0.25, 0.97));
+                    moments = mix(moments, wideMoments, clamp(0.28 * momentBlend, 0.08, 0.42));
                     if (moments.y <= 0.000001) {
                         return 1.0;
                     }
@@ -371,6 +389,19 @@ public final class VulkanShaderSources {
                     vec3 viewDir = normalize(-viewPos);
                     float pcssSoftness = clamp(gbo.uDirLightDir.w, 0.25, 2.0);
                     float contactStrengthScale = clamp(gbo.uPointLightDir.w, 0.25, 2.0);
+                    float taaEnabled = gbo.uAntiAlias.x > 0.5 ? 1.0 : 0.0;
+                    float taaBlend = clamp(gbo.uAntiAlias.y, 0.0, 1.0);
+                    vec4 contactCurrClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
+                    vec4 contactPrevClip = gbo.uPrevViewProj * (obj.uPrevModel * vec4(vLocalPos, 1.0));
+                    float contactCurrW = abs(contactCurrClip.w) > 0.000001 ? contactCurrClip.w : 1.0;
+                    float contactPrevW = abs(contactPrevClip.w) > 0.000001 ? contactPrevClip.w : 1.0;
+                    vec2 contactMotionNdc = (contactPrevClip.xy / contactPrevW) - (contactCurrClip.xy / contactCurrW);
+                    float contactMotionMag = length(clamp(contactMotionNdc, vec2(-1.0), vec2(1.0)));
+                    float contactTemporalStability = mix(
+                            1.0,
+                            clamp(1.0 - contactMotionMag * (0.85 + taaBlend * 0.85), 0.42, 1.0),
+                            taaEnabled
+                    );
 
                     float ndl = max(dot(n, lDir), 0.0);
                     float ndv = max(dot(n, viewDir), 0.0);
@@ -524,7 +555,8 @@ public final class VulkanShaderSources {
                                     * (1.0 - roughness)
                                     * (0.58 + 0.42 * viewGrazing)
                                     * distFade
-                                    * contactStrengthScale;
+                                    * contactStrengthScale
+                                    * contactTemporalStability;
                             contact = clamp(1.0 - contactStrength, 0.50, 1.0);
                         }
                         pointLit += (kd * baseColor / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity * localShadowVisibility * contact);
@@ -594,7 +626,7 @@ public final class VulkanShaderSources {
                         color *= (1.0 - shadowFactor);
                         if (contactShadows) {
                             float contactEdge = clamp(length(dFdx(n)) + length(dFdy(n)), 0.0, 1.0);
-                            float contactFactor = shadowOcclusion * contactEdge * (1.0 - roughness) * (1.0 - ndl) * contactStrengthScale;
+                            float contactFactor = shadowOcclusion * contactEdge * (1.0 - roughness) * (1.0 - ndl) * contactStrengthScale * contactTemporalStability;
                             color *= (1.0 - clamp(contactFactor * 0.22, 0.0, 0.24));
                         }
                     }
@@ -676,7 +708,7 @@ public final class VulkanShaderSources {
                             color *= (1.0 - pointShadowFactor);
                             if (contactShadows) {
                                 float contactEdge = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.9, 0.0, 1.0);
-                                float contactFactor = pointOcclusion * contactEdge * (1.0 - roughness) * (1.0 - pNdl) * contactStrengthScale;
+                                float contactFactor = pointOcclusion * contactEdge * (1.0 - roughness) * (1.0 - pNdl) * contactStrengthScale * contactTemporalStability;
                                 color *= (1.0 - clamp(contactFactor * 0.20, 0.0, 0.22));
                             }
                         }

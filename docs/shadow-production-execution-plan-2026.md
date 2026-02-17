@@ -96,7 +96,7 @@ Status: In progress (started and partially landed).
 
 3. Contact shadows
 - screen-space near-contact trace + temporal stabilization.
- - Status: In progress (runtime-strength shaping active; temporal stabilization still pending).
+ - Status: In progress (runtime-strength shaping active; motion-adaptive temporal stabilization shaping is active; full history-buffer stabilization remains pending).
 
 ## Phase 4: Hardware RT Shadows
 
