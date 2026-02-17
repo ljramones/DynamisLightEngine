@@ -106,6 +106,7 @@ public final class VulkanRenderParameterMutator {
         float taaBlend = current.taaBlend();
         float taaClipScale = current.taaClipScale();
         boolean taaLumaClipEnabled = current.taaLumaClipEnabled();
+        float taaSharpenStrength = current.taaSharpenStrength();
 
         if (tonemapEnabled != update.tonemapEnabled()) {
             tonemapEnabled = update.tonemapEnabled();
@@ -176,11 +177,16 @@ public final class VulkanRenderParameterMutator {
             taaLumaClipEnabled = update.taaLumaClipEnabled();
             changed = true;
         }
+        float clampedTaaSharpenStrength = Math.max(0f, Math.min(0.35f, update.taaSharpenStrength()));
+        if (!floatEquals(taaSharpenStrength, clampedTaaSharpenStrength)) {
+            taaSharpenStrength = clampedTaaSharpenStrength;
+            changed = true;
+        }
         return new PostResult(
                 new PostState(
                         tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength,
                         ssaoEnabled, ssaoStrength, ssaoRadius, ssaoBias, ssaoPower,
-                        smaaEnabled, smaaStrength, taaEnabled, taaBlend, taaClipScale, taaLumaClipEnabled
+                        smaaEnabled, smaaStrength, taaEnabled, taaBlend, taaClipScale, taaLumaClipEnabled, taaSharpenStrength
                 ),
                 changed
         );
@@ -253,7 +259,8 @@ public final class VulkanRenderParameterMutator {
             boolean taaEnabled,
             float taaBlend,
             float taaClipScale,
-            boolean taaLumaClipEnabled
+            boolean taaLumaClipEnabled,
+            float taaSharpenStrength
     ) {
     }
 
@@ -274,7 +281,8 @@ public final class VulkanRenderParameterMutator {
             boolean taaEnabled,
             float taaBlend,
             float taaClipScale,
-            boolean taaLumaClipEnabled
+            boolean taaLumaClipEnabled,
+            float taaSharpenStrength
     ) {
     }
 

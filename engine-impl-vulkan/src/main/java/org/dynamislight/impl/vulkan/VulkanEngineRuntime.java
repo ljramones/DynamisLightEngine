@@ -59,7 +59,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
-    private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false);
+    private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f);
     private boolean taaLumaClipEnabledDefault;
     private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
@@ -268,7 +268,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean taaEnabled,
             float taaBlend,
             float taaClipScale,
-            boolean taaLumaClipEnabled
+            boolean taaLumaClipEnabled,
+            float taaSharpenStrength
     ) {
     }
 

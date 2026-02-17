@@ -54,11 +54,13 @@ public final class VulkanUniformWriters {
         FloatBuffer fb = slice.slice().order(ByteOrder.nativeOrder()).asFloatBuffer();
         if (mesh == null) {
             fb.put(identityMatrix());
+            fb.put(identityMatrix());
             fb.put(new float[]{1f, 1f, 1f, 1f});
             fb.put(new float[]{0f, 0.8f, 0f, 0f});
-            fb.put(new float[]{1f, 1f, 0f, 0f});
+            fb.put(new float[]{1f, 1f, 1f, 0f});
         } else {
             fb.put(mesh.modelMatrix);
+            fb.put(mesh.prevModelMatrix);
             fb.put(new float[]{mesh.colorR, mesh.colorG, mesh.colorB, 1f});
             fb.put(new float[]{
                     mesh.metallic,
@@ -66,7 +68,7 @@ public final class VulkanUniformWriters {
                     mesh.reactiveStrength,
                     (mesh.alphaTested ? 1f : 0f) + (mesh.foliage ? 2f : 0f)
             });
-            fb.put(new float[]{mesh.reactiveBoost, mesh.taaHistoryClamp, 0f, 0f});
+            fb.put(new float[]{mesh.reactiveBoost, mesh.taaHistoryClamp, mesh.emissiveReactiveBoost, mesh.reactivePreset});
         }
     }
 

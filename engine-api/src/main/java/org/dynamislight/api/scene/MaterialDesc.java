@@ -16,7 +16,9 @@ public record MaterialDesc(
         boolean alphaTested,
         boolean foliage,
         float reactiveBoost,
-        float taaHistoryClamp
+        float taaHistoryClamp,
+        float emissiveReactiveBoost,
+        ReactivePreset reactivePreset
 ) {
     public MaterialDesc(
             String id,
@@ -44,7 +46,9 @@ public record MaterialDesc(
                 alphaTested,
                 foliage,
                 1.0f,
-                1.0f
+                1.0f,
+                1.0f,
+                ReactivePreset.AUTO
         );
     }
 
@@ -82,7 +86,43 @@ public record MaterialDesc(
                 false,
                 false,
                 1.0f,
-                1.0f
+                1.0f,
+                1.0f,
+                ReactivePreset.AUTO
+        );
+    }
+
+    public MaterialDesc(
+            String id,
+            Vec3 albedo,
+            float metallic,
+            float roughness,
+            String albedoTexturePath,
+            String normalTexturePath,
+            String metallicRoughnessTexturePath,
+            String occlusionTexturePath,
+            float reactiveStrength,
+            boolean alphaTested,
+            boolean foliage,
+            float reactiveBoost,
+            float taaHistoryClamp
+    ) {
+        this(
+                id,
+                albedo,
+                metallic,
+                roughness,
+                albedoTexturePath,
+                normalTexturePath,
+                metallicRoughnessTexturePath,
+                occlusionTexturePath,
+                reactiveStrength,
+                alphaTested,
+                foliage,
+                reactiveBoost,
+                taaHistoryClamp,
+                1.0f,
+                ReactivePreset.AUTO
         );
     }
 }

@@ -67,7 +67,7 @@ final class VulkanContext {
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 6;
     private static final int GLOBAL_SCENE_UNIFORM_BYTES = 864;
-    private static final int OBJECT_UNIFORM_BYTES = 112;
+    private static final int OBJECT_UNIFORM_BYTES = 176;
     private final VulkanBackendResources backendResources = new VulkanBackendResources();
     private final VulkanDescriptorResourceState descriptorResources = new VulkanDescriptorResourceState();
     private int framesInFlight = DEFAULT_FRAMES_IN_FLIGHT;
@@ -194,9 +194,20 @@ final class VulkanContext {
                 updateTemporalHistoryCameraState();
             }
         }
+        promotePreviousModelMatrices();
         updateAaTelemetry();
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
         return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, estimatedGpuMemoryBytes);
+    }
+
+    private void promotePreviousModelMatrices() {
+        for (VulkanGpuMesh mesh : sceneResources.gpuMeshes) {
+            if (mesh.modelMatrix == null || mesh.prevModelMatrix == null
+                    || mesh.modelMatrix.length != 16 || mesh.prevModelMatrix.length != 16) {
+                continue;
+            }
+            System.arraycopy(mesh.modelMatrix, 0, mesh.prevModelMatrix, 0, 16);
+        }
     }
 
     double taaHistoryRejectRate() {
@@ -477,7 +488,8 @@ final class VulkanContext {
             boolean taaEnabled,
             float taaBlend,
             float taaClipScale,
-            boolean taaLumaClipEnabled
+            boolean taaLumaClipEnabled,
+            float taaSharpenStrength
     ) {
         var result = VulkanRenderParameterMutator.applyPost(
                 new VulkanRenderParameterMutator.PostState(
@@ -497,7 +509,8 @@ final class VulkanContext {
                         this.renderState.taaEnabled,
                         this.renderState.taaBlend,
                         this.renderState.taaClipScale,
-                        this.renderState.taaLumaClipEnabled
+                        this.renderState.taaLumaClipEnabled,
+                        this.renderState.taaSharpenStrength
                 ),
                 new VulkanRenderParameterMutator.PostUpdate(
                         tonemapEnabled,
@@ -516,7 +529,8 @@ final class VulkanContext {
                         taaEnabled,
                         taaBlend,
                         taaClipScale,
-                        taaLumaClipEnabled
+                        taaLumaClipEnabled,
+                        taaSharpenStrength
                 )
         );
         var state = result.state();
@@ -537,6 +551,7 @@ final class VulkanContext {
         this.renderState.taaBlend = state.taaBlend();
         this.renderState.taaClipScale = state.taaClipScale();
         this.renderState.taaLumaClipEnabled = state.taaLumaClipEnabled();
+        this.renderState.taaSharpenStrength = state.taaSharpenStrength();
         if (!this.renderState.taaEnabled) {
             this.renderState.postTaaHistoryInitialized = false;
             resetTemporalJitterState();
@@ -806,6 +821,7 @@ final class VulkanContext {
                         renderState.taaMotionUvY,
                         renderState.taaClipScale,
                         renderState.taaLumaClipEnabled,
+                        renderState.taaSharpenStrength,
                         renderState.taaDebugView,
                         backendResources.postRenderPass,
                         backendResources.postGraphicsPipeline,

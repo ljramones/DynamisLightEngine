@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.api.scene.ReactivePreset;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
@@ -48,6 +49,8 @@ final class VulkanEngineRuntimeSceneAssembly {
             boolean foliage = material != null && material.foliage();
             float reactiveBoost = material == null ? 1.0f : clamp(material.reactiveBoost(), 0.0f, 2.0f);
             float taaHistoryClamp = material == null ? 1.0f : clamp01(material.taaHistoryClamp());
+            float emissiveReactiveBoost = material == null ? 1.0f : clamp(material.emissiveReactiveBoost(), 0.0f, 3.0f);
+            float reactivePreset = material == null ? 0f : toReactivePresetValue(material.reactivePreset());
             float[] model = VulkanEngineRuntimeCameraMath.modelMatrixOf(transforms.get(mesh.transformId()), i);
             String stableMeshId = (mesh.id() == null || mesh.id().isBlank()) ? ("mesh-index-" + i) : mesh.id();
             VulkanSceneMeshData meshData = new VulkanSceneMeshData(
@@ -63,6 +66,8 @@ final class VulkanEngineRuntimeSceneAssembly {
                     foliage,
                     reactiveBoost,
                     taaHistoryClamp,
+                    emissiveReactiveBoost,
+                    reactivePreset,
                     resolveTexturePath(material == null ? null : material.albedoTexturePath(), assetRoot),
                     resolveTexturePath(material == null ? null : material.normalTexturePath(), assetRoot),
                     resolveTexturePath(material == null ? null : material.metallicRoughnessTexturePath(), assetRoot),
@@ -100,5 +105,17 @@ final class VulkanEngineRuntimeSceneAssembly {
 
     private static float clamp(float v, float min, float max) {
         return Math.max(min, Math.min(max, v));
+    }
+
+    private static float toReactivePresetValue(ReactivePreset preset) {
+        if (preset == null) {
+            return 0f;
+        }
+        return switch (preset) {
+            case AUTO -> 0f;
+            case STABLE -> 1f;
+            case BALANCED -> 2f;
+            case AGGRESSIVE -> 3f;
+        };
     }
 }

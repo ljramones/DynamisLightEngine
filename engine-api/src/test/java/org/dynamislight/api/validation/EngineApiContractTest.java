@@ -153,6 +153,24 @@ class EngineApiContractTest {
     }
 
     @Test
+    void sceneValidatorRejectsOutOfRangeEmissiveReactiveBoost() {
+        SceneDescriptor broken = new SceneDescriptor(
+                "scene",
+                List.of(new CameraDesc("cam", new Vec3(0, 0, 1), new Vec3(0, 0, 0), 60f, 0.1f, 100f)),
+                "cam",
+                List.of(new TransformDesc("x", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1))),
+                List.of(new MeshDesc("mesh", "x", "mat", "mesh.glb")),
+                List.of(new MaterialDesc("mat", new Vec3(1, 1, 1), 0f, 1f, null, null, null, null, 0.5f, false, false, 1.0f, 1.0f, 4.0f, null)),
+                List.of(),
+                new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null),
+                new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0, 0, 0, 0, 0, 0),
+                List.of());
+
+        var ex = assertThrows(EngineException.class, () -> SceneValidator.validate(broken));
+        assertEquals(EngineErrorCode.SCENE_VALIDATION_FAILED, ex.code());
+    }
+
+    @Test
     void postProcessLegacyConstructorDefaultsTaaLumaClipDisabled() {
         var post = new org.dynamislight.api.scene.PostProcessDesc(
                 true,

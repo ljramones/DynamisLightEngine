@@ -26,6 +26,7 @@ import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
+import org.dynamislight.api.scene.ReactivePreset;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
@@ -62,7 +63,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean taaEnabled,
             float taaBlend,
             float taaClipScale,
-            boolean taaLumaClipEnabled
+            boolean taaLumaClipEnabled,
+            float taaSharpenStrength
     ) {
     }
 
@@ -106,7 +108,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
-    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false);
+    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f);
     private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
     private int taaDebugView;
@@ -174,7 +176,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 postProcess.taaEnabled(),
                 postProcess.taaBlend(),
                 postProcess.taaClipScale(),
-                postProcess.taaLumaClipEnabled()
+                postProcess.taaLumaClipEnabled(),
+                postProcess.taaSharpenStrength()
         );
         context.setTaaDebugView(taaDebugView);
         frameGraph = buildFrameGraph();
@@ -249,7 +252,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     postProcess.taaEnabled(),
                     postProcess.taaBlend(),
                     postProcess.taaClipScale(),
-                    postProcess.taaLumaClipEnabled()
+                    postProcess.taaLumaClipEnabled(),
+                    postProcess.taaSharpenStrength()
             );
             context.setTaaDebugView(taaDebugView);
             frameGraph = buildFrameGraph();
@@ -536,7 +540,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private static PostProcessRenderConfig mapPostProcess(PostProcessDesc desc, QualityTier qualityTier, boolean taaLumaClipEnabledDefault) {
         if (desc == null || !desc.enabled()) {
-            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false);
+            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -564,6 +568,12 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             case HIGH -> 0.92f;
             case ULTRA -> 0.78f;
         };
+        float taaSharpenStrength = switch (qualityTier) {
+            case LOW -> 0.08f;
+            case MEDIUM -> 0.12f;
+            case HIGH -> 0.16f;
+            case ULTRA -> 0.20f;
+        };
         boolean taaLumaClipEnabled = desc.taaLumaClipEnabled() || taaLumaClipEnabledDefault;
         if (qualityTier == QualityTier.MEDIUM) {
             ssaoStrength *= 0.8f;
@@ -588,7 +598,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 taaEnabled,
                 taaBlend,
                 taaClipScale,
-                taaLumaClipEnabled
+                taaLumaClipEnabled,
+                taaSharpenStrength
         );
     }
 
@@ -820,6 +831,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private List<OpenGlContext.SceneMesh> mapSceneMeshes(SceneDescriptor scene) {
         if (scene.meshes() == null || scene.meshes().isEmpty()) {
             return List.of(new OpenGlContext.SceneMesh(
+                    "default-triangle",
                     OpenGlContext.defaultTriangleGeometry(),
                     identityMatrix(),
                     new float[]{1f, 1f, 1f},
@@ -830,6 +842,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     false,
                     1.0f,
                     1.0f,
+                    1.0f,
+                    0f,
                     null,
                     null,
                     null,
@@ -868,7 +882,10 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean foliage = material != null && material.foliage();
             float reactiveBoost = material == null ? 1.0f : Math.max(0f, Math.min(2.0f, material.reactiveBoost()));
             float taaHistoryClamp = material == null ? 1.0f : clamp01(material.taaHistoryClamp());
+            float emissiveReactiveBoost = material == null ? 1.0f : Math.max(0f, Math.min(3.0f, material.emissiveReactiveBoost()));
+            float reactivePreset = material == null ? 0f : toReactivePresetValue(material.reactivePreset());
             sceneMeshes.add(new OpenGlContext.SceneMesh(
+                    mesh.id() == null || mesh.id().isBlank() ? ("mesh-index-" + i) : mesh.id(),
                     geometry,
                     model,
                     albedo,
@@ -879,6 +896,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     foliage,
                     reactiveBoost,
                     taaHistoryClamp,
+                    emissiveReactiveBoost,
+                    reactivePreset,
                     albedoTexturePath,
                     normalTexturePath,
                     metallicRoughnessTexturePath,
@@ -1232,6 +1251,18 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private static float clamp01(float value) {
         return Math.max(0f, Math.min(1f, value));
+    }
+
+    private static float toReactivePresetValue(ReactivePreset preset) {
+        if (preset == null) {
+            return 0f;
+        }
+        return switch (preset) {
+            case AUTO -> 0f;
+            case STABLE -> 1f;
+            case BALANCED -> 2f;
+            case AGGRESSIVE -> 3f;
+        };
     }
 
     private FrameGraph buildFrameGraph() {

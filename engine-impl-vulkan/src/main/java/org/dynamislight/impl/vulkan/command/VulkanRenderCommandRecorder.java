@@ -403,7 +403,9 @@ public final class VulkanRenderCommandRecorder {
                 in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength(),
                 in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), 0f,
                 in.smaaEnabled() ? 1f : 0f, in.smaaStrength(), in.taaJitterUvDeltaX(), in.taaJitterUvDeltaY(),
-                in.taaMotionUvX(), in.taaMotionUvY(), in.taaLumaClipEnabled() ? 1f : 0f, in.taaClipScale(),
+                in.taaMotionUvX(), in.taaMotionUvY(),
+                (in.taaLumaClipEnabled() ? 1f : 0f) + in.taaSharpenStrength(),
+                in.taaClipScale(),
                 in.taaEnabled() ? 1f : 0f, in.taaBlend(), in.taaHistoryInitialized() ? 1f : 0f, (float) in.taaDebugView()
         });
         vkCmdPushConstants(commandBuffer, in.postPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
@@ -688,6 +690,7 @@ public final class VulkanRenderCommandRecorder {
             float taaMotionUvY,
             float taaClipScale,
             boolean taaLumaClipEnabled,
+            float taaSharpenStrength,
             int taaDebugView,
             long postRenderPass,
             long postGraphicsPipeline,

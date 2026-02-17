@@ -58,6 +58,9 @@ public final class SceneValidator {
             if (material.taaHistoryClamp() < 0f || material.taaHistoryClamp() > 1f) {
                 throw invalid("material " + material.id() + " taaHistoryClamp must be in [0,1]");
             }
+            if (material.emissiveReactiveBoost() < 0f || material.emissiveReactiveBoost() > 3f) {
+                throw invalid("material " + material.id() + " emissiveReactiveBoost must be in [0,3]");
+            }
         }
 
         if (scene.lights() != null) {

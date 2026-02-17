@@ -114,7 +114,9 @@ import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.imageio.ImageIO;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -137,6 +139,7 @@ final class OpenGlContext {
     }
 
     static record SceneMesh(
+            String meshId,
             MeshGeometry geometry,
             float[] modelMatrix,
             float[] albedoColor,
@@ -147,12 +150,17 @@ final class OpenGlContext {
             boolean foliage,
             float reactiveBoost,
             float taaHistoryClamp,
+            float emissiveReactiveBoost,
+            float reactivePreset,
             Path albedoTexturePath,
             Path normalTexturePath,
             Path metallicRoughnessTexturePath,
             Path occlusionTexturePath
     ) {
         SceneMesh {
+            if (meshId == null || meshId.isBlank()) {
+                throw new IllegalArgumentException("meshId is required");
+            }
             if (geometry == null) {
                 throw new IllegalArgumentException("geometry is required");
             }
@@ -169,7 +177,9 @@ final class OpenGlContext {
         private final int vaoId;
         private final int vboId;
         private final int vertexCount;
+        private final String meshId;
         private final float[] modelMatrix;
+        private final float[] prevModelMatrix;
         private final float[] albedoColor;
         private final float metallic;
         private final float roughness;
@@ -178,6 +188,8 @@ final class OpenGlContext {
         private final boolean foliage;
         private final float reactiveBoost;
         private final float taaHistoryClamp;
+        private final float emissiveReactiveBoost;
+        private final float reactivePreset;
         private final int textureId;
         private final int normalTextureId;
         private final int metallicRoughnessTextureId;
@@ -192,7 +204,9 @@ final class OpenGlContext {
                 int vaoId,
                 int vboId,
                 int vertexCount,
+                String meshId,
                 float[] modelMatrix,
+                float[] prevModelMatrix,
                 float[] albedoColor,
                 float metallic,
                 float roughness,
@@ -201,6 +215,8 @@ final class OpenGlContext {
                 boolean foliage,
                 float reactiveBoost,
                 float taaHistoryClamp,
+                float emissiveReactiveBoost,
+                float reactivePreset,
                 int textureId,
                 int normalTextureId,
                 int metallicRoughnessTextureId,
@@ -214,7 +230,9 @@ final class OpenGlContext {
             this.vaoId = vaoId;
             this.vboId = vboId;
             this.vertexCount = vertexCount;
+            this.meshId = meshId;
             this.modelMatrix = modelMatrix;
+            this.prevModelMatrix = prevModelMatrix;
             this.albedoColor = albedoColor;
             this.metallic = metallic;
             this.roughness = roughness;
@@ -223,6 +241,8 @@ final class OpenGlContext {
             this.foliage = foliage;
             this.reactiveBoost = reactiveBoost;
             this.taaHistoryClamp = taaHistoryClamp;
+            this.emissiveReactiveBoost = emissiveReactiveBoost;
+            this.reactivePreset = reactivePreset;
             this.textureId = textureId;
             this.normalTextureId = normalTextureId;
             this.metallicRoughnessTextureId = metallicRoughnessTextureId;
@@ -247,6 +267,7 @@ final class OpenGlContext {
             uniform mat4 uProj;
             out vec3 vColor;
             out vec3 vWorldPos;
+            out vec3 vLocalPos;
             out float vHeight;
             out vec2 vUv;
             out vec4 vLightSpacePos;
@@ -255,6 +276,7 @@ final class OpenGlContext {
                 vec4 world = uModel * vec4(aPos, 1.0);
                 vColor = aColor;
                 vWorldPos = world.xyz;
+                vLocalPos = aPos;
                 vHeight = world.y;
                 vUv = aPos.xy * 0.5 + vec2(0.5);
                 vLightSpacePos = uLightViewProj * world;
@@ -281,6 +303,7 @@ final class OpenGlContext {
             #version 330 core
             in vec3 vColor;
             in vec3 vWorldPos;
+            in vec3 vLocalPos;
             in float vHeight;
             in vec2 vUv;
             in vec4 vLightSpacePos;
@@ -288,7 +311,7 @@ final class OpenGlContext {
             uniform float uMaterialMetallic;
             uniform float uMaterialRoughness;
             uniform vec4 uMaterialReactive;
-            uniform vec2 uMaterialReactiveTuning;
+            uniform vec4 uMaterialReactiveTuning;
             uniform int uUseAlbedoTexture;
             uniform sampler2D uAlbedoTexture;
             uniform int uUseNormalTexture;
@@ -331,6 +354,7 @@ final class OpenGlContext {
             uniform vec4 uIblParams;
             uniform mat4 uCurrentViewProj;
             uniform mat4 uPrevViewProj;
+            uniform mat4 uPrevModel;
             uniform int uTonemapEnabled;
             uniform float uTonemapExposure;
             uniform float uTonemapGamma;
@@ -607,7 +631,7 @@ final class OpenGlContext {
                     color = mix(color, vec3(dot(color, vec3(0.2126, 0.7152, 0.0722))), blend * 0.05);
                 }
                 vec4 currClip = uCurrentViewProj * vec4(vWorldPos, 1.0);
-                vec4 prevClip = uPrevViewProj * vec4(vWorldPos, 1.0);
+                vec4 prevClip = uPrevViewProj * (uPrevModel * vec4(vLocalPos, 1.0));
                 float currW = abs(currClip.w) > 0.000001 ? currClip.w : 1.0;
                 float prevW = abs(prevClip.w) > 0.000001 ? prevClip.w : 1.0;
                 vec2 currNdc = currClip.xy / currW;
@@ -620,9 +644,13 @@ final class OpenGlContext {
                 float heuristicReactive = clamp(max(alphaTestMask, foliageMask) * 0.85 + specularMask * 0.30 + emissiveMask, 0.0, 1.0);
                 float reactiveBoost = clamp(uMaterialReactiveTuning.x, 0.0, 2.0);
                 float taaHistoryClamp = clamp(uMaterialReactiveTuning.y, 0.0, 1.0);
+                float emissiveReactiveBoost = clamp(uMaterialReactiveTuning.z, 0.0, 3.0);
+                float reactivePreset = clamp(uMaterialReactiveTuning.w, 0.0, 3.0);
                 float authoredReactive = clamp(uMaterialReactive.x * reactiveBoost * (1.0 + 0.65 * max(uMaterialReactive.y, uMaterialReactive.z)), 0.0, 1.0);
                 bool authoredEnabled = (uMaterialReactive.x > 0.001) || (uMaterialReactive.y > 0.5) || (uMaterialReactive.z > 0.5);
-                float materialReactive = (authoredEnabled ? authoredReactive : heuristicReactive) * (1.0 + (1.0 - taaHistoryClamp) * 0.6);
+                heuristicReactive = clamp(heuristicReactive + emissiveMask * emissiveReactiveBoost * 0.45, 0.0, 1.0);
+                float presetScale = reactivePreset < 0.5 ? 1.0 : (reactivePreset < 1.5 ? 0.82 : (reactivePreset < 2.5 ? 1.0 : 1.2));
+                float materialReactive = (authoredEnabled ? authoredReactive : heuristicReactive) * (1.0 + (1.0 - taaHistoryClamp) * 0.6) * presetScale;
                 FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                 VelocityColor = vec4(velocityNdc * 0.5 + 0.5, clamp(gl_FragCoord.z, 0.0, 1.0), materialReactive);
             }
@@ -669,6 +697,7 @@ final class OpenGlContext {
             uniform int uTaaDebugView;
             uniform float uTaaClipScale;
             uniform int uTaaLumaClipEnabled;
+            uniform float uTaaSharpenStrength;
             uniform sampler2D uTaaHistory;
             uniform sampler2D uTaaHistoryVelocity;
             out vec4 FragColor;
@@ -872,7 +901,7 @@ final class OpenGlContext {
                     float historyTrust = clamp(confidenceState * (1.0 - reactive * 0.65), 0.0, 1.0);
                     float blend = clamp(uTaaBlend, 0.0, 0.95) * historyTrust * (1.0 - reactive * 0.88);
                     color = mix(color, clampedHistory, blend);
-                    color = taaSharpen(vUv, color, 0.16 * (1.0 - reactive));
+                    color = taaSharpen(vUv, color, clamp(uTaaSharpenStrength, 0.0, 0.35) * (1.0 - reactive));
                     historyConfidenceOut = clamp(max(confidenceState * 0.94, 1.0 - reactive * 0.86), 0.02, 1.0);
                     if (uTaaDebugView == 1) {
                         color = vec3(reactive);
@@ -892,6 +921,7 @@ final class OpenGlContext {
     private int programId;
     private final List<MeshBuffer> sceneMeshes = new ArrayList<>();
     private int modelLocation;
+    private int prevModelLocation;
     private int viewLocation;
     private int projLocation;
     private int currentViewProjLocation;
@@ -981,6 +1011,7 @@ final class OpenGlContext {
     private int postTaaDebugViewLocation;
     private int postTaaClipScaleLocation;
     private int postTaaLumaClipEnabledLocation;
+    private int postTaaSharpenStrengthLocation;
     private int postTaaHistoryLocation;
     private int postTaaHistoryVelocityLocation;
     private int postVaoId;
@@ -1038,6 +1069,7 @@ final class OpenGlContext {
     private int taaDebugView;
     private float taaClipScale = 1.0f;
     private boolean taaLumaClipEnabled;
+    private float taaSharpenStrength = 0.16f;
     private double taaHistoryRejectRate;
     private double taaConfidenceMean = 1.0;
     private long taaConfidenceDropEvents;
@@ -1124,6 +1156,7 @@ final class OpenGlContext {
         recreateShadowResources();
         initializeGpuQuerySupport();
         setSceneMeshes(List.of(new SceneMesh(
+                "default-triangle",
                 defaultTriangleGeometry(),
                 identityMatrix(),
                 new float[]{1f, 1f, 1f},
@@ -1134,6 +1167,8 @@ final class OpenGlContext {
                 false,
                 1.0f,
                 1.0f,
+                1.0f,
+                0f,
                 null,
                 null,
                 null,
@@ -1204,6 +1239,7 @@ final class OpenGlContext {
         lastVisibleObjects = sceneMeshes.size();
         for (MeshBuffer mesh : sceneMeshes) {
             glUniformMatrix4fv(modelLocation, false, mesh.modelMatrix);
+            glUniformMatrix4fv(prevModelLocation, false, mesh.prevModelMatrix);
             glUniform3f(materialAlbedoLocation, mesh.albedoColor[0], mesh.albedoColor[1], mesh.albedoColor[2]);
             glUniform1f(materialMetallicLocation, mesh.metallic);
             glUniform1f(materialRoughnessLocation, mesh.roughness);
@@ -1214,7 +1250,13 @@ final class OpenGlContext {
                     mesh.foliage ? 1f : 0f,
                     0f
             );
-            glUniform2f(materialReactiveTuningLocation, mesh.reactiveBoost, mesh.taaHistoryClamp);
+            glUniform4f(
+                    materialReactiveTuningLocation,
+                    mesh.reactiveBoost,
+                    mesh.taaHistoryClamp,
+                    mesh.emissiveReactiveBoost,
+                    mesh.reactivePreset
+            );
             glUniform3f(dirLightDirLocation, dirLightDirX, dirLightDirY, dirLightDirZ);
             glUniform3f(dirLightColorLocation, dirLightColorR, dirLightColorG, dirLightColorB);
             glUniform1f(dirLightIntensityLocation, dirLightIntensity);
@@ -1411,6 +1453,7 @@ final class OpenGlContext {
         glUniform1i(postTaaDebugViewLocation, taaDebugView);
         glUniform1f(postTaaClipScaleLocation, taaClipScale);
         glUniform1i(postTaaLumaClipEnabledLocation, taaLumaClipEnabled ? 1 : 0);
+        glUniform1f(postTaaSharpenStrengthLocation, taaSharpenStrength);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1438,6 +1481,7 @@ final class OpenGlContext {
     }
 
     void endFrame() {
+        promotePreviousModelMatrices();
         updateTemporalHistoryCameraState();
         updateAaTelemetry();
         if (gpuTimerQuerySupported) {
@@ -1449,6 +1493,12 @@ final class OpenGlContext {
         }
         GLFW.glfwSwapBuffers(window);
         GLFW.glfwPollEvents();
+    }
+
+    private void promotePreviousModelMatrices() {
+        for (MeshBuffer mesh : sceneMeshes) {
+            System.arraycopy(mesh.modelMatrix, 0, mesh.prevModelMatrix, 0, 16);
+        }
     }
 
     double taaHistoryRejectRate() {
@@ -1563,7 +1613,8 @@ final class OpenGlContext {
             boolean taaEnabled,
             float taaBlend,
             float taaClipScale,
-            boolean taaLumaClipEnabled
+            boolean taaLumaClipEnabled,
+            float taaSharpenStrength
     ) {
         this.tonemapEnabled = tonemapEnabled;
         tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
@@ -1582,6 +1633,7 @@ final class OpenGlContext {
         this.taaBlend = Math.max(0f, Math.min(0.95f, taaBlend));
         this.taaClipScale = Math.max(0.5f, Math.min(1.6f, taaClipScale));
         this.taaLumaClipEnabled = taaLumaClipEnabled;
+        this.taaSharpenStrength = Math.max(0f, Math.min(0.35f, taaSharpenStrength));
         if (!this.taaEnabled) {
             resetTemporalJitterState();
             projMatrix = projBaseMatrix.clone();
@@ -1693,9 +1745,14 @@ final class OpenGlContext {
     }
 
     void setSceneMeshes(List<SceneMesh> meshes) {
+        Map<String, float[]> previousModelByMeshId = new HashMap<>();
+        for (MeshBuffer mesh : sceneMeshes) {
+            previousModelByMeshId.put(mesh.meshId, mesh.modelMatrix.clone());
+        }
         clearSceneMeshes();
         List<SceneMesh> effectiveMeshes = meshes == null || meshes.isEmpty()
                 ? List.of(new SceneMesh(
+                "default-triangle",
                 defaultTriangleGeometry(),
                 identityMatrix(),
                 new float[]{1f, 1f, 1f},
@@ -1706,6 +1763,8 @@ final class OpenGlContext {
                 false,
                 1.0f,
                 1.0f,
+                1.0f,
+                0f,
                 null,
                 null,
                 null,
@@ -1713,7 +1772,8 @@ final class OpenGlContext {
         ))
                 : meshes;
         for (SceneMesh mesh : effectiveMeshes) {
-            sceneMeshes.add(uploadMesh(mesh));
+            float[] prevModel = previousModelByMeshId.get(mesh.meshId());
+            sceneMeshes.add(uploadMesh(mesh, prevModel == null ? mesh.modelMatrix().clone() : prevModel));
         }
         estimatedGpuMemoryBytes = estimateGpuMemoryBytes();
     }
@@ -1737,6 +1797,7 @@ final class OpenGlContext {
         glDeleteShader(vertexShaderId);
         glDeleteShader(fragmentShaderId);
         modelLocation = glGetUniformLocation(programId, "uModel");
+        prevModelLocation = glGetUniformLocation(programId, "uPrevModel");
         viewLocation = glGetUniformLocation(programId, "uView");
         projLocation = glGetUniformLocation(programId, "uProj");
         currentViewProjLocation = glGetUniformLocation(programId, "uCurrentViewProj");
@@ -1856,6 +1917,7 @@ final class OpenGlContext {
         postTaaDebugViewLocation = glGetUniformLocation(postProgramId, "uTaaDebugView");
         postTaaClipScaleLocation = glGetUniformLocation(postProgramId, "uTaaClipScale");
         postTaaLumaClipEnabledLocation = glGetUniformLocation(postProgramId, "uTaaLumaClipEnabled");
+        postTaaSharpenStrengthLocation = glGetUniformLocation(postProgramId, "uTaaSharpenStrength");
         postTaaHistoryLocation = glGetUniformLocation(postProgramId, "uTaaHistory");
         postTaaHistoryVelocityLocation = glGetUniformLocation(postProgramId, "uTaaHistoryVelocity");
         postVaoId = glGenVertexArrays();
@@ -1952,7 +2014,7 @@ final class OpenGlContext {
         postProcessPipelineAvailable = false;
     }
 
-    private MeshBuffer uploadMesh(SceneMesh mesh) {
+    private MeshBuffer uploadMesh(SceneMesh mesh, float[] prevModelMatrix) {
         int vaoId = glGenVertexArrays();
         int vboId = glGenBuffers();
 
@@ -1978,7 +2040,9 @@ final class OpenGlContext {
                 vaoId,
                 vboId,
                 mesh.geometry().vertexCount(),
+                mesh.meshId(),
                 mesh.modelMatrix().clone(),
+                prevModelMatrix.clone(),
                 mesh.albedoColor().clone(),
                 clamp01(mesh.metallic()),
                 clamp01(mesh.roughness()),
@@ -1987,6 +2051,8 @@ final class OpenGlContext {
                 mesh.foliage(),
                 Math.max(0f, Math.min(2.0f, mesh.reactiveBoost())),
                 clamp01(mesh.taaHistoryClamp()),
+                Math.max(0f, Math.min(3.0f, mesh.emissiveReactiveBoost())),
+                Math.max(0f, Math.min(3.0f, mesh.reactivePreset())),
                 albedoTexture.id(),
                 normalTexture.id(),
                 metallicRoughnessTexture.id(),

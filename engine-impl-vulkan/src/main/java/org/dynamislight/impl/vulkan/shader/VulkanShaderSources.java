@@ -34,6 +34,7 @@ public final class VulkanShaderSources {
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
+                    mat4 uPrevModel;
                     vec4 uBaseColor;
                     vec4 uMaterial;
                     vec4 uMaterialReactive;
@@ -67,6 +68,7 @@ public final class VulkanShaderSources {
                 layout(location = 2) out float vHeight;
                 layout(location = 3) out vec2 vUv;
                 layout(location = 4) out vec3 vTangent;
+                layout(location = 5) out vec3 vLocalPos;
                 layout(set = 0, binding = 0) uniform GlobalData {
                     mat4 uView;
                     mat4 uProj;
@@ -93,6 +95,7 @@ public final class VulkanShaderSources {
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
+                    mat4 uPrevModel;
                     vec4 uBaseColor;
                     vec4 uMaterial;
                     vec4 uMaterialReactive;
@@ -106,6 +109,7 @@ public final class VulkanShaderSources {
                     vNormal = normal;
                     vTangent = tangent;
                     vUv = inUv;
+                    vLocalPos = inPos;
                     gl_Position = gbo.uProj * gbo.uView * world;
                 }
                 """;
@@ -119,6 +123,7 @@ public final class VulkanShaderSources {
                 layout(location = 2) in float vHeight;
                 layout(location = 3) in vec2 vUv;
                 layout(location = 4) in vec3 vTangent;
+                layout(location = 5) in vec3 vLocalPos;
                 layout(set = 0, binding = 0) uniform GlobalData {
                     mat4 uView;
                     mat4 uProj;
@@ -145,6 +150,7 @@ public final class VulkanShaderSources {
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
+                    mat4 uPrevModel;
                     vec4 uBaseColor;
                     vec4 uMaterial;
                     vec4 uMaterialReactive;
@@ -209,6 +215,8 @@ public final class VulkanShaderSources {
                     float reactiveFlags = obj.uMaterial.w;
                     float reactiveBoost = clamp(obj.uMaterialReactive.x, 0.0, 2.0);
                     float taaHistoryClamp = clamp(obj.uMaterialReactive.y, 0.0, 1.0);
+                    float emissiveReactiveBoost = clamp(obj.uMaterialReactive.z, 0.0, 3.0);
+                    float reactivePreset = clamp(obj.uMaterialReactive.w, 0.0, 3.0);
                     bool alphaTested = mod(reactiveFlags, 2.0) >= 1.0;
                     bool foliage = mod(floor(reactiveFlags / 2.0), 2.0) >= 1.0;
                     float normalVariance = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.30, 0.0, 1.0);
@@ -461,10 +469,12 @@ public final class VulkanShaderSources {
                             1.0
                     );
                     bool authoredEnabled = (reactiveStrength > 0.001) || alphaTested || foliage;
-                    float materialReactive = (authoredEnabled ? authoredReactive : heuristicReactive) * (1.0 + (1.0 - taaHistoryClamp) * 0.6);
+                    heuristicReactive = clamp(heuristicReactive + emissiveMask * emissiveReactiveBoost * 0.45, 0.0, 1.0);
+                    float presetScale = reactivePreset < 0.5 ? 1.0 : (reactivePreset < 1.5 ? 0.82 : (reactivePreset < 2.5 ? 1.0 : 1.2));
+                    float materialReactive = (authoredEnabled ? authoredReactive : heuristicReactive) * (1.0 + (1.0 - taaHistoryClamp) * 0.6) * presetScale;
                     outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
                     vec4 currClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
-                    vec4 prevClip = gbo.uPrevViewProj * vec4(vWorldPos, 1.0);
+                    vec4 prevClip = gbo.uPrevViewProj * (obj.uPrevModel * vec4(vLocalPos, 1.0));
                     float currW = abs(currClip.w) > 0.000001 ? currClip.w : 1.0;
                     float prevW = abs(prevClip.w) > 0.000001 ? prevClip.w : 1.0;
                     vec2 currNdc = currClip.xy / currW;
@@ -629,6 +639,8 @@ public final class VulkanShaderSources {
                     }
                     if (pc.taa.x > 0.5 && pc.taa.z > 0.5) {
                         vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        bool taaLumaClip = pc.motion.z >= 1.0;
+                        float taaSharpenStrength = clamp(pc.motion.z - (taaLumaClip ? 1.0 : 0.0), 0.0, 0.35);
                         vec4 velocitySample = texture(uVelocityColor, vUv);
                         vec2 velocityUv = velocitySample.rg * 2.0 - 1.0;
                         float materialReactive = velocitySample.a;
@@ -676,7 +688,7 @@ public final class VulkanShaderSources {
                         float clipExpand = mix(0.06, 0.015, reactive);
                         float taaClipScale = clamp(pc.motion.w, 0.5, 1.6);
                         vec3 clampedHistory = clamp(history, neighMin - vec3(clipExpand * taaClipScale), neighMax + vec3(clipExpand * taaClipScale));
-                        if (pc.motion.z > 0.5) {
+                        if (taaLumaClip) {
                             float lumaMin = min(min(lCurr, lN1), min(min(lN2, lN3), lN4));
                             float lumaMax = max(max(lCurr, lN1), max(max(lN2, lN3), lN4));
                             float lumaHist = dot(clampedHistory, vec3(0.2126, 0.7152, 0.0722));
@@ -703,7 +715,7 @@ public final class VulkanShaderSources {
                         float historyTrust = clamp(confidenceState * (1.0 - reactive * 0.65), 0.0, 1.0);
                         float blend = clamp(pc.taa.y, 0.0, 0.95) * historyTrust * (1.0 - reactive * 0.88);
                         color = mix(color, clampedHistory, blend);
-                        color = taaSharpen(vUv, color, 0.16 * (1.0 - reactive));
+                        color = taaSharpen(vUv, color, taaSharpenStrength * (1.0 - reactive));
                         historyConfidenceOut = clamp(max(confidenceState * 0.94, 1.0 - reactive * 0.86), 0.02, 1.0);
                         int debugView = int(pc.taa.w + 0.5);
                         if (debugView == 1) {

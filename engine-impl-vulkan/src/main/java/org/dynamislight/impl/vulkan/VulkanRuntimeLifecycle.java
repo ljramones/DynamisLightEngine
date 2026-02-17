@@ -126,7 +126,8 @@ final class VulkanRuntimeLifecycle {
                 state.post().taaEnabled(),
                 state.post().taaBlend(),
                 state.post().taaClipScale(),
-                state.post().taaLumaClipEnabled()
+                state.post().taaLumaClipEnabled(),
+                state.post().taaSharpenStrength()
         );
         context.setSceneMeshes(state.sceneMeshes());
         context.setPlannedWorkload(state.plannedDrawCalls(), state.plannedTriangles(), state.plannedVisibleObjects());

@@ -14,6 +14,7 @@ public final class VulkanGpuMesh {
     public final long indexBytes;
     public final String meshId;
     public float[] modelMatrix;
+    public float[] prevModelMatrix;
     public float colorR;
     public float colorG;
     public float colorB;
@@ -24,6 +25,8 @@ public final class VulkanGpuMesh {
     public boolean foliage;
     public float reactiveBoost;
     public float taaHistoryClamp;
+    public float emissiveReactiveBoost;
+    public float reactivePreset;
     public final VulkanGpuTexture albedoTexture;
     public final VulkanGpuTexture normalTexture;
     public final VulkanGpuTexture metallicRoughnessTexture;
@@ -45,6 +48,7 @@ public final class VulkanGpuMesh {
             long vertexBytes,
             long indexBytes,
             float[] modelMatrix,
+            float[] prevModelMatrix,
             float colorR,
             float colorG,
             float colorB,
@@ -55,6 +59,8 @@ public final class VulkanGpuMesh {
             boolean foliage,
             float reactiveBoost,
             float taaHistoryClamp,
+            float emissiveReactiveBoost,
+            float reactivePreset,
             VulkanGpuTexture albedoTexture,
             VulkanGpuTexture normalTexture,
             VulkanGpuTexture metallicRoughnessTexture,
@@ -76,6 +82,7 @@ public final class VulkanGpuMesh {
         this.indexBytes = indexBytes;
         this.meshId = meshId;
         this.modelMatrix = modelMatrix;
+        this.prevModelMatrix = prevModelMatrix;
         this.colorR = colorR;
         this.colorG = colorG;
         this.colorB = colorB;
@@ -86,6 +93,8 @@ public final class VulkanGpuMesh {
         this.foliage = foliage;
         this.reactiveBoost = reactiveBoost;
         this.taaHistoryClamp = taaHistoryClamp;
+        this.emissiveReactiveBoost = emissiveReactiveBoost;
+        this.reactivePreset = reactivePreset;
         this.albedoTexture = albedoTexture;
         this.normalTexture = normalTexture;
         this.metallicRoughnessTexture = metallicRoughnessTexture;
@@ -109,9 +118,12 @@ public final class VulkanGpuMesh {
             boolean alphaTested,
             boolean foliage,
             float reactiveBoost,
-            float taaHistoryClamp
+            float taaHistoryClamp,
+            float emissiveReactiveBoost,
+            float reactivePreset
     ) {
-        boolean changed = !Arrays.equals(this.modelMatrix, modelMatrix)
+        boolean modelChanged = !Arrays.equals(this.modelMatrix, modelMatrix);
+        boolean changed = modelChanged
                 || this.colorR != colorR
                 || this.colorG != colorG
                 || this.colorB != colorB
@@ -121,7 +133,12 @@ public final class VulkanGpuMesh {
                 || this.alphaTested != alphaTested
                 || this.foliage != foliage
                 || this.reactiveBoost != reactiveBoost
-                || this.taaHistoryClamp != taaHistoryClamp;
+                || this.taaHistoryClamp != taaHistoryClamp
+                || this.emissiveReactiveBoost != emissiveReactiveBoost
+                || this.reactivePreset != reactivePreset;
+        if (modelChanged) {
+            this.prevModelMatrix = this.modelMatrix;
+        }
         this.modelMatrix = modelMatrix;
         this.colorR = colorR;
         this.colorG = colorG;
@@ -133,6 +150,8 @@ public final class VulkanGpuMesh {
         this.foliage = foliage;
         this.reactiveBoost = reactiveBoost;
         this.taaHistoryClamp = taaHistoryClamp;
+        this.emissiveReactiveBoost = emissiveReactiveBoost;
+        this.reactivePreset = reactivePreset;
         return changed;
     }
 }

@@ -122,13 +122,14 @@ OpenGL backend provides a real forward render baseline:
   - OpenGL and Vulkan both include per-pixel motion-vector reprojection via dedicated velocity render targets sampled in post.
   - Global camera-motion UV reprojection remains layered as a stabilizing baseline term.
   - Reactive-mask + neighborhood-clipping pass is enabled in both backends to reduce ghosting under high-contrast motion.
-  - Per-material reactive controls are authored via `MaterialDesc` (`reactiveStrength`, `alphaTested`, `foliage`, `reactiveBoost`, `taaHistoryClamp`) and emitted from geometry (velocity alpha + material tuning).
+  - Per-material reactive controls are authored via `MaterialDesc` (`reactiveStrength`, `alphaTested`, `foliage`, `reactiveBoost`, `taaHistoryClamp`, `emissiveReactiveBoost`, `reactivePreset`) and emitted from geometry (velocity alpha + material tuning).
+  - Motion-vector reprojection now uses per-object previous transform coverage in both backends for dynamic mesh velocity quality (not camera-only reprojection).
   - Neighborhood clipping now follows quality-tier policy (wider at lower quality, tighter at higher quality) to improve stability/detail balance.
   - Optional luminance clipping mode is available for temporal acceptance control (`PostProcessDesc.taaLumaClipEnabled`).
   - Specular anti-aliasing is enabled in both backends with Toksvig-style roughness filtering (`normalMapVariance + dFdx/dFdy` normal variance) to reduce glossy shimmer.
   - Temporal history alpha stores confidence with explicit decay/recovery policy driven by instability/disocclusion, then modulates TAA blend acceptance.
   - History validation includes explicit previous-frame depth rejection (history-velocity depth sample) plus thin-edge depth neighborhood checks.
-  - Temporal pass applies mild contrast-aware sharpen after blend to recover detail.
+  - Temporal pass applies mild contrast-aware sharpen after blend with tiered strength (`LOW/MEDIUM/HIGH/ULTRA`) to recover detail.
   - SMAA path upgraded with explicit edge-mask + blend-weight phases (shader-stage implementation).
   - Debug output modes are available via backend options (`opengl.taaDebugView` / `vulkan.taaDebugView`: `0=off`, `1=reactive`, `2=weight`, `3=velocity`).
 - Dedicated post-pass architecture:
