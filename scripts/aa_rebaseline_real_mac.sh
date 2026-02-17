@@ -142,6 +142,11 @@ if [[ -n "$VULKAN_LOADER_DIR" ]]; then
   fi
 fi
 OUT_BASE_DIR="$OUT_DIR"
+if [[ "$OUT_BASE_DIR" = /* ]]; then
+  OUT_BASE_DIR_ABS="$OUT_BASE_DIR"
+else
+  OUT_BASE_DIR_ABS="$ROOT_DIR/$OUT_BASE_DIR"
+fi
 
 case "$MODE_NORMALIZED" in
   real)
@@ -192,13 +197,16 @@ fi
 
 if [[ "$VULKAN_MOCK_CONTEXT" == "true" ]]; then
   OUT_DIR="${OUT_BASE_DIR%/}/vulkan_mock"
+  OUT_DIR_ABS="${OUT_BASE_DIR_ABS%/}/vulkan_mock"
 else
   OUT_DIR="${OUT_BASE_DIR%/}/vulkan_real"
+  OUT_DIR_ABS="${OUT_BASE_DIR_ABS%/}/vulkan_real"
 fi
 
 echo "Using JAVA_HOME=$JAVA_HOME"
 java -version
 echo "Writing compare artifacts to: $OUT_DIR"
+echo "Absolute compare output path: $OUT_DIR_ABS"
 echo "Vulkan mode: $MODE_NORMALIZED (mockContext=$VULKAN_MOCK_CONTEXT)"
 echo "Forked JVM stack size: $STACK_SIZE"
 echo "Temporal frames override: ${DLE_COMPARE_TEMPORAL_FRAMES:-0}"
@@ -218,7 +226,7 @@ run_compare_tests() {
   mvn -q -pl engine-host-sample -am test \
     -DargLine="$JVM_ARG_LINE" \
     -Ddle.compare.tests=true \
-    -Ddle.compare.outputDir="$OUT_DIR" \
+    -Ddle.compare.outputDir="$OUT_DIR_ABS" \
     -Ddle.compare.opengl.mockContext=false \
     -Ddle.compare.vulkan.mockContext="$mock_context" \
     -Ddle.compare.vulkan.postOffscreen=true \
@@ -240,6 +248,7 @@ if ! run_compare_tests "$VULKAN_MOCK_CONTEXT" "$LOG_FILE"; then
     echo "Real Vulkan initialization failed; auto mode is retrying with Vulkan mock context." >&2
     VULKAN_MOCK_CONTEXT=true
     OUT_DIR="${OUT_BASE_DIR%/}/vulkan_mock"
+    OUT_DIR_ABS="${OUT_BASE_DIR_ABS%/}/vulkan_mock"
     run_compare_tests "$VULKAN_MOCK_CONTEXT" "$LOG_FILE"
   else
     exit 1

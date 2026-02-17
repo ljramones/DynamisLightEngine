@@ -4,9 +4,39 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-SOURCE_DIR="${1:-artifacts/compare}"
+SOURCE_DIR_INPUT="${1:-artifacts/compare}"
+SOURCE_DIR="$SOURCE_DIR_INPUT"
 OUT_DIR="${2:-artifacts/compare/threshold-lock}"
 mkdir -p "$OUT_DIR"
+
+resolve_source_dir() {
+  local requested="$1"
+  local candidate_a="$requested"
+  local candidate_b="engine-host-sample/$requested"
+  if [[ -d "$candidate_a" ]] && find "$candidate_a" -type f -name 'compare-metadata.properties' -print -quit | grep -q .; then
+    printf '%s\n' "$candidate_a"
+    return 0
+  fi
+  if [[ -d "$candidate_b" ]] && find "$candidate_b" -type f -name 'compare-metadata.properties' -print -quit | grep -q .; then
+    printf '%s\n' "$candidate_b"
+    return 0
+  fi
+  if [[ -d "$candidate_a" ]]; then
+    printf '%s\n' "$candidate_a"
+    return 0
+  fi
+  if [[ -d "$candidate_b" ]]; then
+    printf '%s\n' "$candidate_b"
+    return 0
+  fi
+  return 1
+}
+
+if ! SOURCE_DIR="$(resolve_source_dir "$SOURCE_DIR")"; then
+  echo "No compare source directory found for: $SOURCE_DIR_INPUT" >&2
+  echo "Tried: '$SOURCE_DIR_INPUT' and 'engine-host-sample/$SOURCE_DIR_INPUT'" >&2
+  exit 1
+fi
 
 TMP_INPUT="$(mktemp -t dle-aa-lock-input.XXXXXX.tsv)"
 trap 'rm -f "$TMP_INPUT"' EXIT
