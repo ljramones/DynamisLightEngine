@@ -669,6 +669,38 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void shadowPolicyWarningIncludesCadenceAndAtlasTelemetry() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("cadencePolicy=hero:1 mid:2 distant:4")
+                        && w.message().contains("atlasMemoryD16Bytes=")
+                        && w.message().contains("atlasMemoryD32Bytes=")
+                        && w.message().contains("shadowUpdateBytesEstimate=")));
+        runtime.shutdown();
+    }
+
+    @Test
+    void multiLocalShadowSceneEmitsRenderBaselineWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.ULTRA), new RecordingCallbacks());
+        runtime.loadScene(validMultiSpotShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_LOCAL_RENDER_BASELINE".equals(w.code())
+                        && w.message().contains("requestedLocalShadows=")
+                        && w.message().contains("renderedLocalShadows=1")));
+        runtime.shutdown();
+    }
+
+    @Test
     void postOffscreenRequestEmitsFallbackPipelineWarningInMockMode() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of(
@@ -1768,6 +1800,62 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.meshes(),
                 base.materials(),
                 List.of(spotShadow),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validMultiSpotShadowScene() {
+        SceneDescriptor base = validScene();
+        LightDesc spotA = new LightDesc(
+                "spot-shadow-a",
+                new Vec3(0.4f, 1.6f, 1.5f),
+                new Vec3(0.9f, 0.9f, 1f),
+                1.1f,
+                12f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.SPOT,
+                new Vec3(0f, -1f, 0f),
+                18f,
+                32f
+        );
+        LightDesc spotB = new LightDesc(
+                "spot-shadow-b",
+                new Vec3(-0.8f, 1.4f, 1.7f),
+                new Vec3(1f, 0.92f, 0.8f),
+                1.0f,
+                11f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.SPOT,
+                new Vec3(0.15f, -1f, -0.2f),
+                16f,
+                30f
+        );
+        LightDesc spotC = new LightDesc(
+                "spot-shadow-c",
+                new Vec3(1.1f, 1.7f, 1.2f),
+                new Vec3(0.85f, 0.95f, 1f),
+                1.05f,
+                13f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.SPOT,
+                new Vec3(-0.2f, -1f, 0.1f),
+                20f,
+                34f
+        );
+        return new SceneDescriptor(
+                "vulkan-multi-spot-shadow-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(spotA, spotB, spotC),
                 base.environment(),
                 base.fog(),
                 base.smokeEmitters(),

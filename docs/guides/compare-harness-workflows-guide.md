@@ -36,6 +36,7 @@ DLE_COMPARE_VULKAN_MODE=real \
 - `longrun`
 - `longrun-motion`
 - `upscaler-matrix`
+- `shadow-matrix`
 
 Examples:
 ```bash
@@ -43,6 +44,7 @@ Examples:
 ./scripts/aa_rebaseline_real_mac.sh lock-thresholds artifacts/compare
 ./scripts/aa_rebaseline_real_mac.sh longrun-motion
 ./scripts/aa_rebaseline_real_mac.sh upscaler-matrix
+./scripts/aa_rebaseline_real_mac.sh shadow-matrix
 ```
 
 ## 4. Key Environment Variables

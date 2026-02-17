@@ -350,6 +350,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " normalBiasScale=" + currentShadows.normalBiasScale()
                             + " slopeBiasScale=" + currentShadows.slopeBiasScale()
             ));
+            if (currentShadows.selectedLocalShadowLights() > 1) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_LOCAL_RENDER_BASELINE",
+                        "Vulkan local-shadow render path is still primary-local baseline "
+                                + "(requestedLocalShadows=" + currentShadows.selectedLocalShadowLights()
+                                + ", renderedLocalShadows=1, atlas/cubemap multi-local rollout pending)"
+                ));
+            }
         }
         return warnings;
     }

@@ -26,6 +26,19 @@ Validate shadow stability, policy selection, and quality-tier fallback behavior 
 
 ## 4. Execution Commands
 
+End-to-end shadow CI matrix automation:
+```bash
+./scripts/shadow_ci_matrix.sh
+```
+
+Optional real Vulkan depth-format matrix + long-run:
+```bash
+DLE_SHADOW_CI_REAL_MATRIX=1 \
+DLE_SHADOW_CI_LONGRUN=1 \
+DLE_COMPARE_VULKAN_MODE=real \
+./scripts/shadow_ci_matrix.sh
+```
+
 Unit policy + matrix checks:
 ```bash
 mvn -pl engine-impl-vulkan -am test \
@@ -81,9 +94,12 @@ Long-run motion/shimmer sweep (real Vulkan):
 - D16 vs D32 runs show no unacceptable acne/peter-panning divergence for locked profiles.
 - OpenGL lifecycle tests stay green with local shadow-atlas loop active:
   - `OpenGlEngineRuntimeLifecycleTest`
+- Vulkan integration tests surface explicit baseline warning when multiple local shadow casters are requested but render-side multi-local atlas/cubemap rollout is still pending:
+  - `SHADOW_LOCAL_RENDER_BASELINE`
 
 ## 6. Known Gaps
-- Per-light shadow atlas/array rendering for multiple simultaneous local shadow casters is still pending.
+- Vulkan per-light shadow atlas/array rendering for multiple simultaneous local shadow casters is still pending.
+- Vulkan multi-point cubemap shadow rendering (>1 concurrent point-shadow map) is still pending.
 - Need dedicated long-run shimmer/flicker analysis for shadow-only camera sweeps.
 
 ## 7. Planned Additions
@@ -91,6 +107,7 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Add cadence tests (hero lights full-rate vs distant lights throttled update rates).
 - Add static-cache correctness tests (no stale shadows after object/light state transitions).
 - Add CI matrix axis for shadow depth format (`D16_UNORM`, `D32_SFLOAT`) and publish drift deltas in reports.
+- Add CI gate that verifies `SHADOW_LOCAL_RENDER_BASELINE` clears once Vulkan multi-local render parity lands.
 
 Cadence/static-cache planned test shape:
 - Cadence behavior:

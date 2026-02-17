@@ -25,3 +25,6 @@ Current documents:
 - `quality-tiers-testing.md` - tiered envelope and stress validation plan.
 - `compare-harness-workflows-testing.md` - compare workflow artifact/threshold validation plan.
 - `feature-testing-template.md` - reusable template for future feature test plans.
+
+Automation shortcuts:
+- `./scripts/shadow_ci_matrix.sh` - shadow policy/stress/depth-format matrix checks.

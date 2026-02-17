@@ -682,6 +682,35 @@ class OpenGlEngineRuntimeLifecycleTest {
     }
 
     @Test
+    void shadowPolicyWarningIncludesCadenceAndAtlasTelemetry() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validConfig(), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("cadencePolicy=hero:1 mid:2 distant:4")
+                        && w.message().contains("atlasMemoryD16Bytes=")
+                        && w.message().contains("atlasMemoryD32Bytes=")
+                        && w.message().contains("shadowUpdateBytesEstimate=")));
+    }
+
+    @Test
+    void ultraTierMultiLocalShadowSceneReportsSelectedLocalBudget() throws Exception {
+        var runtime = new OpenGlEngineRuntime();
+        runtime.initialize(validUltraQualityConfig(), new RecordingCallbacks());
+        runtime.loadScene(validMultiSpotShadowScene());
+
+        EngineFrameResult frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("localSelected=3")));
+    }
+
+    @Test
     void sceneMeshesDriveDrawCallAndTriangleStatsInMockMode() throws Exception {
         var runtime = new OpenGlEngineRuntime();
         runtime.initialize(validConfig(), new RecordingCallbacks());
@@ -1214,6 +1243,62 @@ class OpenGlEngineRuntimeLifecycleTest {
                 base.meshes(),
                 base.materials(),
                 List.of(spotShadow),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validMultiSpotShadowScene() {
+        SceneDescriptor base = validScene();
+        LightDesc spotA = new LightDesc(
+                "spot-shadow-a",
+                new Vec3(0.4f, 1.6f, 1.5f),
+                new Vec3(0.9f, 0.9f, 1f),
+                1.1f,
+                12f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.SPOT,
+                new Vec3(0f, -1f, 0f),
+                18f,
+                32f
+        );
+        LightDesc spotB = new LightDesc(
+                "spot-shadow-b",
+                new Vec3(-0.8f, 1.4f, 1.7f),
+                new Vec3(1f, 0.92f, 0.8f),
+                1.0f,
+                11f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.SPOT,
+                new Vec3(0.15f, -1f, -0.2f),
+                16f,
+                30f
+        );
+        LightDesc spotC = new LightDesc(
+                "spot-shadow-c",
+                new Vec3(1.1f, 1.7f, 1.2f),
+                new Vec3(0.85f, 0.95f, 1f),
+                1.05f,
+                13f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.SPOT,
+                new Vec3(-0.2f, -1f, 0.1f),
+                20f,
+                34f
+        );
+        return new SceneDescriptor(
+                "multi-spot-shadow-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(spotA, spotB, spotC),
                 base.environment(),
                 base.fog(),
                 base.smokeEmitters(),

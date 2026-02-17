@@ -171,6 +171,24 @@ If performance drops:
 
 ## 6. Validation Commands
 
+Automated shadow CI matrix (policy + stress + depth-format checks):
+```bash
+./scripts/shadow_ci_matrix.sh
+```
+
+The same flow is available through the AA runner wrapper:
+```bash
+./scripts/aa_rebaseline_real_mac.sh shadow-matrix
+```
+
+Optional real Vulkan matrix/long-run:
+```bash
+DLE_SHADOW_CI_REAL_MATRIX=1 \
+DLE_SHADOW_CI_LONGRUN=1 \
+DLE_COMPARE_VULKAN_MODE=real \
+./scripts/shadow_ci_matrix.sh
+```
+
 Parity/stress suite (includes shadow profiles):
 ```bash
 mvn -pl engine-host-sample -am test \
@@ -188,3 +206,9 @@ Targeted shadow stress outputs are generated in compare artifacts:
 - `shadow-cascade-stress`
 - `fog-shadow-cascade-stress`
 - `smoke-shadow-cascade-stress`
+
+## 7. Remaining Rollout Gaps
+
+- Vulkan render path still uses primary-local shadow rendering baseline for non-directional shadows.
+- Vulkan runtime now emits `SHADOW_LOCAL_RENDER_BASELINE` when multiple local shadow casters are requested, making the remaining atlas/cubemap parity gap explicit in tests/CI.
+- Full concurrent multi-point cubemap shadow rendering is still pending.

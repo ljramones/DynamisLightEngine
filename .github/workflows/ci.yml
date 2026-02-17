@@ -62,6 +62,36 @@ jobs:
           path: artifacts/compare
           if-no-files-found: warn
 
+  shadow-matrix:
+    name: Shadow Matrix (JDK 25, macos-latest)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run shadow CI matrix (mock Vulkan)
+        env:
+          DLE_COMPARE_VULKAN_MODE: mock
+          DLE_SHADOW_CI_REAL_MATRIX: '0'
+          DLE_SHADOW_CI_LONGRUN: '0'
+          DLE_SHADOW_CI_OUTPUT_ROOT: artifacts/compare/shadow-ci
+        run: ./scripts/shadow_ci_matrix.sh
+
+      - name: Upload shadow artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-ci-artifacts-macos
+          path: artifacts/compare/shadow-ci
+          if-no-files-found: warn
+
   vulkan-real-guarded-matrix:
     name: Guarded Vulkan Real Suite (JDK 25, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}

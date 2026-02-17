@@ -20,7 +20,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 OUT_DIR="${DLE_COMPARE_OUTPUT_DIR:-artifacts/compare/aa-real-$(date +%Y%m%d-%H%M%S)}"
 TEST_CLASS="${DLE_COMPARE_TEST_CLASS:-BackendParityIntegrationTest}"
 VULKAN_MODE="${DLE_COMPARE_VULKAN_MODE:-mock}" # mock(default) | auto | real
-SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds | longrun | longrun-motion | upscaler-matrix
+SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds | longrun | longrun-motion | upscaler-matrix | shadow-matrix
 LOCK_SOURCE_DIR="${2:-artifacts/compare}"
 THRESHOLDS_FILE="${DLE_COMPARE_THRESHOLDS_FILE:-}"
 REQUIRED_MOLTENVK_VERSION="${DLE_COMPARE_REQUIRE_MOLTENVK_VERSION:-}"
@@ -252,8 +252,13 @@ if [[ "$SCRIPT_COMMAND" == "upscaler-matrix" ]]; then
   exit 0
 fi
 
+if [[ "$SCRIPT_COMMAND" == "shadow-matrix" ]]; then
+  "$ROOT_DIR/scripts/shadow_ci_matrix.sh"
+  exit 0
+fi
+
 if [[ "$SCRIPT_COMMAND" != "run" ]]; then
-  echo "Invalid command '$SCRIPT_COMMAND' (expected: run|preflight|lock-thresholds|longrun|longrun-motion|upscaler-matrix)." >&2
+  echo "Invalid command '$SCRIPT_COMMAND' (expected: run|preflight|lock-thresholds|longrun|longrun-motion|upscaler-matrix|shadow-matrix)." >&2
   exit 1
 fi
 
