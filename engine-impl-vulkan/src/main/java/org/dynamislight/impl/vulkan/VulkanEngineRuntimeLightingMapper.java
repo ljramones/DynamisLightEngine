@@ -357,7 +357,7 @@ final class VulkanEngineRuntimeLightingMapper {
             QualityTier qualityTier,
             int shadowMaxLocalLayers
     ) {
-        return mapLighting(lights, qualityTier, 0, shadowMaxLocalLayers, false, 1, 2, 4, 0L, Map.of());
+        return mapLighting(lights, qualityTier, 0, shadowMaxLocalLayers, false, 1, 2, 4, 0L, Map.of(), Map.of());
     }
 
     static VulkanEngineRuntime.LightingConfig mapLighting(
@@ -370,7 +370,8 @@ final class VulkanEngineRuntimeLightingMapper {
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
             long shadowSchedulerFrameTick,
-            Map<String, Long> shadowSchedulerLastRenderedTicks
+            Map<String, Long> shadowSchedulerLastRenderedTicks,
+            Map<String, Integer> shadowLayerAssignments
     ) {
         float[] dir = new float[]{0.35f, -1.0f, 0.25f};
         float[] dirColor = new float[]{1.0f, 0.98f, 0.95f};
@@ -390,7 +391,8 @@ final class VulkanEngineRuntimeLightingMapper {
             return new VulkanEngineRuntime.LightingConfig(
                     dir, dirColor, dirIntensity,
                     shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
-                    localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow
+                    localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow,
+                    Map.of(), 0, 0, 0
             );
         }
         LightDesc directional = null;
@@ -452,6 +454,10 @@ final class VulkanEngineRuntimeLightingMapper {
             int assignedShadowLights = 0;
             int assignedShadowLayers = 0;
             int shadowCandidateRank = 0;
+            int allocatorReused = 0;
+            int allocatorEvictions = 0;
+            boolean[] usedLayers = new boolean[maxShadowLayers + 1];
+            java.util.Map<String, Integer> newAssignments = new java.util.HashMap<>();
             for (int i = 0; i < localLightCount; i++) {
                 LightDesc light = localLights.get(i);
                 int offset = i * 4;
@@ -489,10 +495,26 @@ final class VulkanEngineRuntimeLightingMapper {
                     boolean cadenceDue = !shadowSchedulerEnabled
                             || isCadenceDue(shadowSchedulerFrameTick, shadowCandidateRank, cadencePeriod);
                     int layerCost = isSpot > 0.5f ? 1 : 6;
-                    if (cadenceDue && assignedShadowLayers + layerCost <= maxShadowLayers) {
-                        layerBase = assignedShadowLayers + 1;
-                        assignedShadowLayers += layerCost;
-                        assignedShadowLights++;
+                    if (cadenceDue) {
+                        String lightId = shadowLightId(light);
+                        Integer previousLayerBase = shadowLayerAssignments == null ? null : shadowLayerAssignments.get(lightId);
+                        int selectedLayerBase = 0;
+                        if (previousLayerBase != null && layerRangeFits(previousLayerBase, layerCost, maxShadowLayers, usedLayers)) {
+                            selectedLayerBase = previousLayerBase;
+                            allocatorReused++;
+                        } else {
+                            if (previousLayerBase != null) {
+                                allocatorEvictions++;
+                            }
+                            selectedLayerBase = firstFitLayerBase(layerCost, maxShadowLayers, usedLayers);
+                        }
+                        if (selectedLayerBase > 0) {
+                            markLayerRange(selectedLayerBase, layerCost, usedLayers, true);
+                            layerBase = selectedLayerBase;
+                            assignedShadowLayers += layerCost;
+                            assignedShadowLights++;
+                            newAssignments.put(lightId, selectedLayerBase);
+                        }
                     }
                     shadowCandidateRank++;
                 }
@@ -536,11 +558,18 @@ final class VulkanEngineRuntimeLightingMapper {
                 float outerCos = VulkanEngineRuntimeCameraMath.cosFromDegrees(shadowLight.outerConeDegrees());
                 shadowPointOuterCos = Math.min(innerCos, outerCos);
             }
+            return new VulkanEngineRuntime.LightingConfig(
+                    dir, dirColor, dirIntensity,
+                    shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
+                    localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow,
+                    java.util.Map.copyOf(newAssignments), assignedShadowLights, allocatorReused, allocatorEvictions
+            );
         }
         return new VulkanEngineRuntime.LightingConfig(
                 dir, dirColor, dirIntensity,
                 shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
-                localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow
+                localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow,
+                Map.of(), 0, 0, 0
         );
     }
 
@@ -941,6 +970,33 @@ final class VulkanEngineRuntimeLightingMapper {
             return true;
         }
         return Math.floorMod(frameTick + rank, cadencePeriod) == 0;
+    }
+
+    private static boolean layerRangeFits(int layerBase, int layerCost, int maxLayers, boolean[] usedLayers) {
+        if (layerBase <= 0 || layerCost <= 0 || layerBase + layerCost - 1 > maxLayers) {
+            return false;
+        }
+        for (int i = layerBase; i < layerBase + layerCost; i++) {
+            if (usedLayers[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int firstFitLayerBase(int layerCost, int maxLayers, boolean[] usedLayers) {
+        for (int base = 1; base + layerCost - 1 <= maxLayers; base++) {
+            if (layerRangeFits(base, layerCost, maxLayers, usedLayers)) {
+                return base;
+            }
+        }
+        return 0;
+    }
+
+    private static void markLayerRange(int layerBase, int layerCost, boolean[] usedLayers, boolean value) {
+        for (int i = layerBase; i < layerBase + layerCost && i < usedLayers.length; i++) {
+            usedLayers[i] = value;
+        }
     }
 
     private record LocalShadowSchedule(

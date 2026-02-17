@@ -32,8 +32,12 @@ Implemented now:
   - `vulkan.shadow.scheduler.distantPeriod`
   - warning telemetry: `shadowSchedulerFrameTick`
   - per-light age/priority ordering backed by runtime `renderedShadowLightIds` tracking
-  - scheduler backlog telemetry: `deferredShadowLightCount`, `deferredShadowLightIds`
-  - moment-atlas budget telemetry for `vsm`/`evsm` requests: `shadowMomentAtlasBytesEstimate`
+- scheduler backlog telemetry: `deferredShadowLightCount`, `deferredShadowLightIds`
+- moment-atlas budget telemetry for `vsm`/`evsm` requests: `shadowMomentAtlasBytesEstimate`
+- allocator telemetry for reuse/eviction pressure:
+  - `shadowAllocatorAssignedLights`
+  - `shadowAllocatorReusedAssignments`
+  - `shadowAllocatorEvictions`
 
 Still pending:
 - full production multi-point cubemap scalability (beyond current matrix/layer bounds)

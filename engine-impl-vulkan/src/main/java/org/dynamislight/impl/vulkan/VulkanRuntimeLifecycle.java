@@ -68,7 +68,8 @@ final class VulkanRuntimeLifecycle {
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
             long shadowSchedulerFrameTick,
-            Map<String, Long> shadowSchedulerLastRenderedTicks
+            Map<String, Long> shadowSchedulerLastRenderedTicks,
+            Map<String, Integer> shadowLayerAssignments
     ) {
         var camera = VulkanEngineRuntimeSceneMapper.selectActiveCamera(scene);
         var cameraMatrices = VulkanEngineRuntimeSceneMapper.cameraMatricesFor(
@@ -85,7 +86,8 @@ final class VulkanRuntimeLifecycle {
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
                 shadowSchedulerFrameTick,
-                shadowSchedulerLastRenderedTicks
+                shadowSchedulerLastRenderedTicks,
+                shadowLayerAssignments
         );
         var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(
                 scene == null ? null : scene.lights(),
@@ -255,7 +257,8 @@ final class VulkanRuntimeLifecycle {
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
             long shadowSchedulerFrameTick,
-            Map<String, Long> shadowSchedulerLastRenderedTicks
+            Map<String, Long> shadowSchedulerLastRenderedTicks,
+            Map<String, Integer> shadowLayerAssignments
     ) {
         var lighting = VulkanEngineRuntimeSceneMapper.mapLighting(
                 lights,
@@ -267,7 +270,8 @@ final class VulkanRuntimeLifecycle {
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
                 shadowSchedulerFrameTick,
-                shadowSchedulerLastRenderedTicks
+                shadowSchedulerLastRenderedTicks,
+                shadowLayerAssignments
         );
         var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(
                 lights,

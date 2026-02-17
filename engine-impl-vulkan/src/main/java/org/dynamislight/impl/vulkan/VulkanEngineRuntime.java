@@ -155,6 +155,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private long shadowSchedulerFrameTick;
     private List<LightDesc> currentSceneLights = List.of();
     private final Map<String, Long> shadowSchedulerLastRenderedTicks = new HashMap<>();
+    private final Map<String, Integer> shadowLayerAllocatorAssignments = new HashMap<>();
+    private int shadowAllocatorAssignedLights;
+    private int shadowAllocatorReusedAssignments;
+    private int shadowAllocatorEvictions;
 
     public VulkanEngineRuntime() {
         super(
@@ -209,6 +213,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
+        shadowLayerAllocatorAssignments.clear();
+        shadowAllocatorAssignedLights = 0;
+        shadowAllocatorReusedAssignments = 0;
+        shadowAllocatorEvictions = 0;
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -261,7 +269,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
                 shadowSchedulerFrameTick,
-                shadowSchedulerLastRenderedTicks
+                shadowSchedulerLastRenderedTicks,
+                shadowLayerAllocatorAssignments
         );
         currentFog = sceneState.fog();
         currentSmoke = sceneState.smoke();
@@ -276,6 +285,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         plannedVisibleObjects = sceneState.plannedVisibleObjects();
         currentSceneLights = scene == null || scene.lights() == null ? List.of() : new ArrayList<>(scene.lights());
         shadowSchedulerLastRenderedTicks.clear();
+        shadowLayerAllocatorAssignments.clear();
+        shadowLayerAllocatorAssignments.putAll(sceneState.lighting().shadowLayerAssignments());
+        shadowAllocatorAssignedLights = sceneState.lighting().shadowAllocatorAssignedLights();
+        shadowAllocatorReusedAssignments = sceneState.lighting().shadowAllocatorReusedAssignments();
+        shadowAllocatorEvictions = sceneState.lighting().shadowAllocatorEvictions();
         updateShadowSchedulerTicks(currentShadows.renderedShadowLightIdsCsv());
         if (!mockContext) {
             VulkanRuntimeLifecycle.applySceneToContext(context, sceneState);
@@ -300,10 +314,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowSchedulerMidPeriod,
                     shadowSchedulerDistantPeriod,
                     shadowSchedulerFrameTick,
-                    shadowSchedulerLastRenderedTicks
+                    shadowSchedulerLastRenderedTicks,
+                    shadowLayerAllocatorAssignments
             );
             currentShadows = refresh.shadows();
             updateShadowSchedulerTicks(currentShadows.renderedShadowLightIdsCsv());
+            shadowLayerAllocatorAssignments.clear();
+            shadowLayerAllocatorAssignments.putAll(refresh.lighting().shadowLayerAssignments());
+            shadowAllocatorAssignedLights = refresh.lighting().shadowAllocatorAssignedLights();
+            shadowAllocatorReusedAssignments = refresh.lighting().shadowAllocatorReusedAssignments();
+            shadowAllocatorEvictions = refresh.lighting().shadowAllocatorEvictions();
             context.setLightingParameters(
                     refresh.lighting().directionalDirection(),
                     refresh.lighting().directionalColor(),
@@ -464,6 +484,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " renderedShadowLightIds=" + currentShadows.renderedShadowLightIdsCsv()
                             + " deferredShadowLightCount=" + currentShadows.deferredShadowLightCount()
                             + " deferredShadowLightIds=" + currentShadows.deferredShadowLightIdsCsv()
+                            + " shadowAllocatorAssignedLights=" + shadowAllocatorAssignedLights
+                            + " shadowAllocatorReusedAssignments=" + shadowAllocatorReusedAssignments
+                            + " shadowAllocatorEvictions=" + shadowAllocatorEvictions
                             + " filterPath=" + currentShadows.filterPath()
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()
@@ -819,7 +842,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float[] localLightPosRange,
             float[] localLightColorIntensity,
             float[] localLightDirInner,
-            float[] localLightOuterTypeShadow
+            float[] localLightOuterTypeShadow,
+            Map<String, Integer> shadowLayerAssignments,
+            int shadowAllocatorAssignedLights,
+            int shadowAllocatorReusedAssignments,
+            int shadowAllocatorEvictions
     ) {
     }
 

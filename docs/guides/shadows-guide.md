@@ -142,11 +142,15 @@ Shadow scheduler override examples:
 Scheduler behavior notes:
 - Vulkan scheduler now uses cadence + age/priority ordering for local shadow lights.
 - Runtime warning telemetry includes:
+  - `maxShadowedLocalLightsConfigured`
   - `shadowSchedulerFrameTick`
   - `renderedShadowLightIds`
   - `deferredShadowLightCount`
   - `deferredShadowLightIds`
   - `shadowMomentAtlasBytesEstimate` (non-zero when `vsm`/`evsm` is requested)
+  - `shadowAllocatorAssignedLights`
+  - `shadowAllocatorReusedAssignments`
+  - `shadowAllocatorEvictions`
 
 Current default local shadow budgets by tier:
 - `LOW`: 1 local shadow light

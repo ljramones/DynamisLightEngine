@@ -69,7 +69,8 @@ final class VulkanEngineRuntimeSceneMapper {
             int shadowSchedulerMidPeriod,
             int shadowSchedulerDistantPeriod,
             long shadowSchedulerFrameTick,
-            Map<String, Long> shadowSchedulerLastRenderedTicks
+            Map<String, Long> shadowSchedulerLastRenderedTicks,
+            Map<String, Integer> shadowLayerAssignments
     ) {
         return VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights,
@@ -81,7 +82,8 @@ final class VulkanEngineRuntimeSceneMapper {
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
                 shadowSchedulerFrameTick,
-                shadowSchedulerLastRenderedTicks
+                shadowSchedulerLastRenderedTicks,
+                shadowLayerAssignments
         );
     }
 
