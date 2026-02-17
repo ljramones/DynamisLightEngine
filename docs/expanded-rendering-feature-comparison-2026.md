@@ -55,6 +55,7 @@ Last updated: February 17, 2026.
 - Local CI-parity lockdown runner is now available (`scripts/shadow_ci_lockdown_full.sh`) for repeatable matrix+longrun+quality strict-BVH sweeps before promotion.
 - Full lockdown sequence is now also a dedicated CI workflow lane (`shadow-lockdown-full`) on push/PR/schedule (plus manual dispatch) for always-on regression containment.
 - Scheduled full-lockdown lane now drives real-profile threshold promotion mode (`DLE_SHADOW_LOCKDOWN_PROMOTE_MODE=real`) for sustained threshold tightening as visuals evolve.
+- Added strict real-Vulkan shadow finalization runner (`scripts/shadow_quality_finalize_real.sh`) for repeated production sweeps + threshold promotion.
 - Compare harness now supports repo-owned default threshold profiles by Vulkan mode (`vulkan-real.properties` / `vulkan-mock.properties`) plus a promotion script (`scripts/promote_compare_thresholds.sh`) to ingest lock recommendations into tracked defaults.
 - Good diagnostics/warnings for quality fallback and runtime pressure.
 - Shadow roadmap alignment is explicit: multi-local atlas rollout, temporal stability controls (texel snapping/jitter), static-vs-dynamic cache layering, cadence policy validation, and CI depth-format divergence checks (`D16_UNORM` vs `D32_SFLOAT`).
@@ -63,7 +64,7 @@ Last updated: February 17, 2026.
 
 ### Where DynamicLightEngine still trails AAA engines
 - No full dynamic GI framework (Lumen/SVOGI-class).
-- No dedicated production BVH traversal/reflection-denoiser RT pipeline yet (RT mode now includes BVH approximation lanes: `bvh` uses hybrid traversal shaping and `bvh_dedicated` uses a dedicated-preview traversal shaping lane, but both still gate/fallback and remain pre-production until true hardware BVH traversal + denoise lands).
+- No dedicated production BVH traversal/reflection-denoiser RT pipeline yet (RT mode now includes BVH staging lanes: `bvh` hybrid traversal shaping, `bvh_dedicated` dedicated-preview traversal/denoise, `bvh_production` production-preview traversal/denoise shaping with dedicated tuning overrides; all remain pre-production until true hardware BVH traversal + denoise lands).
 - Remaining shadow gap is explicit: full Vulkan per-light atlas/cubemap parity is still rolling out, and hardware RT traversal/denoise shadow path is still pending. Multi-point cubemap concurrency is now landed within current tier/override scheduler budgets, and dedicated Vulkan moment-atlas write/prefilter is active for `vsm|evsm`.
 - No production-grade virtual geometry/streaming system.
 - Smaller post/VFX stack (intentional scope for current phase).

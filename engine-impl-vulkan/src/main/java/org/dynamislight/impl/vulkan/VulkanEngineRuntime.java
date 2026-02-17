@@ -153,6 +153,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private float shadowRtDedicatedDenoiseStrength = -1.0f;
     private float shadowRtDedicatedRayLength = -1.0f;
     private int shadowRtDedicatedSampleCount = -1;
+    private float shadowRtProductionDenoiseStrength = -1.0f;
+    private float shadowRtProductionRayLength = -1.0f;
+    private int shadowRtProductionSampleCount = -1;
     private float shadowPcssSoftness = 1.0f;
     private float shadowMomentBlend = 1.0f;
     private float shadowMomentBleedReduction = 1.0f;
@@ -228,6 +231,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowRtDedicatedDenoiseStrength = options.shadowRtDedicatedDenoiseStrength();
         shadowRtDedicatedRayLength = options.shadowRtDedicatedRayLength();
         shadowRtDedicatedSampleCount = options.shadowRtDedicatedSampleCount();
+        shadowRtProductionDenoiseStrength = options.shadowRtProductionDenoiseStrength();
+        shadowRtProductionRayLength = options.shadowRtProductionRayLength();
+        shadowRtProductionSampleCount = options.shadowRtProductionSampleCount();
         shadowPcssSoftness = options.shadowPcssSoftness();
         shadowMomentBlend = options.shadowMomentBlend();
         shadowMomentBleedReduction = options.shadowMomentBleedReduction();
@@ -278,6 +284,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         EngineErrorCode.BACKEND_INIT_FAILED,
                         "Strict BVH RT shadow mode requested but BVH capability is unavailable "
                                 + "(rtMode=bvh, strict=true, mockContext=" + mockContext + ")",
+                        false
+                );
+            }
+            if ("bvh_production".equals(shadowRtMode) && !shadowRtBvhSupported) {
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "Strict production BVH RT shadow mode requested but BVH capability is unavailable "
+                                + "(rtMode=bvh_production, strict=true, mockContext=" + mockContext + ")",
                         false
                 );
             }
@@ -617,6 +631,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " rtDedicatedDenoiseStrength=" + shadowRtDedicatedDenoiseStrength
                             + " rtDedicatedRayLength=" + shadowRtDedicatedRayLength
                             + " rtDedicatedSampleCount=" + shadowRtDedicatedSampleCount
+                            + " rtProductionDenoiseStrength=" + shadowRtProductionDenoiseStrength
+                            + " rtProductionRayLength=" + shadowRtProductionRayLength
+                            + " rtProductionSampleCount=" + shadowRtProductionSampleCount
                             + " rtEffectiveDenoiseStrength=" + effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode())
                             + " rtEffectiveRayLength=" + effectiveShadowRtRayLength(currentShadows.rtShadowMode())
                             + " rtEffectiveSampleCount=" + effectiveShadowRtSampleCount(currentShadows.rtShadowMode())
@@ -690,16 +707,23 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             "RT shadow traversal/denoise path unavailable; using non-RT shadow fallback stack"
                                     + ("bvh".equals(currentShadows.rtShadowMode())
                                     ? " (BVH mode requested but dedicated BVH traversal pipeline is not active)"
+                                    : ("bvh_production".equals(currentShadows.rtShadowMode())
+                                    ? " (Production BVH mode requested but hardware BVH traversal pipeline is not active)"
                                     : ("bvh_dedicated".equals(currentShadows.rtShadowMode())
                                     ? " (Dedicated BVH mode requested but dedicated BVH traversal pipeline is not active)"
                                     : "")
                                     )
+                                    )
                     ));
                 }
-                if ("bvh".equals(currentShadows.rtShadowMode()) || "bvh_dedicated".equals(currentShadows.rtShadowMode())) {
+                if ("bvh".equals(currentShadows.rtShadowMode())
+                        || "bvh_dedicated".equals(currentShadows.rtShadowMode())
+                        || "bvh_production".equals(currentShadows.rtShadowMode())) {
                     String activePath = "bvh_dedicated".equals(currentShadows.rtShadowMode())
                             ? (currentShadows.rtShadowActive() ? "dedicated-preview traversal" : "fallback")
-                            : "hybrid traversal";
+                            : ("bvh_production".equals(currentShadows.rtShadowMode())
+                            ? (currentShadows.rtShadowActive() ? "production-preview traversal+denoise" : "fallback")
+                            : "hybrid traversal");
                     warnings.add(new EngineWarning(
                             "SHADOW_RT_BVH_PIPELINE_PENDING",
                             "BVH RT shadow mode requested, but runtime is using the "
@@ -1104,6 +1128,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private float effectiveShadowRtDenoiseStrength(String rtMode) {
+        if ("bvh_production".equals(rtMode) && shadowRtProductionDenoiseStrength >= 0.0f) {
+            return Math.max(0.0f, Math.min(1.0f, shadowRtProductionDenoiseStrength));
+        }
         if ("bvh_dedicated".equals(rtMode) && shadowRtDedicatedDenoiseStrength >= 0.0f) {
             return Math.max(0.0f, Math.min(1.0f, shadowRtDedicatedDenoiseStrength));
         }
@@ -1111,6 +1138,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private float effectiveShadowRtRayLength(String rtMode) {
+        if ("bvh_production".equals(rtMode) && shadowRtProductionRayLength >= 0.0f) {
+            return Math.max(1.0f, Math.min(500.0f, shadowRtProductionRayLength));
+        }
         if ("bvh_dedicated".equals(rtMode) && shadowRtDedicatedRayLength >= 0.0f) {
             return Math.max(1.0f, Math.min(500.0f, shadowRtDedicatedRayLength));
         }
@@ -1118,6 +1148,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private int effectiveShadowRtSampleCount(String rtMode) {
+        if ("bvh_production".equals(rtMode) && shadowRtProductionSampleCount > 0) {
+            return Math.max(1, Math.min(16, shadowRtProductionSampleCount));
+        }
         if ("bvh_dedicated".equals(rtMode) && shadowRtDedicatedSampleCount > 0) {
             return Math.max(1, Math.min(16, shadowRtDedicatedSampleCount));
         }

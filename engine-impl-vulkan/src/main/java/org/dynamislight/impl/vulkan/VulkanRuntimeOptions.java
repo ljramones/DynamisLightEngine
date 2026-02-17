@@ -45,6 +45,9 @@ final class VulkanRuntimeOptions {
                 (float) parseDoubleOption(safe, "vulkan.shadow.rtDedicatedDenoiseStrength", -1.0, -1.0, 1.0),
                 (float) parseDoubleOption(safe, "vulkan.shadow.rtDedicatedRayLength", -1.0, -1.0, 500.0),
                 parseIntOption(safe, "vulkan.shadow.rtDedicatedSampleCount", -1, -1, 16),
+                (float) parseDoubleOption(safe, "vulkan.shadow.rtProductionDenoiseStrength", -1.0, -1.0, 1.0),
+                (float) parseDoubleOption(safe, "vulkan.shadow.rtProductionRayLength", -1.0, -1.0, 500.0),
+                parseIntOption(safe, "vulkan.shadow.rtProductionSampleCount", -1, -1, 16),
                 (float) parseDoubleOption(safe, "vulkan.shadow.pcssSoftness", 1.0, 0.25, 2.0),
                 (float) parseDoubleOption(safe, "vulkan.shadow.momentBlend", 1.0, 0.25, 1.5),
                 (float) parseDoubleOption(safe, "vulkan.shadow.momentBleedReduction", 1.0, 0.25, 1.5),
@@ -124,7 +127,7 @@ final class VulkanRuntimeOptions {
         }
         String normalized = raw.trim().toLowerCase();
         return switch (normalized) {
-            case "off", "optional", "force", "bvh", "bvh_dedicated" -> normalized;
+            case "off", "optional", "force", "bvh", "bvh_dedicated", "bvh_production" -> normalized;
             default -> "off";
         };
     }
@@ -166,6 +169,9 @@ final class VulkanRuntimeOptions {
             float shadowRtDedicatedDenoiseStrength,
             float shadowRtDedicatedRayLength,
             int shadowRtDedicatedSampleCount,
+            float shadowRtProductionDenoiseStrength,
+            float shadowRtProductionRayLength,
+            int shadowRtProductionSampleCount,
             float shadowPcssSoftness,
             float shadowMomentBlend,
             float shadowMomentBleedReduction,

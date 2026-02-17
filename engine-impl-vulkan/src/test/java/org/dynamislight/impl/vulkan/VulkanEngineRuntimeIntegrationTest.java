@@ -963,6 +963,41 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void productionBvhShadowModeRequestUsesProductionOverrides() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.filterPath", "pcss",
+                "vulkan.shadow.rtMode", "bvh_production",
+                "vulkan.shadow.rtDenoiseStrength", "0.82",
+                "vulkan.shadow.rtRayLength", "140",
+                "vulkan.shadow.rtSampleCount", "6",
+                "vulkan.shadow.rtProductionDenoiseStrength", "0.97",
+                "vulkan.shadow.rtProductionRayLength", "240",
+                "vulkan.shadow.rtProductionSampleCount", "14"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("rtMode=bvh_production")
+                        && w.message().contains("rtProductionSampleCount=14")
+                        && w.message().contains("rtEffectiveSampleCount=14")));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_PATH_REQUESTED".equals(w.code())
+                        && w.message().contains("RT shadow mode requested: bvh_production")));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_PATH_FALLBACK_ACTIVE".equals(w.code())
+                        && w.message().contains("Production BVH mode requested")));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_BVH_PIPELINE_PENDING".equals(w.code())
+                        && w.message().contains("dedicated BVH traversal/denoise pipeline remains pending")));
+        runtime.shutdown();
+    }
+
+    @Test
     void pcssShadowQualityRequestTracksActivePathWithoutMomentWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of(

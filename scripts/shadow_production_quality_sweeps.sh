@@ -52,6 +52,7 @@ if [[ "$PROFILE_SET" == "production" ]]; then
     "rt_optional_pcss::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=optional -Dvulkan.shadow.rtDenoiseStrength=0.78 -Dvulkan.shadow.rtRayLength=120 -Dvulkan.shadow.rtSampleCount=4"
     "rt_bvh_pcss::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh -Dvulkan.shadow.rtDenoiseStrength=0.82 -Dvulkan.shadow.rtRayLength=140 -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtBvhStrict=$RT_BVH_STRICT"
     "rt_bvh_dedicated_pcss::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh_dedicated -Dvulkan.shadow.rtDenoiseStrength=0.82 -Dvulkan.shadow.rtRayLength=140 -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtDedicatedDenoiseStrength=0.94 -Dvulkan.shadow.rtDedicatedRayLength=180 -Dvulkan.shadow.rtDedicatedSampleCount=10 -Dvulkan.shadow.rtBvhStrict=0"
+    "rt_bvh_production_pcss::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh_production -Dvulkan.shadow.rtDenoiseStrength=0.82 -Dvulkan.shadow.rtRayLength=140 -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtProductionDenoiseStrength=0.97 -Dvulkan.shadow.rtProductionRayLength=240 -Dvulkan.shadow.rtProductionSampleCount=14 -Dvulkan.shadow.rtBvhStrict=$RT_BVH_STRICT"
   )
 else
   PROFILES=(

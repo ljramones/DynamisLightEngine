@@ -52,7 +52,12 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("float rtKernelBlend = mix(shadowRtMode > 1 ? 0.30 : 0.18, shadowRtMode > 1 ? 0.60 : 0.45, shadowRtDenoiseStrength);"));
         assertTrue(shader.contains("float bvhTraversalVisibilityApprox("));
         assertTrue(shader.contains("float bvhDedicatedTraversalVisibilityApprox("));
+        assertTrue(shader.contains("float bvhProductionTraversalVisibility("));
         assertTrue(shader.contains("float rtDedicatedDenoiseStack("));
+        assertTrue(shader.contains("float rtProductionDenoiseStack("));
+        assertTrue(shader.contains("if (shadowRtMode > 4) {"));
+        assertTrue(shader.contains("float bvhProductionVis = bvhProductionTraversalVisibility("));
+        assertTrue(shader.contains("float bvhProductionDenoised = rtProductionDenoiseStack("));
         assertTrue(shader.contains("if (shadowRtMode > 2) {"));
         assertTrue(shader.contains("float bvhVis = bvhTraversalVisibilityApprox("));
         assertTrue(shader.contains("if (shadowRtMode > 3) {"));

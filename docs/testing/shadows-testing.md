@@ -39,7 +39,7 @@ CI always-on rollout:
 - GitHub Actions `shadow-matrix` runs on `push`/`pull_request` with mock Vulkan safety.
 - Weekly scheduled run (`schedule`) also executes long-run AA/shadow motion sampling.
 - GitHub Actions `shadow-real-longrun-guarded` now runs on `push`/`pull_request`/`schedule` and emits guarded threshold-lock recommendations when real Vulkan is available.
-- GitHub Actions `shadow-production-quality-sweeps` now runs on `push`/`pull_request`/`schedule` and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`, `rt bvh_dedicated`) with guarded threshold-lock output.
+- GitHub Actions `shadow-production-quality-sweeps` now runs on `push`/`pull_request`/`schedule` and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`, `rt bvh_dedicated`, `rt bvh_production`) with guarded threshold-lock output.
 - CI lockdown policy now runs stricter scheduled lanes:
   - `shadow-real-longrun-guarded`: 3-run schedule cadence (2 runs on push/PR)
   - `shadow-production-quality-sweeps`: 3-run schedule cadence with strict BVH lane enabled by default (2 runs on push/PR)
@@ -58,6 +58,7 @@ CI always-on rollout:
   - production sweeps with strict BVH lane
   via `scripts/shadow_ci_lockdown_full.sh`.
 - Scheduled `shadow-lockdown-full` runs set `DLE_SHADOW_LOCKDOWN_PROMOTE_MODE=real` so generated recommendations can be promoted into tracked real-Vulkan threshold profiles.
+- GitHub Actions `aa-upscaler-vendor-matrix` now runs on `schedule` (and optional manual dispatch) to keep FSR/XeSS/DLSS hook/native-state regressions visible in CI.
 
 Optional real Vulkan depth-format matrix + long-run:
 ```bash
@@ -196,6 +197,7 @@ Long-run motion/shimmer sweep (real Vulkan):
   - PCSS secondary + far-ring blocker refinement and penumbra neighborhood balancing (`refineRadius`, `farRefineRadius`, `farRefinedDepth`, `neighDiag`)
   - reject-weighted contact stabilization terms (`contactReject`, `contactTemporalHistoryWeight`)
   - dedicated RT denoise stack path for `bvh_dedicated` (`rtDedicatedDenoiseStack`)
+  - production RT traversal+denoise shaping (`bvhProductionTraversalVisibility`, `rtProductionDenoiseStack`)
   - motion-adaptive contact temporal stabilization shaping (`contactTemporalStability`)
 - Vulkan integration tests validate multi-point cubemap concurrency policy under ULTRA and override budgets:
   - `VulkanEngineRuntimeIntegrationTest#multiPointLocalShadowSceneUsesConcurrentPointCubemapBudgetAtUltra`
@@ -250,6 +252,8 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Keep guarded real-Vulkan shadow long-run sweep enabled in CI (`scripts/shadow_real_longrun_guarded.sh`) so hosts with real Vulkan support continuously sample shadow stress scenes.
 - Keep guarded threshold-lock generation enabled for real Vulkan outputs (`scripts/shadow_lock_thresholds_guarded.sh`) so repeated stable runs produce updated lock recommendations.
 - Keep production profile parity sweeps enabled in CI (`scripts/shadow_production_quality_sweeps.sh`) so `pcss/contact` and `vsm/evsm` lanes are repeatedly sampled and re-lock recommendations are generated from stable real-Vulkan datasets.
+- For release threshold tightening, run strict repeated real-Vulkan sweeps:
+  - `./scripts/shadow_quality_finalize_real.sh`
 - Add CI gate that verifies `SHADOW_LOCAL_RENDER_BASELINE` clears once Vulkan multi-local render parity lands.
 
 Cadence/static-cache planned test shape:

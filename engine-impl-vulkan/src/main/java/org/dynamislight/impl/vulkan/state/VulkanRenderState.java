@@ -22,7 +22,7 @@ public final class VulkanRenderState {
     public float shadowContactStrength = 1.0f;
     public float shadowContactTemporalMotionScale = 1.0f;
     public float shadowContactTemporalMinStability = 0.42f;
-    public int shadowRtMode = 0; // 0=off,1=optional,2=force
+    public int shadowRtMode = 0; // 0=off,1=optional,2=force,3=bvh,4=bvh_dedicated,5=bvh_production
     public float shadowRtDenoiseStrength = 0.65f;
     public float shadowRtRayLength = 80.0f;
     public int shadowRtSampleCount = 2;

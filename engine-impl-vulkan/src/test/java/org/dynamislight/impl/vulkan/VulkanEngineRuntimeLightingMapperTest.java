@@ -143,6 +143,17 @@ class VulkanEngineRuntimeLightingMapperTest {
         );
         assertFalse(unsupported.rtShadowActive());
         assertTrue(supported.rtShadowActive());
+
+        VulkanEngineRuntime.ShadowRenderConfig unsupportedProduction = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "bvh_production",
+                0, 0, 0, true, false, false, 1, 2, 4, 1L, java.util.Map.of()
+        );
+        VulkanEngineRuntime.ShadowRenderConfig supportedProduction = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "bvh_production",
+                0, 0, 0, true, true, false, 1, 2, 4, 1L, java.util.Map.of()
+        );
+        assertFalse(unsupportedProduction.rtShadowActive());
+        assertTrue(supportedProduction.rtShadowActive());
     }
 
     @Test
@@ -259,11 +270,11 @@ class VulkanEngineRuntimeLightingMapperTest {
 
         VulkanEngineRuntime.LightingConfig first = VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA,
-                4, 12, false, 1, 2, 4, 1L, Map.of(), Map.of()
+                4, 12, 0, false, 1, 2, 4, 1L, Map.of(), Map.of()
         );
         VulkanEngineRuntime.LightingConfig second = VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA,
-                4, 12, false, 1, 2, 4, 2L, Map.of(), first.shadowLayerAssignments()
+                4, 12, 0, false, 1, 2, 4, 2L, Map.of(), first.shadowLayerAssignments()
         );
 
         assertEquals(first.shadowLayerAssignments(), second.shadowLayerAssignments());
@@ -279,7 +290,7 @@ class VulkanEngineRuntimeLightingMapperTest {
 
         VulkanEngineRuntime.LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights, org.dynamislight.api.config.QualityTier.HIGH,
-                1, 4, false, 1, 2, 4, 1L, Map.of(), Map.of("spotA", 8)
+                1, 4, 0, false, 1, 2, 4, 1L, Map.of(), Map.of("spotA", 8)
         );
 
         assertEquals(1, config.shadowAllocatorAssignedLights());
@@ -298,16 +309,64 @@ class VulkanEngineRuntimeLightingMapperTest {
 
         VulkanEngineRuntime.LightingConfig first = VulkanEngineRuntimeLightingMapper.mapLighting(
                 ordered, org.dynamislight.api.config.QualityTier.HIGH,
-                3, 8, false, 1, 2, 4, 1L, Map.of(), Map.of()
+                3, 8, 0, false, 1, 2, 4, 1L, Map.of(), Map.of()
         );
         VulkanEngineRuntime.LightingConfig second = VulkanEngineRuntimeLightingMapper.mapLighting(
                 reordered, org.dynamislight.api.config.QualityTier.HIGH,
-                3, 8, false, 1, 2, 4, 2L, Map.of(), first.shadowLayerAssignments()
+                3, 8, 0, false, 1, 2, 4, 2L, Map.of(), first.shadowLayerAssignments()
         );
 
         assertEquals(first.shadowLayerAssignments(), second.shadowLayerAssignments());
         assertTrue(second.shadowAllocatorReusedAssignments() >= 2);
         assertEquals(0, second.shadowAllocatorEvictions());
+    }
+
+    @Test
+    void mapLightingRespectsFaceBudgetForPointCubemaps() {
+        List<LightDesc> lights = List.of(
+                new LightDesc("pointA", new Vec3(0f, 2f, 0f), new Vec3(1f, 0.9f, 0.8f), 2.2f, 16f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("pointB", new Vec3(1f, 2f, 0f), new Vec3(0.8f, 0.9f, 1f), 2.0f, 16f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+
+        VulkanEngineRuntime.LightingConfig capped = VulkanEngineRuntimeLightingMapper.mapLighting(
+                lights, org.dynamislight.api.config.QualityTier.ULTRA,
+                4, 12, 6, false, 1, 2, 4, 1L, Map.of(), Map.of()
+        );
+
+        int shadowedPointLights = 0;
+        for (int i = 0; i < capped.localLightCount(); i++) {
+            int offset = i * 4;
+            boolean isSpot = capped.localLightOuterTypeShadow()[offset + 1] > 0.5f;
+            boolean casts = capped.localLightOuterTypeShadow()[offset + 2] > 0.5f;
+            if (!isSpot && casts) {
+                shadowedPointLights++;
+            }
+        }
+        assertEquals(1, shadowedPointLights);
+    }
+
+    @Test
+    void mapLightingPreservesMixedSpotPointParityUnderTightBudget() {
+        List<LightDesc> lights = List.of(
+                new LightDesc("spotA", new Vec3(0f, 2f, 0f), new Vec3(1f, 0.9f, 0.8f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("pointB", new Vec3(1f, 2f, 0f), new Vec3(0.8f, 0.9f, 1f), 2.0f, 16f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+
+        VulkanEngineRuntime.LightingConfig mixed = VulkanEngineRuntimeLightingMapper.mapLighting(
+                lights, org.dynamislight.api.config.QualityTier.ULTRA,
+                2, 7, 7, false, 1, 2, 4, 1L, Map.of(), Map.of()
+        );
+
+        boolean pointShadowed = false;
+        for (int i = 0; i < mixed.localLightCount(); i++) {
+            int offset = i * 4;
+            boolean isSpot = mixed.localLightOuterTypeShadow()[offset + 1] > 0.5f;
+            boolean casts = mixed.localLightOuterTypeShadow()[offset + 2] > 0.5f;
+            if (!isSpot && casts) {
+                pointShadowed = true;
+            }
+        }
+        assertTrue(pointShadowed);
     }
 
     @Test

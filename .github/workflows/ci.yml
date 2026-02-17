@@ -31,6 +31,10 @@ on:
         description: 'Run full shadow lockdown sequence (matrix + longrun + sweeps)'
         required: false
         default: 'false'
+      run_aa_upscaler_vendor_matrix:
+        description: 'Run AA upscaler vendor matrix lane'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -145,6 +149,35 @@ jobs:
         with:
           name: aa-motion-longrun-artifacts-macos
           path: artifacts/compare/aa-motion-longrun
+          if-no-files-found: warn
+
+  aa-upscaler-vendor-matrix:
+    name: AA Upscaler Vendor Matrix (JDK 25, macos-latest)
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_aa_upscaler_vendor_matrix == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run AA upscaler vendor matrix (mock Vulkan CI safety)
+        env:
+          DLE_COMPARE_VULKAN_MODE: mock
+          DLE_COMPARE_UPSCALER_MATRIX_OUTPUT_ROOT: artifacts/compare/aa-upscaler-vendor-matrix
+        run: ./scripts/aa_upscaler_vendor_matrix_mac.sh
+
+      - name: Upload AA upscaler vendor matrix artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aa-upscaler-vendor-matrix-artifacts-macos
+          path: artifacts/compare/aa-upscaler-vendor-matrix
           if-no-files-found: warn
 
   shadow-real-longrun-guarded:

@@ -138,7 +138,7 @@ public final class VulkanShaderSources {
     }
 
     public static String mainFragment() {
-        return """
+        return new StringBuilder().append("""
                 #version 450
                 layout(location = 0) in vec3 vWorldPos;
                 layout(location = 1) in vec3 vNormal;
@@ -226,6 +226,7 @@ public final class VulkanShaderSources {
                     vec3 c4 = textureLod(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
                     return (c0 * 0.44) + (c1 * 0.18) + (c2 * 0.18) + (c3 * 0.10) + (c4 * 0.10);
                 }
+                """).append("""
                 float reduceLightBleed(float visibility, float amount) {
                     return clamp((visibility - amount) / max(1.0 - amount, 0.0001), 0.0, 1.0);
                 }
@@ -495,6 +496,7 @@ public final class VulkanShaderSources {
                     float antiBleedMix = clamp(0.64 + 0.24 * leakRisk, 0.60, 0.90);
                     return clamp(mix(momentBase, antiBleed, antiBleedMix), 0.0, 1.0);
                 }
+                """).append("""
                 float bvhTraversalVisibilityApprox(
                         vec2 uv,
                         float texel,
@@ -611,6 +613,110 @@ public final class VulkanShaderSources {
                     float stageA = mix(baseVisibility, nearAvg, clamp(0.30 + 0.35 * shadowRtDenoiseStrength, 0.10, 0.75));
                     float stageB = mix(stageA, farAvg, clamp(0.16 + 0.34 * shadowRtDenoiseStrength * (1.0 - shadowTemporalStability), 0.06, 0.45));
                     return clamp(stageB, 0.0, 1.0);
+                }
+                """).append("""
+                float bvhProductionTraversalVisibility(
+                        vec2 uv,
+                        float texel,
+                        int layer,
+                        float compareDepth,
+                        float ndl,
+                        float depthRatio,
+                        int shadowRtSampleCount,
+                        float shadowRtRayLength
+                ) {
+                    float rayScale = clamp(shadowRtRayLength / 120.0, 0.7, 6.0);
+                    int rtSteps = clamp(shadowRtSampleCount * 6, 18, 72);
+                    vec2 axisA = normalize(vec2(0.61 + (1.0 - ndl) * 0.60, 0.42 + depthRatio * 0.68));
+                    vec2 axisB = vec2(-axisA.y, axisA.x);
+                    float accum = 0.0;
+                    float weightSum = 0.0;
+                    for (int i = 0; i < rtSteps; i++) {
+                        float t = (float(i) + 0.5) / float(rtSteps);
+                        float stride = mix(0.45, 14.0, t * t) * rayScale;
+                        float fan = mix(-1.0, 1.0, t);
+                        vec2 fanDir = normalize(mix(axisA, axisB, fan * 0.80));
+                        vec2 sampleUv = clamp(uv + fanDir * texel * stride, vec2(0.0), vec2(1.0));
+                        float sampleVis = texture(uShadowMap, vec4(sampleUv, float(layer), compareDepth));
+                        float w = mix(1.0, 0.10, t) * mix(1.0, 0.56, abs(fan));
+                        accum += sampleVis * w;
+                        weightSum += w;
+                    }
+                    float primary = weightSum > 0.0 ? (accum / weightSum) : 1.0;
+                    float ringNear = 0.0;
+                    float ringMid = 0.0;
+                    float ringFar = 0.0;
+                    float wNear = 0.0;
+                    float wMid = 0.0;
+                    float wFar = 0.0;
+                    for (int i = 0; i < 12; i++) {
+                        float a = (6.2831853 * float(i)) / 12.0;
+                        vec2 dir = vec2(cos(a), sin(a));
+                        vec2 uvNear = clamp(uv + dir * texel * 2.0, vec2(0.0), vec2(1.0));
+                        vec2 uvMid = clamp(uv + dir * texel * 4.5, vec2(0.0), vec2(1.0));
+                        vec2 uvFar = clamp(uv + dir * texel * 8.0, vec2(0.0), vec2(1.0));
+                        float wn = mix(1.0, 0.70, float(i & 1));
+                        float wm = mix(0.82, 0.56, float(i & 1));
+                        float wf = mix(0.60, 0.38, float(i & 1));
+                        ringNear += texture(uShadowMap, vec4(uvNear, float(layer), compareDepth)) * wn;
+                        ringMid += texture(uShadowMap, vec4(uvMid, float(layer), compareDepth)) * wm;
+                        ringFar += texture(uShadowMap, vec4(uvFar, float(layer), compareDepth)) * wf;
+                        wNear += wn;
+                        wMid += wm;
+                        wFar += wf;
+                    }
+                    float nearAvg = ringNear / max(wNear, 0.0001);
+                    float midAvg = ringMid / max(wMid, 0.0001);
+                    float farAvg = ringFar / max(wFar, 0.0001);
+                    float stageA = mix(primary, nearAvg, 0.34);
+                    float stageB = mix(stageA, midAvg, 0.26);
+                    float stageC = mix(stageB, farAvg, 0.16);
+                    return clamp(stageC, 0.0, 1.0);
+                }
+                float rtProductionDenoiseStack(
+                        float traversalVisibility,
+                        vec2 uv,
+                        float texel,
+                        int layer,
+                        float compareDepth,
+                        float shadowRtDenoiseStrength,
+                        float shadowTemporalStability
+                ) {
+                    float center = traversalVisibility;
+                    float cross = 0.0;
+                    float diag = 0.0;
+                    float ring = 0.0;
+                    float crossW = 0.0;
+                    float diagW = 0.0;
+                    float ringW = 0.0;
+                    vec2 crossOffsets[4] = vec2[](vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0));
+                    vec2 diagOffsets[4] = vec2[](vec2(1.0, 1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0), vec2(-1.0, -1.0));
+                    for (int i = 0; i < 4; i++) {
+                        vec2 c = clamp(uv + crossOffsets[i] * texel * 1.6, vec2(0.0), vec2(1.0));
+                        vec2 d = clamp(uv + diagOffsets[i] * texel * 2.2, vec2(0.0), vec2(1.0));
+                        float cv = texture(uShadowMap, vec4(c, float(layer), compareDepth));
+                        float dv = texture(uShadowMap, vec4(d, float(layer), compareDepth));
+                        cross += cv;
+                        diag += dv;
+                        crossW += 1.0;
+                        diagW += 1.0;
+                    }
+                    for (int i = 0; i < 8; i++) {
+                        float a = (6.2831853 * float(i)) / 8.0;
+                        vec2 dir = vec2(cos(a), sin(a));
+                        vec2 r = clamp(uv + dir * texel * 5.5, vec2(0.0), vec2(1.0));
+                        float rv = texture(uShadowMap, vec4(r, float(layer), compareDepth));
+                        float rw = mix(0.75, 0.45, float(i & 1));
+                        ring += rv * rw;
+                        ringW += rw;
+                    }
+                    float crossAvg = cross / max(crossW, 0.0001);
+                    float diagAvg = diag / max(diagW, 0.0001);
+                    float ringAvg = ring / max(ringW, 0.0001);
+                    float denoiseA = mix(center, crossAvg, clamp(0.36 + 0.30 * shadowRtDenoiseStrength, 0.12, 0.78));
+                    float denoiseB = mix(denoiseA, diagAvg, clamp(0.24 + 0.30 * shadowRtDenoiseStrength, 0.08, 0.68));
+                    float denoiseC = mix(denoiseB, ringAvg, clamp(0.10 + 0.28 * shadowRtDenoiseStrength * (1.0 - shadowTemporalStability), 0.04, 0.40));
+                    return clamp(denoiseC, 0.0, 1.0);
                 }
                 float finalizeShadowVisibility(
                         float pcfVisibility,
@@ -740,7 +846,28 @@ public final class VulkanShaderSources {
                     }
                     if (shadowRtEnabled) {
                         float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
-                        if (shadowRtMode > 2) {
+                        if (shadowRtMode > 4) {
+                            float bvhProductionVis = bvhProductionTraversalVisibility(
+                                    uv,
+                                    texel,
+                                    layer,
+                                    compareDepth,
+                                    ndl,
+                                    depthRatio,
+                                    shadowRtSampleCount,
+                                    shadowRtRayLength
+                            );
+                            float bvhProductionDenoised = rtProductionDenoiseStack(
+                                    bvhProductionVis,
+                                    uv,
+                                    texel,
+                                    layer,
+                                    compareDepth,
+                                    shadowRtDenoiseStrength,
+                                    shadowTemporalStability
+                            );
+                            visibility = mix(visibility, bvhProductionDenoised, 0.78);
+                        } else if (shadowRtMode > 2) {
                             float bvhVis = bvhTraversalVisibilityApprox(
                                     uv,
                                     texel,
@@ -1327,7 +1454,7 @@ public final class VulkanShaderSources {
                     vec2 velocityNdc = clamp(prevNdc - currNdc, vec2(-1.0), vec2(1.0));
                     outVelocity = vec4(velocityNdc * 0.5 + 0.5, clamp(gl_FragCoord.z, 0.0, 1.0), materialReactive);
                 }
-                """;
+                """).toString();
     }
 
     public static String postVertex() {

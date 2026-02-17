@@ -127,7 +127,7 @@ Sample host clamps:
   - `vulkan.shadow.contactStrength=0.25..2.0` (default `1.0`)
   - `vulkan.shadow.contactTemporalMotionScale=0.1..3.0` (default `1.0`)
   - `vulkan.shadow.contactTemporalMinStability=0.2..1.0` (default `0.42`)
-  - `vulkan.shadow.rtMode=off|optional|force|bvh|bvh_dedicated`
+  - `vulkan.shadow.rtMode=off|optional|force|bvh|bvh_dedicated|bvh_production`
   - `vulkan.shadow.rtBvhStrict=true|false` (default `false`; fail fast if `rtMode=bvh` lacks BVH capability or if `rtMode=bvh_dedicated` is requested before dedicated BVH traversal is available)
   - `vulkan.shadow.rtDenoiseStrength=0..1` (default `0.65`, hybrid traversal denoise shaping)
   - `vulkan.shadow.rtRayLength=1..500` (default `80`, hybrid traversal march distance shaping)
@@ -135,6 +135,9 @@ Sample host clamps:
   - `vulkan.shadow.rtDedicatedDenoiseStrength=-1..1` (default `-1`; when `>=0`, overrides denoise for `rtMode=bvh_dedicated`)
   - `vulkan.shadow.rtDedicatedRayLength=-1..500` (default `-1`; when `>=0`, overrides ray length for `rtMode=bvh_dedicated`)
   - `vulkan.shadow.rtDedicatedSampleCount=-1..16` (default `-1`; when `>0`, overrides sample count for `rtMode=bvh_dedicated`)
+  - `vulkan.shadow.rtProductionDenoiseStrength=-1..1` (default `-1`; when `>=0`, overrides denoise for `rtMode=bvh_production`)
+  - `vulkan.shadow.rtProductionRayLength=-1..500` (default `-1`; when `>=0`, overrides ray length for `rtMode=bvh_production`)
+  - `vulkan.shadow.rtProductionSampleCount=-1..16` (default `-1`; when `>0`, overrides sample count for `rtMode=bvh_production`)
   - `vulkan.shadow.maxShadowedLocalLights=0..8` (`0` = tier default)
   - `vulkan.shadow.maxLocalShadowLayers=0..24` (`0` = tier default scheduler budget)
   - `vulkan.shadow.maxShadowFacesPerFrame=0..24` (`0` = tier default scheduler budget)
@@ -145,7 +148,7 @@ Sample host clamps:
   - `vulkan.shadow.directionalTexelSnapEnabled=true|false` (default `true`)
   - `vulkan.shadow.directionalTexelSnapScale=0.25..4.0` (default `1.0`)
   Runtime tracks and reports these requests. Production-active runtime filter path now follows requested mode (`pcf|pcss|vsm|evsm`) with mode-specific shader shaping for PCSS/VSM/EVSM and strengthened contact-shadow modulation. Vulkan now also runs a dedicated layered moment pipeline for `vsm|evsm` (moment write + mip prefilter + mip-aware sampling), including light-bleed reduction and tuned penumbra/contact shaping. Capability-gated RT hybrid shadow traversal/denoise shaping is now wired (`rtActive=true` only when traversal extensions are available); full dedicated BVH traversal remains a separate step.
-  Advanced quality tuning is now runtime-configurable via backend options (`pcssSoftness`, `momentBlend`, `momentBleedReduction`, `contactStrength`) without shader edits. Current Vulkan shading path also applies neighborhood-weighted plus edge-aware moment denoise, deep+ultra wide bilateral consistency passes, ring-bilateral production refinement (`sampleMomentsRingBilateral`) with variance-confidence blending (`momentVarianceConfidence`), moment neighborhood bounds clamping to reduce light leaking, leak-risk-adaptive anti-bleed shaping, moment-informed PCSS blocker estimation with secondary + far-ring refinement passes (improved penumbra stability), dedicated BVH-mode traversal approximation functions (`bvhTraversalVisibilityApprox`, `bvhDedicatedTraversalVisibilityApprox`) plus a dedicated RT denoise stack (`rtDedicatedDenoiseStack`) for `rtMode=bvh_dedicated`, and motion-adaptive contact stabilization with reject-weighted history blending (`contactReject`, `contactTemporalHistoryWeight`) to reduce high-motion flicker and edge bleeding.
+  Advanced quality tuning is now runtime-configurable via backend options (`pcssSoftness`, `momentBlend`, `momentBleedReduction`, `contactStrength`) without shader edits. Current Vulkan shading path also applies neighborhood-weighted plus edge-aware moment denoise, deep+ultra wide bilateral consistency passes, ring-bilateral production refinement (`sampleMomentsRingBilateral`) with variance-confidence blending (`momentVarianceConfidence`), moment neighborhood bounds clamping to reduce light leaking, leak-risk-adaptive anti-bleed shaping, moment-informed PCSS blocker estimation with secondary + far-ring refinement passes (improved penumbra stability), dedicated BVH-mode traversal approximation functions (`bvhTraversalVisibilityApprox`, `bvhDedicatedTraversalVisibilityApprox`, `bvhProductionTraversalVisibility`) plus dedicated RT denoise stacks (`rtDedicatedDenoiseStack`, `rtProductionDenoiseStack`) for `rtMode=bvh_dedicated|bvh_production`, and motion-adaptive contact stabilization with reject-weighted history blending (`contactReject`, `contactTemporalHistoryWeight`) to reduce high-motion flicker and edge bleeding.
   Motion-adaptive contact stabilization is further tunable via `contactTemporalMotionScale` and `contactTemporalMinStability`.
   Vulkan fragment texture descriptor sets now include a dedicated shadow-moment binding (`set=1,binding=8`) so moment-map sampling can be wired without further descriptor-layout churn.
 
@@ -265,6 +268,9 @@ Guarded threshold-lock generation from real-Vulkan long-run outputs:
 Production profile quality sweeps + threshold lock (guarded real Vulkan):
 ```bash
 ./scripts/shadow_production_quality_sweeps.sh
+
+# repeat strict production sweeps and promote stable real-vulkan thresholds
+./scripts/shadow_quality_finalize_real.sh
 ```
 The default production sweep set includes `rtMode=bvh` and `rtMode=bvh_dedicated` lanes for readiness tracking.
 

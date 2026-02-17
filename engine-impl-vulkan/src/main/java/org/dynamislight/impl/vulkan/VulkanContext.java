@@ -504,6 +504,7 @@ final class VulkanContext {
             case "force" -> 2;
             case "bvh" -> 3;
             case "bvh_dedicated" -> 4;
+            case "bvh_production" -> 5;
             default -> 0;
         };
         boolean changed = false;

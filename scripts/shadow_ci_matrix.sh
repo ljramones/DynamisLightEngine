@@ -32,7 +32,7 @@ mvn -q -pl engine-impl-opengl -am test \
   -Dtest=OpenGlEngineRuntimeLifecycleTest \
   -Dsurefire.failIfNoSpecifiedTests=false
 mvn -q -pl engine-impl-vulkan -am test \
-  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+shadowAllocatorTelemetryShowsReuseAcrossFrames+shadowSchedulerCadenceDefersPointWorkUnderFaceBudget+shadowQualityPathRequestsEmitTrackingWarnings+bvhShadowModeRequestEmitsExplicitFallbackContext+pcssShadowQualityRequestTracksActivePathWithoutMomentWarning+shadowQualityTuningOptionsAreReportedInPolicyWarning \
+  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+shadowAllocatorTelemetryShowsReuseAcrossFrames+shadowSchedulerCadenceDefersPointWorkUnderFaceBudget+shadowQualityPathRequestsEmitTrackingWarnings+bvhShadowModeRequestEmitsExplicitFallbackContext+productionBvhShadowModeRequestUsesProductionOverrides+pcssShadowQualityRequestTracksActivePathWithoutMomentWarning+shadowQualityTuningOptionsAreReportedInPolicyWarning \
   -Dsurefire.failIfNoSpecifiedTests=false
 
 echo ""
@@ -43,6 +43,7 @@ declare -a shadow_profiles=(
   "vsm::-Dvulkan.shadow.filterPath=vsm -Dvulkan.shadow.momentBlend=1.10 -Dvulkan.shadow.momentBleedReduction=1.10"
   "evsm::-Dvulkan.shadow.filterPath=evsm -Dvulkan.shadow.momentBlend=1.20 -Dvulkan.shadow.momentBleedReduction=1.20"
   "rt-bvh-dedicated::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh_dedicated -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtDedicatedDenoiseStrength=0.94 -Dvulkan.shadow.rtDedicatedRayLength=180 -Dvulkan.shadow.rtDedicatedSampleCount=10 -Dvulkan.shadow.rtBvhStrict=0"
+  "rt-bvh-production::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh_production -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtProductionDenoiseStrength=0.97 -Dvulkan.shadow.rtProductionRayLength=240 -Dvulkan.shadow.rtProductionSampleCount=14 -Dvulkan.shadow.rtBvhStrict=0"
 )
 for profile in "${shadow_profiles[@]}"; do
   mode="${profile%%::*}"

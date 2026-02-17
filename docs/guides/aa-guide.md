@@ -190,6 +190,11 @@ Native bridge options:
   - `<backend>.upscaler.vendor.xess.library=/abs/path/libxess_sdk.dylib` (or shared-library name)
   - `<backend>.upscaler.vendor.dlss.library=/abs/path/libdlss_sdk.dylib` (or shared-library name)
   - global fallbacks also supported: `dle.upscaler.vendor.<vendor>.library`
+- Optional per-vendor SDK provider classes (for real SDK bindings through bridge):
+  - `<backend>.upscaler.vendor.fsr.providerClass=com.example.FsrProvider`
+  - `<backend>.upscaler.vendor.xess.providerClass=com.example.XessProvider`
+  - `<backend>.upscaler.vendor.dlss.providerClass=com.example.DlssProvider`
+  - global fallback: `dle.upscaler.vendor.<vendor>.providerClass`
 
 ## 7. Recommended Presets
 
