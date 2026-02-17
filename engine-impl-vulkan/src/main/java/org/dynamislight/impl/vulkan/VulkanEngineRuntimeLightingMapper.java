@@ -667,13 +667,15 @@ final class VulkanEngineRuntimeLightingMapper {
     ) {
         String filterPath = shadowFilterPath == null || shadowFilterPath.isBlank() ? "pcf" : shadowFilterPath.trim().toLowerCase(java.util.Locale.ROOT);
         boolean momentFilterEstimateOnly = "vsm".equals(filterPath) || "evsm".equals(filterPath);
+        boolean momentPipelineRequested = momentFilterEstimateOnly;
+        boolean momentPipelineActive = false;
         String runtimeFilterPath = switch (filterPath) {
             case "pcss", "vsm", "evsm" -> "pcss";
             default -> "pcf";
         };
         String rtMode = shadowRtMode == null || shadowRtMode.isBlank() ? "off" : shadowRtMode.trim().toLowerCase(java.util.Locale.ROOT);
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, runtimeFilterPath, momentFilterEstimateOnly, shadowContactShadows, rtMode, false, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
         }
         int tierMaxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -728,7 +730,7 @@ final class VulkanEngineRuntimeLightingMapper {
         }
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, runtimeFilterPath, momentFilterEstimateOnly, shadowContactShadows, rtMode, false, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
         }
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
         ShadowDesc shadow = primary.shadow();
@@ -892,6 +894,8 @@ final class VulkanEngineRuntimeLightingMapper {
                 filterPath,
                 runtimeFilterPath,
                 momentFilterEstimateOnly,
+                momentPipelineRequested,
+                momentPipelineActive,
                 shadowContactShadows,
                 rtMode,
                 rtShadowActive,

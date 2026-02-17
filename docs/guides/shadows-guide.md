@@ -152,6 +152,7 @@ Scheduler behavior notes:
   - `shadowMomentAtlasBytesEstimate` (non-zero when `vsm`/`evsm` is requested)
   - `runtimeFilterPath` (active filter path used by runtime shading)
   - `momentFilterEstimateOnly` (`true` for current `vsm`/`evsm` fallback behavior)
+  - `momentPipelineRequested` / `momentPipelineActive`
   - `directionalTexelSnapEnabled`
   - `directionalTexelSnapScale`
   - `shadowAllocatorAssignedLights`

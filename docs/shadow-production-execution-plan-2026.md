@@ -38,6 +38,8 @@ Implemented now:
   - `filterPath`
   - `runtimeFilterPath`
   - `momentFilterEstimateOnly`
+  - `momentPipelineRequested`
+  - `momentPipelineActive`
 - allocator telemetry for reuse/eviction pressure:
   - `shadowAllocatorAssignedLights`
   - `shadowAllocatorReusedAssignments`

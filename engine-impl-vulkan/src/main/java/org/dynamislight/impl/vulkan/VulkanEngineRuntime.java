@@ -124,7 +124,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             "",
             0,
             "",
-            "pcf", "pcf", false, false, "off", false,
+            "pcf", "pcf", false, false, false, false, "off", false,
             false
     );
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
@@ -500,6 +500,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " filterPath=" + currentShadows.filterPath()
                             + " runtimeFilterPath=" + currentShadows.runtimeFilterPath()
                             + " momentFilterEstimateOnly=" + currentShadows.momentFilterEstimateOnly()
+                            + " momentPipelineRequested=" + currentShadows.momentPipelineRequested()
+                            + " momentPipelineActive=" + currentShadows.momentPipelineActive()
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()
                             + " rtActive=" + currentShadows.rtShadowActive()
@@ -522,6 +524,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + " (runtime active filter path=" + currentShadows.runtimeFilterPath()
                                 + ", moment atlas sizing/telemetry is estimate-only)"
                 ));
+                if (!currentShadows.momentPipelineActive()) {
+                    warnings.add(new EngineWarning(
+                            "SHADOW_MOMENT_PIPELINE_PENDING",
+                            "Shadow moment pipeline requested but not yet active "
+                                    + "(requested=" + currentShadows.momentPipelineRequested()
+                                    + ", active=" + currentShadows.momentPipelineActive() + ")"
+                    ));
+                }
             } else if (!currentShadows.filterPath().equals(currentShadows.runtimeFilterPath())) {
                 warnings.add(new EngineWarning(
                         "SHADOW_FILTER_PATH_REQUESTED",
@@ -839,6 +849,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             String filterPath,
             String runtimeFilterPath,
             boolean momentFilterEstimateOnly,
+            boolean momentPipelineRequested,
+            boolean momentPipelineActive,
             boolean contactShadowsRequested,
             String rtShadowMode,
             boolean rtShadowActive,
