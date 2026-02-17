@@ -141,7 +141,6 @@ jobs:
 
   shadow-real-longrun-guarded:
     name: Shadow Real Longrun Guarded (JDK 25, macos-latest)
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_longrun == 'true')
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -172,7 +171,6 @@ jobs:
 
   shadow-production-quality-sweeps:
     name: Shadow Production Quality Sweeps (JDK 25, macos-latest)
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_quality_sweeps == 'true')
     runs-on: macos-latest
     steps:
       - name: Checkout

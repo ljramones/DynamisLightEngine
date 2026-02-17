@@ -118,7 +118,7 @@ Status: In progress (started and partially landed).
 
 2. CI matrix expansion
 - D16/D32 divergence, cadence/static-cache correctness, long-run motion stress.
- - Status: In progress (always-on guarded lanes are live for shadow matrix + scheduled real-Vulkan long-run + scheduled production quality sweeps; guarded threshold-lock emission is integrated in both long-run and quality-sweep scripts).
+ - Status: In progress (always-on guarded lanes are live for shadow matrix + real-Vulkan long-run + production quality sweeps on `push`/`pull_request`/`schedule`; guarded threshold-lock emission is integrated in both long-run and quality-sweep scripts).
 
 3. Report quality
 - explicit fail reasons and metric drift windows.

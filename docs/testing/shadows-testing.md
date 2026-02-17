@@ -37,8 +37,8 @@ End-to-end shadow CI matrix automation:
 CI always-on rollout:
 - GitHub Actions `shadow-matrix` runs on `push`/`pull_request` with mock Vulkan safety.
 - Weekly scheduled run (`schedule`) also executes long-run AA/shadow motion sampling.
-- GitHub Actions `shadow-real-longrun-guarded` runs on `schedule` (or manual dispatch) and emits guarded threshold-lock recommendations when real Vulkan is available.
-- GitHub Actions `shadow-production-quality-sweeps` runs on `schedule` (or manual dispatch) and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`) with guarded threshold-lock output.
+- GitHub Actions `shadow-real-longrun-guarded` now runs on `push`/`pull_request`/`schedule` and emits guarded threshold-lock recommendations when real Vulkan is available.
+- GitHub Actions `shadow-production-quality-sweeps` now runs on `push`/`pull_request`/`schedule` and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`) with guarded threshold-lock output.
 - Manual `workflow_dispatch` toggles:
   - `run_shadow_real_matrix=true`
   - `run_shadow_longrun=true`
