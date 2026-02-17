@@ -217,6 +217,9 @@ final class VulkanContext {
                 if (acquireResult == VK_ERROR_OUT_OF_DATE_KHR || acquireResult == VK_SUBOPTIMAL_KHR) {
                     recreateSwapchainFromWindow();
                 }
+                if (renderState.shadowMomentPipelineRequested && backendResources.shadowMomentImage != VK_NULL_HANDLE) {
+                    renderState.shadowMomentInitialized = true;
+                }
                 backendResources.currentFrame = (backendResources.currentFrame + 1) % Math.max(1, backendResources.commandBuffers.length);
                 updateTemporalHistoryCameraState();
             }
@@ -471,6 +474,7 @@ final class VulkanContext {
             try (MemoryStack stack = stackPush()) {
                 destroyShadowResources();
                 createShadowResources(stack);
+                renderState.shadowMomentInitialized = false;
                 if (!sceneResources.gpuMeshes.isEmpty()) {
                     createTextureDescriptorSets(stack);
                 }
@@ -522,6 +526,7 @@ final class VulkanContext {
                 try (MemoryStack stack = stackPush()) {
                     destroyShadowResources();
                     createShadowResources(stack);
+                    renderState.shadowMomentInitialized = false;
                     if (!sceneResources.gpuMeshes.isEmpty()) {
                         createTextureDescriptorSets(stack);
                     }
@@ -547,6 +552,10 @@ final class VulkanContext {
                 && backendResources.shadowMomentImageView != VK_NULL_HANDLE
                 && backendResources.shadowMomentSampler != VK_NULL_HANDLE
                 && backendResources.shadowMomentFormat != 0;
+    }
+
+    boolean isShadowMomentInitialized() {
+        return renderState.shadowMomentInitialized;
     }
 
     void setShadowDirectionalTexelSnap(boolean enabled, float scale) {
@@ -897,6 +906,7 @@ final class VulkanContext {
                 )
         );
         VulkanLifecycleOrchestrator.applyShadowState(backendResources, state);
+        renderState.shadowMomentInitialized = false;
     }
 
     private void destroyShadowResources() {
@@ -979,6 +989,9 @@ final class VulkanContext {
                         backendResources.shadowPipeline,
                         backendResources.shadowPipelineLayout,
                         backendResources.shadowFramebuffers,
+                        backendResources.shadowMomentImage,
+                        renderState.shadowMomentPipelineRequested,
+                        renderState.shadowMomentInitialized,
                         renderState.postOffscreenActive,
                         renderState.postIntermediateInitialized,
                         renderState.tonemapEnabled,

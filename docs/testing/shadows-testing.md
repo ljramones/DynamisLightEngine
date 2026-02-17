@@ -119,6 +119,7 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `SHADOW_FILTER_MOMENT_ESTIMATE_ONLY`
   - `SHADOW_POLICY_ACTIVE` fields: `momentPipelineRequested=true`
   - `SHADOW_POLICY_ACTIVE` fields: `momentResourceAllocated`, `momentResourceFormat`
+  - `SHADOW_POLICY_ACTIVE` field: `momentInitialized`
   - In mock runs, expect `runtimeFilterPath=pcss`, `momentFilterEstimateOnly=true`, `momentPipelineActive=false`, and `SHADOW_MOMENT_PIPELINE_PENDING`.
 - In real Vulkan runs with moment resources allocated, expect `runtimeFilterPath` to match requested `vsm|evsm`, `momentFilterEstimateOnly=false`, `momentPipelineActive=true`, and no `SHADOW_MOMENT_PIPELINE_PENDING`.
   - As the provisional shader path comes online, expect `SHADOW_MOMENT_APPROX_ACTIVE` when moment mode is active without full production filtering.

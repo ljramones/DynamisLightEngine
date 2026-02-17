@@ -29,6 +29,9 @@ public final class VulkanFrameCommandInputsFactory {
                 inputs.shadowPipeline(),
                 inputs.shadowPipelineLayout(),
                 inputs.shadowFramebuffers(),
+                inputs.shadowMomentImage(),
+                inputs.shadowMomentPipelineRequested(),
+                inputs.shadowMomentInitialized(),
                 inputs.postOffscreenActive(),
                 inputs.postIntermediateInitialized(),
                 inputs.tonemapEnabled(),
@@ -106,6 +109,9 @@ public final class VulkanFrameCommandInputsFactory {
                 common.shadowPipeline(),
                 common.shadowPipelineLayout(),
                 common.shadowFramebuffers(),
+                common.shadowMomentImage(),
+                common.shadowMomentPipelineRequested(),
+                common.shadowMomentInitialized(),
                 post.postOffscreenActive(),
                 post.postIntermediateInitialized(),
                 post.tonemapEnabled(),
@@ -176,6 +182,9 @@ public final class VulkanFrameCommandInputsFactory {
             long shadowPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
+            long shadowMomentImage,
+            boolean shadowMomentPipelineRequested,
+            boolean shadowMomentInitialized,
             boolean postOffscreenActive,
             boolean postIntermediateInitialized,
             boolean tonemapEnabled,
@@ -245,7 +254,10 @@ public final class VulkanFrameCommandInputsFactory {
             long shadowRenderPass,
             long shadowPipeline,
             long shadowPipelineLayout,
-            long[] shadowFramebuffers
+            long[] shadowFramebuffers,
+            long shadowMomentImage,
+            boolean shadowMomentPipelineRequested,
+            boolean shadowMomentInitialized
     ) {
     }
 

@@ -26,7 +26,10 @@ class VulkanRenderCommandRecorderTest {
                 1L,
                 1L,
                 1L,
-                new long[12]
+                new long[12],
+                0L,
+                false,
+                false
         );
         assertEquals(12, VulkanRenderCommandRecorder.shadowPassCount(inputs));
     }
@@ -52,7 +55,10 @@ class VulkanRenderCommandRecorderTest {
                 1L,
                 1L,
                 1L,
-                new long[12]
+                new long[12],
+                0L,
+                false,
+                false
         );
         assertEquals(6, VulkanRenderCommandRecorder.shadowPassCount(inputs));
     }

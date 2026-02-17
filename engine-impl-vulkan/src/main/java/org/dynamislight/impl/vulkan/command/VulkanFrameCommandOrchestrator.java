@@ -70,7 +70,10 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.shadowRenderPass(),
                         inputs.shadowPipeline(),
                         inputs.shadowPipelineLayout(),
-                        inputs.shadowFramebuffers()
+                        inputs.shadowFramebuffers(),
+                        inputs.shadowMomentImage(),
+                        inputs.shadowMomentPipelineRequested(),
+                        inputs.shadowMomentInitialized()
                 ),
                 meshes,
                 meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
@@ -183,6 +186,9 @@ public final class VulkanFrameCommandOrchestrator {
             long shadowPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
+            long shadowMomentImage,
+            boolean shadowMomentPipelineRequested,
+            boolean shadowMomentInitialized,
             boolean postOffscreenActive,
             boolean postIntermediateInitialized,
             boolean tonemapEnabled,
