@@ -374,6 +374,49 @@ public final class VulkanShaderSources {
                     float antiBleed = reduceLightBleed(clamp(pMax, 0.0, 1.0), clamp(0.30 * momentBleedReduction, 0.12, 0.50));
                     return clamp(mix(momentBase, antiBleed, 0.72), 0.0, 1.0);
                 }
+                float bvhTraversalVisibilityApprox(
+                        vec2 uv,
+                        float texel,
+                        int layer,
+                        float compareDepth,
+                        float ndl,
+                        float depthRatio,
+                        int shadowRtSampleCount,
+                        float shadowRtDenoiseStrength,
+                        float shadowRtRayLength
+                ) {
+                    float rayScale = clamp(shadowRtRayLength / 120.0, 0.45, 4.5);
+                    int rtSteps = clamp(shadowRtSampleCount * 3, 8, 36);
+                    vec2 axisA = normalize(vec2(0.63 + (1.0 - ndl) * 0.42, 0.41 + depthRatio * 0.58));
+                    vec2 axisB = vec2(-axisA.y, axisA.x);
+                    float accum = 0.0;
+                    float weightSum = 0.0;
+                    for (int i = 0; i < rtSteps; i++) {
+                        float t = (float(i) + 0.5) / float(rtSteps);
+                        float stride = mix(0.6, 9.0, t * t) * rayScale;
+                        float arc = mix(-1.0, 1.0, t);
+                        vec2 rayDir = normalize(mix(axisA, axisB, arc * arc * 0.55 * sign(arc)));
+                        vec2 sampleUv = clamp(uv + rayDir * texel * stride, vec2(0.0), vec2(1.0));
+                        float sampleVis = texture(uShadowMap, vec4(sampleUv, float(layer), compareDepth));
+                        float weight = mix(1.0, 0.25, t) * mix(1.0, 0.70, abs(arc));
+                        accum += sampleVis * weight;
+                        weightSum += weight;
+                    }
+                    float traversal = weightSum > 0.0 ? (accum / weightSum) : 1.0;
+                    float n = texture(uShadowMap, vec4(clamp(uv + vec2(0.0, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float s = texture(uShadowMap, vec4(clamp(uv + vec2(0.0, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float e = texture(uShadowMap, vec4(clamp(uv + vec2(texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float w = texture(uShadowMap, vec4(clamp(uv + vec2(-texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float ne = texture(uShadowMap, vec4(clamp(uv + vec2(texel, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float nw = texture(uShadowMap, vec4(clamp(uv + vec2(-texel, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float se = texture(uShadowMap, vec4(clamp(uv + vec2(texel, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float sw = texture(uShadowMap, vec4(clamp(uv + vec2(-texel, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                    float cross = (n + s + e + w) * 0.25;
+                    float diag = (ne + nw + se + sw) * 0.25;
+                    float neighborhood = mix(cross, diag, 0.45);
+                    float denoise = mix(0.28, 0.72, shadowRtDenoiseStrength);
+                    return clamp(mix(traversal, neighborhood, denoise), 0.0, 1.0);
+                }
                 float finalizeShadowVisibility(
                         float pcfVisibility,
                         int shadowFilterMode,
@@ -450,40 +493,44 @@ public final class VulkanShaderSources {
                     }
                     if (shadowRtEnabled) {
                         float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
-                        float rayScale = clamp(shadowRtRayLength / 120.0, 0.35, 4.0);
-                        vec2 rayDir = normalize(vec2(0.57 + (1.0 - ndl) * 0.65, 0.44 + depthRatio * 0.55));
-                        int rtSteps = clamp(shadowRtSampleCount * (shadowRtMode > 1 ? 2 : 1), 4, 24);
-                        float traversal = 0.0;
-                        float traversalW = 0.0;
-                        for (int i = 0; i < rtSteps; i++) {
-                            float t = (float(i) + 1.0) / float(rtSteps);
-                            float stride = mix(0.8, 6.5, t * t) * rayScale;
-                            vec2 sampleUv = clamp(uv + rayDir * texel * stride, vec2(0.0), vec2(1.0));
-                            float sampleVis = texture(uShadowMap, vec4(sampleUv, float(layer), compareDepth));
-                            float w = 1.0 - (0.65 * t);
-                            traversal += sampleVis * w;
-                            traversalW += w;
-                        }
-                        float rtVis = traversalW > 0.0 ? traversal / traversalW : visibility;
-                        vec2 o = texel * vec2(1.0, 1.0);
-                        float rtN = texture(uShadowMap, vec4(clamp(uv + vec2(0.0, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
-                        float rtS = texture(uShadowMap, vec4(clamp(uv - vec2(0.0, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
-                        float rtE = texture(uShadowMap, vec4(clamp(uv + vec2(o.x, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
-                        float rtW = texture(uShadowMap, vec4(clamp(uv - vec2(o.x, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
-                        float rtKernelBlend = mix(shadowRtMode > 1 ? 0.30 : 0.18, shadowRtMode > 1 ? 0.60 : 0.45, shadowRtDenoiseStrength);
-                        float rtDenoised = mix(rtVis, (rtN + rtS + rtE + rtW) * 0.25, rtKernelBlend);
                         if (shadowRtMode > 2) {
-                            float rtNE = texture(uShadowMap, vec4(clamp(uv + vec2(o.x, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
-                            float rtNW = texture(uShadowMap, vec4(clamp(uv + vec2(-o.x, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
-                            float rtSE = texture(uShadowMap, vec4(clamp(uv + vec2(o.x, -o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
-                            float rtSW = texture(uShadowMap, vec4(clamp(uv + vec2(-o.x, -o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
-                            float cross = (rtN + rtS + rtE + rtW) * 0.25;
-                            float diag = (rtNE + rtNW + rtSE + rtSW) * 0.25;
-                            float rtWide = mix(cross, diag, 0.42);
-                            float wideBlend = clamp(0.30 + shadowRtDenoiseStrength * 0.38, 0.25, 0.78);
-                            rtDenoised = mix(rtDenoised, rtWide, wideBlend);
+                            float bvhVis = bvhTraversalVisibilityApprox(
+                                    uv,
+                                    texel,
+                                    layer,
+                                    compareDepth,
+                                    ndl,
+                                    depthRatio,
+                                    shadowRtSampleCount,
+                                    shadowRtDenoiseStrength,
+                                    shadowRtRayLength
+                            );
+                            visibility = mix(visibility, bvhVis, 0.62);
+                        } else {
+                            float rayScale = clamp(shadowRtRayLength / 120.0, 0.35, 4.0);
+                            vec2 rayDir = normalize(vec2(0.57 + (1.0 - ndl) * 0.65, 0.44 + depthRatio * 0.55));
+                            int rtSteps = clamp(shadowRtSampleCount * (shadowRtMode > 1 ? 2 : 1), 4, 24);
+                            float traversal = 0.0;
+                            float traversalW = 0.0;
+                            for (int i = 0; i < rtSteps; i++) {
+                                float t = (float(i) + 1.0) / float(rtSteps);
+                                float stride = mix(0.8, 6.5, t * t) * rayScale;
+                                vec2 sampleUv = clamp(uv + rayDir * texel * stride, vec2(0.0), vec2(1.0));
+                                float sampleVis = texture(uShadowMap, vec4(sampleUv, float(layer), compareDepth));
+                                float w = 1.0 - (0.65 * t);
+                                traversal += sampleVis * w;
+                                traversalW += w;
+                            }
+                            float rtVis = traversalW > 0.0 ? traversal / traversalW : visibility;
+                            vec2 o = texel * vec2(1.0, 1.0);
+                            float rtN = texture(uShadowMap, vec4(clamp(uv + vec2(0.0, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                            float rtS = texture(uShadowMap, vec4(clamp(uv - vec2(0.0, o.y), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                            float rtE = texture(uShadowMap, vec4(clamp(uv + vec2(o.x, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                            float rtW = texture(uShadowMap, vec4(clamp(uv - vec2(o.x, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                            float rtKernelBlend = mix(shadowRtMode > 1 ? 0.30 : 0.18, shadowRtMode > 1 ? 0.60 : 0.45, shadowRtDenoiseStrength);
+                            float rtDenoised = mix(rtVis, (rtN + rtS + rtE + rtW) * 0.25, rtKernelBlend);
+                            visibility = mix(visibility, clamp(rtDenoised, 0.0, 1.0), shadowRtMode > 1 ? 0.55 : 0.38);
                         }
-                        visibility = mix(visibility, clamp(rtDenoised, 0.0, 1.0), shadowRtMode > 1 ? 0.55 : 0.38);
                     }
                     return clamp(visibility, 0.0, 1.0);
                 }
