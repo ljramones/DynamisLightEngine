@@ -259,6 +259,8 @@ public final class VulkanShaderSources {
                     float maxLod = float(max(textureQueryLevels(uShadowMomentMap) - 1, 0));
                     float lod = min(1.5, maxLod);
                     float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
+                    float denoiseEdgeFactor = clamp(length(vec2(dFdx(compareDepth), dFdy(compareDepth))) * 240.0, 0.0, 1.0);
+                    float denoiseStability = 1.0 - denoiseEdgeFactor;
                     vec2 baseMoments = sampleMomentsWeighted(momentUv.xy, layer, 0.0, texel, compareDepth, momentBlend);
                     vec2 filteredMoments = sampleMomentsWeighted(momentUv.xy, layer, lod, texel * 1.5, compareDepth, momentBlend);
                     vec2 wideMoments = sampleMomentsWeighted(
@@ -269,8 +271,10 @@ public final class VulkanShaderSources {
                             compareDepth,
                             momentBlend
                     );
-                    vec2 moments = mix(baseMoments, filteredMoments, clamp(0.68 * momentBlend, 0.20, 0.95));
-                    moments = mix(moments, wideMoments, clamp(0.20 * momentBlend, 0.05, 0.35));
+                    float filteredWeight = clamp(mix(0.68 * momentBlend, 0.34 * momentBlend, denoiseEdgeFactor), 0.20, 0.95);
+                    float wideWeight = clamp(0.20 * momentBlend * denoiseStability, 0.02, 0.35);
+                    vec2 moments = mix(baseMoments, filteredMoments, filteredWeight);
+                    moments = mix(moments, wideMoments, wideWeight);
                     // Neutral fallback for uninitialized/provisional moment data.
                     if (moments.y <= 0.000001) {
                         return 1.0;
@@ -280,7 +284,8 @@ public final class VulkanShaderSources {
                         return 1.0;
                     }
                     float second = max(moments.y, mean * mean);
-                    float variance = max(second - (mean * mean), 0.00003 + (1.0 - mean) * 0.00006);
+                    float varianceFloor = mix(0.00003 + (1.0 - mean) * 0.00006, 0.00005 + (1.0 - mean) * 0.00008, denoiseEdgeFactor);
+                    float variance = max(second - (mean * mean), varianceFloor);
                     float diff = compareDepth - mean;
                     float pMax = variance / (variance + diff * diff);
                     float antiBleed = reduceLightBleed(clamp(pMax, 0.0, 1.0), clamp(0.22 * momentBleedReduction, 0.08, 0.45));
@@ -293,6 +298,8 @@ public final class VulkanShaderSources {
                     float maxLod = float(max(textureQueryLevels(uShadowMomentMap) - 1, 0));
                     float lod = min(2.0, maxLod);
                     float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
+                    float denoiseEdgeFactor = clamp(length(vec2(dFdx(compareDepth), dFdy(compareDepth))) * 220.0, 0.0, 1.0);
+                    float denoiseStability = 1.0 - denoiseEdgeFactor;
                     vec2 baseMoments = sampleMomentsWeighted(momentUv.xy, layer, 0.0, texel, compareDepth, momentBlend);
                     vec2 filteredMoments = sampleMomentsWeighted(momentUv.xy, layer, lod, texel * 2.0, compareDepth, momentBlend);
                     vec2 wideMoments = sampleMomentsWeighted(
@@ -303,15 +310,18 @@ public final class VulkanShaderSources {
                             compareDepth,
                             momentBlend
                     );
-                    vec2 moments = mix(baseMoments, filteredMoments, clamp(0.75 * momentBlend, 0.25, 0.97));
-                    moments = mix(moments, wideMoments, clamp(0.28 * momentBlend, 0.08, 0.42));
+                    float filteredWeight = clamp(mix(0.75 * momentBlend, 0.40 * momentBlend, denoiseEdgeFactor), 0.25, 0.97);
+                    float wideWeight = clamp(0.28 * momentBlend * denoiseStability, 0.03, 0.42);
+                    vec2 moments = mix(baseMoments, filteredMoments, filteredWeight);
+                    moments = mix(moments, wideMoments, wideWeight);
                     if (moments.y <= 0.000001) {
                         return 1.0;
                     }
                     float warp = 40.0;
                     float mean = clamp(moments.x, 0.0, 1.0);
                     float second = max(moments.y, mean * mean);
-                    float variance = max(second - (mean * mean), 0.00008 + (1.0 - mean) * 0.00010);
+                    float varianceFloor = mix(0.00008 + (1.0 - mean) * 0.00010, 0.00011 + (1.0 - mean) * 0.00013, denoiseEdgeFactor);
+                    float variance = max(second - (mean * mean), varianceFloor);
                     float warpedCompare = exp(warp * clamp(compareDepth, 0.0, 1.0));
                     float warpedMean = exp(warp * clamp(mean, 0.0, 1.0));
                     float warpedVariance = variance * (1.0 + 0.45 * warp);
