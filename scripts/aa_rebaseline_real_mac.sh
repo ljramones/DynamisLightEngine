@@ -20,7 +20,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 OUT_DIR="${DLE_COMPARE_OUTPUT_DIR:-artifacts/compare/aa-real-$(date +%Y%m%d-%H%M%S)}"
 TEST_CLASS="${DLE_COMPARE_TEST_CLASS:-BackendParityIntegrationTest}"
 VULKAN_MODE="${DLE_COMPARE_VULKAN_MODE:-mock}" # mock(default) | auto | real
-SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds | longrun
+SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds | longrun | longrun-motion | upscaler-matrix
 LOCK_SOURCE_DIR="${2:-artifacts/compare}"
 THRESHOLDS_FILE="${DLE_COMPARE_THRESHOLDS_FILE:-}"
 REQUIRED_MOLTENVK_VERSION="${DLE_COMPARE_REQUIRE_MOLTENVK_VERSION:-}"
@@ -241,8 +241,18 @@ if [[ "$SCRIPT_COMMAND" == "longrun" ]]; then
   exit 0
 fi
 
+if [[ "$SCRIPT_COMMAND" == "longrun-motion" ]]; then
+  "$ROOT_DIR/scripts/aa_longrun_motion_sampling_mac.sh"
+  exit 0
+fi
+
+if [[ "$SCRIPT_COMMAND" == "upscaler-matrix" ]]; then
+  "$ROOT_DIR/scripts/aa_upscaler_vendor_matrix_mac.sh"
+  exit 0
+fi
+
 if [[ "$SCRIPT_COMMAND" != "run" ]]; then
-  echo "Invalid command '$SCRIPT_COMMAND' (expected: run|preflight|lock-thresholds|longrun)." >&2
+  echo "Invalid command '$SCRIPT_COMMAND' (expected: run|preflight|lock-thresholds|longrun|longrun-motion|upscaler-matrix)." >&2
   exit 1
 fi
 

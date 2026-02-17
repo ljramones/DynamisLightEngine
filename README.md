@@ -117,6 +117,17 @@ DLE_COMPARE_LONGRUN_RUNS=5 \
 ```
 
 ```bash
+# Run repeated motion-focused AA stress suites (animated/pan-heavy) and lock thresholds
+DLE_COMPARE_LONGRUN_MOTION_RUNS=4 \
+./scripts/aa_rebaseline_real_mac.sh longrun-motion
+```
+
+```bash
+# Run TSR+upscaler vendor matrix (FSR/XeSS/DLSS hook/native-state audit from metadata)
+./scripts/aa_rebaseline_real_mac.sh upscaler-matrix
+```
+
+```bash
 # Build threshold-lock recommendations from repeated real-Vulkan compare metadata
 # Default minimum profile samples: 3 (override with DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS)
 ./scripts/aa_rebaseline_real_mac.sh lock-thresholds artifacts/compare
@@ -142,6 +153,10 @@ External native upscaler bridge options (OpenGL and Vulkan):
 - `<backend>.upscaler.nativeEnabled=true|false`
 - `<backend>.upscaler.bridgeClass=com.example.MyUpscalerBridge`
 - `<backend>.upscaler.bridgeLibrary=/abs/path/libvendor_upscaler.dylib` (or comma-separated list)
+
+Compare metadata now includes warning code snapshots per backend:
+- `compare.opengl.warningCodes`
+- `compare.vulkan.warningCodes`
 
 Example (`vulkan` backend):
 

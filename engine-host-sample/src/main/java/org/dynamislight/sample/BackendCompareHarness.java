@@ -494,6 +494,8 @@ final class BackendCompareHarness {
         metadata.setProperty("compare.vulkan.taaConfidenceTrendWindow", Double.toString(vulkan.taaConfidenceTrendWindow()));
         metadata.setProperty("compare.opengl.taaConfidenceDropWindow", Long.toString(openGl.taaConfidenceDropWindow()));
         metadata.setProperty("compare.vulkan.taaConfidenceDropWindow", Long.toString(vulkan.taaConfidenceDropWindow()));
+        metadata.setProperty("compare.opengl.warningCodes", String.join(",", openGl.warningCodes()));
+        metadata.setProperty("compare.vulkan.warningCodes", String.join(",", vulkan.warningCodes()));
         try (var out = Files.newOutputStream(outputDir.resolve("compare-metadata.properties"))) {
             metadata.store(out, "DynamisLightEngine compare metadata");
         }

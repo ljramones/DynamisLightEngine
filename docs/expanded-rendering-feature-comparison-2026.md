@@ -29,14 +29,16 @@ Last updated: February 17, 2026.
 - Motion-vector quality is upgraded with per-object previous-transform coverage in both backends for improved thin/fast geometry rejection.
 - ULTRA parity envelopes for AA stress now include tighter bounds (`taa-thin-geometry-shimmer` and `taa-specular-flicker` at `<= 0.31`; `taa-history-confidence-stress` and `taa-specular-aa-stress` tightened further to `<= 0.29`).
 - New authored AA stress profiles are gated: `taa-reactive-authored-dense-stress`, `taa-alpha-pan-stress`, `taa-aa-preset-quality-stress`, `taa-confidence-dilation-stress`.
-- AA compare matrix now runs targeted scene classes across `taa`, `tuua`, `tsr`, `msaa_selective`, and `hybrid_tuua_msaa`.
+- AA compare matrix now runs targeted scene classes across `taa`, `tuua`, `tsr`, `msaa_selective`, and `hybrid_tuua_msaa`, including animated fast-motion suites (`taa-fast-camera-pan-animated-objects-stress`, `taa-animated-object-crossing-thin-geo-stress`, `taa-emissive-alpha-motion-stress`).
 - TSR compare runs now apply scene-class tuning packs for foliage alpha, specular micro-highlights, thin-geometry motion, and disocclusion rapid-pan stress.
 - Temporal stability gates now enforce drift limits on `shimmerIndex`, `historyRejectRate`, `confidenceMean`, and `confidenceDropEvents` in addition to PNG diff.
+- Motion-focused long-run workflows are available (`aa_rebaseline_real_mac.sh longrun-motion`) to repeatedly sample animated stress scenes before threshold locking.
 - Compare outputs are mode-separated (`vulkan_real` vs `vulkan_mock`) with profile-specific thresholds (strict real Vulkan; fallback mock Vulkan for CI safety).
 - Real-Vulkan preflight support validates loader/extensions before compare runs to fail fast with actionable diagnostics.
 - Specular AA is reinforced with Toksvig-style roughness filtering in both backends to reduce glossy shimmer.
 - Runtime AA telemetry is now surfaced in frame stats/events (`historyRejectRate`, `confidenceMean`, `confidenceDropEvents`) for data-driven tuning.
 - External native upscaler bridge path is available for FSR/XeSS/DLSS integration (`<backend>.upscaler.bridgeClass` plus optional bridge library preload).
+- Upscaler vendor-matrix workflow is available (`aa_rebaseline_real_mac.sh upscaler-matrix`) and records hook/native warning states in compare metadata for FSR/XeSS/DLSS qualification passes.
 - Strong regression harness (`--compare`, tiered golden thresholds, stress profiles including post/SSAO).
 - Good diagnostics/warnings for quality fallback and runtime pressure.
 

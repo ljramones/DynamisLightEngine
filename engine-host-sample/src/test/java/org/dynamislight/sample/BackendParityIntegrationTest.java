@@ -610,7 +610,10 @@ class BackendParityIntegrationTest {
                 new SceneCase("taa-subpixel-alpha-foliage-stress", taaSubpixelAlphaFoliageStressScene(), 0.33),
                 new SceneCase("taa-specular-micro-highlights-stress", taaSpecularMicroHighlightsStressScene(), 0.31),
                 new SceneCase("taa-thin-geometry-motion-stress", taaThinGeometryMotionStressScene(), 0.31),
-                new SceneCase("taa-disocclusion-rapid-pan-stress", taaDisocclusionRapidPanStressScene(), 0.33)
+                new SceneCase("taa-disocclusion-rapid-pan-stress", taaDisocclusionRapidPanStressScene(), 0.33),
+                new SceneCase("taa-fast-camera-pan-animated-objects-stress", taaFastCameraPanAnimatedObjectsStressScene(), 0.34),
+                new SceneCase("taa-animated-object-crossing-thin-geo-stress", taaAnimatedObjectCrossingThinGeometryStressScene(), 0.34),
+                new SceneCase("taa-emissive-alpha-motion-stress", taaEmissiveAlphaMotionStressScene(), 0.34)
         );
         List<String> aaModes = List.of("taa", "tuua", "tsr", "msaa-selective", "hybrid-tuua-msaa", "dlaa", "fxaa-low");
 
@@ -642,7 +645,10 @@ class BackendParityIntegrationTest {
                 new SceneCase("taa-subpixel-alpha-foliage-stress", taaSubpixelAlphaFoliageStressScene(), 0.33),
                 new SceneCase("taa-specular-micro-highlights-stress", taaSpecularMicroHighlightsStressScene(), 0.31),
                 new SceneCase("taa-thin-geometry-motion-stress", taaThinGeometryMotionStressScene(), 0.31),
-                new SceneCase("taa-disocclusion-rapid-pan-stress", taaDisocclusionRapidPanStressScene(), 0.33)
+                new SceneCase("taa-disocclusion-rapid-pan-stress", taaDisocclusionRapidPanStressScene(), 0.33),
+                new SceneCase("taa-fast-camera-pan-animated-objects-stress", taaFastCameraPanAnimatedObjectsStressScene(), 0.34),
+                new SceneCase("taa-animated-object-crossing-thin-geo-stress", taaAnimatedObjectCrossingThinGeometryStressScene(), 0.34),
+                new SceneCase("taa-emissive-alpha-motion-stress", taaEmissiveAlphaMotionStressScene(), 0.34)
         );
         List<String> upscalerHooks = List.of("fsr", "xess", "dlss");
 
@@ -678,12 +684,66 @@ class BackendParityIntegrationTest {
                             report.vulkanSnapshot().warningCodes().contains("UPSCALER_HOOK_ACTIVE"),
                             modeProfile + " expected Vulkan UPSCALER_HOOK_ACTIVE warning"
                     );
+                    assertTrue(
+                            report.openGlSnapshot().warningCodes().contains("UPSCALER_NATIVE_ACTIVE")
+                                    || report.openGlSnapshot().warningCodes().contains("UPSCALER_NATIVE_INACTIVE"),
+                            modeProfile + " expected OpenGL native upscaler state warning"
+                    );
+                    assertTrue(
+                            report.vulkanSnapshot().warningCodes().contains("UPSCALER_NATIVE_ACTIVE")
+                                    || report.vulkanSnapshot().warningCodes().contains("UPSCALER_NATIVE_INACTIVE"),
+                            modeProfile + " expected Vulkan native upscaler state warning"
+                    );
                 }
             }
         } finally {
             restoreProperty("dle.compare.upscaler.mode", prevUpscalerMode);
             restoreProperty("dle.compare.upscaler.quality", prevUpscalerQuality);
             restoreProperty("dle.compare.temporalFrames", prevTemporalFrames);
+            restoreProperty("dle.compare.tsr.frameBoost", prevTsrFrameBoost);
+        }
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessAnimatedMotionTargetedScenesStayBounded() throws Exception {
+        record SceneCase(String key, SceneDescriptor scene, double taaStrictMax) {
+        }
+        List<SceneCase> scenes = List.of(
+                new SceneCase("taa-fast-camera-pan-animated-objects-stress", taaFastCameraPanAnimatedObjectsStressScene(), 0.34),
+                new SceneCase("taa-animated-object-crossing-thin-geo-stress", taaAnimatedObjectCrossingThinGeometryStressScene(), 0.34),
+                new SceneCase("taa-emissive-alpha-motion-stress", taaEmissiveAlphaMotionStressScene(), 0.34)
+        );
+        List<String> aaModes = List.of("taa", "tuua", "tsr", "msaa-selective", "hybrid-tuua-msaa");
+
+        String prevTemporalFrames = System.getProperty("dle.compare.temporalFrames");
+        String prevTemporalWindow = System.getProperty("dle.compare.temporalWindow");
+        String prevTsrFrameBoost = System.getProperty("dle.compare.tsr.frameBoost");
+        try {
+            System.setProperty("dle.compare.temporalFrames", "10");
+            System.setProperty("dle.compare.temporalWindow", "10");
+            System.setProperty("dle.compare.tsr.frameBoost", "6");
+
+            for (SceneCase sceneCase : scenes) {
+                for (String mode : aaModes) {
+                    String modeProfile = sceneCase.key() + "-" + mode;
+                    Path outDir = compareOutputDir(modeProfile);
+                    var report = BackendCompareHarness.run(
+                            outDir,
+                            sceneCase.scene(),
+                            QualityTier.ULTRA,
+                            modeProfile + "-ultra"
+                    );
+                    assertTrue(Files.exists(report.openGlImage()));
+                    assertTrue(Files.exists(report.vulkanImage()));
+                    assertTrue(report.diffMetric() >= 0.0);
+                    double strictMax = strictThresholdForAaMode(sceneCase.taaStrictMax(), mode);
+                    assertAaSceneWithinThreshold(modeProfile, report, strictMax, modeProfile);
+                }
+            }
+        } finally {
+            restoreProperty("dle.compare.temporalFrames", prevTemporalFrames);
+            restoreProperty("dle.compare.temporalWindow", prevTemporalWindow);
             restoreProperty("dle.compare.tsr.frameBoost", prevTsrFrameBoost);
         }
     }
@@ -1117,6 +1177,9 @@ class BackendParityIntegrationTest {
                 Map.entry("taa-specular-micro-highlights-stress", 0.31),
                 Map.entry("taa-thin-geometry-motion-stress", 0.31),
                 Map.entry("taa-disocclusion-rapid-pan-stress", 0.33),
+                Map.entry("taa-fast-camera-pan-animated-objects-stress", 0.34),
+                Map.entry("taa-animated-object-crossing-thin-geo-stress", 0.34),
+                Map.entry("taa-emissive-alpha-motion-stress", 0.34),
                 Map.entry("smaa-full-edge-crawl", 0.34),
                 Map.entry("post-process-ssao", 0.35),
                 Map.entry("post-process-ssao-stress", 0.37),
@@ -1250,6 +1313,24 @@ class BackendParityIntegrationTest {
                         QualityTier.ULTRA,
                         "taa-disocclusion-rapid-pan-stress-golden-ultra"
                 )),
+                Map.entry("taa-fast-camera-pan-animated-objects-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-fast-camera-pan-animated-objects-stress-golden"),
+                        taaFastCameraPanAnimatedObjectsStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-fast-camera-pan-animated-objects-stress-golden-ultra"
+                )),
+                Map.entry("taa-animated-object-crossing-thin-geo-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-animated-object-crossing-thin-geo-stress-golden"),
+                        taaAnimatedObjectCrossingThinGeometryStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-animated-object-crossing-thin-geo-stress-golden-ultra"
+                )),
+                Map.entry("taa-emissive-alpha-motion-stress", BackendCompareHarness.run(
+                        compareOutputDir("taa-emissive-alpha-motion-stress-golden"),
+                        taaEmissiveAlphaMotionStressScene(),
+                        QualityTier.ULTRA,
+                        "taa-emissive-alpha-motion-stress-golden-ultra"
+                )),
                 Map.entry("smaa-full-edge-crawl", BackendCompareHarness.run(
                         compareOutputDir("smaa-full-edge-crawl-golden"),
                         smaaFullEdgeCrawlScene(),
@@ -1319,28 +1400,49 @@ class BackendParityIntegrationTest {
             case "taa-specular-micro-highlights-stress" -> 0.34;
             case "taa-thin-geometry-motion-stress" -> 0.34;
             case "taa-disocclusion-rapid-pan-stress" -> 0.36;
+            case "taa-fast-camera-pan-animated-objects-stress",
+                 "taa-animated-object-crossing-thin-geo-stress",
+                 "taa-emissive-alpha-motion-stress" -> 0.37;
             case "taa-subpixel-alpha-foliage-stress-tuua",
-                 "taa-disocclusion-rapid-pan-stress-tuua" -> 0.37;
+                 "taa-disocclusion-rapid-pan-stress-tuua",
+                 "taa-fast-camera-pan-animated-objects-stress-tuua",
+                 "taa-animated-object-crossing-thin-geo-stress-tuua",
+                 "taa-emissive-alpha-motion-stress-tuua" -> 0.37;
             case "taa-specular-micro-highlights-stress-tuua",
                  "taa-thin-geometry-motion-stress-tuua" -> 0.35;
             case "taa-subpixel-alpha-foliage-stress-tsr",
-                 "taa-disocclusion-rapid-pan-stress-tsr" -> 0.36;
+                 "taa-disocclusion-rapid-pan-stress-tsr",
+                 "taa-fast-camera-pan-animated-objects-stress-tsr",
+                 "taa-animated-object-crossing-thin-geo-stress-tsr",
+                 "taa-emissive-alpha-motion-stress-tsr" -> 0.36;
             case "taa-specular-micro-highlights-stress-tsr",
                  "taa-thin-geometry-motion-stress-tsr" -> 0.34;
             case "taa-subpixel-alpha-foliage-stress-msaa-selective",
-                 "taa-disocclusion-rapid-pan-stress-msaa-selective" -> 0.39;
+                 "taa-disocclusion-rapid-pan-stress-msaa-selective",
+                 "taa-fast-camera-pan-animated-objects-stress-msaa-selective",
+                 "taa-animated-object-crossing-thin-geo-stress-msaa-selective",
+                 "taa-emissive-alpha-motion-stress-msaa-selective" -> 0.39;
             case "taa-specular-micro-highlights-stress-msaa-selective",
                  "taa-thin-geometry-motion-stress-msaa-selective" -> 0.37;
             case "taa-subpixel-alpha-foliage-stress-hybrid-tuua-msaa",
-                 "taa-disocclusion-rapid-pan-stress-hybrid-tuua-msaa" -> 0.37;
+                 "taa-disocclusion-rapid-pan-stress-hybrid-tuua-msaa",
+                 "taa-fast-camera-pan-animated-objects-stress-hybrid-tuua-msaa",
+                 "taa-animated-object-crossing-thin-geo-stress-hybrid-tuua-msaa",
+                 "taa-emissive-alpha-motion-stress-hybrid-tuua-msaa" -> 0.37;
             case "taa-specular-micro-highlights-stress-hybrid-tuua-msaa",
                  "taa-thin-geometry-motion-stress-hybrid-tuua-msaa" -> 0.35;
             case "taa-subpixel-alpha-foliage-stress-dlaa",
-                 "taa-disocclusion-rapid-pan-stress-dlaa" -> 0.36;
+                 "taa-disocclusion-rapid-pan-stress-dlaa",
+                 "taa-fast-camera-pan-animated-objects-stress-dlaa",
+                 "taa-animated-object-crossing-thin-geo-stress-dlaa",
+                 "taa-emissive-alpha-motion-stress-dlaa" -> 0.36;
             case "taa-specular-micro-highlights-stress-dlaa",
                  "taa-thin-geometry-motion-stress-dlaa" -> 0.34;
             case "taa-subpixel-alpha-foliage-stress-fxaa-low",
-                 "taa-disocclusion-rapid-pan-stress-fxaa-low" -> 0.42;
+                 "taa-disocclusion-rapid-pan-stress-fxaa-low",
+                 "taa-fast-camera-pan-animated-objects-stress-fxaa-low",
+                 "taa-animated-object-crossing-thin-geo-stress-fxaa-low",
+                 "taa-emissive-alpha-motion-stress-fxaa-low" -> 0.42;
             case "taa-specular-micro-highlights-stress-fxaa-low",
                  "taa-thin-geometry-motion-stress-fxaa-low" -> 0.40;
             default -> Math.min(1.0, strictMaxDiff + 0.02);
@@ -2769,6 +2871,101 @@ class BackendParityIntegrationTest {
         );
     }
 
+    private static SceneDescriptor taaFastCameraPanAnimatedObjectsStressScene() {
+        SceneDescriptor base = taaDisocclusionRapidPanStressScene();
+        CameraDesc camera = new CameraDesc("cam", new Vec3(1.4f, 1.0f, 9.8f), new Vec3(-24f, 36f, 0f), 82f, 0.1f, 300f);
+
+        TransformDesc moverA = new TransformDesc("x-mover-a", new Vec3(-0.4f, 0.05f, -2.4f), new Vec3(0f, 62f, 0f), new Vec3(0.32f, 2.8f, 0.32f));
+        TransformDesc moverB = new TransformDesc("x-mover-b", new Vec3(0.7f, -0.05f, -5.5f), new Vec3(0f, -68f, 0f), new Vec3(0.24f, 3.0f, 0.24f));
+        TransformDesc moverC = new TransformDesc("x-mover-c", new Vec3(1.8f, -0.02f, -9.8f), new Vec3(0f, 85f, 0f), new Vec3(0.20f, 3.4f, 0.20f));
+
+        MeshDesc meshA = new MeshDesc("mesh-mover-a", "x-mover-a", "mat-mover-a", "meshes/quad.gltf");
+        MeshDesc meshB = new MeshDesc("mesh-mover-b", "x-mover-b", "mat-mover-b", "meshes/quad.gltf");
+        MeshDesc meshC = new MeshDesc("mesh-mover-c", "x-mover-c", "mat-mover-c", "meshes/quad.gltf");
+
+        MaterialDesc matA = new MaterialDesc("mat-mover-a", new Vec3(0.92f, 0.68f, 0.56f), 0.18f, 0.22f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 1.0f, true, true);
+        MaterialDesc matB = new MaterialDesc("mat-mover-b", new Vec3(0.58f, 0.88f, 0.98f), 0.22f, 0.24f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 1.0f, true, true);
+        MaterialDesc matC = new MaterialDesc("mat-mover-c", new Vec3(0.78f, 0.80f, 0.84f), 0.16f, 0.28f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 1.0f, true, true);
+
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.16f, 2.2f, true, 0.86f, 0.92f, true, 0.66f, 1.24f, 0.02f, 1.42f, true, 0.76f, true, 0.80f);
+
+        return new SceneDescriptor(
+                "parity-taa-fast-camera-pan-animated-objects-stress-scene",
+                List.of(camera),
+                "cam",
+                concat(base.transforms(), List.of(moverA, moverB, moverC)),
+                concat(base.meshes(), List.of(meshA, meshB, meshC)),
+                concat(base.materials(), List.of(matA, matB, matC)),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaAnimatedObjectCrossingThinGeometryStressScene() {
+        SceneDescriptor base = taaThinGeometryMotionStressScene();
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0.9f, 1.3f, 11.4f), new Vec3(-17f, 32f, 0f), 82f, 0.1f, 320f);
+
+        TransformDesc crossingA = new TransformDesc("x-cross-a", new Vec3(-0.5f, 0.02f, -4.0f), new Vec3(0f, 58f, 0f), new Vec3(0.16f, 3.3f, 0.16f));
+        TransformDesc crossingB = new TransformDesc("x-cross-b", new Vec3(0.2f, -0.05f, -7.5f), new Vec3(0f, -64f, 0f), new Vec3(0.15f, 3.5f, 0.15f));
+        TransformDesc crossingC = new TransformDesc("x-cross-c", new Vec3(1.0f, 0.01f, -11.2f), new Vec3(0f, 74f, 0f), new Vec3(0.14f, 3.8f, 0.14f));
+
+        MeshDesc meshA = new MeshDesc("mesh-cross-a", "x-cross-a", "mat-cross-a", "meshes/quad.gltf");
+        MeshDesc meshB = new MeshDesc("mesh-cross-b", "x-cross-b", "mat-cross-b", "meshes/quad.gltf");
+        MeshDesc meshC = new MeshDesc("mesh-cross-c", "x-cross-c", "mat-cross-c", "meshes/quad.gltf");
+
+        MaterialDesc matA = new MaterialDesc("mat-cross-a", new Vec3(0.94f, 0.70f, 0.60f), 0.10f, 0.30f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 1.0f, true, true, 1.42f, 0.52f, 1.42f, ReactivePreset.AGGRESSIVE);
+        MaterialDesc matB = new MaterialDesc("mat-cross-b", new Vec3(0.66f, 0.90f, 0.98f), 0.14f, 0.26f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 1.0f, true, true, 1.45f, 0.50f, 1.46f, ReactivePreset.AGGRESSIVE);
+        MaterialDesc matC = new MaterialDesc("mat-cross-c", new Vec3(0.80f, 0.82f, 0.86f), 0.09f, 0.34f, "textures/c.png", "textures/c_n.png", "textures/c_mr.png", "textures/c_ao.png", 1.0f, true, true, 1.48f, 0.48f, 1.48f, ReactivePreset.AGGRESSIVE);
+
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.14f, 2.2f, true, 0.90f, 0.90f, true, 0.64f, 1.20f, 0.02f, 1.40f, true, 0.75f, true, 0.80f);
+
+        return new SceneDescriptor(
+                "parity-taa-animated-object-crossing-thin-geo-stress-scene",
+                List.of(camera),
+                "cam",
+                concat(base.transforms(), List.of(crossingA, crossingB, crossingC)),
+                concat(base.meshes(), List.of(meshA, meshB, meshC)),
+                concat(base.materials(), List.of(matA, matB, matC)),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor taaEmissiveAlphaMotionStressScene() {
+        SceneDescriptor base = taaSubpixelAlphaFoliageStressScene();
+        CameraDesc camera = new CameraDesc("cam", new Vec3(1.0f, 1.15f, 10.1f), new Vec3(-20f, 30f, 0f), 80f, 0.1f, 300f);
+
+        TransformDesc pulseA = new TransformDesc("x-pulse-a", new Vec3(-0.3f, 0.08f, -3.2f), new Vec3(0f, 48f, 0f), new Vec3(0.26f, 2.6f, 0.26f));
+        TransformDesc pulseB = new TransformDesc("x-pulse-b", new Vec3(0.8f, -0.02f, -6.9f), new Vec3(0f, -58f, 0f), new Vec3(0.22f, 2.9f, 0.22f));
+        MeshDesc meshA = new MeshDesc("mesh-pulse-a", "x-pulse-a", "mat-pulse-a", "meshes/quad.gltf");
+        MeshDesc meshB = new MeshDesc("mesh-pulse-b", "x-pulse-b", "mat-pulse-b", "meshes/quad.gltf");
+
+        MaterialDesc matA = new MaterialDesc("mat-pulse-a", new Vec3(0.98f, 0.78f, 0.64f), 0.28f, 0.20f, "textures/a.png", "textures/a_n.png", "textures/a_mr.png", "textures/a_ao.png", 1.0f, true, true, 1.50f, 0.45f, 1.75f, ReactivePreset.AGGRESSIVE);
+        MaterialDesc matB = new MaterialDesc("mat-pulse-b", new Vec3(0.72f, 0.92f, 0.98f), 0.32f, 0.18f, "textures/b.png", "textures/b_n.png", "textures/b_mr.png", "textures/b_ao.png", 1.0f, true, true, 1.52f, 0.44f, 1.82f, ReactivePreset.AGGRESSIVE);
+
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.18f, 2.2f, true, 0.84f, 0.94f, true, 0.66f, 1.22f, 0.02f, 1.42f, true, 0.76f, true, 0.82f);
+
+        return new SceneDescriptor(
+                "parity-taa-emissive-alpha-motion-stress-scene",
+                List.of(camera),
+                "cam",
+                concat(base.transforms(), List.of(pulseA, pulseB)),
+                concat(base.meshes(), List.of(meshA, meshB)),
+                concat(base.materials(), List.of(matA, matB)),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
     private static SceneDescriptor smaaFullEdgeCrawlScene() {
         SceneDescriptor base = taaThinGeometryShimmerScene();
         PostProcessDesc post = new PostProcessDesc(
@@ -2802,6 +2999,13 @@ class BackendParityIntegrationTest {
                 base.smokeEmitters(),
                 post
         );
+    }
+
+    private static <T> List<T> concat(List<T> a, List<T> b) {
+        ArrayList<T> out = new ArrayList<>(a.size() + b.size());
+        out.addAll(a);
+        out.addAll(b);
+        return List.copyOf(out);
     }
 
     private static EngineInput emptyInput() {
