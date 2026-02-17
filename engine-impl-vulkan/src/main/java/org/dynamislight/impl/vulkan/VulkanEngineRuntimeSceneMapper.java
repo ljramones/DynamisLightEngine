@@ -61,9 +61,23 @@ final class VulkanEngineRuntimeSceneMapper {
     static VulkanEngineRuntime.LightingConfig mapLighting(
             List<LightDesc> lights,
             QualityTier qualityTier,
-            int shadowMaxLocalLayers
+            int shadowMaxLocalLayers,
+            boolean shadowSchedulerEnabled,
+            int shadowSchedulerHeroPeriod,
+            int shadowSchedulerMidPeriod,
+            int shadowSchedulerDistantPeriod,
+            long shadowSchedulerFrameTick
     ) {
-        return VulkanEngineRuntimeLightingMapper.mapLighting(lights, qualityTier, shadowMaxLocalLayers);
+        return VulkanEngineRuntimeLightingMapper.mapLighting(
+                lights,
+                qualityTier,
+                shadowMaxLocalLayers,
+                shadowSchedulerEnabled,
+                shadowSchedulerHeroPeriod,
+                shadowSchedulerMidPeriod,
+                shadowSchedulerDistantPeriod,
+                shadowSchedulerFrameTick
+        );
     }
 
     static boolean hasNonDirectionalShadowRequest(List<LightDesc> lights) {
@@ -77,7 +91,12 @@ final class VulkanEngineRuntimeSceneMapper {
             boolean shadowContactShadows,
             String shadowRtMode,
             int shadowMaxLocalLayers,
-            int shadowMaxFacesPerFrame
+            int shadowMaxFacesPerFrame,
+            boolean shadowSchedulerEnabled,
+            int shadowSchedulerHeroPeriod,
+            int shadowSchedulerMidPeriod,
+            int shadowSchedulerDistantPeriod,
+            long shadowSchedulerFrameTick
     ) {
         return VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights,
@@ -86,7 +105,12 @@ final class VulkanEngineRuntimeSceneMapper {
                 shadowContactShadows,
                 shadowRtMode,
                 shadowMaxLocalLayers,
-                shadowMaxFacesPerFrame
+                shadowMaxFacesPerFrame,
+                shadowSchedulerEnabled,
+                shadowSchedulerHeroPeriod,
+                shadowSchedulerMidPeriod,
+                shadowSchedulerDistantPeriod,
+                shadowSchedulerFrameTick
         );
     }
 

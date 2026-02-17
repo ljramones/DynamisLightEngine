@@ -84,6 +84,12 @@ Implemented now:
 - Vulkan scheduler overrides are now wired for execution-phase validation:
   - `vulkan.shadow.maxLocalShadowLayers`
   - `vulkan.shadow.maxShadowFacesPerFrame`
+- Vulkan cadence scheduler controls are now wired:
+  - `vulkan.shadow.scheduler.enabled`
+  - `vulkan.shadow.scheduler.heroPeriod`
+  - `vulkan.shadow.scheduler.midPeriod`
+  - `vulkan.shadow.scheduler.distantPeriod`
+  - runtime `shadowSchedulerFrameTick` tracking in warnings
 
 Still in progress:
 - Full production multi-point cubemap scalability beyond current matrix/layer bounds.

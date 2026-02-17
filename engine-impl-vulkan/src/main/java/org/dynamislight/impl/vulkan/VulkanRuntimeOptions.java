@@ -39,7 +39,11 @@ final class VulkanRuntimeOptions {
                 parseBoolean(safe, "vulkan.shadow.contactShadows", false),
                 parseShadowRtMode(safe.get("vulkan.shadow.rtMode")),
                 parseIntOption(safe, "vulkan.shadow.maxLocalShadowLayers", 0, 0, 12),
-                parseIntOption(safe, "vulkan.shadow.maxShadowFacesPerFrame", 0, 0, 12)
+                parseIntOption(safe, "vulkan.shadow.maxShadowFacesPerFrame", 0, 0, 12),
+                parseBoolean(safe, "vulkan.shadow.scheduler.enabled", true),
+                parseIntOption(safe, "vulkan.shadow.scheduler.heroPeriod", 1, 1, 16),
+                parseIntOption(safe, "vulkan.shadow.scheduler.midPeriod", 2, 1, 32),
+                parseIntOption(safe, "vulkan.shadow.scheduler.distantPeriod", 4, 1, 64)
         );
     }
 
@@ -140,7 +144,11 @@ final class VulkanRuntimeOptions {
             boolean shadowContactShadows,
             String shadowRtMode,
             int shadowMaxLocalLayers,
-            int shadowMaxFacesPerFrame
+            int shadowMaxFacesPerFrame,
+            boolean shadowSchedulerEnabled,
+            int shadowSchedulerHeroPeriod,
+            int shadowSchedulerMidPeriod,
+            int shadowSchedulerDistantPeriod
     ) {
     }
 }

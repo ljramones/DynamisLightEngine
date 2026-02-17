@@ -124,6 +124,10 @@ Sample host clamps:
   - `vulkan.shadow.rtMode=off|optional|force`
   - `vulkan.shadow.maxLocalShadowLayers=0..12` (`0` = tier default scheduler budget)
   - `vulkan.shadow.maxShadowFacesPerFrame=0..12` (`0` = tier default scheduler budget)
+  - `vulkan.shadow.scheduler.enabled=true|false` (`true` default)
+  - `vulkan.shadow.scheduler.heroPeriod=1..16` (default `1`)
+  - `vulkan.shadow.scheduler.midPeriod=1..32` (default `2`)
+  - `vulkan.shadow.scheduler.distantPeriod=1..64` (default `4`)
   Runtime tracks and reports these requests; current shader path applies tiered kernel behavior (`pcf` baseline with `pcss`/`vsm`/`evsm` request shaping) and optional contact-shadow modulation, while dedicated RT traversal remains on fallback.
 
 Shadow scheduler override examples:
@@ -131,6 +135,8 @@ Shadow scheduler override examples:
   - `-Dvulkan.shadow.maxLocalShadowLayers=12`
 - Cap point-shadow face work per frame:
   - `-Dvulkan.shadow.maxShadowFacesPerFrame=6`
+- Adjust cadence policy:
+  - `-Dvulkan.shadow.scheduler.heroPeriod=1 -Dvulkan.shadow.scheduler.midPeriod=2 -Dvulkan.shadow.scheduler.distantPeriod=6`
 
 Current default local shadow budgets by tier:
 - `LOW`: 1 local shadow light

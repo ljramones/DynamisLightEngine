@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
 import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.config.EngineConfig;
@@ -140,6 +141,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private String shadowRtMode = "off";
     private int shadowMaxLocalLayers;
     private int shadowMaxFacesPerFrame;
+    private boolean shadowSchedulerEnabled = true;
+    private int shadowSchedulerHeroPeriod = 1;
+    private int shadowSchedulerMidPeriod = 2;
+    private int shadowSchedulerDistantPeriod = 4;
+    private long shadowSchedulerFrameTick;
+    private List<LightDesc> currentSceneLights = List.of();
 
     public VulkanEngineRuntime() {
         super(
@@ -186,6 +193,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowRtMode = options.shadowRtMode();
         shadowMaxLocalLayers = options.shadowMaxLocalLayers();
         shadowMaxFacesPerFrame = options.shadowMaxFacesPerFrame();
+        shadowSchedulerEnabled = options.shadowSchedulerEnabled();
+        shadowSchedulerHeroPeriod = options.shadowSchedulerHeroPeriod();
+        shadowSchedulerMidPeriod = options.shadowSchedulerMidPeriod();
+        shadowSchedulerDistantPeriod = options.shadowSchedulerDistantPeriod();
+        shadowSchedulerFrameTick = 0L;
+        currentSceneLights = List.of();
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -231,7 +244,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowContactShadows,
                 shadowRtMode,
                 shadowMaxLocalLayers,
-                shadowMaxFacesPerFrame
+                shadowMaxFacesPerFrame,
+                shadowSchedulerEnabled,
+                shadowSchedulerHeroPeriod,
+                shadowSchedulerMidPeriod,
+                shadowSchedulerDistantPeriod,
+                shadowSchedulerFrameTick
         );
         currentFog = sceneState.fog();
         currentSmoke = sceneState.smoke();
@@ -244,6 +262,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         plannedDrawCalls = sceneState.plannedDrawCalls();
         plannedTriangles = sceneState.plannedTriangles();
         plannedVisibleObjects = sceneState.plannedVisibleObjects();
+        currentSceneLights = scene == null || scene.lights() == null ? List.of() : new ArrayList<>(scene.lights());
         if (!mockContext) {
             VulkanRuntimeLifecycle.applySceneToContext(context, sceneState);
         }
@@ -251,6 +270,55 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected RenderMetrics onRender() throws EngineException {
+        shadowSchedulerFrameTick++;
+        if (!mockContext && !currentSceneLights.isEmpty()) {
+            VulkanRuntimeLifecycle.ShadowRefreshState refresh = VulkanRuntimeLifecycle.refreshShadows(
+                    currentSceneLights,
+                    qualityTier,
+                    shadowFilterPath,
+                    shadowContactShadows,
+                    shadowRtMode,
+                    shadowMaxLocalLayers,
+                    shadowMaxFacesPerFrame,
+                    shadowSchedulerEnabled,
+                    shadowSchedulerHeroPeriod,
+                    shadowSchedulerMidPeriod,
+                    shadowSchedulerDistantPeriod,
+                    shadowSchedulerFrameTick
+            );
+            currentShadows = refresh.shadows();
+            context.setLightingParameters(
+                    refresh.lighting().directionalDirection(),
+                    refresh.lighting().directionalColor(),
+                    refresh.lighting().directionalIntensity(),
+                    refresh.lighting().shadowPointPosition(),
+                    refresh.lighting().shadowPointDirection(),
+                    refresh.lighting().shadowPointIsSpot(),
+                    refresh.lighting().shadowPointOuterCos(),
+                    refresh.lighting().shadowPointRange(),
+                    refresh.lighting().shadowPointCastsShadows(),
+                    refresh.lighting().localLightCount(),
+                    refresh.lighting().localLightPosRange(),
+                    refresh.lighting().localLightColorIntensity(),
+                    refresh.lighting().localLightDirInner(),
+                    refresh.lighting().localLightOuterTypeShadow()
+            );
+            context.setShadowParameters(
+                    currentShadows.enabled(),
+                    currentShadows.strength(),
+                    currentShadows.bias(),
+                    currentShadows.normalBiasScale(),
+                    currentShadows.slopeBiasScale(),
+                    currentShadows.pcfRadius(),
+                    currentShadows.cascadeCount(),
+                    currentShadows.mapResolution()
+            );
+            context.setShadowQualityModes(
+                    currentShadows.filterPath(),
+                    currentShadows.contactShadowsRequested(),
+                    currentShadows.rtShadowMode()
+            );
+        }
         VulkanRuntimeLifecycle.RenderState frame = VulkanRuntimeLifecycle.render(
                 context,
                 mockContext,
@@ -369,6 +437,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " renderedPointShadowCubemaps=" + currentShadows.renderedPointShadowCubemaps()
                             + " maxLocalShadowLayersConfigured=" + (shadowMaxLocalLayers > 0 ? Integer.toString(shadowMaxLocalLayers) : "auto")
                             + " maxShadowFacesPerFrameConfigured=" + (shadowMaxFacesPerFrame > 0 ? Integer.toString(shadowMaxFacesPerFrame) : "auto")
+                            + " schedulerEnabled=" + shadowSchedulerEnabled
+                            + " schedulerPeriodHero=" + shadowSchedulerHeroPeriod
+                            + " schedulerPeriodMid=" + shadowSchedulerMidPeriod
+                            + " schedulerPeriodDistant=" + shadowSchedulerDistantPeriod
+                            + " shadowSchedulerFrameTick=" + shadowSchedulerFrameTick
                             + " filterPath=" + currentShadows.filterPath()
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()

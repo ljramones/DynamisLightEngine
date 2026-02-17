@@ -688,7 +688,10 @@ class VulkanEngineRuntimeIntegrationTest {
     @Test
     void multiSpotLocalShadowSceneUsesMultiLocalRenderPath() throws Exception {
         var runtime = new VulkanEngineRuntime();
-        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true"), QualityTier.ULTRA), new RecordingCallbacks());
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.scheduler.enabled", "false"
+        ), QualityTier.ULTRA), new RecordingCallbacks());
         runtime.loadScene(validMultiSpotShadowScene());
 
         var frame = runtime.render();

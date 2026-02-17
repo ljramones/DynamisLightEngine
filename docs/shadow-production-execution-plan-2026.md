@@ -23,6 +23,12 @@ Implemented now:
 - scheduler override controls (execution milestone 1):
   - `vulkan.shadow.maxLocalShadowLayers`
   - `vulkan.shadow.maxShadowFacesPerFrame`
+- cadence scheduler controls (execution milestone 2):
+  - `vulkan.shadow.scheduler.enabled`
+  - `vulkan.shadow.scheduler.heroPeriod`
+  - `vulkan.shadow.scheduler.midPeriod`
+  - `vulkan.shadow.scheduler.distantPeriod`
+  - warning telemetry: `shadowSchedulerFrameTick`
 
 Still pending:
 - full production multi-point cubemap scalability (beyond current matrix/layer bounds)
@@ -57,6 +63,7 @@ Status: In progress (started and partially landed).
 
 2. Cadence-aware scheduling
 - Hero/full-rate, mid/throttled, distant/low-rate updates with promotion rules.
+- Status: In progress (initial cadence controls wired; per-light age/priority queue still pending).
 
 3. Static/dynamic shadow cache layering
 - strict invalidation and reuse guarantees.

@@ -356,6 +356,19 @@ final class VulkanEngineRuntimeLightingMapper {
             QualityTier qualityTier,
             int shadowMaxLocalLayers
     ) {
+        return mapLighting(lights, qualityTier, shadowMaxLocalLayers, false, 1, 2, 4, 0L);
+    }
+
+    static VulkanEngineRuntime.LightingConfig mapLighting(
+            List<LightDesc> lights,
+            QualityTier qualityTier,
+            int shadowMaxLocalLayers,
+            boolean shadowSchedulerEnabled,
+            int shadowSchedulerHeroPeriod,
+            int shadowSchedulerMidPeriod,
+            int shadowSchedulerDistantPeriod,
+            long shadowSchedulerFrameTick
+    ) {
         float[] dir = new float[]{0.35f, -1.0f, 0.25f};
         float[] dirColor = new float[]{1.0f, 0.98f, 0.95f};
         float dirIntensity = 1.0f;
@@ -431,6 +444,7 @@ final class VulkanEngineRuntimeLightingMapper {
                     : tierShadowLayers;
             int assignedShadowLights = 0;
             int assignedShadowLayers = 0;
+            int shadowCandidateRank = 0;
             for (int i = 0; i < localLightCount; i++) {
                 LightDesc light = localLights.get(i);
                 int offset = i * 4;
@@ -459,12 +473,21 @@ final class VulkanEngineRuntimeLightingMapper {
                 float castsShadows = light.castsShadows() ? 1f : 0f;
                 float layerBase = 0f;
                 if (castsShadows > 0.5f && assignedShadowLights < maxShadowedLocalLights) {
+                    int cadencePeriod = cadencePeriodForRank(
+                            shadowCandidateRank,
+                            shadowSchedulerHeroPeriod,
+                            shadowSchedulerMidPeriod,
+                            shadowSchedulerDistantPeriod
+                    );
+                    boolean cadenceDue = !shadowSchedulerEnabled
+                            || isCadenceDue(shadowSchedulerFrameTick, shadowCandidateRank, cadencePeriod);
                     int layerCost = isSpot > 0.5f ? 1 : 6;
-                    if (assignedShadowLayers + layerCost <= maxShadowLayers) {
+                    if (cadenceDue && assignedShadowLayers + layerCost <= maxShadowLayers) {
                         layerBase = assignedShadowLayers + 1;
                         assignedShadowLayers += layerCost;
                         assignedShadowLights++;
                     }
+                    shadowCandidateRank++;
                 }
                 localLightPosRange[offset] = pos[0];
                 localLightPosRange[offset + 1] = pos[1];
@@ -491,7 +514,7 @@ final class VulkanEngineRuntimeLightingMapper {
             LightType shadowType = shadowLight.type() == null ? LightType.DIRECTIONAL : shadowLight.type();
             shadowPointIsSpot = shadowType == LightType.SPOT;
             shadowPointCastsShadows = shadowLight.castsShadows();
-            if (assignedShadowLayers > 0) {
+            if (assignedShadowLayers > 0 || (shadowSchedulerEnabled && !localLights.isEmpty())) {
                 shadowPointCastsShadows = false;
             }
             if (shadowLight.direction() != null) {
@@ -549,6 +572,36 @@ final class VulkanEngineRuntimeLightingMapper {
             String shadowRtMode,
             int shadowMaxLocalLayers,
             int shadowMaxFacesPerFrame
+    ) {
+        return mapShadows(
+                lights,
+                qualityTier,
+                shadowFilterPath,
+                shadowContactShadows,
+                shadowRtMode,
+                shadowMaxLocalLayers,
+                shadowMaxFacesPerFrame,
+                false,
+                1,
+                2,
+                4,
+                0L
+        );
+    }
+
+    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(
+            List<LightDesc> lights,
+            QualityTier qualityTier,
+            String shadowFilterPath,
+            boolean shadowContactShadows,
+            String shadowRtMode,
+            int shadowMaxLocalLayers,
+            int shadowMaxFacesPerFrame,
+            boolean shadowSchedulerEnabled,
+            int shadowSchedulerHeroPeriod,
+            int shadowSchedulerMidPeriod,
+            int shadowSchedulerDistantPeriod,
+            long shadowSchedulerFrameTick
     ) {
         String filterPath = shadowFilterPath == null || shadowFilterPath.isBlank() ? "pcf" : shadowFilterPath.trim().toLowerCase(java.util.Locale.ROOT);
         String rtMode = shadowRtMode == null || shadowRtMode.isBlank() ? "off" : shadowRtMode.trim().toLowerCase(java.util.Locale.ROOT);
@@ -613,14 +666,26 @@ final class VulkanEngineRuntimeLightingMapper {
         int faceBudget = shadowMaxFacesPerFrame > 0
                 ? Math.min(VULKAN_MAX_SHADOW_MATRICES, shadowMaxFacesPerFrame)
                 : 0;
+        LocalShadowSchedule schedule = scheduleLocalShadows(
+                localShadowCandidates,
+                selectedLocalShadowLights,
+                maxShadowedLocalLights,
+                maxShadowLayers,
+                shadowSchedulerEnabled,
+                shadowSchedulerHeroPeriod,
+                shadowSchedulerMidPeriod,
+                shadowSchedulerDistantPeriod,
+                shadowSchedulerFrameTick,
+                faceBudget
+        );
         if (type == LightType.SPOT) {
-            cascades = Math.max(1, Math.min(4, selectedSpotShadowLights));
+            cascades = Math.max(1, Math.min(4, schedule.renderedSpotShadowLights()));
             if (faceBudget > 0) {
                 cascades = Math.max(1, Math.min(cascades, faceBudget));
             }
         } else if (type == LightType.POINT) {
             int maxPointCubemaps = Math.max(1, maxShadowLayers / 6);
-            cascades = 6 * Math.max(1, Math.min(maxPointCubemaps, selectedPointShadowLights));
+            cascades = 6 * Math.max(1, Math.min(maxPointCubemaps, schedule.renderedPointShadowCubemaps()));
             if (faceBudget > 0) {
                 int normalizedFaceBudget = Math.max(6, (faceBudget / 6) * 6);
                 cascades = Math.max(6, Math.min(cascades, normalizedFaceBudget));
@@ -712,10 +777,10 @@ final class VulkanEngineRuntimeLightingMapper {
             case ULTRA -> 1.15f;
         };
         int renderedSpotShadowLights = type == LightType.SPOT
-                ? Math.max(1, Math.min(cascadesClamped, selectedSpotShadowLights))
+                ? Math.max(1, Math.min(cascadesClamped, schedule.renderedSpotShadowLights()))
                 : 0;
         int renderedPointShadowCubemaps = type == LightType.POINT
-                ? Math.max(1, Math.min(Math.min(cascadesClamped / 6, selectedPointShadowLights), maxPointCubemaps))
+                ? Math.max(1, Math.min(Math.min(cascadesClamped / 6, schedule.renderedPointShadowCubemaps()), maxPointCubemaps))
                 : 0;
         int renderedLocalShadowLights = renderedSpotShadowLights + renderedPointShadowCubemaps;
         boolean rtShadowActive = false;
@@ -750,6 +815,79 @@ final class VulkanEngineRuntimeLightingMapper {
                 rtShadowActive,
                 degraded
         );
+    }
+
+    private static LocalShadowSchedule scheduleLocalShadows(
+            List<LightDesc> localShadowCandidates,
+            int selectedLocalShadowLights,
+            int maxShadowedLocalLights,
+            int maxShadowLayers,
+            boolean schedulerEnabled,
+            int heroPeriod,
+            int midPeriod,
+            int distantPeriod,
+            long frameTick,
+            int faceBudget
+    ) {
+        int renderedSpot = 0;
+        int renderedPoint = 0;
+        int assignedLayers = 0;
+        int assignedLights = 0;
+        for (int rank = 0; rank < selectedLocalShadowLights && rank < localShadowCandidates.size(); rank++) {
+            LightDesc candidate = localShadowCandidates.get(rank);
+            if (candidate == null || !candidate.castsShadows()) {
+                continue;
+            }
+            LightType localType = candidate.type() == null ? LightType.DIRECTIONAL : candidate.type();
+            if (localType != LightType.SPOT && localType != LightType.POINT) {
+                continue;
+            }
+            if (assignedLights >= maxShadowedLocalLights) {
+                break;
+            }
+            int cadencePeriod = cadencePeriodForRank(rank, heroPeriod, midPeriod, distantPeriod);
+            if (schedulerEnabled && !isCadenceDue(frameTick, rank, cadencePeriod)) {
+                continue;
+            }
+            int layerCost = localType == LightType.SPOT ? 1 : 6;
+            if (faceBudget > 0 && assignedLayers + layerCost > faceBudget) {
+                continue;
+            }
+            if (assignedLayers + layerCost > maxShadowLayers) {
+                continue;
+            }
+            assignedLayers += layerCost;
+            assignedLights++;
+            if (localType == LightType.SPOT) {
+                renderedSpot++;
+            } else {
+                renderedPoint++;
+            }
+        }
+        return new LocalShadowSchedule(renderedSpot, renderedPoint);
+    }
+
+    private static int cadencePeriodForRank(int rank, int heroPeriod, int midPeriod, int distantPeriod) {
+        if (rank <= 0) {
+            return Math.max(1, heroPeriod);
+        }
+        if (rank <= 2) {
+            return Math.max(1, midPeriod);
+        }
+        return Math.max(1, distantPeriod);
+    }
+
+    private static boolean isCadenceDue(long frameTick, int rank, int cadencePeriod) {
+        if (cadencePeriod <= 1) {
+            return true;
+        }
+        return Math.floorMod(frameTick + rank, cadencePeriod) == 0;
+    }
+
+    private record LocalShadowSchedule(
+            int renderedSpotShadowLights,
+            int renderedPointShadowCubemaps
+    ) {
     }
 
     static VulkanEngineRuntime.FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {

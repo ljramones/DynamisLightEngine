@@ -88,6 +88,13 @@ DLE_COMPARE_EXTRA_MVN_ARGS="-Dvulkan.shadow.maxLocalShadowLayers=12 -Dvulkan.sha
 ./scripts/aa_rebaseline_real_mac.sh
 ```
 
+Cadence scheduler check (real Vulkan):
+```bash
+DLE_COMPARE_VULKAN_MODE=real \
+DLE_COMPARE_EXTRA_MVN_ARGS="-Dvulkan.shadow.scheduler.enabled=true -Dvulkan.shadow.scheduler.heroPeriod=1 -Dvulkan.shadow.scheduler.midPeriod=2 -Dvulkan.shadow.scheduler.distantPeriod=6" \
+./scripts/aa_rebaseline_real_mac.sh
+```
+
 Long-run motion/shimmer sweep (real Vulkan):
 ```bash
 ./scripts/aa_longrun_motion_sampling_mac.sh
@@ -114,6 +121,9 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Verify scheduler override behavior:
   - `HIGH` with `vulkan.shadow.maxLocalShadowLayers=12` can render `2` point cubemaps.
   - `vulkan.shadow.maxShadowFacesPerFrame=6` caps point shadow passes to one cubemap.
+- Verify cadence scheduler behavior:
+  - policy warning includes scheduler fields (`schedulerEnabled`, `schedulerPeriodHero`, `schedulerPeriodMid`, `schedulerPeriodDistant`, `shadowSchedulerFrameTick`).
+  - at fixed face budget, rendered local shadow counts stay within cadence-gated budget envelope.
 
 ## 6. Known Gaps
 - Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.

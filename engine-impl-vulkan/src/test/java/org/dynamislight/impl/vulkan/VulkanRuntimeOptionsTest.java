@@ -11,13 +11,21 @@ class VulkanRuntimeOptionsTest {
         VulkanRuntimeOptions.Parsed parsed = VulkanRuntimeOptions.parse(
                 Map.of(
                         "vulkan.shadow.maxLocalShadowLayers", "12",
-                        "vulkan.shadow.maxShadowFacesPerFrame", "6"
+                        "vulkan.shadow.maxShadowFacesPerFrame", "6",
+                        "vulkan.shadow.scheduler.enabled", "false",
+                        "vulkan.shadow.scheduler.heroPeriod", "2",
+                        "vulkan.shadow.scheduler.midPeriod", "3",
+                        "vulkan.shadow.scheduler.distantPeriod", "8"
                 ),
                 256
         );
 
         assertEquals(12, parsed.shadowMaxLocalLayers());
         assertEquals(6, parsed.shadowMaxFacesPerFrame());
+        assertEquals(false, parsed.shadowSchedulerEnabled());
+        assertEquals(2, parsed.shadowSchedulerHeroPeriod());
+        assertEquals(3, parsed.shadowSchedulerMidPeriod());
+        assertEquals(8, parsed.shadowSchedulerDistantPeriod());
     }
 
     @Test
@@ -32,5 +40,9 @@ class VulkanRuntimeOptionsTest {
 
         assertEquals(12, parsed.shadowMaxLocalLayers());
         assertEquals(0, parsed.shadowMaxFacesPerFrame());
+        assertEquals(true, parsed.shadowSchedulerEnabled());
+        assertEquals(1, parsed.shadowSchedulerHeroPeriod());
+        assertEquals(2, parsed.shadowSchedulerMidPeriod());
+        assertEquals(4, parsed.shadowSchedulerDistantPeriod());
     }
 }

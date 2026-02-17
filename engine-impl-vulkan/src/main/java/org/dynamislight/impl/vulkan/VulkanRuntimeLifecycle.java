@@ -60,7 +60,12 @@ final class VulkanRuntimeLifecycle {
             boolean shadowContactShadows,
             String shadowRtMode,
             int shadowMaxLocalLayers,
-            int shadowMaxFacesPerFrame
+            int shadowMaxFacesPerFrame,
+            boolean shadowSchedulerEnabled,
+            int shadowSchedulerHeroPeriod,
+            int shadowSchedulerMidPeriod,
+            int shadowSchedulerDistantPeriod,
+            long shadowSchedulerFrameTick
     ) {
         var camera = VulkanEngineRuntimeSceneMapper.selectActiveCamera(scene);
         var cameraMatrices = VulkanEngineRuntimeSceneMapper.cameraMatricesFor(
@@ -70,7 +75,12 @@ final class VulkanRuntimeLifecycle {
         var lighting = VulkanEngineRuntimeSceneMapper.mapLighting(
                 scene == null ? null : scene.lights(),
                 qualityTier,
-                shadowMaxLocalLayers
+                shadowMaxLocalLayers,
+                shadowSchedulerEnabled,
+                shadowSchedulerHeroPeriod,
+                shadowSchedulerMidPeriod,
+                shadowSchedulerDistantPeriod,
+                shadowSchedulerFrameTick
         );
         var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(
                 scene == null ? null : scene.lights(),
@@ -79,7 +89,12 @@ final class VulkanRuntimeLifecycle {
                 shadowContactShadows,
                 shadowRtMode,
                 shadowMaxLocalLayers,
-                shadowMaxFacesPerFrame
+                shadowMaxFacesPerFrame,
+                shadowSchedulerEnabled,
+                shadowSchedulerHeroPeriod,
+                shadowSchedulerMidPeriod,
+                shadowSchedulerDistantPeriod,
+                shadowSchedulerFrameTick
         );
         var fog = VulkanEngineRuntimeSceneMapper.mapFog(scene == null ? null : scene.fog(), qualityTier);
         var smoke = VulkanEngineRuntimeSceneMapper.mapSmoke(scene == null ? null : scene.smokeEmitters(), qualityTier);
@@ -219,6 +234,47 @@ final class VulkanRuntimeLifecycle {
         );
     }
 
+    static ShadowRefreshState refreshShadows(
+            List<org.dynamislight.api.scene.LightDesc> lights,
+            QualityTier qualityTier,
+            String shadowFilterPath,
+            boolean shadowContactShadows,
+            String shadowRtMode,
+            int shadowMaxLocalLayers,
+            int shadowMaxFacesPerFrame,
+            boolean shadowSchedulerEnabled,
+            int shadowSchedulerHeroPeriod,
+            int shadowSchedulerMidPeriod,
+            int shadowSchedulerDistantPeriod,
+            long shadowSchedulerFrameTick
+    ) {
+        var lighting = VulkanEngineRuntimeSceneMapper.mapLighting(
+                lights,
+                qualityTier,
+                shadowMaxLocalLayers,
+                shadowSchedulerEnabled,
+                shadowSchedulerHeroPeriod,
+                shadowSchedulerMidPeriod,
+                shadowSchedulerDistantPeriod,
+                shadowSchedulerFrameTick
+        );
+        var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(
+                lights,
+                qualityTier,
+                shadowFilterPath,
+                shadowContactShadows,
+                shadowRtMode,
+                shadowMaxLocalLayers,
+                shadowMaxFacesPerFrame,
+                shadowSchedulerEnabled,
+                shadowSchedulerHeroPeriod,
+                shadowSchedulerMidPeriod,
+                shadowSchedulerDistantPeriod,
+                shadowSchedulerFrameTick
+        );
+        return new ShadowRefreshState(lighting, shadows);
+    }
+
     static void resize(VulkanContext context, boolean mockContext, int widthPx, int heightPx) throws EngineException {
         if (!mockContext) {
             context.resize(widthPx, heightPx);
@@ -256,6 +312,12 @@ final class VulkanRuntimeLifecycle {
             long triangles,
             long visibleObjects,
             long gpuBytes
+    ) {
+    }
+
+    record ShadowRefreshState(
+            VulkanEngineRuntime.LightingConfig lighting,
+            VulkanEngineRuntime.ShadowRenderConfig shadows
     ) {
     }
 }

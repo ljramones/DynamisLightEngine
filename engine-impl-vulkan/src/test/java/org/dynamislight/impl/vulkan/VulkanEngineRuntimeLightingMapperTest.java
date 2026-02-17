@@ -141,4 +141,24 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertEquals(6, highFacesCapped.cascadeCount());
         assertEquals(1, highFacesCapped.renderedPointShadowCubemaps());
     }
+
+    @Test
+    void mapShadowsCadenceCanThrottleDistantUpdates() {
+        List<LightDesc> lights = List.of(
+                new LightDesc("pointA", new Vec3(1f, 1f, 1f), new Vec3(1f, 0.9f, 0.8f), 3.0f, 20f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("pointB", new Vec3(2f, 1f, 1f), new Vec3(0.8f, 0.9f, 1f), 2.5f, 18f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spotC", new Vec3(3f, 2f, 1f), new Vec3(0.9f, 0.8f, 1f), 2.2f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+
+        VulkanEngineRuntime.ShadowRenderConfig cadenceOff = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
+                12, 12, false, 1, 2, 4, 1
+        );
+        VulkanEngineRuntime.ShadowRenderConfig cadenceOn = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
+                12, 12, true, 4, 4, 8, 1
+        );
+
+        assertTrue(cadenceOff.renderedLocalShadowLights() >= cadenceOn.renderedLocalShadowLights());
+    }
 }
