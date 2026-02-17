@@ -103,7 +103,7 @@ Status: In progress (started and partially landed).
 
 4. PCSS refinement depth
 - secondary blocker ring refinement and penumbra stability passes.
- - Status: In progress (moment-informed blocker estimate + secondary ring refinement path active; full final production blocker-search parity still pending).
+ - Status: In progress (moment-informed blocker estimate + secondary/far-ring refinement path active; full final production blocker-search parity still pending).
 
 ## Phase 4: Hardware RT Shadows
 

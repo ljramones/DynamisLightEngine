@@ -35,6 +35,9 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("int blockerRadius = clamp(int(mix(1.0, 6.0"));
         assertTrue(shader.contains("int refineRadius = clamp(int(mix(1.0, 4.0"));
         assertTrue(shader.contains("float refinedBlockerDepth = refineDepthWeight > 0.0"));
+        assertTrue(shader.contains("int farRefineRadius = clamp(refineRadius + int(clamp(blockerSeparation * 2.0 + (1.0 - ndl) * 1.5, 0.0, 3.0)), 2, 7);"));
+        assertTrue(shader.contains("float farRefinedDepth = farRefineDepthWeight > 0.0"));
+        assertTrue(shader.contains("float farBlend = clamp(0.22 + blockerSeparation * 0.46 + (1.0 - ndl) * 0.18, 0.10, 0.70);"));
         assertTrue(shader.contains("float hasMoments = textureQueryLevels(uShadowMomentMap) > 0 ? 1.0 : 0.0;"));
         assertTrue(shader.contains("float blockerMeanDepth = blockerDepthWeight > 0.0"));
         assertTrue(shader.contains("float neighDiag = 0.0;"));

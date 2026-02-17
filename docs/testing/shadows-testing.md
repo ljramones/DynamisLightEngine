@@ -193,7 +193,7 @@ Long-run motion/shimmer sweep (real Vulkan):
   - ultra-wide bilateral refinement + moment-neighborhood bounds clamp (`ultraMoments`, `momentBounds`, `clampMomentsToBounds`)
   - ring-bilateral production refinement + variance-confidence stabilization (`sampleMomentsRingBilateral`, `momentVarianceConfidence`)
   - leak-risk adaptive anti-bleed shaping (`leakRisk`, `antiBleedMix`)
-  - PCSS secondary blocker-ring refinement and penumbra neighborhood balancing (`refineRadius`, `refinedBlockerDepth`, `neighDiag`)
+  - PCSS secondary + far-ring blocker refinement and penumbra neighborhood balancing (`refineRadius`, `farRefineRadius`, `farRefinedDepth`, `neighDiag`)
   - reject-weighted contact stabilization terms (`contactReject`, `contactTemporalHistoryWeight`)
   - dedicated RT denoise stack path for `bvh_dedicated` (`rtDedicatedDenoiseStack`)
   - motion-adaptive contact temporal stabilization shaping (`contactTemporalStability`)

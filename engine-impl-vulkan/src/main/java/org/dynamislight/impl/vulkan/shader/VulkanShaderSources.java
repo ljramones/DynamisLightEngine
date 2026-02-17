@@ -689,6 +689,28 @@ public final class VulkanShaderSources {
                                 ? clamp(refineDepthAccum / refineDepthWeight, 0.0, 1.0)
                                 : blockerDepth;
                         blockerDepth = mix(blockerDepth, refinedBlockerDepth, clamp(0.55 + blockerSeparation * 0.35, 0.35, 0.90));
+                        float farRefineDepthAccum = 0.0;
+                        float farRefineDepthWeight = 0.0;
+                        int farRefineRadius = clamp(refineRadius + int(clamp(blockerSeparation * 2.0 + (1.0 - ndl) * 1.5, 0.0, 3.0)), 2, 7);
+                        for (int i = 0; i < 12; i++) {
+                            float ang = (6.2831853 * float(i)) / 12.0;
+                            vec2 dir = vec2(cos(ang), sin(ang));
+                            vec2 offset = dir * texel * float(farRefineRadius);
+                            vec2 sampleUv = clamp(uv + offset, vec2(0.0), vec2(1.0));
+                            float radial = mix(0.88, 0.42, float(i & 1));
+                            float localDepth = compareDepth - (1.0 - texture(uShadowMap, vec4(sampleUv, float(layer), compareDepth))) * 0.30;
+                            if (hasMoments > 0.5) {
+                                vec2 localMoments = textureLod(uShadowMomentMap, vec3(sampleUv, float(layer)), 0.0).rg;
+                                localDepth = mix(localDepth, clamp(localMoments.x, 0.0, 1.0), 0.80);
+                            }
+                            farRefineDepthAccum += localDepth * radial;
+                            farRefineDepthWeight += radial;
+                        }
+                        float farRefinedDepth = farRefineDepthWeight > 0.0
+                                ? clamp(farRefineDepthAccum / farRefineDepthWeight, 0.0, 1.0)
+                                : blockerDepth;
+                        float farBlend = clamp(0.22 + blockerSeparation * 0.46 + (1.0 - ndl) * 0.18, 0.10, 0.70);
+                        blockerDepth = mix(blockerDepth, farRefinedDepth, farBlend);
                         float penumbra = clamp((depthRatio - blockerDepth + (1.0 - ndl) * 0.82) * pcssSoftness * 1.8, 0.0, 1.0);
                         penumbra = clamp(penumbra * mix(0.85, 1.25, blockerSeparation), 0.0, 1.0);
                         float neigh = 0.0;
