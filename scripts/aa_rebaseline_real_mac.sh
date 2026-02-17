@@ -131,6 +131,8 @@ if VULKAN_ICD_JSON="$(find_vulkan_icd_json)"; then
   export VK_ICD_FILENAMES="$VULKAN_ICD_JSON"
 fi
 JVM_ARG_LINE="-XstartOnFirstThread"
+STACK_SIZE="${DLE_COMPARE_JVM_STACK_SIZE:-4m}"
+JVM_ARG_LINE="$JVM_ARG_LINE -Xss$STACK_SIZE"
 if [[ -n "$VULKAN_LOADER_DIR" ]]; then
   if [[ -f "$VULKAN_LOADER_DIR/libvulkan.1.dylib" ]]; then
     JVM_ARG_LINE="$JVM_ARG_LINE -Dorg.lwjgl.vulkan.libname=$VULKAN_LOADER_DIR/libvulkan.1.dylib"
@@ -192,6 +194,7 @@ echo "Using JAVA_HOME=$JAVA_HOME"
 java -version
 echo "Writing compare artifacts to: $OUT_DIR"
 echo "Vulkan mode: $MODE_NORMALIZED (mockContext=$VULKAN_MOCK_CONTEXT)"
+echo "Forked JVM stack size: $STACK_SIZE"
 if [[ -n "$VULKAN_LOADER_DIR" ]]; then
   echo "Vulkan loader dir: $VULKAN_LOADER_DIR"
 fi
