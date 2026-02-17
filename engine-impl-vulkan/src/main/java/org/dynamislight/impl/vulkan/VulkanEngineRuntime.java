@@ -145,6 +145,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private String shadowFilterPath = "pcf";
     private boolean shadowContactShadows;
     private String shadowRtMode = "off";
+    private float shadowRtDenoiseStrength = 0.65f;
+    private float shadowRtRayLength = 80.0f;
+    private int shadowRtSampleCount = 2;
     private float shadowPcssSoftness = 1.0f;
     private float shadowMomentBlend = 1.0f;
     private float shadowMomentBleedReduction = 1.0f;
@@ -209,6 +212,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowFilterPath = options.shadowFilterPath();
         shadowContactShadows = options.shadowContactShadows();
         shadowRtMode = options.shadowRtMode();
+        shadowRtDenoiseStrength = options.shadowRtDenoiseStrength();
+        shadowRtRayLength = options.shadowRtRayLength();
+        shadowRtSampleCount = options.shadowRtSampleCount();
         shadowPcssSoftness = options.shadowPcssSoftness();
         shadowMomentBlend = options.shadowMomentBlend();
         shadowMomentBleedReduction = options.shadowMomentBleedReduction();
@@ -546,6 +552,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()
                             + " rtActive=" + currentShadows.rtShadowActive()
+                            + " rtDenoiseStrength=" + shadowRtDenoiseStrength
+                            + " rtRayLength=" + shadowRtRayLength
+                            + " rtSampleCount=" + shadowRtSampleCount
                             + " normalBiasScale=" + currentShadows.normalBiasScale()
                             + " slopeBiasScale=" + currentShadows.slopeBiasScale()
             ));
@@ -600,7 +609,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 warnings.add(new EngineWarning(
                         "SHADOW_RT_PATH_REQUESTED",
                         "RT shadow mode requested: " + currentShadows.rtShadowMode()
-                                + " (active=" + currentShadows.rtShadowActive() + ", fallback stack in use)"
+                                + " (active=" + currentShadows.rtShadowActive()
+                                + ", fallback stack in use"
+                                + ", denoiseStrength=" + shadowRtDenoiseStrength
+                                + ", rayLength=" + shadowRtRayLength
+                                + ", sampleCount=" + shadowRtSampleCount
+                                + ")"
                 ));
                 if (!currentShadows.rtShadowActive()) {
                     warnings.add(new EngineWarning(

@@ -781,7 +781,10 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.mockContext", "true",
                 "vulkan.shadow.filterPath", "evsm",
                 "vulkan.shadow.contactShadows", "true",
-                "vulkan.shadow.rtMode", "optional"
+                "vulkan.shadow.rtMode", "optional",
+                "vulkan.shadow.rtDenoiseStrength", "0.8",
+                "vulkan.shadow.rtRayLength", "120",
+                "vulkan.shadow.rtSampleCount", "4"
         )), new RecordingCallbacks());
         runtime.loadScene(validSpotShadowScene());
 
@@ -799,12 +802,19 @@ class VulkanEngineRuntimeIntegrationTest {
                         && w.message().contains("momentInitialized=false")
                         && w.message().contains("momentPhase=pending")
                         && w.message().contains("contactShadows=true")
-                        && w.message().contains("rtMode=optional")));
+                        && w.message().contains("rtMode=optional")
+                        && w.message().contains("rtDenoiseStrength=0.8")
+                        && w.message().contains("rtRayLength=120.0")
+                        && w.message().contains("rtSampleCount=4")));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_PIPELINE_PENDING".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_PIPELINE_INITIALIZING".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_APPROX_ACTIVE".equals(w.code())));
-        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_RT_PATH_REQUESTED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_PATH_REQUESTED".equals(w.code())
+                        && w.message().contains("denoiseStrength=0.8")
+                        && w.message().contains("rayLength=120.0")
+                        && w.message().contains("sampleCount=4")));
         assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_RT_PATH_FALLBACK_ACTIVE".equals(w.code())));
         runtime.shutdown();
     }

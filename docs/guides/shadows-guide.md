@@ -126,6 +126,9 @@ Sample host clamps:
   - `vulkan.shadow.momentBleedReduction=0.25..1.5` (default `1.0`)
   - `vulkan.shadow.contactStrength=0.25..2.0` (default `1.0`)
   - `vulkan.shadow.rtMode=off|optional|force`
+  - `vulkan.shadow.rtDenoiseStrength=0..1` (default `0.65`, groundwork control)
+  - `vulkan.shadow.rtRayLength=1..500` (default `80`, groundwork control)
+  - `vulkan.shadow.rtSampleCount=1..16` (default `2`, groundwork control)
   - `vulkan.shadow.maxShadowedLocalLights=0..8` (`0` = tier default)
   - `vulkan.shadow.maxLocalShadowLayers=0..24` (`0` = tier default scheduler budget)
   - `vulkan.shadow.maxShadowFacesPerFrame=0..24` (`0` = tier default scheduler budget)
@@ -163,6 +166,7 @@ Scheduler behavior notes:
   - `momentInitialized`
   - `momentPhase` (`pending|initializing|active`)
   - warning codes: `SHADOW_MOMENT_PIPELINE_PENDING`, `SHADOW_MOMENT_PIPELINE_INITIALIZING`, `SHADOW_MOMENT_APPROX_ACTIVE`, `SHADOW_RT_PATH_REQUESTED`, `SHADOW_RT_PATH_FALLBACK_ACTIVE`
+  - RT groundwork telemetry: `rtDenoiseStrength`, `rtRayLength`, `rtSampleCount`
   - `directionalTexelSnapEnabled`
   - `directionalTexelSnapScale`
   - `shadowAllocatorAssignedLights`

@@ -13,6 +13,9 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.maxLocalShadowLayers", "12"),
                         Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "6"),
                         Map.entry("vulkan.shadow.maxShadowedLocalLights", "7"),
+                        Map.entry("vulkan.shadow.rtDenoiseStrength", "0.8"),
+                        Map.entry("vulkan.shadow.rtRayLength", "120"),
+                        Map.entry("vulkan.shadow.rtSampleCount", "4"),
                         Map.entry("vulkan.shadow.pcssSoftness", "1.4"),
                         Map.entry("vulkan.shadow.momentBlend", "0.9"),
                         Map.entry("vulkan.shadow.momentBleedReduction", "1.2"),
@@ -30,6 +33,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(7, parsed.shadowMaxShadowedLocalLights());
         assertEquals(12, parsed.shadowMaxLocalLayers());
         assertEquals(6, parsed.shadowMaxFacesPerFrame());
+        assertEquals(0.8f, parsed.shadowRtDenoiseStrength());
+        assertEquals(120.0f, parsed.shadowRtRayLength());
+        assertEquals(4, parsed.shadowRtSampleCount());
         assertEquals(1.4f, parsed.shadowPcssSoftness());
         assertEquals(0.9f, parsed.shadowMomentBlend());
         assertEquals(1.2f, parsed.shadowMomentBleedReduction());
@@ -45,15 +51,18 @@ class VulkanRuntimeOptionsTest {
     @Test
     void parseShadowSchedulerOverridesFallbackToBounds() {
         VulkanRuntimeOptions.Parsed parsed = VulkanRuntimeOptions.parse(
-                Map.of(
-                        "vulkan.shadow.maxLocalShadowLayers", "99",
-                        "vulkan.shadow.maxShadowFacesPerFrame", "-1",
-                        "vulkan.shadow.maxShadowedLocalLights", "99",
-                        "vulkan.shadow.pcssSoftness", "9.0",
-                        "vulkan.shadow.momentBlend", "0.1",
-                        "vulkan.shadow.momentBleedReduction", "7.0",
-                        "vulkan.shadow.contactStrength", "-1.0",
-                        "vulkan.shadow.directionalTexelSnapScale", "10.0"
+                Map.ofEntries(
+                        Map.entry("vulkan.shadow.maxLocalShadowLayers", "99"),
+                        Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "-1"),
+                        Map.entry("vulkan.shadow.maxShadowedLocalLights", "99"),
+                        Map.entry("vulkan.shadow.rtDenoiseStrength", "7.0"),
+                        Map.entry("vulkan.shadow.rtRayLength", "0.1"),
+                        Map.entry("vulkan.shadow.rtSampleCount", "99"),
+                        Map.entry("vulkan.shadow.pcssSoftness", "9.0"),
+                        Map.entry("vulkan.shadow.momentBlend", "0.1"),
+                        Map.entry("vulkan.shadow.momentBleedReduction", "7.0"),
+                        Map.entry("vulkan.shadow.contactStrength", "-1.0"),
+                        Map.entry("vulkan.shadow.directionalTexelSnapScale", "10.0")
                 ),
                 256
         );
@@ -61,6 +70,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(8, parsed.shadowMaxShadowedLocalLights());
         assertEquals(24, parsed.shadowMaxLocalLayers());
         assertEquals(0, parsed.shadowMaxFacesPerFrame());
+        assertEquals(1.0f, parsed.shadowRtDenoiseStrength());
+        assertEquals(1.0f, parsed.shadowRtRayLength());
+        assertEquals(16, parsed.shadowRtSampleCount());
         assertEquals(2.0f, parsed.shadowPcssSoftness());
         assertEquals(0.25f, parsed.shadowMomentBlend());
         assertEquals(1.5f, parsed.shadowMomentBleedReduction());

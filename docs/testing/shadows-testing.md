@@ -134,6 +134,9 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `vulkan.shadow.momentBlend`
   - `vulkan.shadow.momentBleedReduction`
   - `vulkan.shadow.contactStrength`
+  - `vulkan.shadow.rtDenoiseStrength`
+  - `vulkan.shadow.rtRayLength`
+  - `vulkan.shadow.rtSampleCount`
 - Shader regression checks now include:
   - neighborhood-weighted moment denoise path (`wideMoments` sampling)
   - motion-adaptive contact temporal stabilization shaping (`contactTemporalStability`)
