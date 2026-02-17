@@ -550,6 +550,12 @@ final class VulkanEngineRuntimeLightingMapper {
             case HIGH -> 3;
             case ULTRA -> 4;
         };
+        int maxShadowLayers = switch (qualityTier) {
+            case LOW -> 4;
+            case MEDIUM -> 6;
+            case HIGH -> 8;
+            case ULTRA -> 12;
+        };
         List<LightDesc> localShadowCandidates = new ArrayList<>();
         LightDesc primaryDirectional = null;
         LightDesc bestLocal = null;
@@ -593,10 +599,7 @@ final class VulkanEngineRuntimeLightingMapper {
         if (type == LightType.SPOT) {
             cascades = Math.max(1, Math.min(4, selectedSpotShadowLights));
         } else if (type == LightType.POINT) {
-            int maxPointCubemaps = switch (qualityTier) {
-                case LOW, MEDIUM -> 1;
-                case HIGH, ULTRA -> 2;
-            };
+            int maxPointCubemaps = Math.max(1, maxShadowLayers / 6);
             cascades = 6 * Math.max(1, Math.min(maxPointCubemaps, selectedPointShadowLights));
         }
         int requestedResolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));
@@ -652,11 +655,13 @@ final class VulkanEngineRuntimeLightingMapper {
         };
         int kernelClamped = Math.min(kernel, maxKernel);
         int radius = Math.max(0, (kernelClamped - 1) / 2);
+        int maxPointCubemaps = Math.max(1, maxShadowLayers / 6);
+        int maxPointCascades = maxPointCubemaps * 6;
         int maxCascades = switch (qualityTier) {
-            case LOW -> type == LightType.POINT ? 6 : 1;
-            case MEDIUM -> type == LightType.POINT ? 6 : 2;
-            case HIGH -> type == LightType.POINT ? 12 : 3;
-            case ULTRA -> type == LightType.POINT ? 12 : 4;
+            case LOW -> type == LightType.POINT ? maxPointCascades : 1;
+            case MEDIUM -> type == LightType.POINT ? maxPointCascades : 2;
+            case HIGH -> type == LightType.POINT ? maxPointCascades : 3;
+            case ULTRA -> type == LightType.POINT ? maxPointCascades : 4;
         };
         int cascadesClamped = Math.min(cascades, maxCascades);
         float biasScale = 1.0f + (radius * 0.15f) + (Math.max(0, cascadesClamped - 1) * 0.05f);
@@ -682,7 +687,7 @@ final class VulkanEngineRuntimeLightingMapper {
                 ? Math.max(1, Math.min(cascadesClamped, selectedSpotShadowLights))
                 : 0;
         int renderedPointShadowCubemaps = type == LightType.POINT
-                ? Math.max(1, Math.min(cascadesClamped / 6, selectedPointShadowLights))
+                ? Math.max(1, Math.min(Math.min(cascadesClamped / 6, selectedPointShadowLights), maxPointCubemaps))
                 : 0;
         int renderedLocalShadowLights = renderedSpotShadowLights + renderedPointShadowCubemaps;
         boolean rtShadowActive = false;

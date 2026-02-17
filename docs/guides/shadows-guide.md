@@ -117,7 +117,7 @@ Sample host clamps:
   - `-Ddle.vulkan.shadow.depthFormat=d32`
 - Non-directional shadow coverage is supported at baseline level but may differ in quality/perf characteristics by backend/profile.
 - OpenGL now applies local spot shadows through an atlas path in the main local-light loop.
-- Vulkan now renders multi-local **spot** shadow layers and provides tier-bounded point-cubemap scheduling metadata, while full per-light atlas/cubemap parity remains in rollout.
+- Vulkan now renders multi-local **spot** shadow layers and supports tier-bounded point-cubemap rendering (`HIGH`: 1 cubemap / 6 faces, `ULTRA`: 2 cubemaps / 12 faces), while full per-light atlas/cubemap parity remains in rollout.
 - Shadow quality-path requests are now first-class backend options:
   - `vulkan.shadow.filterPath=pcf|pcss|vsm|evsm`
   - `vulkan.shadow.contactShadows=true|false`

@@ -66,16 +66,14 @@ public final class VulkanRenderCommandRecorder {
             List<MeshDrawCmd> meshes,
             IntUnaryOperator dynamicUniformOffset
     ) {
+        int shadowPassCount = shadowPassCount(in);
         if (in.shadowEnabled()
                 && in.shadowRenderPass() != VK_NULL_HANDLE
                 && in.shadowPipeline() != VK_NULL_HANDLE
                 && in.frameDescriptorSet() != VK_NULL_HANDLE
                 && !meshes.isEmpty()
-                && in.shadowFramebuffers().length >= Math.min(in.maxShadowMatrices(), Math.max(1, in.shadowCascadeCount()))) {
-            int cascades = in.pointShadowEnabled()
-                    ? in.pointShadowFaces()
-                    : Math.min(in.maxShadowCascades(), Math.max(1, in.shadowCascadeCount()));
-            for (int cascadeIndex = 0; cascadeIndex < cascades; cascadeIndex++) {
+                && in.shadowFramebuffers().length >= shadowPassCount) {
+            for (int cascadeIndex = 0; cascadeIndex < shadowPassCount; cascadeIndex++) {
                 VkClearValue.Buffer shadowClearValues = VkClearValue.calloc(1, stack);
                 shadowClearValues.get(0).depthStencil().depth(1.0f).stencil(0);
                 VkRenderPassBeginInfo shadowPassInfo = VkRenderPassBeginInfo.calloc(stack)
@@ -159,6 +157,18 @@ public final class VulkanRenderCommandRecorder {
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         }
         vkCmdEndRenderPass(commandBuffer);
+    }
+
+    static int shadowPassCount(RenderPassInputs in) {
+        int requested = Math.max(1, in.shadowCascadeCount());
+        int maxCascades = Math.max(1, in.maxShadowCascades());
+        int clamped = Math.min(Math.min(in.maxShadowMatrices(), maxCascades), requested);
+        if (in.pointShadowEnabled()) {
+            // Legacy single-point mode needs at least one full cubemap face set.
+            int pointFloor = Math.max(1, Math.min(in.pointShadowFaces(), in.maxShadowMatrices()));
+            return Math.max(pointFloor, clamped);
+        }
+        return clamped;
     }
 
     public static PostCompositeState executePostCompositePass(

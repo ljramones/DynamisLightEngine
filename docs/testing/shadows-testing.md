@@ -101,6 +101,9 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `SHADOW_LOCAL_RENDER_BASELINE`
 - Vulkan integration tests now also validate multi-spot render policy reporting (`renderedLocalShadows`, `renderedSpotShadows`) and quality-path request tracking fields (`filterPath`, `contactShadows`, `rtMode`).
 - Vulkan policy checks now include concurrent point-cubemap scheduling counters (`renderedPointShadowCubemaps`) for tier-bounded multi-point coverage.
+- Verify current tier cap behavior explicitly:
+  - `HIGH` should cap to `1` rendered point cubemap (`6` shadow passes).
+  - `ULTRA` should cap to `2` rendered point cubemaps (`12` shadow passes).
 
 ## 6. Known Gaps
 - Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.

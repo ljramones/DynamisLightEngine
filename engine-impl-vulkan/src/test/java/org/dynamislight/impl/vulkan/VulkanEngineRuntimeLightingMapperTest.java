@@ -94,4 +94,26 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertTrue(ultra.contactShadowsRequested());
         assertEquals("optional", ultra.rtShadowMode());
     }
+
+    @Test
+    void mapShadowsCapsPointCubemapConcurrencyByTierLayerBudget() {
+        List<LightDesc> lights = List.of(
+                new LightDesc("pointA", new Vec3(1f, 1f, 1f), new Vec3(1f, 0.9f, 0.8f), 3.0f, 20f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("pointB", new Vec3(2f, 1f, 1f), new Vec3(0.8f, 0.9f, 1f), 2.5f, 18f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("pointC", new Vec3(3f, 1f, 1f), new Vec3(0.9f, 0.8f, 1f), 2.2f, 16f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+
+        VulkanEngineRuntime.ShadowRenderConfig high = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.HIGH, "pcf", false, "off"
+        );
+        VulkanEngineRuntime.ShadowRenderConfig ultra = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off"
+        );
+
+        assertEquals("point", high.primaryShadowType());
+        assertEquals(6, high.cascadeCount());
+        assertEquals(1, high.renderedPointShadowCubemaps());
+        assertEquals(12, ultra.cascadeCount());
+        assertEquals(2, ultra.renderedPointShadowCubemaps());
+    }
 }
