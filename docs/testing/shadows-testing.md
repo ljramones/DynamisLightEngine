@@ -52,7 +52,7 @@ CI always-on rollout:
   - `run_shadow_quality_sweeps=true`
   - `run_shadow_quality_sweeps_strict_bvh=true`
   - `run_shadow_lockdown_full=true`
-- `shadow-lockdown-full` workflow lane now runs on `schedule` and optional manual dispatch. It executes:
+- `shadow-lockdown-full` workflow lane now runs on `push`/`pull_request`/`schedule` (plus optional manual dispatch). It executes:
   - shadow matrix (real matrix + longrun)
   - guarded real-Vulkan longrun
   - production sweeps with strict BVH lane

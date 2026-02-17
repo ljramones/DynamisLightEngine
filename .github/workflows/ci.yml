@@ -212,7 +212,10 @@ jobs:
 
   shadow-lockdown-full:
     name: Shadow Lockdown Full (JDK 25, macos-latest)
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_lockdown_full == 'true')
+    if: github.event_name == 'schedule'
+      || github.event_name == 'push'
+      || github.event_name == 'pull_request'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_lockdown_full == 'true')
     runs-on: macos-latest
     steps:
       - name: Checkout
