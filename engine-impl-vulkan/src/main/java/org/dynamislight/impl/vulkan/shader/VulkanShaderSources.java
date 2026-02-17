@@ -214,6 +214,15 @@ public final class VulkanShaderSources {
                     vec3 c4 = textureLod(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
                     return (c0 * 0.44) + (c1 * 0.18) + (c2 * 0.18) + (c3 * 0.10) + (c4 * 0.10);
                 }
+                float momentVisibilityApprox(vec2 uv, float compareDepth) {
+                    vec2 moments = texture(uShadowMomentMap, clamp(uv, vec2(0.0), vec2(1.0))).rg;
+                    float mean = clamp(moments.x, 0.0, 1.0);
+                    float second = max(moments.y, mean * mean);
+                    float variance = max(second - (mean * mean), 0.00002);
+                    float diff = compareDepth - mean;
+                    float pMax = variance / (variance + diff * diff);
+                    return clamp(pMax, 0.0, 1.0);
+                }
                 void main() {
                     vec3 n0 = normalize(vNormal);
                     vec3 t = normalize(vTangent - dot(vTangent, n0) * n0);
@@ -323,6 +332,10 @@ public final class VulkanShaderSources {
                                     }
                                 }
                                 localShadowVisibility = (taps > 0.0) ? (total / taps) : 1.0;
+                                if (shadowFilterMode == 2 || shadowFilterMode == 3) {
+                                    float momentVis = momentVisibilityApprox(localShadowCoord.xy, compareDepth);
+                                    localShadowVisibility = mix(localShadowVisibility, momentVis, 0.40);
+                                }
                             }
                         }
                         if (localIsSpot <= 0.5 && localCastsShadow > 0.5 && localShadowSlots > 0 && localShadowLayer >= 0) {
@@ -365,7 +378,12 @@ public final class VulkanShaderSources {
                                         taps += 1.0;
                                     }
                                 }
-                                localShadowVisibility *= (taps > 0.0) ? (total / taps) : 1.0;
+                                float pointLocalVisibility = (taps > 0.0) ? (total / taps) : 1.0;
+                                if (shadowFilterMode == 2 || shadowFilterMode == 3) {
+                                    float momentVis = momentVisibilityApprox(localShadowCoord.xy, compareDepth);
+                                    pointLocalVisibility = mix(pointLocalVisibility, momentVis, 0.40);
+                                }
+                                localShadowVisibility *= pointLocalVisibility;
                             }
                         }
                         float contact = 1.0;
@@ -423,6 +441,10 @@ public final class VulkanShaderSources {
                                 }
                             }
                             shadowVisibility = (taps > 0.0) ? (total / taps) : 1.0;
+                            if (shadowFilterMode == 2 || shadowFilterMode == 3) {
+                                float momentVis = momentVisibilityApprox(shadowCoord.xy, compareDepth);
+                                shadowVisibility = mix(shadowVisibility, momentVis, 0.40);
+                            }
                         }
                         float shadowOcclusion = 1.0 - shadowVisibility;
                         float shadowFactor = clamp(shadowOcclusion * clamp(gbo.uShadow.y, 0.0, 1.0), 0.0, 0.9);
@@ -490,7 +512,12 @@ public final class VulkanShaderSources {
                                     taps += 1.0;
                                 }
                             }
-                            float pointOcclusion = 1.0 - ((taps > 0.0) ? (visibility / taps) : 1.0);
+                            float pointVisibility = (taps > 0.0) ? (visibility / taps) : 1.0;
+                            if (shadowFilterMode == 2 || shadowFilterMode == 3) {
+                                float momentVis = momentVisibilityApprox(pointShadowCoord.xy, compareDepth);
+                                pointVisibility = mix(pointVisibility, momentVis, 0.40);
+                            }
+                            float pointOcclusion = 1.0 - pointVisibility;
                             float pointShadowFactor = clamp(pointOcclusion * min(clamp(gbo.uShadow.y, 0.0, 1.0), 0.85), 0.0, 0.9);
                             color *= (1.0 - pointShadowFactor);
                         }
