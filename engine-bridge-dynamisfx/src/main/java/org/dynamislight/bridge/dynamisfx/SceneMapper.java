@@ -11,6 +11,7 @@ import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
+import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
@@ -167,7 +168,8 @@ public final class SceneMapper {
                 post.taaEnabled(),
                 post.taaBlend(),
                 post.taaLumaClipEnabled(),
-                mapAntiAliasing(post.antiAliasing())
+                mapAntiAliasing(post.antiAliasing()),
+                mapReflections(post.reflections())
         );
     }
 
@@ -184,6 +186,21 @@ public final class SceneMapper {
                 aa.sharpenStrength(),
                 aa.renderScale(),
                 aa.debugView()
+        );
+    }
+
+    private static ReflectionDesc mapReflections(ReflectionDesc reflections) {
+        if (reflections == null) {
+            return null;
+        }
+        return new ReflectionDesc(
+                reflections.enabled(),
+                reflections.mode(),
+                reflections.ssrStrength(),
+                reflections.ssrMaxRoughness(),
+                reflections.ssrStepScale(),
+                reflections.temporalWeight(),
+                reflections.planarStrength()
         );
     }
 }

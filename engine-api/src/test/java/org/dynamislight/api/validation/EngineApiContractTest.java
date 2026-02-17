@@ -25,7 +25,9 @@ import org.dynamislight.api.input.KeyCode;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
+import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
@@ -191,6 +193,51 @@ class EngineApiContractTest {
                 0.1f
         );
         assertFalse(post.taaLumaClipEnabled());
+    }
+
+    @Test
+    void sceneValidatorRejectsUnknownReflectionMode() {
+        SceneDescriptor base = new SceneDescriptor(
+                "scene",
+                List.of(new CameraDesc("cam", new Vec3(0, 0, 1), new Vec3(0, 0, 0), 60f, 0.1f, 100f)),
+                "cam",
+                List.of(new TransformDesc("x", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1))),
+                List.of(new MeshDesc("mesh", "x", "mat", "mesh.glb")),
+                List.of(new MaterialDesc("mat", new Vec3(1, 1, 1), 0f, 1f, null, null)),
+                List.of(),
+                new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null),
+                new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0, 0, 0, 0, 0, 0),
+                List.of(),
+                new PostProcessDesc(
+                        true, true, 1.0f, 2.2f, true, 1.0f, 0.8f, true, 0.4f, 1.0f, 0.02f, 1.0f,
+                        true, 0.5f, true, 0.2f, true, null, new ReflectionDesc(true, "bad-mode")
+                )
+        );
+
+        var ex = assertThrows(EngineException.class, () -> SceneValidator.validate(base));
+        assertEquals(EngineErrorCode.SCENE_VALIDATION_FAILED, ex.code());
+    }
+
+    @Test
+    void sceneValidatorAcceptsValidReflectionConfig() throws EngineException {
+        SceneDescriptor base = new SceneDescriptor(
+                "scene",
+                List.of(new CameraDesc("cam", new Vec3(0, 0, 1), new Vec3(0, 0, 0), 60f, 0.1f, 100f)),
+                "cam",
+                List.of(new TransformDesc("x", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1))),
+                List.of(new MeshDesc("mesh", "x", "mat", "mesh.glb")),
+                List.of(new MaterialDesc("mat", new Vec3(1, 1, 1), 0f, 1f, null, null)),
+                List.of(),
+                new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null),
+                new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0, 0, 0, 0, 0, 0),
+                List.of(),
+                new PostProcessDesc(
+                        true, true, 1.0f, 2.2f, true, 1.0f, 0.8f, true, 0.4f, 1.0f, 0.02f, 1.0f,
+                        true, 0.5f, true, 0.2f, true, null, new ReflectionDesc(true, "hybrid", 0.72f, 0.8f, 1.2f, 0.82f, 0.4f)
+                )
+        );
+
+        SceneValidator.validate(base);
     }
 
     @Test

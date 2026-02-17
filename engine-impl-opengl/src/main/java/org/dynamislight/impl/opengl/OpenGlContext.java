@@ -700,6 +700,13 @@ final class OpenGlContext {
             uniform int uTaaLumaClipEnabled;
             uniform float uTaaSharpenStrength;
             uniform float uTaaUpsampleScale;
+            uniform int uReflectionsEnabled;
+            uniform int uReflectionsMode;
+            uniform float uReflectionsSsrStrength;
+            uniform float uReflectionsSsrMaxRoughness;
+            uniform float uReflectionsSsrStepScale;
+            uniform float uReflectionsTemporalWeight;
+            uniform float uReflectionsPlanarStrength;
             uniform sampler2D uTaaHistory;
             uniform sampler2D uTaaHistoryVelocity;
             out vec4 FragColor;
@@ -803,6 +810,49 @@ final class OpenGlContext {
                 vec3 blur = (cN + cS + cE + cW) * 0.25;
                 vec3 sharpened = color + (color - blur) * amount;
                 return clamp(sharpened, vec3(0.0), vec3(1.0));
+            }
+            vec3 applyReflections(vec2 uv, vec3 color, float currentDepth, float historyConfidenceOut) {
+                if (uReflectionsEnabled == 0 || uReflectionsMode == 0) {
+                    return color;
+                }
+                vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                float roughnessProxy = clamp(1.0 - dot(color, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+                float roughnessMask = 1.0 - smoothstep(clamp(uReflectionsSsrMaxRoughness, 0.05, 1.0), 1.0, roughnessProxy);
+                float ssrStrength = clamp(uReflectionsSsrStrength, 0.0, 1.0) * roughnessMask;
+                float stepScale = clamp(uReflectionsSsrStepScale, 0.5, 3.0);
+                vec2 rayDir = normalize(vec2((uv.x - 0.5) * 2.0, (0.5 - uv.y) * 2.0) + vec2(0.0001));
+                vec2 traceUv = uv;
+                vec3 ssrColor = color;
+                float ssrHit = 0.0;
+                for (int i = 0; i < 14; i++) {
+                    float stepMul = (float(i) + 1.0) * stepScale;
+                    traceUv = clamp(traceUv + rayDir * texel * stepMul, vec2(0.0), vec2(1.0));
+                    vec3 sampleColor = texture(uSceneColor, traceUv).rgb;
+                    float sampleDepth = texture(uSceneVelocity, traceUv).b;
+                    float depthMatch = 1.0 - smoothstep(0.01, 0.12, abs(sampleDepth - currentDepth));
+                    float sampleLuma = dot(sampleColor, vec3(0.2126, 0.7152, 0.0722));
+                    float gate = sampleLuma * depthMatch;
+                    if (gate > ssrHit) {
+                        ssrHit = gate;
+                        ssrColor = sampleColor;
+                    }
+                }
+                vec2 planarUv = vec2(uv.x, 1.0 - uv.y);
+                vec3 planarColor = texture(uSceneColor, planarUv).rgb;
+                float temporalWeight = clamp(uReflectionsTemporalWeight, 0.0, 0.98);
+                vec3 historyColor = texture(uTaaHistory, clamp(uv + uTaaMotionUv, vec2(0.0), vec2(1.0))).rgb;
+                vec3 temporalColor = mix(ssrColor, historyColor, temporalWeight * clamp(historyConfidenceOut, 0.0, 1.0));
+                float planarStrength = clamp(uReflectionsPlanarStrength, 0.0, 1.0);
+                vec3 reflected = color;
+                if (uReflectionsMode == 1) {
+                    reflected = mix(color, temporalColor, ssrStrength * clamp(ssrHit * 1.15, 0.0, 1.0));
+                } else if (uReflectionsMode == 2) {
+                    reflected = mix(color, planarColor, planarStrength * (0.75 + 0.25 * (1.0 - roughnessProxy)));
+                } else {
+                    vec3 hybrid = mix(temporalColor, planarColor, planarStrength);
+                    reflected = mix(color, hybrid, clamp(max(ssrStrength, planarStrength), 0.0, 1.0));
+                }
+                return clamp(reflected, vec3(0.0), vec3(1.0));
             }
             void main() {
                 vec3 color = texture(uSceneColor, vUv).rgb;
@@ -936,6 +986,7 @@ final class OpenGlContext {
                         color = mix(color, vec3(1.0, 1.0, 0.2), line * 0.65);
                     }
                 }
+                color = applyReflections(vUv, color, currentDepth, historyConfidenceOut);
                 FragColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);
             }
             """;
@@ -1040,6 +1091,13 @@ final class OpenGlContext {
     private int postTaaLumaClipEnabledLocation;
     private int postTaaSharpenStrengthLocation;
     private int postTaaUpsampleScaleLocation;
+    private int postReflectionsEnabledLocation;
+    private int postReflectionsModeLocation;
+    private int postReflectionsSsrStrengthLocation;
+    private int postReflectionsSsrMaxRoughnessLocation;
+    private int postReflectionsSsrStepScaleLocation;
+    private int postReflectionsTemporalWeightLocation;
+    private int postReflectionsPlanarStrengthLocation;
     private int postTaaHistoryLocation;
     private int postTaaHistoryVelocityLocation;
     private int postVaoId;
@@ -1099,6 +1157,13 @@ final class OpenGlContext {
     private boolean taaLumaClipEnabled;
     private float taaSharpenStrength = 0.16f;
     private float taaRenderScale = 1.0f;
+    private boolean reflectionsEnabled;
+    private int reflectionsMode;
+    private float reflectionsSsrStrength = 0.6f;
+    private float reflectionsSsrMaxRoughness = 0.78f;
+    private float reflectionsSsrStepScale = 1.0f;
+    private float reflectionsTemporalWeight = 0.80f;
+    private float reflectionsPlanarStrength = 0.35f;
     private double taaHistoryRejectRate;
     private double taaConfidenceMean = 1.0;
     private long taaConfidenceDropEvents;
@@ -1486,6 +1551,13 @@ final class OpenGlContext {
         glUniform1i(postTaaLumaClipEnabledLocation, taaLumaClipEnabled ? 1 : 0);
         glUniform1f(postTaaSharpenStrengthLocation, taaSharpenStrength);
         glUniform1f(postTaaUpsampleScaleLocation, taaRenderScale);
+        glUniform1i(postReflectionsEnabledLocation, reflectionsEnabled ? 1 : 0);
+        glUniform1i(postReflectionsModeLocation, reflectionsMode);
+        glUniform1f(postReflectionsSsrStrengthLocation, reflectionsSsrStrength);
+        glUniform1f(postReflectionsSsrMaxRoughnessLocation, reflectionsSsrMaxRoughness);
+        glUniform1f(postReflectionsSsrStepScaleLocation, reflectionsSsrStepScale);
+        glUniform1f(postReflectionsTemporalWeightLocation, reflectionsTemporalWeight);
+        glUniform1f(postReflectionsPlanarStrengthLocation, reflectionsPlanarStrength);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -1649,7 +1721,14 @@ final class OpenGlContext {
             float taaClipScale,
             boolean taaLumaClipEnabled,
             float taaSharpenStrength,
-            float taaRenderScale
+            float taaRenderScale,
+            boolean reflectionsEnabled,
+            int reflectionsMode,
+            float reflectionsSsrStrength,
+            float reflectionsSsrMaxRoughness,
+            float reflectionsSsrStepScale,
+            float reflectionsTemporalWeight,
+            float reflectionsPlanarStrength
     ) {
         boolean previousTaaEnabled = this.taaEnabled;
         this.tonemapEnabled = tonemapEnabled;
@@ -1670,6 +1749,13 @@ final class OpenGlContext {
         this.taaClipScale = Math.max(0.5f, Math.min(1.6f, taaClipScale));
         this.taaLumaClipEnabled = taaLumaClipEnabled;
         this.taaSharpenStrength = Math.max(0f, Math.min(0.35f, taaSharpenStrength));
+        this.reflectionsEnabled = reflectionsEnabled;
+        this.reflectionsMode = Math.max(0, Math.min(3, reflectionsMode));
+        this.reflectionsSsrStrength = Math.max(0f, Math.min(1f, reflectionsSsrStrength));
+        this.reflectionsSsrMaxRoughness = Math.max(0f, Math.min(1f, reflectionsSsrMaxRoughness));
+        this.reflectionsSsrStepScale = Math.max(0.5f, Math.min(3f, reflectionsSsrStepScale));
+        this.reflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, reflectionsTemporalWeight));
+        this.reflectionsPlanarStrength = Math.max(0f, Math.min(1f, reflectionsPlanarStrength));
         float clampedRenderScale = Math.max(0.5f, Math.min(1.0f, taaRenderScale));
         boolean renderScaleChanged = Math.abs(this.taaRenderScale - clampedRenderScale) > 0.000001f;
         this.taaRenderScale = clampedRenderScale;
@@ -1965,6 +2051,13 @@ final class OpenGlContext {
         postTaaLumaClipEnabledLocation = glGetUniformLocation(postProgramId, "uTaaLumaClipEnabled");
         postTaaSharpenStrengthLocation = glGetUniformLocation(postProgramId, "uTaaSharpenStrength");
         postTaaUpsampleScaleLocation = glGetUniformLocation(postProgramId, "uTaaUpsampleScale");
+        postReflectionsEnabledLocation = glGetUniformLocation(postProgramId, "uReflectionsEnabled");
+        postReflectionsModeLocation = glGetUniformLocation(postProgramId, "uReflectionsMode");
+        postReflectionsSsrStrengthLocation = glGetUniformLocation(postProgramId, "uReflectionsSsrStrength");
+        postReflectionsSsrMaxRoughnessLocation = glGetUniformLocation(postProgramId, "uReflectionsSsrMaxRoughness");
+        postReflectionsSsrStepScaleLocation = glGetUniformLocation(postProgramId, "uReflectionsSsrStepScale");
+        postReflectionsTemporalWeightLocation = glGetUniformLocation(postProgramId, "uReflectionsTemporalWeight");
+        postReflectionsPlanarStrengthLocation = glGetUniformLocation(postProgramId, "uReflectionsPlanarStrength");
         postTaaHistoryLocation = glGetUniformLocation(postProgramId, "uTaaHistory");
         postTaaHistoryVelocityLocation = glGetUniformLocation(postProgramId, "uTaaHistoryVelocity");
         postVaoId = glGenVertexArrays();
@@ -2363,7 +2456,9 @@ final class OpenGlContext {
     }
 
     private boolean useDedicatedPostPass() {
-        return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled || ssaoEnabled || smaaEnabled || taaEnabled);
+        return postProcessPipelineAvailable
+                && postProgramId != 0
+                && (tonemapEnabled || bloomEnabled || ssaoEnabled || smaaEnabled || taaEnabled || reflectionsEnabled);
     }
 
     private void updateSceneRenderResolution() {

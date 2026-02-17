@@ -105,7 +105,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
-    private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f);
+    private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
     private int taaDebugView;
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
@@ -272,7 +272,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected java.util.List<EngineWarning> frameWarnings() {
-        return warningPolicy.frameWarnings(
+        java.util.List<EngineWarning> warnings = new java.util.ArrayList<>(warningPolicy.frameWarnings(
                 warningState,
                 warningConfig,
                 new VulkanRuntimeWarningPolicy.Inputs(
@@ -293,7 +293,28 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         meshGeometryCacheProfile,
                         context
                 )
-        );
+        ));
+        if (currentPost.reflectionsEnabled()) {
+            warnings.add(new EngineWarning(
+                    "REFLECTIONS_BASELINE_ACTIVE",
+                    "Reflections baseline active (mode="
+                            + switch (currentPost.reflectionsMode()) {
+                        case 1 -> "ssr";
+                        case 2 -> "planar";
+                        case 3 -> "hybrid";
+                        default -> "ibl_only";
+                    }
+                            + ", ssrStrength=" + currentPost.reflectionsSsrStrength()
+                            + ", planarStrength=" + currentPost.reflectionsPlanarStrength() + ")"
+            ));
+            if (qualityTier == QualityTier.MEDIUM) {
+                warnings.add(new EngineWarning(
+                        "REFLECTIONS_QUALITY_DEGRADED",
+                        "Reflections quality is reduced at MEDIUM tier to stabilize frame time"
+                ));
+            }
+        }
+        return warnings;
     }
 
     SceneReuseStats debugSceneReuseStats() {
@@ -381,7 +402,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 taaClipScale,
                 taaLumaClip,
                 taaSharpen,
-                taaRenderScale
+                taaRenderScale,
+                base.reflectionsEnabled(),
+                base.reflectionsMode(),
+                base.reflectionsSsrStrength(),
+                base.reflectionsSsrMaxRoughness(),
+                base.reflectionsSsrStepScale(),
+                base.reflectionsTemporalWeight(),
+                base.reflectionsPlanarStrength()
         );
     }
 
@@ -514,7 +542,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float taaClipScale,
             boolean taaLumaClipEnabled,
             float taaSharpenStrength,
-            float taaRenderScale
+            float taaRenderScale,
+            boolean reflectionsEnabled,
+            int reflectionsMode,
+            float reflectionsSsrStrength,
+            float reflectionsSsrMaxRoughness,
+            float reflectionsSsrStepScale,
+            float reflectionsTemporalWeight,
+            float reflectionsPlanarStrength
     ) {
     }
 

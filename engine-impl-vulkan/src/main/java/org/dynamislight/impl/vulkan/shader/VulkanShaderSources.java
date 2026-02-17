@@ -514,6 +514,8 @@ public final class VulkanShaderSources {
                     vec4 smaa;
                     vec4 motion;
                     vec4 taa;
+                    vec4 reflectionsA;
+                    vec4 reflectionsB;
                 } pc;
                 float smaaLuma(vec3 c) {
                     return dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -588,6 +590,50 @@ public final class VulkanShaderSources {
                     vec3 blur = (cN + cS + cE + cW) * 0.25;
                     vec3 sharpened = color + (color - blur) * amount;
                     return clamp(sharpened, vec3(0.0), vec3(1.0));
+                }
+                vec3 applyReflections(vec2 uv, vec3 color, float currentDepth, float historyConfidenceOut) {
+                    if (pc.reflectionsA.x < 0.5 || int(pc.reflectionsA.y + 0.5) == 0) {
+                        return color;
+                    }
+                    vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                    float roughnessProxy = clamp(1.0 - dot(color, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+                    float roughnessMask = 1.0 - smoothstep(clamp(pc.reflectionsA.w, 0.05, 1.0), 1.0, roughnessProxy);
+                    float ssrStrength = clamp(pc.reflectionsA.z, 0.0, 1.0) * roughnessMask;
+                    float stepScale = clamp(pc.reflectionsB.x, 0.5, 3.0);
+                    vec2 rayDir = normalize(vec2((uv.x - 0.5) * 2.0, (0.5 - uv.y) * 2.0) + vec2(0.0001));
+                    vec2 traceUv = uv;
+                    vec3 ssrColor = color;
+                    float ssrHit = 0.0;
+                    for (int i = 0; i < 14; i++) {
+                        float stepMul = (float(i) + 1.0) * stepScale;
+                        traceUv = clamp(traceUv + rayDir * texel * stepMul, vec2(0.0), vec2(1.0));
+                        vec3 sampleColor = texture(uSceneColor, traceUv).rgb;
+                        float sampleDepth = texture(uVelocityColor, traceUv).b;
+                        float depthMatch = 1.0 - smoothstep(0.01, 0.12, abs(sampleDepth - currentDepth));
+                        float sampleLuma = dot(sampleColor, vec3(0.2126, 0.7152, 0.0722));
+                        float gate = sampleLuma * depthMatch;
+                        if (gate > ssrHit) {
+                            ssrHit = gate;
+                            ssrColor = sampleColor;
+                        }
+                    }
+                    vec2 planarUv = vec2(uv.x, 1.0 - uv.y);
+                    vec3 planarColor = texture(uSceneColor, planarUv).rgb;
+                    float temporalWeight = clamp(pc.reflectionsB.y, 0.0, 0.98);
+                    vec3 historyColor = texture(uHistoryColor, clamp(uv + pc.motion.xy, vec2(0.0), vec2(1.0))).rgb;
+                    vec3 temporalColor = mix(ssrColor, historyColor, temporalWeight * clamp(historyConfidenceOut, 0.0, 1.0));
+                    float planarStrength = clamp(pc.reflectionsB.z, 0.0, 1.0);
+                    int mode = int(pc.reflectionsA.y + 0.5);
+                    vec3 reflected = color;
+                    if (mode == 1) {
+                        reflected = mix(color, temporalColor, ssrStrength * clamp(ssrHit * 1.15, 0.0, 1.0));
+                    } else if (mode == 2) {
+                        reflected = mix(color, planarColor, planarStrength * (0.75 + 0.25 * (1.0 - roughnessProxy)));
+                    } else {
+                        vec3 hybrid = mix(temporalColor, planarColor, planarStrength);
+                        reflected = mix(color, hybrid, clamp(max(ssrStrength, planarStrength), 0.0, 1.0));
+                    }
+                    return clamp(reflected, vec3(0.0), vec3(1.0));
                 }
                 void main() {
                     vec3 color = texture(uSceneColor, vUv).rgb;
@@ -749,6 +795,7 @@ public final class VulkanShaderSources {
                             color = mix(color, vec3(1.0, 1.0, 0.2), line * 0.65);
                         }
                     }
+                    color = applyReflections(vUv, color, currentDepth, historyConfidenceOut);
                     outColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);
                 }
                 """;

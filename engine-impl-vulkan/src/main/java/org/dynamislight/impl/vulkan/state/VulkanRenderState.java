@@ -49,6 +49,13 @@ public final class VulkanRenderState {
     public float taaRenderScale = 1.0f;
     public boolean taaLumaClipEnabled;
     public float taaSharpenStrength = 0.16f;
+    public boolean reflectionsEnabled;
+    public int reflectionsMode;
+    public float reflectionsSsrStrength = 0.6f;
+    public float reflectionsSsrMaxRoughness = 0.78f;
+    public float reflectionsSsrStepScale = 1.0f;
+    public float reflectionsTemporalWeight = 0.80f;
+    public float reflectionsPlanarStrength = 0.35f;
     public float taaJitterNdcX;
     public float taaJitterNdcY;
     public float taaPrevJitterNdcX;

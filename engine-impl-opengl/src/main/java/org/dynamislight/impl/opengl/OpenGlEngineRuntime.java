@@ -28,6 +28,7 @@ import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.scene.ReactivePreset;
+import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
@@ -74,6 +75,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         ULTRA_QUALITY
     }
 
+    private enum ReflectionMode {
+        IBL_ONLY,
+        SSR,
+        PLANAR,
+        HYBRID
+    }
+
     private record TsrControls(
             float historyWeight,
             float responsiveMask,
@@ -111,7 +119,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             float taaClipScale,
             boolean taaLumaClipEnabled,
             float taaSharpenStrength,
-            float taaRenderScale
+            float taaRenderScale,
+            boolean reflectionsEnabled,
+            int reflectionsMode,
+            float reflectionsSsrStrength,
+            float reflectionsSsrMaxRoughness,
+            float reflectionsSsrStepScale,
+            float reflectionsTemporalWeight,
+            float reflectionsPlanarStrength
     ) {
     }
 
@@ -155,7 +170,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
-    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f);
+    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, ReflectionMode.IBL_ONLY.ordinal(), 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
     private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
     private int taaDebugView;
@@ -243,7 +258,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 postProcess.taaClipScale(),
                 postProcess.taaLumaClipEnabled(),
                 postProcess.taaSharpenStrength(),
-                postProcess.taaRenderScale()
+                postProcess.taaRenderScale(),
+                postProcess.reflectionsEnabled(),
+                postProcess.reflectionsMode(),
+                postProcess.reflectionsSsrStrength(),
+                postProcess.reflectionsSsrMaxRoughness(),
+                postProcess.reflectionsSsrStepScale(),
+                postProcess.reflectionsTemporalWeight(),
+                postProcess.reflectionsPlanarStrength()
         );
         context.setTaaDebugView(taaDebugView);
         frameGraph = buildFrameGraph();
@@ -323,7 +345,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     postProcess.taaClipScale(),
                     postProcess.taaLumaClipEnabled(),
                     postProcess.taaSharpenStrength(),
-                    postProcess.taaRenderScale()
+                    postProcess.taaRenderScale(),
+                    postProcess.reflectionsEnabled(),
+                    postProcess.reflectionsMode(),
+                    postProcess.reflectionsSsrStrength(),
+                    postProcess.reflectionsSsrMaxRoughness(),
+                    postProcess.reflectionsSsrStepScale(),
+                    postProcess.reflectionsTemporalWeight(),
+                    postProcess.reflectionsPlanarStrength()
             );
             context.setTaaDebugView(taaDebugView);
             frameGraph = buildFrameGraph();
@@ -416,6 +445,26 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     "TAA_BASELINE_ACTIVE",
                     "TAA baseline temporal blend path is active (OpenGL history-buffer mode)"
             ));
+        }
+        if (postProcess.reflectionsEnabled()) {
+            warnings.add(new EngineWarning(
+                    "REFLECTIONS_BASELINE_ACTIVE",
+                    "Reflections baseline active (mode="
+                            + switch (postProcess.reflectionsMode()) {
+                        case 1 -> "ssr";
+                        case 2 -> "planar";
+                        case 3 -> "hybrid";
+                        default -> "ibl_only";
+                    }
+                            + ", ssrStrength=" + postProcess.reflectionsSsrStrength()
+                            + ", planarStrength=" + postProcess.reflectionsPlanarStrength() + ")"
+            ));
+            if (qualityTier == QualityTier.MEDIUM) {
+                warnings.add(new EngineWarning(
+                        "REFLECTIONS_QUALITY_DEGRADED",
+                        "Reflections quality is reduced at MEDIUM tier to stabilize frame time"
+                ));
+            }
         }
         if (upscalerMode != UpscalerMode.NONE && postProcess.taaEnabled()) {
             warnings.add(new EngineWarning(
@@ -636,7 +685,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             TsrControls tsrControls
     ) {
         if (desc == null || !desc.enabled()) {
-            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f);
+            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f, false, ReflectionMode.IBL_ONLY.ordinal(), 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -815,6 +864,30 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             taaSharpenStrength = clamp(aa.sharpenStrength(), 0f, 0.35f);
             taaRenderScale = clamp(aa.renderScale(), 0.5f, 1.0f);
         }
+        ReflectionDesc reflectionDesc = desc.reflections();
+        ReflectionMode reflectionsMode = ReflectionMode.IBL_ONLY;
+        boolean reflectionsEnabled = false;
+        float reflectionsSsrStrength = 0.6f;
+        float reflectionsSsrMaxRoughness = 0.78f;
+        float reflectionsSsrStepScale = 1.0f;
+        float reflectionsTemporalWeight = 0.80f;
+        float reflectionsPlanarStrength = 0.35f;
+        if (reflectionDesc != null) {
+            reflectionsMode = parseReflectionMode(reflectionDesc.mode());
+            reflectionsEnabled = reflectionDesc.enabled() && reflectionsMode != ReflectionMode.IBL_ONLY;
+            reflectionsSsrStrength = clamp(reflectionDesc.ssrStrength(), 0f, 1.0f);
+            reflectionsSsrMaxRoughness = clamp(reflectionDesc.ssrMaxRoughness(), 0f, 1.0f);
+            reflectionsSsrStepScale = clamp(reflectionDesc.ssrStepScale(), 0.5f, 3.0f);
+            reflectionsTemporalWeight = clamp(reflectionDesc.temporalWeight(), 0f, 0.98f);
+            reflectionsPlanarStrength = clamp(reflectionDesc.planarStrength(), 0f, 1.0f);
+            if (qualityTier == QualityTier.LOW) {
+                reflectionsEnabled = false;
+            } else if (qualityTier == QualityTier.MEDIUM) {
+                reflectionsSsrStrength *= 0.85f;
+                reflectionsSsrStepScale = Math.min(3.0f, reflectionsSsrStepScale * 1.15f);
+                reflectionsPlanarStrength *= 0.9f;
+            }
+        }
         return new PostProcessRenderConfig(
                 desc.tonemapEnabled(),
                 exposure,
@@ -834,7 +907,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 taaClipScale,
                 taaLumaClipEnabled,
                 taaSharpenStrength,
-                taaRenderScale
+                taaRenderScale,
+                reflectionsEnabled,
+                reflectionsMode.ordinal(),
+                reflectionsSsrStrength,
+                reflectionsSsrMaxRoughness,
+                reflectionsSsrStepScale,
+                reflectionsTemporalWeight,
+                reflectionsPlanarStrength
         );
     }
 
@@ -902,12 +982,31 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 taaClipScale,
                 taaLumaClip,
                 taaSharpen,
-                taaRenderScale
+                taaRenderScale,
+                base.reflectionsEnabled(),
+                base.reflectionsMode(),
+                base.reflectionsSsrStrength(),
+                base.reflectionsSsrMaxRoughness(),
+                base.reflectionsSsrStepScale(),
+                base.reflectionsTemporalWeight(),
+                base.reflectionsPlanarStrength()
         );
     }
 
     private static float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static ReflectionMode parseReflectionMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return ReflectionMode.IBL_ONLY;
+        }
+        return switch (raw.trim().toLowerCase()) {
+            case "ssr" -> ReflectionMode.SSR;
+            case "planar" -> ReflectionMode.PLANAR;
+            case "hybrid" -> ReflectionMode.HYBRID;
+            default -> ReflectionMode.IBL_ONLY;
+        };
     }
 
     private AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {

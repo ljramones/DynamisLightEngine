@@ -490,7 +490,14 @@ final class VulkanContext {
             float taaClipScale,
             boolean taaLumaClipEnabled,
             float taaSharpenStrength,
-            float taaRenderScale
+            float taaRenderScale,
+            boolean reflectionsEnabled,
+            int reflectionsMode,
+            float reflectionsSsrStrength,
+            float reflectionsSsrMaxRoughness,
+            float reflectionsSsrStepScale,
+            float reflectionsTemporalWeight,
+            float reflectionsPlanarStrength
     ) {
         var result = VulkanRenderParameterMutator.applyPost(
                 new VulkanRenderParameterMutator.PostState(
@@ -512,7 +519,14 @@ final class VulkanContext {
                         this.renderState.taaClipScale,
                         this.renderState.taaRenderScale,
                         this.renderState.taaLumaClipEnabled,
-                        this.renderState.taaSharpenStrength
+                        this.renderState.taaSharpenStrength,
+                        this.renderState.reflectionsEnabled,
+                        this.renderState.reflectionsMode,
+                        this.renderState.reflectionsSsrStrength,
+                        this.renderState.reflectionsSsrMaxRoughness,
+                        this.renderState.reflectionsSsrStepScale,
+                        this.renderState.reflectionsTemporalWeight,
+                        this.renderState.reflectionsPlanarStrength
                 ),
                 new VulkanRenderParameterMutator.PostUpdate(
                         tonemapEnabled,
@@ -533,7 +547,14 @@ final class VulkanContext {
                         taaClipScale,
                         taaRenderScale,
                         taaLumaClipEnabled,
-                        taaSharpenStrength
+                        taaSharpenStrength,
+                        reflectionsEnabled,
+                        reflectionsMode,
+                        reflectionsSsrStrength,
+                        reflectionsSsrMaxRoughness,
+                        reflectionsSsrStepScale,
+                        reflectionsTemporalWeight,
+                        reflectionsPlanarStrength
                 )
         );
         var state = result.state();
@@ -556,6 +577,13 @@ final class VulkanContext {
         this.renderState.taaRenderScale = state.taaRenderScale();
         this.renderState.taaLumaClipEnabled = state.taaLumaClipEnabled();
         this.renderState.taaSharpenStrength = state.taaSharpenStrength();
+        this.renderState.reflectionsEnabled = state.reflectionsEnabled();
+        this.renderState.reflectionsMode = state.reflectionsMode();
+        this.renderState.reflectionsSsrStrength = state.reflectionsSsrStrength();
+        this.renderState.reflectionsSsrMaxRoughness = state.reflectionsSsrMaxRoughness();
+        this.renderState.reflectionsSsrStepScale = state.reflectionsSsrStepScale();
+        this.renderState.reflectionsTemporalWeight = state.reflectionsTemporalWeight();
+        this.renderState.reflectionsPlanarStrength = state.reflectionsPlanarStrength();
         if (!this.renderState.taaEnabled) {
             this.renderState.postTaaHistoryInitialized = false;
             resetTemporalJitterState();
@@ -827,6 +855,13 @@ final class VulkanContext {
                         renderState.taaRenderScale,
                         renderState.taaLumaClipEnabled,
                         renderState.taaSharpenStrength,
+                        renderState.reflectionsEnabled,
+                        renderState.reflectionsMode,
+                        renderState.reflectionsSsrStrength,
+                        renderState.reflectionsSsrMaxRoughness,
+                        renderState.reflectionsSsrStepScale,
+                        renderState.reflectionsTemporalWeight,
+                        renderState.reflectionsPlanarStrength,
                         renderState.taaDebugView,
                         backendResources.postRenderPass,
                         backendResources.postGraphicsPipeline,

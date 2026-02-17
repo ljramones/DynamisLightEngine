@@ -9,6 +9,7 @@ import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
+import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 
@@ -27,7 +28,7 @@ final class VulkanEngineRuntimeLightingMapper {
             VulkanEngineRuntime.TsrControls tsrControls
     ) {
         if (desc == null || !desc.enabled()) {
-            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f);
+            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -201,6 +202,30 @@ final class VulkanEngineRuntimeLightingMapper {
             taaSharpenStrength = Math.max(0f, Math.min(0.35f, aa.sharpenStrength()));
             taaRenderScale = Math.max(0.5f, Math.min(1.0f, aa.renderScale()));
         }
+        ReflectionDesc reflectionDesc = desc.reflections();
+        boolean reflectionsEnabled = false;
+        int reflectionsMode = 0;
+        float reflectionsSsrStrength = 0.6f;
+        float reflectionsSsrMaxRoughness = 0.78f;
+        float reflectionsSsrStepScale = 1.0f;
+        float reflectionsTemporalWeight = 0.80f;
+        float reflectionsPlanarStrength = 0.35f;
+        if (reflectionDesc != null) {
+            reflectionsMode = parseReflectionMode(reflectionDesc.mode());
+            reflectionsEnabled = reflectionDesc.enabled() && reflectionsMode != 0;
+            reflectionsSsrStrength = Math.max(0f, Math.min(1.0f, reflectionDesc.ssrStrength()));
+            reflectionsSsrMaxRoughness = Math.max(0f, Math.min(1.0f, reflectionDesc.ssrMaxRoughness()));
+            reflectionsSsrStepScale = Math.max(0.5f, Math.min(3.0f, reflectionDesc.ssrStepScale()));
+            reflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, reflectionDesc.temporalWeight()));
+            reflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, reflectionDesc.planarStrength()));
+            if (qualityTier == QualityTier.LOW) {
+                reflectionsEnabled = false;
+            } else if (qualityTier == QualityTier.MEDIUM) {
+                reflectionsSsrStrength *= 0.85f;
+                reflectionsSsrStepScale = Math.min(3.0f, reflectionsSsrStepScale * 1.15f);
+                reflectionsPlanarStrength *= 0.9f;
+            }
+        }
         return new VulkanEngineRuntime.PostProcessRenderConfig(
                 desc.tonemapEnabled(),
                 exposure,
@@ -220,12 +245,31 @@ final class VulkanEngineRuntimeLightingMapper {
                 taaClipScale,
                 taaLumaClipEnabled,
                 taaSharpenStrength,
-                taaRenderScale
+                taaRenderScale,
+                reflectionsEnabled,
+                reflectionsMode,
+                reflectionsSsrStrength,
+                reflectionsSsrMaxRoughness,
+                reflectionsSsrStepScale,
+                reflectionsTemporalWeight,
+                reflectionsPlanarStrength
         );
     }
 
     private static float clamp01(float value) {
         return Math.max(0f, Math.min(1f, value));
+    }
+
+    private static int parseReflectionMode(String rawMode) {
+        if (rawMode == null || rawMode.isBlank()) {
+            return 0;
+        }
+        return switch (rawMode.trim().toLowerCase()) {
+            case "ssr" -> 1;
+            case "planar" -> 2;
+            case "hybrid" -> 3;
+            default -> 0;
+        };
     }
 
     static VulkanEngineRuntime.LightingConfig mapLighting(List<LightDesc> lights) {

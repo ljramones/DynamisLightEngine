@@ -33,6 +33,7 @@ import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
@@ -231,6 +232,18 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertFalse(frame.warnings().stream().anyMatch(w -> "BLOOM_NOT_IMPLEMENTED".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionsEnabledEmitsBaselineWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
         runtime.shutdown();
     }
 
@@ -1300,6 +1313,44 @@ class VulkanEngineRuntimeIntegrationTest {
                 bloomEnabled,
                 1.0f,
                 0.8f
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor validReflectionsScene(String mode) {
+        SceneDescriptor base = validScene();
+        PostProcessDesc post = new PostProcessDesc(
+                true,
+                true,
+                1.05f,
+                2.2f,
+                true,
+                1.0f,
+                0.8f,
+                true,
+                0.42f,
+                1.0f,
+                0.02f,
+                1.0f,
+                true,
+                0.52f,
+                true,
+                0.56f,
+                true,
+                null,
+                new ReflectionDesc(true, mode, 0.72f, 0.80f, 1.2f, 0.82f, 0.42f)
         );
         return new SceneDescriptor(
                 base.sceneName(),

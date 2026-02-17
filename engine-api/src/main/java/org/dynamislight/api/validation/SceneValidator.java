@@ -13,6 +13,7 @@ import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
+import org.dynamislight.api.scene.ReflectionDesc;
 
 /**
  * Validator for runtime scene descriptors.
@@ -114,6 +115,32 @@ public final class SceneValidator {
                 }
                 if (aa.debugView() < 0 || aa.debugView() > 5) {
                     throw invalid("postProcess.antiAliasing debugView must be in [0,5]");
+                }
+            }
+            ReflectionDesc reflections = scene.postProcess().reflections();
+            if (reflections != null) {
+                String mode = reflections.mode() == null ? "" : reflections.mode().trim().toLowerCase();
+                if (!mode.isEmpty()
+                        && !mode.equals("ibl_only")
+                        && !mode.equals("ssr")
+                        && !mode.equals("planar")
+                        && !mode.equals("hybrid")) {
+                    throw invalid("postProcess.reflections mode must be one of ibl_only|ssr|planar|hybrid");
+                }
+                if (reflections.ssrStrength() < 0f || reflections.ssrStrength() > 1f) {
+                    throw invalid("postProcess.reflections ssrStrength must be in [0,1]");
+                }
+                if (reflections.ssrMaxRoughness() < 0f || reflections.ssrMaxRoughness() > 1f) {
+                    throw invalid("postProcess.reflections ssrMaxRoughness must be in [0,1]");
+                }
+                if (reflections.ssrStepScale() < 0.5f || reflections.ssrStepScale() > 3f) {
+                    throw invalid("postProcess.reflections ssrStepScale must be in [0.5,3]");
+                }
+                if (reflections.temporalWeight() < 0f || reflections.temporalWeight() > 0.98f) {
+                    throw invalid("postProcess.reflections temporalWeight must be in [0,0.98]");
+                }
+                if (reflections.planarStrength() < 0f || reflections.planarStrength() > 1f) {
+                    throw invalid("postProcess.reflections planarStrength must be in [0,1]");
                 }
             }
         }

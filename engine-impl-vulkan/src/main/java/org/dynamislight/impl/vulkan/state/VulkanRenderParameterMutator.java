@@ -108,6 +108,13 @@ public final class VulkanRenderParameterMutator {
         float taaRenderScale = current.taaRenderScale();
         boolean taaLumaClipEnabled = current.taaLumaClipEnabled();
         float taaSharpenStrength = current.taaSharpenStrength();
+        boolean reflectionsEnabled = current.reflectionsEnabled();
+        int reflectionsMode = current.reflectionsMode();
+        float reflectionsSsrStrength = current.reflectionsSsrStrength();
+        float reflectionsSsrMaxRoughness = current.reflectionsSsrMaxRoughness();
+        float reflectionsSsrStepScale = current.reflectionsSsrStepScale();
+        float reflectionsTemporalWeight = current.reflectionsTemporalWeight();
+        float reflectionsPlanarStrength = current.reflectionsPlanarStrength();
 
         if (tonemapEnabled != update.tonemapEnabled()) {
             tonemapEnabled = update.tonemapEnabled();
@@ -188,11 +195,39 @@ public final class VulkanRenderParameterMutator {
             taaSharpenStrength = clampedTaaSharpenStrength;
             changed = true;
         }
+        if (reflectionsEnabled != update.reflectionsEnabled()) {
+            reflectionsEnabled = update.reflectionsEnabled();
+            changed = true;
+        }
+        int clampedReflectionsMode = Math.max(0, Math.min(3, update.reflectionsMode()));
+        if (reflectionsMode != clampedReflectionsMode) {
+            reflectionsMode = clampedReflectionsMode;
+            changed = true;
+        }
+        float clampedReflectionsSsrStrength = Math.max(0f, Math.min(1.0f, update.reflectionsSsrStrength()));
+        float clampedReflectionsSsrMaxRoughness = Math.max(0f, Math.min(1.0f, update.reflectionsSsrMaxRoughness()));
+        float clampedReflectionsSsrStepScale = Math.max(0.5f, Math.min(3.0f, update.reflectionsSsrStepScale()));
+        float clampedReflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, update.reflectionsTemporalWeight()));
+        float clampedReflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, update.reflectionsPlanarStrength()));
+        if (!floatEquals(reflectionsSsrStrength, clampedReflectionsSsrStrength)
+                || !floatEquals(reflectionsSsrMaxRoughness, clampedReflectionsSsrMaxRoughness)
+                || !floatEquals(reflectionsSsrStepScale, clampedReflectionsSsrStepScale)
+                || !floatEquals(reflectionsTemporalWeight, clampedReflectionsTemporalWeight)
+                || !floatEquals(reflectionsPlanarStrength, clampedReflectionsPlanarStrength)) {
+            reflectionsSsrStrength = clampedReflectionsSsrStrength;
+            reflectionsSsrMaxRoughness = clampedReflectionsSsrMaxRoughness;
+            reflectionsSsrStepScale = clampedReflectionsSsrStepScale;
+            reflectionsTemporalWeight = clampedReflectionsTemporalWeight;
+            reflectionsPlanarStrength = clampedReflectionsPlanarStrength;
+            changed = true;
+        }
         return new PostResult(
                 new PostState(
                         tonemapEnabled, exposure, gamma, bloomEnabled, bloomThreshold, bloomStrength,
                         ssaoEnabled, ssaoStrength, ssaoRadius, ssaoBias, ssaoPower,
-                        smaaEnabled, smaaStrength, taaEnabled, taaBlend, taaClipScale, taaRenderScale, taaLumaClipEnabled, taaSharpenStrength
+                        smaaEnabled, smaaStrength, taaEnabled, taaBlend, taaClipScale, taaRenderScale, taaLumaClipEnabled, taaSharpenStrength,
+                        reflectionsEnabled, reflectionsMode, reflectionsSsrStrength, reflectionsSsrMaxRoughness,
+                        reflectionsSsrStepScale, reflectionsTemporalWeight, reflectionsPlanarStrength
                 ),
                 changed
         );
@@ -267,7 +302,14 @@ public final class VulkanRenderParameterMutator {
             float taaClipScale,
             float taaRenderScale,
             boolean taaLumaClipEnabled,
-            float taaSharpenStrength
+            float taaSharpenStrength,
+            boolean reflectionsEnabled,
+            int reflectionsMode,
+            float reflectionsSsrStrength,
+            float reflectionsSsrMaxRoughness,
+            float reflectionsSsrStepScale,
+            float reflectionsTemporalWeight,
+            float reflectionsPlanarStrength
     ) {
     }
 
@@ -290,7 +332,14 @@ public final class VulkanRenderParameterMutator {
             float taaClipScale,
             float taaRenderScale,
             boolean taaLumaClipEnabled,
-            float taaSharpenStrength
+            float taaSharpenStrength,
+            boolean reflectionsEnabled,
+            int reflectionsMode,
+            float reflectionsSsrStrength,
+            float reflectionsSsrMaxRoughness,
+            float reflectionsSsrStepScale,
+            float reflectionsTemporalWeight,
+            float reflectionsPlanarStrength
     ) {
     }
 

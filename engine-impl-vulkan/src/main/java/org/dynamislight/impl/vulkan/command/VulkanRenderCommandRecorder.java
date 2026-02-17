@@ -397,7 +397,7 @@ public final class VulkanRenderCommandRecorder {
                 stack.longs(in.postDescriptorSet()),
                 null
         );
-        ByteBuffer postPush = stack.malloc(24 * Float.BYTES);
+        ByteBuffer postPush = stack.malloc(32 * Float.BYTES);
         postPush.asFloatBuffer().put(new float[]{
                 in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), in.ssaoEnabled() ? 1f : 0f,
                 in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength(),
@@ -407,6 +407,8 @@ public final class VulkanRenderCommandRecorder {
                 (in.taaLumaClipEnabled() ? 1f : 0f) + in.taaSharpenStrength(),
                 in.taaClipScale(),
                 in.taaEnabled() ? 1f : 0f, in.taaBlend(), in.taaHistoryInitialized() ? 1f : 0f, (float) in.taaDebugView()
+                , in.reflectionsEnabled() ? 1f : 0f, (float) in.reflectionsMode(), in.reflectionsSsrStrength(), in.reflectionsSsrMaxRoughness()
+                , in.reflectionsSsrStepScale(), in.reflectionsTemporalWeight(), in.reflectionsPlanarStrength(), 0f
         });
         vkCmdPushConstants(commandBuffer, in.postPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -692,6 +694,13 @@ public final class VulkanRenderCommandRecorder {
             float taaRenderScale,
             boolean taaLumaClipEnabled,
             float taaSharpenStrength,
+            boolean reflectionsEnabled,
+            int reflectionsMode,
+            float reflectionsSsrStrength,
+            float reflectionsSsrMaxRoughness,
+            float reflectionsSsrStepScale,
+            float reflectionsTemporalWeight,
+            float reflectionsPlanarStrength,
             int taaDebugView,
             long postRenderPass,
             long postGraphicsPipeline,

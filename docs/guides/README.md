@@ -16,6 +16,7 @@ Current guides:
 - `fog-smoke-guide.md` - fog/smoke setup and stress-validation workflows.
 - `post-process-guide.md` - tonemap/bloom/SSAO/SMAA and post-chain tuning.
 - `environment-ibl-guide.md` - ambient/skybox/IBL setup and verification.
+- `reflections-guide.md` - reflection mode setup (`ssr`/`planar`/`hybrid`) and tuning.
 - `resources-hot-reload-guide.md` - runtime resource lifecycle and hot-reload usage.
 - `runtime-events-errors-guide.md` - lifecycle, callback events, and error-handling guidance.
 - `input-frame-loop-guide.md` - host input/update/render loop guidance and validation.
