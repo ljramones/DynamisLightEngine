@@ -58,8 +58,12 @@ final class VulkanEngineRuntimeSceneMapper {
         return VulkanEngineRuntimeCameraMath.selectActiveCamera(scene);
     }
 
-    static VulkanEngineRuntime.LightingConfig mapLighting(List<LightDesc> lights, QualityTier qualityTier) {
-        return VulkanEngineRuntimeLightingMapper.mapLighting(lights, qualityTier);
+    static VulkanEngineRuntime.LightingConfig mapLighting(
+            List<LightDesc> lights,
+            QualityTier qualityTier,
+            int shadowMaxLocalLayers
+    ) {
+        return VulkanEngineRuntimeLightingMapper.mapLighting(lights, qualityTier, shadowMaxLocalLayers);
     }
 
     static boolean hasNonDirectionalShadowRequest(List<LightDesc> lights) {
@@ -71,9 +75,19 @@ final class VulkanEngineRuntimeSceneMapper {
             QualityTier qualityTier,
             String shadowFilterPath,
             boolean shadowContactShadows,
-            String shadowRtMode
+            String shadowRtMode,
+            int shadowMaxLocalLayers,
+            int shadowMaxFacesPerFrame
     ) {
-        return VulkanEngineRuntimeLightingMapper.mapShadows(lights, qualityTier, shadowFilterPath, shadowContactShadows, shadowRtMode);
+        return VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights,
+                qualityTier,
+                shadowFilterPath,
+                shadowContactShadows,
+                shadowRtMode,
+                shadowMaxLocalLayers,
+                shadowMaxFacesPerFrame
+        );
     }
 
     static VulkanEngineRuntime.FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {

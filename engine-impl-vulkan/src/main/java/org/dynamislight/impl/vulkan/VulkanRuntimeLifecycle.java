@@ -58,20 +58,28 @@ final class VulkanRuntimeLifecycle {
             VulkanEngineRuntime.ReflectionProfile reflectionProfile,
             String shadowFilterPath,
             boolean shadowContactShadows,
-            String shadowRtMode
+            String shadowRtMode,
+            int shadowMaxLocalLayers,
+            int shadowMaxFacesPerFrame
     ) {
         var camera = VulkanEngineRuntimeSceneMapper.selectActiveCamera(scene);
         var cameraMatrices = VulkanEngineRuntimeSceneMapper.cameraMatricesFor(
                 camera,
                 VulkanEngineRuntimeSceneMapper.safeAspect(viewportWidth, viewportHeight)
         );
-        var lighting = VulkanEngineRuntimeSceneMapper.mapLighting(scene == null ? null : scene.lights(), qualityTier);
+        var lighting = VulkanEngineRuntimeSceneMapper.mapLighting(
+                scene == null ? null : scene.lights(),
+                qualityTier,
+                shadowMaxLocalLayers
+        );
         var shadows = VulkanEngineRuntimeSceneMapper.mapShadows(
                 scene == null ? null : scene.lights(),
                 qualityTier,
                 shadowFilterPath,
                 shadowContactShadows,
-                shadowRtMode
+                shadowRtMode,
+                shadowMaxLocalLayers,
+                shadowMaxFacesPerFrame
         );
         var fog = VulkanEngineRuntimeSceneMapper.mapFog(scene == null ? null : scene.fog(), qualityTier);
         var smoke = VulkanEngineRuntimeSceneMapper.mapSmoke(scene == null ? null : scene.smokeEmitters(), qualityTier);

@@ -81,6 +81,13 @@ DLE_COMPARE_VULKAN_SHADOW_DEPTH_FORMAT=d32 \
 ./scripts/aa_rebaseline_real_mac.sh
 ```
 
+Scheduler override check (real Vulkan):
+```bash
+DLE_COMPARE_VULKAN_MODE=real \
+DLE_COMPARE_EXTRA_MVN_ARGS="-Dvulkan.shadow.maxLocalShadowLayers=12 -Dvulkan.shadow.maxShadowFacesPerFrame=6" \
+./scripts/aa_rebaseline_real_mac.sh
+```
+
 Long-run motion/shimmer sweep (real Vulkan):
 ```bash
 ./scripts/aa_longrun_motion_sampling_mac.sh
@@ -104,6 +111,9 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Verify current tier cap behavior explicitly:
   - `HIGH` should cap to `1` rendered point cubemap (`6` shadow passes).
   - `ULTRA` should cap to `2` rendered point cubemaps (`12` shadow passes).
+- Verify scheduler override behavior:
+  - `HIGH` with `vulkan.shadow.maxLocalShadowLayers=12` can render `2` point cubemaps.
+  - `vulkan.shadow.maxShadowFacesPerFrame=6` caps point shadow passes to one cubemap.
 
 ## 6. Known Gaps
 - Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.

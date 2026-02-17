@@ -138,6 +138,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private String shadowFilterPath = "pcf";
     private boolean shadowContactShadows;
     private String shadowRtMode = "off";
+    private int shadowMaxLocalLayers;
+    private int shadowMaxFacesPerFrame;
 
     public VulkanEngineRuntime() {
         super(
@@ -182,6 +184,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowFilterPath = options.shadowFilterPath();
         shadowContactShadows = options.shadowContactShadows();
         shadowRtMode = options.shadowRtMode();
+        shadowMaxLocalLayers = options.shadowMaxLocalLayers();
+        shadowMaxFacesPerFrame = options.shadowMaxFacesPerFrame();
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -225,7 +229,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionProfile,
                 shadowFilterPath,
                 shadowContactShadows,
-                shadowRtMode
+                shadowRtMode,
+                shadowMaxLocalLayers,
+                shadowMaxFacesPerFrame
         );
         currentFog = sceneState.fog();
         currentSmoke = sceneState.smoke();
@@ -361,6 +367,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
                             + " renderedSpotShadows=" + currentShadows.renderedSpotShadowLights()
                             + " renderedPointShadowCubemaps=" + currentShadows.renderedPointShadowCubemaps()
+                            + " maxLocalShadowLayersConfigured=" + (shadowMaxLocalLayers > 0 ? Integer.toString(shadowMaxLocalLayers) : "auto")
+                            + " maxShadowFacesPerFrameConfigured=" + (shadowMaxFacesPerFrame > 0 ? Integer.toString(shadowMaxFacesPerFrame) : "auto")
                             + " filterPath=" + currentShadows.filterPath()
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()

@@ -37,7 +37,9 @@ final class VulkanRuntimeOptions {
                 parseIntOption(safe, "vulkan.taaDebugView", 0, 0, 5),
                 parseShadowFilterPath(safe.get("vulkan.shadow.filterPath")),
                 parseBoolean(safe, "vulkan.shadow.contactShadows", false),
-                parseShadowRtMode(safe.get("vulkan.shadow.rtMode"))
+                parseShadowRtMode(safe.get("vulkan.shadow.rtMode")),
+                parseIntOption(safe, "vulkan.shadow.maxLocalShadowLayers", 0, 0, 12),
+                parseIntOption(safe, "vulkan.shadow.maxShadowFacesPerFrame", 0, 0, 12)
         );
     }
 
@@ -136,7 +138,9 @@ final class VulkanRuntimeOptions {
             int taaDebugView,
             String shadowFilterPath,
             boolean shadowContactShadows,
-            String shadowRtMode
+            String shadowRtMode,
+            int shadowMaxLocalLayers,
+            int shadowMaxFacesPerFrame
     ) {
     }
 }

@@ -8,6 +8,7 @@ This roadmap tracks the current targeted execution lanes for rendering and runti
 Related roadmap:
 - `docs/mechanical-sympathy-gpu-driven-roadmap-2026.md` (Valhalla-oriented layout, GPU-driven rendering, Vulkan descriptor-model modernization, Dynamic GI/DDGI)
 - `docs/superset-rendering-roadmap-2026.md` (cross-engine superset target and phased execution plan)
+- `docs/shadow-production-execution-plan-2026.md` (production shadow scheduler + VSM/EVSM/PCSS/contact/RT execution plan)
 
 ## Guiding Constraints
 - Keep `engine-api` additive and stable.
@@ -79,9 +80,14 @@ Implemented now:
 - Shadow telemetry now includes memory/update-byte estimates (`atlasMemoryD16Bytes`, `atlasMemoryD32Bytes`, `shadowUpdateBytesEstimate`) for CI budget checks.
 - Vulkan compare workflow now supports depth-format toggles via `dle.vulkan.shadow.depthFormat` (`d16`/`d32`) for divergence validation.
 - OpenGL local spot shadows now run through a per-light atlas sampling path with cadence-aware slot updates (`hero:1`, `mid:2`, `distant:4`) and cache invalidation hooks.
+- Vulkan now renders multi-local spot shadow layers and tier-bounded point cubemap concurrency (`HIGH`: 1, `ULTRA`: 2) with explicit policy counters.
+- Vulkan scheduler overrides are now wired for execution-phase validation:
+  - `vulkan.shadow.maxLocalShadowLayers`
+  - `vulkan.shadow.maxShadowFacesPerFrame`
 
 Still in progress:
-- Full per-light local shadow atlas rendering/sampling path (current runtime still renders primary local shadow path).
+- Full production multi-point cubemap scalability beyond current matrix/layer bounds.
+- True production VSM/EVSM/PCSS/contact/RT shadow pipelines.
 
 ## Phase C: Runtime Hardening and Scalability
 Status: In progress.

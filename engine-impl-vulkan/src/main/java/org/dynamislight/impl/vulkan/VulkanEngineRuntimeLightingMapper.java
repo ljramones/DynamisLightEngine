@@ -18,6 +18,8 @@ import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.impl.common.shadow.ShadowAtlasPlanner;
 
 final class VulkanEngineRuntimeLightingMapper {
+    private static final int VULKAN_MAX_SHADOW_MATRICES = 12;
+
     private VulkanEngineRuntimeLightingMapper() {
     }
 
@@ -349,7 +351,11 @@ final class VulkanEngineRuntimeLightingMapper {
         return packed;
     }
 
-    static VulkanEngineRuntime.LightingConfig mapLighting(List<LightDesc> lights, QualityTier qualityTier) {
+    static VulkanEngineRuntime.LightingConfig mapLighting(
+            List<LightDesc> lights,
+            QualityTier qualityTier,
+            int shadowMaxLocalLayers
+    ) {
         float[] dir = new float[]{0.35f, -1.0f, 0.25f};
         float[] dirColor = new float[]{1.0f, 0.98f, 0.95f};
         float dirIntensity = 1.0f;
@@ -414,12 +420,15 @@ final class VulkanEngineRuntimeLightingMapper {
                 case HIGH -> 3;
                 case ULTRA -> 4;
             };
-            int maxShadowLayers = switch (qualityTier) {
+            int tierShadowLayers = switch (qualityTier) {
                 case LOW -> 4;
                 case MEDIUM -> 6;
                 case HIGH -> 8;
                 case ULTRA -> 12;
             };
+            int maxShadowLayers = shadowMaxLocalLayers > 0
+                    ? Math.min(VULKAN_MAX_SHADOW_MATRICES, shadowMaxLocalLayers)
+                    : tierShadowLayers;
             int assignedShadowLights = 0;
             int assignedShadowLayers = 0;
             for (int i = 0; i < localLightCount; i++) {
@@ -537,7 +546,9 @@ final class VulkanEngineRuntimeLightingMapper {
             QualityTier qualityTier,
             String shadowFilterPath,
             boolean shadowContactShadows,
-            String shadowRtMode
+            String shadowRtMode,
+            int shadowMaxLocalLayers,
+            int shadowMaxFacesPerFrame
     ) {
         String filterPath = shadowFilterPath == null || shadowFilterPath.isBlank() ? "pcf" : shadowFilterPath.trim().toLowerCase(java.util.Locale.ROOT);
         String rtMode = shadowRtMode == null || shadowRtMode.isBlank() ? "off" : shadowRtMode.trim().toLowerCase(java.util.Locale.ROOT);
@@ -550,12 +561,15 @@ final class VulkanEngineRuntimeLightingMapper {
             case HIGH -> 3;
             case ULTRA -> 4;
         };
-        int maxShadowLayers = switch (qualityTier) {
+        int tierShadowLayers = switch (qualityTier) {
             case LOW -> 4;
             case MEDIUM -> 6;
             case HIGH -> 8;
             case ULTRA -> 12;
         };
+        int maxShadowLayers = shadowMaxLocalLayers > 0
+                ? Math.min(VULKAN_MAX_SHADOW_MATRICES, shadowMaxLocalLayers)
+                : tierShadowLayers;
         List<LightDesc> localShadowCandidates = new ArrayList<>();
         LightDesc primaryDirectional = null;
         LightDesc bestLocal = null;
@@ -596,11 +610,21 @@ final class VulkanEngineRuntimeLightingMapper {
         ShadowDesc shadow = primary.shadow();
         int kernel = shadow == null ? 3 : Math.max(1, shadow.pcfKernelSize());
         int cascades = shadow == null ? 1 : Math.max(1, shadow.cascadeCount());
+        int faceBudget = shadowMaxFacesPerFrame > 0
+                ? Math.min(VULKAN_MAX_SHADOW_MATRICES, shadowMaxFacesPerFrame)
+                : 0;
         if (type == LightType.SPOT) {
             cascades = Math.max(1, Math.min(4, selectedSpotShadowLights));
+            if (faceBudget > 0) {
+                cascades = Math.max(1, Math.min(cascades, faceBudget));
+            }
         } else if (type == LightType.POINT) {
             int maxPointCubemaps = Math.max(1, maxShadowLayers / 6);
             cascades = 6 * Math.max(1, Math.min(maxPointCubemaps, selectedPointShadowLights));
+            if (faceBudget > 0) {
+                int normalizedFaceBudget = Math.max(6, (faceBudget / 6) * 6);
+                cascades = Math.max(6, Math.min(cascades, normalizedFaceBudget));
+            }
         }
         int requestedResolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));
         float typeResolutionScale = switch (type) {
@@ -657,6 +681,10 @@ final class VulkanEngineRuntimeLightingMapper {
         int radius = Math.max(0, (kernelClamped - 1) / 2);
         int maxPointCubemaps = Math.max(1, maxShadowLayers / 6);
         int maxPointCascades = maxPointCubemaps * 6;
+        if (type == LightType.POINT && faceBudget > 0) {
+            int normalizedFaceBudget = Math.max(6, (faceBudget / 6) * 6);
+            maxPointCascades = Math.min(maxPointCascades, normalizedFaceBudget);
+        }
         int maxCascades = switch (qualityTier) {
             case LOW -> type == LightType.POINT ? maxPointCascades : 1;
             case MEDIUM -> type == LightType.POINT ? maxPointCascades : 2;
