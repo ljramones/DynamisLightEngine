@@ -143,6 +143,8 @@ Scheduler behavior notes:
 - Runtime warning telemetry includes:
   - `shadowSchedulerFrameTick`
   - `renderedShadowLightIds`
+  - `deferredShadowLightCount`
+  - `deferredShadowLightIds`
 
 Current default local shadow budgets by tier:
 - `LOW`: 1 local shadow light

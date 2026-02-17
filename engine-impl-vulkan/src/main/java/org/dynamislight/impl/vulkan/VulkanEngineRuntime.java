@@ -121,6 +121,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             0L, 0L, 0L,
             0, 0, 0,
             "",
+            0,
+            "",
             "pcf", false, "off", false,
             false
     );
@@ -453,6 +455,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " schedulerPeriodDistant=" + shadowSchedulerDistantPeriod
                             + " shadowSchedulerFrameTick=" + shadowSchedulerFrameTick
                             + " renderedShadowLightIds=" + currentShadows.renderedShadowLightIdsCsv()
+                            + " deferredShadowLightCount=" + currentShadows.deferredShadowLightCount()
+                            + " deferredShadowLightIds=" + currentShadows.deferredShadowLightIdsCsv()
                             + " filterPath=" + currentShadows.filterPath()
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()
@@ -780,6 +784,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int renderedSpotShadowLights,
             int renderedPointShadowCubemaps,
             String renderedShadowLightIdsCsv,
+            int deferredShadowLightCount,
+            String deferredShadowLightIdsCsv,
             String filterPath,
             boolean contactShadowsRequested,
             String rtShadowMode,

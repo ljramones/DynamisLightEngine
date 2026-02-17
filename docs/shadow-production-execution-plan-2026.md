@@ -30,6 +30,7 @@ Implemented now:
   - `vulkan.shadow.scheduler.distantPeriod`
   - warning telemetry: `shadowSchedulerFrameTick`
   - per-light age/priority ordering backed by runtime `renderedShadowLightIds` tracking
+  - scheduler backlog telemetry: `deferredShadowLightCount`, `deferredShadowLightIds`
 
 Still pending:
 - full production multi-point cubemap scalability (beyond current matrix/layer bounds)

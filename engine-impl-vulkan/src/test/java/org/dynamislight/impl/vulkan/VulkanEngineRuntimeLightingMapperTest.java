@@ -160,5 +160,7 @@ class VulkanEngineRuntimeLightingMapperTest {
         );
 
         assertTrue(cadenceOff.renderedLocalShadowLights() >= cadenceOn.renderedLocalShadowLights());
+        assertTrue(cadenceOn.deferredShadowLightCount() >= 1);
+        assertFalse(cadenceOn.deferredShadowLightIdsCsv().isBlank());
     }
 }
