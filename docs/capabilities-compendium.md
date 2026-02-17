@@ -149,6 +149,7 @@ OpenGL backend provides a real forward render baseline:
   - accepted values: `performance`, `balanced`, `quality`, `stability`
 - Native external upscaler bridge path is supported (optional):
   - backend options: `<backend>.upscaler.nativeEnabled`, `<backend>.upscaler.bridgeClass`, `<backend>.upscaler.bridgeLibrary`
+  - vendor readiness gating: `<backend>.upscaler.vendor.fsr.library`, `<backend>.upscaler.vendor.xess.library`, `<backend>.upscaler.vendor.dlss.library` (plus `dle.upscaler.vendor.*` fallbacks)
   - when active, runtime emits `UPSCALER_NATIVE_ACTIVE`; otherwise `UPSCALER_NATIVE_INACTIVE` explains fallback reason.
 
 ### OpenGL limitations (current)

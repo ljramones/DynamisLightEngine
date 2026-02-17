@@ -2,17 +2,21 @@ package org.dynamislight.impl.common.upscale;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.StringJoiner;
 
 public final class ExternalUpscalerIntegration {
     private final ExternalUpscalerBridge bridge;
     private final String providerId;
     private final String statusDetail;
+    private final Map<String, String> vendorStatus;
 
-    private ExternalUpscalerIntegration(ExternalUpscalerBridge bridge, String providerId, String statusDetail) {
+    private ExternalUpscalerIntegration(ExternalUpscalerBridge bridge, String providerId, String statusDetail, Map<String, String> vendorStatus) {
         this.bridge = bridge;
         this.providerId = providerId == null || providerId.isBlank() ? "none" : providerId;
         this.statusDetail = statusDetail == null || statusDetail.isBlank() ? "inactive" : statusDetail;
+        this.vendorStatus = vendorStatus == null ? Map.of() : Map.copyOf(vendorStatus);
     }
 
     public static ExternalUpscalerIntegration create(String backend, String optionPrefix, Map<String, String> options) {
@@ -42,14 +46,17 @@ public final class ExternalUpscalerIntegration {
             if (!initialized) {
                 return inactive("bridge initialize() returned false: " + bridgeClass);
             }
-            return new ExternalUpscalerIntegration(bridge, bridge.id(), "native bridge active");
+            Map<String, String> vendorStatus = resolveVendorStatus(safeOptions, prefix);
+            String vendorSummary = summarizeVendorStatus(vendorStatus);
+            String detail = vendorSummary == null ? "native bridge active" : ("native bridge active; " + vendorSummary);
+            return new ExternalUpscalerIntegration(bridge, bridge.id(), detail, vendorStatus);
         } catch (Throwable t) {
             return inactive("bridge load/init failure for " + bridgeClass + ": " + t.getClass().getSimpleName() + " " + safeMessage(t));
         }
     }
 
     public static ExternalUpscalerIntegration inactive(String detail) {
-        return new ExternalUpscalerIntegration(null, "none", detail);
+        return new ExternalUpscalerIntegration(null, "none", detail, Map.of());
     }
 
     public boolean active() {
@@ -73,12 +80,63 @@ public final class ExternalUpscalerIntegration {
             if (decision == null) {
                 return ExternalUpscalerBridge.Decision.inactive("bridge returned null decision");
             }
+            String mode = input == null || input.upscalerMode() == null
+                    ? ""
+                    : input.upscalerMode().trim().toLowerCase();
+            if ("fsr".equals(mode) || "xess".equals(mode) || "dlss".equals(mode)) {
+                String status = vendorStatus.get(mode);
+                if (status != null && !status.startsWith("ready")) {
+                    return ExternalUpscalerBridge.Decision.inactive(mode + " vendor unavailable: " + status);
+                }
+            }
             return decision;
         } catch (Throwable t) {
             return ExternalUpscalerBridge.Decision.inactive(
                     "bridge evaluate() failure: " + t.getClass().getSimpleName() + " " + safeMessage(t)
             );
         }
+    }
+
+    private static Map<String, String> resolveVendorStatus(Map<String, String> options, String prefix) {
+        Map<String, String> status = new HashMap<>();
+        status.put("fsr", resolveVendorLibraryStatus(options, prefix, "fsr"));
+        status.put("xess", resolveVendorLibraryStatus(options, prefix, "xess"));
+        status.put("dlss", resolveVendorLibraryStatus(options, prefix, "dlss"));
+        return status;
+    }
+
+    private static String resolveVendorLibraryStatus(Map<String, String> options, String prefix, String vendor) {
+        String configured = firstNonBlank(
+                options.get(prefix + "upscaler.vendor." + vendor + ".library"),
+                options.get("dle.upscaler.vendor." + vendor + ".library")
+        );
+        if (configured == null) {
+            return "unconfigured";
+        }
+        String trimmed = configured.trim();
+        try {
+            if (looksLikePath(trimmed)) {
+                Path p = Path.of(trimmed);
+                if (!Files.isRegularFile(p)) {
+                    return "missing path " + trimmed;
+                }
+                return "ready(path)";
+            }
+            return "ready(name)";
+        } catch (Throwable t) {
+            return "invalid config " + safeMessage(t);
+        }
+    }
+
+    private static String summarizeVendorStatus(Map<String, String> vendorStatus) {
+        if (vendorStatus == null || vendorStatus.isEmpty()) {
+            return null;
+        }
+        StringJoiner joiner = new StringJoiner(", ", "vendors[", "]");
+        joiner.add("fsr=" + vendorStatus.getOrDefault("fsr", "unknown"));
+        joiner.add("xess=" + vendorStatus.getOrDefault("xess", "unknown"));
+        joiner.add("dlss=" + vendorStatus.getOrDefault("dlss", "unknown"));
+        return joiner.toString();
     }
 
     private static void loadOptionalLibraries(String rawLibraries) {

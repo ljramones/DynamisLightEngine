@@ -184,6 +184,11 @@ Native bridge options:
 - `<backend>.upscaler.nativeEnabled=true|false`
 - `<backend>.upscaler.bridgeClass=com.example.MyUpscalerBridge`
 - `<backend>.upscaler.bridgeLibrary=/abs/path/libvendor_bridge.dylib`
+- Optional vendor SDK readiness keys (mode-gated for `fsr|xess|dlss`):
+  - `<backend>.upscaler.vendor.fsr.library=/abs/path/libfsr_sdk.dylib` (or shared-library name)
+  - `<backend>.upscaler.vendor.xess.library=/abs/path/libxess_sdk.dylib` (or shared-library name)
+  - `<backend>.upscaler.vendor.dlss.library=/abs/path/libdlss_sdk.dylib` (or shared-library name)
+  - global fallbacks also supported: `dle.upscaler.vendor.<vendor>.library`
 
 ## 7. Recommended Presets
 

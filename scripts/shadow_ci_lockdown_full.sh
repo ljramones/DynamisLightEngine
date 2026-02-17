@@ -7,11 +7,13 @@ cd "$ROOT_DIR"
 OUT_ROOT="${DLE_SHADOW_LOCKDOWN_OUTPUT_ROOT:-artifacts/compare/shadow-lockdown-$(date +%Y%m%d-%H%M%S)}"
 RUNS="${DLE_SHADOW_LOCKDOWN_RUNS:-3}"
 LOCK_MIN_RUNS="${DLE_SHADOW_LOCKDOWN_MIN_RUNS:-$RUNS}"
+PROMOTE_MODE="${DLE_SHADOW_LOCKDOWN_PROMOTE_MODE:-none}" # none|real|mock
 
 echo "Shadow lockdown full run"
 echo "  output root: $OUT_ROOT"
 echo "  runs: $RUNS"
 echo "  threshold min runs: $LOCK_MIN_RUNS"
+echo "  promote mode: $PROMOTE_MODE"
 
 mkdir -p "$OUT_ROOT"
 
@@ -38,6 +40,16 @@ DLE_SHADOW_PROD_SWEEP_LOCK_THRESHOLDS=1 \
 DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT=1 \
 DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS="$LOCK_MIN_RUNS" \
 "$ROOT_DIR/scripts/shadow_production_quality_sweeps.sh"
+
+if [[ "$PROMOTE_MODE" == "real" || "$PROMOTE_MODE" == "mock" ]]; then
+  RECOMMENDED="$OUT_ROOT/shadow-production-sweeps/threshold-lock/recommended-thresholds.properties"
+  if [[ -f "$RECOMMENDED" ]]; then
+    echo "[promote] Promoting recommended thresholds ($PROMOTE_MODE) from: $RECOMMENDED"
+    "$ROOT_DIR/scripts/promote_compare_thresholds.sh" "$RECOMMENDED" "$PROMOTE_MODE"
+  else
+    echo "[promote] No recommended thresholds found at: $RECOMMENDED (skipping)"
+  fi
+fi
 
 echo "Shadow lockdown complete."
 echo "Artifacts: $OUT_ROOT"

@@ -746,6 +746,26 @@ final class VulkanEngineRuntimeLightingMapper {
                 localShadowScore(light, shadowSchedulerLastRenderedTicks, shadowSchedulerFrameTick)).reversed());
         int selectedLocalShadowLights = Math.min(maxShadowedLocalLights, localShadowCandidates.size());
         selectedLocalShadowLights = Math.min(maxShadowedLocalLights, selectedLocalShadowLights);
+        if (selectedLocalShadowLights >= 2 && localShadowCandidates.size() > selectedLocalShadowLights) {
+            int selectedPointCount = countTypeInPrefix(localShadowCandidates, selectedLocalShadowLights, LightType.POINT);
+            int selectedSpotCount = countTypeInPrefix(localShadowCandidates, selectedLocalShadowLights, LightType.SPOT);
+            if (selectedPointCount == 0 && hasTypeBeyondPrefix(localShadowCandidates, selectedLocalShadowLights, LightType.POINT)) {
+                int outsidePoint = firstTypeIndex(localShadowCandidates, selectedLocalShadowLights, localShadowCandidates.size(), LightType.POINT);
+                int insideSpot = lastTypeIndex(localShadowCandidates, 0, selectedLocalShadowLights, LightType.SPOT);
+                if (outsidePoint >= 0 && insideSpot >= 0) {
+                    java.util.Collections.swap(localShadowCandidates, outsidePoint, insideSpot);
+                }
+            }
+            selectedPointCount = countTypeInPrefix(localShadowCandidates, selectedLocalShadowLights, LightType.POINT);
+            selectedSpotCount = countTypeInPrefix(localShadowCandidates, selectedLocalShadowLights, LightType.SPOT);
+            if (selectedSpotCount == 0 && hasTypeBeyondPrefix(localShadowCandidates, selectedLocalShadowLights, LightType.SPOT)) {
+                int outsideSpot = firstTypeIndex(localShadowCandidates, selectedLocalShadowLights, localShadowCandidates.size(), LightType.SPOT);
+                int insidePoint = lastTypeIndex(localShadowCandidates, 0, selectedLocalShadowLights, LightType.POINT);
+                if (outsideSpot >= 0 && insidePoint >= 0) {
+                    java.util.Collections.swap(localShadowCandidates, outsideSpot, insidePoint);
+                }
+            }
+        }
         int selectedSpotShadowLights = 0;
         int selectedPointShadowLights = 0;
         for (int i = 0; i < selectedLocalShadowLights; i++) {
@@ -961,6 +981,21 @@ final class VulkanEngineRuntimeLightingMapper {
         int assignedLights = 0;
         List<String> renderedIds = new ArrayList<>();
         List<String> deferredIds = new ArrayList<>();
+        boolean hasSpotCandidates = false;
+        boolean hasPointCandidates = false;
+        for (int i = 0; i < selectedLocalShadowLights && i < localShadowCandidates.size(); i++) {
+            LightDesc candidate = localShadowCandidates.get(i);
+            if (candidate == null || !candidate.castsShadows()) {
+                continue;
+            }
+            LightType type = candidate.type() == null ? LightType.DIRECTIONAL : candidate.type();
+            hasSpotCandidates = hasSpotCandidates || type == LightType.SPOT;
+            hasPointCandidates = hasPointCandidates || type == LightType.POINT;
+        }
+        boolean reserveMixedTypeParity = hasSpotCandidates
+                && hasPointCandidates
+                && maxShadowedLocalLights >= 2
+                && maxShadowLayers >= 7;
         for (int rank = 0; rank < selectedLocalShadowLights && rank < localShadowCandidates.size(); rank++) {
             LightDesc candidate = localShadowCandidates.get(rank);
             if (candidate == null || !candidate.castsShadows()) {
@@ -973,6 +1008,23 @@ final class VulkanEngineRuntimeLightingMapper {
             if (assignedLights >= maxShadowedLocalLights) {
                 deferredIds.add(shadowLightId(candidate));
                 break;
+            }
+            if (reserveMixedTypeParity && localType == LightType.SPOT
+                    && renderedPoint == 0
+                    && renderedSpot >= 1
+                    && hasRemainingPointCandidate(localShadowCandidates, selectedLocalShadowLights, rank + 1)) {
+                int spotLayerCost = 1;
+                int reservedPointLayerCost = 6;
+                int remainingLayerBudget = maxShadowLayers - (assignedLayers + spotLayerCost);
+                int remainingFaceBudget = faceBudget > 0 ? faceBudget - (assignedLayers + spotLayerCost) : Integer.MAX_VALUE;
+                int remainingLightBudget = maxShadowedLocalLights - (assignedLights + 1);
+                boolean pointWouldBeBlockedByThisSpot = remainingLayerBudget < reservedPointLayerCost
+                        || remainingFaceBudget < reservedPointLayerCost
+                        || remainingLightBudget < 1;
+                if (pointWouldBeBlockedByThisSpot) {
+                    deferredIds.add(shadowLightId(candidate));
+                    continue;
+                }
             }
             int cadencePeriod = cadencePeriodForRank(rank, heroPeriod, midPeriod, distantPeriod);
             String candidateId = shadowLightId(candidate);
@@ -1016,6 +1068,83 @@ final class VulkanEngineRuntimeLightingMapper {
                 String.join(",", deferredIds),
                 staleBypassCount
         );
+    }
+
+    private static boolean hasRemainingPointCandidate(
+            List<LightDesc> candidates,
+            int selectedLocalShadowLights,
+            int start
+    ) {
+        if (candidates == null || candidates.isEmpty()) {
+            return false;
+        }
+        for (int i = Math.max(0, start); i < selectedLocalShadowLights && i < candidates.size(); i++) {
+            LightDesc candidate = candidates.get(i);
+            if (candidate == null || !candidate.castsShadows()) {
+                continue;
+            }
+            LightType type = candidate.type() == null ? LightType.DIRECTIONAL : candidate.type();
+            if (type == LightType.POINT) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int countTypeInPrefix(List<LightDesc> lights, int prefix, LightType expectedType) {
+        if (lights == null || lights.isEmpty() || expectedType == null) {
+            return 0;
+        }
+        int count = 0;
+        for (int i = 0; i < prefix && i < lights.size(); i++) {
+            LightDesc light = lights.get(i);
+            if (light == null || !light.castsShadows()) {
+                continue;
+            }
+            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
+            if (type == expectedType) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static boolean hasTypeBeyondPrefix(List<LightDesc> lights, int prefix, LightType expectedType) {
+        return firstTypeIndex(lights, Math.max(0, prefix), lights == null ? 0 : lights.size(), expectedType) >= 0;
+    }
+
+    private static int firstTypeIndex(List<LightDesc> lights, int startInclusive, int endExclusive, LightType expectedType) {
+        if (lights == null || lights.isEmpty() || expectedType == null) {
+            return -1;
+        }
+        for (int i = Math.max(0, startInclusive); i < endExclusive && i < lights.size(); i++) {
+            LightDesc light = lights.get(i);
+            if (light == null || !light.castsShadows()) {
+                continue;
+            }
+            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
+            if (type == expectedType) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int lastTypeIndex(List<LightDesc> lights, int startInclusive, int endExclusive, LightType expectedType) {
+        if (lights == null || lights.isEmpty() || expectedType == null) {
+            return -1;
+        }
+        for (int i = Math.min(endExclusive, lights.size()) - 1; i >= Math.max(0, startInclusive); i--) {
+            LightDesc light = lights.get(i);
+            if (light == null || !light.castsShadows()) {
+                continue;
+            }
+            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
+            if (type == expectedType) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static int cadencePeriodForRank(int rank, int heroPeriod, int midPeriod, int distantPeriod) {

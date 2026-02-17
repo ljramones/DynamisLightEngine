@@ -364,4 +364,20 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertTrue(cfg.renderedShadowLightIdsCsv().contains("spotStale"));
         assertTrue(cfg.staleBypassShadowLightCount() >= 1);
     }
+
+    @Test
+    void mapShadowsMixedParityReservesPointCubemapWhenBudgetsAreTight() {
+        List<LightDesc> lights = List.of(
+                new LightDesc("spotHeroA", new Vec3(0f, 2f, 0f), new Vec3(1f, 1f, 1f), 4.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spotHeroB", new Vec3(1f, 2f, 0f), new Vec3(1f, 0.9f, 0.9f), 3.8f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("pointParity", new Vec3(2f, 2f, 0f), new Vec3(0.9f, 1f, 1f), 1.0f, 16f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+
+        VulkanEngineRuntime.ShadowRenderConfig cfg = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
+                2, 7, 7, false, false, false, 1, 2, 4, 2L, Map.of()
+        );
+
+        assertEquals(1, cfg.renderedPointShadowCubemaps());
+    }
 }

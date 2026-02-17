@@ -45,7 +45,7 @@ CI always-on rollout:
   - `shadow-production-quality-sweeps`: 3-run schedule cadence with strict BVH lane enabled by default (2 runs on push/PR)
 - Local one-shot lockdown parity runner:
   - `./scripts/shadow_ci_lockdown_full.sh`
-  - env overrides: `DLE_SHADOW_LOCKDOWN_OUTPUT_ROOT`, `DLE_SHADOW_LOCKDOWN_RUNS`, `DLE_SHADOW_LOCKDOWN_MIN_RUNS`
+  - env overrides: `DLE_SHADOW_LOCKDOWN_OUTPUT_ROOT`, `DLE_SHADOW_LOCKDOWN_RUNS`, `DLE_SHADOW_LOCKDOWN_MIN_RUNS`, `DLE_SHADOW_LOCKDOWN_PROMOTE_MODE=none|real|mock`
 - Manual `workflow_dispatch` toggles:
   - `run_shadow_real_matrix=true`
   - `run_shadow_longrun=true`
@@ -167,6 +167,8 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Vulkan mapper tests now validate capability-gated RT active state (`rtShadowActive`) when traversal extensions are available.
 - Vulkan mapper tests now validate stale-light cadence bypass promotion behavior:
   - `VulkanEngineRuntimeLightingMapperTest#mapShadowsCadencePromotesStaleLightsPastCadenceGate`
+- Vulkan mapper tests now validate mixed-type local-shadow parity selection under tight budgets:
+  - `VulkanEngineRuntimeLightingMapperTest#mapShadowsMixedParityReservesPointCubemapWhenBudgetsAreTight`
 - Vulkan integration tests now validate strict BVH request behavior:
   - `VulkanEngineRuntimeIntegrationTest#strictBvhModeFailsFastWhenBvhCapabilityIsUnavailable`
   - `VulkanEngineRuntimeIntegrationTest#strictDedicatedBvhModeFailsFast`
