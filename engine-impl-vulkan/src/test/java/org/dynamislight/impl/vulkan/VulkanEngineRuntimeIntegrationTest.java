@@ -935,7 +935,10 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.shadow.rtMode", "bvh_dedicated",
                 "vulkan.shadow.rtDenoiseStrength", "0.82",
                 "vulkan.shadow.rtRayLength", "140",
-                "vulkan.shadow.rtSampleCount", "6"
+                "vulkan.shadow.rtSampleCount", "6",
+                "vulkan.shadow.rtDedicatedDenoiseStrength", "0.94",
+                "vulkan.shadow.rtDedicatedRayLength", "180",
+                "vulkan.shadow.rtDedicatedSampleCount", "10"
         )), new RecordingCallbacks());
         runtime.loadScene(validSpotShadowScene());
 
@@ -944,7 +947,9 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frame.warnings().stream().anyMatch(w ->
                 "SHADOW_POLICY_ACTIVE".equals(w.code())
                         && w.message().contains("rtMode=bvh_dedicated")
-                        && w.message().contains("rtSampleCount=6")));
+                        && w.message().contains("rtSampleCount=6")
+                        && w.message().contains("rtDedicatedSampleCount=10")
+                        && w.message().contains("rtEffectiveSampleCount=10")));
         assertTrue(frame.warnings().stream().anyMatch(w ->
                 "SHADOW_RT_PATH_REQUESTED".equals(w.code())
                         && w.message().contains("RT shadow mode requested: bvh_dedicated")));

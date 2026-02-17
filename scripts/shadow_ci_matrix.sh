@@ -42,7 +42,7 @@ declare -a shadow_profiles=(
   "pcss::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.pcssSoftness=1.20 -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.contactStrength=1.15"
   "vsm::-Dvulkan.shadow.filterPath=vsm -Dvulkan.shadow.momentBlend=1.10 -Dvulkan.shadow.momentBleedReduction=1.10"
   "evsm::-Dvulkan.shadow.filterPath=evsm -Dvulkan.shadow.momentBlend=1.20 -Dvulkan.shadow.momentBleedReduction=1.20"
-  "rt-bvh-dedicated::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh_dedicated -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtBvhStrict=0"
+  "rt-bvh-dedicated::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh_dedicated -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtDedicatedDenoiseStrength=0.94 -Dvulkan.shadow.rtDedicatedRayLength=180 -Dvulkan.shadow.rtDedicatedSampleCount=10 -Dvulkan.shadow.rtBvhStrict=0"
 )
 for profile in "${shadow_profiles[@]}"; do
   mode="${profile%%::*}"

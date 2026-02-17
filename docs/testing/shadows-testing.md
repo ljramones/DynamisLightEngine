@@ -183,6 +183,9 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `vulkan.shadow.rtDenoiseStrength`
   - `vulkan.shadow.rtRayLength`
   - `vulkan.shadow.rtSampleCount`
+  - `vulkan.shadow.rtDedicatedDenoiseStrength`
+  - `vulkan.shadow.rtDedicatedRayLength`
+  - `vulkan.shadow.rtDedicatedSampleCount`
 - Shader regression checks now include:
   - neighborhood-weighted + edge-aware moment denoise path (`wideMoments` sampling + `denoiseEdgeFactor`)
   - deep wide bilateral moment consistency pass (`deepMoments` + `consistency` blend)

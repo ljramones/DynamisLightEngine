@@ -17,6 +17,9 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.rtDenoiseStrength", "0.8"),
                         Map.entry("vulkan.shadow.rtRayLength", "120"),
                         Map.entry("vulkan.shadow.rtSampleCount", "4"),
+                        Map.entry("vulkan.shadow.rtDedicatedDenoiseStrength", "0.9"),
+                        Map.entry("vulkan.shadow.rtDedicatedRayLength", "160"),
+                        Map.entry("vulkan.shadow.rtDedicatedSampleCount", "8"),
                         Map.entry("vulkan.shadow.pcssSoftness", "1.4"),
                         Map.entry("vulkan.shadow.momentBlend", "0.9"),
                         Map.entry("vulkan.shadow.momentBleedReduction", "1.2"),
@@ -43,6 +46,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.8f, parsed.shadowRtDenoiseStrength());
         assertEquals(120.0f, parsed.shadowRtRayLength());
         assertEquals(4, parsed.shadowRtSampleCount());
+        assertEquals(0.9f, parsed.shadowRtDedicatedDenoiseStrength());
+        assertEquals(160.0f, parsed.shadowRtDedicatedRayLength());
+        assertEquals(8, parsed.shadowRtDedicatedSampleCount());
         assertEquals(1.4f, parsed.shadowPcssSoftness());
         assertEquals(0.9f, parsed.shadowMomentBlend());
         assertEquals(1.2f, parsed.shadowMomentBleedReduction());
@@ -67,6 +73,9 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.rtDenoiseStrength", "7.0"),
                         Map.entry("vulkan.shadow.rtRayLength", "0.1"),
                         Map.entry("vulkan.shadow.rtSampleCount", "99"),
+                        Map.entry("vulkan.shadow.rtDedicatedDenoiseStrength", "7.0"),
+                        Map.entry("vulkan.shadow.rtDedicatedRayLength", "0.1"),
+                        Map.entry("vulkan.shadow.rtDedicatedSampleCount", "99"),
                         Map.entry("vulkan.shadow.pcssSoftness", "9.0"),
                         Map.entry("vulkan.shadow.momentBlend", "0.1"),
                         Map.entry("vulkan.shadow.momentBleedReduction", "7.0"),
@@ -84,6 +93,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1.0f, parsed.shadowRtDenoiseStrength());
         assertEquals(1.0f, parsed.shadowRtRayLength());
         assertEquals(16, parsed.shadowRtSampleCount());
+        assertEquals(1.0f, parsed.shadowRtDedicatedDenoiseStrength());
+        assertEquals(0.1f, parsed.shadowRtDedicatedRayLength());
+        assertEquals(16, parsed.shadowRtDedicatedSampleCount());
         assertEquals(2.0f, parsed.shadowPcssSoftness());
         assertEquals(0.25f, parsed.shadowMomentBlend());
         assertEquals(1.5f, parsed.shadowMomentBleedReduction());
