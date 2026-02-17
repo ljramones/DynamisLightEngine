@@ -132,6 +132,15 @@ final class VulkanContext {
         };
     }
 
+    String shadowMomentFormatTag() {
+        return switch (backendResources.shadowMomentFormat) {
+            case VK10.VK_FORMAT_R16G16_SFLOAT -> "rg16f";
+            case VK10.VK_FORMAT_R16G16B16A16_SFLOAT -> "rgba16f";
+            case 0 -> "none";
+            default -> "vk_format_" + backendResources.shadowMomentFormat;
+        };
+    }
+
     void configureFrameResources(int framesInFlight, int maxDynamicSceneObjects, int maxPendingUploadRanges) {
         if (backendResources.device != null) {
             return;
@@ -528,6 +537,13 @@ final class VulkanContext {
     boolean isShadowMomentPipelineActive() {
         return renderState.shadowMomentPipelineRequested
                 && backendResources.shadowMomentImage != VK_NULL_HANDLE
+                && backendResources.shadowMomentImageView != VK_NULL_HANDLE
+                && backendResources.shadowMomentSampler != VK_NULL_HANDLE
+                && backendResources.shadowMomentFormat != 0;
+    }
+
+    boolean hasShadowMomentResources() {
+        return backendResources.shadowMomentImage != VK_NULL_HANDLE
                 && backendResources.shadowMomentImageView != VK_NULL_HANDLE
                 && backendResources.shadowMomentSampler != VK_NULL_HANDLE
                 && backendResources.shadowMomentFormat != 0;

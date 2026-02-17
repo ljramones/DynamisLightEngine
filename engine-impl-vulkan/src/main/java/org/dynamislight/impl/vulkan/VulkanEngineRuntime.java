@@ -505,6 +505,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " momentFilterEstimateOnly=" + currentShadows.momentFilterEstimateOnly()
                             + " momentPipelineRequested=" + currentShadows.momentPipelineRequested()
                             + " momentPipelineActive=" + currentShadows.momentPipelineActive()
+                            + " momentResourceAllocated=" + context.hasShadowMomentResources()
+                            + " momentResourceFormat=" + context.shadowMomentFormatTag()
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()
                             + " rtActive=" + currentShadows.rtShadowActive()
