@@ -711,6 +711,30 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void shadowAllocatorTelemetryShowsReuseAcrossFrames() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.scheduler.enabled", "false"
+        ), QualityTier.ULTRA), new RecordingCallbacks());
+        runtime.loadScene(validMultiSpotShadowScene());
+        runtime.render(); // Prime allocation state.
+        runtime.loadScene(validMultiSpotShadowSceneReordered());
+        var second = runtime.render();
+
+        String policy = second.warnings().stream()
+                .filter(w -> "SHADOW_POLICY_ACTIVE".equals(w.code()))
+                .map(w -> w.message())
+                .findFirst()
+                .orElse("");
+        int reused = parseWarningIntField(policy, "shadowAllocatorReusedAssignments");
+        int evictions = parseWarningIntField(policy, "shadowAllocatorEvictions");
+        assertTrue(reused > 0);
+        assertTrue(evictions >= 0);
+        runtime.shutdown();
+    }
+
+    @Test
     void shadowQualityPathRequestsEmitTrackingWarnings() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of(
@@ -1918,8 +1942,44 @@ class VulkanEngineRuntimeIntegrationTest {
         );
     }
 
+    private static SceneDescriptor validMultiSpotShadowSceneReordered() {
+        SceneDescriptor base = validMultiSpotShadowScene();
+        List<LightDesc> lights = base.lights();
+        return new SceneDescriptor(
+                "vulkan-multi-spot-shadow-scene-reordered",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(lights.get(2), lights.get(0), lights.get(1)),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
     private static EngineInput emptyInput() {
         return new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
+    }
+
+    private static int parseWarningIntField(String message, String field) {
+        if (message == null || message.isBlank() || field == null || field.isBlank()) {
+            return -1;
+        }
+        String prefix = field + "=";
+        for (String token : message.split("\\s+")) {
+            if (!token.startsWith(prefix)) {
+                continue;
+            }
+            try {
+                return Integer.parseInt(token.substring(prefix.length()));
+            } catch (NumberFormatException ignored) {
+                return -1;
+            }
+        }
+        return -1;
     }
 
     private static void writeKtx2Stub(Path path, int width, int height) throws Exception {

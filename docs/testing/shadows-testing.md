@@ -45,7 +45,7 @@ DLE_COMPARE_VULKAN_MODE=real \
 Unit policy + matrix checks:
 ```bash
 mvn -pl engine-impl-vulkan -am test \
-  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanShadowMatrixBuilderTest \
+  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#shadowAllocatorTelemetryShowsReuseAcrossFrames \
   -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
@@ -133,6 +133,8 @@ Long-run motion/shimmer sweep (real Vulkan):
   - warning telemetry emits `renderedShadowLightIds`; verify IDs rotate over time for non-hero lights under throttled cadence.
   - backlog telemetry is present: `deferredShadowLightCount`, `deferredShadowLightIds`.
   - allocator telemetry is present: `shadowAllocatorAssignedLights`, `shadowAllocatorReusedAssignments`, `shadowAllocatorEvictions`.
+  - integration check validates reuse remains active across reordered light lists:
+    - `VulkanEngineRuntimeIntegrationTest#shadowAllocatorTelemetryShowsReuseAcrossFrames`
 - Verify directional texel-snap controls:
   - `vulkan.shadow.directionalTexelSnapEnabled` toggles runtime snapping path.
   - `vulkan.shadow.directionalTexelSnapScale` is clamped to configured bounds and reported in `SHADOW_POLICY_ACTIVE`.
@@ -145,8 +147,8 @@ Long-run motion/shimmer sweep (real Vulkan):
 
 ## 7. Planned Additions
 - Add targeted high-motion shadow sweeps (fast pan + thin-geo + animated casters).
-- Add cadence tests (hero lights full-rate vs distant lights throttled update rates).
-- Add static-cache correctness tests (no stale shadows after object/light state transitions).
+- Expand cadence tests (hero lights full-rate vs distant lights throttled update rates) from current baseline checks into longer frame windows.
+- Expand static-cache correctness tests (beyond current allocator reuse/eviction checks) to include stale-shadow scene transitions.
 - Add CI matrix axis for shadow depth format (`D16_UNORM`, `D32_SFLOAT`) and publish drift deltas in reports.
 - Add CI gate that verifies `SHADOW_LOCAL_RENDER_BASELINE` clears once Vulkan multi-local render parity lands.
 

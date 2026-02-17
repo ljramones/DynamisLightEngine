@@ -29,7 +29,7 @@ mvn -q -pl engine-impl-opengl -am test \
   -Dtest=OpenGlEngineRuntimeLifecycleTest \
   -Dsurefire.failIfNoSpecifiedTests=false
 mvn -q -pl engine-impl-vulkan -am test \
-  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanEngineRuntimeIntegrationTest#spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning \
+  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+shadowAllocatorTelemetryShowsReuseAcrossFrames \
   -Dsurefire.failIfNoSpecifiedTests=false
 
 echo ""

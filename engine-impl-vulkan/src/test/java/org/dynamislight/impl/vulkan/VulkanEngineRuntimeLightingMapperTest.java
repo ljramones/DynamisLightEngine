@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.Vec3;
@@ -195,5 +196,66 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertEquals(3, highDefault.maxShadowedLocalLights());
         assertEquals(6, highOverride.maxShadowedLocalLights());
         assertTrue(highOverride.selectedLocalShadowLights() >= highDefault.selectedLocalShadowLights());
+    }
+
+    @Test
+    void mapLightingReusesShadowLayerAssignmentsAcrossStableFrames() {
+        List<LightDesc> lights = List.of(
+                new LightDesc("spotA", new Vec3(0f, 2f, 0f), new Vec3(1f, 0.9f, 0.8f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spotB", new Vec3(1f, 2f, 0f), new Vec3(0.8f, 0.9f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spotC", new Vec3(2f, 2f, 0f), new Vec3(0.9f, 1f, 0.8f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+
+        VulkanEngineRuntime.LightingConfig first = VulkanEngineRuntimeLightingMapper.mapLighting(
+                lights, org.dynamislight.api.config.QualityTier.ULTRA,
+                4, 12, false, 1, 2, 4, 1L, Map.of(), Map.of()
+        );
+        VulkanEngineRuntime.LightingConfig second = VulkanEngineRuntimeLightingMapper.mapLighting(
+                lights, org.dynamislight.api.config.QualityTier.ULTRA,
+                4, 12, false, 1, 2, 4, 2L, Map.of(), first.shadowLayerAssignments()
+        );
+
+        assertEquals(first.shadowLayerAssignments(), second.shadowLayerAssignments());
+        assertTrue(second.shadowAllocatorReusedAssignments() >= first.shadowLayerAssignments().size());
+        assertEquals(0, second.shadowAllocatorEvictions());
+    }
+
+    @Test
+    void mapLightingEvictsOutOfBudgetAssignmentAndReassignsLayer() {
+        List<LightDesc> lights = List.of(
+                new LightDesc("spotA", new Vec3(0f, 2f, 0f), new Vec3(1f, 0.9f, 0.8f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+
+        VulkanEngineRuntime.LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(
+                lights, org.dynamislight.api.config.QualityTier.HIGH,
+                1, 4, false, 1, 2, 4, 1L, Map.of(), Map.of("spotA", 8)
+        );
+
+        assertEquals(1, config.shadowAllocatorAssignedLights());
+        assertEquals(0, config.shadowAllocatorReusedAssignments());
+        assertEquals(1, config.shadowAllocatorEvictions());
+        assertEquals(1, config.shadowLayerAssignments().get("spotA"));
+    }
+
+    @Test
+    void mapLightingReusesAssignmentsWhenLightOrderChanges() {
+        List<LightDesc> ordered = List.of(
+                new LightDesc("spotA", new Vec3(0f, 2f, 0f), new Vec3(1f, 0.9f, 0.8f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spotB", new Vec3(1f, 2f, 0f), new Vec3(0.8f, 0.9f, 1f), 1.7f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+        List<LightDesc> reordered = List.of(ordered.get(1), ordered.get(0));
+
+        VulkanEngineRuntime.LightingConfig first = VulkanEngineRuntimeLightingMapper.mapLighting(
+                ordered, org.dynamislight.api.config.QualityTier.HIGH,
+                3, 8, false, 1, 2, 4, 1L, Map.of(), Map.of()
+        );
+        VulkanEngineRuntime.LightingConfig second = VulkanEngineRuntimeLightingMapper.mapLighting(
+                reordered, org.dynamislight.api.config.QualityTier.HIGH,
+                3, 8, false, 1, 2, 4, 2L, Map.of(), first.shadowLayerAssignments()
+        );
+
+        assertEquals(first.shadowLayerAssignments(), second.shadowLayerAssignments());
+        assertTrue(second.shadowAllocatorReusedAssignments() >= 2);
+        assertEquals(0, second.shadowAllocatorEvictions());
     }
 }
