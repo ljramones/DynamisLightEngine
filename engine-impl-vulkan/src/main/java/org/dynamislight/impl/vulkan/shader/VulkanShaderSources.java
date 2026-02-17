@@ -271,6 +271,35 @@ public final class VulkanShaderSources {
                     }
                     return accum / max(weightSum, 0.0001);
                 }
+                vec4 sampleMomentBounds(vec2 uv, int layer, float lod, float texel) {
+                    float minMean = 1.0;
+                    float maxMean = 0.0;
+                    float minSecond = 1.0;
+                    float maxSecond = 0.0;
+                    for (int y = -1; y <= 1; y++) {
+                        for (int x = -1; x <= 1; x++) {
+                            vec2 tap = vec2(float(x), float(y));
+                            vec3 coord = vec3(clamp(uv + tap * texel, vec2(0.0), vec2(1.0)), float(clamp(layer, 0, 23)));
+                            vec2 m = textureLod(uShadowMomentMap, coord, lod).rg;
+                            minMean = min(minMean, m.x);
+                            maxMean = max(maxMean, m.x);
+                            minSecond = min(minSecond, m.y);
+                            maxSecond = max(maxSecond, m.y);
+                        }
+                    }
+                    return vec4(minMean, maxMean, minSecond, maxSecond);
+                }
+                vec2 clampMomentsToBounds(vec2 moments, vec4 bounds, float edgeFactor) {
+                    float meanSlack = mix(0.020, 0.006, edgeFactor);
+                    float meanMin = max(bounds.x - meanSlack, 0.0);
+                    float meanMax = min(bounds.y + meanSlack, 1.0);
+                    float mean = clamp(moments.x, meanMin, max(meanMin, meanMax));
+                    float secondSlack = mix(0.00014, 0.00004, edgeFactor);
+                    float secondMin = max(mean * mean, bounds.z - secondSlack);
+                    float secondMax = max(secondMin, bounds.w + secondSlack);
+                    float second = clamp(moments.y, secondMin, secondMax);
+                    return vec2(mean, second);
+                }
                 float momentVisibilityApprox(vec2 uv, float compareDepth, int layer) {
                     float momentBlend = clamp(gbo.uDirLightColor.w, 0.25, 1.5);
                     float momentBleedReduction = clamp(gbo.uPointLightColor.w, 0.25, 1.5);
@@ -298,14 +327,31 @@ public final class VulkanShaderSources {
                             compareDepth,
                             momentBlend
                     );
+                    vec2 ultraMoments = sampleMomentsWideBilateral(
+                            momentUv.xy,
+                            layer,
+                            min(lod + 2.0, maxLod),
+                            texel * 3.4,
+                            compareDepth,
+                            momentBlend
+                    );
+                    vec4 momentBounds = sampleMomentBounds(
+                            momentUv.xy,
+                            layer,
+                            min(lod + 1.0, maxLod),
+                            texel * 2.0
+                    );
                     float filteredWeight = clamp(mix(0.68 * momentBlend, 0.34 * momentBlend, denoiseEdgeFactor), 0.20, 0.95);
                     float wideWeight = clamp(0.20 * momentBlend * denoiseStability, 0.02, 0.35);
                     vec2 moments = mix(baseMoments, filteredMoments, filteredWeight);
                     moments = mix(moments, wideMoments, wideWeight);
                     float deepWeight = clamp(0.10 + 0.22 * denoiseStability * momentBlend, 0.04, 0.32);
                     moments = mix(moments, deepMoments, deepWeight);
+                    float ultraWeight = clamp((1.0 - denoiseEdgeFactor) * (0.06 + 0.12 * momentBlend), 0.02, 0.16);
+                    moments = mix(moments, ultraMoments, ultraWeight);
                     float consistency = clamp(abs(deepMoments.x - baseMoments.x) * 18.0, 0.0, 1.0);
                     moments = mix(moments, baseMoments, consistency * 0.35);
+                    moments = clampMomentsToBounds(moments, momentBounds, denoiseEdgeFactor);
                     // Neutral fallback for uninitialized/provisional moment data.
                     if (moments.y <= 0.000001) {
                         return 1.0;
@@ -320,7 +366,9 @@ public final class VulkanShaderSources {
                     float diff = compareDepth - mean;
                     float pMax = variance / (variance + diff * diff);
                     float antiBleed = reduceLightBleed(clamp(pMax, 0.0, 1.0), clamp(0.22 * momentBleedReduction, 0.08, 0.45));
-                    return clamp(mix(pMax, antiBleed, 0.86), 0.0, 1.0);
+                    float leakRisk = clamp((compareDepth - mean) * (15.0 + 4.0 * denoiseStability), 0.0, 1.0);
+                    float antiBleedMix = clamp(0.74 + 0.20 * leakRisk, 0.70, 0.96);
+                    return clamp(mix(pMax, antiBleed, antiBleedMix), 0.0, 1.0);
                 }
                 float evsmVisibilityApprox(vec2 uv, float compareDepth, int layer) {
                     float momentBlend = clamp(gbo.uDirLightColor.w, 0.25, 1.5);
@@ -349,14 +397,31 @@ public final class VulkanShaderSources {
                             compareDepth,
                             momentBlend
                     );
+                    vec2 ultraMoments = sampleMomentsWideBilateral(
+                            momentUv.xy,
+                            layer,
+                            min(lod + 2.2, maxLod),
+                            texel * 4.0,
+                            compareDepth,
+                            momentBlend
+                    );
+                    vec4 momentBounds = sampleMomentBounds(
+                            momentUv.xy,
+                            layer,
+                            min(lod + 1.2, maxLod),
+                            texel * 2.4
+                    );
                     float filteredWeight = clamp(mix(0.75 * momentBlend, 0.40 * momentBlend, denoiseEdgeFactor), 0.25, 0.97);
                     float wideWeight = clamp(0.28 * momentBlend * denoiseStability, 0.03, 0.42);
                     vec2 moments = mix(baseMoments, filteredMoments, filteredWeight);
                     moments = mix(moments, wideMoments, wideWeight);
                     float deepWeight = clamp(0.14 + 0.24 * denoiseStability * momentBlend, 0.05, 0.36);
                     moments = mix(moments, deepMoments, deepWeight);
+                    float ultraWeight = clamp((1.0 - denoiseEdgeFactor) * (0.08 + 0.14 * momentBlend), 0.03, 0.20);
+                    moments = mix(moments, ultraMoments, ultraWeight);
                     float consistency = clamp(abs(deepMoments.x - baseMoments.x) * 16.0, 0.0, 1.0);
                     moments = mix(moments, baseMoments, consistency * 0.32);
+                    moments = clampMomentsToBounds(moments, momentBounds, denoiseEdgeFactor);
                     if (moments.y <= 0.000001) {
                         return 1.0;
                     }
@@ -372,7 +437,9 @@ public final class VulkanShaderSources {
                     float pMax = warpedVariance / (warpedVariance + diff * diff);
                     float momentBase = momentVisibilityApprox(uv, compareDepth, layer);
                     float antiBleed = reduceLightBleed(clamp(pMax, 0.0, 1.0), clamp(0.30 * momentBleedReduction, 0.12, 0.50));
-                    return clamp(mix(momentBase, antiBleed, 0.72), 0.0, 1.0);
+                    float leakRisk = clamp((compareDepth - mean) * (12.0 + 3.0 * denoiseStability), 0.0, 1.0);
+                    float antiBleedMix = clamp(0.64 + 0.24 * leakRisk, 0.60, 0.90);
+                    return clamp(mix(momentBase, antiBleed, antiBleedMix), 0.0, 1.0);
                 }
                 float bvhTraversalVisibilityApprox(
                         vec2 uv,

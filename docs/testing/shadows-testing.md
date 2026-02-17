@@ -169,6 +169,8 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Shader regression checks now include:
   - neighborhood-weighted + edge-aware moment denoise path (`wideMoments` sampling + `denoiseEdgeFactor`)
   - deep wide bilateral moment consistency pass (`deepMoments` + `consistency` blend)
+  - ultra-wide bilateral refinement + moment-neighborhood bounds clamp (`ultraMoments`, `momentBounds`, `clampMomentsToBounds`)
+  - leak-risk adaptive anti-bleed shaping (`leakRisk`, `antiBleedMix`)
   - motion-adaptive contact temporal stabilization shaping (`contactTemporalStability`)
 - Vulkan integration tests validate multi-point cubemap concurrency policy under ULTRA and override budgets:
   - `VulkanEngineRuntimeIntegrationTest#multiPointLocalShadowSceneUsesConcurrentPointCubemapBudgetAtUltra`
