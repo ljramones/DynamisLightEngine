@@ -8,6 +8,7 @@ import org.dynamislight.api.scene.FogMode;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.PostProcessDesc;
+import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 
@@ -191,6 +192,14 @@ final class VulkanEngineRuntimeLightingMapper {
                 case NONE -> {
                 }
             }
+        }
+        if (desc.antiAliasing() != null) {
+            AntiAliasingDesc aa = desc.antiAliasing();
+            taaBlend = clamp01(Math.min(0.95f, Math.max(0f, aa.blend())));
+            taaClipScale = Math.max(0.5f, Math.min(1.6f, aa.clipScale()));
+            taaLumaClipEnabled = aa.lumaClipEnabled();
+            taaSharpenStrength = Math.max(0f, Math.min(0.35f, aa.sharpenStrength()));
+            taaRenderScale = Math.max(0.5f, Math.min(1.0f, aa.renderScale()));
         }
         return new VulkanEngineRuntime.PostProcessRenderConfig(
                 desc.tonemapEnabled(),

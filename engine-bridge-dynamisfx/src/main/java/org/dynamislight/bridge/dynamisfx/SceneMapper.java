@@ -2,6 +2,7 @@ package org.dynamislight.bridge.dynamisfx;
 
 import java.util.List;
 import org.dynamislight.api.scene.CameraDesc;
+import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.scene.EnvironmentDesc;
@@ -164,7 +165,25 @@ public final class SceneMapper {
                 post.smaaEnabled(),
                 post.smaaStrength(),
                 post.taaEnabled(),
-                post.taaBlend()
+                post.taaBlend(),
+                post.taaLumaClipEnabled(),
+                mapAntiAliasing(post.antiAliasing())
+        );
+    }
+
+    private static AntiAliasingDesc mapAntiAliasing(AntiAliasingDesc aa) {
+        if (aa == null) {
+            return null;
+        }
+        return new AntiAliasingDesc(
+                aa.mode(),
+                aa.enabled(),
+                aa.blend(),
+                aa.clipScale(),
+                aa.lumaClipEnabled(),
+                aa.sharpenStrength(),
+                aa.renderScale(),
+                aa.debugView()
         );
     }
 }

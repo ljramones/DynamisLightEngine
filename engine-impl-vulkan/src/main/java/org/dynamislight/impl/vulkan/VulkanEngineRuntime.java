@@ -11,6 +11,7 @@ import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.CameraDesc;
+import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.LightType;
@@ -105,6 +106,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f);
+    private int taaDebugView;
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
     private AaMode aaMode = AaMode.TAA;
@@ -157,7 +159,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         warningConfig.pendingUploadRangeWarnCooldownFrames = options.pendingUploadRangeWarnCooldownFrames();
         warningConfig.descriptorRingActiveSoftLimit = options.descriptorRingActiveSoftLimit();
         warningConfig.descriptorRingActiveWarnCooldownFrames = options.descriptorRingActiveWarnCooldownFrames();
-        context.setTaaDebugView(options.taaDebugView());
+        taaDebugView = options.taaDebugView();
+        context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
         aaMode = parseAaMode(config.backendOptions().get("vulkan.aaMode"));
@@ -180,6 +183,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected void onLoadScene(SceneDescriptor scene) throws EngineException {
+        aaMode = resolveAaMode(scene.postProcess(), aaMode);
+        taaDebugView = resolveTaaDebugView(scene.postProcess(), taaDebugView);
+        context.setTaaDebugView(taaDebugView);
         VulkanRuntimeLifecycle.SceneLoadState sceneState = VulkanRuntimeLifecycle.prepareScene(
                 scene,
                 qualityTier,
@@ -381,6 +387,25 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {
+        if (postProcess == null || postProcess.antiAliasing() == null) {
+            return fallback;
+        }
+        String raw = postProcess.antiAliasing().mode();
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        return parseAaMode(raw);
+    }
+
+    private static int resolveTaaDebugView(PostProcessDesc postProcess, int fallback) {
+        if (postProcess == null || postProcess.antiAliasing() == null) {
+            return fallback;
+        }
+        AntiAliasingDesc aa = postProcess.antiAliasing();
+        return Math.max(0, Math.min(5, aa.debugView()));
     }
 
     private static AaPreset parseAaPreset(String raw) {

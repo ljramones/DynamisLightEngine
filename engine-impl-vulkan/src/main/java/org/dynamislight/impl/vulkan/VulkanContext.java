@@ -350,7 +350,7 @@ final class VulkanContext {
     }
 
     void setTaaDebugView(int debugView) {
-        int clamped = Math.max(0, Math.min(4, debugView));
+        int clamped = Math.max(0, Math.min(5, debugView));
         if (renderState.taaDebugView != clamped) {
             renderState.taaDebugView = clamped;
             markGlobalStateDirty();

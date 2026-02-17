@@ -17,6 +17,7 @@ import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.scene.CameraDesc;
+import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
 import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.FogMode;
@@ -193,7 +194,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         mockContext = Boolean.parseBoolean(mock);
         windowVisible = Boolean.parseBoolean(config.backendOptions().getOrDefault("opengl.windowVisible", "false"));
         try {
-            taaDebugView = Math.max(0, Math.min(4, Integer.parseInt(config.backendOptions().getOrDefault("opengl.taaDebugView", "0"))));
+            taaDebugView = Math.max(0, Math.min(5, Integer.parseInt(config.backendOptions().getOrDefault("opengl.taaDebugView", "0"))));
         } catch (NumberFormatException ignored) {
             taaDebugView = 0;
         }
@@ -251,6 +252,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     @Override
     protected void onLoadScene(SceneDescriptor scene) throws EngineException {
         activeScene = scene;
+        aaMode = resolveAaMode(scene.postProcess(), aaMode);
+        taaDebugView = resolveTaaDebugView(scene.postProcess(), taaDebugView);
         fog = mapFog(scene.fog(), qualityTier);
         smoke = mapSmoke(scene.smokeEmitters(), qualityTier);
         shadows = mapShadows(scene.lights(), qualityTier);
@@ -804,6 +807,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 }
             }
         }
+        if (desc.antiAliasing() != null) {
+            AntiAliasingDesc aa = desc.antiAliasing();
+            taaBlend = clamp(aa.blend(), 0f, 0.95f);
+            taaClipScale = clamp(aa.clipScale(), 0.5f, 1.6f);
+            taaLumaClipEnabled = aa.lumaClipEnabled();
+            taaSharpenStrength = clamp(aa.sharpenStrength(), 0f, 0.35f);
+            taaRenderScale = clamp(aa.renderScale(), 0.5f, 1.0f);
+        }
         return new PostProcessRenderConfig(
                 desc.tonemapEnabled(),
                 exposure,
@@ -897,6 +908,24 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private static float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {
+        if (postProcess == null || postProcess.antiAliasing() == null) {
+            return fallback;
+        }
+        String raw = postProcess.antiAliasing().mode();
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        return parseAaMode(raw);
+    }
+
+    private int resolveTaaDebugView(PostProcessDesc postProcess, int fallback) {
+        if (postProcess == null || postProcess.antiAliasing() == null) {
+            return fallback;
+        }
+        return Math.max(0, Math.min(5, postProcess.antiAliasing().debugView()));
     }
 
     private static AaPreset parseAaPreset(String raw) {

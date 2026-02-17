@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.dynamislight.api.scene.CameraDesc;
+import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.runtime.EngineApiVersion;
 import org.dynamislight.api.config.EngineConfig;
@@ -212,15 +213,17 @@ public final class SampleHostApp {
                 return switch (mode) {
                     case "off", "0" -> 0;
                     case "reactive", "1" -> 1;
-                    case "weight", "2" -> 2;
-                    case "velocity", "3" -> 3;
+                    case "disocclusion", "2" -> 2;
+                    case "weight", "history", "historyweight", "3" -> 3;
+                    case "velocity", "4" -> 4;
+                    case "overlay", "composite", "5" -> 5;
                     default -> 0;
                 };
             }
         }
         String raw = System.getProperty("dle.taa.debugView", "0");
         try {
-            return Math.max(0, Math.min(3, Integer.parseInt(raw)));
+            return Math.max(0, Math.min(5, Integer.parseInt(raw)));
         } catch (NumberFormatException ignored) {
             return 0;
         }
@@ -261,7 +264,18 @@ public final class SampleHostApp {
                 options.gamma(),
                 options.bloomEnabled(),
                 options.bloomThreshold(),
-                options.bloomStrength()
+                options.bloomStrength(),
+                false,
+                0f,
+                1.0f,
+                0.02f,
+                1.0f,
+                false,
+                0f,
+                false,
+                0f,
+                false,
+                resolveSceneAntiAliasingDesc()
         );
 
         return new SceneDescriptor(
@@ -277,6 +291,65 @@ public final class SampleHostApp {
                 List.<SmokeEmitterDesc>of(),
                 post
         );
+    }
+
+    private static AntiAliasingDesc resolveSceneAntiAliasingDesc() {
+        String mode = System.getProperty("dle.aa.mode", "").trim();
+        if (mode.isEmpty()) {
+            mode = null;
+        }
+        boolean enabled = Boolean.parseBoolean(System.getProperty("dle.aa.enabled", "false"));
+        float blend = parseFloatProperty("dle.aa.blend", 0f, 0f, 0.95f);
+        float clipScale = parseFloatProperty("dle.aa.clipScale", 1.0f, 0.5f, 1.6f);
+        boolean lumaClip = Boolean.parseBoolean(System.getProperty("dle.aa.lumaClip", "false"));
+        float sharpen = parseFloatProperty("dle.aa.sharpen", 0f, 0f, 0.35f);
+        float renderScale = parseFloatProperty("dle.aa.renderScale", 1.0f, 0.5f, 1.0f);
+        int debugView = parseIntProperty("dle.taa.debugView", 0, 0, 5);
+        boolean requested = mode != null
+                || enabled
+                || blend > 0f
+                || Math.abs(clipScale - 1.0f) > 0.0001f
+                || lumaClip
+                || sharpen > 0f
+                || renderScale < 1.0f
+                || debugView > 0;
+        if (!requested) {
+            return null;
+        }
+        return new AntiAliasingDesc(
+                mode,
+                enabled,
+                blend,
+                clipScale,
+                lumaClip,
+                sharpen,
+                renderScale,
+                debugView
+        );
+    }
+
+    private static float parseFloatProperty(String key, float fallback, float min, float max) {
+        String raw = System.getProperty(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Math.max(min, Math.min(max, Float.parseFloat(raw.trim())));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static int parseIntProperty(String key, int fallback, int min, int max) {
+        String raw = System.getProperty(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Math.max(min, Math.min(max, Integer.parseInt(raw.trim())));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
     }
 
     private static EngineInput emptyInput() {

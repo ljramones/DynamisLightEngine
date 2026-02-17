@@ -920,6 +920,20 @@ final class OpenGlContext {
                         color = vec3(historyTrust);
                     } else if (uTaaDebugView == 4) {
                         color = vec3(abs(velocityUv.x), abs(velocityUv.y), length(velocityUv) * 0.5);
+                    } else if (uTaaDebugView == 5) {
+                        vec2 tileUv = fract(vUv * 2.0);
+                        vec3 velocityViz = vec3(abs(velocityUv.x), abs(velocityUv.y), length(velocityUv) * 0.5);
+                        if (vUv.x < 0.5 && vUv.y < 0.5) {
+                            color = vec3(reactive);
+                        } else if (vUv.x >= 0.5 && vUv.y < 0.5) {
+                            color = vec3(disocclusionReject);
+                        } else if (vUv.x < 0.5) {
+                            color = vec3(historyTrust);
+                        } else {
+                            color = velocityViz;
+                        }
+                        float line = max(step(0.495, abs(tileUv.x - 0.5)), step(0.495, abs(tileUv.y - 0.5)));
+                        color = mix(color, vec3(1.0, 1.0, 0.2), line * 0.65);
                     }
                 }
                 FragColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);
@@ -1688,7 +1702,7 @@ final class OpenGlContext {
     }
 
     void setTaaDebugView(int debugView) {
-        taaDebugView = Math.max(0, Math.min(4, debugView));
+        taaDebugView = Math.max(0, Math.min(5, debugView));
     }
 
     void setLightingParameters(

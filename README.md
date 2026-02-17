@@ -249,6 +249,8 @@ Cross-backend parity tests now cover:
 
 Post-processing status:
 - scene-level `PostProcessDesc` is supported on OpenGL and Vulkan.
+- scene-level `AntiAliasingDesc` (via `PostProcessDesc.antiAliasing`) can override AA mode/debug and temporal controls (`blend`, `clipScale`, `lumaClipEnabled`, `sharpenStrength`, `renderScale`).
+- temporal debug view supports a composite overlay mode: `dle.taa.debugView=5` (quadrants: reactive/disocclusion/historyWeight/velocity).
 - OpenGL now uses a dedicated post pass (offscreen FBO color target + fullscreen post shader) with shader-driven fallback safety.
 - Vulkan now runs a dedicated post pass when available and surfaces explicit `VULKAN_POST_PROCESS_PIPELINE` diagnostics (including fallback mode when needed).
 

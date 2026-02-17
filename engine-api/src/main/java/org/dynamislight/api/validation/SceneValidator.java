@@ -12,6 +12,7 @@ import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.TransformDesc;
+import org.dynamislight.api.scene.AntiAliasingDesc;
 
 /**
  * Validator for runtime scene descriptors.
@@ -93,6 +94,26 @@ public final class SceneValidator {
                 }
                 if (type != LightType.DIRECTIONAL && light.range() <= 0f) {
                     throw invalid("light " + light.id() + " non-directional lights must have range > 0");
+                }
+            }
+        }
+        if (scene.postProcess() != null) {
+            AntiAliasingDesc aa = scene.postProcess().antiAliasing();
+            if (aa != null) {
+                if (aa.blend() < 0f || aa.blend() > 0.95f) {
+                    throw invalid("postProcess.antiAliasing blend must be in [0,0.95]");
+                }
+                if (aa.clipScale() < 0.5f || aa.clipScale() > 1.6f) {
+                    throw invalid("postProcess.antiAliasing clipScale must be in [0.5,1.6]");
+                }
+                if (aa.sharpenStrength() < 0f || aa.sharpenStrength() > 0.35f) {
+                    throw invalid("postProcess.antiAliasing sharpenStrength must be in [0,0.35]");
+                }
+                if (aa.renderScale() < 0.5f || aa.renderScale() > 1.0f) {
+                    throw invalid("postProcess.antiAliasing renderScale must be in [0.5,1.0]");
+                }
+                if (aa.debugView() < 0 || aa.debugView() > 5) {
+                    throw invalid("postProcess.antiAliasing debugView must be in [0,5]");
                 }
             }
         }

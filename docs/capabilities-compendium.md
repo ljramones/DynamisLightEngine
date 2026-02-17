@@ -132,7 +132,8 @@ OpenGL backend provides a real forward render baseline:
   - History validation includes explicit previous-frame depth rejection (history-velocity depth sample) plus thin-edge depth neighborhood checks.
   - Temporal pass applies mild contrast-aware sharpen after blend with tiered strength (`LOW/MEDIUM/HIGH/ULTRA`) to recover detail.
   - SMAA path upgraded with explicit edge-mask + blend-weight phases (shader-stage implementation).
-  - Debug output modes are available via backend options (`opengl.taaDebugView` / `vulkan.taaDebugView`: `0=off`, `1=reactive`, `2=disocclusion`, `3=historyWeight`, `4=velocity`).
+  - Debug output modes are available via backend options (`opengl.taaDebugView` / `vulkan.taaDebugView`: `0=off`, `1=reactive`, `2=disocclusion`, `3=historyWeight`, `4=velocity`, `5=compositeOverlay`).
+  - Scene-level AA DTO is available through `PostProcessDesc.antiAliasing` (`AntiAliasingDesc`) for host-driven temporal control overrides.
 - Dedicated post-pass architecture:
   - offscreen scene target (FBO color + depth/stencil) then fullscreen post shader composite
   - shader-driven post remains as fallback if offscreen resources are unavailable
