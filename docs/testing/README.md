@@ -18,4 +18,8 @@ Current documents:
 - `resources-hot-reload-testing.md` - resource lifecycle/hot-reload validation plan.
 - `runtime-events-errors-testing.md` - runtime lifecycle/event/error validation plan.
 - `input-frame-loop-testing.md` - host input/update/render loop validation plan.
+- `config-capabilities-testing.md` - config validation and capability reporting plan.
+- `backend-selection-preflight-testing.md` - backend resolution and Vulkan preflight validation plan.
+- `quality-tiers-testing.md` - tiered envelope and stress validation plan.
+- `compare-harness-workflows-testing.md` - compare workflow artifact/threshold validation plan.
 - `feature-testing-template.md` - reusable template for future feature test plans.

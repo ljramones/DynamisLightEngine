@@ -19,4 +19,8 @@ Current guides:
 - `resources-hot-reload-guide.md` - runtime resource lifecycle and hot-reload usage.
 - `runtime-events-errors-guide.md` - lifecycle, callback events, and error-handling guidance.
 - `input-frame-loop-guide.md` - host input/update/render loop guidance and validation.
+- `config-capabilities-guide.md` - engine config validation and runtime capability usage.
+- `backend-selection-preflight-guide.md` - backend resolution and Vulkan preflight workflow.
+- `quality-tiers-guide.md` - quality tier usage and validation guidance.
+- `compare-harness-workflows-guide.md` - compare script workflows, env knobs, and artifact expectations.
 - `feature-guide-template.md` - reusable template for adding new feature guides.
