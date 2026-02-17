@@ -94,6 +94,25 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void strictDedicatedBvhModeFailsFast() {
+        var runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.rtMode", "bvh_dedicated"),
+                    Map.entry("vulkan.shadow.rtBvhStrict", "true")
+            )), new RecordingCallbacks());
+        } catch (EngineException e) {
+            assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, e.code());
+            assertTrue(e.getMessage().contains("Strict dedicated BVH RT shadow mode requested"));
+            return;
+        } finally {
+            runtime.shutdown();
+        }
+        throw new AssertionError("Expected strict dedicated BVH mode to fail while dedicated pipeline is unavailable");
+    }
+
+    @Test
     void mockVulkanBackendOptionsConfigureFrameAndCacheLimits() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(
@@ -900,6 +919,37 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frame.warnings().stream().anyMatch(w ->
                 "SHADOW_RT_PATH_FALLBACK_ACTIVE".equals(w.code())
                         && w.message().contains("BVH mode requested")));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_BVH_PIPELINE_PENDING".equals(w.code())
+                        && w.message().contains("dedicated BVH traversal/denoise pipeline remains pending")));
+        runtime.shutdown();
+    }
+
+    @Test
+    void dedicatedBvhShadowModeRequestEmitsExplicitFallbackContext() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.filterPath", "pcss",
+                "vulkan.shadow.rtMode", "bvh_dedicated",
+                "vulkan.shadow.rtDenoiseStrength", "0.82",
+                "vulkan.shadow.rtRayLength", "140",
+                "vulkan.shadow.rtSampleCount", "6"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("rtMode=bvh_dedicated")
+                        && w.message().contains("rtSampleCount=6")));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_PATH_REQUESTED".equals(w.code())
+                        && w.message().contains("RT shadow mode requested: bvh_dedicated")));
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_RT_PATH_FALLBACK_ACTIVE".equals(w.code())
+                        && w.message().contains("Dedicated BVH mode requested")));
         assertTrue(frame.warnings().stream().anyMatch(w ->
                 "SHADOW_RT_BVH_PIPELINE_PENDING".equals(w.code())
                         && w.message().contains("dedicated BVH traversal/denoise pipeline remains pending")));

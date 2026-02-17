@@ -39,7 +39,7 @@ CI always-on rollout:
 - GitHub Actions `shadow-matrix` runs on `push`/`pull_request` with mock Vulkan safety.
 - Weekly scheduled run (`schedule`) also executes long-run AA/shadow motion sampling.
 - GitHub Actions `shadow-real-longrun-guarded` now runs on `push`/`pull_request`/`schedule` and emits guarded threshold-lock recommendations when real Vulkan is available.
-- GitHub Actions `shadow-production-quality-sweeps` now runs on `push`/`pull_request`/`schedule` and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`) with guarded threshold-lock output.
+- GitHub Actions `shadow-production-quality-sweeps` now runs on `push`/`pull_request`/`schedule` and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`, `rt bvh_dedicated`) with guarded threshold-lock output.
 - Manual `workflow_dispatch` toggles:
   - `run_shadow_real_matrix=true`
   - `run_shadow_longrun=true`
@@ -153,6 +153,7 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Vulkan mapper tests now validate capability-gated RT active state (`rtShadowActive`) when traversal extensions are available.
 - Vulkan integration tests now validate strict BVH request behavior:
   - `VulkanEngineRuntimeIntegrationTest#strictBvhModeFailsFastWhenBvhCapabilityIsUnavailable`
+  - `VulkanEngineRuntimeIntegrationTest#strictDedicatedBvhModeFailsFast`
 - Vulkan shader/uniform tests now validate packed RT sample count metadata and runtime RT tuning decode (`shadowRtDenoiseStrength`, `shadowRtRayLength`, `shadowRtSampleCount`) feeding traversal/denoise shaping.
 - Vulkan runtime options tests also validate shadow quality tuning clamps:
   - `vulkan.shadow.pcssSoftness`

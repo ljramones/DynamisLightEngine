@@ -132,8 +132,8 @@ class VulkanUniformWritersTest {
         ByteBuffer target = ByteBuffer.allocateDirect(2544).order(ByteOrder.nativeOrder());
         VulkanUniformWriters.writeGlobalSceneUniform(target, in);
         FloatBuffer fb = target.order(ByteOrder.nativeOrder()).asFloatBuffer();
-        int metaIndex = findSequenceStart(fb, new float[]{0f, 0f, 219f, 0f});
-        assertTrue(metaIndex >= 0); // filter=3, rtMode=2, rtActive=1, rtSamples=6 => 0b11011011
+        int metaIndex = findSequenceStart(fb, new float[]{0f, 0f, 427f, 0f});
+        assertTrue(metaIndex >= 0); // filter=3, rtMode=2, rtActive=1, rtSamples=6 => packed with 3-bit mode + shifted active/sample bits
     }
 
     private static float[] identity() {

@@ -32,9 +32,9 @@ public final class VulkanUniformWriters {
         }
         int rtSamplesPacked = in.shadowRtMode() > 0 ? Math.max(1, Math.min(31, in.shadowRtSampleCount())) : 0;
         int packedShadowMode = (in.shadowFilterMode() & 0x3)
-                | ((Math.max(0, Math.min(3, in.shadowRtMode())) & 0x3) << 2)
-                | (in.shadowRtActive() ? (1 << 4) : 0)
-                | ((rtSamplesPacked & 0x1F) << 5);
+                | ((Math.max(0, Math.min(7, in.shadowRtMode())) & 0x7) << 2)
+                | (in.shadowRtActive() ? (1 << 5) : 0)
+                | ((rtSamplesPacked & 0x1F) << 6);
         fb.put(new float[]{
                 (float) in.localLightCount(),
                 (float) localShadowSlots,

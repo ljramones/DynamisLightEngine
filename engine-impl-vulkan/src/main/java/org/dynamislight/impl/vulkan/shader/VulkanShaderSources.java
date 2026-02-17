@@ -562,9 +562,9 @@ public final class VulkanShaderSources {
                     float dirIntensity = max(0.0, gbo.uLightIntensity.x);
                     int shadowModePacked = max(int(gbo.uLocalLightMeta.z + 0.5), 0);
                     int shadowFilterMode = shadowModePacked & 3;
-                    int shadowRtMode = (shadowModePacked >> 2) & 3;
-                    bool shadowRtActive = ((shadowModePacked >> 4) & 1) == 1;
-                    int shadowRtSampleCount = max((shadowModePacked >> 5) & 31, 1);
+                    int shadowRtMode = (shadowModePacked >> 2) & 7;
+                    bool shadowRtActive = ((shadowModePacked >> 5) & 1) == 1;
+                    int shadowRtSampleCount = max((shadowModePacked >> 6) & 31, 1);
                     bool shadowRtEnabled = shadowRtMode > 0 && shadowRtActive;
                     float shadowRtDenoiseStrength = clamp(gbo.uLightIntensity.y, 0.0, 1.0);
                     float shadowRtRayLength = clamp(gbo.uShadowCascadeExt.x, 1.0, 500.0);

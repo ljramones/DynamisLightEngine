@@ -127,8 +127,8 @@ Sample host clamps:
   - `vulkan.shadow.contactStrength=0.25..2.0` (default `1.0`)
   - `vulkan.shadow.contactTemporalMotionScale=0.1..3.0` (default `1.0`)
   - `vulkan.shadow.contactTemporalMinStability=0.2..1.0` (default `0.42`)
-  - `vulkan.shadow.rtMode=off|optional|force|bvh`
-  - `vulkan.shadow.rtBvhStrict=true|false` (default `false`; fail fast if `rtMode=bvh` is requested without BVH capability)
+  - `vulkan.shadow.rtMode=off|optional|force|bvh|bvh_dedicated`
+  - `vulkan.shadow.rtBvhStrict=true|false` (default `false`; fail fast if `rtMode=bvh` lacks BVH capability or if `rtMode=bvh_dedicated` is requested before dedicated BVH traversal is available)
   - `vulkan.shadow.rtDenoiseStrength=0..1` (default `0.65`, hybrid traversal denoise shaping)
   - `vulkan.shadow.rtRayLength=1..500` (default `80`, hybrid traversal march distance shaping)
   - `vulkan.shadow.rtSampleCount=1..16` (default `2`, hybrid traversal step budget shaping)
@@ -260,6 +260,7 @@ Production profile quality sweeps + threshold lock (guarded real Vulkan):
 ```bash
 ./scripts/shadow_production_quality_sweeps.sh
 ```
+The default production sweep set includes `rtMode=bvh` and `rtMode=bvh_dedicated` lanes for readiness tracking.
 
 Optional strict BVH enforcement in sweep runs:
 ```bash

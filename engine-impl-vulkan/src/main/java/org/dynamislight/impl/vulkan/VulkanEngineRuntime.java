@@ -265,13 +265,23 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         VulkanRuntimeLifecycle.initialize(context, config, options, plannedDrawCalls, plannedTriangles, plannedVisibleObjects);
         shadowRtTraversalSupported = !mockContext && context.isHardwareRtShadowTraversalSupported();
         shadowRtBvhSupported = !mockContext && context.isHardwareRtShadowBvhSupported();
-        if ("bvh".equals(shadowRtMode) && shadowRtBvhStrict && !shadowRtBvhSupported) {
-            throw new EngineException(
-                    EngineErrorCode.BACKEND_INIT_FAILED,
-                    "Strict BVH RT shadow mode requested but BVH capability is unavailable "
-                            + "(rtMode=bvh, strict=true, mockContext=" + mockContext + ")",
-                    false
-            );
+        if (shadowRtBvhStrict) {
+            if ("bvh".equals(shadowRtMode) && !shadowRtBvhSupported) {
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "Strict BVH RT shadow mode requested but BVH capability is unavailable "
+                                + "(rtMode=bvh, strict=true, mockContext=" + mockContext + ")",
+                        false
+                );
+            }
+            if ("bvh_dedicated".equals(shadowRtMode)) {
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "Strict dedicated BVH RT shadow mode requested but dedicated BVH traversal pipeline is unavailable "
+                                + "(rtMode=bvh_dedicated, strict=true, mockContext=" + mockContext + ")",
+                        false
+                );
+            }
         }
     }
 
@@ -663,13 +673,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             "RT shadow traversal/denoise path unavailable; using non-RT shadow fallback stack"
                                     + ("bvh".equals(currentShadows.rtShadowMode())
                                     ? " (BVH mode requested but dedicated BVH traversal pipeline is not active)"
+                                    : ("bvh_dedicated".equals(currentShadows.rtShadowMode())
+                                    ? " (Dedicated BVH mode requested but dedicated BVH traversal pipeline is not active)"
                                     : "")
+                                    )
                     ));
                 }
-                if ("bvh".equals(currentShadows.rtShadowMode())) {
+                if ("bvh".equals(currentShadows.rtShadowMode()) || "bvh_dedicated".equals(currentShadows.rtShadowMode())) {
                     warnings.add(new EngineWarning(
                             "SHADOW_RT_BVH_PIPELINE_PENDING",
-                            "BVH RT shadow mode requested, but runtime is using the hybrid traversal path "
+                            "BVH RT shadow mode requested, but runtime is using the "
+                                    + ("bvh_dedicated".equals(currentShadows.rtShadowMode()) ? "fallback" : "hybrid traversal")
+                                    + " path "
                                     + "(rtActive=" + currentShadows.rtShadowActive()
                                     + ", rtBvhSupported=" + shadowRtBvhSupported
                                     + "); dedicated BVH traversal/denoise pipeline remains pending"
