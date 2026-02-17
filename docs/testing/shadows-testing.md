@@ -169,7 +169,9 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Verify cadence scheduler behavior:
   - policy warning includes scheduler fields (`schedulerEnabled`, `schedulerPeriodHero`, `schedulerPeriodMid`, `schedulerPeriodDistant`, `shadowSchedulerFrameTick`).
   - at fixed face budget, rendered local shadow counts stay within cadence-gated budget envelope.
-  - warning telemetry emits `renderedShadowLightIds`; verify IDs rotate over time for non-hero lights under throttled cadence.
+  - warning telemetry emits `renderedShadowLightIds`; verify scheduler continues to render at least one local light while deferring overflow work under throttled cadence.
+  - integration check validates defer behavior under point-cubemap face budget pressure:
+    - `VulkanEngineRuntimeIntegrationTest#shadowSchedulerCadenceDefersPointWorkUnderFaceBudget`
   - backlog telemetry is present: `deferredShadowLightCount`, `deferredShadowLightIds`.
   - allocator telemetry is present: `shadowAllocatorAssignedLights`, `shadowAllocatorReusedAssignments`, `shadowAllocatorEvictions`.
   - integration check validates reuse remains active across reordered light lists:

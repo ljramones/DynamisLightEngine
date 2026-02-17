@@ -717,7 +717,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 "vulkan.mockContext", "true",
                 "vulkan.shadow.scheduler.enabled", "false"
         ), QualityTier.ULTRA), new RecordingCallbacks());
-        runtime.loadScene(validMultiPointShadowScene());
+        runtime.loadScene(validBalancedMultiPointShadowScene());
 
         var frame = runtime.render();
 
@@ -771,6 +771,40 @@ class VulkanEngineRuntimeIntegrationTest {
         int evictions = parseWarningIntField(policy, "shadowAllocatorEvictions");
         assertTrue(reused > 0);
         assertTrue(evictions >= 0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void shadowSchedulerCadenceDefersPointWorkUnderFaceBudget() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.scheduler.enabled", "true",
+                "vulkan.shadow.scheduler.heroPeriod", "1",
+                "vulkan.shadow.scheduler.midPeriod", "2",
+                "vulkan.shadow.scheduler.distantPeriod", "4",
+                "vulkan.shadow.maxShadowedLocalLights", "3",
+                "vulkan.shadow.maxLocalShadowLayers", "24",
+                "vulkan.shadow.maxShadowFacesPerFrame", "8"
+        ), QualityTier.ULTRA), new RecordingCallbacks());
+        runtime.loadScene(validMultiPointShadowScene());
+
+        boolean sawRendered = false;
+        boolean sawDeferred = false;
+        for (int i = 0; i < 8; i++) {
+            var frame = runtime.render();
+            String policy = frame.warnings().stream()
+                    .filter(w -> "SHADOW_POLICY_ACTIVE".equals(w.code()))
+                    .map(w -> w.message())
+                    .findFirst()
+                    .orElse("");
+            String renderedIds = parseWarningStringField(policy, "renderedShadowLightIds");
+            sawRendered = sawRendered || !renderedIds.isBlank();
+            sawDeferred = sawDeferred || parseWarningIntField(policy, "deferredShadowLightCount") > 0;
+        }
+
+        assertTrue(sawRendered);
+        assertTrue(sawDeferred);
         runtime.shutdown();
     }
 
@@ -2102,6 +2136,53 @@ class VulkanEngineRuntimeIntegrationTest {
         );
     }
 
+    private static SceneDescriptor validBalancedMultiPointShadowScene() {
+        SceneDescriptor base = validScene();
+        LightDesc pointA = new LightDesc(
+                "point-shadow-balanced-a",
+                new Vec3(0.4f, 1.6f, 1.5f),
+                new Vec3(0.9f, 0.9f, 1f),
+                1.0f,
+                12f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.POINT
+        );
+        LightDesc pointB = new LightDesc(
+                "point-shadow-balanced-b",
+                new Vec3(-0.8f, 1.4f, 1.7f),
+                new Vec3(0.9f, 0.9f, 1f),
+                1.0f,
+                12f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.POINT
+        );
+        LightDesc pointC = new LightDesc(
+                "point-shadow-balanced-c",
+                new Vec3(1.1f, 1.7f, 1.2f),
+                new Vec3(0.9f, 0.9f, 1f),
+                1.0f,
+                12f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.POINT
+        );
+        return new SceneDescriptor(
+                "vulkan-multi-point-shadow-balanced-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(pointA, pointB, pointC),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
     private static EngineInput emptyInput() {
         return new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
     }
@@ -2122,6 +2203,19 @@ class VulkanEngineRuntimeIntegrationTest {
             }
         }
         return -1;
+    }
+
+    private static String parseWarningStringField(String message, String field) {
+        if (message == null || message.isBlank() || field == null || field.isBlank()) {
+            return "";
+        }
+        String prefix = field + "=";
+        for (String token : message.split("\\s+")) {
+            if (token.startsWith(prefix)) {
+                return token.substring(prefix.length());
+            }
+        }
+        return "";
     }
 
     private static void writeKtx2Stub(Path path, int width, int height) throws Exception {
