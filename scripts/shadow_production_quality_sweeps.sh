@@ -13,6 +13,7 @@ OUT_ROOT="${DLE_SHADOW_PROD_SWEEP_OUTPUT_ROOT:-artifacts/compare/shadow-producti
 LOCK_THRESHOLDS="${DLE_SHADOW_PROD_SWEEP_LOCK_THRESHOLDS:-1}"
 THRESHOLD_OUT="${DLE_SHADOW_PROD_SWEEP_THRESHOLD_OUTPUT_DIR:-$OUT_ROOT/threshold-lock}"
 PROFILE_SET="${DLE_SHADOW_PROD_SWEEP_PROFILE_SET:-production}"
+RT_BVH_STRICT="${DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT:-0}"
 
 mkdir -p "$OUT_ROOT"
 
@@ -28,6 +29,7 @@ echo "Shadow production quality sweeps"
 echo "  runs: $RUNS"
 echo "  vulkan mode: $VULKAN_MODE"
 echo "  profile set: $PROFILE_SET"
+echo "  rt bvh strict: $RT_BVH_STRICT"
 echo "  output root: $OUT_ROOT"
 
 declare -a TESTS=(
@@ -46,7 +48,7 @@ if [[ "$PROFILE_SET" == "production" ]]; then
     "vsm_quality::-Dvulkan.shadow.filterPath=vsm -Dvulkan.shadow.momentBlend=1.15 -Dvulkan.shadow.momentBleedReduction=1.10"
     "evsm_quality::-Dvulkan.shadow.filterPath=evsm -Dvulkan.shadow.momentBlend=1.20 -Dvulkan.shadow.momentBleedReduction=1.20"
     "rt_optional_pcss::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=optional -Dvulkan.shadow.rtDenoiseStrength=0.78 -Dvulkan.shadow.rtRayLength=120 -Dvulkan.shadow.rtSampleCount=4"
-    "rt_bvh_pcss::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh -Dvulkan.shadow.rtDenoiseStrength=0.82 -Dvulkan.shadow.rtRayLength=140 -Dvulkan.shadow.rtSampleCount=6"
+    "rt_bvh_pcss::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh -Dvulkan.shadow.rtDenoiseStrength=0.82 -Dvulkan.shadow.rtRayLength=140 -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtBvhStrict=$RT_BVH_STRICT"
   )
 else
   PROFILES=(

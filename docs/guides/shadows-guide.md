@@ -261,6 +261,11 @@ Production profile quality sweeps + threshold lock (guarded real Vulkan):
 ./scripts/shadow_production_quality_sweeps.sh
 ```
 
+Optional strict BVH enforcement in sweep runs:
+```bash
+DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT=1 ./scripts/shadow_production_quality_sweeps.sh
+```
+
 Parity/stress suite (includes shadow profiles):
 ```bash
 mvn -pl engine-host-sample -am test \

@@ -111,6 +111,12 @@ Production quality parity sweeps + threshold lock (guarded real Vulkan by defaul
 ./scripts/shadow_production_quality_sweeps.sh
 ```
 
+Optional strict BVH enforcement during production sweeps (capability must exist):
+```bash
+DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT=1 \
+./scripts/shadow_production_quality_sweeps.sh
+```
+
 Cadence scheduler check (real Vulkan):
 ```bash
 DLE_COMPARE_VULKAN_MODE=real \
