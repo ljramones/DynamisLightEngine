@@ -102,11 +102,34 @@ final class BackendCompareHarness {
             runtime.loadScene(scene);
             EngineFrameResult frame = null;
             int frames = taaStress ? 5 : (smaaStress ? 3 : 1);
+            double rejectMin = Double.POSITIVE_INFINITY;
+            double rejectMax = Double.NEGATIVE_INFINITY;
+            double confidenceMin = Double.POSITIVE_INFINITY;
+            double confidenceMax = Double.NEGATIVE_INFINITY;
+            long firstDropCount = Long.MIN_VALUE;
+            long lastDropCount = 0L;
             for (int i = 0; i < frames; i++) {
                 runtime.update(1.0 / 60.0, input);
                 frame = runtime.render();
+                var stats = runtime.getStats();
+                rejectMin = Math.min(rejectMin, stats.taaHistoryRejectRate());
+                rejectMax = Math.max(rejectMax, stats.taaHistoryRejectRate());
+                confidenceMin = Math.min(confidenceMin, stats.taaConfidenceMean());
+                confidenceMax = Math.max(confidenceMax, stats.taaConfidenceMean());
+                if (firstDropCount == Long.MIN_VALUE) {
+                    firstDropCount = stats.taaConfidenceDropEvents();
+                }
+                lastDropCount = stats.taaConfidenceDropEvents();
             }
             var stats = runtime.getStats();
+            if (rejectMin == Double.POSITIVE_INFINITY) {
+                rejectMin = stats.taaHistoryRejectRate();
+                rejectMax = stats.taaHistoryRejectRate();
+                confidenceMin = stats.taaConfidenceMean();
+                confidenceMax = stats.taaConfidenceMean();
+                firstDropCount = stats.taaConfidenceDropEvents();
+                lastDropCount = stats.taaConfidenceDropEvents();
+            }
             return new BackendSnapshot(
                     backendId,
                     stats.drawCalls(),
@@ -118,6 +141,9 @@ final class BackendCompareHarness {
                     stats.taaHistoryRejectRate(),
                     stats.taaConfidenceMean(),
                     stats.taaConfidenceDropEvents(),
+                    Math.max(0.0, rejectMax - rejectMin),
+                    Math.max(0.0, confidenceMax - confidenceMin),
+                    Math.max(0L, lastDropCount - firstDropCount),
                     frame.warnings().size(),
                     frame.warnings().stream().map(w -> w.code()).sorted().toList()
             );
@@ -177,7 +203,9 @@ final class BackendCompareHarness {
                     Map.entry("opengl.tsrNeighborhoodClamp", System.getProperty("dle.compare.tsr.neighborhoodClamp", "0.88")),
                     Map.entry("opengl.tsrReprojectionConfidence", System.getProperty("dle.compare.tsr.reprojectionConfidence", "0.85")),
                     Map.entry("opengl.tsrSharpen", System.getProperty("dle.compare.tsr.sharpen", "0.14")),
-                    Map.entry("opengl.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75"))
+                    Map.entry("opengl.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75")),
+                    Map.entry("opengl.tsrRenderScale", System.getProperty("dle.compare.tsr.renderScale", "0.60")),
+                    Map.entry("opengl.tuuaRenderScale", System.getProperty("dle.compare.tuua.renderScale", "0.72"))
             );
             case "vulkan" -> Map.ofEntries(
                     Map.entry("vulkan.mockContext", System.getProperty("dle.compare.vulkan.mockContext", "true")),
@@ -190,7 +218,9 @@ final class BackendCompareHarness {
                     Map.entry("vulkan.tsrNeighborhoodClamp", System.getProperty("dle.compare.tsr.neighborhoodClamp", "0.88")),
                     Map.entry("vulkan.tsrReprojectionConfidence", System.getProperty("dle.compare.tsr.reprojectionConfidence", "0.85")),
                     Map.entry("vulkan.tsrSharpen", System.getProperty("dle.compare.tsr.sharpen", "0.14")),
-                    Map.entry("vulkan.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75"))
+                    Map.entry("vulkan.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75")),
+                    Map.entry("vulkan.tsrRenderScale", System.getProperty("dle.compare.tsr.renderScale", "0.60")),
+                    Map.entry("vulkan.tuuaRenderScale", System.getProperty("dle.compare.tuua.renderScale", "0.72"))
             );
             default -> Map.of();
         };
@@ -332,6 +362,12 @@ final class BackendCompareHarness {
         metadata.setProperty("compare.vulkan.taaConfidenceMean", Double.toString(vulkan.taaConfidenceMean()));
         metadata.setProperty("compare.opengl.taaConfidenceDropCount", Long.toString(openGl.taaConfidenceDropCount()));
         metadata.setProperty("compare.vulkan.taaConfidenceDropCount", Long.toString(vulkan.taaConfidenceDropCount()));
+        metadata.setProperty("compare.opengl.taaRejectTrendWindow", Double.toString(openGl.taaRejectTrendWindow()));
+        metadata.setProperty("compare.vulkan.taaRejectTrendWindow", Double.toString(vulkan.taaRejectTrendWindow()));
+        metadata.setProperty("compare.opengl.taaConfidenceTrendWindow", Double.toString(openGl.taaConfidenceTrendWindow()));
+        metadata.setProperty("compare.vulkan.taaConfidenceTrendWindow", Double.toString(vulkan.taaConfidenceTrendWindow()));
+        metadata.setProperty("compare.opengl.taaConfidenceDropWindow", Long.toString(openGl.taaConfidenceDropWindow()));
+        metadata.setProperty("compare.vulkan.taaConfidenceDropWindow", Long.toString(vulkan.taaConfidenceDropWindow()));
         try (var out = Files.newOutputStream(outputDir.resolve("compare-metadata.properties"))) {
             metadata.store(out, "DynamisLightEngine compare metadata");
         }
@@ -357,6 +393,9 @@ final class BackendCompareHarness {
             double taaHistoryRejectRate,
             double taaConfidenceMean,
             long taaConfidenceDropCount,
+            double taaRejectTrendWindow,
+            double taaConfidenceTrendWindow,
+            long taaConfidenceDropWindow,
             int warningCount,
             java.util.List<String> warningCodes
     ) {
@@ -372,6 +411,9 @@ final class BackendCompareHarness {
                     taaHistoryRejectRate,
                     taaConfidenceMean,
                     taaConfidenceDropCount,
+                    taaRejectTrendWindow,
+                    taaConfidenceTrendWindow,
+                    taaConfidenceDropWindow,
                     warningCount,
                     warningCodes
             );

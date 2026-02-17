@@ -58,7 +58,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float neighborhoodClamp,
             float reprojectionConfidence,
             float sharpen,
-            float antiRinging
+            float antiRinging,
+            float tsrRenderScale,
+            float tuuaRenderScale
     ) {
     }
 
@@ -86,11 +88,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private FogRenderConfig currentFog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
     private SmokeRenderConfig currentSmoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig currentShadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
-    private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f);
+    private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f);
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
     private AaMode aaMode = AaMode.TAA;
-    private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f);
+    private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f, 0.60f, 0.72f);
     private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
@@ -303,7 +305,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 parseFloatOption(options, prefix + "tsrNeighborhoodClamp", 0.88f, 0.50f, 1.20f),
                 parseFloatOption(options, prefix + "tsrReprojectionConfidence", 0.85f, 0.10f, 1.0f),
                 parseFloatOption(options, prefix + "tsrSharpen", 0.14f, 0.0f, 0.35f),
-                parseFloatOption(options, prefix + "tsrAntiRinging", 0.75f, 0.0f, 1.0f)
+                parseFloatOption(options, prefix + "tsrAntiRinging", 0.75f, 0.0f, 1.0f),
+                parseFloatOption(options, prefix + "tsrRenderScale", 0.60f, 0.50f, 1.0f),
+                parseFloatOption(options, prefix + "tuuaRenderScale", 0.72f, 0.50f, 1.0f)
         );
     }
 
@@ -352,7 +356,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float taaBlend,
             float taaClipScale,
             boolean taaLumaClipEnabled,
-            float taaSharpenStrength
+            float taaSharpenStrength,
+            float taaRenderScale
     ) {
     }
 

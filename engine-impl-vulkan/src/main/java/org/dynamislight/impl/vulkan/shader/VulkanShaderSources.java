@@ -681,12 +681,14 @@ public final class VulkanShaderSources {
                         ) * 0.2;
                         float varianceReject = smoothstep(0.002, 0.028, lVar);
                         float depthReject = smoothstep(0.0012, 0.012, depthEdge + abs(historyDepth - currentDepth));
+                        float upsamplePenalty = clamp((1.0 - clamp(pc.ssao.w, 0.5, 1.0)) * 1.6, 0.0, 0.75);
                         float reactive = clamp(
                                 abs(lCurr - lHist) * 2.4 +
                                         length(velocityUv) * 1.25 +
                                         depthReject * 0.95 +
                                         varianceReject * 1.15 +
-                                        materialReactive * 1.35,
+                                        materialReactive * 1.35 +
+                                        upsamplePenalty * (0.55 + materialReactive * 0.5),
                                 0.0,
                                 1.0
                         );
@@ -702,11 +704,11 @@ public final class VulkanShaderSources {
                                 clampedHistory *= (lumaClamped / lumaHist);
                             }
                         }
-                        float disocclusionReject = smoothstep(0.0012, 0.0095, abs(historyDepth - currentDepth) + depthEdge * 0.9);
+                        float disocclusionReject = smoothstep(0.0012, 0.0095, abs(historyDepth - currentDepth) + depthEdge * (0.9 + upsamplePenalty * 0.65));
                         float instability = clamp(
                                 abs(lCurr - lHist) * 1.9 +
                                         varianceReject * 1.15 +
-                                        length(velocityUv) * 0.78,
+                                        length(velocityUv) * (0.78 + upsamplePenalty * 0.28),
                                 0.0,
                                 1.0
                         );

@@ -489,7 +489,8 @@ final class VulkanContext {
             float taaBlend,
             float taaClipScale,
             boolean taaLumaClipEnabled,
-            float taaSharpenStrength
+            float taaSharpenStrength,
+            float taaRenderScale
     ) {
         var result = VulkanRenderParameterMutator.applyPost(
                 new VulkanRenderParameterMutator.PostState(
@@ -509,6 +510,7 @@ final class VulkanContext {
                         this.renderState.taaEnabled,
                         this.renderState.taaBlend,
                         this.renderState.taaClipScale,
+                        this.renderState.taaRenderScale,
                         this.renderState.taaLumaClipEnabled,
                         this.renderState.taaSharpenStrength
                 ),
@@ -529,6 +531,7 @@ final class VulkanContext {
                         taaEnabled,
                         taaBlend,
                         taaClipScale,
+                        taaRenderScale,
                         taaLumaClipEnabled,
                         taaSharpenStrength
                 )
@@ -550,6 +553,7 @@ final class VulkanContext {
         this.renderState.taaEnabled = state.taaEnabled();
         this.renderState.taaBlend = state.taaBlend();
         this.renderState.taaClipScale = state.taaClipScale();
+        this.renderState.taaRenderScale = state.taaRenderScale();
         this.renderState.taaLumaClipEnabled = state.taaLumaClipEnabled();
         this.renderState.taaSharpenStrength = state.taaSharpenStrength();
         if (!this.renderState.taaEnabled) {
@@ -820,6 +824,7 @@ final class VulkanContext {
                         renderState.taaMotionUvX,
                         renderState.taaMotionUvY,
                         renderState.taaClipScale,
+                        renderState.taaRenderScale,
                         renderState.taaLumaClipEnabled,
                         renderState.taaSharpenStrength,
                         renderState.taaDebugView,
@@ -1083,8 +1088,9 @@ final class VulkanContext {
             return;
         }
         int frame = ++taaJitterFrameIndex;
-        float width = Math.max(1, backendResources.swapchainWidth);
-        float height = Math.max(1, backendResources.swapchainHeight);
+        float scale = renderState.taaEnabled ? Math.max(0.5f, Math.min(1.0f, renderState.taaRenderScale)) : 1.0f;
+        float width = Math.max(1, backendResources.swapchainWidth * scale);
+        float height = Math.max(1, backendResources.swapchainHeight * scale);
         float jitterX = (float) (((halton(frame, 2) - 0.5) * 2.0) / width);
         float jitterY = (float) (((halton(frame, 3) - 0.5) * 2.0) / height);
         boolean changed = Math.abs(jitterX - renderState.taaJitterNdcX) > 1e-9f || Math.abs(jitterY - renderState.taaJitterNdcY) > 1e-9f;
@@ -1123,7 +1129,8 @@ final class VulkanContext {
         }
         double motion = Math.sqrt((renderState.taaMotionUvX * renderState.taaMotionUvX)
                 + (renderState.taaMotionUvY * renderState.taaMotionUvY));
-        double reject = clamp01((1.0 - renderState.taaBlend) * 0.50 + motion * 6.0);
+        double scalePenalty = clamp01((1.0 - Math.max(0.5, Math.min(1.0, renderState.taaRenderScale))) * 1.2);
+        double reject = clamp01((1.0 - renderState.taaBlend) * 0.50 + motion * (6.0 + scalePenalty * 1.8));
         double targetConfidence = clamp01((1.0 - reject * 0.78) * Math.max(0.3, renderState.taaClipScale));
         if (renderState.taaLumaClipEnabled) {
             targetConfidence = clamp01(targetConfidence + 0.04);

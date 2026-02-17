@@ -63,7 +63,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             float neighborhoodClamp,
             float reprojectionConfidence,
             float sharpen,
-            float antiRinging
+            float antiRinging,
+            float tsrRenderScale,
+            float tuuaRenderScale
     ) {
     }
 
@@ -91,7 +93,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             float taaBlend,
             float taaClipScale,
             boolean taaLumaClipEnabled,
-            float taaSharpenStrength
+            float taaSharpenStrength,
+            float taaRenderScale
     ) {
     }
 
@@ -135,14 +138,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
     private ShadowRenderConfig shadows = new ShadowRenderConfig(false, 0.45f, 0.0015f, 1, 1, 1024, false);
-    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f);
+    private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f);
     private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
     private int taaDebugView;
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
     private AaMode aaMode = AaMode.TAA;
-    private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f);
+    private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f, 0.60f, 0.72f);
 
     public OpenGlEngineRuntime() {
         super(
@@ -210,7 +213,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 postProcess.taaBlend(),
                 postProcess.taaClipScale(),
                 postProcess.taaLumaClipEnabled(),
-                postProcess.taaSharpenStrength()
+                postProcess.taaSharpenStrength(),
+                postProcess.taaRenderScale()
         );
         context.setTaaDebugView(taaDebugView);
         frameGraph = buildFrameGraph();
@@ -286,7 +290,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     postProcess.taaBlend(),
                     postProcess.taaClipScale(),
                     postProcess.taaLumaClipEnabled(),
-                    postProcess.taaSharpenStrength()
+                    postProcess.taaSharpenStrength(),
+                    postProcess.taaRenderScale()
             );
             context.setTaaDebugView(taaDebugView);
             frameGraph = buildFrameGraph();
@@ -580,7 +585,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             TsrControls tsrControls
     ) {
         if (desc == null || !desc.enabled()) {
-            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f);
+            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -614,6 +619,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             case HIGH -> 0.16f;
             case ULTRA -> 0.20f;
         };
+        float taaRenderScale = 1.0f;
         boolean taaLumaClipEnabled = desc.taaLumaClipEnabled() || taaLumaClipEnabledDefault;
         if (qualityTier == QualityTier.MEDIUM) {
             ssaoStrength *= 0.8f;
@@ -653,6 +659,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     taaEnabled = qualityTier != QualityTier.LOW;
                     smaaEnabled = false;
                     smaaStrength = 0f;
+                    taaRenderScale = qualityTier == QualityTier.LOW
+                            ? 1.0f
+                            : Math.max(0.5f, Math.min(1.0f, tsrControls.tsrRenderScale()));
                     float historyInfluence = clamp01(
                             tsrControls.historyWeight() * tsrControls.reprojectionConfidence() * (1.0f - tsrControls.responsiveMask() * 0.22f)
                     );
@@ -667,6 +676,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     taaEnabled = qualityTier != QualityTier.LOW;
                     smaaEnabled = false;
                     smaaStrength = 0f;
+                    taaRenderScale = qualityTier == QualityTier.LOW
+                            ? 1.0f
+                            : Math.max(0.5f, Math.min(1.0f, tsrControls.tuuaRenderScale()));
                     taaBlend = Math.min(0.95f, taaBlend + 0.10f);
                     taaClipScale = Math.max(0.5f, taaClipScale * 0.86f);
                     taaSharpenStrength = Math.min(0.35f, taaSharpenStrength * 1.16f);
@@ -683,6 +695,12 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     taaEnabled = qualityTier != QualityTier.LOW;
                     smaaEnabled = qualityTier != QualityTier.LOW;
                     smaaStrength = Math.min(1.0f, smaaStrength * 1.05f);
+                    taaRenderScale = switch (qualityTier) {
+                        case LOW -> 1.0f;
+                        case MEDIUM -> 0.90f;
+                        case HIGH -> 0.84f;
+                        case ULTRA -> 0.80f;
+                    };
                     taaBlend = Math.min(0.95f, taaBlend + 0.06f);
                     taaClipScale = Math.max(0.5f, taaClipScale * 0.90f);
                     taaSharpenStrength = Math.min(0.35f, taaSharpenStrength * 0.95f);
@@ -728,7 +746,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 taaBlend,
                 taaClipScale,
                 taaLumaClipEnabled,
-                taaSharpenStrength
+                taaSharpenStrength,
+                taaRenderScale
         );
     }
 
@@ -762,7 +781,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 parseFloatOption(options, prefix + "tsrNeighborhoodClamp", 0.88f, 0.50f, 1.20f),
                 parseFloatOption(options, prefix + "tsrReprojectionConfidence", 0.85f, 0.10f, 1.0f),
                 parseFloatOption(options, prefix + "tsrSharpen", 0.14f, 0.0f, 0.35f),
-                parseFloatOption(options, prefix + "tsrAntiRinging", 0.75f, 0.0f, 1.0f)
+                parseFloatOption(options, prefix + "tsrAntiRinging", 0.75f, 0.0f, 1.0f),
+                parseFloatOption(options, prefix + "tsrRenderScale", 0.60f, 0.50f, 1.0f),
+                parseFloatOption(options, prefix + "tuuaRenderScale", 0.72f, 0.50f, 1.0f)
         );
     }
 

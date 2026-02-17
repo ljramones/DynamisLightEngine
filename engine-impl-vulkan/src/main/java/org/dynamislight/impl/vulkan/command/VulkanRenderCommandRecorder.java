@@ -401,7 +401,7 @@ public final class VulkanRenderCommandRecorder {
         postPush.asFloatBuffer().put(new float[]{
                 in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), in.ssaoEnabled() ? 1f : 0f,
                 in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength(),
-                in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), 0f,
+                in.ssaoRadius(), in.ssaoBias(), in.ssaoPower(), in.taaRenderScale(),
                 in.smaaEnabled() ? 1f : 0f, in.smaaStrength(), in.taaJitterUvDeltaX(), in.taaJitterUvDeltaY(),
                 in.taaMotionUvX(), in.taaMotionUvY(),
                 (in.taaLumaClipEnabled() ? 1f : 0f) + in.taaSharpenStrength(),
@@ -689,6 +689,7 @@ public final class VulkanRenderCommandRecorder {
             float taaMotionUvX,
             float taaMotionUvY,
             float taaClipScale,
+            float taaRenderScale,
             boolean taaLumaClipEnabled,
             float taaSharpenStrength,
             int taaDebugView,

@@ -24,7 +24,7 @@ final class VulkanEngineRuntimeLightingMapper {
             VulkanEngineRuntime.TsrControls tsrControls
     ) {
         if (desc == null || !desc.enabled()) {
-            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f);
+            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -58,6 +58,7 @@ final class VulkanEngineRuntimeLightingMapper {
             case HIGH -> 0.16f;
             case ULTRA -> 0.20f;
         };
+        float taaRenderScale = 1.0f;
         boolean taaLumaClipEnabled = desc.taaLumaClipEnabled() || taaLumaClipEnabledDefault;
         if (qualityTier == QualityTier.MEDIUM) {
             ssaoStrength *= 0.8f;
@@ -97,6 +98,9 @@ final class VulkanEngineRuntimeLightingMapper {
                     taaEnabled = qualityTier != QualityTier.LOW;
                     smaaEnabled = false;
                     smaaStrength = 0f;
+                    taaRenderScale = qualityTier == QualityTier.LOW
+                            ? 1.0f
+                            : Math.max(0.5f, Math.min(1.0f, tsrControls.tsrRenderScale()));
                     float historyInfluence = clamp01(
                             tsrControls.historyWeight() * tsrControls.reprojectionConfidence() * (1.0f - tsrControls.responsiveMask() * 0.22f)
                     );
@@ -111,6 +115,9 @@ final class VulkanEngineRuntimeLightingMapper {
                     taaEnabled = qualityTier != QualityTier.LOW;
                     smaaEnabled = false;
                     smaaStrength = 0f;
+                    taaRenderScale = qualityTier == QualityTier.LOW
+                            ? 1.0f
+                            : Math.max(0.5f, Math.min(1.0f, tsrControls.tuuaRenderScale()));
                     taaBlend = Math.min(0.95f, taaBlend + 0.10f);
                     taaClipScale = Math.max(0.5f, taaClipScale * 0.86f);
                     taaSharpenStrength = Math.min(0.35f, taaSharpenStrength * 1.16f);
@@ -172,7 +179,8 @@ final class VulkanEngineRuntimeLightingMapper {
                 taaBlend,
                 taaClipScale,
                 taaLumaClipEnabled,
-                taaSharpenStrength
+                taaSharpenStrength,
+                taaRenderScale
         );
     }
 

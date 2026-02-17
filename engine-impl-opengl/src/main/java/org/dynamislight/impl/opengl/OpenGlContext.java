@@ -699,6 +699,7 @@ final class OpenGlContext {
             uniform float uTaaClipScale;
             uniform int uTaaLumaClipEnabled;
             uniform float uTaaSharpenStrength;
+            uniform float uTaaUpsampleScale;
             uniform sampler2D uTaaHistory;
             uniform sampler2D uTaaHistoryVelocity;
             out vec4 FragColor;
@@ -869,12 +870,14 @@ final class OpenGlContext {
                     ) * 0.2;
                     float varianceReject = smoothstep(0.002, 0.028, lVar);
                     float depthReject = smoothstep(0.0012, 0.012, depthEdge + abs(historyDepth - currentDepth));
+                    float upsamplePenalty = clamp((1.0 - clamp(uTaaUpsampleScale, 0.5, 1.0)) * 1.6, 0.0, 0.75);
                     float reactive = clamp(
                             abs(lCurr - lHist) * 2.4 +
                                     length(velocityUv) * 1.25 +
                                     depthReject * 0.95 +
                                     varianceReject * 1.15 +
-                                    materialReactive * 1.35,
+                                    materialReactive * 1.35 +
+                                    upsamplePenalty * (0.55 + materialReactive * 0.5),
                             0.0,
                             1.0
                     );
@@ -889,11 +892,11 @@ final class OpenGlContext {
                             clampedHistory *= (lumaClamped / lumaHist);
                         }
                     }
-                    float disocclusionReject = smoothstep(0.0012, 0.0095, abs(historyDepth - currentDepth) + depthEdge * 0.9);
+                    float disocclusionReject = smoothstep(0.0012, 0.0095, abs(historyDepth - currentDepth) + depthEdge * (0.9 + upsamplePenalty * 0.65));
                     float instability = clamp(
                             abs(lCurr - lHist) * 1.9 +
                                     varianceReject * 1.15 +
-                                    length(velocityUv) * 0.78,
+                                    length(velocityUv) * (0.78 + upsamplePenalty * 0.28),
                             0.0,
                             1.0
                     );
@@ -924,6 +927,8 @@ final class OpenGlContext {
     private long window;
     private int width;
     private int height;
+    private int sceneRenderWidth = 1;
+    private int sceneRenderHeight = 1;
     private int programId;
     private final List<MeshBuffer> sceneMeshes = new ArrayList<>();
     private int modelLocation;
@@ -1018,6 +1023,7 @@ final class OpenGlContext {
     private int postTaaClipScaleLocation;
     private int postTaaLumaClipEnabledLocation;
     private int postTaaSharpenStrengthLocation;
+    private int postTaaUpsampleScaleLocation;
     private int postTaaHistoryLocation;
     private int postTaaHistoryVelocityLocation;
     private int postVaoId;
@@ -1076,6 +1082,7 @@ final class OpenGlContext {
     private float taaClipScale = 1.0f;
     private boolean taaLumaClipEnabled;
     private float taaSharpenStrength = 0.16f;
+    private float taaRenderScale = 1.0f;
     private double taaHistoryRejectRate;
     private double taaConfidenceMean = 1.0;
     private long taaConfidenceDropEvents;
@@ -1153,6 +1160,7 @@ final class OpenGlContext {
 
         this.width = width;
         this.height = height;
+        updateSceneRenderResolution();
         glViewport(0, 0, width, height);
 
         initializeShaderPipeline();
@@ -1185,6 +1193,7 @@ final class OpenGlContext {
     void resize(int width, int height) {
         this.width = width;
         this.height = height;
+        updateSceneRenderResolution();
         glViewport(0, 0, width, height);
         recreatePostProcessTargets();
     }
@@ -1213,7 +1222,7 @@ final class OpenGlContext {
 
     void beginFrame() {
         updateTemporalJitterState();
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, sceneRenderWidth, sceneRenderHeight);
         if (gpuTimerQuerySupported) {
             glBeginQuery(GL_TIME_ELAPSED, gpuTimeQueryId);
         }
@@ -1230,7 +1239,7 @@ final class OpenGlContext {
     }
 
     void renderGeometryPass() {
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, sceneRenderWidth, sceneRenderHeight);
         glUseProgram(programId);
         applyFogUniforms();
         applySmokeUniforms();
@@ -1460,18 +1469,21 @@ final class OpenGlContext {
         glUniform1f(postTaaClipScaleLocation, taaClipScale);
         glUniform1i(postTaaLumaClipEnabledLocation, taaLumaClipEnabled ? 1 : 0);
         glUniform1f(postTaaSharpenStrengthLocation, taaSharpenStrength);
+        glUniform1f(postTaaUpsampleScaleLocation, taaRenderScale);
         glDisable(GL_DEPTH_TEST);
         glBindVertexArray(postVaoId);
         glDrawArrays(GL_TRIANGLES, 0, 3);
         glBindVertexArray(0);
         glEnable(GL_DEPTH_TEST);
         if (taaEnabled && taaHistoryTextureId != 0 && taaHistoryVelocityTextureId != 0) {
+            glBindFramebuffer(org.lwjgl.opengl.GL30.GL_READ_FRAMEBUFFER, sceneFramebufferId);
+            org.lwjgl.opengl.GL11.glReadBuffer(GL_COLOR_ATTACHMENT0);
             glBindTexture(GL_TEXTURE_2D, taaHistoryTextureId);
-            org.lwjgl.opengl.GL11.glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+            org.lwjgl.opengl.GL11.glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, sceneRenderWidth, sceneRenderHeight);
             glBindFramebuffer(org.lwjgl.opengl.GL30.GL_READ_FRAMEBUFFER, sceneFramebufferId);
             org.lwjgl.opengl.GL11.glReadBuffer(GL_COLOR_ATTACHMENT1);
             glBindTexture(GL_TEXTURE_2D, taaHistoryVelocityTextureId);
-            org.lwjgl.opengl.GL11.glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, width, height);
+            org.lwjgl.opengl.GL11.glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, sceneRenderWidth, sceneRenderHeight);
             glBindFramebuffer(org.lwjgl.opengl.GL30.GL_READ_FRAMEBUFFER, 0);
             org.lwjgl.opengl.GL11.glReadBuffer(org.lwjgl.opengl.GL11.GL_BACK);
             taaHistoryValid = true;
@@ -1620,8 +1632,10 @@ final class OpenGlContext {
             float taaBlend,
             float taaClipScale,
             boolean taaLumaClipEnabled,
-            float taaSharpenStrength
+            float taaSharpenStrength,
+            float taaRenderScale
     ) {
+        boolean previousTaaEnabled = this.taaEnabled;
         this.tonemapEnabled = tonemapEnabled;
         tonemapExposure = Math.max(0.05f, Math.min(8.0f, exposure));
         tonemapGamma = Math.max(0.8f, Math.min(3.2f, gamma));
@@ -1640,6 +1654,16 @@ final class OpenGlContext {
         this.taaClipScale = Math.max(0.5f, Math.min(1.6f, taaClipScale));
         this.taaLumaClipEnabled = taaLumaClipEnabled;
         this.taaSharpenStrength = Math.max(0f, Math.min(0.35f, taaSharpenStrength));
+        float clampedRenderScale = Math.max(0.5f, Math.min(1.0f, taaRenderScale));
+        boolean renderScaleChanged = Math.abs(this.taaRenderScale - clampedRenderScale) > 0.000001f;
+        this.taaRenderScale = clampedRenderScale;
+        boolean taaModeChanged = previousTaaEnabled != this.taaEnabled;
+        if (renderScaleChanged || taaModeChanged) {
+            updateSceneRenderResolution();
+            recreatePostProcessTargets();
+            resetTemporalJitterState();
+            resetTemporalMotionState();
+        }
         if (!this.taaEnabled) {
             resetTemporalJitterState();
             projMatrix = projBaseMatrix.clone();
@@ -1924,6 +1948,7 @@ final class OpenGlContext {
         postTaaClipScaleLocation = glGetUniformLocation(postProgramId, "uTaaClipScale");
         postTaaLumaClipEnabledLocation = glGetUniformLocation(postProgramId, "uTaaLumaClipEnabled");
         postTaaSharpenStrengthLocation = glGetUniformLocation(postProgramId, "uTaaSharpenStrength");
+        postTaaUpsampleScaleLocation = glGetUniformLocation(postProgramId, "uTaaUpsampleScale");
         postTaaHistoryLocation = glGetUniformLocation(postProgramId, "uTaaHistory");
         postTaaHistoryVelocityLocation = glGetUniformLocation(postProgramId, "uTaaHistoryVelocity");
         postVaoId = glGenVertexArrays();
@@ -1938,38 +1963,40 @@ final class OpenGlContext {
     private void recreatePostProcessTargets() {
         destroyPostProcessResources();
         try {
+            int rw = Math.max(1, sceneRenderWidth);
+            int rh = Math.max(1, sceneRenderHeight);
             sceneColorTextureId = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, sceneColorTextureId);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rw, rh, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
             glBindTexture(GL_TEXTURE_2D, 0);
 
             sceneVelocityTextureId = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, sceneVelocityTextureId);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rw, rh, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
             glBindTexture(GL_TEXTURE_2D, 0);
 
             taaHistoryTextureId = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, taaHistoryTextureId);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rw, rh, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
             glBindTexture(GL_TEXTURE_2D, 0);
 
             taaHistoryVelocityTextureId = glGenTextures();
             glBindTexture(GL_TEXTURE_2D, taaHistoryVelocityTextureId);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rw, rh, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0L);
             glBindTexture(GL_TEXTURE_2D, 0);
             taaHistoryValid = false;
 
             sceneDepthRenderbufferId = glGenRenderbuffers();
             glBindRenderbuffer(GL_RENDERBUFFER, sceneDepthRenderbufferId);
-            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height);
+            glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, rw, rh);
             glBindRenderbuffer(GL_RENDERBUFFER, 0);
 
             sceneFramebufferId = glGenFramebuffers();
@@ -2298,7 +2325,7 @@ final class OpenGlContext {
         glUniform1i(smokeEnabledLocation, smokeEnabled ? 1 : 0);
         glUniform3f(smokeColorLocation, smokeR, smokeG, smokeB);
         glUniform1f(smokeIntensityLocation, smokeIntensity);
-        glUniform2f(viewportSizeLocation, Math.max(1, width), Math.max(1, height));
+        glUniform2f(viewportSizeLocation, Math.max(1, sceneRenderWidth), Math.max(1, sceneRenderHeight));
     }
 
     private void applyPostProcessUniforms(boolean shaderDrivenEnabled) {
@@ -2323,6 +2350,12 @@ final class OpenGlContext {
         return postProcessPipelineAvailable && postProgramId != 0 && (tonemapEnabled || bloomEnabled || ssaoEnabled || smaaEnabled || taaEnabled);
     }
 
+    private void updateSceneRenderResolution() {
+        float scale = taaEnabled ? taaRenderScale : 1.0f;
+        sceneRenderWidth = Math.max(1, Math.round(Math.max(1, width) * scale));
+        sceneRenderHeight = Math.max(1, Math.round(Math.max(1, height) * scale));
+    }
+
     private void updateTemporalJitterState() {
         taaPrevJitterNdcX = taaJitterNdcX;
         taaPrevJitterNdcY = taaJitterNdcY;
@@ -2335,8 +2368,8 @@ final class OpenGlContext {
             return;
         }
         int frame = ++taaJitterFrameIndex;
-        float widthPx = Math.max(1, width);
-        float heightPx = Math.max(1, height);
+        float widthPx = Math.max(1, sceneRenderWidth);
+        float heightPx = Math.max(1, sceneRenderHeight);
         taaJitterNdcX = (float) (((halton(frame, 2) - 0.5) * 2.0) / widthPx);
         taaJitterNdcY = (float) (((halton(frame, 3) - 0.5) * 2.0) / heightPx);
         projMatrix = applyProjectionJitter(projBaseMatrix, taaJitterNdcX, taaJitterNdcY);
@@ -2405,7 +2438,8 @@ final class OpenGlContext {
             return;
         }
         double motion = Math.sqrt((taaMotionUvX * taaMotionUvX) + (taaMotionUvY * taaMotionUvY));
-        double reject = clamp01((1.0 - taaBlend) * 0.50 + motion * 6.0);
+        double scalePenalty = clamp01((1.0 - Math.max(0.5, Math.min(1.0, taaRenderScale))) * 1.2);
+        double reject = clamp01((1.0 - taaBlend) * 0.50 + motion * (6.0 + scalePenalty * 1.8));
         double targetConfidence = clamp01((1.0 - reject * 0.78) * Math.max(0.3, taaClipScale));
         if (taaLumaClipEnabled) {
             targetConfidence = clamp01(targetConfidence + 0.04);

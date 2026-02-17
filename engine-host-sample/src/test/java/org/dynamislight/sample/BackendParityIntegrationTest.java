@@ -610,7 +610,7 @@ class BackendParityIntegrationTest {
                 new SceneCase("taa-thin-geometry-motion-stress", taaThinGeometryMotionStressScene(), 0.31),
                 new SceneCase("taa-disocclusion-rapid-pan-stress", taaDisocclusionRapidPanStressScene(), 0.33)
         );
-        List<String> aaModes = List.of("taa", "tuua", "tsr", "msaa-selective", "hybrid-tuua-msaa");
+        List<String> aaModes = List.of("taa", "tuua", "tsr", "msaa-selective", "hybrid-tuua-msaa", "dlaa", "fxaa-low");
 
         for (SceneCase sceneCase : scenes) {
             for (String mode : aaModes) {
@@ -1274,6 +1274,14 @@ class BackendParityIntegrationTest {
                  "taa-disocclusion-rapid-pan-stress-hybrid-tuua-msaa" -> 0.37;
             case "taa-specular-micro-highlights-stress-hybrid-tuua-msaa",
                  "taa-thin-geometry-motion-stress-hybrid-tuua-msaa" -> 0.35;
+            case "taa-subpixel-alpha-foliage-stress-dlaa",
+                 "taa-disocclusion-rapid-pan-stress-dlaa" -> 0.36;
+            case "taa-specular-micro-highlights-stress-dlaa",
+                 "taa-thin-geometry-motion-stress-dlaa" -> 0.34;
+            case "taa-subpixel-alpha-foliage-stress-fxaa-low",
+                 "taa-disocclusion-rapid-pan-stress-fxaa-low" -> 0.42;
+            case "taa-specular-micro-highlights-stress-fxaa-low",
+                 "taa-thin-geometry-motion-stress-fxaa-low" -> 0.40;
             default -> Math.min(1.0, strictMaxDiff + 0.02);
         };
     }
@@ -1284,6 +1292,8 @@ class BackendParityIntegrationTest {
             case "tsr" -> Math.min(1.0, taaStrictMax);
             case "msaa-selective" -> Math.min(1.0, taaStrictMax + 0.03);
             case "hybrid-tuua-msaa" -> Math.min(1.0, taaStrictMax + 0.01);
+            case "dlaa" -> Math.min(1.0, taaStrictMax + 0.005);
+            case "fxaa-low" -> Math.min(1.0, taaStrictMax + 0.05);
             default -> taaStrictMax;
         };
     }
@@ -1310,17 +1320,38 @@ class BackendParityIntegrationTest {
         double rejectDrift = Math.abs(gl.taaHistoryRejectRate() - vk.taaHistoryRejectRate());
         double confidenceMeanDrift = Math.abs(gl.taaConfidenceMean() - vk.taaConfidenceMean());
         long confidenceDropDrift = Math.abs(gl.taaConfidenceDropCount() - vk.taaConfidenceDropCount());
+        double rejectTrendWindowDrift = Math.abs(gl.taaRejectTrendWindow() - vk.taaRejectTrendWindow());
+        double confidenceTrendWindowDrift = Math.abs(gl.taaConfidenceTrendWindow() - vk.taaConfidenceTrendWindow());
+        long confidenceDropWindowDrift = Math.abs(gl.taaConfidenceDropWindow() - vk.taaConfidenceDropWindow());
 
         boolean selectiveMsaaMode = profile.contains("-msaa-selective");
         double shimmerMax = adjustedCompareMaxDiff(profile, selectiveMsaaMode ? 0.14 : 0.10);
         double rejectMax = adjustedCompareMaxDiff(profile, selectiveMsaaMode ? 0.28 : 0.20);
         double confidenceMeanMax = adjustedCompareMaxDiff(profile, selectiveMsaaMode ? 0.24 : 0.18);
         long confidenceDropMax = isVulkanMockProfile() ? (selectiveMsaaMode ? 14L : 10L) : (selectiveMsaaMode ? 9L : 6L);
+        double rejectTrendWindowMax = adjustedCompareMaxDiff(profile, selectiveMsaaMode ? 0.18 : 0.14);
+        double confidenceTrendWindowMax = adjustedCompareMaxDiff(profile, selectiveMsaaMode ? 0.14 : 0.10);
+        long confidenceDropWindowMax = isVulkanMockProfile() ? (selectiveMsaaMode ? 10L : 8L) : (selectiveMsaaMode ? 7L : 5L);
 
         assertTrue(shimmerDrift <= shimmerMax, profile + " shimmer drift " + shimmerDrift + " exceeded " + shimmerMax);
         assertTrue(rejectDrift <= rejectMax, profile + " reject-rate drift " + rejectDrift + " exceeded " + rejectMax);
         assertTrue(confidenceMeanDrift <= confidenceMeanMax, profile + " confidence-mean drift " + confidenceMeanDrift + " exceeded " + confidenceMeanMax);
         assertTrue(confidenceDropDrift <= confidenceDropMax, profile + " confidence-drop drift " + confidenceDropDrift + " exceeded " + confidenceDropMax);
+        assertTrue(
+                rejectTrendWindowDrift <= rejectTrendWindowMax,
+                profile + " reject-trend-window drift " + rejectTrendWindowDrift + " exceeded " + rejectTrendWindowMax
+                        + " (gl=" + gl.taaRejectTrendWindow() + ", vk=" + vk.taaRejectTrendWindow() + ")"
+        );
+        assertTrue(
+                confidenceTrendWindowDrift <= confidenceTrendWindowMax,
+                profile + " confidence-trend-window drift " + confidenceTrendWindowDrift + " exceeded " + confidenceTrendWindowMax
+                        + " (gl=" + gl.taaConfidenceTrendWindow() + ", vk=" + vk.taaConfidenceTrendWindow() + ")"
+        );
+        assertTrue(
+                confidenceDropWindowDrift <= confidenceDropWindowMax,
+                profile + " confidence-drop-window drift " + confidenceDropWindowDrift + " exceeded " + confidenceDropWindowMax
+                        + " (gl=" + gl.taaConfidenceDropWindow() + ", vk=" + vk.taaConfidenceDropWindow() + ")"
+        );
     }
 
     private static void runParityLifecycle(String backendId) throws Exception {

@@ -40,8 +40,26 @@ find_vulkan_loader_dir() {
   return 1
 }
 
+find_vulkan_icd_json() {
+  local candidate
+  for candidate in \
+    "${DLE_VULKAN_ICD_JSON:-}" \
+    "${VULKAN_SDK:-}/share/vulkan/icd.d/MoltenVK_icd.json" \
+    /opt/homebrew/share/vulkan/icd.d/MoltenVK_icd.json \
+    /usr/local/share/vulkan/icd.d/MoltenVK_icd.json \
+    /opt/homebrew/share/vulkan/icd.d/MoltenVK_icd.json.bak; do
+    [[ -z "$candidate" ]] && continue
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
 run_vulkan_preflight() {
   local loader_dir="$1"
+  local icd_json="$2"
   local preflight_log
   local loader_file=""
   local failures=()
@@ -61,9 +79,13 @@ run_vulkan_preflight() {
     failures+=("vulkaninfo command not found (install Vulkan SDK tools).")
   fi
 
+  if [[ -n "$icd_json" && ! -f "$icd_json" ]]; then
+    failures+=("Configured Vulkan ICD JSON does not exist: $icd_json")
+  fi
+
   if [[ "${#failures[@]}" -eq 0 ]]; then
     preflight_log="$(mktemp -t dle-vulkan-preflight.XXXXXX.log)"
-    if ! vulkaninfo >"$preflight_log" 2>&1; then
+    if ! VK_ICD_FILENAMES="${icd_json:-${VK_ICD_FILENAMES:-}}" vulkaninfo >"$preflight_log" 2>&1; then
       failures+=("vulkaninfo failed to initialize Vulkan (check ICD/loader setup).")
     else
       if ! grep -qi "VK_KHR_surface" "$preflight_log"; then
@@ -92,14 +114,26 @@ run_vulkan_preflight() {
 
   echo "Real Vulkan preflight: OK"
   echo "Loader: $loader_file"
+  if [[ -n "$icd_json" ]]; then
+    echo "ICD: $icd_json"
+  else
+    echo "ICD: auto-discovery (VK_ICD_FILENAMES not set)"
+  fi
 }
 
 MODE_NORMALIZED="$(printf '%s' "$VULKAN_MODE" | tr '[:upper:]' '[:lower:]')"
 VULKAN_LOADER_DIR=""
+VULKAN_ICD_JSON=""
 if VULKAN_LOADER_DIR="$(find_vulkan_loader_dir)"; then
   export DYLD_FALLBACK_LIBRARY_PATH="${VULKAN_LOADER_DIR}${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"
 fi
+if VULKAN_ICD_JSON="$(find_vulkan_icd_json)"; then
+  export VK_ICD_FILENAMES="$VULKAN_ICD_JSON"
+fi
 JVM_ARG_LINE="-XstartOnFirstThread"
+if [[ -n "$VULKAN_LOADER_DIR" ]]; then
+  JVM_ARG_LINE="$JVM_ARG_LINE -Dorg.lwjgl.librarypath=$VULKAN_LOADER_DIR"
+fi
 OUT_BASE_DIR="$OUT_DIR"
 
 case "$MODE_NORMALIZED" in
@@ -129,7 +163,7 @@ case "$MODE_NORMALIZED" in
 esac
 
 if [[ "$SCRIPT_COMMAND" == "preflight" ]]; then
-  run_vulkan_preflight "$VULKAN_LOADER_DIR"
+  run_vulkan_preflight "$VULKAN_LOADER_DIR" "$VULKAN_ICD_JSON"
   exit 0
 fi
 
@@ -140,7 +174,7 @@ fi
 
 if [[ "$MODE_NORMALIZED" == "real" || "$MODE_NORMALIZED" == "auto" ]]; then
   if [[ "$VULKAN_MOCK_CONTEXT" == "false" ]]; then
-    run_vulkan_preflight "$VULKAN_LOADER_DIR"
+    run_vulkan_preflight "$VULKAN_LOADER_DIR" "$VULKAN_ICD_JSON"
   fi
 fi
 
@@ -156,6 +190,9 @@ echo "Writing compare artifacts to: $OUT_DIR"
 echo "Vulkan mode: $MODE_NORMALIZED (mockContext=$VULKAN_MOCK_CONTEXT)"
 if [[ -n "$VULKAN_LOADER_DIR" ]]; then
   echo "Vulkan loader dir: $VULKAN_LOADER_DIR"
+fi
+if [[ -n "${VULKAN_ICD_JSON:-}" ]]; then
+  echo "Vulkan ICD json: $VULKAN_ICD_JSON"
 fi
 
 run_compare_tests() {
