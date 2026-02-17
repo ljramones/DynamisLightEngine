@@ -44,7 +44,9 @@ final class VulkanRuntimeOptions {
                 parseBoolean(safe, "vulkan.shadow.scheduler.enabled", true),
                 parseIntOption(safe, "vulkan.shadow.scheduler.heroPeriod", 1, 1, 16),
                 parseIntOption(safe, "vulkan.shadow.scheduler.midPeriod", 2, 1, 32),
-                parseIntOption(safe, "vulkan.shadow.scheduler.distantPeriod", 4, 1, 64)
+                parseIntOption(safe, "vulkan.shadow.scheduler.distantPeriod", 4, 1, 64),
+                parseBoolean(safe, "vulkan.shadow.directionalTexelSnapEnabled", true),
+                (float) parseDoubleOption(safe, "vulkan.shadow.directionalTexelSnapScale", 1.0, 0.25, 4.0)
         );
     }
 
@@ -150,7 +152,9 @@ final class VulkanRuntimeOptions {
             boolean shadowSchedulerEnabled,
             int shadowSchedulerHeroPeriod,
             int shadowSchedulerMidPeriod,
-            int shadowSchedulerDistantPeriod
+            int shadowSchedulerDistantPeriod,
+            boolean shadowDirectionalTexelSnapEnabled,
+            float shadowDirectionalTexelSnapScale
     ) {
     }
 }

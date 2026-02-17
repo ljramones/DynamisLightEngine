@@ -16,7 +16,9 @@ class VulkanRuntimeOptionsTest {
                         "vulkan.shadow.scheduler.enabled", "false",
                         "vulkan.shadow.scheduler.heroPeriod", "2",
                         "vulkan.shadow.scheduler.midPeriod", "3",
-                        "vulkan.shadow.scheduler.distantPeriod", "8"
+                        "vulkan.shadow.scheduler.distantPeriod", "8",
+                        "vulkan.shadow.directionalTexelSnapEnabled", "false",
+                        "vulkan.shadow.directionalTexelSnapScale", "1.75"
                 ),
                 256
         );
@@ -28,6 +30,8 @@ class VulkanRuntimeOptionsTest {
         assertEquals(2, parsed.shadowSchedulerHeroPeriod());
         assertEquals(3, parsed.shadowSchedulerMidPeriod());
         assertEquals(8, parsed.shadowSchedulerDistantPeriod());
+        assertEquals(false, parsed.shadowDirectionalTexelSnapEnabled());
+        assertEquals(1.75f, parsed.shadowDirectionalTexelSnapScale());
     }
 
     @Test
@@ -36,7 +40,8 @@ class VulkanRuntimeOptionsTest {
                 Map.of(
                         "vulkan.shadow.maxLocalShadowLayers", "99",
                         "vulkan.shadow.maxShadowFacesPerFrame", "-1",
-                        "vulkan.shadow.maxShadowedLocalLights", "99"
+                        "vulkan.shadow.maxShadowedLocalLights", "99",
+                        "vulkan.shadow.directionalTexelSnapScale", "10.0"
                 ),
                 256
         );
@@ -48,5 +53,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1, parsed.shadowSchedulerHeroPeriod());
         assertEquals(2, parsed.shadowSchedulerMidPeriod());
         assertEquals(4, parsed.shadowSchedulerDistantPeriod());
+        assertEquals(true, parsed.shadowDirectionalTexelSnapEnabled());
+        assertEquals(4.0f, parsed.shadowDirectionalTexelSnapScale());
     }
 }

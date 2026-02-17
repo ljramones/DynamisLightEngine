@@ -9,6 +9,8 @@ public final class VulkanRenderState {
     public int shadowPcfRadius = 1;
     public int shadowCascadeCount = 1;
     public int shadowMapResolution = 1024;
+    public boolean shadowDirectionalTexelSnapEnabled = true;
+    public float shadowDirectionalTexelSnapScale = 1.0f;
     public int shadowFilterMode = 0; // 0=pcf,1=pcss,2=vsm,3=evsm
     public boolean shadowContactShadows;
     public int shadowRtMode = 0; // 0=off,1=optional,2=force

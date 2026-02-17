@@ -502,6 +502,24 @@ final class VulkanContext {
         }
     }
 
+    void setShadowDirectionalTexelSnap(boolean enabled, float scale) {
+        boolean clampedEnabled = enabled;
+        float clampedScale = Math.max(0.25f, Math.min(4.0f, scale));
+        boolean changed = false;
+        if (renderState.shadowDirectionalTexelSnapEnabled != clampedEnabled) {
+            renderState.shadowDirectionalTexelSnapEnabled = clampedEnabled;
+            changed = true;
+        }
+        if (Math.abs(renderState.shadowDirectionalTexelSnapScale - clampedScale) > 0.00001f) {
+            renderState.shadowDirectionalTexelSnapScale = clampedScale;
+            changed = true;
+        }
+        if (changed) {
+            shadowMatrixStateKey = Long.MIN_VALUE;
+            markGlobalStateDirty();
+        }
+    }
+
     void setFogParameters(boolean enabled, float r, float g, float b, float density, int steps) {
         var result = VulkanRenderParameterMutator.applyFog(
                 new VulkanRenderParameterMutator.FogState(renderState.fogEnabled, renderState.fogR, renderState.fogG, renderState.fogB, renderState.fogDensity, renderState.fogSteps),
@@ -1004,6 +1022,8 @@ final class VulkanContext {
         key = 31L * key + Float.floatToIntBits(lightingState.pointShadowFarPlane());
         key = 31L * key + (lightingState.pointShadowEnabled() ? 1 : 0);
         key = 31L * key + renderState.shadowCascadeCount;
+        key = 31L * key + (renderState.shadowDirectionalTexelSnapEnabled ? 1 : 0);
+        key = 31L * key + Float.floatToIntBits(renderState.shadowDirectionalTexelSnapScale);
         key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirX());
         key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirY());
         key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirZ());
@@ -1035,6 +1055,9 @@ final class VulkanContext {
                         lightingState.pointShadowEnabled(),
                         lightingState.pointShadowFarPlane(),
                         renderState.shadowCascadeCount,
+                        renderState.shadowMapResolution,
+                        renderState.shadowDirectionalTexelSnapEnabled,
+                        renderState.shadowDirectionalTexelSnapScale,
                         viewMatrix,
                         projMatrix,
                         localLightCount,

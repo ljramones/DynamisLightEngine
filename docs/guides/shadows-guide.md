@@ -129,6 +129,8 @@ Sample host clamps:
   - `vulkan.shadow.scheduler.heroPeriod=1..16` (default `1`)
   - `vulkan.shadow.scheduler.midPeriod=1..32` (default `2`)
   - `vulkan.shadow.scheduler.distantPeriod=1..64` (default `4`)
+  - `vulkan.shadow.directionalTexelSnapEnabled=true|false` (default `true`)
+  - `vulkan.shadow.directionalTexelSnapScale=0.25..4.0` (default `1.0`)
   Runtime tracks and reports these requests. Production-active filter path is `pcf|pcss`; `vsm|evsm` are currently treated as estimate-only moment-path requests (warning + telemetry), with runtime shading on `pcss` fallback until dedicated moment sampling lands. Dedicated RT traversal remains on fallback.
 
 Shadow scheduler override examples:
@@ -150,6 +152,8 @@ Scheduler behavior notes:
   - `shadowMomentAtlasBytesEstimate` (non-zero when `vsm`/`evsm` is requested)
   - `runtimeFilterPath` (active filter path used by runtime shading)
   - `momentFilterEstimateOnly` (`true` for current `vsm`/`evsm` fallback behavior)
+  - `directionalTexelSnapEnabled`
+  - `directionalTexelSnapScale`
   - `shadowAllocatorAssignedLights`
   - `shadowAllocatorReusedAssignments`
   - `shadowAllocatorEvictions`
@@ -169,11 +173,14 @@ Atlas packing/eviction expectations:
 - Evict least-recently-visible entries first under pressure.
 - Do not clear evicted pages eagerly unless needed for a new placement.
 
-Texel-snapping guidance (directional cascades):
+Texel-snapping runtime (directional cascades):
 - Snap cascade shadow-camera translation to shadow texel units to reduce shimmer.
 - Use a world-space snap step derived from cascade extent and map resolution.
 - Recommended form: `snapped = floor(position / texelSize) * texelSize`.
 - Keep snapping enabled for gameplay cameras; disable only in offline debug if needed.
+- Runtime controls:
+  - `-Dvulkan.shadow.directionalTexelSnapEnabled=true|false`
+  - `-Dvulkan.shadow.directionalTexelSnapScale=1.0`
 
 Static vs dynamic shadow layers:
 - Use a static layer for static geometry + static light contributions.

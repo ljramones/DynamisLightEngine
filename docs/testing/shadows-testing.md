@@ -133,6 +133,9 @@ Long-run motion/shimmer sweep (real Vulkan):
   - warning telemetry emits `renderedShadowLightIds`; verify IDs rotate over time for non-hero lights under throttled cadence.
   - backlog telemetry is present: `deferredShadowLightCount`, `deferredShadowLightIds`.
   - allocator telemetry is present: `shadowAllocatorAssignedLights`, `shadowAllocatorReusedAssignments`, `shadowAllocatorEvictions`.
+- Verify directional texel-snap controls:
+  - `vulkan.shadow.directionalTexelSnapEnabled` toggles runtime snapping path.
+  - `vulkan.shadow.directionalTexelSnapScale` is clamped to configured bounds and reported in `SHADOW_POLICY_ACTIVE`.
 
 ## 6. Known Gaps
 - Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.

@@ -16,6 +16,9 @@ class VulkanShadowMatrixBuilderTest {
                 true,
                 20f,
                 4,
+                1024,
+                true,
+                1.0f,
                 identity(),
                 identity(),
                 0,
@@ -51,6 +54,9 @@ class VulkanShadowMatrixBuilderTest {
                 true,
                 25f,
                 6,
+                1024,
+                true,
+                1.0f,
                 identity(),
                 identity(),
                 0,
@@ -70,6 +76,13 @@ class VulkanShadowMatrixBuilderTest {
         assertEquals(1f, splits[0], 0.000001f);
         assertEquals(1f, splits[1], 0.000001f);
         assertEquals(1f, splits[2], 0.000001f);
+    }
+
+    @Test
+    void snapToTexelQuantizesExpectedStep() {
+        assertEquals(1.0f, VulkanShadowMatrixBuilder.snapToTexel(1.24f, 0.25f), 0.000001f);
+        assertEquals(-1.5f, VulkanShadowMatrixBuilder.snapToTexel(-1.26f, 0.25f), 0.000001f);
+        assertEquals(2.0f, VulkanShadowMatrixBuilder.snapToTexel(2.0f, 0.25f), 0.000001f);
     }
 
     private static float[][] matrices() {

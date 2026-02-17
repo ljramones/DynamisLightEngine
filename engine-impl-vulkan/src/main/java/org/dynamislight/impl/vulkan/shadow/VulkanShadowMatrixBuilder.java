@@ -279,10 +279,33 @@ public final class VulkanShadowMatrixBuilder {
                 maxY = Math.max(maxY, l[1]);
                 maxZ = Math.max(maxZ, l[2]);
             }
+            if (inputs.directionalTexelSnapEnabled()) {
+                float extentX = Math.max(0.001f, maxX - minX);
+                float extentY = Math.max(0.001f, maxY - minY);
+                float maxExtent = Math.max(extentX, extentY);
+                float texelSize = (maxExtent / Math.max(1, inputs.shadowMapResolution()))
+                        * Math.max(0.25f, Math.min(4.0f, inputs.directionalTexelSnapScale()));
+                float[] centerLight = transformPoint(lightView, centerX, centerY, centerZ);
+                float snappedCenterX = snapToTexel(centerLight[0], texelSize);
+                float snappedCenterY = snapToTexel(centerLight[1], texelSize);
+                float shiftX = snappedCenterX - centerLight[0];
+                float shiftY = snappedCenterY - centerLight[1];
+                minX += shiftX;
+                maxX += shiftX;
+                minY += shiftY;
+                maxY += shiftY;
+            }
             float zPad = Math.max(10f, radius);
             float[] lightProj = ortho(minX, maxX, minY, maxY, minZ - zPad, maxZ + zPad);
             shadowLightViewProjMatrices[cascade] = mul(lightProj, lightView);
         }
+    }
+
+    static float snapToTexel(float value, float texelSize) {
+        if (texelSize <= 0.0f || !Float.isFinite(texelSize)) {
+            return value;
+        }
+        return (float) Math.floor(value / texelSize) * texelSize;
     }
 
     /**
@@ -338,6 +361,9 @@ public final class VulkanShadowMatrixBuilder {
             boolean pointShadowEnabled,
             float pointShadowFarPlane,
             int shadowCascadeCount,
+            int shadowMapResolution,
+            boolean directionalTexelSnapEnabled,
+            float directionalTexelSnapScale,
             float[] viewMatrix,
             float[] projMatrix,
             int localLightCount,

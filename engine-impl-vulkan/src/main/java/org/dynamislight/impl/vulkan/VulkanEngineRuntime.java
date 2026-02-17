@@ -152,6 +152,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowSchedulerHeroPeriod = 1;
     private int shadowSchedulerMidPeriod = 2;
     private int shadowSchedulerDistantPeriod = 4;
+    private boolean shadowDirectionalTexelSnapEnabled = true;
+    private float shadowDirectionalTexelSnapScale = 1.0f;
     private long shadowSchedulerFrameTick;
     private List<LightDesc> currentSceneLights = List.of();
     private final Map<String, Long> shadowSchedulerLastRenderedTicks = new HashMap<>();
@@ -210,6 +212,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowSchedulerHeroPeriod = options.shadowSchedulerHeroPeriod();
         shadowSchedulerMidPeriod = options.shadowSchedulerMidPeriod();
         shadowSchedulerDistantPeriod = options.shadowSchedulerDistantPeriod();
+        shadowDirectionalTexelSnapEnabled = options.shadowDirectionalTexelSnapEnabled();
+        shadowDirectionalTexelSnapScale = options.shadowDirectionalTexelSnapScale();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
@@ -355,6 +359,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     currentShadows.contactShadowsRequested(),
                     currentShadows.rtShadowMode()
             );
+            context.setShadowDirectionalTexelSnap(
+                    shadowDirectionalTexelSnapEnabled,
+                    shadowDirectionalTexelSnapScale
+            );
         }
         VulkanRuntimeLifecycle.RenderState frame = VulkanRuntimeLifecycle.render(
                 context,
@@ -480,6 +488,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " schedulerPeriodHero=" + shadowSchedulerHeroPeriod
                             + " schedulerPeriodMid=" + shadowSchedulerMidPeriod
                             + " schedulerPeriodDistant=" + shadowSchedulerDistantPeriod
+                            + " directionalTexelSnapEnabled=" + shadowDirectionalTexelSnapEnabled
+                            + " directionalTexelSnapScale=" + shadowDirectionalTexelSnapScale
                             + " shadowSchedulerFrameTick=" + shadowSchedulerFrameTick
                             + " renderedShadowLightIds=" + currentShadows.renderedShadowLightIdsCsv()
                             + " deferredShadowLightCount=" + currentShadows.deferredShadowLightCount()

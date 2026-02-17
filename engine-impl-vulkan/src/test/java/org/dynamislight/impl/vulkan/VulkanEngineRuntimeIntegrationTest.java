@@ -679,6 +679,8 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frame.warnings().stream().anyMatch(w ->
                 "SHADOW_POLICY_ACTIVE".equals(w.code())
                         && w.message().contains("cadencePolicy=hero:1 mid:2 distant:4")
+                        && w.message().contains("directionalTexelSnapEnabled=true")
+                        && w.message().contains("directionalTexelSnapScale=1.0")
                         && w.message().contains("renderedShadowLightIds=")
                         && w.message().contains("deferredShadowLightCount=")
                         && w.message().contains("deferredShadowLightIds=")
