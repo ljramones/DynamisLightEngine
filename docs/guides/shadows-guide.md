@@ -271,6 +271,9 @@ Production profile quality sweeps + threshold lock (guarded real Vulkan):
 
 # repeat strict production sweeps and promote stable real-vulkan thresholds
 ./scripts/shadow_quality_finalize_real.sh
+
+# two-pass stability gate before promoting real-vulkan thresholds
+./scripts/shadow_threshold_promote_stable_real.sh
 ```
 The default production sweep set includes `rtMode=bvh` and `rtMode=bvh_dedicated` lanes for readiness tracking.
 

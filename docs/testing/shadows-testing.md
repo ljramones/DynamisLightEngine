@@ -59,6 +59,7 @@ CI always-on rollout:
   via `scripts/shadow_ci_lockdown_full.sh`.
 - Scheduled `shadow-lockdown-full` runs set `DLE_SHADOW_LOCKDOWN_PROMOTE_MODE=real` so generated recommendations can be promoted into tracked real-Vulkan threshold profiles.
 - GitHub Actions `aa-upscaler-vendor-matrix` now runs on `schedule` (and optional manual dispatch) to keep FSR/XeSS/DLSS hook/native-state regressions visible in CI.
+- GitHub Actions `shadow-stable-promote-real` is available via manual dispatch to run a two-pass stability gate before promoting real-Vulkan shadow thresholds.
 
 Optional real Vulkan depth-format matrix + long-run:
 ```bash
@@ -254,6 +255,8 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Keep production profile parity sweeps enabled in CI (`scripts/shadow_production_quality_sweeps.sh`) so `pcss/contact` and `vsm/evsm` lanes are repeatedly sampled and re-lock recommendations are generated from stable real-Vulkan datasets.
 - For release threshold tightening, run strict repeated real-Vulkan sweeps:
   - `./scripts/shadow_quality_finalize_real.sh`
+- For guarded promotion, require two matching recommendation passes before promotion:
+  - `./scripts/shadow_threshold_promote_stable_real.sh`
 - Add CI gate that verifies `SHADOW_LOCAL_RENDER_BASELINE` clears once Vulkan multi-local render parity lands.
 
 Cadence/static-cache planned test shape:

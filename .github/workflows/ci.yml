@@ -35,6 +35,10 @@ on:
         description: 'Run AA upscaler vendor matrix lane'
         required: false
         default: 'false'
+      run_shadow_stable_promote_real:
+        description: 'Run two-pass stable real-Vulkan threshold promotion gate'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -275,6 +279,37 @@ jobs:
         with:
           name: shadow-lockdown-full-artifacts-macos
           path: artifacts/compare/shadow-lockdown-full
+          if-no-files-found: warn
+
+  shadow-stable-promote-real:
+    name: Shadow Stable Promote Real (JDK 25, macos-latest)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_stable_promote_real == 'true'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run stable threshold promotion gate (real Vulkan)
+        env:
+          DLE_SHADOW_STABLE_PROMOTE_OUTPUT_ROOT: artifacts/compare/shadow-stable-promote-real
+          DLE_SHADOW_STABLE_PROMOTE_RUNS_PER_PASS: '3'
+          DLE_SHADOW_STABLE_PROMOTE_MIN_RUNS: '3'
+          DLE_SHADOW_STABLE_PROMOTE_PROFILE_SET: production
+        run: ./scripts/shadow_threshold_promote_stable_real.sh
+
+      - name: Upload stable promotion artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-stable-promote-real-artifacts-macos
+          path: artifacts/compare/shadow-stable-promote-real
           if-no-files-found: warn
 
   vulkan-real-guarded-matrix:
