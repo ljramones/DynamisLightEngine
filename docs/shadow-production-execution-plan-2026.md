@@ -131,4 +131,5 @@ Status: In progress (started and partially landed).
 2. Add deeper moment-filter stress tests (`vsm`/`evsm`) in compare-harness matrix and lock updated thresholds.
 3. Implement dedicated BVH RT shadow traversal + denoise path behind capability/profile gating (current hybrid RT traversal remains fallback-compatible baseline).
 4. Keep `scripts/shadow_production_quality_sweeps.sh` outputs feeding threshold-lock recommendations and periodically promote stable recommendations into repo-level locked threshold profiles.
+ - Implementation now includes `scripts/promote_compare_thresholds.sh` and optional sweep auto-promotion (`DLE_SHADOW_PROD_SWEEP_PROMOTE_MODE=real|mock`) to persist stable recommendations into tracked defaults.
 5. Use `DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT=1` on BVH-capable hosts to make sweep lanes fail fast when strict BVH readiness regresses.
