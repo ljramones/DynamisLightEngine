@@ -14,6 +14,7 @@ LOCK_THRESHOLDS="${DLE_SHADOW_PROD_SWEEP_LOCK_THRESHOLDS:-1}"
 THRESHOLD_OUT="${DLE_SHADOW_PROD_SWEEP_THRESHOLD_OUTPUT_DIR:-$OUT_ROOT/threshold-lock}"
 PROFILE_SET="${DLE_SHADOW_PROD_SWEEP_PROFILE_SET:-production}"
 RT_BVH_STRICT="${DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT:-0}"
+PROMOTE_MODE="${DLE_SHADOW_PROD_SWEEP_PROMOTE_MODE:-none}" # none|real|mock
 
 mkdir -p "$OUT_ROOT"
 
@@ -30,6 +31,7 @@ echo "  runs: $RUNS"
 echo "  vulkan mode: $VULKAN_MODE"
 echo "  profile set: $PROFILE_SET"
 echo "  rt bvh strict: $RT_BVH_STRICT"
+echo "  promote mode: $PROMOTE_MODE"
 echo "  output root: $OUT_ROOT"
 
 declare -a TESTS=(
@@ -73,6 +75,9 @@ done
 
 if [[ "$LOCK_THRESHOLDS" == "1" ]]; then
   "$ROOT_DIR/scripts/shadow_lock_thresholds_guarded.sh" "$OUT_ROOT" "$THRESHOLD_OUT"
+  if [[ "$PROMOTE_MODE" == "real" || "$PROMOTE_MODE" == "mock" ]]; then
+    "$ROOT_DIR/scripts/promote_compare_thresholds.sh" "$THRESHOLD_OUT/recommended-thresholds.properties" "$PROMOTE_MODE"
+  fi
 fi
 
 echo "Shadow production quality sweeps complete."

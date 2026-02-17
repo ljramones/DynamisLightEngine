@@ -266,6 +266,11 @@ Optional strict BVH enforcement in sweep runs:
 DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT=1 ./scripts/shadow_production_quality_sweeps.sh
 ```
 
+Optional auto-promotion of generated recommendations into repo defaults:
+```bash
+DLE_SHADOW_PROD_SWEEP_PROMOTE_MODE=real ./scripts/shadow_production_quality_sweeps.sh
+```
+
 Parity/stress suite (includes shadow profiles):
 ```bash
 mvn -pl engine-host-sample -am test \

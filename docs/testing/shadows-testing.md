@@ -117,6 +117,12 @@ DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT=1 \
 ./scripts/shadow_production_quality_sweeps.sh
 ```
 
+Optional one-shot promotion into repo defaults after sweep lock:
+```bash
+DLE_SHADOW_PROD_SWEEP_PROMOTE_MODE=real \
+./scripts/shadow_production_quality_sweeps.sh
+```
+
 Cadence scheduler check (real Vulkan):
 ```bash
 DLE_COMPARE_VULKAN_MODE=real \
