@@ -96,6 +96,13 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertTrue(ultra.contactShadowsRequested());
         assertEquals("optional", ultra.rtShadowMode());
         assertTrue(ultra.shadowMomentAtlasBytesEstimate() > 0L);
+
+        VulkanEngineRuntime.ShadowRenderConfig pcss = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", false, "off", 0, 0
+        );
+        assertEquals("pcss", pcss.filterPath());
+        assertEquals("pcss", pcss.runtimeFilterPath());
+        assertFalse(pcss.momentFilterEstimateOnly());
     }
 
     @Test

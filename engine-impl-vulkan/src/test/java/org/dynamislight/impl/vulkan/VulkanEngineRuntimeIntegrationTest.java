@@ -734,6 +734,26 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void pcssShadowQualityRequestTracksActivePathWithoutMomentWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.filterPath", "pcss"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("filterPath=pcss")
+                        && w.message().contains("runtimeFilterPath=pcss")
+                        && w.message().contains("momentFilterEstimateOnly=false")));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
     void postOffscreenRequestEmitsFallbackPipelineWarningInMockMode() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of(
