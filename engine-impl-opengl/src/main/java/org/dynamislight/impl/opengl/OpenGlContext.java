@@ -915,8 +915,10 @@ final class OpenGlContext {
                     if (uTaaDebugView == 1) {
                         color = vec3(reactive);
                     } else if (uTaaDebugView == 2) {
-                        color = vec3(blend);
+                        color = vec3(disocclusionReject);
                     } else if (uTaaDebugView == 3) {
+                        color = vec3(historyTrust);
+                    } else if (uTaaDebugView == 4) {
                         color = vec3(abs(velocityUv.x), abs(velocityUv.y), length(velocityUv) * 0.5);
                     }
                 }
@@ -1686,7 +1688,7 @@ final class OpenGlContext {
     }
 
     void setTaaDebugView(int debugView) {
-        taaDebugView = Math.max(0, Math.min(3, debugView));
+        taaDebugView = Math.max(0, Math.min(4, debugView));
     }
 
     void setLightingParameters(

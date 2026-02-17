@@ -187,7 +187,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         mockContext = Boolean.parseBoolean(mock);
         windowVisible = Boolean.parseBoolean(config.backendOptions().getOrDefault("opengl.windowVisible", "false"));
         try {
-            taaDebugView = Math.max(0, Math.min(3, Integer.parseInt(config.backendOptions().getOrDefault("opengl.taaDebugView", "0"))));
+            taaDebugView = Math.max(0, Math.min(4, Integer.parseInt(config.backendOptions().getOrDefault("opengl.taaDebugView", "0"))));
         } catch (NumberFormatException ignored) {
             taaDebugView = 0;
         }

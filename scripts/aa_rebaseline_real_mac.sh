@@ -20,9 +20,10 @@ export PATH="$JAVA_HOME/bin:$PATH"
 OUT_DIR="${DLE_COMPARE_OUTPUT_DIR:-artifacts/compare/aa-real-$(date +%Y%m%d-%H%M%S)}"
 TEST_CLASS="${DLE_COMPARE_TEST_CLASS:-BackendParityIntegrationTest}"
 VULKAN_MODE="${DLE_COMPARE_VULKAN_MODE:-mock}" # mock(default) | auto | real
-SCRIPT_COMMAND="${1:-run}" # run(default) | preflight
+SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds
 LOCK_SOURCE_DIR="${2:-artifacts/compare}"
 THRESHOLDS_FILE="${DLE_COMPARE_THRESHOLDS_FILE:-}"
+REQUIRED_MOLTENVK_VERSION="${DLE_COMPARE_REQUIRE_MOLTENVK_VERSION:-}"
 
 find_vulkan_loader_dir() {
   local candidate
@@ -64,6 +65,8 @@ run_vulkan_preflight() {
   local icd_json="$2"
   local preflight_log
   local loader_file=""
+  local moltenvk_file=""
+  local moltenvk_version=""
   local failures=()
   if [[ -z "$loader_dir" ]]; then
     failures+=("Vulkan loader not found (missing libvulkan.1.dylib / libvulkan.dylib).")
@@ -83,6 +86,47 @@ run_vulkan_preflight() {
 
   if [[ -n "$icd_json" && ! -f "$icd_json" ]]; then
     failures+=("Configured Vulkan ICD JSON does not exist: $icd_json")
+  fi
+
+  if [[ -n "$icd_json" && -f "$icd_json" ]]; then
+    local icd_library
+    icd_library="$(sed -n 's/.*"library_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$icd_json" | head -n1)"
+    if [[ -n "$icd_library" ]]; then
+      if [[ "$icd_library" = /* ]]; then
+        moltenvk_file="$icd_library"
+      else
+        moltenvk_file="$(cd "$(dirname "$icd_json")" && pwd)/$icd_library"
+      fi
+    fi
+  fi
+  if [[ -z "$moltenvk_file" && -f /opt/homebrew/lib/libMoltenVK.dylib ]]; then
+    moltenvk_file="/opt/homebrew/lib/libMoltenVK.dylib"
+  fi
+  if [[ -z "$moltenvk_file" && -f /usr/local/lib/libMoltenVK.dylib ]]; then
+    moltenvk_file="/usr/local/lib/libMoltenVK.dylib"
+  fi
+  if [[ -n "$moltenvk_file" && ! -f "$moltenvk_file" ]]; then
+    failures+=("MoltenVK library does not exist: $moltenvk_file")
+  fi
+  if [[ -n "$moltenvk_file" ]]; then
+    local resolved_moltenvk
+    resolved_moltenvk="$(readlink "$moltenvk_file" 2>/dev/null || true)"
+    if [[ -n "$resolved_moltenvk" ]]; then
+      if [[ "$resolved_moltenvk" != /* ]]; then
+        resolved_moltenvk="$(cd "$(dirname "$moltenvk_file")" && pwd)/$resolved_moltenvk"
+      fi
+    else
+      resolved_moltenvk="$moltenvk_file"
+    fi
+    moltenvk_file="$resolved_moltenvk"
+    moltenvk_version="$(echo "$moltenvk_file" | sed -n 's/.*\/molten-vk\/\([^/]*\)\/.*/\1/p')"
+  fi
+  if [[ -n "$REQUIRED_MOLTENVK_VERSION" ]]; then
+    if [[ -z "$moltenvk_version" ]]; then
+      failures+=("Unable to infer MoltenVK version from path '$moltenvk_file' while DLE_COMPARE_REQUIRE_MOLTENVK_VERSION=$REQUIRED_MOLTENVK_VERSION.")
+    elif [[ "$moltenvk_version" != "$REQUIRED_MOLTENVK_VERSION" ]]; then
+      failures+=("MoltenVK version mismatch: expected $REQUIRED_MOLTENVK_VERSION, found $moltenvk_version ($moltenvk_file).")
+    fi
   fi
 
   if [[ "${#failures[@]}" -eq 0 ]]; then
@@ -116,6 +160,13 @@ run_vulkan_preflight() {
 
   echo "Real Vulkan preflight: OK"
   echo "Loader: $loader_file"
+  if [[ -n "$moltenvk_file" ]]; then
+    if [[ -n "$moltenvk_version" ]]; then
+      echo "MoltenVK: $moltenvk_file (version $moltenvk_version)"
+    else
+      echo "MoltenVK: $moltenvk_file (version unknown)"
+    fi
+  fi
   if [[ -n "$icd_json" ]]; then
     echo "ICD: $icd_json"
   else
@@ -211,6 +262,7 @@ echo "Absolute compare output path: $OUT_DIR_ABS"
 echo "Vulkan mode: $MODE_NORMALIZED (mockContext=$VULKAN_MOCK_CONTEXT)"
 echo "Forked JVM stack size: $STACK_SIZE"
 echo "Temporal frames override: ${DLE_COMPARE_TEMPORAL_FRAMES:-0}"
+echo "Temporal rolling window: ${DLE_COMPARE_TEMPORAL_WINDOW:-5}"
 echo "TSR frame boost: ${DLE_COMPARE_TSR_FRAME_BOOST:-3}"
 echo "Upscaler hook: mode=${DLE_COMPARE_UPSCALER_MODE:-none} quality=${DLE_COMPARE_UPSCALER_QUALITY:-quality}"
 if [[ -n "$THRESHOLDS_FILE" ]]; then
@@ -221,6 +273,9 @@ if [[ -n "$VULKAN_LOADER_DIR" ]]; then
 fi
 if [[ -n "${VULKAN_ICD_JSON:-}" ]]; then
   echo "Vulkan ICD json: $VULKAN_ICD_JSON"
+fi
+if [[ -n "$REQUIRED_MOLTENVK_VERSION" ]]; then
+  echo "Required MoltenVK version: $REQUIRED_MOLTENVK_VERSION"
 fi
 
 run_compare_tests() {
@@ -243,6 +298,7 @@ run_compare_tests() {
     -Ddle.compare.vulkan.mockContext="$mock_context" \
     -Ddle.compare.vulkan.postOffscreen=true \
     -Ddle.compare.temporalFrames="${DLE_COMPARE_TEMPORAL_FRAMES:-0}" \
+    -Ddle.compare.temporalWindow="${DLE_COMPARE_TEMPORAL_WINDOW:-5}" \
     -Ddle.compare.tsr.frameBoost="${DLE_COMPARE_TSR_FRAME_BOOST:-3}" \
     -Ddle.compare.upscaler.mode="${DLE_COMPARE_UPSCALER_MODE:-none}" \
     -Ddle.compare.upscaler.quality="${DLE_COMPARE_UPSCALER_QUALITY:-quality}" \

@@ -728,8 +728,10 @@ public final class VulkanShaderSources {
                         if (debugView == 1) {
                             color = vec3(reactive);
                         } else if (debugView == 2) {
-                            color = vec3(blend);
+                            color = vec3(disocclusionReject);
                         } else if (debugView == 3) {
+                            color = vec3(historyTrust);
+                        } else if (debugView == 4) {
                             color = vec3(abs(velocityUv.x), abs(velocityUv.y), length(velocityUv) * 0.5);
                         }
                     }

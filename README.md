@@ -102,6 +102,7 @@ DLE_COMPARE_VULKAN_MODE=real ./scripts/aa_rebaseline_real_mac.sh
 ```bash
 # TSR validation depth (extra temporal frames) + optional upscaler hook tuning
 DLE_COMPARE_TEMPORAL_FRAMES=10 \
+DLE_COMPARE_TEMPORAL_WINDOW=5 \
 DLE_COMPARE_TSR_FRAME_BOOST=6 \
 DLE_COMPARE_UPSCALER_MODE=xess \
 DLE_COMPARE_UPSCALER_QUALITY=quality \
@@ -111,6 +112,7 @@ DLE_COMPARE_VULKAN_MODE=real \
 
 ```bash
 # Build threshold-lock recommendations from repeated real-Vulkan compare metadata
+# Default minimum profile samples: 3 (override with DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS)
 ./scripts/aa_rebaseline_real_mac.sh lock-thresholds artifacts/compare
 ```
 
@@ -120,6 +122,15 @@ DLE_COMPARE_THRESHOLDS_FILE=artifacts/compare/threshold-lock/recommended-thresho
 DLE_COMPARE_VULKAN_MODE=real \
 ./scripts/aa_rebaseline_real_mac.sh
 ```
+
+```bash
+# Optional: enforce a pinned MoltenVK version during preflight/real runs
+DLE_COMPARE_REQUIRE_MOLTENVK_VERSION=1.4.0 \
+DLE_COMPARE_VULKAN_MODE=real \
+./scripts/aa_rebaseline_real_mac.sh preflight
+```
+
+TSR implementation reference: `docs/tsr-temporal-upsampling-notes-2026.md`
 
 GitHub Actions CI runs:
 - matrix build/test (`mvn test`) on `main` and pull requests using JDK 25 across Linux, macOS, and Windows

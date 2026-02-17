@@ -34,7 +34,7 @@ final class VulkanRuntimeOptions {
                 parseIntOption(safe, "vulkan.pendingUploadRangeWarnCooldownFrames", 120, 0, 10000),
                 parseIntOption(safe, "vulkan.descriptorRingActiveSoftLimit", 2048, 64, 32768),
                 parseIntOption(safe, "vulkan.descriptorRingActiveWarnCooldownFrames", 120, 0, 10000),
-                parseIntOption(safe, "vulkan.taaDebugView", 0, 0, 3)
+                parseIntOption(safe, "vulkan.taaDebugView", 0, 0, 4)
         );
     }
 

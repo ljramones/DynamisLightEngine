@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -42,6 +43,7 @@ final class BackendCompareHarness {
         String aaPreset = selectAaPreset(normalizedTag, aaMode);
         String upscalerMode = selectUpscalerMode(normalizedTag);
         String upscalerQuality = System.getProperty("dle.compare.upscaler.quality", "quality");
+        int temporalWindow = clamp(intProperty("dle.compare.temporalWindow", 5), 1, 10);
 
         BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag, aaPreset, aaMode, upscalerMode, upscalerQuality);
         BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag, aaPreset, aaMode, upscalerMode, upscalerQuality);
@@ -51,7 +53,21 @@ final class BackendCompareHarness {
         openGl = openGl.withShimmerIndex(estimateShimmerIndex(openGlPng));
         vulkan = vulkan.withShimmerIndex(estimateShimmerIndex(vulkanPng));
         double diff = normalizedImageDiff(openGlPng, vulkanPng);
-        writeModeMetadata(outputDir, normalizedTag, qualityTier, vulkanModeTag, acceptanceProfile, aaMode, aaPreset, upscalerMode, upscalerQuality, diff, openGl, vulkan);
+        writeModeMetadata(
+                outputDir,
+                normalizedTag,
+                qualityTier,
+                vulkanModeTag,
+                acceptanceProfile,
+                aaMode,
+                aaPreset,
+                upscalerMode,
+                upscalerQuality,
+                temporalWindow,
+                diff,
+                openGl,
+                vulkan
+        );
         return new CompareReport(openGlPng, vulkanPng, diff, openGl, vulkan);
     }
 
@@ -107,6 +123,7 @@ final class BackendCompareHarness {
             EngineFrameResult frame = null;
             int baseFrames = taaStress ? 5 : (smaaStress ? 3 : 1);
             int forcedTemporalFrames = intProperty("dle.compare.temporalFrames", 0);
+            int temporalWindow = clamp(intProperty("dle.compare.temporalWindow", 5), 1, 10);
             int tsrFrameBoost = intProperty("dle.compare.tsr.frameBoost", 3);
             int frames = baseFrames;
             if ("tsr".equals(aaMode)) {
@@ -115,33 +132,22 @@ final class BackendCompareHarness {
             if (forcedTemporalFrames > 0) {
                 frames = Math.max(frames, forcedTemporalFrames);
             }
-            double rejectMin = Double.POSITIVE_INFINITY;
-            double rejectMax = Double.NEGATIVE_INFINITY;
-            double confidenceMin = Double.POSITIVE_INFINITY;
-            double confidenceMax = Double.NEGATIVE_INFINITY;
-            long firstDropCount = Long.MIN_VALUE;
-            long lastDropCount = 0L;
+            var rejectSamples = new ArrayList<Double>(frames);
+            var confidenceSamples = new ArrayList<Double>(frames);
+            var confidenceDropSamples = new ArrayList<Long>(frames);
             for (int i = 0; i < frames; i++) {
                 runtime.update(1.0 / 60.0, input);
                 frame = runtime.render();
                 var stats = runtime.getStats();
-                rejectMin = Math.min(rejectMin, stats.taaHistoryRejectRate());
-                rejectMax = Math.max(rejectMax, stats.taaHistoryRejectRate());
-                confidenceMin = Math.min(confidenceMin, stats.taaConfidenceMean());
-                confidenceMax = Math.max(confidenceMax, stats.taaConfidenceMean());
-                if (firstDropCount == Long.MIN_VALUE) {
-                    firstDropCount = stats.taaConfidenceDropEvents();
-                }
-                lastDropCount = stats.taaConfidenceDropEvents();
+                rejectSamples.add(stats.taaHistoryRejectRate());
+                confidenceSamples.add(stats.taaConfidenceMean());
+                confidenceDropSamples.add(stats.taaConfidenceDropEvents());
             }
             var stats = runtime.getStats();
-            if (rejectMin == Double.POSITIVE_INFINITY) {
-                rejectMin = stats.taaHistoryRejectRate();
-                rejectMax = stats.taaHistoryRejectRate();
-                confidenceMin = stats.taaConfidenceMean();
-                confidenceMax = stats.taaConfidenceMean();
-                firstDropCount = stats.taaConfidenceDropEvents();
-                lastDropCount = stats.taaConfidenceDropEvents();
+            if (rejectSamples.isEmpty()) {
+                rejectSamples.add(stats.taaHistoryRejectRate());
+                confidenceSamples.add(stats.taaConfidenceMean());
+                confidenceDropSamples.add(stats.taaConfidenceDropEvents());
             }
             return new BackendSnapshot(
                     backendId,
@@ -154,9 +160,9 @@ final class BackendCompareHarness {
                     stats.taaHistoryRejectRate(),
                     stats.taaConfidenceMean(),
                     stats.taaConfidenceDropEvents(),
-                    Math.max(0.0, rejectMax - rejectMin),
-                    Math.max(0.0, confidenceMax - confidenceMin),
-                    Math.max(0L, lastDropCount - firstDropCount),
+                    rollingWindowMeanDrift(rejectSamples, temporalWindow),
+                    rollingWindowMeanDrift(confidenceSamples, temporalWindow),
+                    rollingWindowDropDrift(confidenceDropSamples, temporalWindow),
                     frame.warnings().size(),
                     frame.warnings().stream().map(w -> w.code()).sorted().toList()
             );
@@ -381,6 +387,7 @@ final class BackendCompareHarness {
             String aaPreset,
             String upscalerMode,
             String upscalerQuality,
+            int temporalWindow,
             double diffMetric,
             BackendSnapshot openGl,
             BackendSnapshot vulkan
@@ -394,6 +401,7 @@ final class BackendCompareHarness {
         metadata.setProperty("compare.aa.preset", aaPreset);
         metadata.setProperty("compare.upscaler.mode", upscalerMode);
         metadata.setProperty("compare.upscaler.quality", upscalerQuality);
+        metadata.setProperty("compare.temporal.windowSize", Integer.toString(temporalWindow));
         metadata.setProperty("compare.diffMetric", Double.toString(diffMetric));
         metadata.setProperty("compare.opengl.shimmerIndex", Double.toString(openGl.shimmerIndex()));
         metadata.setProperty("compare.vulkan.shimmerIndex", Double.toString(vulkan.shimmerIndex()));
@@ -424,6 +432,84 @@ final class BackendCompareHarness {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static double rollingWindowMeanDrift(java.util.List<Double> samples, int windowSize) {
+        if (samples.isEmpty()) {
+            return 0.0;
+        }
+        int effectiveWindow = Math.max(1, Math.min(windowSize, samples.size()));
+        if (effectiveWindow >= samples.size()) {
+            return max(samples) - min(samples);
+        }
+        double minMean = Double.POSITIVE_INFINITY;
+        double maxMean = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i <= samples.size() - effectiveWindow; i++) {
+            double accum = 0.0;
+            for (int j = 0; j < effectiveWindow; j++) {
+                accum += samples.get(i + j);
+            }
+            double mean = accum / effectiveWindow;
+            minMean = Math.min(minMean, mean);
+            maxMean = Math.max(maxMean, mean);
+        }
+        if (!Double.isFinite(minMean) || !Double.isFinite(maxMean)) {
+            return 0.0;
+        }
+        return Math.max(0.0, maxMean - minMean);
+    }
+
+    private static long rollingWindowDropDrift(java.util.List<Long> samples, int windowSize) {
+        if (samples.isEmpty()) {
+            return 0L;
+        }
+        int effectiveWindow = Math.max(1, Math.min(windowSize, samples.size()));
+        if (effectiveWindow >= samples.size()) {
+            return Math.max(0L, maxLong(samples) - minLong(samples));
+        }
+        long maxWindowDelta = 0L;
+        for (int i = 0; i <= samples.size() - effectiveWindow; i++) {
+            long start = samples.get(i);
+            long end = samples.get(i + effectiveWindow - 1);
+            maxWindowDelta = Math.max(maxWindowDelta, Math.max(0L, end - start));
+        }
+        return maxWindowDelta;
+    }
+
+    private static double min(java.util.List<Double> values) {
+        double out = Double.POSITIVE_INFINITY;
+        for (double value : values) {
+            out = Math.min(out, value);
+        }
+        return Double.isFinite(out) ? out : 0.0;
+    }
+
+    private static double max(java.util.List<Double> values) {
+        double out = Double.NEGATIVE_INFINITY;
+        for (double value : values) {
+            out = Math.max(out, value);
+        }
+        return Double.isFinite(out) ? out : 0.0;
+    }
+
+    private static long minLong(java.util.List<Long> values) {
+        long out = Long.MAX_VALUE;
+        for (long value : values) {
+            out = Math.min(out, value);
+        }
+        return out == Long.MAX_VALUE ? 0L : out;
+    }
+
+    private static long maxLong(java.util.List<Long> values) {
+        long out = Long.MIN_VALUE;
+        for (long value : values) {
+            out = Math.max(out, value);
+        }
+        return out == Long.MIN_VALUE ? 0L : out;
     }
 
     record CompareReport(
