@@ -837,6 +837,30 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void shadowQualityTuningOptionsAreReportedInPolicyWarning() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.filterPath", "evsm",
+                "vulkan.shadow.pcssSoftness", "1.35",
+                "vulkan.shadow.momentBlend", "0.85",
+                "vulkan.shadow.momentBleedReduction", "1.10",
+                "vulkan.shadow.contactStrength", "1.40"
+        )), new RecordingCallbacks());
+        runtime.loadScene(validSpotShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("shadowPcssSoftness=1.35")
+                        && w.message().contains("shadowMomentBlend=0.85")
+                        && w.message().contains("shadowMomentBleedReduction=1.1")
+                        && w.message().contains("shadowContactStrength=1.4")));
+        runtime.shutdown();
+    }
+
+    @Test
     void postOffscreenRequestEmitsFallbackPipelineWarningInMockMode() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of(
