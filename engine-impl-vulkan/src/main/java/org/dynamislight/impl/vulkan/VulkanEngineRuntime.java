@@ -298,6 +298,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (!mockContext) {
             VulkanRuntimeLifecycle.applySceneToContext(context, sceneState);
             currentShadows = withRuntimeMomentPipelineState(currentShadows);
+            context.setShadowQualityModes(
+                    currentShadows.runtimeFilterPath(),
+                    currentShadows.contactShadowsRequested(),
+                    currentShadows.rtShadowMode(),
+                    currentShadows.filterPath()
+            );
         }
     }
 
@@ -329,6 +335,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             shadowAllocatorAssignedLights = refresh.lighting().shadowAllocatorAssignedLights();
             shadowAllocatorReusedAssignments = refresh.lighting().shadowAllocatorReusedAssignments();
             shadowAllocatorEvictions = refresh.lighting().shadowAllocatorEvictions();
+            currentShadows = withRuntimeMomentPipelineState(currentShadows);
             context.setLightingParameters(
                     refresh.lighting().directionalDirection(),
                     refresh.lighting().directionalColor(),
@@ -365,7 +372,6 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowDirectionalTexelSnapEnabled,
                     shadowDirectionalTexelSnapScale
             );
-            currentShadows = withRuntimeMomentPipelineState(currentShadows);
         }
         VulkanRuntimeLifecycle.RenderState frame = VulkanRuntimeLifecycle.render(
                 context,
@@ -893,7 +899,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             return base;
         }
         boolean active = context.isShadowMomentPipelineActive();
-        if (base.momentPipelineActive() == active) {
+        String runtimeFilterPath = active ? base.filterPath() : base.runtimeFilterPath();
+        boolean momentFilterEstimateOnly = base.momentFilterEstimateOnly() && !active;
+        if (base.momentPipelineActive() == active
+                && base.runtimeFilterPath().equals(runtimeFilterPath)
+                && base.momentFilterEstimateOnly() == momentFilterEstimateOnly) {
             return base;
         }
         return new ShadowRenderConfig(
@@ -924,8 +934,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 base.deferredShadowLightCount(),
                 base.deferredShadowLightIdsCsv(),
                 base.filterPath(),
-                base.runtimeFilterPath(),
-                base.momentFilterEstimateOnly(),
+                runtimeFilterPath,
+                momentFilterEstimateOnly,
                 base.momentPipelineRequested(),
                 active,
                 base.contactShadowsRequested(),
