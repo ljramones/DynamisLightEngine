@@ -778,7 +778,8 @@ final class VulkanEngineRuntimeLightingMapper {
                 shadowSchedulerMidPeriod,
                 shadowSchedulerDistantPeriod,
                 shadowSchedulerFrameTick,
-                faceBudget
+                faceBudget,
+                shadowSchedulerLastRenderedTicks
         );
         if (type == LightType.SPOT) {
             cascades = Math.max(1, Math.min(4, schedule.renderedSpotShadowLights()));
@@ -949,7 +950,8 @@ final class VulkanEngineRuntimeLightingMapper {
             int midPeriod,
             int distantPeriod,
             long frameTick,
-            int faceBudget
+            int faceBudget,
+            Map<String, Long> lastRenderedTicks
     ) {
         int renderedSpot = 0;
         int renderedPoint = 0;
@@ -971,7 +973,14 @@ final class VulkanEngineRuntimeLightingMapper {
                 break;
             }
             int cadencePeriod = cadencePeriodForRank(rank, heroPeriod, midPeriod, distantPeriod);
-            if (schedulerEnabled && !isCadenceDue(frameTick, rank, cadencePeriod)) {
+            String candidateId = shadowLightId(candidate);
+            boolean cadenceDue = isCadenceDue(frameTick, rank, cadencePeriod);
+            if (schedulerEnabled && !cadenceDue && !isStalenessBypassDue(
+                    frameTick,
+                    candidateId,
+                    cadencePeriod,
+                    lastRenderedTicks
+            )) {
                 deferredIds.add(shadowLightId(candidate));
                 continue;
             }
@@ -986,7 +995,7 @@ final class VulkanEngineRuntimeLightingMapper {
             }
             assignedLayers += layerCost;
             assignedLights++;
-            renderedIds.add(shadowLightId(candidate));
+            renderedIds.add(candidateId);
             if (localType == LightType.SPOT) {
                 renderedSpot++;
             } else {
@@ -1017,6 +1026,24 @@ final class VulkanEngineRuntimeLightingMapper {
             return true;
         }
         return Math.floorMod(frameTick + rank, cadencePeriod) == 0;
+    }
+
+    private static boolean isStalenessBypassDue(
+            long frameTick,
+            String lightId,
+            int cadencePeriod,
+            Map<String, Long> lastRenderedTicks
+    ) {
+        if (lastRenderedTicks == null || lightId == null || lightId.isBlank()) {
+            return false;
+        }
+        long lastTick = lastRenderedTicks.getOrDefault(lightId, Long.MIN_VALUE);
+        if (lastTick == Long.MIN_VALUE) {
+            return false;
+        }
+        long age = Math.max(0L, frameTick - lastTick);
+        long staleThreshold = Math.max(2L, (long) Math.max(1, cadencePeriod) * 2L);
+        return age >= staleThreshold;
     }
 
     private static boolean layerRangeFits(int layerBase, int layerCost, int maxLayers, boolean[] usedLayers) {

@@ -342,4 +342,25 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertTrue(renderedSets.size() > 1);
         assertTrue(deferredSets.size() > 1);
     }
+
+    @Test
+    void mapShadowsCadencePromotesStaleLightsPastCadenceGate() {
+        List<LightDesc> lights = List.of(
+                new LightDesc("spotHero", new Vec3(0f, 2f, 0f), new Vec3(1f, 0.9f, 0.8f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spotMid", new Vec3(1f, 2f, 0f), new Vec3(0.9f, 0.9f, 1f), 1.8f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spotStale", new Vec3(2f, 2f, 0f), new Vec3(0.8f, 1f, 0.9f), 1.6f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+
+        Map<String, Long> lastRenderedTicks = new HashMap<>();
+        lastRenderedTicks.put("spotHero", 0L);
+        lastRenderedTicks.put("spotMid", 0L);
+        lastRenderedTicks.put("spotStale", -20L);
+
+        VulkanEngineRuntime.ShadowRenderConfig cfg = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
+                3, 8, 8, false, false, true, 8, 8, 8, 1L, lastRenderedTicks
+        );
+
+        assertTrue(cfg.renderedShadowLightIdsCsv().contains("spotStale"));
+    }
 }

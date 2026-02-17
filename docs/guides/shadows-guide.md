@@ -156,6 +156,7 @@ Shadow scheduler override examples:
 
 Scheduler behavior notes:
 - Vulkan scheduler now uses cadence + age/priority ordering for local shadow lights.
+- Cadence gating now includes a staleness bypass so lights that have gone unrendered for roughly `2x` their cadence period are promoted and rendered to prevent starvation.
 - Runtime warning telemetry includes:
   - `maxShadowedLocalLightsConfigured`
   - `shadowSchedulerFrameTick`

@@ -78,7 +78,7 @@ Status: In progress (started and partially landed).
 
 2. Cadence-aware scheduling
 - Hero/full-rate, mid/throttled, distant/low-rate updates with promotion rules.
-- Status: In progress (initial cadence controls wired; per-light age/priority queue still pending).
+- Status: In progress (cadence controls plus per-light age/priority ordering and stale-light bypass promotion are active; deeper per-scene tuning/lockdown continues).
 
 3. Static/dynamic shadow cache layering
 - strict invalidation and reuse guarantees.

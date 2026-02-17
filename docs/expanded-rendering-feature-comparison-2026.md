@@ -57,6 +57,7 @@ Last updated: February 17, 2026.
 - Compare harness now supports repo-owned default threshold profiles by Vulkan mode (`vulkan-real.properties` / `vulkan-mock.properties`) plus a promotion script (`scripts/promote_compare_thresholds.sh`) to ingest lock recommendations into tracked defaults.
 - Good diagnostics/warnings for quality fallback and runtime pressure.
 - Shadow roadmap alignment is explicit: multi-local atlas rollout, temporal stability controls (texel snapping/jitter), static-vs-dynamic cache layering, cadence policy validation, and CI depth-format divergence checks (`D16_UNORM` vs `D32_SFLOAT`).
+- Shadow cadence now includes stale-light bypass promotion (age-aware scheduling) to prevent long-tail local-light starvation under throttled budgets.
 
 ### Where DynamicLightEngine still trails AAA engines
 - No full dynamic GI framework (Lumen/SVOGI-class).
