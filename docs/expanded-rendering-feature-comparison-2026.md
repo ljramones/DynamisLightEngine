@@ -51,6 +51,7 @@ Last updated: February 17, 2026.
 - Shadow CI matrix now includes an explicit cadence guard (`shadowSchedulerCadenceDefersPointWorkUnderFaceBudget`) to enforce deferred-work behavior under local face-budget pressure.
 - Guarded real-Vulkan long-run shadow CI lane now auto-generates threshold-lock recommendations from collected compare metadata when hardware support is present.
 - Guarded production shadow quality sweeps now run as a dedicated CI lane (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`, `rt bvh_dedicated`) and auto-generate threshold-lock recommendations from repeated real-Vulkan runs when available.
+- Scheduled CI now enforces stricter real-Vulkan shadow lockdown cadence (3-run longrun/quality sweeps with strict BVH lane), while push/PR lanes remain reduced-run for cost control.
 - Compare harness now supports repo-owned default threshold profiles by Vulkan mode (`vulkan-real.properties` / `vulkan-mock.properties`) plus a promotion script (`scripts/promote_compare_thresholds.sh`) to ingest lock recommendations into tracked defaults.
 - Good diagnostics/warnings for quality fallback and runtime pressure.
 - Shadow roadmap alignment is explicit: multi-local atlas rollout, temporal stability controls (texel snapping/jitter), static-vs-dynamic cache layering, cadence policy validation, and CI depth-format divergence checks (`D16_UNORM` vs `D32_SFLOAT`).

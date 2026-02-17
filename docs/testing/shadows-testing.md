@@ -40,6 +40,9 @@ CI always-on rollout:
 - Weekly scheduled run (`schedule`) also executes long-run AA/shadow motion sampling.
 - GitHub Actions `shadow-real-longrun-guarded` now runs on `push`/`pull_request`/`schedule` and emits guarded threshold-lock recommendations when real Vulkan is available.
 - GitHub Actions `shadow-production-quality-sweeps` now runs on `push`/`pull_request`/`schedule` and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`, `rt bvh_dedicated`) with guarded threshold-lock output.
+- CI lockdown policy now runs stricter scheduled lanes:
+  - `shadow-real-longrun-guarded`: 3-run schedule cadence (2 runs on push/PR)
+  - `shadow-production-quality-sweeps`: 3-run schedule cadence with strict BVH lane enabled by default (2 runs on push/PR)
 - Manual `workflow_dispatch` toggles:
   - `run_shadow_real_matrix=true`
   - `run_shadow_longrun=true`

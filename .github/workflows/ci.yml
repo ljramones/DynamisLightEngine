@@ -159,10 +159,10 @@ jobs:
 
       - name: Run guarded real-Vulkan shadow long-run sweep
         env:
-          DLE_SHADOW_REAL_LONGRUN_RUNS: '2'
+          DLE_SHADOW_REAL_LONGRUN_RUNS: ${{ github.event_name == 'schedule' && '3' || '2' }}
           DLE_SHADOW_REAL_LONGRUN_OUTPUT_ROOT: artifacts/compare/shadow-real-longrun
           DLE_SHADOW_REAL_LONGRUN_LOCK_THRESHOLDS: '1'
-          DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS: '2'
+          DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS: ${{ github.event_name == 'schedule' && '3' || '2' }}
         run: ./scripts/shadow_real_longrun_guarded.sh
 
       - name: Upload guarded shadow real longrun artifacts
@@ -189,12 +189,13 @@ jobs:
 
       - name: Run production shadow quality sweeps (guarded real Vulkan)
         env:
-          DLE_SHADOW_PROD_SWEEP_RUNS: '2'
+          DLE_SHADOW_PROD_SWEEP_RUNS: ${{ github.event_name == 'schedule' && '3' || '2' }}
           DLE_SHADOW_PROD_SWEEP_VULKAN_MODE: real
           DLE_SHADOW_PROD_SWEEP_OUTPUT_ROOT: artifacts/compare/shadow-production-sweeps
+          DLE_SHADOW_PROD_SWEEP_PROFILE_SET: production
           DLE_SHADOW_PROD_SWEEP_LOCK_THRESHOLDS: '1'
-          DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_quality_sweeps_strict_bvh == 'true' && '1' || '0' }}
-          DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS: '2'
+          DLE_SHADOW_PROD_SWEEP_RT_BVH_STRICT: ${{ github.event_name == 'schedule' && '1' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_quality_sweeps_strict_bvh == 'true' && '1' || '0') }}
+          DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS: ${{ github.event_name == 'schedule' && '3' || '2' }}
         run: ./scripts/shadow_production_quality_sweeps.sh
 
       - name: Upload production shadow sweep artifacts
