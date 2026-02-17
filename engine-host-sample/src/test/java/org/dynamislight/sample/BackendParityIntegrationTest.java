@@ -610,7 +610,7 @@ class BackendParityIntegrationTest {
                 new SceneCase("taa-thin-geometry-motion-stress", taaThinGeometryMotionStressScene(), 0.31),
                 new SceneCase("taa-disocclusion-rapid-pan-stress", taaDisocclusionRapidPanStressScene(), 0.33)
         );
-        List<String> aaModes = List.of("taa", "tuua", "msaa-selective", "hybrid-tuua-msaa");
+        List<String> aaModes = List.of("taa", "tuua", "tsr", "msaa-selective", "hybrid-tuua-msaa");
 
         for (SceneCase sceneCase : scenes) {
             for (String mode : aaModes) {
@@ -1262,6 +1262,10 @@ class BackendParityIntegrationTest {
                  "taa-disocclusion-rapid-pan-stress-tuua" -> 0.37;
             case "taa-specular-micro-highlights-stress-tuua",
                  "taa-thin-geometry-motion-stress-tuua" -> 0.35;
+            case "taa-subpixel-alpha-foliage-stress-tsr",
+                 "taa-disocclusion-rapid-pan-stress-tsr" -> 0.36;
+            case "taa-specular-micro-highlights-stress-tsr",
+                 "taa-thin-geometry-motion-stress-tsr" -> 0.34;
             case "taa-subpixel-alpha-foliage-stress-msaa-selective",
                  "taa-disocclusion-rapid-pan-stress-msaa-selective" -> 0.39;
             case "taa-specular-micro-highlights-stress-msaa-selective",
@@ -1277,6 +1281,7 @@ class BackendParityIntegrationTest {
     private static double strictThresholdForAaMode(double taaStrictMax, String mode) {
         return switch (mode) {
             case "tuua" -> Math.min(1.0, taaStrictMax + 0.01);
+            case "tsr" -> Math.min(1.0, taaStrictMax);
             case "msaa-selective" -> Math.min(1.0, taaStrictMax + 0.03);
             case "hybrid-tuua-msaa" -> Math.min(1.0, taaStrictMax + 0.01);
             default -> taaStrictMax;

@@ -144,11 +144,20 @@ final class BackendCompareHarness {
     }
 
     private static String selectAaMode(String profileTag) {
+        if (profileTag.contains("dl aa") || profileTag.contains("dlaa")) {
+            return "dlaa";
+        }
+        if (profileTag.contains("fxaa")) {
+            return "fxaa_low";
+        }
         if (profileTag.contains("hybrid-tuua-msaa")) {
             return "hybrid_tuua_msaa";
         }
         if (profileTag.contains("msaa-selective")) {
             return "msaa_selective";
+        }
+        if (profileTag.contains("tsr")) {
+            return "tsr";
         }
         if (profileTag.contains("tuua")) {
             return "tuua";
@@ -158,18 +167,30 @@ final class BackendCompareHarness {
 
     private static EngineConfig configFor(String backendId, QualityTier qualityTier, String aaPreset, String aaMode) {
         Map<String, String> options = switch (backendId) {
-            case "opengl" -> Map.of(
-                    "opengl.mockContext", System.getProperty("dle.compare.opengl.mockContext", "true"),
-                    "opengl.taaDebugView", System.getProperty("dle.taa.debugView", "0"),
-                    "opengl.aaPreset", aaPreset,
-                    "opengl.aaMode", aaMode
+            case "opengl" -> Map.ofEntries(
+                    Map.entry("opengl.mockContext", System.getProperty("dle.compare.opengl.mockContext", "true")),
+                    Map.entry("opengl.taaDebugView", System.getProperty("dle.taa.debugView", "0")),
+                    Map.entry("opengl.aaPreset", aaPreset),
+                    Map.entry("opengl.aaMode", aaMode),
+                    Map.entry("opengl.tsrHistoryWeight", System.getProperty("dle.compare.tsr.historyWeight", "0.90")),
+                    Map.entry("opengl.tsrResponsiveMask", System.getProperty("dle.compare.tsr.responsiveMask", "0.65")),
+                    Map.entry("opengl.tsrNeighborhoodClamp", System.getProperty("dle.compare.tsr.neighborhoodClamp", "0.88")),
+                    Map.entry("opengl.tsrReprojectionConfidence", System.getProperty("dle.compare.tsr.reprojectionConfidence", "0.85")),
+                    Map.entry("opengl.tsrSharpen", System.getProperty("dle.compare.tsr.sharpen", "0.14")),
+                    Map.entry("opengl.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75"))
             );
-            case "vulkan" -> Map.of(
-                    "vulkan.mockContext", System.getProperty("dle.compare.vulkan.mockContext", "true"),
-                    "vulkan.postOffscreen", System.getProperty("dle.compare.vulkan.postOffscreen", "true"),
-                    "vulkan.taaDebugView", System.getProperty("dle.taa.debugView", "0"),
-                    "vulkan.aaPreset", aaPreset,
-                    "vulkan.aaMode", aaMode
+            case "vulkan" -> Map.ofEntries(
+                    Map.entry("vulkan.mockContext", System.getProperty("dle.compare.vulkan.mockContext", "true")),
+                    Map.entry("vulkan.postOffscreen", System.getProperty("dle.compare.vulkan.postOffscreen", "true")),
+                    Map.entry("vulkan.taaDebugView", System.getProperty("dle.taa.debugView", "0")),
+                    Map.entry("vulkan.aaPreset", aaPreset),
+                    Map.entry("vulkan.aaMode", aaMode),
+                    Map.entry("vulkan.tsrHistoryWeight", System.getProperty("dle.compare.tsr.historyWeight", "0.90")),
+                    Map.entry("vulkan.tsrResponsiveMask", System.getProperty("dle.compare.tsr.responsiveMask", "0.65")),
+                    Map.entry("vulkan.tsrNeighborhoodClamp", System.getProperty("dle.compare.tsr.neighborhoodClamp", "0.88")),
+                    Map.entry("vulkan.tsrReprojectionConfidence", System.getProperty("dle.compare.tsr.reprojectionConfidence", "0.85")),
+                    Map.entry("vulkan.tsrSharpen", System.getProperty("dle.compare.tsr.sharpen", "0.14")),
+                    Map.entry("vulkan.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75"))
             );
             default -> Map.of();
         };

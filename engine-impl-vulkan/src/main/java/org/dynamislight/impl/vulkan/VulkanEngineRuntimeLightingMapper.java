@@ -20,7 +20,8 @@ final class VulkanEngineRuntimeLightingMapper {
             QualityTier qualityTier,
             boolean taaLumaClipEnabledDefault,
             VulkanEngineRuntime.AaPreset aaPreset,
-            VulkanEngineRuntime.AaMode aaMode
+            VulkanEngineRuntime.AaMode aaMode,
+            VulkanEngineRuntime.TsrControls tsrControls
     ) {
         if (desc == null || !desc.enabled()) {
             return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f);
@@ -92,6 +93,20 @@ final class VulkanEngineRuntimeLightingMapper {
         }
         if (aaMode != null) {
             switch (aaMode) {
+                case TSR -> {
+                    taaEnabled = qualityTier != QualityTier.LOW;
+                    smaaEnabled = false;
+                    smaaStrength = 0f;
+                    float historyInfluence = clamp01(
+                            tsrControls.historyWeight() * tsrControls.reprojectionConfidence() * (1.0f - tsrControls.responsiveMask() * 0.22f)
+                    );
+                    taaBlend = Math.max(taaBlend, Math.min(0.95f, 0.78f + 0.17f * historyInfluence));
+                    taaClipScale = Math.max(0.5f, Math.min(1.6f, taaClipScale * (1.0f - (tsrControls.neighborhoodClamp() - 0.5f) * 0.45f)));
+                    float antiRingingAttenuation = 1.0f - (0.35f * tsrControls.antiRinging());
+                    taaSharpenStrength = Math.max(0f, Math.min(0.35f,
+                            (tsrControls.sharpen() * antiRingingAttenuation) + (taaSharpenStrength * 0.22f)));
+                    taaLumaClipEnabled = tsrControls.antiRinging() >= 0.35f;
+                }
                 case TUUA -> {
                     taaEnabled = qualityTier != QualityTier.LOW;
                     smaaEnabled = false;
@@ -117,6 +132,24 @@ final class VulkanEngineRuntimeLightingMapper {
                     taaSharpenStrength = Math.min(0.35f, taaSharpenStrength * 0.95f);
                     taaLumaClipEnabled = true;
                 }
+                case DLAA -> {
+                    taaEnabled = qualityTier != QualityTier.LOW;
+                    smaaEnabled = qualityTier != QualityTier.LOW;
+                    smaaStrength = Math.min(1.0f, smaaStrength * 0.55f);
+                    taaBlend = Math.max(taaBlend, 0.90f);
+                    taaClipScale = Math.max(0.5f, taaClipScale * 0.88f);
+                    taaSharpenStrength = Math.max(0f, taaSharpenStrength * 0.70f);
+                    taaLumaClipEnabled = true;
+                }
+                case FXAA_LOW -> {
+                    taaEnabled = false;
+                    taaBlend = 0f;
+                    smaaEnabled = qualityTier != QualityTier.LOW;
+                    smaaStrength = Math.min(1.0f, Math.max(0.45f, smaaStrength * 0.90f));
+                    taaClipScale = Math.min(1.6f, taaClipScale * 1.15f);
+                    taaSharpenStrength = Math.max(0f, taaSharpenStrength * 0.60f);
+                    taaLumaClipEnabled = false;
+                }
                 case TAA -> {
                 }
             }
@@ -141,6 +174,10 @@ final class VulkanEngineRuntimeLightingMapper {
                 taaLumaClipEnabled,
                 taaSharpenStrength
         );
+    }
+
+    private static float clamp01(float value) {
+        return Math.max(0f, Math.min(1f, value));
     }
 
     static VulkanEngineRuntime.LightingConfig mapLighting(List<LightDesc> lights) {
@@ -369,7 +406,4 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    private static float clamp01(float v) {
-        return Math.max(0f, Math.min(1f, v));
-    }
 }

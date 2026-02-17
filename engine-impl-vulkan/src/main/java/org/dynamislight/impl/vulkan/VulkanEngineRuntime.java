@@ -44,9 +44,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     enum AaMode {
         TAA,
+        TSR,
         TUUA,
         MSAA_SELECTIVE,
-        HYBRID_TUUA_MSAA
+        HYBRID_TUUA_MSAA,
+        DLAA,
+        FXAA_LOW
+    }
+
+    record TsrControls(
+            float historyWeight,
+            float responsiveMask,
+            float neighborhoodClamp,
+            float reprojectionConfidence,
+            float sharpen,
+            float antiRinging
+    ) {
     }
 
     private static final int DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES = 256;
@@ -77,6 +90,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
     private AaMode aaMode = AaMode.TAA;
+    private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f);
     private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
 
@@ -123,6 +137,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
         aaMode = parseAaMode(config.backendOptions().get("vulkan.aaMode"));
+        tsrControls = parseTsrControls(config.backendOptions(), "vulkan.");
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
         qualityTier = config.qualityTier();
@@ -144,7 +159,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 meshLoader,
                 taaLumaClipEnabledDefault,
                 aaPreset,
-                aaMode
+                aaMode,
+                tsrControls
         );
         currentFog = sceneState.fog();
         currentSmoke = sceneState.smoke();
@@ -277,6 +293,29 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             return AaMode.valueOf(normalized);
         } catch (IllegalArgumentException ignored) {
             return AaMode.TAA;
+        }
+    }
+
+    private static TsrControls parseTsrControls(java.util.Map<String, String> options, String prefix) {
+        return new TsrControls(
+                parseFloatOption(options, prefix + "tsrHistoryWeight", 0.90f, 0.50f, 0.99f),
+                parseFloatOption(options, prefix + "tsrResponsiveMask", 0.65f, 0.0f, 1.0f),
+                parseFloatOption(options, prefix + "tsrNeighborhoodClamp", 0.88f, 0.50f, 1.20f),
+                parseFloatOption(options, prefix + "tsrReprojectionConfidence", 0.85f, 0.10f, 1.0f),
+                parseFloatOption(options, prefix + "tsrSharpen", 0.14f, 0.0f, 0.35f),
+                parseFloatOption(options, prefix + "tsrAntiRinging", 0.75f, 0.0f, 1.0f)
+        );
+    }
+
+    private static float parseFloatOption(java.util.Map<String, String> options, String key, float fallback, float min, float max) {
+        String raw = options == null ? null : options.get(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Math.max(min, Math.min(max, Float.parseFloat(raw.trim())));
+        } catch (NumberFormatException ignored) {
+            return fallback;
         }
     }
 

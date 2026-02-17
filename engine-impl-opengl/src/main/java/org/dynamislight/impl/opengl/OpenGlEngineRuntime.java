@@ -49,9 +49,22 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private enum AaMode {
         TAA,
+        TSR,
         TUUA,
         MSAA_SELECTIVE,
-        HYBRID_TUUA_MSAA
+        HYBRID_TUUA_MSAA,
+        DLAA,
+        FXAA_LOW
+    }
+
+    private record TsrControls(
+            float historyWeight,
+            float responsiveMask,
+            float neighborhoodClamp,
+            float reprojectionConfidence,
+            float sharpen,
+            float antiRinging
+    ) {
     }
 
     private record FogRenderConfig(boolean enabled, float r, float g, float b, float density, int steps) {
@@ -129,6 +142,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
     private AaMode aaMode = AaMode.TAA;
+    private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f);
 
     public OpenGlEngineRuntime() {
         super(
@@ -161,6 +175,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("opengl.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("opengl.aaPreset"));
         aaMode = parseAaMode(config.backendOptions().get("opengl.aaMode"));
+        tsrControls = parseTsrControls(config.backendOptions(), "opengl.");
         qualityTier = config.qualityTier();
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new OpenGlMeshAssetLoader(assetRoot);
@@ -208,7 +223,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         smoke = mapSmoke(scene.smokeEmitters(), qualityTier);
         shadows = mapShadows(scene.lights(), qualityTier);
         nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene.lights());
-        postProcess = mapPostProcess(scene.postProcess(), qualityTier, taaLumaClipEnabledDefault, aaPreset, aaMode);
+        postProcess = mapPostProcess(scene.postProcess(), qualityTier, taaLumaClipEnabledDefault, aaPreset, aaMode, tsrControls);
         ibl = mapIbl(scene.environment(), qualityTier);
 
         List<OpenGlContext.SceneMesh> sceneMeshes = mapSceneMeshes(scene);
@@ -561,7 +576,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             QualityTier qualityTier,
             boolean taaLumaClipEnabledDefault,
             AaPreset aaPreset,
-            AaMode aaMode
+            AaMode aaMode,
+            TsrControls tsrControls
     ) {
         if (desc == null || !desc.enabled()) {
             return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f);
@@ -633,6 +649,20 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         }
         if (aaMode != null) {
             switch (aaMode) {
+                case TSR -> {
+                    taaEnabled = qualityTier != QualityTier.LOW;
+                    smaaEnabled = false;
+                    smaaStrength = 0f;
+                    float historyInfluence = clamp01(
+                            tsrControls.historyWeight() * tsrControls.reprojectionConfidence() * (1.0f - tsrControls.responsiveMask() * 0.22f)
+                    );
+                    taaBlend = Math.max(taaBlend, Math.min(0.95f, 0.78f + 0.17f * historyInfluence));
+                    taaClipScale = Math.max(0.5f, Math.min(1.6f, taaClipScale * (1.0f - (tsrControls.neighborhoodClamp() - 0.5f) * 0.45f)));
+                    float antiRingingAttenuation = 1.0f - (0.35f * tsrControls.antiRinging());
+                    taaSharpenStrength = Math.max(0f, Math.min(0.35f,
+                            (tsrControls.sharpen() * antiRingingAttenuation) + (taaSharpenStrength * 0.22f)));
+                    taaLumaClipEnabled = tsrControls.antiRinging() >= 0.35f;
+                }
                 case TUUA -> {
                     taaEnabled = qualityTier != QualityTier.LOW;
                     smaaEnabled = false;
@@ -657,6 +687,24 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     taaClipScale = Math.max(0.5f, taaClipScale * 0.90f);
                     taaSharpenStrength = Math.min(0.35f, taaSharpenStrength * 0.95f);
                     taaLumaClipEnabled = true;
+                }
+                case DLAA -> {
+                    taaEnabled = qualityTier != QualityTier.LOW;
+                    smaaEnabled = qualityTier != QualityTier.LOW;
+                    smaaStrength = Math.min(1.0f, smaaStrength * 0.55f);
+                    taaBlend = Math.max(taaBlend, 0.90f);
+                    taaClipScale = Math.max(0.5f, taaClipScale * 0.88f);
+                    taaSharpenStrength = Math.max(0f, taaSharpenStrength * 0.70f);
+                    taaLumaClipEnabled = true;
+                }
+                case FXAA_LOW -> {
+                    taaEnabled = false;
+                    taaBlend = 0f;
+                    smaaEnabled = qualityTier != QualityTier.LOW;
+                    smaaStrength = Math.min(1.0f, Math.max(0.45f, smaaStrength * 0.90f));
+                    taaClipScale = Math.min(1.6f, taaClipScale * 1.15f);
+                    taaSharpenStrength = Math.max(0f, taaSharpenStrength * 0.60f);
+                    taaLumaClipEnabled = false;
                 }
                 case TAA -> {
                 }
@@ -704,6 +752,29 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             return AaMode.valueOf(normalized);
         } catch (IllegalArgumentException ignored) {
             return AaMode.TAA;
+        }
+    }
+
+    private static TsrControls parseTsrControls(Map<String, String> options, String prefix) {
+        return new TsrControls(
+                parseFloatOption(options, prefix + "tsrHistoryWeight", 0.90f, 0.50f, 0.99f),
+                parseFloatOption(options, prefix + "tsrResponsiveMask", 0.65f, 0.0f, 1.0f),
+                parseFloatOption(options, prefix + "tsrNeighborhoodClamp", 0.88f, 0.50f, 1.20f),
+                parseFloatOption(options, prefix + "tsrReprojectionConfidence", 0.85f, 0.10f, 1.0f),
+                parseFloatOption(options, prefix + "tsrSharpen", 0.14f, 0.0f, 0.35f),
+                parseFloatOption(options, prefix + "tsrAntiRinging", 0.75f, 0.0f, 1.0f)
+        );
+    }
+
+    private static float parseFloatOption(Map<String, String> options, String key, float fallback, float min, float max) {
+        String raw = options.get(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Math.max(min, Math.min(max, Float.parseFloat(raw.trim())));
+        } catch (NumberFormatException ignored) {
+            return fallback;
         }
     }
 
