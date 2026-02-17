@@ -44,6 +44,9 @@ Last updated: February 17, 2026.
 - Reflection stress coverage now includes Hi-Z/probe and RT-fallback scenes (`reflections-hiz-probe`, `reflections-rt-fallback`) in addition to SSR/planar/hybrid parity gates.
 - Local light management now supports multiple point/spot lights in both backends with per-light GPU array packing; OpenGL includes local spot shadow-atlas rendering/sampling with cadence+cache reuse, while Vulkan now renders multi-local spot layers with tier-bounded point-cubemap scheduling and keeps broader per-light atlas/cubemap parity rollout in progress.
 - Shadow telemetry now includes atlas memory/update-byte estimates and Vulkan depth-format compare controls (`d16`/`d32`) for CI divergence checks.
+- VSM/EVSM request-state telemetry now reports correctly (`momentPipelineRequested=true` for `vsm|evsm`), with pending/initializing warnings emitted when requested moment resources are not active.
+- Moment shadow filtering now adds edge-aware denoise weighting on top of neighborhood-weighted sampling to reduce blur bleeding across high-depth-gradient edges.
+- Shadow CI matrix now includes an explicit cadence guard (`shadowSchedulerCadenceDefersPointWorkUnderFaceBudget`) to enforce deferred-work behavior under local face-budget pressure.
 - Good diagnostics/warnings for quality fallback and runtime pressure.
 - Shadow roadmap alignment is explicit: multi-local atlas rollout, temporal stability controls (texel snapping/jitter), static-vs-dynamic cache layering, cadence policy validation, and CI depth-format divergence checks (`D16_UNORM` vs `D32_SFLOAT`).
 
