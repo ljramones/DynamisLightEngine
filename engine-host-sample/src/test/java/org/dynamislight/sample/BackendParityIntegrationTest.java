@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.dynamislight.api.scene.CameraDesc;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 
 class BackendParityIntegrationTest {
     private static final EngineApiVersion HOST_REQUIRED_API = new EngineApiVersion(1, 0, 0);
+    private static final Map<String, Double> THRESHOLD_OVERRIDES = loadThresholdOverrides();
 
     @Test
     void bothBackendsAreDiscoverable() {
@@ -628,6 +630,61 @@ class BackendParityIntegrationTest {
                 double strictMax = strictThresholdForAaMode(sceneCase.taaStrictMax(), mode);
                 assertAaSceneWithinThreshold(modeProfile, report, strictMax, modeProfile);
             }
+        }
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "dle.compare.tests", matches = "true")
+    void compareHarnessTsrUpscalerHooksAcrossTargetedScenesStayBounded() throws Exception {
+        record SceneCase(String key, SceneDescriptor scene, double taaStrictMax) {
+        }
+        List<SceneCase> scenes = List.of(
+                new SceneCase("taa-subpixel-alpha-foliage-stress", taaSubpixelAlphaFoliageStressScene(), 0.33),
+                new SceneCase("taa-specular-micro-highlights-stress", taaSpecularMicroHighlightsStressScene(), 0.31),
+                new SceneCase("taa-thin-geometry-motion-stress", taaThinGeometryMotionStressScene(), 0.31),
+                new SceneCase("taa-disocclusion-rapid-pan-stress", taaDisocclusionRapidPanStressScene(), 0.33)
+        );
+        List<String> upscalerHooks = List.of("fsr", "xess", "dlss");
+
+        String prevUpscalerMode = System.getProperty("dle.compare.upscaler.mode");
+        String prevUpscalerQuality = System.getProperty("dle.compare.upscaler.quality");
+        String prevTemporalFrames = System.getProperty("dle.compare.temporalFrames");
+        String prevTsrFrameBoost = System.getProperty("dle.compare.tsr.frameBoost");
+        try {
+            System.setProperty("dle.compare.upscaler.quality", "quality");
+            System.setProperty("dle.compare.temporalFrames", "10");
+            System.setProperty("dle.compare.tsr.frameBoost", "6");
+            for (SceneCase sceneCase : scenes) {
+                for (String hook : upscalerHooks) {
+                    System.setProperty("dle.compare.upscaler.mode", hook);
+                    String modeProfile = sceneCase.key() + "-tsr-" + hook;
+                    Path outDir = compareOutputDir(modeProfile);
+                    var report = BackendCompareHarness.run(
+                            outDir,
+                            sceneCase.scene(),
+                            QualityTier.ULTRA,
+                            modeProfile + "-ultra"
+                    );
+                    assertTrue(Files.exists(report.openGlImage()));
+                    assertTrue(Files.exists(report.vulkanImage()));
+                    assertTrue(report.diffMetric() >= 0.0);
+                    double strictMax = Math.min(1.0, strictThresholdForAaMode(sceneCase.taaStrictMax(), "tsr") + 0.015);
+                    assertAaSceneWithinThreshold(modeProfile, report, strictMax, modeProfile);
+                    assertTrue(
+                            report.openGlSnapshot().warningCodes().contains("UPSCALER_HOOK_ACTIVE"),
+                            modeProfile + " expected OpenGL UPSCALER_HOOK_ACTIVE warning"
+                    );
+                    assertTrue(
+                            report.vulkanSnapshot().warningCodes().contains("UPSCALER_HOOK_ACTIVE"),
+                            modeProfile + " expected Vulkan UPSCALER_HOOK_ACTIVE warning"
+                    );
+                }
+            }
+        } finally {
+            restoreProperty("dle.compare.upscaler.mode", prevUpscalerMode);
+            restoreProperty("dle.compare.upscaler.quality", prevUpscalerQuality);
+            restoreProperty("dle.compare.temporalFrames", prevTemporalFrames);
+            restoreProperty("dle.compare.tsr.frameBoost", prevTsrFrameBoost);
         }
     }
 
@@ -1246,6 +1303,10 @@ class BackendParityIntegrationTest {
     }
 
     private static double adjustedCompareMaxDiff(String profile, double strictMaxDiff) {
+        Double override = thresholdOverride(profile);
+        if (override != null) {
+            strictMaxDiff = override;
+        }
         if (!isVulkanMockProfile()) {
             return strictMaxDiff;
         }
@@ -1284,6 +1345,53 @@ class BackendParityIntegrationTest {
                  "taa-thin-geometry-motion-stress-fxaa-low" -> 0.40;
             default -> Math.min(1.0, strictMaxDiff + 0.02);
         };
+    }
+
+    private static Double thresholdOverride(String profile) {
+        if (profile == null || profile.isBlank()) {
+            return null;
+        }
+        String direct = System.getProperty("dle.compare.threshold." + profile);
+        if (direct != null && !direct.isBlank()) {
+            try {
+                return Double.parseDouble(direct.trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return THRESHOLD_OVERRIDES.get(profile);
+    }
+
+    private static Map<String, Double> loadThresholdOverrides() {
+        String path = System.getProperty("dle.compare.thresholds.file", "").trim();
+        if (path.isEmpty()) {
+            return Map.of();
+        }
+        Path thresholdFile = Path.of(path);
+        if (!Files.isRegularFile(thresholdFile)) {
+            return Map.of();
+        }
+        Properties p = new Properties();
+        try (var in = Files.newInputStream(thresholdFile)) {
+            p.load(in);
+        } catch (Exception ignored) {
+            return Map.of();
+        }
+        Map<String, Double> out = new java.util.HashMap<>();
+        for (String key : p.stringPropertyNames()) {
+            if (!key.startsWith("threshold.")) {
+                continue;
+            }
+            String profile = key.substring("threshold.".length());
+            String raw = p.getProperty(key);
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            try {
+                out.put(profile, Double.parseDouble(raw.trim()));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return out;
     }
 
     private static double strictThresholdForAaMode(double taaStrictMax, String mode) {
@@ -1352,6 +1460,14 @@ class BackendParityIntegrationTest {
                 profile + " confidence-drop-window drift " + confidenceDropWindowDrift + " exceeded " + confidenceDropWindowMax
                         + " (gl=" + gl.taaConfidenceDropWindow() + ", vk=" + vk.taaConfidenceDropWindow() + ")"
         );
+    }
+
+    private static void restoreProperty(String key, String value) {
+        if (value == null) {
+            System.clearProperty(key);
+        } else {
+            System.setProperty(key, value);
+        }
     }
 
     private static void runParityLifecycle(String backendId) throws Exception {

@@ -92,6 +92,17 @@ final class VulkanRuntimeWarningPolicy {
                     "TAA baseline temporal blend path is active"
             ));
         }
+        if (in.upscalerMode() != VulkanEngineRuntime.UpscalerMode.NONE && in.currentPost().taaEnabled()) {
+            warnings.add(new EngineWarning(
+                    "UPSCALER_HOOK_ACTIVE",
+                    "Upscaler hook requested (mode=" + in.upscalerMode().name().toLowerCase()
+                            + ", quality=" + in.upscalerQuality().name().toLowerCase() + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "UPSCALER_NATIVE_INTEGRATION_PENDING",
+                    "Upscaler hook is active for TSR/TUUA tuning; native vendor SDK path remains optional integration work"
+            ));
+        }
         if (in.nonDirectionalShadowRequested()) {
             warnings.add(new EngineWarning(
                     "SHADOW_TYPE_UNSUPPORTED",
@@ -308,6 +319,8 @@ final class VulkanRuntimeWarningPolicy {
             VulkanEngineRuntime.ShadowRenderConfig currentShadows,
             VulkanEngineRuntime.PostProcessRenderConfig currentPost,
             VulkanEngineRuntime.IblRenderConfig currentIbl,
+            VulkanEngineRuntime.UpscalerMode upscalerMode,
+            VulkanEngineRuntime.UpscalerQuality upscalerQuality,
             boolean nonDirectionalShadowRequested,
             boolean mockContext,
             boolean postOffscreenRequested,

@@ -28,9 +28,20 @@ final class VulkanEngineRuntimeSceneMapper {
             boolean taaLumaClipEnabledDefault,
             VulkanEngineRuntime.AaPreset aaPreset,
             VulkanEngineRuntime.AaMode aaMode,
+            VulkanEngineRuntime.UpscalerMode upscalerMode,
+            VulkanEngineRuntime.UpscalerQuality upscalerQuality,
             VulkanEngineRuntime.TsrControls tsrControls
     ) {
-        return VulkanEngineRuntimeLightingMapper.mapPostProcess(desc, qualityTier, taaLumaClipEnabledDefault, aaPreset, aaMode, tsrControls);
+        return VulkanEngineRuntimeLightingMapper.mapPostProcess(
+                desc,
+                qualityTier,
+                taaLumaClipEnabledDefault,
+                aaPreset,
+                aaMode,
+                upscalerMode,
+                upscalerQuality,
+                tsrControls
+        );
     }
 
     static VulkanEngineRuntime.IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {

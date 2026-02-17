@@ -52,6 +52,8 @@ final class VulkanRuntimeLifecycle {
             boolean taaLumaClipEnabledDefault,
             VulkanEngineRuntime.AaPreset aaPreset,
             VulkanEngineRuntime.AaMode aaMode,
+            VulkanEngineRuntime.UpscalerMode upscalerMode,
+            VulkanEngineRuntime.UpscalerQuality upscalerQuality,
             VulkanEngineRuntime.TsrControls tsrControls
     ) {
         var camera = VulkanEngineRuntimeSceneMapper.selectActiveCamera(scene);
@@ -69,6 +71,8 @@ final class VulkanRuntimeLifecycle {
                 taaLumaClipEnabledDefault,
                 aaPreset,
                 aaMode,
+                upscalerMode,
+                upscalerQuality,
                 tsrControls
         );
         var ibl = VulkanEngineRuntimeSceneMapper.mapIbl(scene == null ? null : scene.environment(), qualityTier, assetRoot);

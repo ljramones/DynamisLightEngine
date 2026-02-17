@@ -52,6 +52,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         FXAA_LOW
     }
 
+    enum UpscalerMode {
+        NONE,
+        FSR,
+        XESS,
+        DLSS
+    }
+
+    enum UpscalerQuality {
+        PERFORMANCE,
+        BALANCED,
+        QUALITY,
+        ULTRA_QUALITY
+    }
+
     record TsrControls(
             float historyWeight,
             float responsiveMask,
@@ -92,6 +106,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
     private AaMode aaMode = AaMode.TAA;
+    private UpscalerMode upscalerMode = UpscalerMode.NONE;
+    private UpscalerQuality upscalerQuality = UpscalerQuality.QUALITY;
     private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f, 0.60f, 0.72f);
     private IblRenderConfig currentIbl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
     private boolean nonDirectionalShadowRequested;
@@ -139,6 +155,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
         aaMode = parseAaMode(config.backendOptions().get("vulkan.aaMode"));
+        upscalerMode = parseUpscalerMode(config.backendOptions().get("vulkan.upscalerMode"));
+        upscalerQuality = parseUpscalerQuality(config.backendOptions().get("vulkan.upscalerQuality"));
         tsrControls = parseTsrControls(config.backendOptions(), "vulkan.");
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
@@ -162,6 +180,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 taaLumaClipEnabledDefault,
                 aaPreset,
                 aaMode,
+                upscalerMode,
+                upscalerQuality,
                 tsrControls
         );
         currentFog = sceneState.fog();
@@ -245,6 +265,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         currentShadows,
                         currentPost,
                         currentIbl,
+                        upscalerMode,
+                        upscalerQuality,
                         nonDirectionalShadowRequested,
                         mockContext,
                         postOffscreenRequested,
@@ -295,6 +317,30 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             return AaMode.valueOf(normalized);
         } catch (IllegalArgumentException ignored) {
             return AaMode.TAA;
+        }
+    }
+
+    private static UpscalerMode parseUpscalerMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return UpscalerMode.NONE;
+        }
+        String normalized = raw.trim().toUpperCase().replace('-', '_');
+        try {
+            return UpscalerMode.valueOf(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return UpscalerMode.NONE;
+        }
+    }
+
+    private static UpscalerQuality parseUpscalerQuality(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return UpscalerQuality.QUALITY;
+        }
+        String normalized = raw.trim().toUpperCase().replace('-', '_');
+        try {
+            return UpscalerQuality.valueOf(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return UpscalerQuality.QUALITY;
         }
     }
 

@@ -21,6 +21,8 @@ final class VulkanEngineRuntimeLightingMapper {
             boolean taaLumaClipEnabledDefault,
             VulkanEngineRuntime.AaPreset aaPreset,
             VulkanEngineRuntime.AaMode aaMode,
+            VulkanEngineRuntime.UpscalerMode upscalerMode,
+            VulkanEngineRuntime.UpscalerQuality upscalerQuality,
             VulkanEngineRuntime.TsrControls tsrControls
     ) {
         if (desc == null || !desc.enabled()) {
@@ -158,6 +160,35 @@ final class VulkanEngineRuntimeLightingMapper {
                     taaLumaClipEnabled = false;
                 }
                 case TAA -> {
+                }
+            }
+        }
+        if ((aaMode == VulkanEngineRuntime.AaMode.TSR || aaMode == VulkanEngineRuntime.AaMode.TUUA)
+                && upscalerMode != VulkanEngineRuntime.UpscalerMode.NONE) {
+            float qualityScale = switch (upscalerQuality) {
+                case PERFORMANCE -> 0.88f;
+                case BALANCED -> 0.94f;
+                case QUALITY -> 1.0f;
+                case ULTRA_QUALITY -> 1.05f;
+            };
+            switch (upscalerMode) {
+                case FSR -> {
+                    taaSharpenStrength = Math.min(0.35f, taaSharpenStrength + 0.05f * qualityScale);
+                    taaBlend = Math.max(0.0f, taaBlend - 0.02f);
+                    taaRenderScale = Math.max(taaRenderScale, 0.60f * qualityScale);
+                }
+                case XESS -> {
+                    taaBlend = Math.min(0.95f, taaBlend + 0.03f * qualityScale);
+                    taaClipScale = Math.max(0.5f, taaClipScale * (0.96f - ((qualityScale - 1.0f) * 0.05f)));
+                    taaRenderScale = Math.max(taaRenderScale, 0.64f * qualityScale);
+                }
+                case DLSS -> {
+                    taaBlend = Math.min(0.95f, taaBlend + 0.05f * qualityScale);
+                    taaClipScale = Math.max(0.5f, taaClipScale * (0.92f - ((qualityScale - 1.0f) * 0.05f)));
+                    taaSharpenStrength = Math.max(0f, taaSharpenStrength * 0.82f);
+                    taaRenderScale = Math.max(taaRenderScale, 0.67f * qualityScale);
+                }
+                case NONE -> {
                 }
             }
         }

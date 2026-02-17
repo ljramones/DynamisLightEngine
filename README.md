@@ -99,6 +99,21 @@ DLE_COMPARE_OUTPUT_DIR=artifacts/compare/aa-real-manual ./scripts/aa_rebaseline_
 DLE_COMPARE_VULKAN_MODE=real ./scripts/aa_rebaseline_real_mac.sh
 ```
 
+```bash
+# TSR validation depth (extra temporal frames) + optional upscaler hook tuning
+DLE_COMPARE_TEMPORAL_FRAMES=10 \
+DLE_COMPARE_TSR_FRAME_BOOST=6 \
+DLE_COMPARE_UPSCALER_MODE=xess \
+DLE_COMPARE_UPSCALER_QUALITY=quality \
+DLE_COMPARE_VULKAN_MODE=real \
+./scripts/aa_rebaseline_real_mac.sh
+```
+
+```bash
+# Build threshold-lock recommendations from repeated real-Vulkan compare metadata
+./scripts/aa_rebaseline_real_mac.sh lock-thresholds artifacts/compare
+```
+
 GitHub Actions CI runs:
 - matrix build/test (`mvn test`) on `main` and pull requests using JDK 25 across Linux, macOS, and Windows
 - guarded backend parity compare harness tests on Ubuntu (`dle.compare.tests=true`)
@@ -235,6 +250,8 @@ Optional integration-test flags:
 ## Planning
 
 - Rendering roadmap (2026): `docs/rendering-roadmap-2026.md`
+- Mechanical sympathy + GPU-driven + Dynamic GI roadmap: `docs/mechanical-sympathy-gpu-driven-roadmap-2026.md`
+- Superset rendering roadmap (2026): `docs/superset-rendering-roadmap-2026.md`
 - Capabilities compendium: `docs/capabilities-compendium.md`
 - Expanded rendering feature comparison (2026): `docs/expanded-rendering-feature-comparison-2026.md`
 - API reference: `docs/api-reference.md`

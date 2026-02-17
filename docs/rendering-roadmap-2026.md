@@ -5,6 +5,10 @@ Last updated: February 16, 2026
 ## Scope
 This roadmap tracks the current targeted execution lanes for rendering and runtime maturity while preserving API stability and OpenGL/Vulkan parity.
 
+Related roadmap:
+- `docs/mechanical-sympathy-gpu-driven-roadmap-2026.md` (Valhalla-oriented layout, GPU-driven rendering, Vulkan descriptor-model modernization, Dynamic GI/DDGI)
+- `docs/superset-rendering-roadmap-2026.md` (cross-engine superset target and phased execution plan)
+
 ## Guiding Constraints
 - Keep `engine-api` additive and stable.
 - Keep parity measurable via guarded compare-harness thresholds.

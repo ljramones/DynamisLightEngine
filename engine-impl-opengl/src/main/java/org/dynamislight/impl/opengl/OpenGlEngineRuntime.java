@@ -57,6 +57,20 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         FXAA_LOW
     }
 
+    private enum UpscalerMode {
+        NONE,
+        FSR,
+        XESS,
+        DLSS
+    }
+
+    private enum UpscalerQuality {
+        PERFORMANCE,
+        BALANCED,
+        QUALITY,
+        ULTRA_QUALITY
+    }
+
     private record TsrControls(
             float historyWeight,
             float responsiveMask,
@@ -145,6 +159,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
     private AaMode aaMode = AaMode.TAA;
+    private UpscalerMode upscalerMode = UpscalerMode.NONE;
+    private UpscalerQuality upscalerQuality = UpscalerQuality.QUALITY;
     private TsrControls tsrControls = new TsrControls(0.90f, 0.65f, 0.88f, 0.85f, 0.14f, 0.75f, 0.60f, 0.72f);
 
     public OpenGlEngineRuntime() {
@@ -178,6 +194,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("opengl.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("opengl.aaPreset"));
         aaMode = parseAaMode(config.backendOptions().get("opengl.aaMode"));
+        upscalerMode = parseUpscalerMode(config.backendOptions().get("opengl.upscalerMode"));
+        upscalerQuality = parseUpscalerQuality(config.backendOptions().get("opengl.upscalerQuality"));
         tsrControls = parseTsrControls(config.backendOptions(), "opengl.");
         qualityTier = config.qualityTier();
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
@@ -227,7 +245,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         smoke = mapSmoke(scene.smokeEmitters(), qualityTier);
         shadows = mapShadows(scene.lights(), qualityTier);
         nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene.lights());
-        postProcess = mapPostProcess(scene.postProcess(), qualityTier, taaLumaClipEnabledDefault, aaPreset, aaMode, tsrControls);
+        postProcess = mapPostProcess(scene.postProcess(), qualityTier, taaLumaClipEnabledDefault, aaPreset, aaMode, upscalerMode, upscalerQuality, tsrControls);
         ibl = mapIbl(scene.environment(), qualityTier);
 
         List<OpenGlContext.SceneMesh> sceneMeshes = mapSceneMeshes(scene);
@@ -383,6 +401,16 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             warnings.add(new EngineWarning(
                     "TAA_BASELINE_ACTIVE",
                     "TAA baseline temporal blend path is active (OpenGL history-buffer mode)"
+            ));
+        }
+        if (upscalerMode != UpscalerMode.NONE && postProcess.taaEnabled()) {
+            warnings.add(new EngineWarning(
+                    "UPSCALER_HOOK_ACTIVE",
+                    "Upscaler hook requested (mode=" + upscalerMode.name().toLowerCase() + ", quality=" + upscalerQuality.name().toLowerCase() + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "UPSCALER_NATIVE_INTEGRATION_PENDING",
+                    "Upscaler hook is active for TSR/TUUA tuning; native vendor SDK path remains optional integration work"
             ));
         }
         if (nonDirectionalShadowRequested) {
@@ -582,6 +610,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             boolean taaLumaClipEnabledDefault,
             AaPreset aaPreset,
             AaMode aaMode,
+            UpscalerMode upscalerMode,
+            UpscalerQuality upscalerQuality,
             TsrControls tsrControls
     ) {
         if (desc == null || !desc.enabled()) {
@@ -728,6 +758,34 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 }
             }
         }
+        if ((aaMode == AaMode.TSR || aaMode == AaMode.TUUA) && upscalerMode != UpscalerMode.NONE) {
+            float qualityScale = switch (upscalerQuality) {
+                case PERFORMANCE -> 0.88f;
+                case BALANCED -> 0.94f;
+                case QUALITY -> 1.0f;
+                case ULTRA_QUALITY -> 1.05f;
+            };
+            switch (upscalerMode) {
+                case FSR -> {
+                    taaSharpenStrength = Math.min(0.35f, taaSharpenStrength + 0.05f * qualityScale);
+                    taaBlend = Math.max(0.0f, taaBlend - 0.02f);
+                    taaRenderScale = Math.max(taaRenderScale, 0.60f * qualityScale);
+                }
+                case XESS -> {
+                    taaBlend = Math.min(0.95f, taaBlend + 0.03f * qualityScale);
+                    taaClipScale = Math.max(0.5f, taaClipScale * (0.96f - ((qualityScale - 1.0f) * 0.05f)));
+                    taaRenderScale = Math.max(taaRenderScale, 0.64f * qualityScale);
+                }
+                case DLSS -> {
+                    taaBlend = Math.min(0.95f, taaBlend + 0.05f * qualityScale);
+                    taaClipScale = Math.max(0.5f, taaClipScale * (0.92f - ((qualityScale - 1.0f) * 0.05f)));
+                    taaSharpenStrength = Math.max(0f, taaSharpenStrength * 0.82f);
+                    taaRenderScale = Math.max(taaRenderScale, 0.67f * qualityScale);
+                }
+                case NONE -> {
+                }
+            }
+        }
         return new PostProcessRenderConfig(
                 desc.tonemapEnabled(),
                 exposure,
@@ -771,6 +829,30 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             return AaMode.valueOf(normalized);
         } catch (IllegalArgumentException ignored) {
             return AaMode.TAA;
+        }
+    }
+
+    private static UpscalerMode parseUpscalerMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return UpscalerMode.NONE;
+        }
+        String normalized = raw.trim().toUpperCase().replace('-', '_');
+        try {
+            return UpscalerMode.valueOf(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return UpscalerMode.NONE;
+        }
+    }
+
+    private static UpscalerQuality parseUpscalerQuality(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return UpscalerQuality.QUALITY;
+        }
+        String normalized = raw.trim().toUpperCase().replace('-', '_');
+        try {
+            return UpscalerQuality.valueOf(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return UpscalerQuality.QUALITY;
         }
     }
 

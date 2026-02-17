@@ -40,16 +40,18 @@ final class BackendCompareHarness {
         String acceptanceProfile = acceptanceProfileTag();
         String aaMode = selectAaMode(normalizedTag);
         String aaPreset = selectAaPreset(normalizedTag, aaMode);
+        String upscalerMode = selectUpscalerMode(normalizedTag);
+        String upscalerQuality = System.getProperty("dle.compare.upscaler.quality", "quality");
 
-        BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag, aaPreset, aaMode);
-        BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag, aaPreset, aaMode);
+        BackendSnapshot openGl = renderBackend("opengl", scene, qualityTier, normalizedTag, aaPreset, aaMode, upscalerMode, upscalerQuality);
+        BackendSnapshot vulkan = renderBackend("vulkan", scene, qualityTier, normalizedTag, aaPreset, aaMode, upscalerMode, upscalerQuality);
 
         writeDiagnosticImage(openGl, openGlPng);
         writeDiagnosticImage(vulkan, vulkanPng);
         openGl = openGl.withShimmerIndex(estimateShimmerIndex(openGlPng));
         vulkan = vulkan.withShimmerIndex(estimateShimmerIndex(vulkanPng));
         double diff = normalizedImageDiff(openGlPng, vulkanPng);
-        writeModeMetadata(outputDir, normalizedTag, qualityTier, vulkanModeTag, acceptanceProfile, aaMode, aaPreset, diff, openGl, vulkan);
+        writeModeMetadata(outputDir, normalizedTag, qualityTier, vulkanModeTag, acceptanceProfile, aaMode, aaPreset, upscalerMode, upscalerQuality, diff, openGl, vulkan);
         return new CompareReport(openGlPng, vulkanPng, diff, openGl, vulkan);
     }
 
@@ -76,7 +78,9 @@ final class BackendCompareHarness {
             QualityTier qualityTier,
             String profileTag,
             String aaPreset,
-            String aaMode
+            String aaMode,
+            String upscalerMode,
+            String upscalerQuality
     ) throws Exception {
         EngineBackendProvider provider = BackendRegistry.discover().resolve(backendId, HOST_REQUIRED_API);
         boolean taaStress = profileTag.contains("taa-disocclusion-stress")
@@ -98,10 +102,19 @@ final class BackendCompareHarness {
                 ? new EngineInput(540, 360, 96, -48, false, false, Set.of(KeyCode.A, KeyCode.D), 0.0)
                 : new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0.0);
         try (var runtime = provider.createRuntime()) {
-            runtime.initialize(configFor(backendId, qualityTier, aaPreset, aaMode), new NoopCallbacks());
+            runtime.initialize(configFor(backendId, qualityTier, aaPreset, aaMode, upscalerMode, upscalerQuality), new NoopCallbacks());
             runtime.loadScene(scene);
             EngineFrameResult frame = null;
-            int frames = taaStress ? 5 : (smaaStress ? 3 : 1);
+            int baseFrames = taaStress ? 5 : (smaaStress ? 3 : 1);
+            int forcedTemporalFrames = intProperty("dle.compare.temporalFrames", 0);
+            int tsrFrameBoost = intProperty("dle.compare.tsr.frameBoost", 3);
+            int frames = baseFrames;
+            if ("tsr".equals(aaMode)) {
+                frames = Math.max(frames, baseFrames + Math.max(0, tsrFrameBoost));
+            }
+            if (forcedTemporalFrames > 0) {
+                frames = Math.max(frames, forcedTemporalFrames);
+            }
             double rejectMin = Double.POSITIVE_INFINITY;
             double rejectMax = Double.NEGATIVE_INFINITY;
             double confidenceMin = Double.POSITIVE_INFINITY;
@@ -191,7 +204,27 @@ final class BackendCompareHarness {
         return "taa";
     }
 
-    private static EngineConfig configFor(String backendId, QualityTier qualityTier, String aaPreset, String aaMode) {
+    private static String selectUpscalerMode(String profileTag) {
+        if (profileTag.contains("dlss")) {
+            return "dlss";
+        }
+        if (profileTag.contains("xess")) {
+            return "xess";
+        }
+        if (profileTag.contains("fsr")) {
+            return "fsr";
+        }
+        return System.getProperty("dle.compare.upscaler.mode", "none");
+    }
+
+    private static EngineConfig configFor(
+            String backendId,
+            QualityTier qualityTier,
+            String aaPreset,
+            String aaMode,
+            String upscalerMode,
+            String upscalerQuality
+    ) {
         Map<String, String> options = switch (backendId) {
             case "opengl" -> Map.ofEntries(
                     Map.entry("opengl.mockContext", System.getProperty("dle.compare.opengl.mockContext", "true")),
@@ -205,7 +238,9 @@ final class BackendCompareHarness {
                     Map.entry("opengl.tsrSharpen", System.getProperty("dle.compare.tsr.sharpen", "0.14")),
                     Map.entry("opengl.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75")),
                     Map.entry("opengl.tsrRenderScale", System.getProperty("dle.compare.tsr.renderScale", "0.60")),
-                    Map.entry("opengl.tuuaRenderScale", System.getProperty("dle.compare.tuua.renderScale", "0.72"))
+                    Map.entry("opengl.tuuaRenderScale", System.getProperty("dle.compare.tuua.renderScale", "0.72")),
+                    Map.entry("opengl.upscalerMode", upscalerMode),
+                    Map.entry("opengl.upscalerQuality", upscalerQuality)
             );
             case "vulkan" -> Map.ofEntries(
                     Map.entry("vulkan.mockContext", System.getProperty("dle.compare.vulkan.mockContext", "true")),
@@ -220,7 +255,9 @@ final class BackendCompareHarness {
                     Map.entry("vulkan.tsrSharpen", System.getProperty("dle.compare.tsr.sharpen", "0.14")),
                     Map.entry("vulkan.tsrAntiRinging", System.getProperty("dle.compare.tsr.antiRinging", "0.75")),
                     Map.entry("vulkan.tsrRenderScale", System.getProperty("dle.compare.tsr.renderScale", "0.60")),
-                    Map.entry("vulkan.tuuaRenderScale", System.getProperty("dle.compare.tuua.renderScale", "0.72"))
+                    Map.entry("vulkan.tuuaRenderScale", System.getProperty("dle.compare.tuua.renderScale", "0.72")),
+                    Map.entry("vulkan.upscalerMode", upscalerMode),
+                    Map.entry("vulkan.upscalerQuality", upscalerQuality)
             );
             default -> Map.of();
         };
@@ -342,6 +379,8 @@ final class BackendCompareHarness {
             String acceptanceProfile,
             String aaMode,
             String aaPreset,
+            String upscalerMode,
+            String upscalerQuality,
             double diffMetric,
             BackendSnapshot openGl,
             BackendSnapshot vulkan
@@ -353,6 +392,8 @@ final class BackendCompareHarness {
         metadata.setProperty("compare.aa.acceptanceProfile", acceptanceProfile);
         metadata.setProperty("compare.aa.mode", aaMode);
         metadata.setProperty("compare.aa.preset", aaPreset);
+        metadata.setProperty("compare.upscaler.mode", upscalerMode);
+        metadata.setProperty("compare.upscaler.quality", upscalerQuality);
         metadata.setProperty("compare.diffMetric", Double.toString(diffMetric));
         metadata.setProperty("compare.opengl.shimmerIndex", Double.toString(openGl.shimmerIndex()));
         metadata.setProperty("compare.vulkan.shimmerIndex", Double.toString(vulkan.shimmerIndex()));
@@ -370,6 +411,18 @@ final class BackendCompareHarness {
         metadata.setProperty("compare.vulkan.taaConfidenceDropWindow", Long.toString(vulkan.taaConfidenceDropWindow()));
         try (var out = Files.newOutputStream(outputDir.resolve("compare-metadata.properties"))) {
             metadata.store(out, "DynamisLightEngine compare metadata");
+        }
+    }
+
+    private static int intProperty(String key, int fallback) {
+        String raw = System.getProperty(key);
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException ignored) {
+            return fallback;
         }
     }
 
