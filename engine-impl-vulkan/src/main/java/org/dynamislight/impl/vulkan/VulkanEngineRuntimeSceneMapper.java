@@ -62,6 +62,7 @@ final class VulkanEngineRuntimeSceneMapper {
     static VulkanEngineRuntime.LightingConfig mapLighting(
             List<LightDesc> lights,
             QualityTier qualityTier,
+            int shadowMaxShadowedLocalLights,
             int shadowMaxLocalLayers,
             boolean shadowSchedulerEnabled,
             int shadowSchedulerHeroPeriod,
@@ -73,6 +74,7 @@ final class VulkanEngineRuntimeSceneMapper {
         return VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights,
                 qualityTier,
+                shadowMaxShadowedLocalLights,
                 shadowMaxLocalLayers,
                 shadowSchedulerEnabled,
                 shadowSchedulerHeroPeriod,
@@ -93,6 +95,7 @@ final class VulkanEngineRuntimeSceneMapper {
             String shadowFilterPath,
             boolean shadowContactShadows,
             String shadowRtMode,
+            int shadowMaxShadowedLocalLights,
             int shadowMaxLocalLayers,
             int shadowMaxFacesPerFrame,
             boolean shadowSchedulerEnabled,
@@ -108,6 +111,7 @@ final class VulkanEngineRuntimeSceneMapper {
                 shadowFilterPath,
                 shadowContactShadows,
                 shadowRtMode,
+                shadowMaxShadowedLocalLights,
                 shadowMaxLocalLayers,
                 shadowMaxFacesPerFrame,
                 shadowSchedulerEnabled,

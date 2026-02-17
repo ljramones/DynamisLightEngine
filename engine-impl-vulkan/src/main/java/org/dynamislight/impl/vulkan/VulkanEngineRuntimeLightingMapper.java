@@ -357,12 +357,13 @@ final class VulkanEngineRuntimeLightingMapper {
             QualityTier qualityTier,
             int shadowMaxLocalLayers
     ) {
-        return mapLighting(lights, qualityTier, shadowMaxLocalLayers, false, 1, 2, 4, 0L, Map.of());
+        return mapLighting(lights, qualityTier, 0, shadowMaxLocalLayers, false, 1, 2, 4, 0L, Map.of());
     }
 
     static VulkanEngineRuntime.LightingConfig mapLighting(
             List<LightDesc> lights,
             QualityTier qualityTier,
+            int shadowMaxShadowedLocalLights,
             int shadowMaxLocalLayers,
             boolean shadowSchedulerEnabled,
             int shadowSchedulerHeroPeriod,
@@ -430,12 +431,15 @@ final class VulkanEngineRuntimeLightingMapper {
             localLights.sort(Comparator.comparingDouble((LightDesc light) ->
                     localShadowScore(light, shadowSchedulerLastRenderedTicks, shadowSchedulerFrameTick)).reversed());
             localLightCount = Math.min(VulkanContext.MAX_LOCAL_LIGHTS, localLights.size());
-            int maxShadowedLocalLights = switch (qualityTier) {
+            int tierMaxShadowedLocalLights = switch (qualityTier) {
                 case LOW -> 1;
                 case MEDIUM -> 2;
                 case HIGH -> 3;
                 case ULTRA -> 4;
             };
+            int maxShadowedLocalLights = shadowMaxShadowedLocalLights > 0
+                    ? Math.min(VulkanContext.MAX_LOCAL_LIGHTS, shadowMaxShadowedLocalLights)
+                    : tierMaxShadowedLocalLights;
             int tierShadowLayers = switch (qualityTier) {
                 case LOW -> 4;
                 case MEDIUM -> 6;
@@ -582,6 +586,29 @@ final class VulkanEngineRuntimeLightingMapper {
                 shadowFilterPath,
                 shadowContactShadows,
                 shadowRtMode,
+                0,
+                shadowMaxLocalLayers,
+                shadowMaxFacesPerFrame
+        );
+    }
+
+    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(
+            List<LightDesc> lights,
+            QualityTier qualityTier,
+            String shadowFilterPath,
+            boolean shadowContactShadows,
+            String shadowRtMode,
+            int shadowMaxShadowedLocalLights,
+            int shadowMaxLocalLayers,
+            int shadowMaxFacesPerFrame
+    ) {
+        return mapShadows(
+                lights,
+                qualityTier,
+                shadowFilterPath,
+                shadowContactShadows,
+                shadowRtMode,
+                shadowMaxShadowedLocalLights,
                 shadowMaxLocalLayers,
                 shadowMaxFacesPerFrame,
                 false,
@@ -599,6 +626,7 @@ final class VulkanEngineRuntimeLightingMapper {
             String shadowFilterPath,
             boolean shadowContactShadows,
             String shadowRtMode,
+            int shadowMaxShadowedLocalLights,
             int shadowMaxLocalLayers,
             int shadowMaxFacesPerFrame,
             boolean shadowSchedulerEnabled,
@@ -613,12 +641,15 @@ final class VulkanEngineRuntimeLightingMapper {
         if (lights == null || lights.isEmpty()) {
             return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, shadowContactShadows, rtMode, false, false);
         }
-        int maxShadowedLocalLights = switch (qualityTier) {
+        int tierMaxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
             case MEDIUM -> 2;
             case HIGH -> 3;
             case ULTRA -> 4;
         };
+        int maxShadowedLocalLights = shadowMaxShadowedLocalLights > 0
+                ? Math.min(VulkanContext.MAX_LOCAL_LIGHTS, shadowMaxShadowedLocalLights)
+                : tierMaxShadowedLocalLights;
         int tierShadowLayers = switch (qualityTier) {
             case LOW -> 4;
             case MEDIUM -> 6;

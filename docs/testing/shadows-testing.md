@@ -120,6 +120,7 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `HIGH` should cap to `1` rendered point cubemap (`6` shadow passes).
   - `ULTRA` should cap to `2` rendered point cubemaps (`12` shadow passes).
 - Verify scheduler override behavior:
+  - `vulkan.shadow.maxShadowedLocalLights` increases local shadow-light budget above tier default when set.
   - `HIGH` with `vulkan.shadow.maxLocalShadowLayers=12` can render `2` point cubemaps.
   - `vulkan.shadow.maxShadowFacesPerFrame=6` caps point shadow passes to one cubemap.
   - `ULTRA` with `vulkan.shadow.maxLocalShadowLayers=24` can schedule up to `4` point cubemaps (subject to local-light budget).

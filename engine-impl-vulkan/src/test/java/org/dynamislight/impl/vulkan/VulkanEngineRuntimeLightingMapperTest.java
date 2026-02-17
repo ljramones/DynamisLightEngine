@@ -153,15 +153,38 @@ class VulkanEngineRuntimeLightingMapperTest {
 
         VulkanEngineRuntime.ShadowRenderConfig cadenceOff = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
-                12, 12, false, 1, 2, 4, 1L, java.util.Map.of()
+                0, 12, 12, false, 1, 2, 4, 1L, java.util.Map.of()
         );
         VulkanEngineRuntime.ShadowRenderConfig cadenceOn = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
-                12, 12, true, 4, 4, 8, 1L, java.util.Map.of()
+                0, 12, 12, true, 4, 4, 8, 1L, java.util.Map.of()
         );
 
         assertTrue(cadenceOff.renderedLocalShadowLights() >= cadenceOn.renderedLocalShadowLights());
         assertTrue(cadenceOn.deferredShadowLightCount() >= 1);
         assertFalse(cadenceOn.deferredShadowLightIdsCsv().isBlank());
+    }
+
+    @Test
+    void mapShadowsRespectsMaxShadowedLocalLightsOverride() {
+        List<LightDesc> lights = List.of(
+                new LightDesc("spot1", new Vec3(0f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spot2", new Vec3(1f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spot3", new Vec3(2f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spot4", new Vec3(3f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spot5", new Vec3(4f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f),
+                new LightDesc("spot6", new Vec3(5f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
+        );
+
+        VulkanEngineRuntime.ShadowRenderConfig highDefault = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.HIGH, "pcf", false, "off", 0, 0, 0
+        );
+        VulkanEngineRuntime.ShadowRenderConfig highOverride = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.HIGH, "pcf", false, "off", 6, 24, 24
+        );
+
+        assertEquals(3, highDefault.maxShadowedLocalLights());
+        assertEquals(6, highOverride.maxShadowedLocalLights());
+        assertTrue(highOverride.selectedLocalShadowLights() >= highDefault.selectedLocalShadowLights());
     }
 }

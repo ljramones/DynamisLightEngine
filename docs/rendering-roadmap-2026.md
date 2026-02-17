@@ -82,6 +82,7 @@ Implemented now:
 - OpenGL local spot shadows now run through a per-light atlas sampling path with cadence-aware slot updates (`hero:1`, `mid:2`, `distant:4`) and cache invalidation hooks.
 - Vulkan now renders multi-local spot shadow layers and tier-bounded point cubemap concurrency (`HIGH`: 1, `ULTRA`: 2) with explicit policy counters.
 - Vulkan scheduler overrides are now wired for execution-phase validation:
+  - `vulkan.shadow.maxShadowedLocalLights`
   - `vulkan.shadow.maxLocalShadowLayers`
   - `vulkan.shadow.maxShadowFacesPerFrame`
 - Vulkan cadence scheduler controls are now wired:

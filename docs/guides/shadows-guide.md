@@ -122,6 +122,7 @@ Sample host clamps:
   - `vulkan.shadow.filterPath=pcf|pcss|vsm|evsm`
   - `vulkan.shadow.contactShadows=true|false`
   - `vulkan.shadow.rtMode=off|optional|force`
+  - `vulkan.shadow.maxShadowedLocalLights=0..8` (`0` = tier default)
   - `vulkan.shadow.maxLocalShadowLayers=0..24` (`0` = tier default scheduler budget)
   - `vulkan.shadow.maxShadowFacesPerFrame=0..24` (`0` = tier default scheduler budget)
   - `vulkan.shadow.scheduler.enabled=true|false` (`true` default)

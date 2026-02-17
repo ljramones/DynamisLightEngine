@@ -12,6 +12,7 @@ class VulkanRuntimeOptionsTest {
                 Map.of(
                         "vulkan.shadow.maxLocalShadowLayers", "12",
                         "vulkan.shadow.maxShadowFacesPerFrame", "6",
+                        "vulkan.shadow.maxShadowedLocalLights", "7",
                         "vulkan.shadow.scheduler.enabled", "false",
                         "vulkan.shadow.scheduler.heroPeriod", "2",
                         "vulkan.shadow.scheduler.midPeriod", "3",
@@ -20,6 +21,7 @@ class VulkanRuntimeOptionsTest {
                 256
         );
 
+        assertEquals(7, parsed.shadowMaxShadowedLocalLights());
         assertEquals(12, parsed.shadowMaxLocalLayers());
         assertEquals(6, parsed.shadowMaxFacesPerFrame());
         assertEquals(false, parsed.shadowSchedulerEnabled());
@@ -33,11 +35,13 @@ class VulkanRuntimeOptionsTest {
         VulkanRuntimeOptions.Parsed parsed = VulkanRuntimeOptions.parse(
                 Map.of(
                         "vulkan.shadow.maxLocalShadowLayers", "99",
-                        "vulkan.shadow.maxShadowFacesPerFrame", "-1"
+                        "vulkan.shadow.maxShadowFacesPerFrame", "-1",
+                        "vulkan.shadow.maxShadowedLocalLights", "99"
                 ),
                 256
         );
 
+        assertEquals(8, parsed.shadowMaxShadowedLocalLights());
         assertEquals(24, parsed.shadowMaxLocalLayers());
         assertEquals(0, parsed.shadowMaxFacesPerFrame());
         assertEquals(true, parsed.shadowSchedulerEnabled());

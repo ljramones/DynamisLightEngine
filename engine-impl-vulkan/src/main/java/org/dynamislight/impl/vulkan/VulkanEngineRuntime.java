@@ -145,6 +145,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private String shadowFilterPath = "pcf";
     private boolean shadowContactShadows;
     private String shadowRtMode = "off";
+    private int shadowMaxShadowedLocalLights;
     private int shadowMaxLocalLayers;
     private int shadowMaxFacesPerFrame;
     private boolean shadowSchedulerEnabled = true;
@@ -198,6 +199,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowFilterPath = options.shadowFilterPath();
         shadowContactShadows = options.shadowContactShadows();
         shadowRtMode = options.shadowRtMode();
+        shadowMaxShadowedLocalLights = options.shadowMaxShadowedLocalLights();
         shadowMaxLocalLayers = options.shadowMaxLocalLayers();
         shadowMaxFacesPerFrame = options.shadowMaxFacesPerFrame();
         shadowSchedulerEnabled = options.shadowSchedulerEnabled();
@@ -251,6 +253,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowFilterPath,
                 shadowContactShadows,
                 shadowRtMode,
+                shadowMaxShadowedLocalLights,
                 shadowMaxLocalLayers,
                 shadowMaxFacesPerFrame,
                 shadowSchedulerEnabled,
@@ -289,6 +292,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowFilterPath,
                     shadowContactShadows,
                     shadowRtMode,
+                    shadowMaxShadowedLocalLights,
                     shadowMaxLocalLayers,
                     shadowMaxFacesPerFrame,
                     shadowSchedulerEnabled,
@@ -449,6 +453,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
                             + " renderedSpotShadows=" + currentShadows.renderedSpotShadowLights()
                             + " renderedPointShadowCubemaps=" + currentShadows.renderedPointShadowCubemaps()
+                            + " maxShadowedLocalLightsConfigured=" + (shadowMaxShadowedLocalLights > 0 ? Integer.toString(shadowMaxShadowedLocalLights) : "auto")
                             + " maxLocalShadowLayersConfigured=" + (shadowMaxLocalLayers > 0 ? Integer.toString(shadowMaxLocalLayers) : "auto")
                             + " maxShadowFacesPerFrameConfigured=" + (shadowMaxFacesPerFrame > 0 ? Integer.toString(shadowMaxFacesPerFrame) : "auto")
                             + " schedulerEnabled=" + shadowSchedulerEnabled

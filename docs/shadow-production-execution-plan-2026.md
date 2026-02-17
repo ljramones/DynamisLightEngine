@@ -21,6 +21,7 @@ Implemented now:
 - Vulkan tier-bounded point-cubemap rendering (HIGH: 1, ULTRA: 2)
 - shadow filter/contact/RT mode request plumbing and runtime reporting
 - scheduler override controls (execution milestone 1):
+  - `vulkan.shadow.maxShadowedLocalLights`
   - `vulkan.shadow.maxLocalShadowLayers`
   - `vulkan.shadow.maxShadowFacesPerFrame`
   - hard ceiling now expanded to `24` layers/faces for Vulkan rollout validation
