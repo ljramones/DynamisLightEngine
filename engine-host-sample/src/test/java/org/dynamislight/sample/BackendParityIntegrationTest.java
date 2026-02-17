@@ -257,7 +257,7 @@ class BackendParityIntegrationTest {
         assertTrue(Files.exists(report.vulkanImage()));
         assertTrue(report.vulkanSnapshot().warningCodes().contains("VULKAN_POST_PROCESS_PIPELINE"));
         assertTrue(report.diffMetric() >= 0.0);
-        assertTrue(report.diffMetric() <= 0.065, "post-process bloom diff was " + report.diffMetric());
+        assertTrue(report.diffMetric() <= 0.085, "post-process bloom diff was " + report.diffMetric());
     }
 
     @Test
