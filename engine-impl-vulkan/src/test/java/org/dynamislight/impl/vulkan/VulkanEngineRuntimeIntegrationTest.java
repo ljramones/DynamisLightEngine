@@ -757,6 +757,7 @@ class VulkanEngineRuntimeIntegrationTest {
                         && w.message().contains("momentResourceAllocated=false")
                         && w.message().contains("momentResourceFormat=none")
                         && w.message().contains("momentInitialized=false")
+                        && w.message().contains("momentPhase=pending")
                         && w.message().contains("contactShadows=true")
                         && w.message().contains("rtMode=optional")));
         assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY".equals(w.code())));
@@ -787,7 +788,8 @@ class VulkanEngineRuntimeIntegrationTest {
                         && w.message().contains("momentPipelineActive=false")
                         && w.message().contains("momentResourceAllocated=false")
                         && w.message().contains("momentResourceFormat=none")
-                        && w.message().contains("momentInitialized=false")));
+                        && w.message().contains("momentInitialized=false")
+                        && w.message().contains("momentPhase=pending")));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_MOMENT_PIPELINE_PENDING".equals(w.code())));
         runtime.shutdown();

@@ -472,6 +472,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
         }
         if (currentShadows.enabled()) {
+            String momentPhase = "pending";
+            if (context.hasShadowMomentResources()) {
+                momentPhase = context.isShadowMomentInitialized() ? "active" : "initializing";
+            }
             warnings.add(new EngineWarning(
                     "SHADOW_POLICY_ACTIVE",
                     "Shadow policy active: primary=" + currentShadows.primaryShadowLightId()
@@ -514,6 +518,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " momentResourceAllocated=" + context.hasShadowMomentResources()
                             + " momentResourceFormat=" + context.shadowMomentFormatTag()
                             + " momentInitialized=" + context.isShadowMomentInitialized()
+                            + " momentPhase=" + momentPhase
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()
                             + " rtActive=" + currentShadows.rtShadowActive()
