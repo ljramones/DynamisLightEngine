@@ -834,7 +834,11 @@ final class VulkanEngineRuntimeLightingMapper {
             case HIGH -> type == LightType.POINT ? maxPointCascades : 3;
             case ULTRA -> type == LightType.POINT ? maxPointCascades : 4;
         };
+        int localShadowPasses = schedule.renderedSpotShadowLights() + (schedule.renderedPointShadowCubemaps() * 6);
         int cascadesClamped = Math.min(cascades, maxCascades);
+        if (localShadowPasses > 0) {
+            cascadesClamped = Math.max(1, Math.min(Math.min(localShadowPasses, maxShadowLayers), VULKAN_MAX_SHADOW_MATRICES));
+        }
         float biasScale = 1.0f + (radius * 0.15f) + (Math.max(0, cascadesClamped - 1) * 0.05f);
         bias = Math.max(0.00002f, Math.min(0.02f, bias * biasScale));
         float normalBiasScale = switch (type) {
@@ -854,12 +858,8 @@ final class VulkanEngineRuntimeLightingMapper {
             case HIGH -> 1.0f;
             case ULTRA -> 1.15f;
         };
-        int renderedSpotShadowLights = type == LightType.SPOT
-                ? Math.max(1, Math.min(cascadesClamped, schedule.renderedSpotShadowLights()))
-                : 0;
-        int renderedPointShadowCubemaps = type == LightType.POINT
-                ? Math.max(1, Math.min(Math.min(cascadesClamped / 6, schedule.renderedPointShadowCubemaps()), maxPointCubemaps))
-                : 0;
+        int renderedSpotShadowLights = schedule.renderedSpotShadowLights();
+        int renderedPointShadowCubemaps = schedule.renderedPointShadowCubemaps();
         int renderedLocalShadowLights = renderedSpotShadowLights + renderedPointShadowCubemaps;
         boolean rtShadowActive = false;
         boolean degraded = kernelClamped != kernel || cascadesClamped != cascades || resolution != requestedResolution

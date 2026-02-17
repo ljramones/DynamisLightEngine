@@ -711,6 +711,46 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void multiPointLocalShadowSceneUsesConcurrentPointCubemapBudgetAtUltra() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.scheduler.enabled", "false"
+        ), QualityTier.ULTRA), new RecordingCallbacks());
+        runtime.loadScene(validMultiPointShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("renderedPointShadowCubemaps=2")
+                        && w.message().contains("renderedLocalShadows=2")));
+        runtime.shutdown();
+    }
+
+    @Test
+    void multiPointLocalShadowSceneHonorsOverrideForThreeConcurrentCubemaps() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of(
+                "vulkan.mockContext", "true",
+                "vulkan.shadow.scheduler.enabled", "false",
+                "vulkan.shadow.maxShadowedLocalLights", "6",
+                "vulkan.shadow.maxLocalShadowLayers", "24",
+                "vulkan.shadow.maxShadowFacesPerFrame", "24"
+        ), QualityTier.ULTRA), new RecordingCallbacks());
+        runtime.loadScene(validMultiPointShadowScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w ->
+                "SHADOW_POLICY_ACTIVE".equals(w.code())
+                        && w.message().contains("renderedPointShadowCubemaps=3")
+                        && w.message().contains("renderedLocalShadows=3")));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_LOCAL_RENDER_BASELINE".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
     void shadowAllocatorTelemetryShowsReuseAcrossFrames() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of(
@@ -1969,6 +2009,53 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.meshes(),
                 base.materials(),
                 List.of(lights.get(2), lights.get(0), lights.get(1)),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validMultiPointShadowScene() {
+        SceneDescriptor base = validScene();
+        LightDesc pointA = new LightDesc(
+                "point-shadow-a",
+                new Vec3(0.4f, 1.6f, 1.5f),
+                new Vec3(0.9f, 0.9f, 1f),
+                1.1f,
+                12f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.POINT
+        );
+        LightDesc pointB = new LightDesc(
+                "point-shadow-b",
+                new Vec3(-0.8f, 1.4f, 1.7f),
+                new Vec3(1f, 0.92f, 0.8f),
+                1.0f,
+                11f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.POINT
+        );
+        LightDesc pointC = new LightDesc(
+                "point-shadow-c",
+                new Vec3(1.1f, 1.7f, 1.2f),
+                new Vec3(0.85f, 0.95f, 1f),
+                1.05f,
+                13f,
+                true,
+                new ShadowDesc(1024, 0.0012f, 3, 1),
+                LightType.POINT
+        );
+        return new SceneDescriptor(
+                "vulkan-multi-point-shadow-scene",
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                List.of(pointA, pointB, pointC),
                 base.environment(),
                 base.fog(),
                 base.smokeEmitters(),

@@ -258,7 +258,7 @@ Targeted shadow stress outputs are generated in compare artifacts:
 
 ## 7. Remaining Rollout Gaps
 
-- Full production multi-point cubemap concurrency (>1 fully rendered point-shadow cubemap at once across all targeted tiers/profiles) is still pending.
+- Tier/override-bounded multi-point cubemap concurrency is now active in Vulkan local-shadow layering (`HIGH`: 1, `ULTRA`: 2, overrides controlled by scheduler/budgets); further scale-up beyond current scheduler/budget caps is still pending.
 - Dedicated VSM/EVSM variance-moment storage/filter pipeline is still pending (current mode uses compare-sampler shaping).
 - Dedicated PCSS penumbra/contact-shadow production filtering is still pending (current mode uses request-driven shaping/modulation).
 - Hardware RT shadow traversal/denoise path is still pending (request+fallback tracking is live).

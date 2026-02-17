@@ -115,6 +115,9 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Vulkan integration tests surface explicit rollout warning context when local shadow requests exceed currently guaranteed render parity paths:
   - `SHADOW_LOCAL_RENDER_BASELINE`
 - Vulkan integration tests now also validate multi-spot render policy reporting (`renderedLocalShadows`, `renderedSpotShadows`) and quality-path request tracking fields (`filterPath`, `contactShadows`, `rtMode`).
+- Vulkan integration tests validate multi-point cubemap concurrency policy under ULTRA and override budgets:
+  - `VulkanEngineRuntimeIntegrationTest#multiPointLocalShadowSceneUsesConcurrentPointCubemapBudgetAtUltra`
+  - `VulkanEngineRuntimeIntegrationTest#multiPointLocalShadowSceneHonorsOverrideForThreeConcurrentCubemaps`
 - Vulkan unit coverage now includes local point-light cubemap matrix generation from per-light layer assignments:
   - `VulkanShadowMatrixBuilderTest#localPointShadowAssignmentBuildsCubemapFaceMatrices`
 - For `vsm|evsm` requests, verify warning stream includes:
@@ -150,7 +153,7 @@ Long-run motion/shimmer sweep (real Vulkan):
 
 ## 6. Known Gaps
 - Vulkan multi-local spot shadow rendering is live within current layer budget; full per-light atlas/cubemap parity for all local types is still pending.
-- Vulkan full production multi-point cubemap concurrency (>1 fully rendered point-shadow map at once across target profiles) is still pending.
+- Vulkan tier/override-bounded multi-point cubemap concurrency is now covered (`HIGH`: 1, `ULTRA`: 2, overrides up to scheduler/local-light limits); further scalability beyond current scheduler/budget caps remains pending.
 - Production VSM/EVSM/PCSS/contact/RT shadow paths are still pending; request/config + tracking coverage exists, and Vulkan now allocates moment-atlas resources for `vsm|evsm` requests (filtering/sampling path still pending).
 - Need dedicated long-run shimmer/flicker analysis for shadow-only camera sweeps.
 

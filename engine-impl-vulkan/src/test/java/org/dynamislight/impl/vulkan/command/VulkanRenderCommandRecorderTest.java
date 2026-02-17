@@ -62,4 +62,33 @@ class VulkanRenderCommandRecorderTest {
         );
         assertEquals(6, VulkanRenderCommandRecorder.shadowPassCount(inputs));
     }
+
+    @Test
+    void shadowPassCountUsesExpandedLocalLayeredPointBudget() {
+        VulkanRenderCommandRecorder.RenderPassInputs inputs = new VulkanRenderCommandRecorder.RenderPassInputs(
+                1,
+                1280,
+                720,
+                1024,
+                true,
+                false,
+                18,
+                24,
+                24,
+                6,
+                1L,
+                1L,
+                1L,
+                1L,
+                1L,
+                1L,
+                1L,
+                1L,
+                new long[24],
+                0L,
+                false,
+                false
+        );
+        assertEquals(18, VulkanRenderCommandRecorder.shadowPassCount(inputs));
+    }
 }
