@@ -7,6 +7,18 @@ on:
   pull_request:
     branches:
       - main
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      run_shadow_real_matrix:
+        description: 'Run real Vulkan shadow matrix (requires host support)'
+        required: false
+        default: 'false'
+      run_shadow_longrun:
+        description: 'Run shadow long-run motion sweep'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -79,8 +91,8 @@ jobs:
       - name: Run shadow CI matrix (mock Vulkan)
         env:
           DLE_COMPARE_VULKAN_MODE: mock
-          DLE_SHADOW_CI_REAL_MATRIX: '0'
-          DLE_SHADOW_CI_LONGRUN: '0'
+          DLE_SHADOW_CI_REAL_MATRIX: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_real_matrix == 'true' && '1' || '0' }}
+          DLE_SHADOW_CI_LONGRUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_longrun == 'true' && '1' || '0' }}
           DLE_SHADOW_CI_OUTPUT_ROOT: artifacts/compare/shadow-ci
         run: ./scripts/shadow_ci_matrix.sh
 
@@ -90,6 +102,37 @@ jobs:
         with:
           name: shadow-ci-artifacts-macos
           path: artifacts/compare/shadow-ci
+          if-no-files-found: warn
+
+  aa-motion-longrun-weekly:
+    name: AA Motion Longrun (JDK 25, macos-latest)
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_longrun == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run AA motion longrun sampling (mock Vulkan CI safety)
+        env:
+          DLE_COMPARE_VULKAN_MODE: mock
+          DLE_COMPARE_LONGRUN_MOTION_RUNS: '3'
+          DLE_COMPARE_LONGRUN_MOTION_OUTPUT_ROOT: artifacts/compare/aa-motion-longrun
+          DLE_COMPARE_THRESHOLD_LOCK_MIN_RUNS: '3'
+        run: ./scripts/aa_longrun_motion_sampling_mac.sh
+
+      - name: Upload AA longrun artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aa-motion-longrun-artifacts-macos
+          path: artifacts/compare/aa-motion-longrun
           if-no-files-found: warn
 
   vulkan-real-guarded-matrix:

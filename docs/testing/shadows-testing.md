@@ -34,6 +34,13 @@ End-to-end shadow CI matrix automation:
 ./scripts/shadow_ci_matrix.sh
 ```
 
+CI always-on rollout:
+- GitHub Actions `shadow-matrix` runs on `push`/`pull_request` with mock Vulkan safety.
+- Weekly scheduled run (`schedule`) also executes long-run AA/shadow motion sampling.
+- Manual `workflow_dispatch` toggles:
+  - `run_shadow_real_matrix=true`
+  - `run_shadow_longrun=true`
+
 Optional real Vulkan depth-format matrix + long-run:
 ```bash
 DLE_SHADOW_CI_REAL_MATRIX=1 \
@@ -85,6 +92,13 @@ Scheduler override check (real Vulkan):
 ```bash
 DLE_COMPARE_VULKAN_MODE=real \
 DLE_COMPARE_EXTRA_MVN_ARGS="-Dvulkan.shadow.maxLocalShadowLayers=24 -Dvulkan.shadow.maxShadowFacesPerFrame=6" \
+./scripts/aa_rebaseline_real_mac.sh
+```
+
+Shadow quality profile sweep using compare harness:
+```bash
+DLE_COMPARE_VULKAN_MODE=mock \
+DLE_COMPARE_EXTRA_MVN_ARGS="-Dvulkan.shadow.filterPath=evsm -Dvulkan.shadow.momentBlend=1.2 -Dvulkan.shadow.momentBleedReduction=1.2" \
 ./scripts/aa_rebaseline_real_mac.sh
 ```
 

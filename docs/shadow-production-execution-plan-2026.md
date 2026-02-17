@@ -47,7 +47,7 @@ Implemented now:
 
 Still pending:
 - full production multi-point cubemap scalability (beyond current matrix/layer bounds)
-- hardware-quality tuning/validation for the dedicated VSM/EVSM moment pipeline (write + mip prefilter is now active; thresholds/quality sweeps remain)
+- hardware-quality tuning/validation for the dedicated VSM/EVSM moment pipeline (write + mip prefilter is now active; neighborhood-weighted denoise/filtering landed, thresholds/quality sweeps remain)
 - hardware RT shadow traversal/denoise pipeline
 
 ## Phased Execution
@@ -88,12 +88,15 @@ Status: In progress (started and partially landed).
 
 1. VSM/EVSM
 - moment render targets, prefilter/blur, variance resolve, bleed control.
+ - Status: In progress (dedicated moment write + mip prefilter + mip-aware sampling + neighborhood-weighted denoise active).
 
 2. PCSS
 - blocker search + penumbra estimation + tiered kernel path.
+ - Status: In progress (edge-aware penumbra neighborhood blend active; full blocker-search path still pending).
 
 3. Contact shadows
 - screen-space near-contact trace + temporal stabilization.
+ - Status: In progress (runtime-strength shaping active; temporal stabilization still pending).
 
 ## Phase 4: Hardware RT Shadows
 
@@ -119,6 +122,6 @@ Status: In progress (started and partially landed).
 
 ## Immediate Next Steps
 
-1. Raise matrix/layer hard limits safely for Vulkan shadow resources.
-2. Add scheduler queue metadata for per-light age/priority.
-3. Wire cadence policy from metadata into actual shadow update decisions.
+1. Add temporal accumulation/rejection control for contact-shadow stability in high-motion sweeps.
+2. Add deeper moment-filter stress tests (`vsm`/`evsm`) in compare-harness matrix and lock updated thresholds.
+3. Implement hardware RT shadow traversal + denoise path behind capability/profile gating.

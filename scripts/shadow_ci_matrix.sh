@@ -32,20 +32,31 @@ mvn -q -pl engine-impl-opengl -am test \
   -Dtest=OpenGlEngineRuntimeLifecycleTest \
   -Dsurefire.failIfNoSpecifiedTests=false
 mvn -q -pl engine-impl-vulkan -am test \
-  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+shadowAllocatorTelemetryShowsReuseAcrossFrames+shadowQualityPathRequestsEmitTrackingWarnings+pcssShadowQualityRequestTracksActivePathWithoutMomentWarning \
+  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+shadowAllocatorTelemetryShowsReuseAcrossFrames+shadowQualityPathRequestsEmitTrackingWarnings+pcssShadowQualityRequestTracksActivePathWithoutMomentWarning+shadowQualityTuningOptionsAreReportedInPolicyWarning \
   -Dsurefire.failIfNoSpecifiedTests=false
 
 echo ""
 echo "[3/5] Shadow compare harness gates (mock/real mode-driven)"
-for test_case in \
-  "BackendParityIntegrationTest#compareHarnessShadowCascadeStressHasBoundedDiff" \
-  "BackendParityIntegrationTest#compareHarnessFogSmokeShadowPostStressHasBoundedDiff" \
-  "BackendParityIntegrationTest#compareHarnessSmokeShadowStressHasBoundedDiff"; do
-  out_dir="$OUT_ROOT/$(echo "$test_case" | tr '#:' '--' | tr -cs 'a-zA-Z0-9._-' '-')"
-  DLE_COMPARE_OUTPUT_DIR="$out_dir" \
-  DLE_COMPARE_TEST_CLASS="$test_case" \
-  DLE_COMPARE_VULKAN_MODE="$VULKAN_MODE" \
-  ./scripts/aa_rebaseline_real_mac.sh run
+declare -a shadow_profiles=(
+  "pcf::"
+  "pcss::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.pcssSoftness=1.20 -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.contactStrength=1.15"
+  "vsm::-Dvulkan.shadow.filterPath=vsm -Dvulkan.shadow.momentBlend=1.10 -Dvulkan.shadow.momentBleedReduction=1.10"
+  "evsm::-Dvulkan.shadow.filterPath=evsm -Dvulkan.shadow.momentBlend=1.20 -Dvulkan.shadow.momentBleedReduction=1.20"
+)
+for profile in "${shadow_profiles[@]}"; do
+  mode="${profile%%::*}"
+  extra_args="${profile#*::}"
+  for test_case in \
+    "BackendParityIntegrationTest#compareHarnessShadowCascadeStressHasBoundedDiff" \
+    "BackendParityIntegrationTest#compareHarnessFogSmokeShadowPostStressHasBoundedDiff" \
+    "BackendParityIntegrationTest#compareHarnessSmokeShadowStressHasBoundedDiff"; do
+    out_dir="$OUT_ROOT/$(echo "$mode-$test_case" | tr '#:' '--' | tr -cs 'a-zA-Z0-9._-' '-')"
+    DLE_COMPARE_OUTPUT_DIR="$out_dir" \
+    DLE_COMPARE_TEST_CLASS="$test_case" \
+    DLE_COMPARE_VULKAN_MODE="$VULKAN_MODE" \
+    DLE_COMPARE_EXTRA_MVN_ARGS="$extra_args" \
+    ./scripts/aa_rebaseline_real_mac.sh run
+  done
 done
 
 echo ""

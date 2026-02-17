@@ -52,6 +52,7 @@ Examples:
 - `DLE_COMPARE_OUTPUT_DIR=<path>`
 - `DLE_COMPARE_TEST_CLASS=<class-or-class#method>`
 - `DLE_COMPARE_THRESHOLDS_FILE=<properties-file>`
+- `DLE_COMPARE_EXTRA_MVN_ARGS="<maven -D... overrides>"` (for targeted backend-option sweeps)
 - `DLE_COMPARE_TEMPORAL_FRAMES=<n>`
 - `DLE_COMPARE_TEMPORAL_WINDOW=<n>`
 - `DLE_COMPARE_TSR_FRAME_BOOST=<n>`

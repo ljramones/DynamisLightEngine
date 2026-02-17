@@ -229,14 +229,38 @@ public final class VulkanShaderSources {
                 float reduceLightBleed(float visibility, float amount) {
                     return clamp((visibility - amount) / max(1.0 - amount, 0.0001), 0.0, 1.0);
                 }
+                vec2 sampleMomentsWeighted(vec2 uv, int layer, float lod, float texel, float depthRef, float blendStrength) {
+                    vec2 accum = vec2(0.0);
+                    float weightSum = 0.0;
+                    vec2 taps[9] = vec2[](
+                            vec2(0.0, 0.0),
+                            vec2(1.0, 0.0), vec2(-1.0, 0.0),
+                            vec2(0.0, 1.0), vec2(0.0, -1.0),
+                            vec2(1.0, 1.0), vec2(-1.0, 1.0),
+                            vec2(1.0, -1.0), vec2(-1.0, -1.0)
+                    );
+                    for (int i = 0; i < 9; i++) {
+                        vec2 offset = taps[i] * texel;
+                        vec3 coord = vec3(clamp(uv + offset, vec2(0.0), vec2(1.0)), float(clamp(layer, 0, 23)));
+                        vec2 moments = textureLod(uShadowMomentMap, coord, lod).rg;
+                        float depthDelta = abs(moments.x - depthRef);
+                        float bilateral = exp(-depthDelta * (24.0 + blendStrength * 20.0));
+                        float radial = 1.0 / (1.0 + dot(taps[i], taps[i]) * 0.60);
+                        float w = bilateral * radial;
+                        accum += moments * w;
+                        weightSum += w;
+                    }
+                    return accum / max(weightSum, 0.0001);
+                }
                 float momentVisibilityApprox(vec2 uv, float compareDepth, int layer) {
                     float momentBlend = clamp(gbo.uDirLightColor.w, 0.25, 1.5);
                     float momentBleedReduction = clamp(gbo.uPointLightColor.w, 0.25, 1.5);
                     vec3 momentUv = vec3(clamp(uv, vec2(0.0), vec2(1.0)), float(clamp(layer, 0, 23)));
                     float maxLod = float(max(textureQueryLevels(uShadowMomentMap) - 1, 0));
                     float lod = min(1.5, maxLod);
-                    vec2 baseMoments = textureLod(uShadowMomentMap, momentUv, 0.0).rg;
-                    vec2 filteredMoments = textureLod(uShadowMomentMap, momentUv, lod).rg;
+                    float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
+                    vec2 baseMoments = sampleMomentsWeighted(momentUv.xy, layer, 0.0, texel, compareDepth, momentBlend);
+                    vec2 filteredMoments = sampleMomentsWeighted(momentUv.xy, layer, lod, texel * 1.5, compareDepth, momentBlend);
                     vec2 moments = mix(baseMoments, filteredMoments, clamp(0.68 * momentBlend, 0.20, 0.95));
                     // Neutral fallback for uninitialized/provisional moment data.
                     if (moments.y <= 0.000001) {
@@ -259,8 +283,9 @@ public final class VulkanShaderSources {
                     vec3 momentUv = vec3(clamp(uv, vec2(0.0), vec2(1.0)), float(clamp(layer, 0, 23)));
                     float maxLod = float(max(textureQueryLevels(uShadowMomentMap) - 1, 0));
                     float lod = min(2.0, maxLod);
-                    vec2 baseMoments = textureLod(uShadowMomentMap, momentUv, 0.0).rg;
-                    vec2 filteredMoments = textureLod(uShadowMomentMap, momentUv, lod).rg;
+                    float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
+                    vec2 baseMoments = sampleMomentsWeighted(momentUv.xy, layer, 0.0, texel, compareDepth, momentBlend);
+                    vec2 filteredMoments = sampleMomentsWeighted(momentUv.xy, layer, lod, texel * 2.0, compareDepth, momentBlend);
                     vec2 moments = mix(baseMoments, filteredMoments, clamp(0.75 * momentBlend, 0.25, 0.97));
                     if (moments.y <= 0.000001) {
                         return 1.0;
@@ -291,7 +316,15 @@ public final class VulkanShaderSources {
                     float visibility = clamp(pcfVisibility, 0.0, 1.0);
                     if (shadowFilterMode == 1) {
                         float penumbra = clamp(((1.0 - ndl) * 0.78 + depthRatio * 0.92) * pcssSoftness, 0.0, 1.0);
+                        float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
+                        float neigh = 0.0;
+                        neigh += texture(uShadowMap, vec4(clamp(uv + vec2(texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        neigh += texture(uShadowMap, vec4(clamp(uv + vec2(-texel, 0.0), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        neigh += texture(uShadowMap, vec4(clamp(uv + vec2(0.0, texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        neigh += texture(uShadowMap, vec4(clamp(uv + vec2(0.0, -texel), vec2(0.0), vec2(1.0)), float(layer), compareDepth));
+                        neigh *= 0.25;
                         float soft = mix(visibility, sqrt(max(visibility, 0.0)), 0.42 * penumbra);
+                        soft = mix(soft, neigh, clamp(0.32 * penumbra, 0.0, 0.45));
                         float edgeProtect = smoothstep(0.12, 0.50, visibility);
                         visibility = mix(soft, visibility, edgeProtect * 0.40);
                     } else if (shadowFilterMode == 2) {

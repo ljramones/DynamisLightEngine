@@ -304,12 +304,18 @@ run_compare_tests() {
   local mock_context="$1"
   local log_file="$2"
   local thresholds_arg=()
+  local extra_mvn_args=()
   if [[ -n "$THRESHOLDS_FILE" ]]; then
     if [[ "$THRESHOLDS_FILE" = /* ]]; then
       thresholds_arg+=("-Ddle.compare.thresholds.file=$THRESHOLDS_FILE")
     else
       thresholds_arg+=("-Ddle.compare.thresholds.file=$ROOT_DIR/$THRESHOLDS_FILE")
     fi
+  fi
+  if [[ -n "${DLE_COMPARE_EXTRA_MVN_ARGS:-}" ]]; then
+    # shellcheck disable=SC2206
+    extra_mvn_args=(${DLE_COMPARE_EXTRA_MVN_ARGS})
+    echo "Extra Maven args: ${DLE_COMPARE_EXTRA_MVN_ARGS}"
   fi
   set +e
   mvn -q -pl engine-host-sample -am test \
@@ -325,6 +331,7 @@ run_compare_tests() {
     -Ddle.compare.upscaler.mode="${DLE_COMPARE_UPSCALER_MODE:-none}" \
     -Ddle.compare.upscaler.quality="${DLE_COMPARE_UPSCALER_QUALITY:-quality}" \
     -Ddle.vulkan.shadow.depthFormat="$SHADOW_DEPTH_FORMAT" \
+    "${extra_mvn_args[@]}" \
     "${thresholds_arg[@]}" \
     -Dtest="$TEST_CLASS" \
     -Dsurefire.failIfNoSpecifiedTests=false 2>&1 | tee "$log_file"
