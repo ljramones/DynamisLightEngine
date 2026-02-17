@@ -129,7 +129,7 @@ Sample host clamps:
   - `vulkan.shadow.scheduler.heroPeriod=1..16` (default `1`)
   - `vulkan.shadow.scheduler.midPeriod=1..32` (default `2`)
   - `vulkan.shadow.scheduler.distantPeriod=1..64` (default `4`)
-  Runtime tracks and reports these requests; current shader path applies tiered kernel behavior (`pcf` baseline with `pcss`/`vsm`/`evsm` request shaping) and optional contact-shadow modulation, while dedicated RT traversal remains on fallback.
+  Runtime tracks and reports these requests. Production-active filter path is `pcf|pcss`; `vsm|evsm` are currently treated as estimate-only moment-path requests (warning + telemetry), with runtime shading on `pcss` fallback until dedicated moment sampling lands. Dedicated RT traversal remains on fallback.
 
 Shadow scheduler override examples:
 - Raise local point shadow concurrency ceiling:
@@ -148,6 +148,8 @@ Scheduler behavior notes:
   - `deferredShadowLightCount`
   - `deferredShadowLightIds`
   - `shadowMomentAtlasBytesEstimate` (non-zero when `vsm`/`evsm` is requested)
+  - `runtimeFilterPath` (active filter path used by runtime shading)
+  - `momentFilterEstimateOnly` (`true` for current `vsm`/`evsm` fallback behavior)
   - `shadowAllocatorAssignedLights`
   - `shadowAllocatorReusedAssignments`
   - `shadowAllocatorEvictions`

@@ -18,7 +18,7 @@ Validate shadow stability, policy selection, and quality-tier fallback behavior 
   - `SHADOW_POLICY_ACTIVE`
   - `SHADOW_QUALITY_DEGRADED`
   - `SHADOW_LOCAL_RENDER_BASELINE`
-  - `SHADOW_FILTER_PATH_REQUESTED`
+  - `SHADOW_FILTER_MOMENT_ESTIMATE_ONLY` (for `vsm|evsm` requests)
   - `SHADOW_RT_PATH_REQUESTED`
 - Shadow matrix deterministic equality in unit tests.
 - Shadow memory telemetry:
@@ -115,6 +115,9 @@ Long-run motion/shimmer sweep (real Vulkan):
 - Vulkan integration tests surface explicit rollout warning context when local shadow requests exceed currently guaranteed render parity paths:
   - `SHADOW_LOCAL_RENDER_BASELINE`
 - Vulkan integration tests now also validate multi-spot render policy reporting (`renderedLocalShadows`, `renderedSpotShadows`) and quality-path request tracking fields (`filterPath`, `contactShadows`, `rtMode`).
+- For `vsm|evsm` requests, verify warning stream includes:
+  - `SHADOW_FILTER_MOMENT_ESTIMATE_ONLY`
+  - `SHADOW_POLICY_ACTIVE` fields: `runtimeFilterPath=pcss`, `momentFilterEstimateOnly=true`
 - Vulkan policy checks now include concurrent point-cubemap scheduling counters (`renderedPointShadowCubemaps`) for tier-bounded multi-point coverage.
 - Verify current tier cap behavior explicitly:
   - `HIGH` should cap to `1` rendered point cubemap (`6` shadow passes).

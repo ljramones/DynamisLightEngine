@@ -724,9 +724,11 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frame.warnings().stream().anyMatch(w ->
                 "SHADOW_POLICY_ACTIVE".equals(w.code())
                         && w.message().contains("filterPath=evsm")
+                        && w.message().contains("runtimeFilterPath=pcss")
+                        && w.message().contains("momentFilterEstimateOnly=true")
                         && w.message().contains("contactShadows=true")
                         && w.message().contains("rtMode=optional")));
-        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_PATH_REQUESTED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_RT_PATH_REQUESTED".equals(w.code())));
         runtime.shutdown();
     }

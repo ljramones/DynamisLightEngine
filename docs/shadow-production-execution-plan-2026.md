@@ -34,6 +34,10 @@ Implemented now:
   - per-light age/priority ordering backed by runtime `renderedShadowLightIds` tracking
 - scheduler backlog telemetry: `deferredShadowLightCount`, `deferredShadowLightIds`
 - moment-atlas budget telemetry for `vsm`/`evsm` requests: `shadowMomentAtlasBytesEstimate`
+- explicit requested-vs-active filter telemetry for shadow quality-path reporting:
+  - `filterPath`
+  - `runtimeFilterPath`
+  - `momentFilterEstimateOnly`
 - allocator telemetry for reuse/eviction pressure:
   - `shadowAllocatorAssignedLights`
   - `shadowAllocatorReusedAssignments`

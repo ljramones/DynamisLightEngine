@@ -124,7 +124,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             "",
             0,
             "",
-            "pcf", false, "off", false,
+            "pcf", "pcf", false, false, "off", false,
             false
     );
     private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
@@ -351,7 +351,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     currentShadows.mapResolution()
             );
             context.setShadowQualityModes(
-                    currentShadows.filterPath(),
+                    currentShadows.runtimeFilterPath(),
                     currentShadows.contactShadowsRequested(),
                     currentShadows.rtShadowMode()
             );
@@ -488,6 +488,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " shadowAllocatorReusedAssignments=" + shadowAllocatorReusedAssignments
                             + " shadowAllocatorEvictions=" + shadowAllocatorEvictions
                             + " filterPath=" + currentShadows.filterPath()
+                            + " runtimeFilterPath=" + currentShadows.runtimeFilterPath()
+                            + " momentFilterEstimateOnly=" + currentShadows.momentFilterEstimateOnly()
                             + " contactShadows=" + currentShadows.contactShadowsRequested()
                             + " rtMode=" + currentShadows.rtShadowMode()
                             + " rtActive=" + currentShadows.rtShadowActive()
@@ -503,11 +505,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", atlas/cubemap multi-local rollout pending)"
                 ));
             }
-            if (!"pcf".equals(currentShadows.filterPath())) {
+            if (currentShadows.momentFilterEstimateOnly()) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY",
+                        "Shadow moment filter requested: " + currentShadows.filterPath()
+                                + " (runtime active filter path=" + currentShadows.runtimeFilterPath()
+                                + ", moment atlas sizing/telemetry is estimate-only)"
+                ));
+            } else if (!currentShadows.filterPath().equals(currentShadows.runtimeFilterPath())) {
                 warnings.add(new EngineWarning(
                         "SHADOW_FILTER_PATH_REQUESTED",
                         "Shadow filter path requested: " + currentShadows.filterPath()
-                                + " (runtime currently falls back to PCF shading path for production output)"
+                                + " (runtime active filter path=" + currentShadows.runtimeFilterPath() + ")"
                 ));
             }
             if (!"off".equals(currentShadows.rtShadowMode())) {
@@ -818,6 +827,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int deferredShadowLightCount,
             String deferredShadowLightIdsCsv,
             String filterPath,
+            String runtimeFilterPath,
+            boolean momentFilterEstimateOnly,
             boolean contactShadowsRequested,
             String rtShadowMode,
             boolean rtShadowActive,
