@@ -57,6 +57,7 @@ CI always-on rollout:
   - guarded real-Vulkan longrun
   - production sweeps with strict BVH lane
   via `scripts/shadow_ci_lockdown_full.sh`.
+- Scheduled `shadow-lockdown-full` runs set `DLE_SHADOW_LOCKDOWN_PROMOTE_MODE=real` so generated recommendations can be promoted into tracked real-Vulkan threshold profiles.
 
 Optional real Vulkan depth-format matrix + long-run:
 ```bash

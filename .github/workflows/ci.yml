@@ -230,6 +230,7 @@ jobs:
           DLE_SHADOW_LOCKDOWN_OUTPUT_ROOT: artifacts/compare/shadow-lockdown-full
           DLE_SHADOW_LOCKDOWN_RUNS: ${{ github.event_name == 'schedule' && '3' || '2' }}
           DLE_SHADOW_LOCKDOWN_MIN_RUNS: ${{ github.event_name == 'schedule' && '3' || '2' }}
+          DLE_SHADOW_LOCKDOWN_PROMOTE_MODE: ${{ github.event_name == 'schedule' && 'real' || 'none' }}
         run: ./scripts/shadow_ci_lockdown_full.sh
 
       - name: Upload full lockdown artifacts
