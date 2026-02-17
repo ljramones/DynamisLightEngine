@@ -117,14 +117,33 @@ Current default local shadow budgets by tier:
 - `HIGH`: 3 local shadow lights
 - `ULTRA`: 4 local shadow lights
 
-Implementation policy notes:
-- Local shadow-atlas allocation should remain power-of-two aligned.
-- Atlas packing should sort requested shadow pages by descending size before placement.
-- Eviction should prefer least-recently-visible local lights, keeping pages warm until reused.
-- Directional cascades should use texel snapping to reduce camera-motion shimmer.
-- For temporal pipelines, optional shadow-projection jitter may be enabled and resolved through TAA/TUUA/TSR.
-- Static geometry should move to a static-shadow cache layer; dynamic casters remain in per-frame update layers.
-- Local-shadow updates should be cadence-aware (hero lights full-rate, distant lights throttled).
+## 4.1 Implementation Policy Guidance
+
+Atlas packing/eviction expectations:
+- Keep atlas dimensions and tile requests power-of-two aligned (`256/512/1024/...`).
+- Sort tile requests descending by tile size before placement.
+- Prefer stable placement reuse for lights already in atlas.
+- Evict least-recently-visible entries first under pressure.
+- Do not clear evicted pages eagerly unless needed for a new placement.
+
+Texel-snapping guidance (directional cascades):
+- Snap cascade shadow-camera translation to shadow texel units to reduce shimmer.
+- Use a world-space snap step derived from cascade extent and map resolution.
+- Recommended form: `snapped = floor(position / texelSize) * texelSize`.
+- Keep snapping enabled for gameplay cameras; disable only in offline debug if needed.
+
+Static vs dynamic shadow layers:
+- Use a static layer for static geometry + static light contributions.
+- Use a dynamic layer for moving casters/receivers and animated light transforms.
+- Composite static + dynamic shadow factors in final lighting pass.
+- Invalidate static pages only when relevant static content or light state changes.
+
+Hero/full-rate vs distant/throttled updates:
+- Hero/near lights: update every frame.
+- Mid-range lights: update at reduced cadence (for example every 2-4 frames).
+- Distant/non-critical lights: update at low cadence (for example ~15 Hz).
+- Promote throttled lights to full-rate immediately on rapid visibility/importance changes.
+- Keep cadence policy tier-aware so LOW/MEDIUM tiers throttle more aggressively than HIGH/ULTRA.
 
 ## 5. Troubleshooting
 
