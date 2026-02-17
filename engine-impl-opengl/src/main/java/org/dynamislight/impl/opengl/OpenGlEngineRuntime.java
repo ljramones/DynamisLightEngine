@@ -338,7 +338,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     shadows.slopeBiasScale(),
                     shadows.pcfRadius(),
                     shadows.cascadeCount(),
-                    shadows.mapResolution()
+                    shadows.mapResolution(),
+                    shadows.selectedLocalShadowLights()
             );
             context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
@@ -457,6 +458,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                             + " atlasMemoryD16Bytes=" + shadows.atlasMemoryBytesD16()
                             + " atlasMemoryD32Bytes=" + shadows.atlasMemoryBytesD32()
                             + " shadowUpdateBytesEstimate=" + shadows.shadowUpdateBytesEstimate()
+                            + " cadencePolicy=hero:1 mid:2 distant:4"
                             + " normalBiasScale=" + shadows.normalBiasScale()
                             + " slopeBiasScale=" + shadows.slopeBiasScale()
             ));

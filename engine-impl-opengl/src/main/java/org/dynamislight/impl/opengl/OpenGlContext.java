@@ -128,6 +128,7 @@ import org.lwjgl.opengl.GL;
 
 final class OpenGlContext {
     static final int MAX_LOCAL_LIGHTS = 8;
+    static final int MAX_LOCAL_SHADOWS = 4;
     static record MeshGeometry(float[] vertices) {
         MeshGeometry {
             if (vertices == null || vertices.length == 0 || vertices.length % 6 != 0) {
@@ -339,6 +340,7 @@ final class OpenGlContext {
             uniform int uPointShadowEnabled;
             uniform samplerCube uPointShadowMap;
             uniform float uPointShadowFarPlane;
+            uniform int uPointShadowLightIndex;
             uniform int uShadowEnabled;
             uniform float uShadowStrength;
             uniform float uShadowBias;
@@ -347,6 +349,11 @@ final class OpenGlContext {
             uniform int uShadowPcfRadius;
             uniform int uShadowCascadeCount;
             uniform sampler2D uShadowMap;
+            uniform int uLocalShadowCount;
+            uniform sampler2D uLocalShadowMap;
+            uniform mat4 uLocalShadowMatrix[4];
+            uniform vec4 uLocalShadowAtlasRect[4];
+            uniform vec4 uLocalShadowMeta[4];
             uniform int uFogEnabled;
             uniform vec3 uFogColor;
             uniform float uFogDensity;
@@ -468,6 +475,31 @@ final class OpenGlContext {
                 }
                 return taps > 0 ? (occlusion / float(taps)) : 0.0;
             }
+            float localSpotShadowTerm(int shadowIdx, vec3 normal, float ndl) {
+                vec4 lightSpace = uLocalShadowMatrix[shadowIdx] * vec4(vWorldPos, 1.0);
+                vec3 projCoords = lightSpace.xyz / max(lightSpace.w, 0.0001);
+                projCoords = projCoords * 0.5 + 0.5;
+                if (projCoords.z > 1.0 || projCoords.z < 0.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0) {
+                    return 0.0;
+                }
+                vec4 rect = uLocalShadowAtlasRect[shadowIdx];
+                vec2 uv = rect.xy + projCoords.xy * rect.zw;
+                float baseBias = uShadowBias * max(uShadowNormalBiasScale, 0.25);
+                float slopeBias = (1.0 - ndl) * uShadowBias * 2.0 * max(uShadowSlopeBiasScale, 0.25);
+                float bias = max(baseBias, slopeBias);
+                int radius = max(uShadowPcfRadius, 0);
+                vec2 texel = 1.0 / vec2(textureSize(uLocalShadowMap, 0));
+                float occlusion = 0.0;
+                int taps = 0;
+                for (int x = -radius; x <= radius; x++) {
+                    for (int y = -radius; y <= radius; y++) {
+                        float depth = texture(uLocalShadowMap, uv + vec2(x, y) * texel).r;
+                        occlusion += (projCoords.z - bias) > depth ? 1.0 : 0.0;
+                        taps++;
+                    }
+                }
+                return taps > 0 ? (occlusion / float(taps)) : 0.0;
+            }
             void main() {
                 vec3 albedo = vColor * uMaterialAlbedo;
                 float albedoAlpha = 1.0;
@@ -542,7 +574,22 @@ final class OpenGlContext {
                         spotAttenuation = clamp((cosTheta - localOuter) / coneRange, 0.0, 1.0);
                         spotAttenuation *= spotAttenuation;
                     }
-                    pointLit += (kd * albedo / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity);
+                    float localShadowMul = 1.0;
+                    int localShadowCount = clamp(uLocalShadowCount, 0, 4);
+                    for (int s = 0; s < localShadowCount; s++) {
+                        int shadowLightIndex = int(uLocalShadowMeta[s].x + 0.5);
+                        float shadowType = uLocalShadowMeta[s].y;
+                        if (shadowLightIndex == i && shadowType > 0.5) {
+                            float occlusion = localSpotShadowTerm(s, normal, localNdl);
+                            localShadowMul = 1.0 - clamp(occlusion * min(uShadowStrength, 0.9), 0.0, 0.9);
+                            break;
+                        }
+                    }
+                    if (localIsSpot <= 0.5 && uPointShadowEnabled == 1 && i == uPointShadowLightIndex) {
+                        float pointOcclusion = pointShadowTerm(normal, localLightDir, localDist);
+                        localShadowMul *= (1.0 - clamp(pointOcclusion * min(uShadowStrength, 0.85), 0.0, 0.9));
+                    }
+                    pointLit += (kd * albedo / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity * localShadowMul);
                 }
                 float ao = 1.0;
                 vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * albedo;
@@ -595,10 +642,6 @@ final class OpenGlContext {
                     float shadowFactor = clamp(shadowTerm(normal, ndl) * uShadowStrength, 0.0, 0.9);
                     color *= (1.0 - shadowFactor);
                 }
-                vec3 shadowLocalDir = normalize(uPointLightPos - vWorldPos);
-                float shadowLocalDist = max(length(uPointLightPos - vWorldPos), 0.1);
-                float pointShadowFactor = clamp(pointShadowTerm(normal, shadowLocalDir, shadowLocalDist) * min(uShadowStrength, 0.85), 0.0, 0.9);
-                color *= (1.0 - pointShadowFactor);
                 if (uFogEnabled == 1) {
                     float normalizedHeight = clamp((vHeight + 1.0) * 0.5, 0.0, 1.0);
                     float fogFactor = clamp(exp(-uFogDensity * (1.0 - normalizedHeight)), 0.0, 1.0);
@@ -1095,6 +1138,7 @@ final class OpenGlContext {
     private int pointShadowEnabledLocation;
     private int pointShadowMapLocation;
     private int pointShadowFarPlaneLocation;
+    private int pointShadowLightIndexLocation;
     private int shadowEnabledLocation;
     private int shadowStrengthLocation;
     private int shadowBiasLocation;
@@ -1103,6 +1147,11 @@ final class OpenGlContext {
     private int shadowPcfRadiusLocation;
     private int shadowCascadeCountLocation;
     private int shadowMapLocation;
+    private int localShadowCountLocation;
+    private int localShadowMapLocation;
+    private int localShadowMatrixLocation;
+    private int localShadowAtlasRectLocation;
+    private int localShadowMetaLocation;
     private int fogEnabledLocation;
     private int fogColorLocation;
     private int fogDensityLocation;
@@ -1250,6 +1299,7 @@ final class OpenGlContext {
     private float pointLightOuterCos = 1.0f;
     private float pointLightIsSpot;
     private boolean pointShadowEnabled;
+    private int pointShadowLightIndex = -1;
     private float pointShadowFarPlane = 15f;
     private boolean shadowEnabled;
     private float shadowStrength = 0.45f;
@@ -1266,6 +1316,8 @@ final class OpenGlContext {
     private int shadowDepthTextureId;
     private int pointShadowFramebufferId;
     private int pointShadowDepthTextureId;
+    private int localShadowFramebufferId;
+    private int localShadowDepthTextureId;
     private int iblIrradianceTextureId;
     private int iblRadianceTextureId;
     private int iblBrdfLutTextureId;
@@ -1278,6 +1330,14 @@ final class OpenGlContext {
     private long lastVisibleObjects;
     private long estimatedGpuMemoryBytes;
     private long shadowMatrixStateKey = Long.MIN_VALUE;
+    private int localShadowBudget;
+    private int frameCounter;
+    private int localShadowCount;
+    private final float[] localShadowMatrices = new float[MAX_LOCAL_SHADOWS * 16];
+    private final float[] localShadowAtlasRects = new float[MAX_LOCAL_SHADOWS * 4];
+    private final float[] localShadowMeta = new float[MAX_LOCAL_SHADOWS * 4];
+    private final int[] localShadowSlotLightIndex = new int[MAX_LOCAL_SHADOWS];
+    private final int[] localShadowSlotLastUpdateFrame = new int[MAX_LOCAL_SHADOWS];
 
     void initialize(String appName, int width, int height, boolean vsyncEnabled, boolean windowVisible) throws EngineException {
         GLFWErrorCallback.createPrint(System.err).set();
@@ -1306,6 +1366,10 @@ final class OpenGlContext {
 
         this.width = width;
         this.height = height;
+        for (int i = 0; i < localShadowSlotLightIndex.length; i++) {
+            localShadowSlotLightIndex[i] = -1;
+            localShadowSlotLastUpdateFrame[i] = Integer.MIN_VALUE / 2;
+        }
         updateSceneRenderResolution();
         glViewport(0, 0, width, height);
 
@@ -1354,6 +1418,7 @@ final class OpenGlContext {
         beginFrame();
         renderClearPass();
         renderShadowPass();
+        renderLocalShadowAtlasPass();
         renderPointShadowPass();
         renderGeometryPass();
         renderFogPass();
@@ -1367,6 +1432,7 @@ final class OpenGlContext {
     }
 
     void beginFrame() {
+        frameCounter++;
         updateTemporalJitterState();
         glViewport(0, 0, sceneRenderWidth, sceneRenderHeight);
         if (gpuTimerQuerySupported) {
@@ -1430,6 +1496,7 @@ final class OpenGlContext {
             glUniform3f(pointLightDirLocation, pointLightDirX, pointLightDirY, pointLightDirZ);
             glUniform1i(pointShadowEnabledLocation, pointShadowEnabled ? 1 : 0);
             glUniform1f(pointShadowFarPlaneLocation, pointShadowFarPlane);
+            glUniform1i(pointShadowLightIndexLocation, pointShadowLightIndex);
             glUniform1i(shadowEnabledLocation, shadowEnabled ? 1 : 0);
             glUniform1f(shadowStrengthLocation, shadowStrength);
             glUniform1f(shadowBiasLocation, shadowBias);
@@ -1437,6 +1504,10 @@ final class OpenGlContext {
             glUniform1f(shadowSlopeBiasScaleLocation, shadowSlopeBiasScale);
             glUniform1i(shadowPcfRadiusLocation, shadowPcfRadius);
             glUniform1i(shadowCascadeCountLocation, shadowCascadeCount);
+            glUniform1i(localShadowCountLocation, localShadowCount);
+            glUniformMatrix4fv(localShadowMatrixLocation, false, localShadowMatrices);
+            glUniform4fv(localShadowAtlasRectLocation, localShadowAtlasRects);
+            glUniform4fv(localShadowMetaLocation, localShadowMeta);
             glUniform4f(
                     iblParamsLocation,
                     iblEnabled ? 1f : 0f,
@@ -1483,6 +1554,8 @@ final class OpenGlContext {
             glBindTexture(GL_TEXTURE_2D, iblBrdfLutTextureId);
             glActiveTexture(GL_TEXTURE0 + 8);
             glBindTexture(GL_TEXTURE_CUBE_MAP, pointShadowDepthTextureId);
+            glActiveTexture(GL_TEXTURE0 + 9);
+            glBindTexture(GL_TEXTURE_2D, localShadowDepthTextureId);
             glBindVertexArray(mesh.vaoId);
             glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
             lastDrawCalls++;
@@ -1505,6 +1578,8 @@ final class OpenGlContext {
         glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0 + 8);
         glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+        glActiveTexture(GL_TEXTURE0 + 9);
+        glBindTexture(GL_TEXTURE_2D, 0);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
         glUseProgram(0);
@@ -1530,10 +1605,140 @@ final class OpenGlContext {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
-    void renderPointShadowPass() {
-        if (!pointShadowEnabled || pointShadowFramebufferId == 0 || pointShadowDepthTextureId == 0 || shadowProgramId == 0) {
+    void renderLocalShadowAtlasPass() {
+        localShadowCount = 0;
+        for (int i = 0; i < localShadowSlotLightIndex.length; i++) {
+            localShadowSlotLightIndex[i] = -1;
+            localShadowMeta[(i * 4)] = -1f;
+            localShadowMeta[(i * 4) + 1] = 0f;
+            localShadowMeta[(i * 4) + 2] = 0f;
+            localShadowMeta[(i * 4) + 3] = 0f;
+        }
+        if (!shadowEnabled || localShadowFramebufferId == 0 || shadowProgramId == 0 || localShadowBudget <= 0) {
             return;
         }
+
+        int selected = 0;
+        for (int i = 0; i < localLightCount && selected < Math.min(localShadowBudget, MAX_LOCAL_SHADOWS); i++) {
+            int offset = i * 4;
+            float isSpot = localLightOuterTypeShadow[offset + 1];
+            float castsShadows = localLightOuterTypeShadow[offset + 2];
+            if (isSpot <= 0.5f || castsShadows <= 0.5f) {
+                continue;
+            }
+            localShadowSlotLightIndex[selected] = i;
+            selected++;
+        }
+        localShadowCount = selected;
+        if (localShadowCount == 0) {
+            return;
+        }
+
+        glBindFramebuffer(GL_FRAMEBUFFER, localShadowFramebufferId);
+        glUseProgram(shadowProgramId);
+        org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
+        int cols = localShadowCount <= 1 ? 1 : 2;
+        int rows = (int) Math.ceil(localShadowCount / (double) cols);
+        int tileW = shadowMapResolution / cols;
+        int tileH = shadowMapResolution / rows;
+
+        for (int slot = 0; slot < localShadowCount; slot++) {
+            int lightIndex = localShadowSlotLightIndex[slot];
+            if (lightIndex < 0) {
+                continue;
+            }
+            int interval = slot == 0 ? 1 : (slot == 1 ? 2 : 4);
+            boolean shouldUpdate = (frameCounter - localShadowSlotLastUpdateFrame[slot]) >= interval;
+            int col = slot % cols;
+            int row = slot / cols;
+            int x = col * tileW;
+            int y = row * tileH;
+            int offset = lightIndex * 4;
+
+            localShadowAtlasRects[(slot * 4)] = x / (float) shadowMapResolution;
+            localShadowAtlasRects[(slot * 4) + 1] = y / (float) shadowMapResolution;
+            localShadowAtlasRects[(slot * 4) + 2] = tileW / (float) shadowMapResolution;
+            localShadowAtlasRects[(slot * 4) + 3] = tileH / (float) shadowMapResolution;
+            localShadowMeta[(slot * 4)] = lightIndex;
+            localShadowMeta[(slot * 4) + 1] = 1f;
+            localShadowMeta[(slot * 4) + 2] = interval;
+            localShadowMeta[(slot * 4) + 3] = 0f;
+
+            if (!shouldUpdate) {
+                continue;
+            }
+
+            float posX = localLightPosRange[offset];
+            float posY = localLightPosRange[offset + 1];
+            float posZ = localLightPosRange[offset + 2];
+            float range = Math.max(localLightPosRange[offset + 3], 1.0f);
+            float dirX = localLightDirInner[offset];
+            float dirY = localLightDirInner[offset + 1];
+            float dirZ = localLightDirInner[offset + 2];
+            float outerCos = clamp01(localLightOuterTypeShadow[offset]);
+            float outerAngle = (float) Math.toDegrees(Math.acos(Math.max(0.001f, outerCos)));
+            float fov = Math.max(20f, Math.min(120f, outerAngle * 2.0f));
+            float[] lightProj = perspective((float) Math.toRadians(fov), 1f, 0.1f, range);
+            float upX = Math.abs(dirY) > 0.95f ? 1f : 0f;
+            float upY = Math.abs(dirY) > 0.95f ? 0f : 1f;
+            float upZ = 0f;
+            float[] lightView = lookAt(
+                    posX, posY, posZ,
+                    posX + dirX, posY + dirY, posZ + dirZ,
+                    upX, upY, upZ
+            );
+            float[] lightVp = mul(lightProj, lightView);
+            System.arraycopy(lightVp, 0, localShadowMatrices, slot * 16, 16);
+
+            glViewport(x, y, tileW, tileH);
+            org.lwjgl.opengl.GL11.glScissor(x, y, tileW, tileH);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            glUniformMatrix4fv(shadowLightViewProjLocation, false, lightVp);
+            for (MeshBuffer mesh : sceneMeshes) {
+                glUniformMatrix4fv(shadowModelLocation, false, mesh.modelMatrix);
+                glBindVertexArray(mesh.vaoId);
+                glDrawArrays(GL_TRIANGLES, 0, mesh.vertexCount);
+            }
+            localShadowSlotLastUpdateFrame[slot] = frameCounter;
+        }
+
+        org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
+        glBindVertexArray(0);
+        glUseProgram(0);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
+
+    void renderPointShadowPass() {
+        pointShadowLightIndex = -1;
+        if (!shadowEnabled || pointShadowFramebufferId == 0 || pointShadowDepthTextureId == 0 || shadowProgramId == 0 || localShadowBudget <= 0) {
+            return;
+        }
+        int[] pointCandidates = new int[MAX_LOCAL_LIGHTS];
+        int pointCandidateCount = 0;
+        for (int i = 0; i < localLightCount; i++) {
+            int offset = i * 4;
+            float isSpot = localLightOuterTypeShadow[offset + 1];
+            float castsShadows = localLightOuterTypeShadow[offset + 2];
+            if (isSpot > 0.5f || castsShadows <= 0.5f) {
+                continue;
+            }
+            pointCandidates[pointCandidateCount++] = i;
+        }
+        if (pointCandidateCount == 0) {
+            pointShadowEnabled = false;
+            return;
+        }
+        int cadenceDivisor = Math.max(1, localShadowBudget);
+        int candidateOffset = (frameCounter / cadenceDivisor) % pointCandidateCount;
+        int selectedLight = pointCandidates[candidateOffset];
+        int selectedOffset = selectedLight * 4;
+        pointLightPosX = localLightPosRange[selectedOffset];
+        pointLightPosY = localLightPosRange[selectedOffset + 1];
+        pointLightPosZ = localLightPosRange[selectedOffset + 2];
+        pointShadowFarPlane = Math.max(1.0f, localLightPosRange[selectedOffset + 3]);
+        pointShadowEnabled = true;
+        pointShadowLightIndex = selectedLight;
+
         float[] lightProj = perspective((float) Math.toRadians(90.0), 1f, 0.1f, pointShadowFarPlane);
         float[][] directions = new float[][]{
                 {1f, 0f, 0f}, {-1f, 0f, 0f},
@@ -1929,7 +2134,8 @@ final class OpenGlContext {
             float slopeBiasScale,
             int pcfRadius,
             int cascadeCount,
-            int mapResolution
+            int mapResolution,
+            int selectedLocalShadowLights
     ) {
         shadowEnabled = enabled;
         shadowStrength = Math.max(0f, Math.min(1f, strength));
@@ -1938,6 +2144,11 @@ final class OpenGlContext {
         shadowSlopeBiasScale = Math.max(0.25f, Math.min(4.0f, slopeBiasScale));
         shadowPcfRadius = Math.max(0, pcfRadius);
         shadowCascadeCount = Math.max(1, cascadeCount);
+        int clampedLocalBudget = Math.max(0, Math.min(MAX_LOCAL_SHADOWS, selectedLocalShadowLights));
+        if (localShadowBudget != clampedLocalBudget) {
+            localShadowBudget = clampedLocalBudget;
+            invalidateShadowCaches();
+        }
         int clampedResolution = Math.max(256, Math.min(4096, mapResolution));
         if (shadowMapResolution != clampedResolution) {
             shadowMapResolution = clampedResolution;
@@ -1996,6 +2207,7 @@ final class OpenGlContext {
             float[] prevModel = previousModelByMeshId.get(mesh.meshId());
             sceneMeshes.add(uploadMesh(mesh, prevModel == null ? mesh.modelMatrix().clone() : prevModel));
         }
+        invalidateShadowCaches();
         estimatedGpuMemoryBytes = estimateGpuMemoryBytes();
     }
 
@@ -2054,6 +2266,7 @@ final class OpenGlContext {
         pointShadowEnabledLocation = glGetUniformLocation(programId, "uPointShadowEnabled");
         pointShadowMapLocation = glGetUniformLocation(programId, "uPointShadowMap");
         pointShadowFarPlaneLocation = glGetUniformLocation(programId, "uPointShadowFarPlane");
+        pointShadowLightIndexLocation = glGetUniformLocation(programId, "uPointShadowLightIndex");
         shadowEnabledLocation = glGetUniformLocation(programId, "uShadowEnabled");
         shadowStrengthLocation = glGetUniformLocation(programId, "uShadowStrength");
         shadowBiasLocation = glGetUniformLocation(programId, "uShadowBias");
@@ -2062,6 +2275,11 @@ final class OpenGlContext {
         shadowPcfRadiusLocation = glGetUniformLocation(programId, "uShadowPcfRadius");
         shadowCascadeCountLocation = glGetUniformLocation(programId, "uShadowCascadeCount");
         shadowMapLocation = glGetUniformLocation(programId, "uShadowMap");
+        localShadowCountLocation = glGetUniformLocation(programId, "uLocalShadowCount");
+        localShadowMapLocation = glGetUniformLocation(programId, "uLocalShadowMap");
+        localShadowMatrixLocation = glGetUniformLocation(programId, "uLocalShadowMatrix");
+        localShadowAtlasRectLocation = glGetUniformLocation(programId, "uLocalShadowAtlasRect");
+        localShadowMetaLocation = glGetUniformLocation(programId, "uLocalShadowMeta");
         fogEnabledLocation = glGetUniformLocation(programId, "uFogEnabled");
         fogColorLocation = glGetUniformLocation(programId, "uFogColor");
         fogDensityLocation = glGetUniformLocation(programId, "uFogDensity");
@@ -2097,6 +2315,7 @@ final class OpenGlContext {
         glUniform1i(iblRadianceTextureLocation, 6);
         glUniform1i(iblBrdfLutTextureLocation, 7);
         glUniform1i(pointShadowMapLocation, 8);
+        glUniform1i(localShadowMapLocation, 9);
         glUseProgram(0);
     }
 
@@ -2485,6 +2704,15 @@ final class OpenGlContext {
             bytes += mesh.metallicRoughnessTextureBytes;
             bytes += mesh.occlusionTextureBytes;
         }
+        if (shadowDepthTextureId != 0) {
+            bytes += (long) shadowMapResolution * (long) shadowMapResolution * 4L;
+        }
+        if (localShadowDepthTextureId != 0) {
+            bytes += (long) shadowMapResolution * (long) shadowMapResolution * 4L;
+        }
+        if (pointShadowDepthTextureId != 0) {
+            bytes += (long) shadowMapResolution * (long) shadowMapResolution * 4L * 6L;
+        }
         return bytes;
     }
 
@@ -2707,6 +2935,7 @@ final class OpenGlContext {
 
     private void recreateShadowResources() {
         destroyShadowResources();
+        invalidateShadowCaches();
         shadowDepthTextureId = glGenTextures();
         glBindTexture(GL_TEXTURE_2D, shadowDepthTextureId);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowMapResolution, shadowMapResolution, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0L);
@@ -2761,6 +2990,27 @@ final class OpenGlContext {
         if (pointStatus != GL_FRAMEBUFFER_COMPLETE) {
             throw new IllegalStateException("Point shadow framebuffer incomplete: status=" + pointStatus);
         }
+
+        localShadowDepthTextureId = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, localShadowDepthTextureId);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, shadowMapResolution, shadowMapResolution, 0, GL_DEPTH_COMPONENT, GL_FLOAT, 0L);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
+        glTexParameteri(GL_TEXTURE_2D, org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        localShadowFramebufferId = glGenFramebuffers();
+        glBindFramebuffer(GL_FRAMEBUFFER, localShadowFramebufferId);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, localShadowDepthTextureId, 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        int localStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (localStatus != GL_FRAMEBUFFER_COMPLETE) {
+            throw new IllegalStateException("Local shadow framebuffer incomplete: status=" + localStatus);
+        }
     }
 
     private void destroyShadowResources() {
@@ -2780,6 +3030,27 @@ final class OpenGlContext {
             glDeleteTextures(pointShadowDepthTextureId);
             pointShadowDepthTextureId = 0;
         }
+        if (localShadowFramebufferId != 0) {
+            glDeleteFramebuffers(localShadowFramebufferId);
+            localShadowFramebufferId = 0;
+        }
+        if (localShadowDepthTextureId != 0) {
+            glDeleteTextures(localShadowDepthTextureId);
+            localShadowDepthTextureId = 0;
+        }
+    }
+
+    private void invalidateShadowCaches() {
+        shadowMatrixStateKey = Long.MIN_VALUE;
+        localShadowCount = 0;
+        pointShadowLightIndex = -1;
+        for (int i = 0; i < localShadowSlotLightIndex.length; i++) {
+            localShadowSlotLightIndex[i] = -1;
+            localShadowSlotLastUpdateFrame[i] = Integer.MIN_VALUE / 2;
+        }
+        java.util.Arrays.fill(localShadowMatrices, 0f);
+        java.util.Arrays.fill(localShadowAtlasRects, 0f);
+        java.util.Arrays.fill(localShadowMeta, 0f);
     }
 
     private void updateLightViewProjMatrix() {
@@ -2831,9 +3102,20 @@ final class OpenGlContext {
         float eyeX = -lx * 8.0f;
         float eyeY = -ly * 8.0f;
         float eyeZ = -lz * 8.0f;
+        float texelWorld = 16.0f / Math.max(1.0f, shadowMapResolution);
+        eyeX = snapToTexel(eyeX, texelWorld);
+        eyeY = snapToTexel(eyeY, texelWorld);
+        eyeZ = snapToTexel(eyeZ, texelWorld);
         float[] lightView = lookAt(eyeX, eyeY, eyeZ, 0f, 0f, 0f, 0f, 1f, 0f);
         float[] lightProj = ortho(-8f, 8f, -8f, 8f, 0.1f, 32f);
         lightViewProjMatrix = mul(lightProj, lightView);
+    }
+
+    private static float snapToTexel(float value, float texel) {
+        if (texel <= 1.0e-6f) {
+            return value;
+        }
+        return (float) Math.floor(value / texel) * texel;
     }
 
     private void initializeGpuQuerySupport() {

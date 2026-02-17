@@ -79,6 +79,8 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `atlasMemoryD32Bytes`
   - `shadowUpdateBytesEstimate`
 - D16 vs D32 runs show no unacceptable acne/peter-panning divergence for locked profiles.
+- OpenGL lifecycle tests stay green with local shadow-atlas loop active:
+  - `OpenGlEngineRuntimeLifecycleTest`
 
 ## 6. Known Gaps
 - Per-light shadow atlas/array rendering for multiple simultaneous local shadow casters is still pending.
@@ -92,10 +94,11 @@ Long-run motion/shimmer sweep (real Vulkan):
 
 Cadence/static-cache planned test shape:
 - Cadence behavior:
-  - verify hero light updates every frame.
-  - verify distant lights update at throttled cadence and promote immediately under visibility pressure.
+  - OpenGL local-shadow atlas currently uses tiered cadence policy (`hero:1`, `mid:2`, `distant:4`) with slot-cache reuse.
+  - verify hero slots update every frame and distant slots reuse cached pages between updates.
 - Static-cache correctness:
-  - verify unchanged static scene reuses cached shadow data.
+  - OpenGL local-shadow slot cache is invalidated on mesh/reallocation/budget changes.
+  - verify unchanged static scene reuses cached slot data.
   - verify cache invalidates on static transform/material/light changes.
   - verify no stale silhouettes after invalidation.
 

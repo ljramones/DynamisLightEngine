@@ -78,6 +78,7 @@ Implemented now:
 - OpenGL and Vulkan shadow mapping now compute atlas planning metrics from selected local shadow candidates.
 - Shadow telemetry now includes memory/update-byte estimates (`atlasMemoryD16Bytes`, `atlasMemoryD32Bytes`, `shadowUpdateBytesEstimate`) for CI budget checks.
 - Vulkan compare workflow now supports depth-format toggles via `dle.vulkan.shadow.depthFormat` (`d16`/`d32`) for divergence validation.
+- OpenGL local spot shadows now run through a per-light atlas sampling path with cadence-aware slot updates (`hero:1`, `mid:2`, `distant:4`) and cache invalidation hooks.
 
 Still in progress:
 - Full per-light local shadow atlas rendering/sampling path (current runtime still renders primary local shadow path).

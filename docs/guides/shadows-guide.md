@@ -5,7 +5,7 @@ Last updated: February 17, 2026
 ## 1. What Shadowing Supports
 DynamicLightEngine currently supports:
 - Cascaded directional shadows
-- Spot-light shadow baseline
+- Spot-light shadow baseline with local shadow-atlas sampling in OpenGL (`MAX_LOCAL_SHADOWS=4`)
 - Point-light shadow baseline (with backend-dependent maturity/perf)
 - PCF filtering and depth-bias controls
 - Shadow policy budgeting per quality tier (`maxShadowedLocalLights`)
@@ -116,6 +116,7 @@ Sample host clamps:
   - `-Ddle.vulkan.shadow.depthFormat=d16`
   - `-Ddle.vulkan.shadow.depthFormat=d32`
 - Non-directional shadow coverage is supported at baseline level but may differ in quality/perf characteristics by backend/profile.
+- OpenGL now applies local spot shadows through an atlas path in the main local-light loop; Vulkan keeps primary-local render baseline while atlas/cubemap render rollout continues.
 
 Current default local shadow budgets by tier:
 - `LOW`: 1 local shadow light

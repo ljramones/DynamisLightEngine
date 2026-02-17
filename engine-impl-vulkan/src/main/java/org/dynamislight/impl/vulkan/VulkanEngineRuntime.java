@@ -346,6 +346,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " atlasMemoryD32Bytes=" + currentShadows.atlasMemoryBytesD32()
                             + " shadowUpdateBytesEstimate=" + currentShadows.shadowUpdateBytesEstimate()
                             + " shadowDepthFormat=" + context.shadowDepthFormatTag()
+                            + " cadencePolicy=hero:1 mid:2 distant:4"
                             + " normalBiasScale=" + currentShadows.normalBiasScale()
                             + " slopeBiasScale=" + currentShadows.slopeBiasScale()
             ));

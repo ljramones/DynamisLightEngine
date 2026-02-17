@@ -41,7 +41,7 @@ Last updated: February 17, 2026.
 - Upscaler vendor-matrix workflow is available (`aa_rebaseline_real_mac.sh upscaler-matrix`) and records hook/native warning states in compare metadata for FSR/XeSS/DLSS qualification passes.
 - Strong regression harness (`--compare`, tiered golden thresholds, stress profiles including post/SSAO).
 - Reflection stress coverage now includes Hi-Z/probe and RT-fallback scenes (`reflections-hiz-probe`, `reflections-rt-fallback`) in addition to SSR/planar/hybrid parity gates.
-- Local light management now supports multiple point/spot lights in both backends with per-light GPU array packing; shadow policy now includes atlas-planner telemetry (tile usage/utilization/evictions), while rendering still uses a selected primary local light path.
+- Local light management now supports multiple point/spot lights in both backends with per-light GPU array packing; OpenGL now includes local spot shadow-atlas rendering/sampling with cadence+cache reuse, while Vulkan render path remains primary-local during atlas/cubemap rollout.
 - Shadow telemetry now includes atlas memory/update-byte estimates and Vulkan depth-format compare controls (`d16`/`d32`) for CI divergence checks.
 - Good diagnostics/warnings for quality fallback and runtime pressure.
 - Shadow roadmap alignment is explicit: multi-local atlas rollout, temporal stability controls (texel snapping/jitter), static-vs-dynamic cache layering, cadence policy validation, and CI depth-format divergence checks (`D16_UNORM` vs `D32_SFLOAT`).
