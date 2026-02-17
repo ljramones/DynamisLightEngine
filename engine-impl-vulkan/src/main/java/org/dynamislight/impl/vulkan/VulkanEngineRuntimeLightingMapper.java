@@ -611,7 +611,7 @@ final class VulkanEngineRuntimeLightingMapper {
         String filterPath = shadowFilterPath == null || shadowFilterPath.isBlank() ? "pcf" : shadowFilterPath.trim().toLowerCase(java.util.Locale.ROOT);
         String rtMode = shadowRtMode == null || shadowRtMode.isBlank() ? "off" : shadowRtMode.trim().toLowerCase(java.util.Locale.ROOT);
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, shadowContactShadows, rtMode, false, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, shadowContactShadows, rtMode, false, false);
         }
         int maxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -663,7 +663,7 @@ final class VulkanEngineRuntimeLightingMapper {
         }
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, shadowContactShadows, rtMode, false, false);
+            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", filterPath, shadowContactShadows, rtMode, false, false);
         }
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
         ShadowDesc shadow = primary.shadow();
@@ -722,6 +722,11 @@ final class VulkanEngineRuntimeLightingMapper {
         ShadowAtlasPlanner.PlanResult atlasPlan = ShadowAtlasPlanner.plan(resolution, atlasRequests, Map.of());
         long atlasMemoryBytesD16 = (long) resolution * (long) resolution * 2L;
         long atlasMemoryBytesD32 = (long) resolution * (long) resolution * 4L;
+        long shadowMomentAtlasBytesEstimate = switch (filterPath) {
+            case "vsm" -> (long) resolution * (long) resolution * 8L;
+            case "evsm" -> (long) resolution * (long) resolution * 16L;
+            default -> 0L;
+        };
         long shadowUpdateBytesEstimate = 0L;
         for (ShadowAtlasPlanner.Allocation allocation : atlasPlan.allocations()) {
             long tilePixels = (long) allocation.tileSizePx() * (long) allocation.tileSizePx();
@@ -812,6 +817,7 @@ final class VulkanEngineRuntimeLightingMapper {
                 atlasMemoryBytesD16,
                 atlasMemoryBytesD32,
                 shadowUpdateBytesEstimate,
+                shadowMomentAtlasBytesEstimate,
                 renderedLocalShadowLights,
                 renderedSpotShadowLights,
                 renderedPointShadowCubemaps,

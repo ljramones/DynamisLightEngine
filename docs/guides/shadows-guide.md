@@ -145,6 +145,7 @@ Scheduler behavior notes:
   - `renderedShadowLightIds`
   - `deferredShadowLightCount`
   - `deferredShadowLightIds`
+  - `shadowMomentAtlasBytesEstimate` (non-zero when `vsm`/`evsm` is requested)
 
 Current default local shadow budgets by tier:
 - `LOW`: 1 local shadow light

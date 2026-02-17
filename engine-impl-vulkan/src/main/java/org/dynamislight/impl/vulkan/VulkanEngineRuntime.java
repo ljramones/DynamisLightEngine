@@ -119,6 +119,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             0, 0, "none", "none",
             0, 0, 0.0f, 0,
             0L, 0L, 0L,
+            0L,
             0, 0, 0,
             "",
             0,
@@ -442,6 +443,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " atlasMemoryD16Bytes=" + currentShadows.atlasMemoryBytesD16()
                             + " atlasMemoryD32Bytes=" + currentShadows.atlasMemoryBytesD32()
                             + " shadowUpdateBytesEstimate=" + currentShadows.shadowUpdateBytesEstimate()
+                            + " shadowMomentAtlasBytesEstimate=" + currentShadows.shadowMomentAtlasBytesEstimate()
                             + " shadowDepthFormat=" + context.shadowDepthFormatTag()
                             + " cadencePolicy=hero:1 mid:2 distant:4"
                             + " renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
@@ -780,6 +782,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             long atlasMemoryBytesD16,
             long atlasMemoryBytesD32,
             long shadowUpdateBytesEstimate,
+            long shadowMomentAtlasBytesEstimate,
             int renderedLocalShadowLights,
             int renderedSpotShadowLights,
             int renderedPointShadowCubemaps,

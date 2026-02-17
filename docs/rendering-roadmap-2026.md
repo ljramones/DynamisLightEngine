@@ -91,6 +91,7 @@ Implemented now:
   - `vulkan.shadow.scheduler.distantPeriod`
   - runtime `shadowSchedulerFrameTick` tracking in warnings
   - runtime age/priority tracking for rendered local shadow IDs (`renderedShadowLightIds`)
+  - moment-atlas memory estimate telemetry for `vsm`/`evsm` requests (`shadowMomentAtlasBytesEstimate`)
 
 Still in progress:
 - Full production multi-point cubemap scalability beyond current matrix/layer bounds.

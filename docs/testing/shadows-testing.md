@@ -108,6 +108,7 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `atlasMemoryD16Bytes`
   - `atlasMemoryD32Bytes`
   - `shadowUpdateBytesEstimate`
+  - `shadowMomentAtlasBytesEstimate`
 - D16 vs D32 runs show no unacceptable acne/peter-panning divergence for locked profiles.
 - OpenGL lifecycle tests stay green with local shadow-atlas loop active:
   - `OpenGlEngineRuntimeLifecycleTest`
