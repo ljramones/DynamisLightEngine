@@ -216,7 +216,14 @@ public final class VulkanShaderSources {
                 }
                 float momentVisibilityApprox(vec2 uv, float compareDepth) {
                     vec2 moments = texture(uShadowMomentMap, clamp(uv, vec2(0.0), vec2(1.0))).rg;
+                    // Neutral fallback for uninitialized/provisional moment data.
+                    if (moments.y <= 0.000001) {
+                        return 1.0;
+                    }
                     float mean = clamp(moments.x, 0.0, 1.0);
+                    if (compareDepth <= mean) {
+                        return 1.0;
+                    }
                     float second = max(moments.y, mean * mean);
                     float variance = max(second - (mean * mean), 0.00002);
                     float diff = compareDepth - mean;

@@ -47,7 +47,7 @@ Implemented now:
 
 Still pending:
 - full production multi-point cubemap scalability (beyond current matrix/layer bounds)
-- true VSM/EVSM moment filtering/sampling pipeline (moment-atlas resource allocation + texture descriptor binding + provisional runtime sampling are now live)
+- true VSM/EVSM moment filtering/sampling pipeline (moment-atlas resource allocation + texture descriptor binding + provisional runtime sampling are now live, including neutral fallback guards for uninitialized moment data)
 - true PCSS blocker/penumbra pipeline
 - true contact-shadow trace/denoise pipeline
 - hardware RT shadow traversal/denoise pipeline
