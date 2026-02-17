@@ -543,6 +543,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                     + ", active=" + currentShadows.momentPipelineActive() + ")"
                     ));
                 }
+            } else if (currentShadows.momentPipelineActive()) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_MOMENT_APPROX_ACTIVE",
+                        "Shadow moment pipeline active with provisional "
+                                + currentShadows.runtimeFilterPath()
+                                + " approximation path (full production filter chain pending)"
+                ));
             } else if (!currentShadows.filterPath().equals(currentShadows.runtimeFilterPath())) {
                 warnings.add(new EngineWarning(
                         "SHADOW_FILTER_PATH_REQUESTED",

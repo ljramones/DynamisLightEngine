@@ -120,7 +120,8 @@ Long-run motion/shimmer sweep (real Vulkan):
   - `SHADOW_POLICY_ACTIVE` fields: `momentPipelineRequested=true`
   - `SHADOW_POLICY_ACTIVE` fields: `momentResourceAllocated`, `momentResourceFormat`
   - In mock runs, expect `runtimeFilterPath=pcss`, `momentFilterEstimateOnly=true`, `momentPipelineActive=false`, and `SHADOW_MOMENT_PIPELINE_PENDING`.
-  - In real Vulkan runs with moment resources allocated, expect `runtimeFilterPath` to match requested `vsm|evsm`, `momentFilterEstimateOnly=false`, `momentPipelineActive=true`, and no `SHADOW_MOMENT_PIPELINE_PENDING`.
+- In real Vulkan runs with moment resources allocated, expect `runtimeFilterPath` to match requested `vsm|evsm`, `momentFilterEstimateOnly=false`, `momentPipelineActive=true`, and no `SHADOW_MOMENT_PIPELINE_PENDING`.
+  - As the provisional shader path comes online, expect `SHADOW_MOMENT_APPROX_ACTIVE` when moment mode is active without full production filtering.
 - Vulkan policy checks now include concurrent point-cubemap scheduling counters (`renderedPointShadowCubemaps`) for tier-bounded multi-point coverage.
 - Verify current tier cap behavior explicitly:
   - `HIGH` should cap to `1` rendered point cubemap (`6` shadow passes).

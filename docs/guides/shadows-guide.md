@@ -155,6 +155,7 @@ Scheduler behavior notes:
   - `momentFilterEstimateOnly` (`true` for current `vsm`/`evsm` fallback behavior)
   - `momentPipelineRequested` / `momentPipelineActive`
   - `momentResourceAllocated` / `momentResourceFormat`
+  - warning codes: `SHADOW_MOMENT_PIPELINE_PENDING`, `SHADOW_MOMENT_APPROX_ACTIVE`
   - `directionalTexelSnapEnabled`
   - `directionalTexelSnapScale`
   - `shadowAllocatorAssignedLights`
