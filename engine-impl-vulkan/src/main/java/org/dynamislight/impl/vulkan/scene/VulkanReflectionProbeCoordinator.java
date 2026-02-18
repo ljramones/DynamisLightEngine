@@ -9,6 +9,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 public final class VulkanReflectionProbeCoordinator {
     private VulkanReflectionProbeCoordinator() {
@@ -52,25 +54,45 @@ public final class VulkanReflectionProbeCoordinator {
         packed.putInt(8, 0);
         packed.putInt(12, 0);
 
-        Map<String, Integer> cubemapSlots = new HashMap<>();
-        int nextSlot = 0;
+        Map<String, Integer> cubemapSlots = buildCubemapSlots(visible, clampedMax);
         for (int i = 0; i < visible.size(); i++) {
             ReflectionProbeDesc probe = visible.get(i);
             Integer existingSlot = cubemapSlots.get(probe.cubemapAssetPath());
-            int cubemapSlot;
-            if (existingSlot != null) {
-                cubemapSlot = existingSlot;
-            } else {
-                cubemapSlot = nextSlot < clampedMax ? nextSlot : -1;
-                if (nextSlot < clampedMax) {
-                    nextSlot++;
-                }
-                cubemapSlots.put(probe.cubemapAssetPath(), cubemapSlot);
-            }
+            int cubemapSlot = existingSlot != null ? existingSlot : -1;
             int base = 16 + (i * clampedStride);
             putProbe(packed, base, probe, cubemapSlot);
         }
         return packed;
+    }
+
+    private static Map<String, Integer> buildCubemapSlots(List<ReflectionProbeDesc> visible, int maxSlots) {
+        if (visible.isEmpty() || maxSlots <= 0) {
+            return Map.of();
+        }
+        Set<String> uniquePaths = new TreeSet<>();
+        for (ReflectionProbeDesc probe : visible) {
+            if (probe == null) {
+                continue;
+            }
+            String path = probe.cubemapAssetPath();
+            if (path == null || path.isBlank()) {
+                continue;
+            }
+            uniquePaths.add(path);
+        }
+        if (uniquePaths.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Integer> slots = new HashMap<>();
+        int next = 0;
+        for (String path : uniquePaths) {
+            if (next >= maxSlots) {
+                break;
+            }
+            slots.put(path, next);
+            next++;
+        }
+        return slots;
     }
 
     static List<ReflectionProbeDesc> visibleProbes(

@@ -71,6 +71,50 @@ class VulkanReflectionProbeCoordinatorTest {
         assertEquals(41, packed.getInt(base + 56));
     }
 
+    @Test
+    void packVisibleProbesAssignsDeterministicCubemapSlotsByAssetPath() {
+        float[] view = lookAt(0f, 0f, 0f, 0f, 0f, -1f, 0f, 1f, 0f);
+        float[] proj = perspective((float) Math.toRadians(70.0), 1.0f, 0.1f, 100.0f);
+        float[] vp = mul(proj, view);
+        ReflectionProbeDesc probeHighPriorityB = new ReflectionProbeDesc(
+                10,
+                new Vec3(0f, 1f, -5f),
+                new Vec3(-1f, 0f, -6f),
+                new Vec3(1f, 2f, -4f),
+                "assets/probes/b.ktx2",
+                100,
+                1.0f,
+                1.0f,
+                true
+        );
+        ReflectionProbeDesc probeLowPriorityA = new ReflectionProbeDesc(
+                11,
+                new Vec3(0f, 1f, -7f),
+                new Vec3(-1f, 0f, -8f),
+                new Vec3(1f, 2f, -6f),
+                "assets/probes/a.ktx2",
+                1,
+                1.0f,
+                1.0f,
+                true
+        );
+
+        ByteBuffer packed = VulkanReflectionProbeCoordinator.packVisibleProbes(
+                List.of(probeHighPriorityB, probeLowPriorityA),
+                vp,
+                4,
+                80,
+                16 + (4 * 80)
+        );
+
+        int base0 = 16;
+        int base1 = 16 + 80;
+        assertEquals(2, packed.getInt(0));
+        // Visible probes are sorted by priority (B then A), but cubemap slots are deterministic by path (a=0, b=1).
+        assertEquals(1, packed.getInt(base0 + 48));
+        assertEquals(0, packed.getInt(base1 + 48));
+    }
+
     private static ReflectionProbeDesc probe(int id, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, int priority) {
         return new ReflectionProbeDesc(
                 id,
