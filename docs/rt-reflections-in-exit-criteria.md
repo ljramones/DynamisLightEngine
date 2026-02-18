@@ -25,6 +25,8 @@ RT reflections are `In` when the RT lane is truly executable (not fallback-only)
   Evidence: `REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`.
 - [x] CI lockdown lane exists for RT contracts and parity scenes.
   Evidence: `scripts/rt_reflections_ci_lockdown_full.sh`.
+- [x] Guarded real-Vulkan signoff runner exists for RT contract replay.
+  Evidence: `scripts/rt_reflections_real_gpu_signoff.sh`.
 - [ ] Dedicated hardware RT pipeline path + SBT/AS lifecycle validated on real content.
 - [ ] Multi-bounce quality/perf envelopes calibrated and locked per profile.
 - [ ] RT denoise temporal/spatial envelopes locked under camera/disocclusion stress.
@@ -45,8 +47,11 @@ Guarded real-Vulkan signoff slice:
 mvn -pl engine-impl-vulkan -am test \
   -DskipITs \
   -Ddle.test.vulkan.real=true \
-  -Dtest=VulkanEngineRuntimeIntegrationTest#guardedRealVulkanInitPath+rtReflectionRequestInMockContextActivatesExecutionLaneAndDenoisePath \
+  -Dtest=VulkanEngineRuntimeIntegrationTest#guardedRealVulkanInitPath+guardedRealVulkanRtReflectionContractEmitsPathDiagnostics+guardedRealVulkanRtRequireActiveBehaviorMatchesLaneAvailability \
   -Dsurefire.failIfNoSpecifiedTests=false
+
+# or use the packaged runner:
+./scripts/rt_reflections_real_gpu_signoff.sh
 ```
 
 ## Status Note

@@ -58,6 +58,9 @@ mvn -pl engine-impl-vulkan -am -Dtest=VulkanEngineRuntimeIntegrationTest -Dsuref
 
 # RT reflections lockdown (contracts + compare harness)
 ./scripts/rt_reflections_ci_lockdown_full.sh
+
+# Guarded real-Vulkan RT reflections signoff
+./scripts/rt_reflections_real_gpu_signoff.sh
 ```
 
 See `docs/planar-in-exit-criteria.md` for explicit `Partial -> In` exit criteria and current checklist status.

@@ -97,6 +97,57 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void guardedRealVulkanRtReflectionContractEmitsPathDiagnostics() {
+        assumeRealVulkanReady("real Vulkan RT reflection contract integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        try {
+            runtime.initialize(validConfig(false), callbacks);
+            runtime.loadScene(validReflectionsScene("rt_hybrid"));
+            var frame = runtime.render();
+            runtime.render();
+
+            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
+            var diagnostics = runtime.debugReflectionRtPathDiagnostics();
+            assertEquals(true, diagnostics.laneRequested());
+            assertTrue(diagnostics.fallbackChain() != null && !diagnostics.fallbackChain().isBlank());
+        } catch (EngineException e) {
+            assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, e.code());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void guardedRealVulkanRtRequireActiveBehaviorMatchesLaneAvailability() {
+        assumeRealVulkanReady("real Vulkan RT require-active integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.reflections.rtRequireActive", "true")
+            ), QualityTier.HIGH), callbacks);
+            runtime.loadScene(validReflectionsScene("rt_hybrid"));
+            var frame = runtime.render();
+
+            var diagnostics = runtime.debugReflectionRtPathDiagnostics();
+            boolean requiredBreach = frame.warnings().stream()
+                    .anyMatch(w -> "REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH".equals(w.code()));
+            if (diagnostics.laneActive()) {
+                assertFalse(requiredBreach);
+            } else {
+                assertTrue(requiredBreach);
+            }
+        } catch (EngineException e) {
+            assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, e.code());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
     void mockVulkanPathAlwaysWorksInCi() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
