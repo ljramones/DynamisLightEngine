@@ -1,0 +1,8 @@
+{
+  "id": "demo/material-baseline",
+  "name": "Material Baseline",
+  "materials": [
+    "demo/default-gray"
+  ],
+  "notes": "Starter scene descriptor placeholder for demos module."
+}

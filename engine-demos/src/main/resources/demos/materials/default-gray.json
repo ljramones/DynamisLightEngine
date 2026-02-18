@@ -1,0 +1,7 @@
+{
+  "id": "demo/default-gray",
+  "baseColor": [0.6, 0.6, 0.6],
+  "metallic": 0.0,
+  "roughness": 0.7,
+  "notes": "Starter material definition for demos."
+}

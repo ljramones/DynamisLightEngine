@@ -16,6 +16,7 @@
     <module>engine-impl-opengl</module>
     <module>engine-impl-vulkan</module>
     <module>engine-bridge-dynamisfx</module>
+    <module>engine-demos</module>
     <module>engine-host-sample</module>
   </modules>
 

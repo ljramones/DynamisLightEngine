@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "scenes": [
+    {
+      "id": "demo/material-baseline",
+      "path": "scenes/material-baseline.json",
+      "description": "Simple baseline scene for validating demo module wiring."
+    }
+  ]
+}

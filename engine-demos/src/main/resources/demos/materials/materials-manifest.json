@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "materials": [
+    {
+      "id": "demo/default-gray",
+      "path": "materials/default-gray.json",
+      "description": "Neutral baseline material for smoke tests."
+    }
+  ]
+}
