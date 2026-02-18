@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 12:27 ET — SSR/TAA diagnostics now track sustained risk with streak/cooldown/EMA metrics; warning emission is persistence-gated and thresholds remain backend-configurable.
+- Latest reflection update: 2026-02-18 12:31 ET — Reflection profile presets now auto-apply telemetry/risk defaults (`performance/balanced/quality/stability`) when backend options are not explicitly provided; explicit options still override profile defaults.
 
 Status legend:
 
@@ -69,6 +69,7 @@ Reflection notes:
 - Vulkan now emits SSR/TAA diagnostics warning telemetry for reflection-temporal interaction monitoring.
 - SSR/TAA instability-risk warning thresholds are configurable per profile and included in diagnostic warning payloads.
 - SSR/TAA diagnostics now include persistence metrics (risk streak, cooldown, EMA reject/confidence) for better temporal stability analysis.
+- Reflection profile selection now drives default telemetry/risk thresholds when explicit backend overrides are absent.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

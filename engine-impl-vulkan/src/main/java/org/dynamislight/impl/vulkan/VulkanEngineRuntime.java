@@ -296,6 +296,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         upscalerMode = parseUpscalerMode(config.backendOptions().get("vulkan.upscalerMode"));
         upscalerQuality = parseUpscalerQuality(config.backendOptions().get("vulkan.upscalerQuality"));
         reflectionProfile = parseReflectionProfile(config.backendOptions().get("vulkan.reflectionsProfile"));
+        applyReflectionProfileTelemetryDefaults(config.backendOptions());
         tsrControls = parseTsrControls(config.backendOptions(), "vulkan.");
         externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", config.backendOptions());
         nativeUpscalerActive = false;
@@ -1183,6 +1184,58 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             case "stability" -> ReflectionProfile.STABILITY;
             default -> ReflectionProfile.BALANCED;
         };
+    }
+
+    private void applyReflectionProfileTelemetryDefaults(Map<String, String> backendOptions) {
+        if (reflectionProfile == ReflectionProfile.BALANCED) {
+            return;
+        }
+        Map<String, String> safe = backendOptions == null ? Map.of() : backendOptions;
+        switch (reflectionProfile) {
+            case PERFORMANCE -> {
+                if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinStreak")) reflectionProbeChurnWarnMinStreak = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnCooldownFrames")) reflectionProbeChurnWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityRejectMin")) reflectionSsrTaaInstabilityRejectMin = 0.45;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityConfidenceMax")) reflectionSsrTaaInstabilityConfidenceMax = 0.60;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityDropEventsMin")) reflectionSsrTaaInstabilityDropEventsMin = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnMinFrames")) reflectionSsrTaaInstabilityWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames")) reflectionSsrTaaInstabilityWarnCooldownFrames = 240;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaRiskEmaAlpha")) reflectionSsrTaaRiskEmaAlpha = 0.20;
+            }
+            case QUALITY -> {
+                if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinStreak")) reflectionProbeChurnWarnMinStreak = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnCooldownFrames")) reflectionProbeChurnWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityRejectMin")) reflectionSsrTaaInstabilityRejectMin = 0.32;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityConfidenceMax")) reflectionSsrTaaInstabilityConfidenceMax = 0.74;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityDropEventsMin")) reflectionSsrTaaInstabilityDropEventsMin = 0;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnMinFrames")) reflectionSsrTaaInstabilityWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames")) reflectionSsrTaaInstabilityWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaRiskEmaAlpha")) reflectionSsrTaaRiskEmaAlpha = 0.30;
+            }
+            case STABILITY -> {
+                if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinStreak")) reflectionProbeChurnWarnMinStreak = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnCooldownFrames")) reflectionProbeChurnWarnCooldownFrames = 60;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityRejectMin")) reflectionSsrTaaInstabilityRejectMin = 0.28;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityConfidenceMax")) reflectionSsrTaaInstabilityConfidenceMax = 0.78;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityDropEventsMin")) reflectionSsrTaaInstabilityDropEventsMin = 0;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnMinFrames")) reflectionSsrTaaInstabilityWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames")) reflectionSsrTaaInstabilityWarnCooldownFrames = 60;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaRiskEmaAlpha")) reflectionSsrTaaRiskEmaAlpha = 0.45;
+            }
+            default -> {
+            }
+        }
+    }
+
+    private static boolean hasBackendOption(Map<String, String> backendOptions, String key) {
+        if (backendOptions == null || key == null || key.isBlank()) {
+            return false;
+        }
+        String value = backendOptions.get(key);
+        return value != null && !value.isBlank();
     }
 
     private AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {
