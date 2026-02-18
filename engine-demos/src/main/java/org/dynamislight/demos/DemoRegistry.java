@@ -16,6 +16,7 @@ final class DemoRegistry {
         register(demos, new ShadowCascadeDebugDemo());
         register(demos, new ShadowLocalAtlasDemo());
         register(demos, new ShadowQualityMatrixDemo());
+        register(demos, new OrbitCameraDemo());
         register(demos, new ReflectionsSsrHizDemo());
         register(demos, new ReflectionsPlanarDemo());
         register(demos, new ReflectionsHybridDemo());

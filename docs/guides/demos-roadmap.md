@@ -11,6 +11,7 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 - `shadow-cascade-debug` (graphical shadow stress lane)
 - `shadow-local-atlas` (graphical local shadow atlas pressure)
 - `shadow-quality-matrix` (graphical shadow quality comparison lane)
+- `orbit-camera` (graphical moving-image orbit lane)
 - `aa-motion-stress` (graphical AA stress lane)
 - `reflections-ssr-hiz` (graphical SSR + Hi-Z lane)
 - `reflections-planar` (graphical planar reflection lane)
@@ -22,11 +23,11 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 - `capability-probe` (programmatic capability/feature report lane)
 - `aa-matrix` (graphical AA configuration/telemetry)
 
-Current count: `17` demos (`13` graphical, `4` programmatic)
+Current count: `18` demos (`14` graphical, `4` programmatic)
 
 ## Target Demo Set
 
-Target count: `17` demos (`13` graphical, `4` programmatic/CLI-focused)
+Target count: `18` demos (`14` graphical, `4` programmatic/CLI-focused)
 
 ### Graphical Demos (Priority)
 
@@ -37,12 +38,13 @@ Target count: `17` demos (`13` graphical, `4` programmatic/CLI-focused)
 5. `shadow-cascade-debug` (cascade splits, bias tuning lanes)
 6. `shadow-local-atlas` (local shadow budget and atlas pressure)
 7. `shadow-quality-matrix` (PCF/quality-tier comparison)
-8. `aa-matrix` (TAA/TUAA/TSR/SMAA/FXAA profiles)
-9. `aa-motion-stress` (fast pan, thin geo, alpha foliage)
-10. `reflections-ssr-hiz` (SSR + Hi-Z behavior)
-11. `reflections-planar` (planar reflection path)
-12. `reflections-hybrid` (hybrid fallback chain)
-13. `fog-smoke-post` (fog/smoke/post-process interaction)
+8. `orbit-camera` (moving camera/animated scene lane)
+9. `aa-matrix` (TAA/TUAA/TSR/SMAA/FXAA profiles)
+10. `aa-motion-stress` (fast pan, thin geo, alpha foliage)
+11. `reflections-ssr-hiz` (SSR + Hi-Z behavior)
+12. `reflections-planar` (planar reflection path)
+13. `reflections-hybrid` (hybrid fallback chain)
+14. `fog-smoke-post` (fog/smoke/post-process interaction)
 
 ### Programmatic/CLI Demos
 

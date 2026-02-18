@@ -96,7 +96,8 @@ public final class DemoRunner {
                 Map.copyOf(cli)
         );
 
-        SceneDescriptor scene = demo.buildScene(request);
+        int frames = Math.max(1, seconds * 60);
+        SceneDescriptor scene = demo.sceneForFrame(request, 0, frames, 0.0);
         Map<String, String> backendOptions = buildBackendOptions(request, demo.backendOptions(request));
         EngineConfig config = new EngineConfig(
                 backendId,
@@ -127,10 +128,14 @@ public final class DemoRunner {
             runtime.initialize(config, callbacks);
             runtime.loadScene(scene);
 
-            int frames = Math.max(1, seconds * 60);
             telemetry.writeRunStart(demoId, demo.description(), backendId, qualityTier, frames, config.backendOptions());
 
             for (int i = 0; i < frames; i++) {
+                if (demo.isDynamicScene() && i > 0) {
+                    double elapsedSeconds = i / 60.0;
+                    SceneDescriptor frameScene = demo.sceneForFrame(request, i, frames, elapsedSeconds);
+                    runtime.loadScene(frameScene);
+                }
                 runtime.update(1.0 / 60.0, emptyInput());
                 EngineFrameResult render = runtime.render();
                 EngineStats stats = runtime.getStats();

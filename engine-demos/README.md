@@ -36,6 +36,7 @@ Current demo catalog:
 - `shadow-cascade-debug`
 - `shadow-local-atlas`
 - `shadow-quality-matrix`
+- `orbit-camera`
 - `reflections-ssr-hiz`
 - `reflections-planar`
 - `reflections-hybrid`
@@ -93,6 +94,11 @@ Run shadow local atlas pressure demo:
 Run shadow quality matrix demo:
 ```bash
 ./scripts/run_demo_mac.sh --demo=shadow-quality-matrix --backend=vulkan --mock=false --seconds=10 --quality=high
+```
+
+Run moving orbit camera demo:
+```bash
+./scripts/run_demo_mac.sh --demo=orbit-camera --backend=vulkan --mock=false --seconds=10 --quality=high --orbit-speed-rads=0.9
 ```
 
 Run AA motion stress demo:
