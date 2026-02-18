@@ -617,6 +617,95 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionAdaptiveTrendHighRiskGateUsesThresholdAndCooldown() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "1.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames", "8"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples", "1")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK".equals(w.code())));
+        String trendReport = warningMessageByCode(frameA, "REFLECTION_SSR_TAA_ADAPTIVE_TREND_REPORT");
+        assertTrue(trendReport.contains("highRatioWarnTriggered=true"));
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionAdaptiveTrendDiagnosticsExposeResolvedGateAndWindowState() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames", "32"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin", "0.41"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames", "3"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames", "90"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples", "7")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        runtime.render();
+        runtime.render();
+        var diagnostics = runtime.debugReflectionAdaptiveTrendDiagnostics();
+
+        assertTrue(diagnostics.windowSamples() >= 1);
+        assertTrue(diagnostics.lowRatio() >= 0.0 && diagnostics.lowRatio() <= 1.0);
+        assertTrue(diagnostics.mediumRatio() >= 0.0 && diagnostics.mediumRatio() <= 1.0);
+        assertTrue(diagnostics.highRatio() >= 0.0 && diagnostics.highRatio() <= 1.0);
+        assertEquals(0.41, diagnostics.highRatioWarnMin(), 1e-6);
+        assertEquals(3, diagnostics.highRatioWarnMinFrames());
+        assertEquals(90, diagnostics.highRatioWarnCooldownFrames());
+        assertEquals(7, diagnostics.highRatioWarnMinSamples());
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionBlessedProfilesProduceExpectedTrendEnvelopes() throws Exception {
+        Map<String, String> forcedRisk = Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "1.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityWarnMinFrames", "1")
+        );
+
+        assertBlessedProfileTrendEnvelope(
+                "performance",
+                150,
+                0.55,
+                false,
+                forcedRisk
+        );
+        assertBlessedProfileTrendEnvelope(
+                "quality",
+                120,
+                0.45,
+                false,
+                forcedRisk
+        );
+        assertBlessedProfileTrendEnvelope(
+                "stability",
+                180,
+                0.30,
+                true,
+                forcedRisk
+        );
+    }
+
+    @Test
     void stabilityReflectionProfileAppliesTelemetryDefaultsWhenNotOverridden() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(
@@ -639,6 +728,10 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(profileWarning.contains("ssrTaaAdaptiveSsrStrengthScaleMin=0.6"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveStepScaleBoostMax=0.25"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWindowFrames=180"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendHighRatioWarnMin=0.3"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWarnMinFrames=2"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWarnCooldownFrames=90"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWarnMinSamples=16"));
         String probeDiagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
         assertTrue(probeDiagnostics.contains("warnMinStreak=2"));
         assertTrue(probeDiagnostics.contains("warnCooldownFrames=60"));
@@ -689,6 +782,11 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(profileWarning.contains("profile=performance"));
         assertTrue(profileWarning.contains("probeWarnMinDelta=2"));
         assertTrue(profileWarning.contains("ssrTaaWarnMinFrames=4"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWindowFrames=150"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendHighRatioWarnMin=0.55"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWarnMinFrames=4"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWarnCooldownFrames=240"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWarnMinSamples=30"));
         String diagnostics = warningMessageByCode(frame, "REFLECTION_SSR_TAA_DIAGNOSTICS");
         assertTrue(diagnostics.contains("instabilityRejectMin=0.45"));
         assertTrue(diagnostics.contains("instabilityConfidenceMax=0.6"));
@@ -719,6 +817,12 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.contains("instabilityWarnMinFrames=2"));
         assertTrue(diagnostics.contains("instabilityWarnCooldownFrames=90"));
         assertTrue(diagnostics.contains("instabilityRiskEmaAlpha=0.3"));
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWindowFrames=120"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendHighRatioWarnMin=0.45"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWarnMinFrames=3"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWarnCooldownFrames=120"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWarnMinSamples=24"));
         String probeDiagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
         assertTrue(probeDiagnostics.contains("warnMinDelta=1"));
         assertTrue(probeDiagnostics.contains("warnMinStreak=2"));
@@ -2396,6 +2500,43 @@ class VulkanEngineRuntimeIntegrationTest {
                 .findFirst()
                 .map(org.dynamislight.api.event.EngineWarning::message)
                 .orElse("");
+    }
+
+    private static void assertBlessedProfileTrendEnvelope(
+            String profile,
+            int expectedWindowFrames,
+            double expectedHighRatioWarnMin,
+            boolean adaptiveExpected,
+            Map<String, String> forcedRisk
+    ) throws Exception {
+        Map<String, String> options = new java.util.LinkedHashMap<>(forcedRisk);
+        options.put("vulkan.reflectionsProfile", profile);
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(options), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        runtime.render();
+        var frame = runtime.render();
+
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+        String trendReport = warningMessageByCode(frame, "REFLECTION_SSR_TAA_ADAPTIVE_TREND_REPORT");
+        assertTrue(profileWarning.contains("profile=" + profile));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveEnabled=" + adaptiveExpected));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWindowFrames=" + expectedWindowFrames));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendHighRatioWarnMin=" + expectedHighRatioWarnMin));
+        double meanTemporalDelta = parseDoubleMetricField(trendReport, "meanTemporalDelta");
+        double meanSsrStrengthDelta = parseDoubleMetricField(trendReport, "meanSsrStrengthDelta");
+        double meanSsrStepScaleDelta = parseDoubleMetricField(trendReport, "meanSsrStepScaleDelta");
+        if (adaptiveExpected) {
+            assertTrue(meanTemporalDelta >= 0.0);
+            assertTrue(meanSsrStrengthDelta <= 0.0);
+            assertTrue(meanSsrStepScaleDelta >= 0.0);
+        } else {
+            assertEquals(0.0, meanTemporalDelta, 1e-6);
+            assertEquals(0.0, meanSsrStrengthDelta, 1e-6);
+            assertEquals(0.0, meanSsrStepScaleDelta, 1e-6);
+        }
+        runtime.shutdown();
     }
 
     private static int parseIntMetricField(String message, String key) {

@@ -48,7 +48,11 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "0.21"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin", "0.63"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "0.28"),
-                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames", "240")
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames", "240"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin", "0.52"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames", "5"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames", "210"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples", "44")
                 ),
                 256
         );
@@ -98,6 +102,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.63, parsed.reflectionSsrTaaAdaptiveSsrStrengthScaleMin());
         assertEquals(0.28, parsed.reflectionSsrTaaAdaptiveStepScaleBoostMax());
         assertEquals(240, parsed.reflectionSsrTaaAdaptiveTrendWindowFrames());
+        assertEquals(0.52, parsed.reflectionSsrTaaAdaptiveTrendHighRatioWarnMin());
+        assertEquals(5, parsed.reflectionSsrTaaAdaptiveTrendWarnMinFrames());
+        assertEquals(210, parsed.reflectionSsrTaaAdaptiveTrendWarnCooldownFrames());
+        assertEquals(44, parsed.reflectionSsrTaaAdaptiveTrendWarnMinSamples());
     }
 
     @Test
@@ -135,7 +143,11 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "9.0"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin", "-1.0"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "2.0"),
-                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames", "2")
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames", "2"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin", "2.0"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames", "0"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples", "0")
                 ),
                 256
         );
@@ -179,5 +191,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.2, parsed.reflectionSsrTaaAdaptiveSsrStrengthScaleMin());
         assertEquals(1.0, parsed.reflectionSsrTaaAdaptiveStepScaleBoostMax());
         assertEquals(8, parsed.reflectionSsrTaaAdaptiveTrendWindowFrames());
+        assertEquals(1.0, parsed.reflectionSsrTaaAdaptiveTrendHighRatioWarnMin());
+        assertEquals(1, parsed.reflectionSsrTaaAdaptiveTrendWarnMinFrames());
+        assertEquals(10000, parsed.reflectionSsrTaaAdaptiveTrendWarnCooldownFrames());
+        assertEquals(1, parsed.reflectionSsrTaaAdaptiveTrendWarnMinSamples());
     }
 }

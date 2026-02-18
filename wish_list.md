@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 13:10 ET — Added fixed-window adaptive trend warning report (`REFLECTION_SSR_TAA_ADAPTIVE_TREND_REPORT`) with severity buckets/ratios and mean delta signals for CI gating, plus configurable window sizing.
+- Latest reflection update: 2026-02-18 13:25 ET — Added high-risk trend gate warning (`REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK`) with threshold/streak/cooldown policy, typed trend diagnostics accessor, and blessed-profile trend envelope checks.
 
 Status legend:
 
@@ -76,6 +76,7 @@ Reflection notes:
 - Vulkan runtime now exposes typed adaptive-policy diagnostics for reflection telemetry validation (`debugReflectionAdaptivePolicyDiagnostics`).
 - Vulkan now emits a typed adaptive reflection telemetry event each frame (`ReflectionAdaptiveTelemetryEvent`) for callback-driven trend analysis.
 - Vulkan now emits a fixed-window adaptive trend warning report (`REFLECTION_SSR_TAA_ADAPTIVE_TREND_REPORT`) with severity bucket ratios and mean adaptive deltas.
+- Vulkan now includes a CI-friendly high-risk trend gate warning with configurable ratio/streak/sample/cooldown thresholds and a typed trend diagnostics accessor (`debugReflectionAdaptiveTrendDiagnostics`).
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

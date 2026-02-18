@@ -221,6 +221,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double reflectionAdaptiveSsrStepScaleDeltaAccum;
     private long reflectionAdaptiveTelemetrySamples;
     private int reflectionSsrTaaAdaptiveTrendWindowFrames = 120;
+    private double reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = 0.40;
+    private int reflectionSsrTaaAdaptiveTrendWarnMinFrames = 3;
+    private int reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = 120;
+    private int reflectionSsrTaaAdaptiveTrendWarnMinSamples = 24;
+    private int reflectionSsrTaaAdaptiveTrendWarnHighStreak;
+    private int reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining;
+    private boolean reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame;
     private final Deque<ReflectionAdaptiveWindowSample> reflectionAdaptiveTrendSamples = new ArrayDeque<>();
 
     public VulkanEngineRuntime() {
@@ -305,6 +312,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionSsrTaaAdaptiveSsrStrengthScaleMin = options.reflectionSsrTaaAdaptiveSsrStrengthScaleMin();
         reflectionSsrTaaAdaptiveStepScaleBoostMax = options.reflectionSsrTaaAdaptiveStepScaleBoostMax();
         reflectionSsrTaaAdaptiveTrendWindowFrames = options.reflectionSsrTaaAdaptiveTrendWindowFrames();
+        reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = options.reflectionSsrTaaAdaptiveTrendHighRatioWarnMin();
+        reflectionSsrTaaAdaptiveTrendWarnMinFrames = options.reflectionSsrTaaAdaptiveTrendWarnMinFrames();
+        reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = options.reflectionSsrTaaAdaptiveTrendWarnCooldownFrames();
+        reflectionSsrTaaAdaptiveTrendWarnMinSamples = options.reflectionSsrTaaAdaptiveTrendWarnMinSamples();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
@@ -702,6 +713,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", ssrTaaAdaptiveSsrStrengthScaleMin=" + reflectionSsrTaaAdaptiveSsrStrengthScaleMin
                             + ", ssrTaaAdaptiveStepScaleBoostMax=" + reflectionSsrTaaAdaptiveStepScaleBoostMax
                             + ", ssrTaaAdaptiveTrendWindowFrames=" + reflectionSsrTaaAdaptiveTrendWindowFrames
+                            + ", ssrTaaAdaptiveTrendHighRatioWarnMin=" + reflectionSsrTaaAdaptiveTrendHighRatioWarnMin
+                            + ", ssrTaaAdaptiveTrendWarnMinFrames=" + reflectionSsrTaaAdaptiveTrendWarnMinFrames
+                            + ", ssrTaaAdaptiveTrendWarnCooldownFrames=" + reflectionSsrTaaAdaptiveTrendWarnCooldownFrames
+                            + ", ssrTaaAdaptiveTrendWarnMinSamples=" + reflectionSsrTaaAdaptiveTrendWarnMinSamples
                             + ")"
             ));
             boolean ssrPathActive = reflectionBaseMode == 1 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
@@ -758,7 +773,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", riskWarnCooldownRemaining=" + ssrTaaRisk.warnCooldownRemaining()
                                 + ")"
                 ));
-                ReflectionAdaptiveTrendDiagnostics adaptiveTrend = snapshotReflectionAdaptiveTrendDiagnostics();
+                boolean adaptiveTrendWarningTriggered = updateReflectionAdaptiveTrendWarningGate();
+                ReflectionAdaptiveTrendDiagnostics adaptiveTrend = snapshotReflectionAdaptiveTrendDiagnostics(adaptiveTrendWarningTriggered);
                 warnings.add(new EngineWarning(
                         "REFLECTION_SSR_TAA_ADAPTIVE_TREND_REPORT",
                         "SSR/TAA adaptive trend report (windowFrames=" + reflectionSsrTaaAdaptiveTrendWindowFrames
@@ -774,8 +790,26 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", meanTemporalDelta=" + adaptiveTrend.meanTemporalDelta()
                                 + ", meanSsrStrengthDelta=" + adaptiveTrend.meanSsrStrengthDelta()
                                 + ", meanSsrStepScaleDelta=" + adaptiveTrend.meanSsrStepScaleDelta()
+                                + ", highRatioWarnMin=" + adaptiveTrend.highRatioWarnMin()
+                                + ", highRatioWarnMinFrames=" + adaptiveTrend.highRatioWarnMinFrames()
+                                + ", highRatioWarnCooldownFrames=" + adaptiveTrend.highRatioWarnCooldownFrames()
+                                + ", highRatioWarnMinSamples=" + adaptiveTrend.highRatioWarnMinSamples()
+                                + ", highRatioWarnHighStreak=" + adaptiveTrend.highRatioWarnHighStreak()
+                                + ", highRatioWarnCooldownRemaining=" + adaptiveTrend.highRatioWarnCooldownRemaining()
+                                + ", highRatioWarnTriggered=" + adaptiveTrend.highRatioWarnTriggered()
                                 + ")"
                 ));
+                if (adaptiveTrendWarningTriggered) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK",
+                            "SSR/TAA adaptive trend high-risk gate triggered (highRatio=" + adaptiveTrend.highRatio()
+                                    + ", highRatioWarnMin=" + reflectionSsrTaaAdaptiveTrendHighRatioWarnMin
+                                    + ", windowSamples=" + adaptiveTrend.windowSamples()
+                                    + ", warnMinSamples=" + reflectionSsrTaaAdaptiveTrendWarnMinSamples
+                                    + ", warnHighStreak=" + reflectionSsrTaaAdaptiveTrendWarnHighStreak
+                                    + ")"
+                    ));
+                }
                 if (ssrTaaRisk.warningTriggered()) {
                     warnings.add(new EngineWarning(
                             "REFLECTION_SSR_TAA_INSTABILITY_RISK",
@@ -791,6 +825,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             } else {
                 resetReflectionSsrTaaRiskDiagnostics();
                 resetReflectionAdaptiveState();
+                reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = false;
             }
             if (churnDiagnostics.warningTriggered()) {
                 warnings.add(new EngineWarning(
@@ -810,6 +845,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
         } else {
             resetReflectionProbeChurnDiagnostics();
+            resetReflectionSsrTaaRiskDiagnostics();
+            resetReflectionAdaptiveState();
+            resetReflectionAdaptiveTelemetryMetrics();
         }
         if (currentShadows.enabled()) {
             String momentPhase = "pending";
@@ -1251,13 +1289,36 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionAdaptiveSsrStrengthDeltaAccum = 0.0;
         reflectionAdaptiveSsrStepScaleDeltaAccum = 0.0;
         reflectionAdaptiveTelemetrySamples = 0L;
+        reflectionSsrTaaAdaptiveTrendWarnHighStreak = 0;
+        reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining = 0;
+        reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = false;
         reflectionAdaptiveTrendSamples.clear();
     }
 
-    private ReflectionAdaptiveTrendDiagnostics snapshotReflectionAdaptiveTrendDiagnostics() {
+    private ReflectionAdaptiveTrendDiagnostics snapshotReflectionAdaptiveTrendDiagnostics(boolean warningTriggered) {
         int windowSamples = reflectionAdaptiveTrendSamples.size();
         if (windowSamples <= 0) {
-            return new ReflectionAdaptiveTrendDiagnostics(0, 0.0, 0.0, 0, 0, 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+            return new ReflectionAdaptiveTrendDiagnostics(
+                    0,
+                    0.0,
+                    0.0,
+                    0,
+                    0,
+                    0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    reflectionSsrTaaAdaptiveTrendHighRatioWarnMin,
+                    reflectionSsrTaaAdaptiveTrendWarnMinFrames,
+                    reflectionSsrTaaAdaptiveTrendWarnCooldownFrames,
+                    reflectionSsrTaaAdaptiveTrendWarnMinSamples,
+                    reflectionSsrTaaAdaptiveTrendWarnHighStreak,
+                    reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining,
+                    warningTriggered
+            );
         }
         double severityAccum = 0.0;
         double severityPeak = 0.0;
@@ -1295,8 +1356,37 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 highCount / denom,
                 temporalDeltaAccum / denom,
                 ssrStrengthDeltaAccum / denom,
-                ssrStepScaleDeltaAccum / denom
+                ssrStepScaleDeltaAccum / denom,
+                reflectionSsrTaaAdaptiveTrendHighRatioWarnMin,
+                reflectionSsrTaaAdaptiveTrendWarnMinFrames,
+                reflectionSsrTaaAdaptiveTrendWarnCooldownFrames,
+                reflectionSsrTaaAdaptiveTrendWarnMinSamples,
+                reflectionSsrTaaAdaptiveTrendWarnHighStreak,
+                reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining,
+                warningTriggered
         );
+    }
+
+    private boolean updateReflectionAdaptiveTrendWarningGate() {
+        ReflectionAdaptiveTrendDiagnostics trend = snapshotReflectionAdaptiveTrendDiagnostics(false);
+        boolean highRisk = trend.windowSamples() >= reflectionSsrTaaAdaptiveTrendWarnMinSamples
+                && trend.highRatio() >= reflectionSsrTaaAdaptiveTrendHighRatioWarnMin;
+        boolean warningTriggered = false;
+        if (highRisk) {
+            reflectionSsrTaaAdaptiveTrendWarnHighStreak++;
+            if (reflectionSsrTaaAdaptiveTrendWarnHighStreak >= reflectionSsrTaaAdaptiveTrendWarnMinFrames
+                    && reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining <= 0) {
+                reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining = reflectionSsrTaaAdaptiveTrendWarnCooldownFrames;
+                warningTriggered = true;
+            }
+        } else {
+            reflectionSsrTaaAdaptiveTrendWarnHighStreak = 0;
+        }
+        if (reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining > 0) {
+            reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining--;
+        }
+        reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = warningTriggered;
+        return warningTriggered;
     }
 
     SceneReuseStats debugSceneReuseStats() {
@@ -1361,6 +1451,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionAdaptiveTrendDiagnostics debugReflectionAdaptiveTrendDiagnostics() {
+        return snapshotReflectionAdaptiveTrendDiagnostics(reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame);
+    }
+
     static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
     }
 
@@ -1419,7 +1513,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             double highRatio,
             double meanTemporalDelta,
             double meanSsrStrengthDelta,
-            double meanSsrStepScaleDelta
+            double meanSsrStepScaleDelta,
+            double highRatioWarnMin,
+            int highRatioWarnMinFrames,
+            int highRatioWarnCooldownFrames,
+            int highRatioWarnMinSamples,
+            int highRatioWarnHighStreak,
+            int highRatioWarnCooldownRemaining,
+            boolean highRatioWarnTriggered
     ) {
     }
 
@@ -1546,6 +1647,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin")) reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.80;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax")) reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.10;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames")) reflectionSsrTaaAdaptiveTrendWindowFrames = 150;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin")) reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = 0.55;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames")) reflectionSsrTaaAdaptiveTrendWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames")) reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = 240;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples")) reflectionSsrTaaAdaptiveTrendWarnMinSamples = 30;
             }
             case QUALITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -1562,6 +1667,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin")) reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.70;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax")) reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.15;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames")) reflectionSsrTaaAdaptiveTrendWindowFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin")) reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = 0.45;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames")) reflectionSsrTaaAdaptiveTrendWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames")) reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples")) reflectionSsrTaaAdaptiveTrendWarnMinSamples = 24;
             }
             case STABILITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -1578,6 +1687,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin")) reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.60;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax")) reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.25;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames")) reflectionSsrTaaAdaptiveTrendWindowFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin")) reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = 0.30;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames")) reflectionSsrTaaAdaptiveTrendWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames")) reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples")) reflectionSsrTaaAdaptiveTrendWarnMinSamples = 16;
             }
             default -> {
             }
