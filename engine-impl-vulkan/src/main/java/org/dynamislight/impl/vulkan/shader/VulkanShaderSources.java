@@ -1554,7 +1554,11 @@ public final class VulkanShaderSources {
                         if (probeCount > 0) {
                             vec3 probeAccum = vec3(0.0);
                             float probeWeightSum = 0.0;
+                            float remainingCoverage = 1.0;
                             for (int i = 0; i < probeCount; i++) {
+                                if (remainingCoverage <= 0.0) {
+                                    break;
+                                }
                                 ProbeData probe = probes.uProbes[i];
                                 if (probe.cubemapIndexAndFlags.x < 0) {
                                     continue;
@@ -1563,11 +1567,16 @@ public final class VulkanShaderSources {
                                 if (weight <= 0.0) {
                                     continue;
                                 }
+                                float contribution = min(weight, remainingCoverage);
+                                if (contribution <= 0.0) {
+                                    continue;
+                                }
                                 vec3 probeDir = probeSampleDirection(vWorldPos, reflectDir, probe);
                                 vec2 probeUv = clamp(probeDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
                                 vec3 probeRad = sampleIblRadiance(probeUv, vUv, roughness, prefilter);
-                                probeAccum += probeRad * weight;
-                                probeWeightSum += weight;
+                                probeAccum += probeRad * contribution;
+                                probeWeightSum += contribution;
+                                remainingCoverage -= contribution;
                             }
                             if (probeWeightSum > 0.0) {
                                 vec3 blendedProbeRad = probeAccum / probeWeightSum;
