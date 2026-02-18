@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:39 ET — Added shader/pass-level planar capture realization: selective pre-main geometry capture now executes mirrored vertex transform + clip-plane culling (push-constant driven) before capture copy; runtime geometry-capture mode bit remains active.
+- Latest reflection update: 2026-02-18 14:46 ET — Plumbed configurable planar clip height into runtime capture execution: selective pre-main planar pass now uses `reflectionAdvanced.planarPlaneHeight` for mirror/clip behavior (instead of fixed plane), with end-to-end command/input/state wiring.
 
 Status legend:
 

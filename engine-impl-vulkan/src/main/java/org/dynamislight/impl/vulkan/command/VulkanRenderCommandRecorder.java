@@ -417,7 +417,7 @@ public final class VulkanRenderCommandRecorder {
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, in.graphicsPipeline());
         boolean planarClipEnabled = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_CLIP_BIT) != 0;
         float planarCaptureFlag = planarSelectiveOnly ? 1.0f : 0.0f;
-        float planarHeight = planarClipEnabled ? 0.0f : -10_000.0f;
+        float planarHeight = planarClipEnabled ? in.reflectionsPlanarPlaneHeight() : -10_000.0f;
         ByteBuffer planarPush = stack.malloc(4 * Float.BYTES);
         planarPush.asFloatBuffer().put(new float[]{planarCaptureFlag, planarHeight, 0.0f, 0.0f});
         vkCmdPushConstants(
@@ -1215,7 +1215,8 @@ public final class VulkanRenderCommandRecorder {
             int reflectionsMode,
             boolean taaHistoryInitialized,
             long taaHistoryVelocityImage,
-            long swapchainImageForCapture
+            long swapchainImageForCapture,
+            float reflectionsPlanarPlaneHeight
     ) {
     }
 

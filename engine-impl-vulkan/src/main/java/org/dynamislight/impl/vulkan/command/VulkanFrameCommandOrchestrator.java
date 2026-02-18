@@ -79,7 +79,8 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.reflectionsMode(),
                         inputs.taaHistoryInitialized(),
                         inputs.taaHistoryVelocityImage(),
-                        inputs.swapchainImages()[imageIndex]
+                        inputs.swapchainImages()[imageIndex],
+                        inputs.reflectionsPlanarPlaneHeight()
                 ),
                 meshes,
                 meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
@@ -230,6 +231,7 @@ public final class VulkanFrameCommandOrchestrator {
             float reflectionsSsrStepScale,
             float reflectionsTemporalWeight,
             float reflectionsPlanarStrength,
+            float reflectionsPlanarPlaneHeight,
             float reflectionsRtDenoiseStrength,
             int taaDebugView,
             long postRenderPass,

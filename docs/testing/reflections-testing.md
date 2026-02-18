@@ -92,6 +92,7 @@ Current profile tags in parity tests:
 - Assert `REFLECTION_PLANAR_SCOPE_CONTRACT` for planar/hybrid modes reports required ordering contract and selective scope counts.
 - Validate typed diagnostics (`debugReflectionPlanarContractDiagnostics`) match warning payload.
 - Assert runtime-composed reflection mode carries planar selective/capture execution bits when eligible scope exists, including planar geometry capture execution bit (`1 << 20`).
+- Validate planar clip-plane height from `ReflectionAdvancedDesc.planarPlaneHeight` is consumed by Vulkan planar capture path (mirrored/clip behavior follows configured plane).
 
 7. RT execution-lane checks
 - Assert `REFLECTION_RT_PATH_REQUESTED` and typed diagnostics (`debugReflectionRtPathDiagnostics`) expose lane request/active state and fallback chain.

@@ -816,6 +816,7 @@ final class VulkanContext {
             float reflectionsSsrStepScale,
             float reflectionsTemporalWeight,
             float reflectionsPlanarStrength,
+            float reflectionsPlanarPlaneHeight,
             float reflectionsRtDenoiseStrength
     ) {
         var result = VulkanRenderParameterMutator.applyPost(
@@ -846,6 +847,7 @@ final class VulkanContext {
                         this.renderState.reflectionsSsrStepScale,
                         this.renderState.reflectionsTemporalWeight,
                         this.renderState.reflectionsPlanarStrength,
+                        this.renderState.reflectionsPlanarPlaneHeight,
                         this.renderState.reflectionsRtDenoiseStrength
                 ),
                 new VulkanRenderParameterMutator.PostUpdate(
@@ -875,6 +877,7 @@ final class VulkanContext {
                         reflectionsSsrStepScale,
                         reflectionsTemporalWeight,
                         reflectionsPlanarStrength,
+                        reflectionsPlanarPlaneHeight,
                         reflectionsRtDenoiseStrength
                 )
         );
@@ -905,6 +908,7 @@ final class VulkanContext {
         this.renderState.reflectionsSsrStepScale = state.reflectionsSsrStepScale();
         this.renderState.reflectionsTemporalWeight = state.reflectionsTemporalWeight();
         this.renderState.reflectionsPlanarStrength = state.reflectionsPlanarStrength();
+        this.renderState.reflectionsPlanarPlaneHeight = state.reflectionsPlanarPlaneHeight();
         this.renderState.reflectionsRtDenoiseStrength = state.reflectionsRtDenoiseStrength();
         if (!this.renderState.taaEnabled) {
             this.renderState.postTaaHistoryInitialized = false;
@@ -1210,6 +1214,7 @@ final class VulkanContext {
                         renderState.reflectionsSsrStepScale,
                         renderState.reflectionsTemporalWeight,
                         renderState.reflectionsPlanarStrength,
+                        renderState.reflectionsPlanarPlaneHeight,
                         renderState.reflectionsRtDenoiseStrength,
                         renderState.taaDebugView,
                         backendResources.postRenderPass,

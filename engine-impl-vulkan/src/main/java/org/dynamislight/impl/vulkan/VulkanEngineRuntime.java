@@ -154,7 +154,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             "pcf", "pcf", false, false, false, false, "off", false,
             false
     );
-    private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
+    private PostProcessRenderConfig currentPost = new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f, 0.0f);
     private int taaDebugView;
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
@@ -1653,6 +1653,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionAdaptiveSsrStepScaleActive,
                 reflectionAdaptiveTemporalWeightActive,
                 currentPost.reflectionsPlanarStrength(),
+                currentPost.reflectionsPlanarPlaneHeight(),
                 (float) reflectionRtDenoiseStrength
         );
     }
@@ -2313,7 +2314,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 base.reflectionsSsrMaxRoughness(),
                 base.reflectionsSsrStepScale(),
                 base.reflectionsTemporalWeight(),
-                base.reflectionsPlanarStrength()
+                base.reflectionsPlanarStrength(),
+                base.reflectionsPlanarPlaneHeight()
         );
     }
 
@@ -2577,7 +2579,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float reflectionsSsrMaxRoughness,
             float reflectionsSsrStepScale,
             float reflectionsTemporalWeight,
-            float reflectionsPlanarStrength
+            float reflectionsPlanarStrength,
+            float reflectionsPlanarPlaneHeight
     ) {
     }
 

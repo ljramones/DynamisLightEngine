@@ -69,6 +69,7 @@ public final class VulkanRenderState {
     public float reflectionsSsrStepScale = 1.0f;
     public float reflectionsTemporalWeight = 0.80f;
     public float reflectionsPlanarStrength = 0.35f;
+    public float reflectionsPlanarPlaneHeight = 0.0f;
     public float reflectionsRtDenoiseStrength = 0.65f;
     public float taaJitterNdcX;
     public float taaJitterNdcY;

@@ -213,6 +213,7 @@ final class VulkanRuntimeLifecycle {
                 state.post().reflectionsSsrStepScale(),
                 state.post().reflectionsTemporalWeight(),
                 state.post().reflectionsPlanarStrength(),
+                state.post().reflectionsPlanarPlaneHeight(),
                 0.65f
         );
         context.setSceneMeshes(state.sceneMeshes());

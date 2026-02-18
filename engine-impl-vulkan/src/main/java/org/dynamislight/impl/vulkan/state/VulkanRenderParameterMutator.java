@@ -115,6 +115,7 @@ public final class VulkanRenderParameterMutator {
         float reflectionsSsrStepScale = current.reflectionsSsrStepScale();
         float reflectionsTemporalWeight = current.reflectionsTemporalWeight();
         float reflectionsPlanarStrength = current.reflectionsPlanarStrength();
+        float reflectionsPlanarPlaneHeight = current.reflectionsPlanarPlaneHeight();
         float reflectionsRtDenoiseStrength = current.reflectionsRtDenoiseStrength();
 
         if (tonemapEnabled != update.tonemapEnabled()) {
@@ -210,18 +211,21 @@ public final class VulkanRenderParameterMutator {
         float clampedReflectionsSsrStepScale = Math.max(0.5f, Math.min(3.0f, update.reflectionsSsrStepScale()));
         float clampedReflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, update.reflectionsTemporalWeight()));
         float clampedReflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, update.reflectionsPlanarStrength()));
+        float clampedReflectionsPlanarPlaneHeight = Math.max(-1000.0f, Math.min(1000.0f, update.reflectionsPlanarPlaneHeight()));
         float clampedReflectionsRtDenoiseStrength = Math.max(0f, Math.min(1.0f, update.reflectionsRtDenoiseStrength()));
         if (!floatEquals(reflectionsSsrStrength, clampedReflectionsSsrStrength)
                 || !floatEquals(reflectionsSsrMaxRoughness, clampedReflectionsSsrMaxRoughness)
                 || !floatEquals(reflectionsSsrStepScale, clampedReflectionsSsrStepScale)
                 || !floatEquals(reflectionsTemporalWeight, clampedReflectionsTemporalWeight)
                 || !floatEquals(reflectionsPlanarStrength, clampedReflectionsPlanarStrength)
+                || !floatEquals(reflectionsPlanarPlaneHeight, clampedReflectionsPlanarPlaneHeight)
                 || !floatEquals(reflectionsRtDenoiseStrength, clampedReflectionsRtDenoiseStrength)) {
             reflectionsSsrStrength = clampedReflectionsSsrStrength;
             reflectionsSsrMaxRoughness = clampedReflectionsSsrMaxRoughness;
             reflectionsSsrStepScale = clampedReflectionsSsrStepScale;
             reflectionsTemporalWeight = clampedReflectionsTemporalWeight;
             reflectionsPlanarStrength = clampedReflectionsPlanarStrength;
+            reflectionsPlanarPlaneHeight = clampedReflectionsPlanarPlaneHeight;
             reflectionsRtDenoiseStrength = clampedReflectionsRtDenoiseStrength;
             changed = true;
         }
@@ -231,7 +235,7 @@ public final class VulkanRenderParameterMutator {
                         ssaoEnabled, ssaoStrength, ssaoRadius, ssaoBias, ssaoPower,
                         smaaEnabled, smaaStrength, taaEnabled, taaBlend, taaClipScale, taaRenderScale, taaLumaClipEnabled, taaSharpenStrength,
                         reflectionsEnabled, reflectionsMode, reflectionsSsrStrength, reflectionsSsrMaxRoughness,
-                        reflectionsSsrStepScale, reflectionsTemporalWeight, reflectionsPlanarStrength, reflectionsRtDenoiseStrength
+                        reflectionsSsrStepScale, reflectionsTemporalWeight, reflectionsPlanarStrength, reflectionsPlanarPlaneHeight, reflectionsRtDenoiseStrength
                 ),
                 changed
         );
@@ -314,6 +318,7 @@ public final class VulkanRenderParameterMutator {
             float reflectionsSsrStepScale,
             float reflectionsTemporalWeight,
             float reflectionsPlanarStrength,
+            float reflectionsPlanarPlaneHeight,
             float reflectionsRtDenoiseStrength
     ) {
     }
@@ -345,6 +350,7 @@ public final class VulkanRenderParameterMutator {
             float reflectionsSsrStepScale,
             float reflectionsTemporalWeight,
             float reflectionsPlanarStrength,
+            float reflectionsPlanarPlaneHeight,
             float reflectionsRtDenoiseStrength
     ) {
     }

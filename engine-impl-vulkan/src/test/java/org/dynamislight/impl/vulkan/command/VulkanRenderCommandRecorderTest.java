@@ -34,7 +34,8 @@ class VulkanRenderCommandRecorderTest {
                 0,
                 false,
                 0L,
-                0L
+                0L,
+                0f
         );
         assertEquals(12, VulkanRenderCommandRecorder.shadowPassCount(inputs));
     }
@@ -68,7 +69,8 @@ class VulkanRenderCommandRecorderTest {
                 0,
                 false,
                 0L,
-                0L
+                0L,
+                0f
         );
         assertEquals(6, VulkanRenderCommandRecorder.shadowPassCount(inputs));
     }
@@ -102,7 +104,8 @@ class VulkanRenderCommandRecorderTest {
                 0,
                 false,
                 0L,
-                0L
+                0L,
+                0f
         );
         assertEquals(18, VulkanRenderCommandRecorder.shadowPassCount(inputs));
     }

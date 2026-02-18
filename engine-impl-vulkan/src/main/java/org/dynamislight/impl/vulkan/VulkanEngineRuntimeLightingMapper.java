@@ -36,7 +36,7 @@ final class VulkanEngineRuntimeLightingMapper {
             VulkanEngineRuntime.ReflectionProfile reflectionProfile
     ) {
         if (desc == null || !desc.enabled()) {
-            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
+            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f, 0.0f);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -219,6 +219,7 @@ final class VulkanEngineRuntimeLightingMapper {
         float reflectionsSsrStepScale = 1.0f;
         float reflectionsTemporalWeight = 0.80f;
         float reflectionsPlanarStrength = 0.35f;
+        float reflectionsPlanarPlaneHeight = 0.0f;
         if (reflectionDesc != null) {
             reflectionsMode = parseReflectionMode(reflectionDesc.mode());
             reflectionsEnabled = reflectionDesc.enabled() && reflectionsMode != 0;
@@ -245,6 +246,7 @@ final class VulkanEngineRuntimeLightingMapper {
             reflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, reflectionsTemporalWeight + (denoisePasses * 0.02f)));
             if (reflectionAdvancedDesc.planarClipPlaneEnabled()) {
                 reflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, reflectionsPlanarStrength + 0.05f));
+                reflectionsPlanarPlaneHeight = reflectionAdvancedDesc.planarPlaneHeight();
             }
             if (reflectionAdvancedDesc.probeVolumeEnabled()) {
                 reflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, reflectionsPlanarStrength + 0.03f));
@@ -306,7 +308,8 @@ final class VulkanEngineRuntimeLightingMapper {
                 reflectionsSsrMaxRoughness,
                 reflectionsSsrStepScale,
                 reflectionsTemporalWeight,
-                reflectionsPlanarStrength
+                reflectionsPlanarStrength,
+                reflectionsPlanarPlaneHeight
         );
     }
 
