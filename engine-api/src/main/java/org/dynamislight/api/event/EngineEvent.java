@@ -18,5 +18,6 @@ public sealed interface EngineEvent permits
         ResourceHotReloadedEvent,
         DeviceLostEvent,
         AaTelemetryEvent,
+        ReflectionAdaptiveTelemetryEvent,
         PerformanceWarningEvent {
 }

@@ -33,6 +33,7 @@ import org.dynamislight.api.runtime.EngineRuntime;
 import org.dynamislight.api.runtime.EngineStats;
 import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.event.DeviceLostEvent;
+import org.dynamislight.api.event.EngineEvent;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.FrameHandle;
 import org.dynamislight.api.logging.LogLevel;
@@ -219,6 +220,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
                         stats.taaConfidenceMean(),
                         stats.taaConfidenceDropEvents()
                 ));
+                EngineEvent extraTelemetry = additionalTelemetryEvent(frameIndex);
+                if (extraTelemetry != null) {
+                    host.onEvent(extraTelemetry);
+                }
             }
             return new EngineFrameResult(frameIndex, stats.cpuFrameMs(), stats.gpuFrameMs(), new FrameHandle(frameIndex, false),
                     warnings);
@@ -310,6 +315,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected List<EngineWarning> baselineWarnings() {
         return List.of();
+    }
+
+    protected EngineEvent additionalTelemetryEvent(long frameIndex) {
+        return null;
     }
 
     protected final RenderMetrics renderMetrics(

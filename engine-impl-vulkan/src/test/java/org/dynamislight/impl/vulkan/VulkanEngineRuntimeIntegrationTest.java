@@ -16,6 +16,7 @@ import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.AaTelemetryEvent;
+import org.dynamislight.api.event.ReflectionAdaptiveTelemetryEvent;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineErrorReport;
 import org.dynamislight.api.event.EngineEvent;
@@ -235,6 +236,40 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(runtime.getStats().taaConfidenceMean() >= 0.0 && runtime.getStats().taaConfidenceMean() <= 1.0);
         assertTrue(runtime.getStats().taaConfidenceDropEvents() >= 0L);
         assertTrue(callbacks.events.stream().anyMatch(AaTelemetryEvent.class::isInstance));
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionsRenderPublishesAdaptiveTelemetryEventWithTrendMetrics() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "1.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityWarnMinFrames", "1")
+        )), callbacks);
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        runtime.render();
+        runtime.render();
+
+        var adaptiveEvents = callbacks.events.stream()
+                .filter(ReflectionAdaptiveTelemetryEvent.class::isInstance)
+                .map(ReflectionAdaptiveTelemetryEvent.class::cast)
+                .toList();
+        assertFalse(adaptiveEvents.isEmpty());
+        ReflectionAdaptiveTelemetryEvent latest = adaptiveEvents.getLast();
+        assertTrue(latest.enabled());
+        assertTrue(latest.samples() >= 1L);
+        assertTrue(latest.instantSeverity() >= 0.0 && latest.instantSeverity() <= 1.0);
+        assertTrue(latest.meanSeverity() >= 0.0 && latest.meanSeverity() <= 1.0);
+        assertTrue(latest.peakSeverity() >= 0.0 && latest.peakSeverity() <= 1.0);
+        assertTrue(latest.meanTemporalDelta() >= 0.0);
+        assertTrue(latest.meanSsrStrengthDelta() <= 0.0);
+        assertTrue(latest.meanSsrStepScaleDelta() >= 0.0);
         runtime.shutdown();
     }
 

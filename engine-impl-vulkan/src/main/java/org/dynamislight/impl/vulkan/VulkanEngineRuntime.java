@@ -11,7 +11,9 @@ import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.event.EngineEvent;
 import org.dynamislight.api.event.EngineWarning;
+import org.dynamislight.api.event.ReflectionAdaptiveTelemetryEvent;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
@@ -209,6 +211,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private float reflectionAdaptiveTemporalWeightActive = 0.80f;
     private float reflectionAdaptiveSsrStrengthActive = 0.6f;
     private float reflectionAdaptiveSsrStepScaleActive = 1.0f;
+    private double reflectionAdaptiveSeverityInstant;
+    private double reflectionAdaptiveSeverityPeak;
+    private double reflectionAdaptiveSeverityAccum;
+    private double reflectionAdaptiveTemporalDeltaAccum;
+    private double reflectionAdaptiveSsrStrengthDeltaAccum;
+    private double reflectionAdaptiveSsrStepScaleDeltaAccum;
+    private long reflectionAdaptiveTelemetrySamples;
 
     public VulkanEngineRuntime() {
         super(
@@ -301,6 +310,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         resetReflectionProbeChurnDiagnostics();
         resetReflectionSsrTaaRiskDiagnostics();
         resetReflectionAdaptiveState();
+        resetReflectionAdaptiveTelemetryMetrics();
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -401,6 +411,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         currentPost = sceneState.post();
         currentPost = applyExternalUpscalerDecision(currentPost);
         resetReflectionAdaptiveState();
+        resetReflectionAdaptiveTelemetryMetrics();
         currentIbl = sceneState.ibl();
         nonDirectionalShadowRequested = sceneState.nonDirectionalShadowRequested();
         meshGeometryCacheProfile = sceneState.meshGeometryCacheProfile();
@@ -572,6 +583,32 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     @Override
     protected long aaConfidenceDropEvents() {
         return context.taaConfidenceDropEvents();
+    }
+
+    @Override
+    protected EngineEvent additionalTelemetryEvent(long frameIndex) {
+        if (!currentPost.reflectionsEnabled()) {
+            return null;
+        }
+        return new ReflectionAdaptiveTelemetryEvent(
+                frameIndex,
+                reflectionSsrTaaAdaptiveEnabled,
+                reflectionAdaptiveSeverityInstant,
+                reflectionAdaptiveTelemetrySamples <= 0L
+                        ? 0.0
+                        : reflectionAdaptiveSeverityAccum / (double) reflectionAdaptiveTelemetrySamples,
+                reflectionAdaptiveSeverityPeak,
+                reflectionAdaptiveTelemetrySamples <= 0L
+                        ? 0.0
+                        : reflectionAdaptiveTemporalDeltaAccum / (double) reflectionAdaptiveTelemetrySamples,
+                reflectionAdaptiveTelemetrySamples <= 0L
+                        ? 0.0
+                        : reflectionAdaptiveSsrStrengthDeltaAccum / (double) reflectionAdaptiveTelemetrySamples,
+                reflectionAdaptiveTelemetrySamples <= 0L
+                        ? 0.0
+                        : reflectionAdaptiveSsrStepScaleDeltaAccum / (double) reflectionAdaptiveTelemetrySamples,
+                reflectionAdaptiveTelemetrySamples
+        );
     }
 
     @Override
@@ -1069,12 +1106,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionAdaptiveTemporalWeightActive = baseTemporalWeight;
         reflectionAdaptiveSsrStrengthActive = baseSsrStrength;
         reflectionAdaptiveSsrStepScaleActive = baseSsrStepScale;
+        double severity = 0.0;
 
         if (reflectionSsrTaaAdaptiveEnabled
                 && currentPost.reflectionsEnabled()
                 && currentPost.taaEnabled()
                 && isReflectionSsrPathActive(currentPost.reflectionsMode())) {
-            double severity = computeReflectionAdaptiveSeverity();
+            severity = computeReflectionAdaptiveSeverity();
             reflectionAdaptiveTemporalWeightActive = clamp(
                     (float) (baseTemporalWeight + severity * reflectionSsrTaaAdaptiveTemporalBoostMax),
                     0.0f,
@@ -1091,6 +1129,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     0.5f,
                     3.0f
             );
+        }
+        if (currentPost.reflectionsEnabled()) {
+            recordReflectionAdaptiveTelemetrySample(baseTemporalWeight, baseSsrStrength, baseSsrStepScale, severity);
+        } else {
+            reflectionAdaptiveSeverityInstant = 0.0;
         }
 
         context.setPostProcessParameters(
@@ -1147,6 +1190,31 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionAdaptiveTemporalWeightActive = currentPost == null ? 0.80f : currentPost.reflectionsTemporalWeight();
         reflectionAdaptiveSsrStrengthActive = currentPost == null ? 0.6f : currentPost.reflectionsSsrStrength();
         reflectionAdaptiveSsrStepScaleActive = currentPost == null ? 1.0f : currentPost.reflectionsSsrStepScale();
+    }
+
+    private void recordReflectionAdaptiveTelemetrySample(
+            float baseTemporalWeight,
+            float baseSsrStrength,
+            float baseSsrStepScale,
+            double severity
+    ) {
+        reflectionAdaptiveSeverityInstant = Math.max(0.0, Math.min(1.0, severity));
+        reflectionAdaptiveSeverityPeak = Math.max(reflectionAdaptiveSeverityPeak, reflectionAdaptiveSeverityInstant);
+        reflectionAdaptiveTelemetrySamples++;
+        reflectionAdaptiveSeverityAccum += reflectionAdaptiveSeverityInstant;
+        reflectionAdaptiveTemporalDeltaAccum += (reflectionAdaptiveTemporalWeightActive - baseTemporalWeight);
+        reflectionAdaptiveSsrStrengthDeltaAccum += (reflectionAdaptiveSsrStrengthActive - baseSsrStrength);
+        reflectionAdaptiveSsrStepScaleDeltaAccum += (reflectionAdaptiveSsrStepScaleActive - baseSsrStepScale);
+    }
+
+    private void resetReflectionAdaptiveTelemetryMetrics() {
+        reflectionAdaptiveSeverityInstant = 0.0;
+        reflectionAdaptiveSeverityPeak = 0.0;
+        reflectionAdaptiveSeverityAccum = 0.0;
+        reflectionAdaptiveTemporalDeltaAccum = 0.0;
+        reflectionAdaptiveSsrStrengthDeltaAccum = 0.0;
+        reflectionAdaptiveSsrStepScaleDeltaAccum = 0.0;
+        reflectionAdaptiveTelemetrySamples = 0L;
     }
 
     SceneReuseStats debugSceneReuseStats() {
