@@ -629,6 +629,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", cooldownRemaining=" + churnDiagnostics.warnCooldownRemaining()
                             + ")"
             ));
+            warnings.add(new EngineWarning(
+                    "REFLECTION_TELEMETRY_PROFILE_ACTIVE",
+                    "Reflection telemetry profile active (profile=" + reflectionProfile.name().toLowerCase()
+                            + ", probeWarnMinDelta=" + reflectionProbeChurnWarnMinDelta
+                            + ", probeWarnMinStreak=" + reflectionProbeChurnWarnMinStreak
+                            + ", probeWarnCooldownFrames=" + reflectionProbeChurnWarnCooldownFrames
+                            + ", ssrTaaRejectMin=" + reflectionSsrTaaInstabilityRejectMin
+                            + ", ssrTaaConfidenceMax=" + reflectionSsrTaaInstabilityConfidenceMax
+                            + ", ssrTaaDropEventsMin=" + reflectionSsrTaaInstabilityDropEventsMin
+                            + ", ssrTaaWarnMinFrames=" + reflectionSsrTaaInstabilityWarnMinFrames
+                            + ", ssrTaaWarnCooldownFrames=" + reflectionSsrTaaInstabilityWarnCooldownFrames
+                            + ", ssrTaaRiskEmaAlpha=" + reflectionSsrTaaRiskEmaAlpha
+                            + ")"
+            ));
             boolean ssrPathActive = reflectionBaseMode == 1 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
             if (ssrPathActive && currentPost.taaEnabled()) {
                 double taaReject = context.taaHistoryRejectRate();

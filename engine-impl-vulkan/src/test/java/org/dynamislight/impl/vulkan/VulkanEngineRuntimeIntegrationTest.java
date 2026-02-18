@@ -460,6 +460,7 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_SSR_TAA_DIAGNOSTICS".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_TELEMETRY_PROFILE_ACTIVE".equals(w.code())));
         String diagnostics = warningMessageByCode(frame, "REFLECTION_SSR_TAA_DIAGNOSTICS");
         assertTrue(diagnostics.contains("mode=hybrid"));
         assertTrue(diagnostics.contains("ssrStrength="));
@@ -481,6 +482,8 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(riskDiagnostics.highStreak() >= 0);
         assertTrue(riskDiagnostics.emaReject() >= 0.0);
         assertTrue(riskDiagnostics.emaConfidence() >= 0.0);
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+        assertTrue(profileWarning.contains("profile=balanced"));
         runtime.shutdown();
     }
 
@@ -540,6 +543,10 @@ class VulkanEngineRuntimeIntegrationTest {
 
         var frame = runtime.render();
 
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+        assertTrue(profileWarning.contains("profile=performance"));
+        assertTrue(profileWarning.contains("probeWarnMinDelta=2"));
+        assertTrue(profileWarning.contains("ssrTaaWarnMinFrames=4"));
         String diagnostics = warningMessageByCode(frame, "REFLECTION_SSR_TAA_DIAGNOSTICS");
         assertTrue(diagnostics.contains("instabilityRejectMin=0.45"));
         assertTrue(diagnostics.contains("instabilityConfidenceMax=0.6"));
