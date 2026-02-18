@@ -73,6 +73,7 @@ Reflection notes:
 - Reflection warning envelope now includes a compact profile-threshold summary warning (`REFLECTION_TELEMETRY_PROFILE_ACTIVE`).
 - Vulkan now supports an optional adaptive SSR/TAA stabilization policy that tunes active temporal weight, SSR strength, and SSR step scale from EMA/streak risk signals.
 - Reflection profiles (`performance`, `quality`, `stability`) now also control adaptive SSR/TAA defaults unless explicitly overridden by backend options.
+- Vulkan runtime now exposes typed adaptive-policy diagnostics for reflection telemetry validation (`debugReflectionAdaptivePolicyDiagnostics`).
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

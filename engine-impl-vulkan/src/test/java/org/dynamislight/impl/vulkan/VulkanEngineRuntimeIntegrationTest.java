@@ -548,6 +548,32 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionAdaptivePolicyDiagnosticsExposeResolvedRuntimeState() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "0.19"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin", "0.62"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "0.23")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        runtime.render();
+        runtime.render();
+        var diagnostics = runtime.debugReflectionAdaptivePolicyDiagnostics();
+
+        assertTrue(diagnostics.enabled());
+        assertEquals(0.19, diagnostics.temporalBoostMax(), 1e-6);
+        assertEquals(0.62, diagnostics.ssrStrengthScaleMin(), 1e-6);
+        assertEquals(0.23, diagnostics.stepScaleBoostMax(), 1e-6);
+        assertTrue(diagnostics.activeTemporalWeight() >= diagnostics.baseTemporalWeight());
+        assertTrue(diagnostics.activeSsrStrength() <= diagnostics.baseSsrStrength());
+        assertTrue(diagnostics.activeSsrStepScale() >= diagnostics.baseSsrStepScale());
+        runtime.shutdown();
+    }
+
+    @Test
     void stabilityReflectionProfileAppliesTelemetryDefaultsWhenNotOverridden() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(

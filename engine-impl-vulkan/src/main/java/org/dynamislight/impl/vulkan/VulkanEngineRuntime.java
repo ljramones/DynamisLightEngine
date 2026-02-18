@@ -1196,6 +1196,21 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionAdaptivePolicyDiagnostics debugReflectionAdaptivePolicyDiagnostics() {
+        return new ReflectionAdaptivePolicyDiagnostics(
+                reflectionSsrTaaAdaptiveEnabled,
+                currentPost.reflectionsTemporalWeight(),
+                reflectionAdaptiveTemporalWeightActive,
+                currentPost.reflectionsSsrStrength(),
+                reflectionAdaptiveSsrStrengthActive,
+                currentPost.reflectionsSsrStepScale(),
+                reflectionAdaptiveSsrStepScaleActive,
+                reflectionSsrTaaAdaptiveTemporalBoostMax,
+                reflectionSsrTaaAdaptiveSsrStrengthScaleMin,
+                reflectionSsrTaaAdaptiveStepScaleBoostMax
+        );
+    }
+
     static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
     }
 
@@ -1225,6 +1240,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             double emaReject,
             double emaConfidence,
             boolean warningTriggered
+    ) {
+    }
+
+    record ReflectionAdaptivePolicyDiagnostics(
+            boolean enabled,
+            float baseTemporalWeight,
+            float activeTemporalWeight,
+            float baseSsrStrength,
+            float activeSsrStrength,
+            float baseSsrStepScale,
+            float activeSsrStepScale,
+            double temporalBoostMax,
+            double ssrStrengthScaleMin,
+            double stepScaleBoostMax
     ) {
     }
 
