@@ -189,6 +189,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private long reflectionProbeActiveDeltaAccum;
     private int reflectionProbeChurnHighStreak;
     private int reflectionProbeChurnWarnCooldownRemaining;
+    private int reflectionProbeChurnWarnMinDelta = REFLECTION_PROBE_CHURN_WARN_MIN_DELTA;
+    private int reflectionProbeChurnWarnMinStreak = REFLECTION_PROBE_CHURN_WARN_MIN_STREAK;
+    private int reflectionProbeChurnWarnCooldownFrames = REFLECTION_PROBE_CHURN_WARN_COOLDOWN_FRAMES;
 
     public VulkanEngineRuntime() {
         super(
@@ -258,6 +261,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowSchedulerDistantPeriod = options.shadowSchedulerDistantPeriod();
         shadowDirectionalTexelSnapEnabled = options.shadowDirectionalTexelSnapEnabled();
         shadowDirectionalTexelSnapScale = options.shadowDirectionalTexelSnapScale();
+        reflectionProbeChurnWarnMinDelta = options.reflectionProbeChurnWarnMinDelta();
+        reflectionProbeChurnWarnMinStreak = options.reflectionProbeChurnWarnMinStreak();
+        reflectionProbeChurnWarnCooldownFrames = options.reflectionProbeChurnWarnCooldownFrames();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
@@ -845,11 +851,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionProbeActiveChurnEvents++;
             reflectionProbeActiveDeltaAccum += delta;
         }
-        if (delta >= REFLECTION_PROBE_CHURN_WARN_MIN_DELTA) {
+        if (delta >= reflectionProbeChurnWarnMinDelta) {
             reflectionProbeChurnHighStreak++;
-            if (reflectionProbeChurnHighStreak >= REFLECTION_PROBE_CHURN_WARN_MIN_STREAK
+            if (reflectionProbeChurnHighStreak >= reflectionProbeChurnWarnMinStreak
                     && reflectionProbeChurnWarnCooldownRemaining <= 0) {
-                reflectionProbeChurnWarnCooldownRemaining = REFLECTION_PROBE_CHURN_WARN_COOLDOWN_FRAMES;
+                reflectionProbeChurnWarnCooldownRemaining = reflectionProbeChurnWarnCooldownFrames;
                 warningTriggered = true;
             }
         } else {

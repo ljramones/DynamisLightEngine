@@ -34,7 +34,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.scheduler.midPeriod", "3"),
                         Map.entry("vulkan.shadow.scheduler.distantPeriod", "8"),
                         Map.entry("vulkan.shadow.directionalTexelSnapEnabled", "false"),
-                        Map.entry("vulkan.shadow.directionalTexelSnapScale", "1.75")
+                        Map.entry("vulkan.shadow.directionalTexelSnapScale", "1.75"),
+                        Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "2"),
+                        Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "5"),
+                        Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "240")
                 ),
                 256
         );
@@ -70,6 +73,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(8, parsed.shadowSchedulerDistantPeriod());
         assertEquals(false, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(1.75f, parsed.shadowDirectionalTexelSnapScale());
+        assertEquals(2, parsed.reflectionProbeChurnWarnMinDelta());
+        assertEquals(5, parsed.reflectionProbeChurnWarnMinStreak());
+        assertEquals(240, parsed.reflectionProbeChurnWarnCooldownFrames());
     }
 
     @Test
@@ -94,7 +100,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.contactStrength", "-1.0"),
                         Map.entry("vulkan.shadow.contactTemporalMotionScale", "-1.0"),
                         Map.entry("vulkan.shadow.contactTemporalMinStability", "1.5"),
-                        Map.entry("vulkan.shadow.directionalTexelSnapScale", "10.0")
+                        Map.entry("vulkan.shadow.directionalTexelSnapScale", "10.0"),
+                        Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "0"),
+                        Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "0"),
+                        Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "999999")
                 ),
                 256
         );
@@ -124,5 +133,8 @@ class VulkanRuntimeOptionsTest {
         assertEquals(4, parsed.shadowSchedulerDistantPeriod());
         assertEquals(true, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(4.0f, parsed.shadowDirectionalTexelSnapScale());
+        assertEquals(1, parsed.reflectionProbeChurnWarnMinDelta());
+        assertEquals(1, parsed.reflectionProbeChurnWarnMinStreak());
+        assertEquals(10000, parsed.reflectionProbeChurnWarnCooldownFrames());
     }
 }
