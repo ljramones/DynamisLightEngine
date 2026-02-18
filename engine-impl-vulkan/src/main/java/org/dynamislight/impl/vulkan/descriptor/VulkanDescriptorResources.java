@@ -20,6 +20,7 @@ import org.lwjgl.vulkan.VkWriteDescriptorSet;
 
 import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -47,6 +48,7 @@ public final class VulkanDescriptorResources {
             MemoryStack stack,
             int framesInFlight,
             int maxDynamicSceneObjects,
+            int maxReflectionProbes,
             int objectUniformBytes,
             int globalSceneUniformBytes
     ) throws EngineException {
@@ -116,6 +118,35 @@ public final class VulkanDescriptorResources {
         }
         long sceneGlobalUniformStagingMappedAddress = pGlobalMapped.get(0);
 
+        int reflectionProbeMetadataMaxCount = Math.max(1, maxReflectionProbes);
+        int reflectionProbeMetadataStrideBytes = 80;
+        int reflectionProbeMetadataBufferBytes = 16 + (reflectionProbeMetadataMaxCount * reflectionProbeMetadataStrideBytes);
+        VulkanBufferAlloc reflectionProbeMetadataAlloc = VulkanMemoryOps.createBuffer(
+                device,
+                physicalDevice,
+                stack,
+                reflectionProbeMetadataBufferBytes,
+                VK10.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+        PointerBuffer pProbeMapped = stack.mallocPointer(1);
+        int mapProbeResult = vkMapMemory(
+                device,
+                reflectionProbeMetadataAlloc.memory(),
+                0,
+                reflectionProbeMetadataBufferBytes,
+                0,
+                pProbeMapped
+        );
+        if (mapProbeResult != VK_SUCCESS || pProbeMapped.get(0) == 0L) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkMapMemory(reflectionProbeMetadataPersistent) failed: " + mapProbeResult,
+                    false
+            );
+        }
+        long reflectionProbeMetadataMappedAddress = pProbeMapped.get(0);
+
         long descriptorPool = createMainDescriptorPool(device, stack, framesInFlight);
         long[] frameDescriptorSets = allocateFrameDescriptorSets(device, stack, descriptorPool, descriptorSetLayout, framesInFlight);
         updateFrameDescriptorSets(
@@ -124,6 +155,7 @@ public final class VulkanDescriptorResources {
                 frameDescriptorSets,
                 globalUniformDeviceAlloc.buffer(),
                 objectUniformDeviceAlloc.buffer(),
+                reflectionProbeMetadataAlloc.buffer(),
                 globalUniformFrameSpanBytes,
                 uniformFrameSpanBytes,
                 globalSceneUniformBytes,
@@ -131,7 +163,9 @@ public final class VulkanDescriptorResources {
                 framesInFlight
         );
 
-        long estimatedGpuMemoryBytes = ((long) totalObjectUniformBytes * 2L) + ((long) totalGlobalUniformBytes * 2L);
+        long estimatedGpuMemoryBytes = ((long) totalObjectUniformBytes * 2L)
+                + ((long) totalGlobalUniformBytes * 2L)
+                + reflectionProbeMetadataBufferBytes;
         return new Allocation(
                 descriptorSetLayout,
                 textureDescriptorSetLayout,
@@ -147,6 +181,12 @@ public final class VulkanDescriptorResources {
                 globalUniformStagingAlloc.buffer(),
                 globalUniformStagingAlloc.memory(),
                 sceneGlobalUniformStagingMappedAddress,
+                reflectionProbeMetadataAlloc.buffer(),
+                reflectionProbeMetadataAlloc.memory(),
+                reflectionProbeMetadataMappedAddress,
+                reflectionProbeMetadataMaxCount,
+                reflectionProbeMetadataStrideBytes,
+                reflectionProbeMetadataBufferBytes,
                 uniformStrideBytes,
                 uniformFrameSpanBytes,
                 globalUniformFrameSpanBytes,
@@ -188,6 +228,15 @@ public final class VulkanDescriptorResources {
         if (resources.sceneGlobalUniformStagingMemory() != VK_NULL_HANDLE) {
             vkFreeMemory(device, resources.sceneGlobalUniformStagingMemory(), null);
         }
+        if (resources.reflectionProbeMetadataBuffer() != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, resources.reflectionProbeMetadataBuffer(), null);
+        }
+        if (resources.reflectionProbeMetadataMappedAddress() != 0L && resources.reflectionProbeMetadataMemory() != VK_NULL_HANDLE) {
+            vkUnmapMemory(device, resources.reflectionProbeMetadataMemory());
+        }
+        if (resources.reflectionProbeMetadataMemory() != VK_NULL_HANDLE) {
+            vkFreeMemory(device, resources.reflectionProbeMetadataMemory(), null);
+        }
         if (resources.descriptorPool() != VK_NULL_HANDLE) {
             vkDestroyDescriptorPool(device, resources.descriptorPool(), null);
         }
@@ -200,7 +249,7 @@ public final class VulkanDescriptorResources {
     }
 
     private static long createMainDescriptorSetLayout(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(2, stack);
+        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(3, stack);
         bindings.get(0)
                 .binding(0)
                 .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
@@ -211,6 +260,11 @@ public final class VulkanDescriptorResources {
                 .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
                 .descriptorCount(1)
                 .stageFlags(VK10.VK_SHADER_STAGE_VERTEX_BIT | VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
+        bindings.get(2)
+                .binding(2)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
 
         VkDescriptorSetLayoutCreateInfo layoutInfo = VkDescriptorSetLayoutCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO)
@@ -248,12 +302,15 @@ public final class VulkanDescriptorResources {
     }
 
     private static long createMainDescriptorPool(VkDevice device, MemoryStack stack, int framesInFlight) throws EngineException {
-        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(2, stack);
+        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(3, stack);
         poolSizes.get(0)
                 .type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
                 .descriptorCount(framesInFlight);
         poolSizes.get(1)
                 .type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+                .descriptorCount(framesInFlight);
+        poolSizes.get(2)
+                .type(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
                 .descriptorCount(framesInFlight);
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
@@ -300,6 +357,7 @@ public final class VulkanDescriptorResources {
             long[] frameDescriptorSets,
             long sceneGlobalUniformBuffer,
             long objectUniformBuffer,
+            long reflectionProbeMetadataBuffer,
             int globalUniformFrameSpanBytes,
             int uniformFrameSpanBytes,
             int globalSceneUniformBytes,
@@ -308,7 +366,8 @@ public final class VulkanDescriptorResources {
     ) {
         VkDescriptorBufferInfo.Buffer globalBufferInfos = VkDescriptorBufferInfo.calloc(framesInFlight, stack);
         VkDescriptorBufferInfo.Buffer objectBufferInfos = VkDescriptorBufferInfo.calloc(framesInFlight, stack);
-        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(framesInFlight * 2, stack);
+        VkDescriptorBufferInfo.Buffer probeBufferInfos = VkDescriptorBufferInfo.calloc(framesInFlight, stack);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(framesInFlight * 3, stack);
         for (int i = 0; i < framesInFlight; i++) {
             long globalFrameBase = (long) i * globalUniformFrameSpanBytes;
             long objectFrameBase = (long) i * uniformFrameSpanBytes;
@@ -320,18 +379,28 @@ public final class VulkanDescriptorResources {
                     .buffer(objectUniformBuffer)
                     .offset(objectFrameBase)
                     .range(objectUniformBytes);
-            writes.get(i * 2)
+            probeBufferInfos.get(i)
+                    .buffer(reflectionProbeMetadataBuffer)
+                    .offset(0)
+                    .range(VK10.VK_WHOLE_SIZE);
+            writes.get(i * 3)
                     .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                     .dstSet(frameDescriptorSets[i])
                     .dstBinding(0)
                     .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
                     .pBufferInfo(VkDescriptorBufferInfo.calloc(1, stack).put(0, globalBufferInfos.get(i)));
-            writes.get((i * 2) + 1)
+            writes.get((i * 3) + 1)
                     .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                     .dstSet(frameDescriptorSets[i])
                     .dstBinding(1)
                     .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
                     .pBufferInfo(VkDescriptorBufferInfo.calloc(1, stack).put(0, objectBufferInfos.get(i)));
+            writes.get((i * 3) + 2)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(frameDescriptorSets[i])
+                    .dstBinding(2)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .pBufferInfo(VkDescriptorBufferInfo.calloc(1, stack).put(0, probeBufferInfos.get(i)));
         }
         vkUpdateDescriptorSets(device, writes, null);
     }
@@ -362,6 +431,12 @@ public final class VulkanDescriptorResources {
             long sceneGlobalUniformStagingBuffer,
             long sceneGlobalUniformStagingMemory,
             long sceneGlobalUniformStagingMappedAddress,
+            long reflectionProbeMetadataBuffer,
+            long reflectionProbeMetadataMemory,
+            long reflectionProbeMetadataMappedAddress,
+            int reflectionProbeMetadataMaxCount,
+            int reflectionProbeMetadataStrideBytes,
+            int reflectionProbeMetadataBufferBytes,
             int uniformStrideBytes,
             int uniformFrameSpanBytes,
             int globalUniformFrameSpanBytes,

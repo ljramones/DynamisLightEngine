@@ -221,6 +221,7 @@ public final class SceneMapper {
                 advanced.probeVolumeEnabled(),
                 advanced.probeBoxProjectionEnabled(),
                 advanced.probeBlendDistance(),
+                advanced.probes(),
                 advanced.rtEnabled(),
                 advanced.rtMaxRoughness(),
                 advanced.rtFallbackMode()

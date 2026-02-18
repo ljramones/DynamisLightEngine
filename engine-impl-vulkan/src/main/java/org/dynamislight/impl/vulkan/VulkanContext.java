@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.scene.ReflectionProbeDesc;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandInputAssembler;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
 import org.dynamislight.impl.vulkan.command.VulkanFrameSubmitCoordinator;
@@ -24,6 +25,7 @@ import org.dynamislight.impl.vulkan.profile.VulkanContextProfileCoordinator;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneRuntimeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshCoordinator;
+import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneSetPlanner;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneTextureCoordinator;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixCoordinator;
@@ -62,6 +64,7 @@ final class VulkanContext {
     private static final int DEFAULT_MAX_PENDING_UPLOAD_RANGES = 64;
     private static final int DEFAULT_DYNAMIC_UPLOAD_MERGE_GAP_OBJECTS = 1;
     private static final int DEFAULT_DYNAMIC_OBJECT_SOFT_LIMIT = 1536;
+    private static final int DEFAULT_MAX_REFLECTION_PROBES = 32;
     private static final int MAX_PENDING_UPLOAD_RANGES_HARD_CAP = 4096;
     private static final int MAX_SHADOW_CASCADES = 24;
     private static final int POINT_SHADOW_FACES = 6;
@@ -119,6 +122,7 @@ final class VulkanContext {
     private final float[] localLightDirInner = new float[MAX_LOCAL_LIGHTS * 4];
     private final float[] localLightOuterTypeShadow = new float[MAX_LOCAL_LIGHTS * 4];
     private final VulkanIblState iblState = new VulkanIblState();
+    private List<ReflectionProbeDesc> reflectionProbes = List.of();
 
     VulkanContext() {
         backendResources.depthFormat = resolveConfiguredDepthFormat();
@@ -709,6 +713,11 @@ final class VulkanContext {
         iblState.brdfLutPath = brdfLutPath;
     }
 
+    void setReflectionProbes(List<ReflectionProbeDesc> probes) {
+        reflectionProbes = probes == null ? List.of() : List.copyOf(probes);
+        markGlobalStateDirty();
+    }
+
     void setPostProcessParameters(
             boolean tonemapEnabled,
             float exposure,
@@ -863,6 +872,7 @@ final class VulkanContext {
                 stack,
                 framesInFlight,
                 maxDynamicSceneObjects,
+                DEFAULT_MAX_REFLECTION_PROBES,
                 OBJECT_UNIFORM_BYTES,
                 GLOBAL_SCENE_UNIFORM_BYTES
         );
@@ -881,6 +891,13 @@ final class VulkanContext {
         descriptorResources.sceneGlobalUniformStagingBuffer = allocation.sceneGlobalUniformStagingBuffer();
         descriptorResources.sceneGlobalUniformStagingMemory = allocation.sceneGlobalUniformStagingMemory();
         descriptorResources.sceneGlobalUniformStagingMappedAddress = allocation.sceneGlobalUniformStagingMappedAddress();
+        descriptorResources.reflectionProbeMetadataBuffer = allocation.reflectionProbeMetadataBuffer();
+        descriptorResources.reflectionProbeMetadataMemory = allocation.reflectionProbeMetadataMemory();
+        descriptorResources.reflectionProbeMetadataMappedAddress = allocation.reflectionProbeMetadataMappedAddress();
+        descriptorResources.reflectionProbeMetadataMaxCount = allocation.reflectionProbeMetadataMaxCount();
+        descriptorResources.reflectionProbeMetadataStrideBytes = allocation.reflectionProbeMetadataStrideBytes();
+        descriptorResources.reflectionProbeMetadataBufferBytes = allocation.reflectionProbeMetadataBufferBytes();
+        descriptorResources.reflectionProbeMetadataActiveCount = 0;
         descriptorResources.uniformStrideBytes = allocation.uniformStrideBytes();
         descriptorResources.uniformFrameSpanBytes = allocation.uniformFrameSpanBytes();
         descriptorResources.globalUniformFrameSpanBytes = allocation.globalUniformFrameSpanBytes();
@@ -909,6 +926,12 @@ final class VulkanContext {
                                 descriptorResources.sceneGlobalUniformStagingBuffer,
                                 descriptorResources.sceneGlobalUniformStagingMemory,
                                 descriptorResources.sceneGlobalUniformStagingMappedAddress,
+                                descriptorResources.reflectionProbeMetadataBuffer,
+                                descriptorResources.reflectionProbeMetadataMemory,
+                                descriptorResources.reflectionProbeMetadataMappedAddress,
+                                descriptorResources.reflectionProbeMetadataMaxCount,
+                                descriptorResources.reflectionProbeMetadataStrideBytes,
+                                descriptorResources.reflectionProbeMetadataBufferBytes,
                                 descriptorResources.uniformStrideBytes,
                                 descriptorResources.uniformFrameSpanBytes,
                                 descriptorResources.globalUniformFrameSpanBytes,
@@ -928,6 +951,13 @@ final class VulkanContext {
         descriptorResources.sceneGlobalUniformStagingBuffer = state.sceneGlobalUniformStagingBuffer();
         descriptorResources.sceneGlobalUniformStagingMemory = state.sceneGlobalUniformStagingMemory();
         descriptorResources.sceneGlobalUniformStagingMappedAddress = state.sceneGlobalUniformStagingMappedAddress();
+        descriptorResources.reflectionProbeMetadataBuffer = state.reflectionProbeMetadataBuffer();
+        descriptorResources.reflectionProbeMetadataMemory = state.reflectionProbeMetadataMemory();
+        descriptorResources.reflectionProbeMetadataMappedAddress = state.reflectionProbeMetadataMappedAddress();
+        descriptorResources.reflectionProbeMetadataMaxCount = state.reflectionProbeMetadataMaxCount();
+        descriptorResources.reflectionProbeMetadataStrideBytes = state.reflectionProbeMetadataStrideBytes();
+        descriptorResources.reflectionProbeMetadataBufferBytes = state.reflectionProbeMetadataBufferBytes();
+        descriptorResources.reflectionProbeMetadataActiveCount = state.reflectionProbeMetadataActiveCount();
         descriptorResources.uniformStrideBytes = state.uniformStrideBytes();
         descriptorResources.uniformFrameSpanBytes = state.uniformFrameSpanBytes();
         descriptorResources.globalUniformFrameSpanBytes = state.globalUniformFrameSpanBytes();
@@ -1298,6 +1328,7 @@ final class VulkanContext {
     }
 
     private void prepareFrameUniforms(int frameIdx) throws EngineException {
+        updateReflectionProbeMetadataBuffer();
         VulkanUniformUploadCoordinator.prepareFrameUniforms(
                 new VulkanUniformUploadCoordinator.PrepareInputs(
                         frameIdx,
@@ -1413,6 +1444,24 @@ final class VulkanContext {
                         frameUploadStats
                 )
         );
+    }
+
+    private void updateReflectionProbeMetadataBuffer() {
+        if (descriptorResources.reflectionProbeMetadataMappedAddress == 0L
+                || descriptorResources.reflectionProbeMetadataBufferBytes <= 0) {
+            descriptorResources.reflectionProbeMetadataActiveCount = 0;
+            return;
+        }
+        float[] viewProj = mul(projMatrix, viewMatrix);
+        int activeCount = VulkanReflectionProbeCoordinator.uploadVisibleProbes(
+                reflectionProbes,
+                viewProj,
+                descriptorResources.reflectionProbeMetadataMaxCount,
+                descriptorResources.reflectionProbeMetadataStrideBytes,
+                descriptorResources.reflectionProbeMetadataMappedAddress,
+                descriptorResources.reflectionProbeMetadataBufferBytes
+        );
+        descriptorResources.reflectionProbeMetadataActiveCount = activeCount;
     }
 
     private static int clamp(int value, int min, int max) {

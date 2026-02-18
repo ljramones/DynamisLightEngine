@@ -22,6 +22,14 @@ public final class VulkanDescriptorResourceState {
     public long objectUniformStagingMemory = VK_NULL_HANDLE;
     public long objectUniformStagingMappedAddress;
 
+    public long reflectionProbeMetadataBuffer = VK_NULL_HANDLE;
+    public long reflectionProbeMetadataMemory = VK_NULL_HANDLE;
+    public long reflectionProbeMetadataMappedAddress;
+    public int reflectionProbeMetadataMaxCount;
+    public int reflectionProbeMetadataStrideBytes;
+    public int reflectionProbeMetadataBufferBytes;
+    public int reflectionProbeMetadataActiveCount;
+
     public int uniformStrideBytes = 96;
     public int uniformFrameSpanBytes = 96;
     public int globalUniformFrameSpanBytes = 784;

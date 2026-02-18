@@ -8,6 +8,7 @@ import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.scene.ReflectionProbeDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
@@ -124,6 +125,7 @@ final class VulkanRuntimeLifecycle {
                 reflectionProfile
         );
         var ibl = VulkanEngineRuntimeSceneMapper.mapIbl(scene == null ? null : scene.environment(), qualityTier, assetRoot);
+        List<ReflectionProbeDesc> reflectionProbes = VulkanEngineRuntimeSceneMapper.mapReflectionProbes(scene);
         boolean nonDirectionalShadowRequested = VulkanEngineRuntimeSceneMapper.hasNonDirectionalShadowRequest(scene == null ? null : scene.lights());
         List<VulkanSceneMeshData> sceneMeshes = VulkanEngineRuntimeSceneMapper.buildSceneMeshes(scene, meshLoader, assetRoot);
         VulkanMeshAssetLoader.CacheProfile cache = meshLoader.cacheProfile();
@@ -135,6 +137,7 @@ final class VulkanRuntimeLifecycle {
         long plannedVisibleObjects = plannedDrawCalls;
         return new SceneLoadState(
                 cameraMatrices, lighting, fog, smoke, shadows, post, ibl,
+                reflectionProbes,
                 nonDirectionalShadowRequested,
                 sceneMeshes,
                 cacheProfile,
@@ -182,6 +185,7 @@ final class VulkanRuntimeLifecycle {
         context.setSmokeParameters(state.smoke().enabled(), state.smoke().r(), state.smoke().g(), state.smoke().b(), state.smoke().intensity());
         context.setIblParameters(state.ibl().enabled(), state.ibl().diffuseStrength(), state.ibl().specularStrength(), state.ibl().prefilterStrength());
         context.setIblTexturePaths(state.ibl().irradiancePath(), state.ibl().radiancePath(), state.ibl().brdfLutPath());
+        context.setReflectionProbes(state.reflectionProbes());
         context.setPostProcessParameters(
                 state.post().tonemapEnabled(),
                 state.post().exposure(),
@@ -323,6 +327,7 @@ final class VulkanRuntimeLifecycle {
             VulkanEngineRuntime.ShadowRenderConfig shadows,
             VulkanEngineRuntime.PostProcessRenderConfig post,
             VulkanEngineRuntime.IblRenderConfig ibl,
+            List<ReflectionProbeDesc> reflectionProbes,
             boolean nonDirectionalShadowRequested,
             List<VulkanSceneMeshData> sceneMeshes,
             VulkanEngineRuntime.MeshGeometryCacheProfile meshGeometryCacheProfile,

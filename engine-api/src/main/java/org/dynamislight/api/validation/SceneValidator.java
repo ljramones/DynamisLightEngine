@@ -166,6 +166,22 @@ public final class SceneValidator {
                 if (reflectionAdvanced.rtMaxRoughness() < 0f || reflectionAdvanced.rtMaxRoughness() > 1f) {
                     throw invalid("postProcess.reflectionAdvanced rtMaxRoughness must be in [0,1]");
                 }
+                for (var probe : reflectionAdvanced.probes()) {
+                    if (probe.blendDistance() < 0f || probe.blendDistance() > 1000f) {
+                        throw invalid("postProcess.reflectionAdvanced.probes blendDistance must be in [0,1000]");
+                    }
+                    if (probe.intensity() < 0f || probe.intensity() > 16f) {
+                        throw invalid("postProcess.reflectionAdvanced.probes intensity must be in [0,16]");
+                    }
+                    if (probe.cubemapAssetPath() == null || probe.cubemapAssetPath().isBlank()) {
+                        throw invalid("postProcess.reflectionAdvanced.probes cubemapAssetPath is required");
+                    }
+                    if (probe.extentsMin().x() > probe.extentsMax().x()
+                            || probe.extentsMin().y() > probe.extentsMax().y()
+                            || probe.extentsMin().z() > probe.extentsMax().z()) {
+                        throw invalid("postProcess.reflectionAdvanced.probes extentsMin must be <= extentsMax on all axes");
+                    }
+                }
                 String rtFallbackMode = reflectionAdvanced.rtFallbackMode() == null
                         ? ""
                         : reflectionAdvanced.rtFallbackMode().trim().toLowerCase();

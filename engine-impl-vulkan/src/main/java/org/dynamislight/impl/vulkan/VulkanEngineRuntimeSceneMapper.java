@@ -10,6 +10,7 @@ import org.dynamislight.api.scene.EnvironmentDesc;
 import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
+import org.dynamislight.api.scene.ReflectionProbeDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
@@ -141,5 +142,12 @@ final class VulkanEngineRuntimeSceneMapper {
 
     static float safeAspect(int width, int height) {
         return VulkanEngineRuntimeCameraMath.safeAspect(width, height);
+    }
+
+    static List<ReflectionProbeDesc> mapReflectionProbes(SceneDescriptor scene) {
+        if (scene == null || scene.postProcess() == null || scene.postProcess().reflectionAdvanced() == null) {
+            return List.of();
+        }
+        return scene.postProcess().reflectionAdvanced().probes();
     }
 }
