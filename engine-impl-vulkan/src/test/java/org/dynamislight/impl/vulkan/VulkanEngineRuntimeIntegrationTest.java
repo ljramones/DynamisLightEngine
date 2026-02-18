@@ -1525,6 +1525,67 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionProfilesApplyTypedPlanarEnvelopeAndPerfDefaults() throws Exception {
+        assertPlanarProfileDefaults(
+                "performance",
+                0.45, 0.30, 4, 180,
+                1.2, 1.9, 2.6, 3.2,
+                1.7, 20.0, 4, 180
+        );
+        assertPlanarProfileDefaults(
+                "quality",
+                0.30, 0.20, 3, 120,
+                1.5, 2.4, 3.3, 4.5,
+                2.1, 36.0, 3, 120
+        );
+        assertPlanarProfileDefaults(
+                "stability",
+                0.22, 0.15, 2, 90,
+                1.8, 2.8, 3.8, 5.0,
+                2.4, 48.0, 2, 90
+        );
+    }
+
+    @Test
+    void reflectionPlanarExplicitOptionsOverrideProfileDefaults() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflectionsProfile", "performance"),
+                Map.entry("vulkan.reflections.planarEnvelopePlaneDeltaWarnMax", "0.91"),
+                Map.entry("vulkan.reflections.planarEnvelopeCoverageRatioWarnMin", "0.44"),
+                Map.entry("vulkan.reflections.planarEnvelopeWarnMinFrames", "7"),
+                Map.entry("vulkan.reflections.planarEnvelopeWarnCooldownFrames", "77"),
+                Map.entry("vulkan.reflections.planarPerfMaxGpuMsLow", "9.1"),
+                Map.entry("vulkan.reflections.planarPerfMaxGpuMsMedium", "9.2"),
+                Map.entry("vulkan.reflections.planarPerfMaxGpuMsHigh", "9.3"),
+                Map.entry("vulkan.reflections.planarPerfMaxGpuMsUltra", "9.4"),
+                Map.entry("vulkan.reflections.planarPerfDrawInflationWarnMax", "3.3"),
+                Map.entry("vulkan.reflections.planarPerfMemoryBudgetMb", "99.0"),
+                Map.entry("vulkan.reflections.planarPerfWarnMinFrames", "6"),
+                Map.entry("vulkan.reflections.planarPerfWarnCooldownFrames", "66")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("planar"));
+
+        var frame = runtime.render();
+
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+        assertTrue(profileWarning.contains("planarEnvelopePlaneDeltaWarnMax=0.91"));
+        assertTrue(profileWarning.contains("planarEnvelopeCoverageRatioWarnMin=0.44"));
+        assertTrue(profileWarning.contains("planarEnvelopeWarnMinFrames=7"));
+        assertTrue(profileWarning.contains("planarEnvelopeWarnCooldownFrames=77"));
+        assertTrue(profileWarning.contains("planarPerfMaxGpuMsLow=9.1"));
+        assertTrue(profileWarning.contains("planarPerfMaxGpuMsMedium=9.2"));
+        assertTrue(profileWarning.contains("planarPerfMaxGpuMsHigh=9.3"));
+        assertTrue(profileWarning.contains("planarPerfMaxGpuMsUltra=9.4"));
+        assertTrue(profileWarning.contains("planarPerfDrawInflationWarnMax=3.3"));
+        assertTrue(profileWarning.contains("planarPerfMemoryBudgetMb=99.0"));
+        assertTrue(profileWarning.contains("planarPerfWarnMinFrames=6"));
+        assertTrue(profileWarning.contains("planarPerfWarnCooldownFrames=66"));
+        runtime.shutdown();
+    }
+
+    @Test
     void iblEnvironmentEmitsBaselineActiveWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
@@ -3531,6 +3592,57 @@ class VulkanEngineRuntimeIntegrationTest {
             assertEquals(0.0, meanSsrStrengthDelta, 1e-6);
             assertEquals(0.0, meanSsrStepScaleDelta, 1e-6);
         }
+        runtime.shutdown();
+    }
+
+    private static void assertPlanarProfileDefaults(
+            String profile,
+            double expectedPlaneDeltaWarnMax,
+            double expectedCoverageRatioWarnMin,
+            int expectedEnvelopeWarnMinFrames,
+            int expectedEnvelopeWarnCooldownFrames,
+            double expectedPerfLow,
+            double expectedPerfMedium,
+            double expectedPerfHigh,
+            double expectedPerfUltra,
+            double expectedDrawInflationWarnMax,
+            double expectedMemoryBudgetMb,
+            int expectedPerfWarnMinFrames,
+            int expectedPerfWarnCooldownFrames
+    ) throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflectionsProfile", profile)
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("planar"));
+
+        var frame = runtime.render();
+        var perf = runtime.debugReflectionPlanarPerfDiagnostics();
+        var stability = runtime.debugReflectionPlanarStabilityDiagnostics();
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+
+        assertEquals(expectedPlaneDeltaWarnMax, stability.planeDeltaWarnMax(), 1e-6);
+        assertEquals(expectedCoverageRatioWarnMin, stability.coverageRatioWarnMin(), 1e-6);
+        assertEquals(expectedEnvelopeWarnMinFrames, stability.warnMinFrames());
+        assertEquals(expectedEnvelopeWarnCooldownFrames, stability.warnCooldownFrames());
+
+        assertEquals(expectedPerfWarnMinFrames, perf.warnMinFrames());
+        assertEquals(expectedPerfWarnCooldownFrames, perf.warnCooldownFrames());
+        assertEquals(Math.round(expectedMemoryBudgetMb * 1024.0 * 1024.0), perf.memoryBudgetBytes());
+
+        assertTrue(profileWarning.contains("planarEnvelopePlaneDeltaWarnMax=" + expectedPlaneDeltaWarnMax));
+        assertTrue(profileWarning.contains("planarEnvelopeCoverageRatioWarnMin=" + expectedCoverageRatioWarnMin));
+        assertTrue(profileWarning.contains("planarEnvelopeWarnMinFrames=" + expectedEnvelopeWarnMinFrames));
+        assertTrue(profileWarning.contains("planarEnvelopeWarnCooldownFrames=" + expectedEnvelopeWarnCooldownFrames));
+        assertTrue(profileWarning.contains("planarPerfMaxGpuMsLow=" + expectedPerfLow));
+        assertTrue(profileWarning.contains("planarPerfMaxGpuMsMedium=" + expectedPerfMedium));
+        assertTrue(profileWarning.contains("planarPerfMaxGpuMsHigh=" + expectedPerfHigh));
+        assertTrue(profileWarning.contains("planarPerfMaxGpuMsUltra=" + expectedPerfUltra));
+        assertTrue(profileWarning.contains("planarPerfDrawInflationWarnMax=" + expectedDrawInflationWarnMax));
+        assertTrue(profileWarning.contains("planarPerfMemoryBudgetMb=" + expectedMemoryBudgetMb));
+        assertTrue(profileWarning.contains("planarPerfWarnMinFrames=" + expectedPerfWarnMinFrames));
+        assertTrue(profileWarning.contains("planarPerfWarnCooldownFrames=" + expectedPerfWarnCooldownFrames));
         runtime.shutdown();
     }
 

@@ -38,6 +38,8 @@ Planar reflections are `In` when all items below are green in CI and documented 
   Evidence: `planarRapidCameraMovementMaintainsContractAndCoverage`, `planarFrequentPlaneHeightChangesMaintainMirrorContract`, `planarSelectiveScopeStressMaintainsDeterministicEligibleCounts`.
 - [x] CI lockdown lane exists for planar contract/perf/stability checks.
   Evidence: `scripts/planar_ci_lockdown_full.sh`, `.github/workflows/ci.yml`.
+- [x] Guarded real-Vulkan signoff runner exists for production certification replay.
+  Evidence: `scripts/planar_real_gpu_signoff.sh`.
 - [x] Real-GPU planar pass timing path is wired (timestamp query when supported, estimate fallback otherwise).
   Evidence: Vulkan planar capture timestamps are recorded via query pool and surfaced as `timingSource=gpu_timestamp` when available.
 - [ ] Timestamp caps/thresholds calibrated and locked from guarded real-Vulkan content runs.
@@ -70,6 +72,9 @@ mvn -pl engine-host-sample -am test \
   -Ddle.compare.outputDir=artifacts/compare/planar-lockdown \
   -Dtest=BackendParityIntegrationTest#compareHarnessReflectionsPlanarSceneHasBoundedDiff+compareHarnessReflectionsHybridSceneHasBoundedDiff+compareHarnessReflectionsHiZProbeSceneHasBoundedDiff+compareHarnessReflectionsRtFallbackSceneHasBoundedDiff \
   -Dsurefire.failIfNoSpecifiedTests=false
+
+# Guarded real-Vulkan signoff bundle (requires real Vulkan path):
+./scripts/planar_real_gpu_signoff.sh
 ```
 
 ## Status Note

@@ -103,6 +103,7 @@ Reflection notes:
 - Vulkan is the implementation target for current planar hardening; wishlist `In` promotion for planar should be interpreted as Vulkan-path scoped until explicit OpenGL parity lands.
 - Planar maturity now has an explicit exit checklist with pass/fail criteria in `docs/planar-in-exit-criteria.md`.
 - Planar perf diagnostics now report timing-source state (`gpu_timestamp` vs `frame_estimate`), use Vulkan timestamp query timing when available, and can be configured to require timestamp timing for `In` promotion gating.
+- Planar promotion workflow now includes a guarded real-Vulkan signoff runner (`scripts/planar_real_gpu_signoff.sh`) for timestamp-source validation and stress replay outside mock-only CI.
 
 ## Anti-Aliasing
 
