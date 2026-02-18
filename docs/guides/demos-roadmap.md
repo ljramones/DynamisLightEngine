@@ -10,9 +10,10 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 - `shadow-cascade-baseline` (graphical clean shadow lane)
 - `shadow-cascade-debug` (graphical shadow stress lane)
 - `shadow-local-atlas` (graphical local shadow atlas pressure)
+- `shadow-quality-matrix` (graphical shadow quality comparison lane)
 - `aa-matrix` (graphical AA configuration/telemetry)
 
-Current count: `7` demos (`7` graphical)
+Current count: `8` demos (`8` graphical)
 
 ## Target Demo Set
 

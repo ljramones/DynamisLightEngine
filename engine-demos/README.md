@@ -71,6 +71,11 @@ Run shadow local atlas pressure demo:
 ./scripts/run_demo_mac.sh --demo=shadow-local-atlas --backend=vulkan --mock=false --seconds=10 --quality=high
 ```
 
+Run shadow quality matrix demo:
+```bash
+./scripts/run_demo_mac.sh --demo=shadow-quality-matrix --backend=vulkan --mock=false --seconds=10 --quality=high
+```
+
 Telemetry outputs:
 - frame-by-frame JSONL (default under `artifacts/demos/`)
 - summary JSON (`*.summary.json`) with averages/p95/event/log counts

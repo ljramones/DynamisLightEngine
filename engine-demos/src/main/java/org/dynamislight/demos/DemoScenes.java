@@ -435,6 +435,87 @@ final class DemoScenes {
         );
     }
 
+    static SceneDescriptor shadowQualityMatrixScene() {
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 3.2f, 12.0f), new Vec3(0f, 1.0f, -5.2f), 58f, 0.1f, 1000f);
+        List<TransformDesc> transforms = new ArrayList<>();
+        List<MeshDesc> meshes = new ArrayList<>();
+        List<MaterialDesc> materials = new ArrayList<>();
+
+        transforms.add(new TransformDesc("floor", new Vec3(0f, -0.9f, -6.0f), new Vec3(0f, 0f, 0f), new Vec3(8.2f, 0.2f, 10.0f)));
+        meshes.add(new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-floor", new Vec3(0.14f, 0.16f, 0.19f), 0.84f, 0.0f, null, null));
+
+        int rows = 3;
+        int columns = 4;
+        float spacingX = 2.2f;
+        float spacingZ = 2.2f;
+        float startX = -((columns - 1) * spacingX) * 0.5f;
+        float startZ = -1.2f;
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < columns; col++) {
+                String id = "quality-" + row + "-" + col;
+                String transformId = "xform-" + id;
+                String materialId = "mat-" + id;
+                float x = startX + (col * spacingX);
+                float z = startZ - (row * spacingZ);
+                transforms.add(new TransformDesc(
+                        transformId,
+                        new Vec3(x, 0.2f, z),
+                        new Vec3(0f, row * 14f + col * 10f, 0f),
+                        new Vec3(0.62f, 0.62f, 0.62f)
+                ));
+                meshes.add(new MeshDesc("mesh-" + id, transformId, materialId, "meshes/box.glb"));
+                float tint = (row * columns + col) / 11.0f;
+                materials.add(new MaterialDesc(
+                        materialId,
+                        new Vec3(0.28f + 0.28f * tint, 0.36f + 0.20f * (1.0f - tint), 0.60f - 0.14f * tint),
+                        0.34f + (0.06f * row),
+                        0.18f + (0.08f * (col / 3.0f)),
+                        null,
+                        null
+                ));
+            }
+        }
+
+        ShadowDesc directionalShadow = new ShadowDesc(1536, 0.0011f, 5, 3);
+        LightDesc sun = new LightDesc(
+                "sun",
+                new Vec3(0f, 12f, 0f),
+                new Vec3(1f, 0.97f, 0.92f),
+                1.0f,
+                120f,
+                true,
+                directionalShadow
+        );
+
+        ShadowDesc lowShadow = new ShadowDesc(512, 0.0018f, 3, 1);
+        ShadowDesc mediumShadow = new ShadowDesc(1024, 0.0014f, 4, 1);
+        ShadowDesc highShadow = new ShadowDesc(1536, 0.0011f, 5, 1);
+        List<LightDesc> lights = new ArrayList<>();
+        lights.add(sun);
+        lights.add(new LightDesc("quality-low", new Vec3(-3.0f, 2.0f, -1.2f), new Vec3(1.0f, 0.38f, 0.30f), 0.95f, 8.0f, true, lowShadow));
+        lights.add(new LightDesc("quality-medium", new Vec3(0.0f, 2.0f, -3.4f), new Vec3(0.38f, 0.65f, 1.0f), 1.00f, 8.5f, true, mediumShadow));
+        lights.add(new LightDesc("quality-high", new Vec3(3.0f, 2.0f, -5.6f), new Vec3(0.45f, 1.0f, 0.40f), 1.05f, 9.0f, true, highShadow));
+
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.06f, 0.08f, 0.10f), 0.30f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.05f, 2.2f, true, 0.88f, 0.72f);
+
+        return new SceneDescriptor(
+                "demo-scene-shadow-quality-matrix",
+                List.of(camera),
+                "main-cam",
+                transforms,
+                meshes,
+                materials,
+                lights,
+                environment,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
     static SceneDescriptor sceneWithAa(String aaMode, boolean postEnabled, float blend, float renderScale) {
         CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 1.5f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 1000f);
         TransformDesc triangleTransform = new TransformDesc("triangle", new Vec3(0f, 0f, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f));
