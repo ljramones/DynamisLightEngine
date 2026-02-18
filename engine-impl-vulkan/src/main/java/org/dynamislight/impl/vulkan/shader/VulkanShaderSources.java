@@ -1161,7 +1161,7 @@ public final class VulkanShaderSources {
                     float reactivePreset = clamp(obj.uMaterialReactive.w, 0.0, 3.0);
                     bool alphaTested = mod(reactiveFlags, 2.0) >= 1.0;
                     bool foliage = mod(floor(reactiveFlags / 2.0), 2.0) >= 1.0;
-                    bool reflectionProbeOnly = mod(floor(reactiveFlags / 4.0), 2.0) >= 1.0;
+                    int reflectionOverrideMode = int(mod(floor(reactiveFlags / 4.0), 4.0));
                     float normalVariance = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.30, 0.0, 1.0);
                     float normalMapVariance = clamp((1.0 - clamp(length(normalTex), 0.0, 1.0)) * 1.55, 0.0, 1.0);
                     float toksvigVariance = clamp(normalVariance * 0.70 + normalMapVariance * 0.65, 0.0, 1.0);
@@ -1695,7 +1695,7 @@ public final class VulkanShaderSources {
                     heuristicReactive = clamp(heuristicReactive + emissiveMask * emissiveReactiveBoost * 0.45, 0.0, 1.0);
                     float presetScale = reactivePreset < 0.5 ? 1.0 : (reactivePreset < 1.5 ? 0.82 : (reactivePreset < 2.5 ? 1.0 : 1.2));
                     float materialReactive = (authoredEnabled ? authoredReactive : heuristicReactive) * (1.0 + (1.0 - taaHistoryClamp) * 0.6) * presetScale;
-                    float reflectionMask = reflectionProbeOnly ? 1.0 : 0.0;
+                    float reflectionMask = float(clamp(reflectionOverrideMode, 0, 3)) / 3.0;
                     outColor = vec4(clamp(color, 0.0, 1.0), reflectionMask);
                     vec4 currClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
                     vec4 prevClip = gbo.uPrevViewProj * (obj.uPrevModel * vec4(vLocalPos, 1.0));
@@ -1815,15 +1815,15 @@ public final class VulkanShaderSources {
                     vec3 sharpened = color + (color - blur) * amount;
                     return clamp(sharpened, vec3(0.0), vec3(1.0));
                 }
-                vec3 applyReflections(vec2 uv, vec3 color, float currentDepth, float historyConfidenceOut, bool probeOnlyOverride) {
+                vec3 applyReflections(vec2 uv, vec3 color, float currentDepth, float historyConfidenceOut, int reflectionOverrideMode) {
                     if (pc.reflectionsA.x < 0.5 || int(pc.reflectionsA.y + 0.5) == 0) {
                         return color;
                     }
-                    if (probeOnlyOverride) {
+                    if (reflectionOverrideMode == 1) {
                         return color;
                     }
                     int packedMode = max(int(pc.reflectionsA.y + 0.5), 0);
-                    int mode = packedMode & 7;
+                    int mode = reflectionOverrideMode == 2 ? 1 : (packedMode & 7);
                     bool hiZEnabled = (packedMode & (1 << 3)) != 0;
                     int denoisePasses = (packedMode >> 4) & 7;
                     bool planarClipEnabled = (packedMode & (1 << 7)) != 0;
@@ -1902,7 +1902,7 @@ public final class VulkanShaderSources {
                     vec3 color = sceneSample.rgb;
                     vec4 centerVelocitySample = texture(uVelocityColor, vUv);
                     float currentDepth = centerVelocitySample.b;
-                    bool probeOnlyOverride = sceneSample.a > 0.5;
+                    int reflectionOverrideMode = int(clamp(floor(sceneSample.a * 3.0 + 0.5), 0.0, 3.0));
                     float centerMaterialReactive = clamp(centerVelocitySample.a, 0.0, 1.0);
                     float historyConfidenceOut = 1.0;
                     if (pc.tonemap.x > 0.5) {
@@ -2061,7 +2061,7 @@ public final class VulkanShaderSources {
                             color = mix(color, vec3(1.0, 1.0, 0.2), line * 0.65);
                         }
                     }
-                    color = applyReflections(vUv, color, currentDepth, historyConfidenceOut, probeOnlyOverride);
+                    color = applyReflections(vUv, color, currentDepth, historyConfidenceOut, reflectionOverrideMode);
                     outColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);
                 }
                 """;

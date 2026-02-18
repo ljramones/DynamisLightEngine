@@ -48,7 +48,7 @@ final class VulkanEngineRuntimeSceneAssembly {
             float reactiveStrength = material == null ? 0f : clamp01(material.reactiveStrength());
             boolean alphaTested = material != null && material.alphaTested();
             boolean foliage = material != null && material.foliage();
-            boolean reflectionProbeOnly = material != null && toReflectionProbeOnly(material.reflectionOverride());
+            int reflectionOverrideMode = material == null ? 0 : toReflectionOverrideMode(material.reflectionOverride());
             float reactiveBoost = material == null ? 1.0f : clamp(material.reactiveBoost(), 0.0f, 2.0f);
             float taaHistoryClamp = material == null ? 1.0f : clamp01(material.taaHistoryClamp());
             float emissiveReactiveBoost = material == null ? 1.0f : clamp(material.emissiveReactiveBoost(), 0.0f, 3.0f);
@@ -66,7 +66,7 @@ final class VulkanEngineRuntimeSceneAssembly {
                     reactiveStrength,
                     alphaTested,
                     foliage,
-                    reflectionProbeOnly,
+                    reflectionOverrideMode,
                     reactiveBoost,
                     taaHistoryClamp,
                     emissiveReactiveBoost,
@@ -122,10 +122,14 @@ final class VulkanEngineRuntimeSceneAssembly {
         };
     }
 
-    private static boolean toReflectionProbeOnly(ReflectionOverrideMode mode) {
+    private static int toReflectionOverrideMode(ReflectionOverrideMode mode) {
         if (mode == null) {
-            return false;
+            return 0;
         }
-        return mode == ReflectionOverrideMode.PROBE_ONLY;
+        return switch (mode) {
+            case AUTO -> 0;
+            case PROBE_ONLY -> 1;
+            case SSR_ONLY -> 2;
+        };
     }
 }

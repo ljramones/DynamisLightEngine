@@ -11,7 +11,7 @@ It is intended as extraction input for future capability contracts and render-gr
 - Vulkan maps probes into runtime state and uploads frame-visible probe metadata into a per-frame SSBO.
 - Main fragment shader consumes probe metadata, evaluates per-fragment probe influence, applies optional box-projected direction shaping, and blends probe influence into the existing IBL radiance path.
 - Probe overlap uses priority-aware remaining-coverage blending.
-- Per-material reflection override groundwork is in place via `MaterialDesc.reflectionOverride`, currently with `PROBE_ONLY` support in Vulkan.
+- Per-material reflection override groundwork is in place via `MaterialDesc.reflectionOverride`, currently with `PROBE_ONLY` and `SSR_ONLY` support in Vulkan.
 
 ## Capability observations
 
@@ -67,6 +67,7 @@ It is intended as extraction input for future capability contracts and render-gr
 - This confirms the feature contract cannot assume "one feature = one pass contribution."
 - Reflection overlap behavior required priority-aware accumulation in shader to avoid exterior bleed in interior volumes.
 - Material-level behavior needed data to cross passes; Vulkan now routes reflection override via main color alpha while keeping velocity alpha dedicated to TAA reactive strength.
+- Mode-specific behavior is now active in post resolve: `PROBE_ONLY` bypasses post reflection resolve, `SSR_ONLY` forces SSR mode in post reflection resolve.
 
 ## Current extraction candidates (not final contract)
 
@@ -77,4 +78,4 @@ It is intended as extraction input for future capability contracts and render-gr
 
 ## Next reflection implementation target
 
-- Expand per-material reflection policy beyond `PROBE_ONLY` (for example SSR-only and hybrid-lock) using the existing override lane and post resolve policy hooks.
+- Add integration tests that assert per-material override behavior (`AUTO`, `PROBE_ONLY`, `SSR_ONLY`) in composed post reflection paths.

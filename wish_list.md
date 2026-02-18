@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 11:38 ET — Decoupled reflection override from velocity metadata: `PROBE_ONLY` now flows through scene color alpha into post reflection resolve, while velocity alpha remains dedicated to TAA reactive strength.
+- Latest reflection update: 2026-02-18 11:40 ET — Expanded per-material reflection override lane to include `SSR_ONLY` in Vulkan. Override mode is now encoded via scene color alpha (`AUTO/PROBE_ONLY/SSR_ONLY`) while velocity alpha remains dedicated to TAA reactive strength.
 
 Status legend:
 
@@ -65,7 +65,7 @@ Reflection notes:
 
 - Vulkan now has per-scene probe slot assignment, frame-visible probe metadata upload, and native 2D-array per-probe reflection selection in main-fragment shading.
 - Optional probe cubemap-face ingestion/discovery (`*_px/_nx/_py/_ny/_pz/_nz`) is wired behind a disabled-by-default flag as groundwork; runtime shading still consumes 2D-array probe radiance textures.
-- Vulkan now supports a per-material `PROBE_ONLY` reflection override lane that disables post reflection resolve for those surfaces via scene color alpha metadata.
+- Vulkan now supports per-material reflection overrides (`PROBE_ONLY`, `SSR_ONLY`) via scene color alpha metadata in post reflection resolve.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

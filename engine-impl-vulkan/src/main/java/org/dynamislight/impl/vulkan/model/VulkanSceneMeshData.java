@@ -13,7 +13,7 @@ public record VulkanSceneMeshData(
         float reactiveStrength,
         boolean alphaTested,
         boolean foliage,
-        boolean reflectionProbeOnly,
+        int reflectionOverrideMode,
         float reactiveBoost,
         float taaHistoryClamp,
         float emissiveReactiveBoost,
@@ -40,6 +40,9 @@ public record VulkanSceneMeshData(
         }
         if (color == null || color.length != 4) {
             throw new IllegalArgumentException("color must be rgba");
+        }
+        if (reflectionOverrideMode < 0 || reflectionOverrideMode > 3) {
+            throw new IllegalArgumentException("reflectionOverrideMode must be in [0,3]");
         }
     }
 
@@ -69,7 +72,7 @@ public record VulkanSceneMeshData(
                 0f,
                 false,
                 false,
-                false,
+                0,
                 1.0f,
                 1.0f,
                 1.0f,
@@ -104,7 +107,7 @@ public record VulkanSceneMeshData(
                 0f,
                 false,
                 false,
-                false,
+                0,
                 1.0f,
                 1.0f,
                 1.0f,

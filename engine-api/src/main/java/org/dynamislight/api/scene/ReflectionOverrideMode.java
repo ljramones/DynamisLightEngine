@@ -5,5 +5,6 @@ package org.dynamislight.api.scene;
  */
 public enum ReflectionOverrideMode {
     AUTO,
-    PROBE_ONLY
+    PROBE_ONLY,
+    SSR_ONLY
 }

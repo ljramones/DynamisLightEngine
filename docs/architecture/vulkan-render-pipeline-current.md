@@ -102,7 +102,7 @@ Current limitation:
 - Vulkan currently uses a native 2D-array probe-radiance path, not native cubemap-array sampling.
 - Probe texture selection by `cubemapIndex` is active, but source assets are interpreted through the existing 2D radiance projection path.
 - Optional cube-face probe discovery (`*_px/_nx/_py/_ny/_pz/_nz`) is present behind `dle.vulkan.reflections.probeCubeArrayEnabled`, but runtime texture creation remains pinned to 2D-array probe sampling.
-- Per-material reflection override lane is now available via `MaterialDesc.reflectionOverride` with `PROBE_ONLY` support in Vulkan.
+- Per-material reflection override lane is available via `MaterialDesc.reflectionOverride` with `PROBE_ONLY` and `SSR_ONLY` support in Vulkan.
 
 ### Uniform sizes and upload
 
@@ -128,6 +128,7 @@ Built by `VulkanMainPipelineBuilder`:
   - color (swapchain format, present layout)
   - velocity (swapchain format, shader-read layout)
   - depth (configured depth format)
+- Main pass writes per-pixel reflection override mode into color alpha (`0=AUTO`, `1=PROBE_ONLY`, `2=SSR_ONLY` encoded as `mode/3`).
 - Velocity alpha now carries temporal reactive strength only.
 
 Files:
@@ -164,7 +165,7 @@ Built by `VulkanPostPipelineBuilder` + `VulkanPostProcessResources`:
   - current velocity
   - history velocity
 - Push constants: 32 floats (128 bytes).
-- Post shader reads `PROBE_ONLY` override from scene color alpha and bypasses reflection resolve for those pixels.
+- Post shader reads reflection override mode from scene color alpha, bypasses reflections for `PROBE_ONLY`, and forces SSR resolve for `SSR_ONLY`.
 
 Files:
 

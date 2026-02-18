@@ -23,7 +23,7 @@ public final class VulkanGpuMesh {
     public float reactiveStrength;
     public boolean alphaTested;
     public boolean foliage;
-    public boolean reflectionProbeOnly;
+    public int reflectionOverrideMode;
     public float reactiveBoost;
     public float taaHistoryClamp;
     public float emissiveReactiveBoost;
@@ -58,7 +58,7 @@ public final class VulkanGpuMesh {
             float reactiveStrength,
             boolean alphaTested,
             boolean foliage,
-            boolean reflectionProbeOnly,
+            int reflectionOverrideMode,
             float reactiveBoost,
             float taaHistoryClamp,
             float emissiveReactiveBoost,
@@ -93,7 +93,7 @@ public final class VulkanGpuMesh {
         this.reactiveStrength = reactiveStrength;
         this.alphaTested = alphaTested;
         this.foliage = foliage;
-        this.reflectionProbeOnly = reflectionProbeOnly;
+        this.reflectionOverrideMode = reflectionOverrideMode;
         this.reactiveBoost = reactiveBoost;
         this.taaHistoryClamp = taaHistoryClamp;
         this.emissiveReactiveBoost = emissiveReactiveBoost;
@@ -120,7 +120,7 @@ public final class VulkanGpuMesh {
             float reactiveStrength,
             boolean alphaTested,
             boolean foliage,
-            boolean reflectionProbeOnly,
+            int reflectionOverrideMode,
             float reactiveBoost,
             float taaHistoryClamp,
             float emissiveReactiveBoost,
@@ -136,7 +136,7 @@ public final class VulkanGpuMesh {
                 || this.reactiveStrength != reactiveStrength
                 || this.alphaTested != alphaTested
                 || this.foliage != foliage
-                || this.reflectionProbeOnly != reflectionProbeOnly
+                || this.reflectionOverrideMode != reflectionOverrideMode
                 || this.reactiveBoost != reactiveBoost
                 || this.taaHistoryClamp != taaHistoryClamp
                 || this.emissiveReactiveBoost != emissiveReactiveBoost
@@ -153,7 +153,7 @@ public final class VulkanGpuMesh {
         this.reactiveStrength = reactiveStrength;
         this.alphaTested = alphaTested;
         this.foliage = foliage;
-        this.reflectionProbeOnly = reflectionProbeOnly;
+        this.reflectionOverrideMode = reflectionOverrideMode;
         this.reactiveBoost = reactiveBoost;
         this.taaHistoryClamp = taaHistoryClamp;
         this.emissiveReactiveBoost = emissiveReactiveBoost;
