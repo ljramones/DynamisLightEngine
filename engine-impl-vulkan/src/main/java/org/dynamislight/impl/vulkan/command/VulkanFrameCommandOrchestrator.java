@@ -44,7 +44,8 @@ public final class VulkanFrameCommandOrchestrator {
                     mesh.vertexBuffer,
                     mesh.indexBuffer,
                     mesh.indexCount,
-                    mesh.textureDescriptorSet
+                    mesh.textureDescriptorSet,
+                    mesh.reflectionOverrideMode
             ));
         }
 
@@ -74,7 +75,11 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.shadowMomentImage(),
                         inputs.shadowMomentMipLevels(),
                         inputs.shadowMomentPipelineRequested(),
-                        inputs.shadowMomentInitialized()
+                        inputs.shadowMomentInitialized(),
+                        inputs.reflectionsMode(),
+                        inputs.taaHistoryInitialized(),
+                        inputs.taaHistoryVelocityImage(),
+                        inputs.swapchainImages()[imageIndex]
                 ),
                 meshes,
                 meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)

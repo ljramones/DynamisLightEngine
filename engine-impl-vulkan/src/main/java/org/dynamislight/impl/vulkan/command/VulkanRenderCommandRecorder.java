@@ -54,6 +54,10 @@ import static org.lwjgl.vulkan.VK10.vkCmdPushConstants;
 import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
 
 public final class VulkanRenderCommandRecorder {
+    private static final int REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT = 1 << 14;
+    private static final int REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT = 1 << 18;
+    private static final int REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT = 1 << 20;
+
     private VulkanRenderCommandRecorder() {
     }
 
@@ -353,6 +357,41 @@ public final class VulkanRenderCommandRecorder {
             }
         }
 
+        boolean planarCaptureRequested = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT) != 0;
+        boolean planarSelectiveRequested = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT) != 0;
+        boolean planarGeometryCaptureRequested = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT) != 0;
+        if (planarCaptureRequested
+                && planarSelectiveRequested
+                && planarGeometryCaptureRequested
+                && in.taaHistoryVelocityImage() != VK_NULL_HANDLE) {
+            recordMainRenderPass(
+                    stack,
+                    commandBuffer,
+                    in,
+                    meshes,
+                    dynamicUniformOffset,
+                    true
+            );
+            copyPlanarCaptureToHistoryVelocity(stack, commandBuffer, in);
+        }
+        recordMainRenderPass(
+                stack,
+                commandBuffer,
+                in,
+                meshes,
+                dynamicUniformOffset,
+                false
+        );
+    }
+
+    private static void recordMainRenderPass(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            RenderPassInputs in,
+            List<MeshDrawCmd> meshes,
+            IntUnaryOperator dynamicUniformOffset,
+            boolean planarSelectiveOnly
+    ) {
         VkClearValue.Buffer clearValues = VkClearValue.calloc(3, stack);
         clearValues.get(0).color().float32(0, 0.08f);
         clearValues.get(0).color().float32(1, 0.09f);
@@ -375,8 +414,12 @@ public final class VulkanRenderCommandRecorder {
 
         vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, in.graphicsPipeline());
+        boolean anyDrawn = false;
         for (int meshIndex = 0; meshIndex < in.drawCount() && meshIndex < meshes.size(); meshIndex++) {
             MeshDrawCmd mesh = meshes.get(meshIndex);
+            if (planarSelectiveOnly && !isPlanarEligible(mesh.reflectionOverrideMode())) {
+                continue;
+            }
             if (in.frameDescriptorSet() != VK_NULL_HANDLE && mesh.textureDescriptorSet() != VK_NULL_HANDLE) {
                 vkCmdBindDescriptorSets(
                         commandBuffer,
@@ -390,11 +433,141 @@ public final class VulkanRenderCommandRecorder {
             vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer()), stack.longs(0));
             vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer(), 0, VK_INDEX_TYPE_UINT32);
             vkCmdDrawIndexed(commandBuffer, mesh.indexCount(), 1, 0, 0, 0);
+            anyDrawn = true;
         }
-        if (meshes.isEmpty()) {
+        if (!anyDrawn) {
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         }
         vkCmdEndRenderPass(commandBuffer);
+    }
+
+    private static boolean isPlanarEligible(int reflectionOverrideMode) {
+        return reflectionOverrideMode != 1 && reflectionOverrideMode != 2;
+    }
+
+    private static void copyPlanarCaptureToHistoryVelocity(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            RenderPassInputs in
+    ) {
+        VkImageMemoryBarrier.Buffer captureSrcToTransfer = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                .oldLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+                .newLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(in.swapchainImageForCapture());
+        captureSrcToTransfer.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                null,
+                null,
+                captureSrcToTransfer
+        );
+
+        int historyOldLayout = in.taaHistoryInitialized()
+                ? VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                : VK_IMAGE_LAYOUT_UNDEFINED;
+        VkImageMemoryBarrier.Buffer captureDstToTransfer = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(in.taaHistoryInitialized() ? VK10.VK_ACCESS_SHADER_READ_BIT : 0)
+                .dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                .oldLayout(historyOldLayout)
+                .newLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(in.taaHistoryVelocityImage());
+        captureDstToTransfer.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                in.taaHistoryInitialized() ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                null,
+                null,
+                captureDstToTransfer
+        );
+
+        VkImageCopy.Buffer copyRegion = VkImageCopy.calloc(1, stack);
+        copyRegion.get(0)
+                .srcSubresource(it -> it.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1))
+                .srcOffset(it -> it.set(0, 0, 0))
+                .dstSubresource(it -> it.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1))
+                .dstOffset(it -> it.set(0, 0, 0))
+                .extent(it -> it.set(in.swapchainWidth(), in.swapchainHeight(), 1));
+        vkCmdCopyImage(
+                commandBuffer,
+                in.swapchainImageForCapture(),
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                in.taaHistoryVelocityImage(),
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                copyRegion
+        );
+
+        VkImageMemoryBarrier.Buffer captureDstToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                .oldLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(in.taaHistoryVelocityImage());
+        captureDstToShaderRead.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                null,
+                null,
+                captureDstToShaderRead
+        );
+
+        VkImageMemoryBarrier.Buffer captureSrcToColor = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                .oldLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                .newLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(in.swapchainImageForCapture());
+        captureSrcToColor.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                0,
+                null,
+                null,
+                captureSrcToColor
+        );
     }
 
     static int shadowPassCount(RenderPassInputs in) {
@@ -570,8 +743,9 @@ public final class VulkanRenderCommandRecorder {
                     historyVelocityToShaderRead
             );
         }
-        boolean planarCapturePassRequested = (in.reflectionsMode() & (1 << 18)) != 0;
-        if (planarCapturePassRequested && in.taaHistoryVelocityImage() != VK_NULL_HANDLE) {
+        boolean planarCapturePassRequested = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT) != 0;
+        boolean planarGeometryCaptureExecuted = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT) != 0;
+        if (planarCapturePassRequested && !planarGeometryCaptureExecuted && in.taaHistoryVelocityImage() != VK_NULL_HANDLE) {
             VkImageMemoryBarrier.Buffer planarCaptureDst = VkImageMemoryBarrier.calloc(1, stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
                     .srcAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
@@ -998,7 +1172,7 @@ public final class VulkanRenderCommandRecorder {
         return new PostCompositeState(true, taaHistoryInitialized);
     }
 
-    public record MeshDrawCmd(long vertexBuffer, long indexBuffer, int indexCount, long textureDescriptorSet) {
+    public record MeshDrawCmd(long vertexBuffer, long indexBuffer, int indexCount, long textureDescriptorSet, int reflectionOverrideMode) {
     }
 
     public record RenderPassInputs(
@@ -1024,7 +1198,11 @@ public final class VulkanRenderCommandRecorder {
             long shadowMomentImage,
             int shadowMomentMipLevels,
             boolean shadowMomentPipelineRequested,
-            boolean shadowMomentInitialized
+            boolean shadowMomentInitialized,
+            int reflectionsMode,
+            boolean taaHistoryInitialized,
+            long taaHistoryVelocityImage,
+            long swapchainImageForCapture
     ) {
     }
 

@@ -200,7 +200,7 @@ public final class VulkanRenderParameterMutator {
             reflectionsEnabled = update.reflectionsEnabled();
             changed = true;
         }
-        int clampedReflectionsMode = Math.max(0, Math.min(1_048_575, update.reflectionsMode()));
+        int clampedReflectionsMode = Math.max(0, Math.min(2_097_151, update.reflectionsMode()));
         if (reflectionsMode != clampedReflectionsMode) {
             reflectionsMode = clampedReflectionsMode;
             changed = true;

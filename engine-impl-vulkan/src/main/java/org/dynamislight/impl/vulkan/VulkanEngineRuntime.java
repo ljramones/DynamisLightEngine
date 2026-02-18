@@ -117,6 +117,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static final int REFLECTION_MODE_RT_MULTI_BOUNCE_BIT = 1 << 17;
     private static final int REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT = 1 << 18;
     private static final int REFLECTION_MODE_RT_DEDICATED_DENOISE_BIT = 1 << 19;
+    private static final int REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT = 1 << 20;
     private final VulkanContext context = new VulkanContext();
     private final VulkanRuntimeWarningPolicy warningPolicy = new VulkanRuntimeWarningPolicy();
     private final VulkanRuntimeWarningPolicy.State warningState = new VulkanRuntimeWarningPolicy.State();
@@ -1701,6 +1702,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (planarSelectiveEligible) {
             mode |= REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT;
             mode |= REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT;
+            mode |= REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT;
         }
         if (transparencyCandidatesPresent && rtLaneActive) {
             mode |= REFLECTION_MODE_TRANSPARENCY_INTEGRATION_BIT;

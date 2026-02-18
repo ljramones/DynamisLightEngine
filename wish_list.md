@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 16:45 ET — Implemented deeper reflection execution pass: explicit planar capture transfer stage + selective scope bits, SSR reprojection envelope warning/breach gates, dedicated RT denoise staging bit/path, hardened transparent/refractive RT/probe blend, and probe streaming cadence/max-visible/LOD-depth metadata path.
+- Latest reflection update: 2026-02-18 14:35 ET — Implemented planar selective geometry pre-pass execution path (capture before main scene pass) with runtime geometry-capture mode bit, plus prior SSR envelope gates, RT dedicated denoise stage, transparent/refractive hardening, and probe streaming cadence/max-visible/LOD metadata path.
 
 Status legend:
 
@@ -90,7 +90,8 @@ Reflection notes:
 - Transparency/refraction path now has an explicit stage gate tied to RT-minimal readiness, with pending warnings for transparent candidates.
 - Vulkan reflection runtime now composes execution mode bits per frame (reprojection/reject policy, planar-selective execution, RT lane active/multi-bounce, transparency integration) and applies them in post shader logic.
 - Vulkan post reflection push constants now carry RT denoise strength; runtime exposes typed debug accessors for composed mode and denoise strength.
-- Vulkan now executes planar capture before post composite when planar-selective scope is active, using runtime-composed capture execution bit.
+- Vulkan now executes planar selective capture as a real pre-main geometry pass and copies capture to planar history source, using runtime-composed capture bits (`1<<18` capture + `1<<20` geometry-capture execution).
+- Planar path is still `Partial`: mirrored clip-plane camera rerender is not complete yet.
 - SSR confidence/reprojection now has explicit envelope diagnostics and cooldown-gated breach warnings for ghost/disocclusion stress.
 - Probe upload now supports cadence rotation + max-visible budget + LOD depth-tier tagging in metadata for progressive probe streaming behavior.
 - OpenGL parity for probe slot/array path is not yet implemented.

@@ -568,6 +568,7 @@ class VulkanEngineRuntimeIntegrationTest {
         if (diagnostics.scopedMeshEligibleCount() > 0) {
             assertTrue((runtimeMode & (1 << 14)) != 0);
             assertTrue((runtimeMode & (1 << 18)) != 0);
+            assertTrue((runtimeMode & (1 << 20)) != 0);
         }
         runtime.shutdown();
     }

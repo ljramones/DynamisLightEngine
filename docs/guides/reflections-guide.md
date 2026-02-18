@@ -105,7 +105,8 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan now executes runtime-composed reflection mode bits for reflection-space reprojection/reject policy, selective planar execution, RT lane activation, and transparent/refraction integration.
 - Vulkan RT hybrid now executes an active RT-oriented reflection trace + denoise path in post shader, with fallback diagnostics only when the lane is disabled.
 - Vulkan now emits transparency/refraction stage-gate diagnostics (`REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) and activates `preview_enabled` integration when RT lane is active.
-- Vulkan now runs an explicit planar capture transfer stage before post composite when planar-selective execution is active (`planar_capture_before_main_sample_before_post` contract is now backed by execution).
+- Vulkan now runs an explicit planar selective geometry capture pre-pass before main scene pass, then copies that capture into the planar history source prior to post composite (`planar_capture_before_main_sample_before_post` contract is now backed by execution).
+- Planar capture currently uses selective pre-main rerender scope; true mirrored clip-plane camera rerender is still pending.
 - Vulkan now emits SSR reprojection envelope diagnostics (`REFLECTION_SSR_REPROJECTION_ENVELOPE`) and breach warnings (`REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`) with threshold/cooldown gating for ghosting/disocclusion risk.
 - Vulkan RT lane now supports dedicated denoise staging (spatial + temporal) behind runtime mode bit activation.
 - Vulkan probe metadata upload now supports streaming cadence + max-visible budget + LOD depth-tier tagging for probe resolve.
