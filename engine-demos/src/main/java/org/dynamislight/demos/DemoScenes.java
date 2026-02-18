@@ -516,6 +516,82 @@ final class DemoScenes {
         );
     }
 
+    static SceneDescriptor aaMotionStressScene(String aaMode, float blend, float renderScale) {
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 2.2f, 9.0f), new Vec3(0f, 0.8f, -4.8f), 62f, 0.1f, 1000f);
+        List<TransformDesc> transforms = new ArrayList<>();
+        List<MeshDesc> meshes = new ArrayList<>();
+        List<MaterialDesc> materials = new ArrayList<>();
+
+        transforms.add(new TransformDesc("floor", new Vec3(0f, -0.85f, -5.4f), new Vec3(0f, 0f, 0f), new Vec3(7.5f, 0.15f, 8.5f)));
+        meshes.add(new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-floor", new Vec3(0.12f, 0.14f, 0.17f), 0.86f, 0.0f, null, null));
+
+        // Thin geometry grid to provoke AA edge crawl and shimmer behavior.
+        int lanes = 7;
+        int depthSlices = 7;
+        float laneSpacing = 0.9f;
+        float sliceSpacing = 1.1f;
+        float startX = -((lanes - 1) * laneSpacing) * 0.5f;
+        float startZ = -0.8f;
+        for (int lane = 0; lane < lanes; lane++) {
+            for (int slice = 0; slice < depthSlices; slice++) {
+                String id = "thin-" + lane + "-" + slice;
+                String transformId = "xform-" + id;
+                String materialId = "mat-" + id;
+                float x = startX + (lane * laneSpacing);
+                float z = startZ - (slice * sliceSpacing);
+                float y = 0.18f + ((lane + slice) % 3) * 0.04f;
+                transforms.add(new TransformDesc(
+                        transformId,
+                        new Vec3(x, y, z),
+                        new Vec3(0f, (lane * 11f) + (slice * 15f), 0f),
+                        new Vec3(0.12f, 0.70f, 0.12f)
+                ));
+                meshes.add(new MeshDesc("mesh-" + id, transformId, materialId, "meshes/box.glb"));
+                float bias = (lane + slice) / 12.0f;
+                materials.add(new MaterialDesc(
+                        materialId,
+                        new Vec3(0.22f + 0.62f * bias, 0.30f + 0.48f * (1.0f - bias), 0.58f + 0.30f * bias),
+                        0.25f + 0.35f * ((slice % 3) / 2.0f),
+                        0.10f + 0.20f * ((lane % 2)),
+                        null,
+                        null
+                ));
+            }
+        }
+
+        ShadowDesc directionalShadow = new ShadowDesc(1536, 0.0011f, 5, 3);
+        LightDesc sun = new LightDesc(
+                "sun",
+                new Vec3(0f, 11f, 0f),
+                new Vec3(1f, 0.96f, 0.90f),
+                1.10f,
+                120f,
+                true,
+                directionalShadow
+        );
+        LightDesc kickA = new LightDesc("kick-a", new Vec3(-2.8f, 2.2f, -2.4f), new Vec3(1.0f, 0.30f, 0.35f), 0.95f, 8.0f, false, null);
+        LightDesc kickB = new LightDesc("kick-b", new Vec3(2.8f, 2.1f, -4.6f), new Vec3(0.30f, 0.60f, 1.0f), 0.92f, 8.0f, false, null);
+
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.05f, 0.07f, 0.10f), 0.26f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.05f, 2.2f, true, Math.max(0.55f, Math.min(0.95f, blend)), 0.74f);
+
+        return new SceneDescriptor(
+                "demo-scene-aa-motion-stress-" + aaMode + "-rs" + String.format(java.util.Locale.ROOT, "%.2f", renderScale),
+                List.of(camera),
+                "main-cam",
+                transforms,
+                meshes,
+                materials,
+                List.of(sun, kickA, kickB),
+                environment,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
     static SceneDescriptor sceneWithAa(String aaMode, boolean postEnabled, float blend, float renderScale) {
         CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 1.5f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 1000f);
         TransformDesc triangleTransform = new TransformDesc("triangle", new Vec3(0f, 0f, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f));
