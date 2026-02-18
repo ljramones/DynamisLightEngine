@@ -71,6 +71,7 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrEnvelopeWarnCooldownFrames", "180"),
                         Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
                         Map.entry("vulkan.reflections.rtMultiBounceEnabled", "true"),
+                        Map.entry("vulkan.reflections.rtRequireActive", "true"),
                         Map.entry("vulkan.reflections.rtDedicatedDenoisePipelineEnabled", "false"),
                         Map.entry("vulkan.reflections.rtDenoiseStrength", "0.73"),
                         Map.entry("vulkan.reflections.planarPerfRequireGpuTimestamp", "true")
@@ -148,6 +149,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(180, parsed.reflectionSsrEnvelopeWarnCooldownFrames());
         assertEquals(true, parsed.reflectionRtSingleBounceEnabled());
         assertEquals(true, parsed.reflectionRtMultiBounceEnabled());
+        assertEquals(true, parsed.reflectionRtRequireActive());
         assertEquals(false, parsed.reflectionRtDedicatedDenoisePipelineEnabled());
         assertEquals(0.73, parsed.reflectionRtDenoiseStrength());
         assertEquals(true, parsed.reflectionPlanarPerfRequireGpuTimestamp());
@@ -213,6 +215,7 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrEnvelopeWarnMinFrames", "0"),
                         Map.entry("vulkan.reflections.ssrEnvelopeWarnCooldownFrames", "999999"),
                         Map.entry("vulkan.reflections.rtDedicatedDenoisePipelineEnabled", "true"),
+                        Map.entry("vulkan.reflections.rtRequireActive", "true"),
                         Map.entry("vulkan.reflections.rtDenoiseStrength", "9.0"),
                         Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "0"),
                         Map.entry("vulkan.reflections.probeMaxVisible", "999"),
@@ -282,6 +285,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(10000, parsed.reflectionSsrEnvelopeWarnCooldownFrames());
         assertEquals(true, parsed.reflectionRtSingleBounceEnabled());
         assertEquals(false, parsed.reflectionRtMultiBounceEnabled());
+        assertEquals(true, parsed.reflectionRtRequireActive());
         assertEquals(true, parsed.reflectionRtDedicatedDenoisePipelineEnabled());
         assertEquals(1.0, parsed.reflectionRtDenoiseStrength());
         assertEquals(false, parsed.reflectionPlanarPerfRequireGpuTimestamp());

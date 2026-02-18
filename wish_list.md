@@ -104,6 +104,7 @@ Reflection notes:
 - Planar maturity now has an explicit exit checklist with pass/fail criteria in `docs/planar-in-exit-criteria.md`.
 - Planar perf diagnostics now report timing-source state (`gpu_timestamp` vs `frame_estimate`), use Vulkan timestamp query timing when available, and can be configured to require timestamp timing for `In` promotion gating.
 - Planar promotion workflow now includes a guarded real-Vulkan signoff runner (`scripts/planar_real_gpu_signoff.sh`) for timestamp-source validation and stress replay outside mock-only CI.
+- RT reflections now include an explicit strict-availability gate (`vulkan.reflections.rtRequireActive`) with breach warning (`REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH`) plus a dedicated lockdown runner (`scripts/rt_reflections_ci_lockdown_full.sh`).
 
 ## Anti-Aliasing
 

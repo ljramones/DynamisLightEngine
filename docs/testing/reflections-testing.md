@@ -55,6 +55,9 @@ mvn -pl engine-impl-vulkan -am -Dtest=VulkanEngineRuntimeIntegrationTest -Dsuref
 
 # Guarded real-Vulkan planar signoff bundle
 ./scripts/planar_real_gpu_signoff.sh
+
+# RT reflections lockdown (contracts + compare harness)
+./scripts/rt_reflections_ci_lockdown_full.sh
 ```
 
 See `docs/planar-in-exit-criteria.md` for explicit `Partial -> In` exit criteria and current checklist status.
@@ -130,6 +133,7 @@ Current profile tags in parity tests:
 - Assert RT diagnostics include dedicated denoise pipeline activation flag for request and typed snapshot parity.
 - Assert runtime-composed reflection mode bits expose RT active/multi-bounce flags (`debugReflectionRuntimeMode`) and denoise strength (`debugReflectionRuntimeRtDenoiseStrength`).
 - Assert fallback warning (`REFLECTION_RT_PATH_FALLBACK_ACTIVE`) only when RT lane is explicitly unavailable.
+- Assert strict-required RT mode emits breach warning (`REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH`) when `vulkan.reflections.rtRequireActive=true` and lane cannot activate.
 - Assert dedicated RT denoise stage bit is present when dedicated RT denoise pipeline is enabled.
 
 8. Transparency/refraction stage-gate checks

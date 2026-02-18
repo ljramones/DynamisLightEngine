@@ -314,10 +314,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private long reflectionSsrTaaLatestDropEvents;
     private boolean reflectionRtSingleBounceEnabled = true;
     private boolean reflectionRtMultiBounceEnabled;
+    private boolean reflectionRtRequireActive;
     private boolean reflectionRtDedicatedDenoisePipelineEnabled = true;
     private double reflectionRtDenoiseStrength = 0.65;
     private boolean reflectionRtLaneRequested;
     private boolean reflectionRtLaneActive;
+    private boolean reflectionRtRequireActiveUnmetLastFrame;
     private String reflectionRtFallbackChainActive = "probe";
     private String reflectionPlanarPassOrderContractStatus = "inactive";
     private int reflectionPlanarScopedMeshEligibleCount;
@@ -459,6 +461,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionPlanarPerfRequireGpuTimestamp = options.reflectionPlanarPerfRequireGpuTimestamp();
         reflectionRtSingleBounceEnabled = options.reflectionRtSingleBounceEnabled();
         reflectionRtMultiBounceEnabled = options.reflectionRtMultiBounceEnabled();
+        reflectionRtRequireActive = options.reflectionRtRequireActive();
         reflectionRtDedicatedDenoisePipelineEnabled = options.reflectionRtDedicatedDenoisePipelineEnabled();
         reflectionRtDenoiseStrength = options.reflectionRtDenoiseStrength();
         reflectionProbeUpdateCadenceFrames = options.reflectionProbeUpdateCadenceFrames();
@@ -1151,11 +1154,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
             reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled;
             reflectionRtFallbackChainActive = reflectionRtLaneActive ? "rt->ssr->probe" : "ssr->probe";
+            reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActive && reflectionRtLaneRequested && !reflectionRtLaneActive;
             if (reflectionRtLaneRequested || reflectionBaseMode == 4) {
                 warnings.add(new EngineWarning(
                         "REFLECTION_RT_PATH_REQUESTED",
                         "RT reflection path requested (singleBounceEnabled=" + reflectionRtSingleBounceEnabled
                                 + ", multiBounceEnabled=" + reflectionRtMultiBounceEnabled
+                                + ", requireActive=" + reflectionRtRequireActive
                                 + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
                                 + ", denoiseStrength=" + reflectionRtDenoiseStrength
                                 + ", laneActive=" + reflectionRtLaneActive
@@ -1167,8 +1172,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             "RT reflection lane unavailable; fallback chain active (" + reflectionRtFallbackChainActive + ")"
                     ));
                 }
+                if (reflectionRtRequireActiveUnmetLastFrame) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH",
+                            "RT reflection lane required but unavailable (requireActive=true, fallbackChain="
+                                    + reflectionRtFallbackChainActive + ")"
+                    ));
+                }
             } else {
                 reflectionRtFallbackChainActive = "probe";
+                reflectionRtRequireActiveUnmetLastFrame = false;
             }
             reflectionTransparentCandidateCount = countReflectionTransparentCandidates(currentSceneMaterials);
             if (reflectionTransparentCandidateCount > 0) {
@@ -1249,6 +1262,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", planarScopeIncludeOther=" + reflectionPlanarScopeIncludeOther
                             + ", rtSingleBounceEnabled=" + reflectionRtSingleBounceEnabled
                             + ", rtMultiBounceEnabled=" + reflectionRtMultiBounceEnabled
+                            + ", rtRequireActive=" + reflectionRtRequireActive
                             + ", rtDedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
                             + ", rtDenoiseStrength=" + reflectionRtDenoiseStrength
                             + ", probeUpdateCadenceFrames=" + reflectionProbeUpdateCadenceFrames
@@ -1475,6 +1489,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionPlanarDedicatedCaptureLaneActive = false;
             reflectionRtLaneRequested = false;
             reflectionRtLaneActive = false;
+            reflectionRtRequireActiveUnmetLastFrame = false;
             reflectionRtFallbackChainActive = "probe";
             reflectionTransparentCandidateCount = 0;
             reflectionTransparencyStageGateStatus = "not_required";
@@ -2437,6 +2452,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtLaneActive,
                 reflectionRtSingleBounceEnabled,
                 reflectionRtMultiBounceEnabled,
+                reflectionRtRequireActive,
+                reflectionRtRequireActiveUnmetLastFrame,
                 reflectionRtDedicatedDenoisePipelineEnabled,
                 reflectionRtDenoiseStrength,
                 reflectionRtFallbackChainActive
@@ -2654,6 +2671,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean laneActive,
             boolean singleBounceEnabled,
             boolean multiBounceEnabled,
+            boolean requireActive,
+            boolean requireActiveUnmetLastFrame,
             boolean dedicatedDenoisePipelineEnabled,
             double denoiseStrength,
             String fallbackChain
