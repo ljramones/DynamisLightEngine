@@ -188,6 +188,9 @@ public final class DemoRunner {
         String explicitPostOffscreen = request.arg("post-offscreen", "");
         if (!explicitPostOffscreen.isBlank()) {
             options.put(prefix + ".postOffscreen", Boolean.toString(parseBoolean(explicitPostOffscreen, true)));
+        } else if (!request.mockContext()) {
+            // Real runs default to onscreen presentation so users can see the demo window.
+            options.put(prefix + ".postOffscreen", "false");
         }
         String renderScale = request.arg("aa-render-scale", "");
         if (!renderScale.isBlank()) {
