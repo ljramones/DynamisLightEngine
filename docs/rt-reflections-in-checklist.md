@@ -17,6 +17,7 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 - [x] Add dedicated-path diagnostics and breach warnings.
 - [x] Add mock preview activation switch (`rtDedicatedPipelineEnabled`) for contract exercise.
 - [x] Make dedicated preview activation capability-conditioned in real Vulkan signoff lanes.
+- [x] Add RT BLAS/TLAS/SBT lifecycle telemetry scaffolding (`REFLECTION_RT_PIPELINE_LIFECYCLE`, typed runtime diagnostics).
 - [ ] Implement true dedicated hardware RT path activation (non-mock).
 - [ ] Wire BLAS/TLAS lifecycle for reflection path (build/refit/compaction).
 - [ ] Wire SBT lifecycle (create/update/rebuild on scene/material changes).

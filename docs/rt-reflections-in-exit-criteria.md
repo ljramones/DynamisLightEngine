@@ -23,6 +23,8 @@ RT reflections are `In` when the RT lane is truly executable (not fallback-only)
   Evidence: `vulkan.reflections.rtRequireDedicatedPipeline=true` + `REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH`.
 - [x] RT perf envelope warning and breach gate are emitted with typed diagnostics.
   Evidence: `REFLECTION_RT_PERF_GATES`, `REFLECTION_RT_PERF_GATES_BREACH`, `debugReflectionRtPerfDiagnostics`.
+- [x] RT pipeline lifecycle scaffolding telemetry is emitted for BLAS/TLAS/SBT progression.
+  Evidence: `REFLECTION_RT_PIPELINE_LIFECYCLE`, `debugReflectionRtPipelineDiagnostics`.
 - [x] Runtime-composed mode bits expose RT active/multi-bounce/denoise state.
   Evidence: `debugReflectionRuntimeMode`, `debugReflectionRuntimeRtDenoiseStrength`.
 - [x] Transparency stage gate is integrated with RT lane status.

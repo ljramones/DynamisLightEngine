@@ -143,6 +143,7 @@ Current profile tags in parity tests:
 - Assert RT perf gates emit `REFLECTION_RT_PERF_GATES` and breach under strict caps via `REFLECTION_RT_PERF_GATES_BREACH`.
 - Validate typed RT perf diagnostics (`debugReflectionRtPerfDiagnostics`) against warning payload (`gpuMsEstimate`, `gpuMsCap`, streak/cooldown state).
 - Assert dedicated RT denoise stage bit is present when dedicated RT denoise pipeline is enabled.
+- Assert RT lifecycle warning (`REFLECTION_RT_PIPELINE_LIFECYCLE`) and typed lifecycle diagnostics (`debugReflectionRtPipelineDiagnostics`) report `pending` vs `preview_bound` BLAS/TLAS/SBT state transitions.
 
 8. Transparency/refraction stage-gate checks
 - For alpha-tested/transparent candidates, assert `REFLECTION_TRANSPARENCY_STAGE_GATE` is emitted.

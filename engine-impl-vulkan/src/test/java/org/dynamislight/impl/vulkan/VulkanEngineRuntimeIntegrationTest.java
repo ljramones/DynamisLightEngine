@@ -1030,6 +1030,7 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PIPELINE_LIFECYCLE".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_FALLBACK_ACTIVE".equals(w.code())));
         String rt = warningMessageByCode(frame, "REFLECTION_RT_PATH_REQUESTED");
         assertTrue(rt.contains("singleBounceEnabled=true"));
@@ -1046,6 +1047,11 @@ class VulkanEngineRuntimeIntegrationTest {
         assertFalse(diagnostics.dedicatedHardwarePipelineActive());
         assertTrue(diagnostics.dedicatedDenoisePipelineEnabled());
         assertEquals("rt->ssr->probe", diagnostics.fallbackChain());
+        var pipeline = runtime.debugReflectionRtPipelineDiagnostics();
+        assertEquals("pending", pipeline.blasLifecycleState());
+        assertEquals("pending", pipeline.tlasLifecycleState());
+        assertEquals("pending", pipeline.sbtLifecycleState());
+        assertEquals(0, pipeline.blasObjectCount());
         int runtimeMode = runtime.debugReflectionRuntimeMode();
         assertTrue((runtimeMode & 0x7) > 0);
         assertTrue((runtimeMode & (1 << 15)) != 0);
@@ -1157,6 +1163,11 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.requireDedicatedPipeline());
         assertTrue(diagnostics.requireDedicatedPipelineUnmetLastFrame());
         assertFalse(diagnostics.dedicatedHardwarePipelineActive());
+        var pipeline = runtime.debugReflectionRtPipelineDiagnostics();
+        assertEquals("pending", pipeline.blasLifecycleState());
+        assertEquals("pending", pipeline.tlasLifecycleState());
+        assertEquals("pending", pipeline.sbtLifecycleState());
+        assertEquals(0, pipeline.blasObjectCount());
         runtime.shutdown();
     }
 
@@ -1178,6 +1189,7 @@ class VulkanEngineRuntimeIntegrationTest {
         assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_PENDING".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(
                 w -> "REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PIPELINE_LIFECYCLE".equals(w.code())));
         var diagnostics = runtime.debugReflectionRtPathDiagnostics();
         assertTrue(diagnostics.laneActive());
         assertTrue(diagnostics.dedicatedPipelineEnabled());
@@ -1186,6 +1198,13 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.requireDedicatedPipeline());
         assertFalse(diagnostics.requireDedicatedPipelineUnmetLastFrame());
         assertTrue(diagnostics.dedicatedHardwarePipelineActive());
+        var pipeline = runtime.debugReflectionRtPipelineDiagnostics();
+        assertEquals("preview_bound", pipeline.blasLifecycleState());
+        assertEquals("preview_bound", pipeline.tlasLifecycleState());
+        assertEquals("preview_bound", pipeline.sbtLifecycleState());
+        assertTrue(pipeline.blasObjectCount() > 0);
+        assertTrue(pipeline.tlasInstanceCount() > 0);
+        assertTrue(pipeline.sbtRecordCount() > 0);
         runtime.shutdown();
     }
 

@@ -335,6 +335,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean reflectionRtTraversalSupported;
     private boolean reflectionRtDedicatedCapabilitySupported;
     private boolean reflectionRtDedicatedHardwarePipelineActive;
+    private String reflectionRtBlasLifecycleState = "disabled";
+    private String reflectionRtTlasLifecycleState = "disabled";
+    private String reflectionRtSbtLifecycleState = "disabled";
+    private int reflectionRtBlasObjectCount;
+    private int reflectionRtTlasInstanceCount;
+    private int reflectionRtSbtRecordCount;
     private int reflectionRtPerfHighStreak;
     private int reflectionRtPerfWarnCooldownRemaining;
     private double reflectionRtPerfLastGpuMsEstimate;
@@ -1195,6 +1201,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtRequireDedicatedPipelineUnmetLastFrame =
                     reflectionRtRequireDedicatedPipeline && reflectionRtLaneRequested && !reflectionRtDedicatedHardwarePipelineActive;
             if (reflectionRtLaneRequested || reflectionBaseMode == 4) {
+                if (reflectionRtDedicatedHardwarePipelineActive) {
+                    reflectionRtBlasLifecycleState = "preview_bound";
+                    reflectionRtTlasLifecycleState = "preview_bound";
+                    reflectionRtSbtLifecycleState = "preview_bound";
+                    int sceneObjectEstimate = (int) Math.max(0L, Math.min((long) Integer.MAX_VALUE, plannedVisibleObjects));
+                    reflectionRtBlasObjectCount = sceneObjectEstimate;
+                    reflectionRtTlasInstanceCount = sceneObjectEstimate;
+                    reflectionRtSbtRecordCount = Math.max(1, sceneObjectEstimate + 2);
+                } else {
+                    reflectionRtBlasLifecycleState = "pending";
+                    reflectionRtTlasLifecycleState = "pending";
+                    reflectionRtSbtLifecycleState = "pending";
+                    reflectionRtBlasObjectCount = 0;
+                    reflectionRtTlasInstanceCount = 0;
+                    reflectionRtSbtRecordCount = 0;
+                }
                 warnings.add(new EngineWarning(
                         "REFLECTION_RT_PATH_REQUESTED",
                         "RT reflection path requested (singleBounceEnabled=" + reflectionRtSingleBounceEnabled
@@ -1228,6 +1250,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", requireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline + ")"
                     ));
                 }
+                warnings.add(new EngineWarning(
+                        "REFLECTION_RT_PIPELINE_LIFECYCLE",
+                        "RT pipeline lifecycle (blasState=" + reflectionRtBlasLifecycleState
+                                + ", tlasState=" + reflectionRtTlasLifecycleState
+                                + ", sbtState=" + reflectionRtSbtLifecycleState
+                                + ", blasObjectCount=" + reflectionRtBlasObjectCount
+                                + ", tlasInstanceCount=" + reflectionRtTlasInstanceCount
+                                + ", sbtRecordCount=" + reflectionRtSbtRecordCount
+                                + ", dedicatedActive=" + reflectionRtDedicatedHardwarePipelineActive + ")"
+                ));
                 if (!reflectionRtLaneActive) {
                     warnings.add(new EngineWarning(
                             "REFLECTION_RT_PATH_FALLBACK_ACTIVE",
@@ -1309,6 +1341,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtTraversalSupported = false;
                 reflectionRtDedicatedCapabilitySupported = false;
                 reflectionRtDedicatedHardwarePipelineActive = false;
+                reflectionRtBlasLifecycleState = "disabled";
+                reflectionRtTlasLifecycleState = "disabled";
+                reflectionRtSbtLifecycleState = "disabled";
+                reflectionRtBlasObjectCount = 0;
+                reflectionRtTlasInstanceCount = 0;
+                reflectionRtSbtRecordCount = 0;
                 reflectionRtPerfHighStreak = 0;
                 reflectionRtPerfWarnCooldownRemaining = 0;
                 reflectionRtPerfBreachedLastFrame = false;
@@ -1638,6 +1676,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtTraversalSupported = false;
             reflectionRtDedicatedCapabilitySupported = false;
             reflectionRtDedicatedHardwarePipelineActive = false;
+            reflectionRtBlasLifecycleState = "disabled";
+            reflectionRtTlasLifecycleState = "disabled";
+            reflectionRtSbtLifecycleState = "disabled";
+            reflectionRtBlasObjectCount = 0;
+            reflectionRtTlasInstanceCount = 0;
+            reflectionRtSbtRecordCount = 0;
             reflectionRtPerfHighStreak = 0;
             reflectionRtPerfWarnCooldownRemaining = 0;
             reflectionRtPerfLastGpuMsEstimate = 0.0;
@@ -2641,6 +2685,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionRtPipelineDiagnostics debugReflectionRtPipelineDiagnostics() {
+        return new ReflectionRtPipelineDiagnostics(
+                reflectionRtBlasLifecycleState,
+                reflectionRtTlasLifecycleState,
+                reflectionRtSbtLifecycleState,
+                reflectionRtBlasObjectCount,
+                reflectionRtTlasInstanceCount,
+                reflectionRtSbtRecordCount
+        );
+    }
+
     ReflectionTransparencyDiagnostics debugReflectionTransparencyDiagnostics() {
         return new ReflectionTransparencyDiagnostics(
                 reflectionTransparentCandidateCount,
@@ -2876,6 +2931,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int warnCooldownFrames,
             int warnCooldownRemaining,
             boolean breachedLastFrame
+    ) {
+    }
+
+    record ReflectionRtPipelineDiagnostics(
+            String blasLifecycleState,
+            String tlasLifecycleState,
+            String sbtLifecycleState,
+            int blasObjectCount,
+            int tlasInstanceCount,
+            int sbtRecordCount
     ) {
     }
 
