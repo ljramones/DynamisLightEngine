@@ -118,6 +118,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static final int REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT = 1 << 18;
     private static final int REFLECTION_MODE_RT_DEDICATED_DENOISE_BIT = 1 << 19;
     private static final int REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT = 1 << 20;
+    private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_AUTO_BIT = 1 << 21;
+    private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_PROBE_ONLY_BIT = 1 << 22;
+    private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_SSR_ONLY_BIT = 1 << 23;
+    private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_OTHER_BIT = 1 << 24;
     private final VulkanContext context = new VulkanContext();
     private final VulkanRuntimeWarningPolicy warningPolicy = new VulkanRuntimeWarningPolicy();
     private final VulkanRuntimeWarningPolicy.State warningState = new VulkanRuntimeWarningPolicy.State();
@@ -277,6 +281,28 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double reflectionPlanarPrevPlaneHeight = Double.NaN;
     private double reflectionPlanarLatestPlaneDelta;
     private double reflectionPlanarLatestCoverageRatio = 1.0;
+    private boolean reflectionPlanarScopeIncludeAuto = true;
+    private boolean reflectionPlanarScopeIncludeProbeOnly;
+    private boolean reflectionPlanarScopeIncludeSsrOnly;
+    private boolean reflectionPlanarScopeIncludeOther = true;
+    private double reflectionPlanarPerfMaxGpuMsLow = 1.4;
+    private double reflectionPlanarPerfMaxGpuMsMedium = 2.2;
+    private double reflectionPlanarPerfMaxGpuMsHigh = 3.0;
+    private double reflectionPlanarPerfMaxGpuMsUltra = 4.2;
+    private double reflectionPlanarPerfDrawInflationWarnMax = 2.0;
+    private double reflectionPlanarPerfMemoryBudgetMb = 32.0;
+    private int reflectionPlanarPerfWarnMinFrames = 3;
+    private int reflectionPlanarPerfWarnCooldownFrames = 120;
+    private int reflectionPlanarPerfHighStreak;
+    private int reflectionPlanarPerfWarnCooldownRemaining;
+    private boolean reflectionPlanarPerfBreachedLastFrame;
+    private double reflectionPlanarPerfLastGpuMsEstimate;
+    private double reflectionPlanarPerfLastGpuMsCap;
+    private double reflectionPlanarPerfLastDrawInflation = 1.0;
+    private long reflectionPlanarPerfLastMemoryBytes;
+    private long reflectionPlanarPerfLastMemoryBudgetBytes;
+    private double lastFrameGpuMs;
+    private long lastFrameDrawCalls = 1L;
     private double reflectionSsrTaaLatestRejectRate;
     private double reflectionSsrTaaLatestConfidenceMean = 1.0;
     private long reflectionSsrTaaLatestDropEvents;
@@ -412,6 +438,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionPlanarEnvelopeCoverageRatioWarnMin = options.reflectionPlanarEnvelopeCoverageRatioWarnMin();
         reflectionPlanarEnvelopeWarnMinFrames = options.reflectionPlanarEnvelopeWarnMinFrames();
         reflectionPlanarEnvelopeWarnCooldownFrames = options.reflectionPlanarEnvelopeWarnCooldownFrames();
+        reflectionPlanarScopeIncludeAuto = options.reflectionPlanarScopeIncludeAuto();
+        reflectionPlanarScopeIncludeProbeOnly = options.reflectionPlanarScopeIncludeProbeOnly();
+        reflectionPlanarScopeIncludeSsrOnly = options.reflectionPlanarScopeIncludeSsrOnly();
+        reflectionPlanarScopeIncludeOther = options.reflectionPlanarScopeIncludeOther();
+        reflectionPlanarPerfMaxGpuMsLow = options.reflectionPlanarPerfMaxGpuMsLow();
+        reflectionPlanarPerfMaxGpuMsMedium = options.reflectionPlanarPerfMaxGpuMsMedium();
+        reflectionPlanarPerfMaxGpuMsHigh = options.reflectionPlanarPerfMaxGpuMsHigh();
+        reflectionPlanarPerfMaxGpuMsUltra = options.reflectionPlanarPerfMaxGpuMsUltra();
+        reflectionPlanarPerfDrawInflationWarnMax = options.reflectionPlanarPerfDrawInflationWarnMax();
+        reflectionPlanarPerfMemoryBudgetMb = options.reflectionPlanarPerfMemoryBudgetMb();
+        reflectionPlanarPerfWarnMinFrames = options.reflectionPlanarPerfWarnMinFrames();
+        reflectionPlanarPerfWarnCooldownFrames = options.reflectionPlanarPerfWarnCooldownFrames();
         reflectionRtSingleBounceEnabled = options.reflectionRtSingleBounceEnabled();
         reflectionRtMultiBounceEnabled = options.reflectionRtMultiBounceEnabled();
         reflectionRtDedicatedDenoisePipelineEnabled = options.reflectionRtDedicatedDenoisePipelineEnabled();
@@ -439,6 +477,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionPlanarPrevPlaneHeight = Double.NaN;
         reflectionPlanarLatestPlaneDelta = 0.0;
         reflectionPlanarLatestCoverageRatio = 1.0;
+        reflectionPlanarPerfHighStreak = 0;
+        reflectionPlanarPerfWarnCooldownRemaining = 0;
+        reflectionPlanarPerfBreachedLastFrame = false;
+        reflectionPlanarPerfLastGpuMsEstimate = 0.0;
+        reflectionPlanarPerfLastGpuMsCap = 0.0;
+        reflectionPlanarPerfLastDrawInflation = 1.0;
+        reflectionPlanarPerfLastMemoryBytes = 0L;
+        reflectionPlanarPerfLastMemoryBudgetBytes = 0L;
         context.configureReflectionProbeStreaming(
                 reflectionProbeUpdateCadenceFrames,
                 reflectionProbeMaxVisible,
@@ -678,6 +724,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 plannedTriangles,
                 plannedVisibleObjects
         );
+        lastFrameGpuMs = frame.gpuMs();
+        lastFrameDrawCalls = frame.drawCalls();
         deviceLostRaised = frame.deviceLostRaised();
         return renderMetrics(
                 frame.cpuMs(),
@@ -892,8 +940,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", reason=" + reflectionProbeQualityDiagnostics.breachReason() + ")"
                 ));
             }
-            int planarEligible = overrideSummary.autoCount() + overrideSummary.otherCount();
-            int planarExcluded = overrideSummary.probeOnlyCount() + overrideSummary.ssrOnlyCount();
+            int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
+            int planarExcluded = planarScopeExclusionCountFromOverrideSummary(overrideSummary);
             int planarTotalMeshes = Math.max(0, planarEligible + planarExcluded);
             boolean planarPathActive = reflectionBaseMode == 2 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
             reflectionPlanarScopedMeshEligibleCount = planarEligible;
@@ -904,17 +952,31 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionPlanarMirrorCameraActive = planarPathActive;
             // In mock/offscreen-disabled contexts, surface the logical planar lane contract as active.
             reflectionPlanarDedicatedCaptureLaneActive = planarPathActive;
+            String planarScopeIncludes = "auto=" + reflectionPlanarScopeIncludeAuto
+                    + "|probe_only=" + reflectionPlanarScopeIncludeProbeOnly
+                    + "|ssr_only=" + reflectionPlanarScopeIncludeSsrOnly
+                    + "|other=" + reflectionPlanarScopeIncludeOther;
             warnings.add(new EngineWarning(
                     "REFLECTION_PLANAR_SCOPE_CONTRACT",
                     "Planar scope contract (status=" + reflectionPlanarPassOrderContractStatus
                             + ", planarPathActive=" + planarPathActive
                             + ", mirrorCameraActive=" + reflectionPlanarMirrorCameraActive
                             + ", dedicatedCaptureLaneActive=" + reflectionPlanarDedicatedCaptureLaneActive
+                            + ", scopeIncludes=" + planarScopeIncludes
                             + ", eligibleMeshes=" + planarEligible
                             + ", excludedMeshes=" + planarExcluded
                             + ", totalMeshes=" + planarTotalMeshes
                             + ", planeHeight=" + currentPost.reflectionsPlanarPlaneHeight()
                             + ", requiredOrder=planar_capture_before_main_sample_before_post)"
+            ));
+            String captureResourceStatus = planarPathActive
+                    ? (reflectionPlanarDedicatedCaptureLaneActive ? "capture_available_before_post_sample" : "fallback_scene_color")
+                    : "fallback_scene_color";
+            warnings.add(new EngineWarning(
+                    "REFLECTION_PLANAR_RESOURCE_CONTRACT",
+                    "Planar resource contract (status=" + captureResourceStatus
+                            + ", planarPathActive=" + planarPathActive
+                            + ", dedicatedCaptureLaneActive=" + reflectionPlanarDedicatedCaptureLaneActive + ")"
             ));
             if (planarPathActive && planarEligible <= 0) {
                 warnings.add(new EngineWarning(
@@ -982,12 +1044,76 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     ));
                 }
                 reflectionPlanarPrevPlaneHeight = currentPlaneHeight;
+                double planarGpuMsCap = planarPerfGpuMsCapForTier(qualityTier);
+                double planarGpuMsEstimate = Math.max(0.0, lastFrameGpuMs) * (0.28 + 0.52 * planarCoverageRatio);
+                double planarDrawInflation = 1.0 + planarCoverageRatio;
+                long planarMemoryEstimate = (long) Math.max(0.0, lastFrameGpuMs * 0.0);
+                long planarBudgetBytes = (long) (reflectionPlanarPerfMemoryBudgetMb * 1024.0 * 1024.0);
+                // Approximate dedicated planar lane memory from active viewport dimensions.
+                planarMemoryEstimate = (long) Math.max(0.0, viewportWidth) * Math.max(0L, viewportHeight) * 4L;
+                boolean planarPerfRisk = planarGpuMsEstimate > planarGpuMsCap
+                        || planarDrawInflation > reflectionPlanarPerfDrawInflationWarnMax
+                        || planarMemoryEstimate > planarBudgetBytes;
+                if (planarPerfRisk) {
+                    reflectionPlanarPerfHighStreak++;
+                } else {
+                    reflectionPlanarPerfHighStreak = 0;
+                }
+                boolean planarPerfTriggered = false;
+                if (reflectionPlanarPerfWarnCooldownRemaining > 0) {
+                    reflectionPlanarPerfWarnCooldownRemaining--;
+                }
+                if (planarPerfRisk
+                        && reflectionPlanarPerfHighStreak >= reflectionPlanarPerfWarnMinFrames
+                        && reflectionPlanarPerfWarnCooldownRemaining <= 0) {
+                    planarPerfTriggered = true;
+                    reflectionPlanarPerfWarnCooldownRemaining = reflectionPlanarPerfWarnCooldownFrames;
+                }
+                reflectionPlanarPerfBreachedLastFrame = planarPerfTriggered;
+                reflectionPlanarPerfLastGpuMsEstimate = planarGpuMsEstimate;
+                reflectionPlanarPerfLastGpuMsCap = planarGpuMsCap;
+                reflectionPlanarPerfLastDrawInflation = planarDrawInflation;
+                reflectionPlanarPerfLastMemoryBytes = planarMemoryEstimate;
+                reflectionPlanarPerfLastMemoryBudgetBytes = planarBudgetBytes;
+                warnings.add(new EngineWarning(
+                        "REFLECTION_PLANAR_PERF_GATES",
+                        "Planar perf gates (risk=" + planarPerfRisk
+                                + ", gpuMsEstimate=" + planarGpuMsEstimate
+                                + ", gpuMsCap=" + planarGpuMsCap
+                                + ", drawInflation=" + planarDrawInflation
+                                + ", drawInflationWarnMax=" + reflectionPlanarPerfDrawInflationWarnMax
+                                + ", memoryBytes=" + planarMemoryEstimate
+                                + ", memoryBudgetBytes=" + planarBudgetBytes
+                                + ", highStreak=" + reflectionPlanarPerfHighStreak
+                                + ", warnMinFrames=" + reflectionPlanarPerfWarnMinFrames
+                                + ", warnCooldownFrames=" + reflectionPlanarPerfWarnCooldownFrames
+                                + ", cooldownRemaining=" + reflectionPlanarPerfWarnCooldownRemaining
+                                + ", breached=" + planarPerfTriggered
+                                + ")"
+                ));
+                if (planarPerfTriggered) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_PLANAR_PERF_GATES_BREACH",
+                            "Planar perf gates breached (gpuMsEstimate=" + planarGpuMsEstimate
+                                    + ", gpuMsCap=" + planarGpuMsCap
+                                    + ", drawInflation=" + planarDrawInflation
+                                    + ", memoryBytes=" + planarMemoryEstimate
+                                    + ", memoryBudgetBytes=" + planarBudgetBytes + ")"
+                    ));
+                }
             } else {
                 reflectionPlanarEnvelopeHighStreak = 0;
                 reflectionPlanarEnvelopeBreachedLastFrame = false;
                 reflectionPlanarPrevPlaneHeight = Double.NaN;
                 reflectionPlanarLatestPlaneDelta = 0.0;
                 reflectionPlanarLatestCoverageRatio = 1.0;
+                reflectionPlanarPerfHighStreak = 0;
+                reflectionPlanarPerfBreachedLastFrame = false;
+                reflectionPlanarPerfLastGpuMsEstimate = 0.0;
+                reflectionPlanarPerfLastGpuMsCap = planarPerfGpuMsCapForTier(qualityTier);
+                reflectionPlanarPerfLastDrawInflation = 1.0;
+                reflectionPlanarPerfLastMemoryBytes = 0L;
+                reflectionPlanarPerfLastMemoryBudgetBytes = (long) (reflectionPlanarPerfMemoryBudgetMb * 1024.0 * 1024.0);
             }
             reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
             reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled;
@@ -1075,6 +1201,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", planarEnvelopeCoverageRatioWarnMin=" + reflectionPlanarEnvelopeCoverageRatioWarnMin
                             + ", planarEnvelopeWarnMinFrames=" + reflectionPlanarEnvelopeWarnMinFrames
                             + ", planarEnvelopeWarnCooldownFrames=" + reflectionPlanarEnvelopeWarnCooldownFrames
+                            + ", planarPerfMaxGpuMsLow=" + reflectionPlanarPerfMaxGpuMsLow
+                            + ", planarPerfMaxGpuMsMedium=" + reflectionPlanarPerfMaxGpuMsMedium
+                            + ", planarPerfMaxGpuMsHigh=" + reflectionPlanarPerfMaxGpuMsHigh
+                            + ", planarPerfMaxGpuMsUltra=" + reflectionPlanarPerfMaxGpuMsUltra
+                            + ", planarPerfDrawInflationWarnMax=" + reflectionPlanarPerfDrawInflationWarnMax
+                            + ", planarPerfMemoryBudgetMb=" + reflectionPlanarPerfMemoryBudgetMb
+                            + ", planarPerfWarnMinFrames=" + reflectionPlanarPerfWarnMinFrames
+                            + ", planarPerfWarnCooldownFrames=" + reflectionPlanarPerfWarnCooldownFrames
+                            + ", planarScopeIncludeAuto=" + reflectionPlanarScopeIncludeAuto
+                            + ", planarScopeIncludeProbeOnly=" + reflectionPlanarScopeIncludeProbeOnly
+                            + ", planarScopeIncludeSsrOnly=" + reflectionPlanarScopeIncludeSsrOnly
+                            + ", planarScopeIncludeOther=" + reflectionPlanarScopeIncludeOther
                             + ", rtSingleBounceEnabled=" + reflectionRtSingleBounceEnabled
                             + ", rtMultiBounceEnabled=" + reflectionRtMultiBounceEnabled
                             + ", rtDedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
@@ -1590,6 +1728,49 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return count;
     }
 
+    private int countPlanarEligibleFromOverrideSummary(ReflectionOverrideSummary summary) {
+        int eligible = 0;
+        if (reflectionPlanarScopeIncludeAuto) {
+            eligible += summary.autoCount();
+        }
+        if (reflectionPlanarScopeIncludeProbeOnly) {
+            eligible += summary.probeOnlyCount();
+        }
+        if (reflectionPlanarScopeIncludeSsrOnly) {
+            eligible += summary.ssrOnlyCount();
+        }
+        if (reflectionPlanarScopeIncludeOther) {
+            eligible += summary.otherCount();
+        }
+        return Math.max(0, eligible);
+    }
+
+    private int planarScopeExclusionCountFromOverrideSummary(ReflectionOverrideSummary summary) {
+        int excluded = 0;
+        if (!reflectionPlanarScopeIncludeAuto) {
+            excluded += summary.autoCount();
+        }
+        if (!reflectionPlanarScopeIncludeProbeOnly) {
+            excluded += summary.probeOnlyCount();
+        }
+        if (!reflectionPlanarScopeIncludeSsrOnly) {
+            excluded += summary.ssrOnlyCount();
+        }
+        if (!reflectionPlanarScopeIncludeOther) {
+            excluded += summary.otherCount();
+        }
+        return Math.max(0, excluded);
+    }
+
+    private double planarPerfGpuMsCapForTier(QualityTier tier) {
+        return switch (tier) {
+            case LOW -> reflectionPlanarPerfMaxGpuMsLow;
+            case MEDIUM -> reflectionPlanarPerfMaxGpuMsMedium;
+            case HIGH -> reflectionPlanarPerfMaxGpuMsHigh;
+            case ULTRA -> reflectionPlanarPerfMaxGpuMsUltra;
+        };
+    }
+
     private ReflectionProbeChurnDiagnostics updateReflectionProbeChurnDiagnostics(VulkanContext.ReflectionProbeDiagnostics diagnostics) {
         int active = Math.max(0, diagnostics.activeProbeCount());
         boolean warningTriggered = false;
@@ -1748,7 +1929,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         }
         int reflectionBaseMode = currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
         ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
-        int planarEligible = overrideSummary.autoCount() + overrideSummary.otherCount();
+        int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
         reflectionTransparentCandidateCount = countReflectionTransparentCandidates(currentSceneMaterials);
         reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
         reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled;
@@ -1837,6 +2018,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             mode |= REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT;
             mode |= REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT;
             mode |= REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT;
+        }
+        if (reflectionPlanarScopeIncludeAuto) {
+            mode |= REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_AUTO_BIT;
+        }
+        if (reflectionPlanarScopeIncludeProbeOnly) {
+            mode |= REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_PROBE_ONLY_BIT;
+        }
+        if (reflectionPlanarScopeIncludeSsrOnly) {
+            mode |= REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_SSR_ONLY_BIT;
+        }
+        if (reflectionPlanarScopeIncludeOther) {
+            mode |= REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_OTHER_BIT;
         }
         if (transparencyCandidatesPresent && rtLaneActive) {
             mode |= REFLECTION_MODE_TRANSPARENCY_INTEGRATION_BIT;
@@ -2173,6 +2366,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionPlanarPerfDiagnostics debugReflectionPlanarPerfDiagnostics() {
+        return new ReflectionPlanarPerfDiagnostics(
+                reflectionPlanarPerfLastGpuMsEstimate,
+                reflectionPlanarPerfLastGpuMsCap,
+                reflectionPlanarPerfLastDrawInflation,
+                reflectionPlanarPerfDrawInflationWarnMax,
+                reflectionPlanarPerfLastMemoryBytes,
+                reflectionPlanarPerfLastMemoryBudgetBytes,
+                reflectionPlanarPerfHighStreak,
+                reflectionPlanarPerfWarnMinFrames,
+                reflectionPlanarPerfWarnCooldownFrames,
+                reflectionPlanarPerfWarnCooldownRemaining,
+                reflectionPlanarPerfBreachedLastFrame
+        );
+    }
+
     ReflectionOverridePolicyDiagnostics debugReflectionOverridePolicyDiagnostics() {
         ReflectionOverrideSummary summary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
         return new ReflectionOverridePolicyDiagnostics(
@@ -2366,6 +2575,21 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             double coverageRatio,
             double planeDeltaWarnMax,
             double coverageRatioWarnMin,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
+            boolean breachedLastFrame
+    ) {
+    }
+
+    record ReflectionPlanarPerfDiagnostics(
+            double gpuMsEstimate,
+            double gpuMsCap,
+            double drawInflation,
+            double drawInflationWarnMax,
+            long memoryBytes,
+            long memoryBudgetBytes,
             int highStreak,
             int warnMinFrames,
             int warnCooldownFrames,
@@ -2585,6 +2809,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeCoverageRatioWarnMin")) reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.30;
                 if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnMinFrames")) reflectionPlanarEnvelopeWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnCooldownFrames")) reflectionPlanarEnvelopeWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsLow")) reflectionPlanarPerfMaxGpuMsLow = 1.2;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsMedium")) reflectionPlanarPerfMaxGpuMsMedium = 1.9;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsHigh")) reflectionPlanarPerfMaxGpuMsHigh = 2.6;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsUltra")) reflectionPlanarPerfMaxGpuMsUltra = 3.2;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfDrawInflationWarnMax")) reflectionPlanarPerfDrawInflationWarnMax = 1.7;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMemoryBudgetMb")) reflectionPlanarPerfMemoryBudgetMb = 20.0;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfWarnMinFrames")) reflectionPlanarPerfWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfWarnCooldownFrames")) reflectionPlanarPerfWarnCooldownFrames = 180;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = false;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.58;
@@ -2620,6 +2852,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeCoverageRatioWarnMin")) reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.20;
                 if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnMinFrames")) reflectionPlanarEnvelopeWarnMinFrames = 3;
                 if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnCooldownFrames")) reflectionPlanarEnvelopeWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsLow")) reflectionPlanarPerfMaxGpuMsLow = 1.5;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsMedium")) reflectionPlanarPerfMaxGpuMsMedium = 2.4;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsHigh")) reflectionPlanarPerfMaxGpuMsHigh = 3.3;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsUltra")) reflectionPlanarPerfMaxGpuMsUltra = 4.5;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfDrawInflationWarnMax")) reflectionPlanarPerfDrawInflationWarnMax = 2.1;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMemoryBudgetMb")) reflectionPlanarPerfMemoryBudgetMb = 36.0;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfWarnMinFrames")) reflectionPlanarPerfWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfWarnCooldownFrames")) reflectionPlanarPerfWarnCooldownFrames = 120;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.72;
@@ -2655,6 +2895,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeCoverageRatioWarnMin")) reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.15;
                 if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnMinFrames")) reflectionPlanarEnvelopeWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnCooldownFrames")) reflectionPlanarEnvelopeWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsLow")) reflectionPlanarPerfMaxGpuMsLow = 1.8;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsMedium")) reflectionPlanarPerfMaxGpuMsMedium = 2.8;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsHigh")) reflectionPlanarPerfMaxGpuMsHigh = 3.8;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsUltra")) reflectionPlanarPerfMaxGpuMsUltra = 5.0;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfDrawInflationWarnMax")) reflectionPlanarPerfDrawInflationWarnMax = 2.4;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfMemoryBudgetMb")) reflectionPlanarPerfMemoryBudgetMb = 48.0;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfWarnMinFrames")) reflectionPlanarPerfWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarPerfWarnCooldownFrames")) reflectionPlanarPerfWarnCooldownFrames = 90;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = false;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.80;

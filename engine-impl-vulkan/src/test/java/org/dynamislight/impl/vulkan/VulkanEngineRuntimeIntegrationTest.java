@@ -683,12 +683,29 @@ class VulkanEngineRuntimeIntegrationTest {
 
             assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_RESOURCE_CONTRACT".equals(w.code())));
             String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
             assertTrue(contract.contains("status=prepass_capture_then_main_sample"));
             assertTrue(contract.contains("mirrorCameraActive=true"));
             assertTrue(contract.contains("dedicatedCaptureLaneActive=true"));
+            String resource = warningMessageByCode(frame, "REFLECTION_PLANAR_RESOURCE_CONTRACT");
+            assertTrue(resource.contains("status=capture_available_before_post_sample"));
             runtime.shutdown();
         }
+    }
+
+    @Test
+    void planarResourceContractFallsBackWhenPlanarPathInactive() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("ssr"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_RESOURCE_CONTRACT".equals(w.code())));
+        String resource = warningMessageByCode(frame, "REFLECTION_PLANAR_RESOURCE_CONTRACT");
+        assertTrue(resource.contains("status=fallback_scene_color"));
+        runtime.shutdown();
     }
 
     @Test
@@ -712,6 +729,72 @@ class VulkanEngineRuntimeIntegrationTest {
         var diagnostics = runtime.debugReflectionPlanarStabilityDiagnostics();
         assertTrue(diagnostics.breachedLastFrame());
         assertTrue(diagnostics.highStreak() >= 1);
+        runtime.shutdown();
+    }
+
+    @Test
+    void planarPerfGateBreachEmitsUnderStrictCaps() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.planarPerfMaxGpuMsMedium", "0.0001"),
+                Map.entry("vulkan.reflections.planarPerfDrawInflationWarnMax", "1.01"),
+                Map.entry("vulkan.reflections.planarPerfMemoryBudgetMb", "0.0001"),
+                Map.entry("vulkan.reflections.planarPerfWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.planarPerfWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("planar"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_PERF_GATES".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_PERF_GATES_BREACH".equals(w.code())));
+        String perf = warningMessageByCode(frame, "REFLECTION_PLANAR_PERF_GATES");
+        assertTrue(perf.contains("risk=true"));
+        var diagnostics = runtime.debugReflectionPlanarPerfDiagnostics();
+        assertTrue(diagnostics.breachedLastFrame());
+        runtime.shutdown();
+    }
+
+    @Test
+    void planarScopePolicyAllowsProbeOnlyWhenConfigured() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.planarScopeIncludeAuto", "false"),
+                Map.entry("vulkan.reflections.planarScopeIncludeProbeOnly", "true"),
+                Map.entry("vulkan.reflections.planarScopeIncludeSsrOnly", "false"),
+                Map.entry("vulkan.reflections.planarScopeIncludeOther", "false")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validMaterialOverrideReflectionScene(ReflectionOverrideMode.PROBE_ONLY));
+
+        var frame = runtime.render();
+
+        String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
+        assertTrue(contract.contains("scopeIncludes=auto=false|probe_only=true|ssr_only=false|other=false"));
+        assertTrue(contract.contains("eligibleMeshes=1"));
+        assertTrue(contract.contains("excludedMeshes=0"));
+        runtime.shutdown();
+    }
+
+    @Test
+    void planarSceneCoverageMatrixEmitsContractsForInteriorOutdoorMultiAndDynamic() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        List<SceneDescriptor> scenes = List.of(
+                validPlanarInteriorMirrorScene(),
+                validPlanarOutdoorScene(),
+                validPlanarMultiPlaneScene(),
+                validPlanarDynamicCrossingScene(0.8f),
+                validPlanarDynamicCrossingScene(-0.8f)
+        );
+        for (SceneDescriptor scene : scenes) {
+            runtime.loadScene(scene);
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_EMPTY".equals(w.code())));
+        }
         runtime.shutdown();
     }
 
@@ -3008,6 +3091,84 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.transforms(),
                 base.meshes(),
                 List.of(mat),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validPlanarInteriorMirrorScene() {
+        return validPlanarClipHeightScene(0.0f);
+    }
+
+    private static SceneDescriptor validPlanarOutdoorScene() {
+        SceneDescriptor base = validPlanarClipHeightScene(-2.0f);
+        CameraDesc outdoor = new CameraDesc("cam-outdoor", new Vec3(0f, 3f, 12f), new Vec3(-8f, 180f, 0f), 70f, 0.1f, 220f);
+        return new SceneDescriptor(
+                base.sceneName(),
+                List.of(outdoor),
+                "cam-outdoor",
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validPlanarMultiPlaneScene() {
+        SceneDescriptor base = validPlanarClipHeightScene(0.4f);
+        List<TransformDesc> transforms = new ArrayList<>(base.transforms());
+        List<MeshDesc> meshes = new ArrayList<>(base.meshes());
+        transforms.add(new TransformDesc(
+                "xform-planar-secondary",
+                new Vec3(0.0f, 1.2f, -1.5f),
+                new Vec3(0.0f, 0.0f, 0.0f),
+                new Vec3(1.2f, 1.0f, 1.2f)
+        ));
+        meshes.add(new MeshDesc(
+                "mesh-planar-secondary",
+                "xform-planar-secondary",
+                meshes.isEmpty() ? "mat-planar" : meshes.get(0).materialId(),
+                "models/plane.glb"
+        ));
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                transforms,
+                meshes,
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validPlanarDynamicCrossingScene(float yOffset) {
+        SceneDescriptor base = validPlanarClipHeightScene(0.0f);
+        TransformDesc xform = base.transforms().isEmpty()
+                ? new TransformDesc("xform", new Vec3(0f, yOffset, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f))
+                : new TransformDesc(
+                base.transforms().getFirst().id(),
+                new Vec3(0f, yOffset, 0f),
+                base.transforms().getFirst().rotationEulerDeg(),
+                base.transforms().getFirst().scale()
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                List.of(xform),
+                base.meshes(),
+                base.materials(),
                 base.lights(),
                 base.environment(),
                 base.fog(),

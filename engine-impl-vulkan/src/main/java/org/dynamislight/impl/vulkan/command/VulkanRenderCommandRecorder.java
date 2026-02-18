@@ -57,6 +57,10 @@ public final class VulkanRenderCommandRecorder {
     private static final int REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT = 1 << 14;
     private static final int REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT = 1 << 18;
     private static final int REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT = 1 << 20;
+    private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_AUTO_BIT = 1 << 21;
+    private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_PROBE_ONLY_BIT = 1 << 22;
+    private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_SSR_ONLY_BIT = 1 << 23;
+    private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_OTHER_BIT = 1 << 24;
     private static final int REFLECTION_MODE_PLANAR_CLIP_BIT = 1 << 7;
 
     private VulkanRenderCommandRecorder() {
@@ -430,7 +434,7 @@ public final class VulkanRenderCommandRecorder {
         boolean anyDrawn = false;
         for (int meshIndex = 0; meshIndex < in.drawCount() && meshIndex < meshes.size(); meshIndex++) {
             MeshDrawCmd mesh = meshes.get(meshIndex);
-            if (planarSelectiveOnly && !isPlanarEligible(mesh.reflectionOverrideMode())) {
+            if (planarSelectiveOnly && !isPlanarEligible(mesh.reflectionOverrideMode(), in.reflectionsMode())) {
                 continue;
             }
             if (in.frameDescriptorSet() != VK_NULL_HANDLE && mesh.textureDescriptorSet() != VK_NULL_HANDLE) {
@@ -454,8 +458,21 @@ public final class VulkanRenderCommandRecorder {
         vkCmdEndRenderPass(commandBuffer);
     }
 
-    private static boolean isPlanarEligible(int reflectionOverrideMode) {
-        return reflectionOverrideMode != 1 && reflectionOverrideMode != 2;
+    private static boolean isPlanarEligible(int reflectionOverrideMode, int reflectionsMode) {
+        boolean includeAuto = (reflectionsMode & REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_AUTO_BIT) != 0;
+        boolean includeProbeOnly = (reflectionsMode & REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_PROBE_ONLY_BIT) != 0;
+        boolean includeSsrOnly = (reflectionsMode & REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_SSR_ONLY_BIT) != 0;
+        boolean includeOther = (reflectionsMode & REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_OTHER_BIT) != 0;
+        if (!includeAuto && !includeProbeOnly && !includeSsrOnly && !includeOther) {
+            includeAuto = true;
+            includeOther = true;
+        }
+        return switch (Math.max(0, Math.min(3, reflectionOverrideMode))) {
+            case 0 -> includeAuto;
+            case 1 -> includeProbeOnly;
+            case 2 -> includeSsrOnly;
+            default -> includeOther;
+        };
     }
 
     private static void copyPlanarCaptureImage(

@@ -101,6 +101,18 @@ Current profile tags in parity tests:
 - Include planar contract/stability coverage checks across `planar`, `hybrid`, and `rt_hybrid` reflection modes.
 - Assert `REFLECTION_PLANAR_STABILITY_ENVELOPE` emits for planar-active modes and assert cooldown-gated `REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH` under strict envelope thresholds.
 - Validate typed diagnostics (`debugReflectionPlanarStabilityDiagnostics`) for parser-free CI gating.
+- Assert `REFLECTION_PLANAR_RESOURCE_CONTRACT` reports `capture_available_before_post_sample` for planar-active paths and `fallback_scene_color` otherwise.
+- Assert planar perf gates emit `REFLECTION_PLANAR_PERF_GATES` every planar-active frame and `REFLECTION_PLANAR_PERF_GATES_BREACH` under strict thresholds.
+- Validate typed diagnostics (`debugReflectionPlanarPerfDiagnostics`) against warning payload fields (`gpuMsEstimate`, draw inflation, memory estimate, caps, cooldown/high-streak state).
+- Include planar scene-matrix coverage checks:
+  - interior mirror-like scene
+  - outdoor plane scene
+  - multi-plane scene
+  - dynamic crossing scene (object crossing plane height)
+- Include stress checks:
+  - rapid camera movement
+  - frequent plane-height changes
+  - high selective-scope mesh counts
 
 7. RT execution-lane checks
 - Assert `REFLECTION_RT_PATH_REQUESTED` and typed diagnostics (`debugReflectionRtPathDiagnostics`) expose lane request/active state and fallback chain.

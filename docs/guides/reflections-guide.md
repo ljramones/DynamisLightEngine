@@ -112,6 +112,16 @@ PostProcessDesc post = new PostProcessDesc(
 - Planar clip-plane culling is now evaluated against world/planar camera-consistent height (`vWorldPos.y` vs configured plane height) during planar capture.
 - Planar reflection sampling now uses a dedicated post planar-capture texture lane (`uPlanarCaptureColor`) instead of reusing TAA history-velocity storage.
 - Vulkan now emits planar stability envelope diagnostics (`REFLECTION_PLANAR_STABILITY_ENVELOPE`) and breach warnings (`REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH`) with threshold/cooldown gating for planar contract, scope coverage, and plane-height delta risk.
+- Vulkan now emits planar resource/perf diagnostics (`REFLECTION_PLANAR_RESOURCE_CONTRACT`, `REFLECTION_PLANAR_PERF_GATES`, `REFLECTION_PLANAR_PERF_GATES_BREACH`) and exposes typed runtime counters via `debugReflectionPlanarPerfDiagnostics`.
+- Vulkan planar selective scope policy is configurable via:
+  - `vulkan.reflections.planarScopeIncludeAuto`
+  - `vulkan.reflections.planarScopeIncludeProbeOnly`
+  - `vulkan.reflections.planarScopeIncludeSsrOnly`
+  - `vulkan.reflections.planarScopeIncludeOther`
+- Vulkan planar perf/stability tuning knobs include:
+  - per-tier GPU caps: `vulkan.reflections.planarPerfMaxGpuMsLow|Medium|High|Ultra`
+  - draw inflation and memory caps: `vulkan.reflections.planarPerfDrawInflationWarnMax`, `vulkan.reflections.planarPerfMemoryBudgetMb`
+  - perf gate persistence/cooldown: `vulkan.reflections.planarPerfWarnMinFrames`, `vulkan.reflections.planarPerfWarnCooldownFrames`
 - Vulkan reflection resolve now includes a first contact-hardening pass behavior: near depth-contact SSR hits receive a roughness ramp/weight boost to stabilize sharp contact reflections.
 - Planar capture remains selective-scope and still evolves under the broader planar `Partial` maturity status, but mirrored clip-plane camera rerender is now active in the Vulkan path.
 - Vulkan now emits SSR reprojection envelope diagnostics (`REFLECTION_SSR_REPROJECTION_ENVELOPE`) and breach warnings (`REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`) with threshold/cooldown gating for ghosting/disocclusion risk.
@@ -132,3 +142,18 @@ PostProcessDesc post = new PostProcessDesc(
   - `REFLECTION_RT_PATH_REQUESTED` / `REFLECTION_RT_PATH_FALLBACK_ACTIVE` (only when lane unavailable)
   - `REFLECTION_TRANSPARENCY_STAGE_GATE` / `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`
 - High-risk/fail adaptive trend warnings now also emit `PerformanceWarningEvent` callbacks in Vulkan for parser-free host/CI alerting.
+
+## Planar Limits (Current)
+
+- Scope: production-hardening work is currently Vulkan-first; OpenGL planar parity is not yet the baseline target.
+- Planar perf gate `gpuMsEstimate` is an in-runtime estimate, not a hardware timestamp query.
+- Known unsupported/limited cases:
+  - full OpenGL parity for planar selective capture path
+  - broad real-content certification across all production scenes
+  - final artifact lock-down for all edge seam/intersection stress cases
+
+## Planar Required Settings
+
+- `PostProcessDesc.reflections.enabled=true`
+- `ReflectionDesc.mode` in one of `planar`, `hybrid`, or `rt_hybrid`
+- `ReflectionAdvancedDesc.planarClipPlaneEnabled=true` for clip-plane path behavior
