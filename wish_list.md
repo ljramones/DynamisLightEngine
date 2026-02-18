@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:46 ET — Plumbed configurable planar clip height into runtime capture execution: selective pre-main planar pass now uses `reflectionAdvanced.planarPlaneHeight` for mirror/clip behavior (instead of fixed plane), with end-to-end command/input/state wiring.
+- Latest reflection update: 2026-02-18 14:50 ET — Added first contact-hardening reflection behavior in Vulkan post reflection resolve (depth-contact-driven roughness ramp/strength boost for SSR + planar blend), alongside configurable planar clip height plumbing.
 
 Status legend:
 
@@ -52,7 +52,7 @@ Status summary snapshot (2026-02-18):
 - RT + SSR hybrid (RT for rough, SSR for sharp, probe for miss) — `Partial`
 - Reflection probe streaming (LOD, priority-based update) — `Not In Yet`
 - Per-material reflection override (force probe-only for specific surfaces) — `Partial`
-- Contact-hardening reflections (roughness ramp near contact) — `Not In Yet`
+- Contact-hardening reflections (roughness ramp near contact) — `Partial`
 - Transparent/refractive surface reflections — `Partial`
 
 Reflection notes:

@@ -1880,6 +1880,7 @@ public final class VulkanShaderSources {
                     vec2 traceUv = uv;
                     vec3 ssrColor = color;
                     float ssrHit = 0.0;
+                    float ssrBestDepth = currentDepth;
                     float mipBias = hiZEnabled ? 0.8 : 0.0;
                     for (int i = 0; i < 16; i++) {
                         float hiZStep = hiZEnabled ? pow(1.24, float(i)) : 1.0;
@@ -1893,8 +1894,13 @@ public final class VulkanShaderSources {
                         if (gate > ssrHit) {
                             ssrHit = gate;
                             ssrColor = sampleColor;
+                            ssrBestDepth = sampleDepth;
                         }
                     }
+                    float contactHardening = 1.0 - smoothstep(0.01, 0.16, abs(ssrBestDepth - currentDepth));
+                    float contactRoughnessRamp = mix(1.0, 0.58, contactHardening);
+                    roughnessMask = clamp(roughnessMask / max(contactRoughnessRamp, 0.1), 0.0, 1.0);
+                    ssrStrength = clamp(ssrStrength * mix(1.0, 1.22, contactHardening), 0.0, 1.0);
                     if (denoisePasses > 0) {
                         for (int i = 0; i < denoisePasses; i++) {
                             float radius = float(i + 1);
@@ -1934,6 +1940,7 @@ public final class VulkanShaderSources {
                         float planeFade = 1.0 - smoothstep(0.05, 0.75, currentDepth);
                         planarStrength *= planeFade;
                     }
+                    planarStrength = clamp(planarStrength * mix(1.0, 1.10, contactHardening), 0.0, 1.0);
                     if (probeVolumeEnabled) {
                         vec2 boxUv = probeBoxProjectionEnabled ? clamp((uv - 0.5) * 1.35 + 0.5, vec2(0.0), vec2(1.0)) : uv;
                         vec3 probeColor = texture(uSceneColor, boxUv).rgb;
