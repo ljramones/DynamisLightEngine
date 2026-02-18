@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 12:20 ET — Probe diagnostics warning payload now includes active churn policy knobs (`warnMinDelta/warnMinStreak/warnCooldownFrames`) so frame telemetry captures both measured churn and configured thresholds.
+- Latest reflection update: 2026-02-18 12:22 ET — Added `REFLECTION_SSR_TAA_DIAGNOSTICS` warning telemetry for SSR/TAA integration (SSR knobs + TAA reject/confidence/drop signals), with instability-risk gating via `REFLECTION_SSR_TAA_INSTABILITY_RISK`.
 
 Status legend:
 
@@ -66,6 +66,7 @@ Reflection notes:
 - Vulkan now tracks probe active-set churn across frames and emits `REFLECTION_PROBE_CHURN_HIGH` when instability persists.
 - Vulkan probe-churn warning thresholds are configurable per tier/profile through backend options.
 - Probe diagnostics warnings now report configured churn threshold values alongside live churn metrics.
+- Vulkan now emits SSR/TAA diagnostics warning telemetry for reflection-temporal interaction monitoring.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

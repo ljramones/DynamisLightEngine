@@ -452,6 +452,26 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionSsrTaaDiagnosticsWarningIncludesTemporalSignals() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_SSR_TAA_DIAGNOSTICS".equals(w.code())));
+        String diagnostics = warningMessageByCode(frame, "REFLECTION_SSR_TAA_DIAGNOSTICS");
+        assertTrue(diagnostics.contains("mode=hybrid"));
+        assertTrue(diagnostics.contains("ssrStrength="));
+        assertTrue(diagnostics.contains("reflectionTemporalWeight="));
+        assertTrue(diagnostics.contains("taaBlend="));
+        assertTrue(diagnostics.contains("historyRejectRate="));
+        assertTrue(diagnostics.contains("confidenceMean="));
+        assertTrue(diagnostics.contains("confidenceDropEvents="));
+        runtime.shutdown();
+    }
+
+    @Test
     void iblEnvironmentEmitsBaselineActiveWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());

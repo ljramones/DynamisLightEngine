@@ -611,6 +611,42 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", cooldownRemaining=" + churnDiagnostics.warnCooldownRemaining()
                             + ")"
             ));
+            boolean ssrPathActive = reflectionBaseMode == 1 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
+            if (ssrPathActive && currentPost.taaEnabled()) {
+                double taaReject = context.taaHistoryRejectRate();
+                double taaConfidence = context.taaConfidenceMean();
+                long taaDrops = context.taaConfidenceDropEvents();
+                warnings.add(new EngineWarning(
+                        "REFLECTION_SSR_TAA_DIAGNOSTICS",
+                        "SSR/TAA diagnostics (mode="
+                                + switch (reflectionBaseMode) {
+                            case 1 -> "ssr";
+                            case 3 -> "hybrid";
+                            case 4 -> "rt_hybrid_fallback";
+                            default -> "unknown";
+                        }
+                                + ", ssrStrength=" + currentPost.reflectionsSsrStrength()
+                                + ", ssrMaxRoughness=" + currentPost.reflectionsSsrMaxRoughness()
+                                + ", ssrStepScale=" + currentPost.reflectionsSsrStepScale()
+                                + ", reflectionTemporalWeight=" + currentPost.reflectionsTemporalWeight()
+                                + ", taaBlend=" + currentPost.taaBlend()
+                                + ", taaClipScale=" + currentPost.taaClipScale()
+                                + ", taaLumaClip=" + currentPost.taaLumaClipEnabled()
+                                + ", historyRejectRate=" + taaReject
+                                + ", confidenceMean=" + taaConfidence
+                                + ", confidenceDropEvents=" + taaDrops
+                                + ")"
+                ));
+                if (taaReject > 0.35 && taaConfidence < 0.70) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_SSR_TAA_INSTABILITY_RISK",
+                            "SSR/TAA instability risk detected (historyRejectRate="
+                                    + taaReject
+                                    + ", confidenceMean=" + taaConfidence
+                                    + ", confidenceDropEvents=" + taaDrops + ")"
+                    ));
+                }
+            }
             if (churnDiagnostics.warningTriggered()) {
                 warnings.add(new EngineWarning(
                         "REFLECTION_PROBE_CHURN_HIGH",
