@@ -363,6 +363,24 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void hybridReflectionsWarningIncludesMixedMaterialOverrideCounts() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validMixedMaterialOverrideReflectionScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
+        String baseline = warningMessageByCode(frame, "REFLECTIONS_BASELINE_ACTIVE");
+        assertTrue(baseline.contains("overrideAuto=1"));
+        assertTrue(baseline.contains("overrideProbeOnly=1"));
+        assertTrue(baseline.contains("overrideSsrOnly=1"));
+        assertTrue(baseline.contains("overrideOther=0"));
+        assertEquals(List.of(0, 1, 2), runtime.debugReflectionOverrideModes());
+        runtime.shutdown();
+    }
+
+    @Test
     void iblEnvironmentEmitsBaselineActiveWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
@@ -1855,6 +1873,80 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.transforms(),
                 base.meshes(),
                 List.of(mat),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validMixedMaterialOverrideReflectionScene() {
+        SceneDescriptor base = validReflectionsScene("hybrid");
+        MeshDesc meshAuto = new MeshDesc("mesh-auto", "xform", "mat-auto", "mesh.glb");
+        MeshDesc meshProbe = new MeshDesc("mesh-probe", "xform", "mat-probe", "mesh.glb");
+        MeshDesc meshSsr = new MeshDesc("mesh-ssr", "xform", "mat-ssr", "mesh.glb");
+        MaterialDesc matAuto = new MaterialDesc(
+                "mat-auto",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0f,
+                false,
+                false,
+                1.0f,
+                1.0f,
+                1.0f,
+                null,
+                ReflectionOverrideMode.AUTO
+        );
+        MaterialDesc matProbe = new MaterialDesc(
+                "mat-probe",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0f,
+                false,
+                false,
+                1.0f,
+                1.0f,
+                1.0f,
+                null,
+                ReflectionOverrideMode.PROBE_ONLY
+        );
+        MaterialDesc matSsr = new MaterialDesc(
+                "mat-ssr",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0f,
+                false,
+                false,
+                1.0f,
+                1.0f,
+                1.0f,
+                null,
+                ReflectionOverrideMode.SSR_ONLY
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                List.of(meshAuto, meshProbe, meshSsr),
+                List.of(matAuto, matProbe, matSsr),
                 base.lights(),
                 base.environment(),
                 base.fog(),

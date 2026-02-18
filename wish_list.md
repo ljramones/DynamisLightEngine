@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 11:56 ET — Reflection baseline warning telemetry now reports per-frame material override counts (`overrideAuto/overrideProbeOnly/overrideSsrOnly/overrideOther`) alongside mode/strength envelope, with integration coverage for both `PROBE_ONLY` and `SSR_ONLY` scenes.
+- Latest reflection update: 2026-02-18 11:58 ET — Reflection baseline warning telemetry now reports per-frame material override counts (`overrideAuto/overrideProbeOnly/overrideSsrOnly/overrideOther`) alongside mode/strength envelope, with integration coverage for single-mode and mixed `AUTO + PROBE_ONLY + SSR_ONLY` scenes.
 
 Status legend:
 
