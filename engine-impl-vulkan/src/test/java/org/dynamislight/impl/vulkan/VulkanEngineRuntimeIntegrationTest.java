@@ -407,6 +407,9 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.contains("slots=2"));
         assertTrue(diagnostics.contains("delta="));
         assertTrue(diagnostics.contains("churnEvents="));
+        assertTrue(diagnostics.contains("warnMinDelta="));
+        assertTrue(diagnostics.contains("warnMinStreak="));
+        assertTrue(diagnostics.contains("warnCooldownFrames="));
         int diagnosticActive = parseIntMetricField(diagnostics, "active");
         assertEquals(baselineActive, diagnosticActive);
         var runtimeDiagnostics = runtime.debugReflectionProbeDiagnostics();

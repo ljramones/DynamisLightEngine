@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 12:18 ET — Probe-churn warning thresholds are now backend-configurable (`vulkan.reflections.probeChurnWarnMinDelta/MinStreak/CooldownFrames`) with parser coverage; churn diagnostics remain available in warnings and runtime debug accessors.
+- Latest reflection update: 2026-02-18 12:20 ET — Probe diagnostics warning payload now includes active churn policy knobs (`warnMinDelta/warnMinStreak/warnCooldownFrames`) so frame telemetry captures both measured churn and configured thresholds.
 
 Status legend:
 
@@ -65,6 +65,7 @@ Reflection notes:
 - Vulkan runtime now exposes probe diagnostics directly for integration/telemetry validation without warning-string parsing.
 - Vulkan now tracks probe active-set churn across frames and emits `REFLECTION_PROBE_CHURN_HIGH` when instability persists.
 - Vulkan probe-churn warning thresholds are configurable per tier/profile through backend options.
+- Probe diagnostics warnings now report configured churn threshold values alongside live churn metrics.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

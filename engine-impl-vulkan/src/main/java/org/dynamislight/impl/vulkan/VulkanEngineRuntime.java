@@ -605,6 +605,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", churnEvents=" + churnDiagnostics.churnEvents()
                             + ", meanDelta=" + churnDiagnostics.meanDelta()
                             + ", highStreak=" + churnDiagnostics.highStreak()
+                            + ", warnMinDelta=" + reflectionProbeChurnWarnMinDelta
+                            + ", warnMinStreak=" + reflectionProbeChurnWarnMinStreak
+                            + ", warnCooldownFrames=" + reflectionProbeChurnWarnCooldownFrames
                             + ", cooldownRemaining=" + churnDiagnostics.warnCooldownRemaining()
                             + ")"
             ));
