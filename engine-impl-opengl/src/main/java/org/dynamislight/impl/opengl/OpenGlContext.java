@@ -25,9 +25,12 @@ import static org.lwjgl.opengl.GL11.glDisable;
 import static org.lwjgl.opengl.GL11.glDrawArrays;
 import static org.lwjgl.opengl.GL11.glDrawBuffer;
 import static org.lwjgl.opengl.GL11.glEnable;
+import static org.lwjgl.opengl.GL11.GL_POLYGON_OFFSET_FILL;
+import static org.lwjgl.opengl.GL11.glPolygonOffset;
 import static org.lwjgl.opengl.GL11.glGenTextures;
 import static org.lwjgl.opengl.GL11.glReadBuffer;
 import static org.lwjgl.opengl.GL11.glTexImage2D;
+import static org.lwjgl.opengl.GL11.glTexParameterf;
 import static org.lwjgl.opengl.GL11.glTexParameterfv;
 import static org.lwjgl.opengl.GL11.glTexParameteri;
 import static org.lwjgl.opengl.GL11.glViewport;
@@ -165,6 +168,7 @@ final class OpenGlContext {
             float roughness,
             float reactiveStrength,
             boolean alphaTested,
+            float alphaCutoff,
             boolean foliage,
             float reactiveBoost,
             float taaHistoryClamp,
@@ -199,7 +203,7 @@ final class OpenGlContext {
                 Path occlusionTexturePath
         ) {
             this(meshId, geometry, modelMatrix, albedoColor, metallic, roughness,
-                    reactiveStrength, alphaTested, foliage, reactiveBoost, taaHistoryClamp,
+                    reactiveStrength, alphaTested, alphaTested ? 0.5f : 0f, foliage, reactiveBoost, taaHistoryClamp,
                     emissiveReactiveBoost, reactivePreset, albedoTexturePath, normalTexturePath,
                     metallicRoughnessTexturePath, occlusionTexturePath, 0, 0, 0, 0);
         }
@@ -232,6 +236,7 @@ final class OpenGlContext {
         private final float roughness;
         private final float reactiveStrength;
         private final boolean alphaTested;
+        private final float alphaCutoff;
         private final boolean foliage;
         private final float reactiveBoost;
         private final float taaHistoryClamp;
@@ -260,6 +265,7 @@ final class OpenGlContext {
                 float roughness,
                 float reactiveStrength,
                 boolean alphaTested,
+                float alphaCutoff,
                 boolean foliage,
                 float reactiveBoost,
                 float taaHistoryClamp,
@@ -287,6 +293,7 @@ final class OpenGlContext {
             this.roughness = roughness;
             this.reactiveStrength = reactiveStrength;
             this.alphaTested = alphaTested;
+            this.alphaCutoff = alphaCutoff;
             this.foliage = foliage;
             this.reactiveBoost = reactiveBoost;
             this.taaHistoryClamp = taaHistoryClamp;
@@ -439,6 +446,9 @@ final class OpenGlContext {
             uniform int uTaaEnabled;
             uniform float uTaaBlend;
             uniform mat4 uView;
+            uniform vec3 uAmbientColor;
+            uniform float uAmbientIntensity;
+            uniform float uAlphaCutoff;
             layout(location = 0) out vec4 FragColor;
             layout(location = 1) out vec4 VelocityColor;
             float distributionGGX(float ndh, float roughness) {
@@ -566,6 +576,7 @@ final class OpenGlContext {
                     albedo *= tex.rgb;
                     albedoAlpha = tex.a;
                 }
+                if (uAlphaCutoff > 0.0 && albedoAlpha < uAlphaCutoff) discard;
                 if (uUseNormalTexture == 1) {
                     vec3 ntex = texture(uNormalTexture, vUv).rgb * 2.0 - 1.0;
                     vec3 dPdx = dFdx(vWorldPos);
@@ -659,7 +670,7 @@ final class OpenGlContext {
                     pointLit += (kd * albedo / 3.14159) * localColor * (localNdl * attenuation * spotAttenuation * localIntensity * localShadowMul);
                 }
                 float ao = 1.0;
-                vec3 ambient = (0.08 + 0.1 * (1.0 - roughness)) * albedo;
+                vec3 ambient = uAmbientColor * uAmbientIntensity * albedo;
                 if (uUseOcclusionTexture == 1) {
                     ao = clamp(texture(uOcclusionTexture, vUv).r, 0.0, 1.0);
                     ambient *= ao;
@@ -1246,6 +1257,9 @@ final class OpenGlContext {
     private int smaaStrengthLocation;
     private int taaEnabledLocation;
     private int taaBlendLocation;
+    private int ambientColorLocation;
+    private int ambientIntensityLocation;
+    private int alphaCutoffLocation;
     private int postProgramId;
     private int postSceneColorLocation;
     private int postSceneVelocityLocation;
@@ -1392,6 +1406,16 @@ final class OpenGlContext {
     private int iblRadianceTextureId;
     private int iblBrdfLutTextureId;
     private float[] lightViewProjMatrix = identityMatrix();
+    private float clearColorR = 0.08f;
+    private float clearColorG = 0.09f;
+    private float clearColorB = 0.12f;
+    private float ambientColorR = 0.15f;
+    private float ambientColorG = 0.15f;
+    private float ambientColorB = 0.15f;
+    private float ambientIntensity = 0.3f;
+    private float shadowOrthoSize = 8f;
+    private float shadowFarPlane = 32f;
+    private float maxAnisotropy;
     private boolean gpuTimerQuerySupported;
     private int gpuTimeQueryId;
     private double lastGpuFrameMs;
@@ -1550,7 +1574,7 @@ final class OpenGlContext {
         } else {
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
-        glClearColor(0.08f, 0.09f, 0.12f, 1.0f);
+        glClearColor(clearColorR, clearColorG, clearColorB, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
@@ -1565,6 +1589,8 @@ final class OpenGlContext {
         glUniformMatrix4fv(currentViewProjLocation, false, mul(projMatrix, viewMatrix));
         glUniformMatrix4fv(prevViewProjLocation, false, taaPrevViewProjValid ? taaPrevViewProj : mul(projMatrix, viewMatrix));
         glUniformMatrix4fv(lightViewProjLocation, false, lightViewProjMatrix);
+        glUniform3f(ambientColorLocation, ambientColorR, ambientColorG, ambientColorB);
+        glUniform1f(ambientIntensityLocation, ambientIntensity);
         lastDrawCalls = 0;
         lastTriangles = 0;
         lastVisibleObjects = sceneMeshes.size();
@@ -1589,6 +1615,7 @@ final class OpenGlContext {
                     mesh.emissiveReactiveBoost,
                     mesh.reactivePreset
             );
+            glUniform1f(alphaCutoffLocation, mesh.alphaCutoff);
             glUniform3f(dirLightDirLocation, dirLightDirX, dirLightDirY, dirLightDirZ);
             glUniform3f(dirLightColorLocation, dirLightColorR, dirLightColorG, dirLightColorB);
             glUniform1f(dirLightIntensityLocation, dirLightIntensity);
@@ -1698,6 +1725,8 @@ final class OpenGlContext {
         glViewport(0, 0, shadowMapResolution, shadowMapResolution);
         glBindFramebuffer(GL_FRAMEBUFFER, shadowFramebufferId);
         glClear(GL_DEPTH_BUFFER_BIT);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(2.0f, 4.0f);
         glUseProgram(shadowProgramId);
         glUniformMatrix4fv(shadowLightViewProjLocation, false, lightViewProjMatrix);
         for (MeshBuffer mesh : sceneMeshes) {
@@ -1707,6 +1736,7 @@ final class OpenGlContext {
         }
         glBindVertexArray(0);
         glUseProgram(0);
+        glDisable(GL_POLYGON_OFFSET_FILL);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
@@ -1741,6 +1771,8 @@ final class OpenGlContext {
 
         glBindFramebuffer(GL_FRAMEBUFFER, localShadowFramebufferId);
         glUseProgram(shadowProgramId);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(2.0f, 4.0f);
         org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
         int cols = localShadowCount <= 1 ? 1 : 2;
         int rows = (int) Math.ceil(localShadowCount / (double) cols);
@@ -1808,6 +1840,7 @@ final class OpenGlContext {
         }
 
         org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
+        glDisable(GL_POLYGON_OFFSET_FILL);
         glBindVertexArray(0);
         glUseProgram(0);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -1857,6 +1890,8 @@ final class OpenGlContext {
         };
         glViewport(0, 0, shadowMapResolution, shadowMapResolution);
         glBindFramebuffer(GL_FRAMEBUFFER, pointShadowFramebufferId);
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(2.0f, 4.0f);
         glUseProgram(shadowProgramId);
         for (int face = 0; face < 6; face++) {
             glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, pointShadowDepthTextureId, 0);
@@ -1878,6 +1913,7 @@ final class OpenGlContext {
         }
         glBindVertexArray(0);
         glUseProgram(0);
+        glDisable(GL_POLYGON_OFFSET_FILL);
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
@@ -2262,6 +2298,24 @@ final class OpenGlContext {
         }
     }
 
+    void setClearColor(float r, float g, float b) {
+        clearColorR = r;
+        clearColorG = g;
+        clearColorB = b;
+    }
+
+    void setAmbientLight(float r, float g, float b, float intensity) {
+        ambientColorR = r;
+        ambientColorG = g;
+        ambientColorB = b;
+        ambientIntensity = Math.max(0f, intensity);
+    }
+
+    void setShadowOrthoSize(float halfExtent, float farPlane) {
+        shadowOrthoSize = Math.max(1f, halfExtent);
+        shadowFarPlane = Math.max(1f, farPlane);
+    }
+
     double lastGpuFrameMs() {
         return lastGpuFrameMs;
     }
@@ -2411,6 +2465,9 @@ final class OpenGlContext {
         smaaStrengthLocation = glGetUniformLocation(programId, "uSmaaStrength");
         taaEnabledLocation = glGetUniformLocation(programId, "uTaaEnabled");
         taaBlendLocation = glGetUniformLocation(programId, "uTaaBlend");
+        ambientColorLocation = glGetUniformLocation(programId, "uAmbientColor");
+        ambientIntensityLocation = glGetUniformLocation(programId, "uAmbientIntensity");
+        alphaCutoffLocation = glGetUniformLocation(programId, "uAlphaCutoff");
 
         glUseProgram(programId);
         glUniform1i(albedoTextureLocation, 0);
@@ -2627,6 +2684,7 @@ final class OpenGlContext {
                 clamp01(mesh.roughness()),
                 clamp01(mesh.reactiveStrength()),
                 mesh.alphaTested(),
+                mesh.alphaCutoff(),
                 mesh.foliage(),
                 Math.max(0f, Math.min(2.0f, mesh.reactiveBoost())),
                 clamp01(mesh.taaHistoryClamp()),
@@ -2781,6 +2839,11 @@ final class OpenGlContext {
         maxLod = Math.max(0, maxLod);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        if (maxAnisotropy > 0f) {
+            glTexParameterf(GL_TEXTURE_2D,
+                    org.lwjgl.opengl.EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,
+                    Math.min(maxAnisotropy, 16f));
+        }
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
         glGenerateMipmap(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, 0);
@@ -3314,15 +3377,16 @@ final class OpenGlContext {
         float lx = dirLightDirX / len;
         float ly = dirLightDirY / len;
         float lz = dirLightDirZ / len;
-        float eyeX = -lx * 8.0f;
-        float eyeY = -ly * 8.0f;
-        float eyeZ = -lz * 8.0f;
-        float texelWorld = 16.0f / Math.max(1.0f, shadowMapResolution);
+        float halfExt = shadowOrthoSize;
+        float eyeX = -lx * halfExt;
+        float eyeY = -ly * halfExt;
+        float eyeZ = -lz * halfExt;
+        float texelWorld = (2f * halfExt) / Math.max(1.0f, shadowMapResolution);
         eyeX = snapToTexel(eyeX, texelWorld);
         eyeY = snapToTexel(eyeY, texelWorld);
         eyeZ = snapToTexel(eyeZ, texelWorld);
         float[] lightView = lookAt(eyeX, eyeY, eyeZ, 0f, 0f, 0f, 0f, 1f, 0f);
-        float[] lightProj = ortho(-8f, 8f, -8f, 8f, 0.1f, 32f);
+        float[] lightProj = ortho(-halfExt, halfExt, -halfExt, halfExt, 1f, shadowFarPlane);
         lightViewProjMatrix = mul(lightProj, lightView);
     }
 
@@ -3338,6 +3402,10 @@ final class OpenGlContext {
         gpuTimerQuerySupported = caps.OpenGL33 || caps.GL_ARB_timer_query;
         if (gpuTimerQuerySupported) {
             gpuTimeQueryId = glGenQueries();
+        }
+        if (caps.GL_EXT_texture_filter_anisotropic) {
+            maxAnisotropy = org.lwjgl.opengl.GL11.glGetFloat(
+                    org.lwjgl.opengl.EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT);
         }
     }
 

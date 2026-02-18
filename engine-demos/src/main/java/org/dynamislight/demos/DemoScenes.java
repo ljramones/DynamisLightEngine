@@ -7,6 +7,7 @@ import org.dynamislight.api.scene.EnvironmentDesc;
 import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.FogMode;
 import org.dynamislight.api.scene.LightDesc;
+import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
@@ -1111,7 +1112,11 @@ final class DemoScenes {
                 1.30f,
                 5000f,
                 true,
-                directionalShadow
+                directionalShadow,
+                LightType.DIRECTIONAL,
+                new Vec3(-0.6f, -1.0f, 0.4f),
+                15f,
+                30f
         );
         LightDesc warmA = new LightDesc(
                 "warm-a",
@@ -1141,7 +1146,7 @@ final class DemoScenes {
                 null
         );
 
-        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.10f, 0.12f, 0.15f), 0.40f, null);
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.53f, 0.71f, 0.88f), 0.3f, null);
         FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
         PostProcessDesc post = new PostProcessDesc(true, true, 1.10f, 2.2f, true, 0.88f, 0.80f);
 

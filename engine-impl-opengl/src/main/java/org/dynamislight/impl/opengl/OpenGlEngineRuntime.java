@@ -341,6 +341,22 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     shadows.mapResolution(),
                     shadows.selectedLocalShadowLights()
             );
+            float shadowRange = directionalLightRange(scene.lights());
+            if (shadowRange > 0f) {
+                context.setShadowOrthoSize(shadowRange * 0.3f, shadowRange);
+            }
+            EnvironmentDesc env = scene.environment();
+            if (env != null && env.ambientColor() != null) {
+                context.setAmbientLight(
+                        env.ambientColor().x(), env.ambientColor().y(), env.ambientColor().z(),
+                        env.ambientIntensity()
+                );
+                context.setClearColor(
+                        env.ambientColor().x() * 1.8f,
+                        env.ambientColor().y() * 1.8f,
+                        env.ambientColor().z() * 1.8f
+                );
+            }
             context.setFogParameters(fog.enabled(), fog.r(), fog.g(), fog.b(), fog.density(), fog.steps());
             context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
             context.setIblParameters(ibl.enabled(), ibl.diffuseStrength(), ibl.specularStrength(), ibl.prefilterStrength());
@@ -1677,11 +1693,16 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             int mrTexId = 0;
             int occlusionTexId = 0;
 
+            boolean alphaTested = false;
+            float alphaCutoff = 0f;
+
             if (prim.materialIndex() >= 0 && prim.materialIndex() < loaded.materials().size()) {
                 var gltfMat = loaded.materials().get(prim.materialIndex());
                 albedoColor = new float[]{gltfMat.baseColorFactor()[0], gltfMat.baseColorFactor()[1], gltfMat.baseColorFactor()[2]};
                 metallic = gltfMat.metallicFactor();
                 roughness = gltfMat.roughnessFactor();
+                alphaTested = "MASK".equals(gltfMat.alphaMode());
+                alphaCutoff = alphaTested ? gltfMat.alphaCutoff() : 0f;
                 if (gltfMat.baseColorTextureIndex() >= 0 && gltfMat.baseColorTextureIndex() < textureIds.length) {
                     albedoTexId = textureIds[gltfMat.baseColorTextureIndex()];
                 }
@@ -1705,7 +1726,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     metallic,
                     roughness,
                     0f,     // reactiveStrength
-                    false,  // alphaTested
+                    alphaTested,
+                    alphaCutoff,
                     false,  // foliage
                     1.0f,   // reactiveBoost
                     1.0f,   // taaHistoryClamp
@@ -1722,6 +1744,20 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             ));
         }
         return result;
+    }
+
+    private static float directionalLightRange(List<LightDesc> lights) {
+        if (lights == null || lights.isEmpty()) {
+            return 0f;
+        }
+        for (LightDesc light : lights) {
+            if (light == null) continue;
+            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
+            if (type == LightType.DIRECTIONAL && light.range() > 0f) {
+                return light.range();
+            }
+        }
+        return 0f;
     }
 
     private static LightingConfig mapLighting(List<LightDesc> lights) {

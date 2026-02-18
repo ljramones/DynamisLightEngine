@@ -38,7 +38,9 @@ final class OpenGlGltfMeshParser {
             int baseColorTextureIndex,
             int metallicRoughnessTextureIndex,
             int normalTextureIndex,
-            int occlusionTextureIndex
+            int occlusionTextureIndex,
+            String alphaMode,
+            float alphaCutoff
     ) {
     }
 
@@ -495,8 +497,12 @@ final class OpenGlGltfMeshParser {
             int normalTexIdx = resolveTextureImageIndex(texturesNode, mat.path("normalTexture"));
             int occlusionTexIdx = resolveTextureImageIndex(texturesNode, mat.path("occlusionTexture"));
 
+            String alphaMode = mat.path("alphaMode").asText("OPAQUE");
+            float alphaCutoff = (float) mat.path("alphaCutoff").asDouble(0.5);
+
             result.add(new GltfMaterial(baseColor, metallic, roughness,
-                    baseColorTexIdx, mrTexIdx, normalTexIdx, occlusionTexIdx));
+                    baseColorTexIdx, mrTexIdx, normalTexIdx, occlusionTexIdx,
+                    alphaMode, alphaCutoff));
         }
         return result;
     }
