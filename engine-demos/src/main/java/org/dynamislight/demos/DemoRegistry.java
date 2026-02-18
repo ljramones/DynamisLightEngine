@@ -11,6 +11,7 @@ final class DemoRegistry {
         Map<String, DemoDefinition> demos = new LinkedHashMap<>();
         register(demos, new HelloTriangleDemo());
         register(demos, new MaterialBaselineDemo());
+        register(demos, new LightsLocalArrayDemo());
         register(demos, new AaMatrixDemo());
         return Map.copyOf(demos);
     }
