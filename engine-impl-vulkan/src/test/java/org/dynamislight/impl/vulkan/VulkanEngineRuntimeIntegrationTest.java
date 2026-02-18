@@ -333,6 +333,26 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void hybridReflectionsWarningEnvelopePersistsWithMaterialOverrides() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+
+        runtime.loadScene(validMaterialOverrideReflectionScene(ReflectionOverrideMode.PROBE_ONLY));
+        var probeOnlyFrame = runtime.render();
+        assertTrue(probeOnlyFrame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
+        assertTrue(probeOnlyFrame.warnings().stream().anyMatch(w -> "REFLECTIONS_QUALITY_DEGRADED".equals(w.code())));
+        assertEquals(List.of(1), runtime.debugReflectionOverrideModes());
+
+        runtime.loadScene(validMaterialOverrideReflectionScene(ReflectionOverrideMode.SSR_ONLY));
+        var ssrOnlyFrame = runtime.render();
+        assertTrue(ssrOnlyFrame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
+        assertTrue(ssrOnlyFrame.warnings().stream().anyMatch(w -> "REFLECTIONS_QUALITY_DEGRADED".equals(w.code())));
+        assertEquals(List.of(2), runtime.debugReflectionOverrideModes());
+
+        runtime.shutdown();
+    }
+
+    @Test
     void iblEnvironmentEmitsBaselineActiveWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
