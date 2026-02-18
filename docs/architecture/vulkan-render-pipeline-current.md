@@ -50,6 +50,7 @@ Defined in `VulkanDescriptorResources`:
 
 - `binding 0`: global scene UBO (`VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER`)
 - `binding 1`: per-object UBO (`VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC`)
+- `binding 2`: reflection probe metadata SSBO (`VK_DESCRIPTOR_TYPE_STORAGE_BUFFER`)
 
 File: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/VulkanDescriptorResources.java`
 
@@ -72,6 +73,28 @@ Files:
 - `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/VulkanDescriptorResources.java`
 - `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/VulkanTextureDescriptorWriter.java`
 - `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanSceneMeshCoordinator.java`
+
+### Reflection probe path (current)
+
+Reflection probe descriptors are scene-level API data and are mapped into Vulkan runtime state:
+
+- API descriptor: `engine-api/src/main/java/org/dynamislight/api/scene/ReflectionProbeDesc.java`
+- Runtime mapper: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanEngineRuntimeSceneMapper.java`
+- Frame upload/cull: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanReflectionProbeCoordinator.java`
+
+Current behavior:
+
+- Per frame, runtime frustum-culls probe AABBs against current view-projection.
+- Surviving probes are sorted by priority (descending).
+- Probe metadata is packed to a persistently-mapped SSBO (`set=0`, `binding=2`).
+- Main fragment shader consumes this metadata and computes per-fragment probe weighting.
+- Probe overlap uses priority-aware remaining-coverage accumulation to suppress lower-priority probes when higher-priority probes fully cover.
+
+Current limitation:
+
+- Per-probe cubemap-array sampling is not yet landed.
+- Probe contribution currently reuses the existing IBL radiance sampling path while honoring probe weight and box-projected direction shaping.
+- Spatial weighting/projection is active, but probe-specific cubemap texture selection is still pending.
 
 ### Uniform sizes and upload
 
@@ -147,6 +170,7 @@ Frame entry is `VulkanContext.renderFrame()`.
 2. Acquire swapchain image.
 3. Record command buffer:
   - update shadow matrices
+  - update reflection probe metadata SSBO
   - prepare uniform payloads and dirty ranges
   - record uniform copy commands
   - record shadow pass(es)

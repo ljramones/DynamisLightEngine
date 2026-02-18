@@ -84,5 +84,11 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("float momentBleedReduction = clamp(gbo.uPointLightColor.w, 0.25, 1.5);"));
         assertTrue(shader.contains("float contactStrengthScale = clamp(gbo.uPointLightDir.w, 0.25, 2.0);"));
         assertTrue(shader.contains("if (contactShadows) {"));
+        assertTrue(shader.contains("layout(std430, set = 0, binding = 2) readonly buffer ReflectionProbeData {"));
+        assertTrue(shader.contains("float probeWeightAtWorldPos(vec3 worldPos, ProbeData probe)"));
+        assertTrue(shader.contains("vec3 probeSampleDirection(vec3 worldPos, vec3 reflectDir, ProbeData probe)"));
+        assertTrue(shader.contains("float remainingCoverage = 1.0;"));
+        assertTrue(shader.contains("float contribution = min(weight, remainingCoverage);"));
+        assertTrue(shader.contains("remainingCoverage -= contribution;"));
     }
 }

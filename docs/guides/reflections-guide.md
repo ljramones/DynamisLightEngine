@@ -25,6 +25,7 @@ This guide covers reflection controls in `PostProcessDesc`.
 - `probeVolumeEnabled`: enables probe-volume blend path
 - `probeBoxProjectionEnabled`: enables probe box-projection shaping
 - `probeBlendDistance`: probe blend distance hint
+- `probes`: optional per-scene probe descriptors (`ReflectionProbeDesc`) including volume, priority, intensity, and cubemap asset path
 - `rtEnabled`: requests hardware RT reflection lane
 - `rtMaxRoughness`: roughness ceiling for RT lane
 - `rtFallbackMode`: fallback mode when RT lane is unavailable
@@ -38,6 +39,8 @@ This guide covers reflection controls in `PostProcessDesc`.
 - `rt_hybrid`: requests RT reflection path with fallback stack (current backends execute fallback with RT-oriented tuning).
 
 Advanced reflection flags are packed into runtime mode bits internally, so both OpenGL and Vulkan consume the same high-level API payload without expanding post-pass constant buffers.
+
+Probe descriptors are scene-level data. In Vulkan they are currently uploaded each frame as metadata (SSBO) and consumed in main-fragment reflection weighting.
 
 ## Backend Profiles
 
@@ -68,6 +71,19 @@ PostProcessDesc post = new PostProcessDesc(
                 true, 6, 3,
                 true, 0.0f, 0.4f, 4.8f,
                 true, true, 2.5f,
+                List.of(
+                        new ReflectionProbeDesc(
+                                "room_center",
+                                new Vector3f(0.0f, 1.5f, 0.0f),
+                                new Vector3f(-8.0f, -1.0f, -8.0f),
+                                new Vector3f(8.0f, 6.0f, 8.0f),
+                                "assets/probes/room_center.ktx2",
+                                100,
+                                1.5f,
+                                1.0f,
+                                true
+                        )
+                ),
                 true, 0.85f, "hybrid"
         )
 );
@@ -77,6 +93,8 @@ PostProcessDesc post = new PostProcessDesc(
 
 - OpenGL and Vulkan both consume the same reflection descriptor.
 - Advanced reflection controls (`ReflectionAdvancedDesc`) are consumed by both backends.
+- Vulkan probe path currently supports probe metadata cull/sort/upload and main-pass probe-weighted reflection blending.
+- Vulkan per-probe cubemap-array texture sampling is still pending (current probe path reuses the baseline radiance sample source).
 - LOW quality tier disables reflections; MEDIUM applies conservative scaling.
 - Warnings are emitted when reflections are active:
   - `REFLECTIONS_BASELINE_ACTIVE`
