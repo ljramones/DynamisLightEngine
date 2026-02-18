@@ -93,6 +93,7 @@ Current profile tags in parity tests:
 - Assert `REFLECTION_PLANAR_SCOPE_CONTRACT` for planar/hybrid modes reports required ordering contract and selective scope counts.
 - Validate typed diagnostics (`debugReflectionPlanarContractDiagnostics`) match warning payload.
 - Assert planar contract/typed diagnostics include `mirrorCameraActive=true` when planar path is active.
+- Assert planar contract/typed diagnostics include `dedicatedCaptureLaneActive=true` when dedicated planar capture resource is bound.
 - Assert runtime-composed reflection mode carries planar selective/capture execution bits when eligible scope exists, including planar geometry capture execution bit (`1 << 20`).
 - Validate planar clip-plane height from `ReflectionAdvancedDesc.planarPlaneHeight` is consumed by Vulkan planar capture path (mirrored/clip behavior follows configured plane).
 - Add multi-frame plane-height stability assertions to ensure planar contract (`planeHeight`, `mirrorCameraActive`) remains consistent across consecutive renders.

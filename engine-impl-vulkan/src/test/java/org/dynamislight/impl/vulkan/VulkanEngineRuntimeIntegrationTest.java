@@ -598,9 +598,11 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(contract.contains("status=prepass_capture_then_main_sample"));
         assertTrue(contract.contains("requiredOrder=planar_capture_before_main_sample_before_post"));
         assertTrue(contract.contains("mirrorCameraActive=true"));
+        assertTrue(contract.contains("dedicatedCaptureLaneActive=true"));
         var diagnostics = runtime.debugReflectionPlanarContractDiagnostics();
         assertEquals("prepass_capture_then_main_sample", diagnostics.status());
         assertTrue(diagnostics.mirrorCameraActive());
+        assertTrue(diagnostics.dedicatedCaptureLaneActive());
         assertTrue(diagnostics.scopedMeshEligibleCount() >= 0);
         assertTrue(diagnostics.scopedMeshExcludedCount() >= 0);
         int runtimeMode = runtime.debugReflectionRuntimeMode();
@@ -624,8 +626,10 @@ class VulkanEngineRuntimeIntegrationTest {
         String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
         assertTrue(contract.contains("planeHeight=2.5"));
         assertTrue(contract.contains("mirrorCameraActive=true"));
+        assertTrue(contract.contains("dedicatedCaptureLaneActive=true"));
         var diagnostics = runtime.debugReflectionPlanarContractDiagnostics();
         assertTrue(diagnostics.mirrorCameraActive());
+        assertTrue(diagnostics.dedicatedCaptureLaneActive());
         runtime.shutdown();
     }
 
@@ -651,8 +655,12 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(contractA.contains("mirrorCameraActive=true"));
         assertTrue(contractB.contains("mirrorCameraActive=true"));
         assertTrue(contractC.contains("mirrorCameraActive=true"));
+        assertTrue(contractA.contains("dedicatedCaptureLaneActive=true"));
+        assertTrue(contractB.contains("dedicatedCaptureLaneActive=true"));
+        assertTrue(contractC.contains("dedicatedCaptureLaneActive=true"));
         var diagnostics = runtime.debugReflectionPlanarContractDiagnostics();
         assertTrue(diagnostics.mirrorCameraActive());
+        assertTrue(diagnostics.dedicatedCaptureLaneActive());
         runtime.shutdown();
     }
 

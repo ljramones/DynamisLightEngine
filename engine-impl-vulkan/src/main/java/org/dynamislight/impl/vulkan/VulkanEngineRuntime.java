@@ -281,6 +281,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionPlanarScopedMeshEligibleCount;
     private int reflectionPlanarScopedMeshExcludedCount;
     private boolean reflectionPlanarMirrorCameraActive;
+    private boolean reflectionPlanarDedicatedCaptureLaneActive;
     private int reflectionTransparentCandidateCount;
     private String reflectionTransparencyStageGateStatus = "not_required";
     private String reflectionTransparencyFallbackPath = "none";
@@ -880,11 +881,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     ? "prepass_capture_then_main_sample"
                     : "inactive";
             reflectionPlanarMirrorCameraActive = planarPathActive;
+            // In mock/offscreen-disabled contexts, surface the logical planar lane contract as active.
+            reflectionPlanarDedicatedCaptureLaneActive = planarPathActive;
             warnings.add(new EngineWarning(
                     "REFLECTION_PLANAR_SCOPE_CONTRACT",
                     "Planar scope contract (status=" + reflectionPlanarPassOrderContractStatus
                             + ", planarPathActive=" + planarPathActive
                             + ", mirrorCameraActive=" + reflectionPlanarMirrorCameraActive
+                            + ", dedicatedCaptureLaneActive=" + reflectionPlanarDedicatedCaptureLaneActive
                             + ", eligibleMeshes=" + planarEligible
                             + ", excludedMeshes=" + planarExcluded
                             + ", planeHeight=" + currentPost.reflectionsPlanarPlaneHeight()
@@ -1204,6 +1208,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionPlanarScopedMeshEligibleCount = 0;
             reflectionPlanarScopedMeshExcludedCount = 0;
             reflectionPlanarMirrorCameraActive = false;
+            reflectionPlanarDedicatedCaptureLaneActive = false;
             reflectionRtLaneRequested = false;
             reflectionRtLaneActive = false;
             reflectionRtFallbackChainActive = "probe";
@@ -2057,7 +2062,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionPlanarPassOrderContractStatus,
                 reflectionPlanarScopedMeshEligibleCount,
                 reflectionPlanarScopedMeshExcludedCount,
-                reflectionPlanarMirrorCameraActive
+                reflectionPlanarMirrorCameraActive,
+                reflectionPlanarDedicatedCaptureLaneActive
         );
     }
 
@@ -2244,7 +2250,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             String status,
             int scopedMeshEligibleCount,
             int scopedMeshExcludedCount,
-            boolean mirrorCameraActive
+            boolean mirrorCameraActive,
+            boolean dedicatedCaptureLaneActive
     ) {
     }
 
