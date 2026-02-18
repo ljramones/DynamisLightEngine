@@ -89,6 +89,7 @@ Current behavior:
 - Per frame, runtime frustum-culls probe AABBs against current view-projection.
 - Surviving probes are sorted by priority (descending).
 - Probe metadata is packed to a persistently-mapped SSBO (`set=0`, `binding=2`).
+- Probe SSBO header publishes frame counts for visible probes and unique cubemap-slot planning.
 - Main fragment shader consumes this metadata and computes per-fragment probe weighting.
 - Probe overlap uses priority-aware remaining-coverage accumulation to suppress lower-priority probes when higher-priority probes fully cover.
 

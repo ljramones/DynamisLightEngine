@@ -27,6 +27,11 @@ It is intended as extraction input for future capability contracts and render-gr
 
 - Produced:
   - reflection probe metadata SSBO payload (`set=0`, `binding=2`)
+  - SSBO header semantics:
+    - `x`: visible probe count uploaded this frame
+    - `y`: unique cubemap asset path count requested by visible probes
+    - `z`: unique cubemap slot count assigned this frame
+    - `w`: reserved (currently used for dropped-count bookkeeping, expected `0` with current coupled probe/slot cap)
 - Consumed:
   - same probe metadata SSBO in main fragment shader
   - existing IBL radiance texture path for probe-weighted radiance sampling (transitional path)
