@@ -759,6 +759,36 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionSsrTaaHistoryPolicyEscalatesToRejectWhenRiskStreakCrossesThreshold() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "1.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.ssrTaaHistoryRejectSeverityMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaHistoryConfidenceDecaySeverityMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaHistoryRejectRiskStreakMin", "99")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        runtime.render();
+        var frame = runtime.render();
+
+        String historyPolicy = warningMessageByCode(frame, "REFLECTION_SSR_TAA_HISTORY_POLICY");
+        assertTrue(historyPolicy.contains("policy=reflection_region_reject"));
+        assertTrue(historyPolicy.contains("rejectSeverityMin=0.0"));
+        var diagnostics = runtime.debugReflectionSsrTaaHistoryPolicyDiagnostics();
+        assertEquals("reflection_region_reject", diagnostics.policy());
+        assertEquals(99, diagnostics.rejectRiskStreakMin());
+        assertTrue(diagnostics.rejectBias() >= 0.0 && diagnostics.rejectBias() <= 1.0);
+        assertTrue(diagnostics.confidenceDecay() >= 0.0 && diagnostics.confidenceDecay() <= 1.0);
+        runtime.shutdown();
+    }
+
+    @Test
     void reflectionAdaptiveTrendSloDiagnosticsExposeMachineReadableAuditState() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(

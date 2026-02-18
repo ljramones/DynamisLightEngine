@@ -55,7 +55,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples", "44"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMeanSeverityMax", "0.36"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloHighRatioMax", "0.19"),
-                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples", "28")
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples", "28"),
+                        Map.entry("vulkan.reflections.ssrTaaHistoryRejectSeverityMin", "0.81"),
+                        Map.entry("vulkan.reflections.ssrTaaHistoryConfidenceDecaySeverityMin", "0.51"),
+                        Map.entry("vulkan.reflections.ssrTaaHistoryRejectRiskStreakMin", "7")
                 ),
                 256
         );
@@ -112,6 +115,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.36, parsed.reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax());
         assertEquals(0.19, parsed.reflectionSsrTaaAdaptiveTrendSloHighRatioMax());
         assertEquals(28, parsed.reflectionSsrTaaAdaptiveTrendSloMinSamples());
+        assertEquals(0.81, parsed.reflectionSsrTaaHistoryRejectSeverityMin());
+        assertEquals(0.51, parsed.reflectionSsrTaaHistoryConfidenceDecaySeverityMin());
+        assertEquals(7, parsed.reflectionSsrTaaHistoryRejectRiskStreakMin());
     }
 
     @Test
@@ -156,7 +162,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples", "0"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMeanSeverityMax", "2.0"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloHighRatioMax", "-1.0"),
-                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples", "0")
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples", "0"),
+                        Map.entry("vulkan.reflections.ssrTaaHistoryRejectSeverityMin", "2.0"),
+                        Map.entry("vulkan.reflections.ssrTaaHistoryConfidenceDecaySeverityMin", "-1.0"),
+                        Map.entry("vulkan.reflections.ssrTaaHistoryRejectRiskStreakMin", "0")
                 ),
                 256
         );
@@ -207,5 +216,8 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1.0, parsed.reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax());
         assertEquals(0.0, parsed.reflectionSsrTaaAdaptiveTrendSloHighRatioMax());
         assertEquals(1, parsed.reflectionSsrTaaAdaptiveTrendSloMinSamples());
+        assertEquals(1.0, parsed.reflectionSsrTaaHistoryRejectSeverityMin());
+        assertEquals(0.0, parsed.reflectionSsrTaaHistoryConfidenceDecaySeverityMin());
+        assertEquals(1, parsed.reflectionSsrTaaHistoryRejectRiskStreakMin());
     }
 }

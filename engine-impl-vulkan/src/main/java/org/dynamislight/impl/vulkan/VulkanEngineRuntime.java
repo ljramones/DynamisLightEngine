@@ -228,6 +228,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = 0.50;
     private double reflectionSsrTaaAdaptiveTrendSloHighRatioMax = 0.40;
     private int reflectionSsrTaaAdaptiveTrendSloMinSamples = 24;
+    private double reflectionSsrTaaHistoryRejectSeverityMin = 0.75;
+    private double reflectionSsrTaaHistoryConfidenceDecaySeverityMin = 0.45;
+    private int reflectionSsrTaaHistoryRejectRiskStreakMin = 2;
+    private String reflectionSsrTaaHistoryPolicyActive = "inactive";
+    private double reflectionSsrTaaHistoryRejectBiasActive;
+    private double reflectionSsrTaaHistoryConfidenceDecayActive;
     private int reflectionSsrTaaAdaptiveTrendWarnHighStreak;
     private int reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining;
     private boolean reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame;
@@ -322,6 +328,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = options.reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax();
         reflectionSsrTaaAdaptiveTrendSloHighRatioMax = options.reflectionSsrTaaAdaptiveTrendSloHighRatioMax();
         reflectionSsrTaaAdaptiveTrendSloMinSamples = options.reflectionSsrTaaAdaptiveTrendSloMinSamples();
+        reflectionSsrTaaHistoryRejectSeverityMin = options.reflectionSsrTaaHistoryRejectSeverityMin();
+        reflectionSsrTaaHistoryConfidenceDecaySeverityMin = options.reflectionSsrTaaHistoryConfidenceDecaySeverityMin();
+        reflectionSsrTaaHistoryRejectRiskStreakMin = options.reflectionSsrTaaHistoryRejectRiskStreakMin();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
@@ -807,6 +816,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", riskWarnCooldownRemaining=" + ssrTaaRisk.warnCooldownRemaining()
                                 + ")"
                 ));
+                warnings.add(new EngineWarning(
+                        "REFLECTION_SSR_TAA_HISTORY_POLICY",
+                        "SSR/TAA history policy (policy=" + reflectionSsrTaaHistoryPolicyActive
+                                + ", severityInstant=" + reflectionAdaptiveSeverityInstant
+                                + ", riskHighStreak=" + reflectionSsrTaaRiskHighStreak
+                                + ", rejectBias=" + reflectionSsrTaaHistoryRejectBiasActive
+                                + ", confidenceDecay=" + reflectionSsrTaaHistoryConfidenceDecayActive
+                                + ", rejectSeverityMin=" + reflectionSsrTaaHistoryRejectSeverityMin
+                                + ", decaySeverityMin=" + reflectionSsrTaaHistoryConfidenceDecaySeverityMin
+                                + ", rejectRiskStreakMin=" + reflectionSsrTaaHistoryRejectRiskStreakMin
+                                + ")"
+                ));
                 boolean adaptiveTrendWarningTriggered = updateReflectionAdaptiveTrendWarningGate();
                 ReflectionAdaptiveTrendDiagnostics adaptiveTrend = snapshotReflectionAdaptiveTrendDiagnostics(adaptiveTrendWarningTriggered);
                 warnings.add(new EngineWarning(
@@ -1249,6 +1270,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     3.0f
             );
         }
+        updateReflectionSsrTaaHistoryPolicy(
+                currentPost.reflectionsEnabled(),
+                currentPost.taaEnabled(),
+                isReflectionSsrPathActive(currentPost.reflectionsMode()),
+                severity
+        );
         if (currentPost.reflectionsEnabled()) {
             recordReflectionAdaptiveTelemetrySample(baseTemporalWeight, baseSsrStrength, baseSsrStepScale, severity);
         } else {
@@ -1309,6 +1336,42 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionAdaptiveTemporalWeightActive = currentPost == null ? 0.80f : currentPost.reflectionsTemporalWeight();
         reflectionAdaptiveSsrStrengthActive = currentPost == null ? 0.6f : currentPost.reflectionsSsrStrength();
         reflectionAdaptiveSsrStepScaleActive = currentPost == null ? 1.0f : currentPost.reflectionsSsrStepScale();
+        reflectionSsrTaaHistoryPolicyActive = "inactive";
+        reflectionSsrTaaHistoryRejectBiasActive = 0.0;
+        reflectionSsrTaaHistoryConfidenceDecayActive = 0.0;
+    }
+
+    private void updateReflectionSsrTaaHistoryPolicy(
+            boolean reflectionsEnabled,
+            boolean taaEnabled,
+            boolean ssrPathActive,
+            double severity
+    ) {
+        if (!(reflectionsEnabled && taaEnabled && ssrPathActive)) {
+            reflectionSsrTaaHistoryPolicyActive = "inactive";
+            reflectionSsrTaaHistoryRejectBiasActive = 0.0;
+            reflectionSsrTaaHistoryConfidenceDecayActive = 0.0;
+            return;
+        }
+        double clampedSeverity = Math.max(0.0, Math.min(1.0, severity));
+        boolean rejectMode = clampedSeverity >= reflectionSsrTaaHistoryRejectSeverityMin
+                || reflectionSsrTaaRiskHighStreak >= reflectionSsrTaaHistoryRejectRiskStreakMin;
+        boolean decayMode = clampedSeverity >= reflectionSsrTaaHistoryConfidenceDecaySeverityMin;
+        if (rejectMode) {
+            reflectionSsrTaaHistoryPolicyActive = "reflection_region_reject";
+            reflectionSsrTaaHistoryRejectBiasActive = Math.max(0.0, Math.min(1.0, 0.35 + clampedSeverity * 0.65));
+            reflectionSsrTaaHistoryConfidenceDecayActive = Math.max(0.0, Math.min(1.0, 0.45 + clampedSeverity * 0.55));
+            return;
+        }
+        if (decayMode) {
+            reflectionSsrTaaHistoryPolicyActive = "reflection_region_decay";
+            reflectionSsrTaaHistoryRejectBiasActive = Math.max(0.0, Math.min(1.0, 0.15 + clampedSeverity * 0.45));
+            reflectionSsrTaaHistoryConfidenceDecayActive = Math.max(0.0, Math.min(1.0, 0.25 + clampedSeverity * 0.50));
+            return;
+        }
+        reflectionSsrTaaHistoryPolicyActive = "surface_motion_vectors";
+        reflectionSsrTaaHistoryRejectBiasActive = Math.max(0.0, Math.min(1.0, clampedSeverity * 0.20));
+        reflectionSsrTaaHistoryConfidenceDecayActive = Math.max(0.0, Math.min(1.0, clampedSeverity * 0.30));
     }
 
     private void recordReflectionAdaptiveTelemetrySample(
@@ -1521,6 +1584,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionSsrTaaHistoryPolicyDiagnostics debugReflectionSsrTaaHistoryPolicyDiagnostics() {
+        return new ReflectionSsrTaaHistoryPolicyDiagnostics(
+                reflectionSsrTaaHistoryPolicyActive,
+                reflectionAdaptiveSeverityInstant,
+                reflectionSsrTaaRiskHighStreak,
+                reflectionSsrTaaHistoryRejectBiasActive,
+                reflectionSsrTaaHistoryConfidenceDecayActive,
+                reflectionSsrTaaHistoryRejectSeverityMin,
+                reflectionSsrTaaHistoryConfidenceDecaySeverityMin,
+                reflectionSsrTaaHistoryRejectRiskStreakMin,
+                reflectionSsrTaaAdaptiveEnabled
+        );
+    }
+
     ReflectionAdaptiveTrendDiagnostics debugReflectionAdaptiveTrendDiagnostics() {
         return snapshotReflectionAdaptiveTrendDiagnostics(reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame);
     }
@@ -1586,6 +1663,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             double temporalBoostMax,
             double ssrStrengthScaleMin,
             double stepScaleBoostMax
+    ) {
+    }
+
+    record ReflectionSsrTaaHistoryPolicyDiagnostics(
+            String policy,
+            double severityInstant,
+            int riskHighStreak,
+            double rejectBias,
+            double confidenceDecay,
+            double rejectSeverityMin,
+            double decaySeverityMin,
+            int rejectRiskStreakMin,
+            boolean adaptiveEnabled
     ) {
     }
 

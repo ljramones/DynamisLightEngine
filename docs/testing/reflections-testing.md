@@ -78,6 +78,10 @@ Current profile tags in parity tests:
 3. Callback checks
 - Assert adaptive trend `HIGH_RISK` / `SLO_FAILED` warnings can be consumed through `PerformanceWarningEvent` callbacks for parser-free host alerting.
 
+4. SSR/TAA history policy checks
+- Assert `REFLECTION_SSR_TAA_HISTORY_POLICY` emits deterministic mode transitions under controlled thresholds.
+- Validate typed diagnostics (`debugReflectionSsrTaaHistoryPolicyDiagnostics` in Vulkan tests) agree with warning payload fields.
+
 ## Regression Triggers
 
 - New reflection mode added.

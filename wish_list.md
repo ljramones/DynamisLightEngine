@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:25 ET — Added blessed-profile reflection trend envelope assertions (`performance`, `quality`, `stability`) and common-runtime performance-warning event coverage in tests/docs.
+- Latest reflection update: 2026-02-18 14:45 ET — Added explicit SSR/TAA reflected-region history policy diagnostics (warning + typed Vulkan accessor), plus option parsing and integration tests for deterministic policy escalation.
 
 Status legend:
 
@@ -82,6 +82,7 @@ Reflection notes:
 - Reflection adaptive trend SLO diagnostics are now exposed through the backend-agnostic runtime API surface, with `unavailable` fallback for backends that do not publish it.
 - Reflection adaptive trend fail/high-risk warnings now also propagate as `PerformanceWarningEvent` callbacks for parser-free host-side alerting.
 - Blessed profile trend envelopes now have explicit integration-test assertions for expected window/threshold SLO bounds per profile.
+- SSR/TAA reflection ghosting mitigation now surfaces explicit history-policy mode diagnostics (`surface_motion_vectors`, `reflection_region_decay`, `reflection_region_reject`) with threshold and bias telemetry.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

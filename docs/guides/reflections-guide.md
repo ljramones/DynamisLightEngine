@@ -98,6 +98,7 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan native cubemap-array probe sampling is still pending; current per-probe selection uses the 2D-array slot path.
 - LOW quality tier disables reflections; MEDIUM applies conservative scaling.
 - Vulkan adaptive reflection trend diagnostics are exposed through runtime API (`EngineRuntime#reflectionAdaptiveTrendSloDiagnostics`) and backend debug accessors.
+- Vulkan now emits an explicit SSR/TAA history policy warning (`REFLECTION_SSR_TAA_HISTORY_POLICY`) describing active reflected-region history strategy (`surface_motion_vectors`, `reflection_region_decay`, `reflection_region_reject`) with thresholds and active reject/decay bias.
 - Warnings are emitted when reflections are active:
   - `REFLECTIONS_BASELINE_ACTIVE`
   - `REFLECTIONS_QUALITY_DEGRADED` (MEDIUM tier)
@@ -105,4 +106,5 @@ PostProcessDesc post = new PostProcessDesc(
   - `REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_AUDIT` (`status=pass|pending|fail`)
   - `REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_FAILED` (fail-only)
   - `REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK` (threshold/cooldown gate)
+  - `REFLECTION_SSR_TAA_HISTORY_POLICY` (history-policy mode + bias diagnostics)
 - High-risk/fail adaptive trend warnings now also emit `PerformanceWarningEvent` callbacks in Vulkan for parser-free host/CI alerting.
