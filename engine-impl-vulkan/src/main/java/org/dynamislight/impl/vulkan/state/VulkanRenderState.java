@@ -1,6 +1,7 @@
 package org.dynamislight.impl.vulkan.state;
 
 public final class VulkanRenderState {
+    private static final int MAX_SHADOW_MATRICES = 24;
     public boolean shadowEnabled;
     public float shadowStrength = 0.45f;
     public float shadowBias = 0.0015f;
@@ -22,25 +23,12 @@ public final class VulkanRenderState {
     public float shadowContactStrength = 1.0f;
     public float shadowContactTemporalMotionScale = 1.0f;
     public float shadowContactTemporalMinStability = 0.42f;
-    public int shadowRtMode = 0; // 0=off,1=optional,2=force,3=bvh,4=bvh_dedicated,5=bvh_production
+    public int shadowRtMode = 0; // 0=off,1=optional,2=force,3=bvh,4=bvh_dedicated,5=bvh_production,6=rt_native,7=rt_native_denoised
     public float shadowRtDenoiseStrength = 0.65f;
     public float shadowRtRayLength = 80.0f;
     public int shadowRtSampleCount = 2;
     public final float[] shadowCascadeSplitNdc = new float[]{1f, 1f, 1f};
-    public final float[][] shadowLightViewProjMatrices = new float[][]{
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix(),
-            identityMatrix()
-    };
+    public final float[][] shadowLightViewProjMatrices = identityMatrices(MAX_SHADOW_MATRICES);
 
     public boolean fogEnabled;
     public float fogR = 0.5f;
@@ -100,5 +88,13 @@ public final class VulkanRenderState {
                 0f, 0f, 1f, 0f,
                 0f, 0f, 0f, 1f
         };
+    }
+
+    private static float[][] identityMatrices(int count) {
+        float[][] matrices = new float[Math.max(1, count)][];
+        for (int i = 0; i < matrices.length; i++) {
+            matrices[i] = identityMatrix();
+        }
+        return matrices;
     }
 }

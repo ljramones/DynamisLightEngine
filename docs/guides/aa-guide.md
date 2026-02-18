@@ -243,3 +243,25 @@ Vendor matrix:
 ```bash
 ./scripts/aa_rebaseline_real_mac.sh upscaler-matrix
 ```
+
+Stable real-Vulkan threshold re-lock + promotion:
+```bash
+./scripts/aa_rebaseline_real_mac.sh stable-promote-real
+# equivalent direct runner:
+./scripts/aa_threshold_promote_stable_real.sh
+# optional stack override for forked test JVM:
+DLE_AA_STABLE_PROMOTE_JVM_STACK_SIZE=12m ./scripts/aa_threshold_promote_stable_real.sh
+```
+
+Promotion controls:
+- `DLE_AA_STABLE_PROMOTE_DIFF_MODE=strict|conservative` (default: `conservative`)
+- `DLE_AA_STABLE_PROMOTE_MERGE_MARGIN` (default: `0.0015`, conservative mode)
+- `DLE_AA_STABLE_PROMOTE_VARIANCE_CAPS_FILE` (default: `scripts/aa_variance_caps.properties`, strict mode)
+- `DLE_AA_STRICT_ACCEPTED_MERGE_MARGIN` (default: `0.0005`, strict mode when deltas are within caps)
+
+Strict mode behavior:
+- If pass outputs match exactly, promote directly.
+- If they differ, compute per-profile `delta=abs(pass1-pass2)` and compare with per-profile cap.
+- Strict only fails when `delta > cap` (material drift).
+- If all deltas are within cap, strict promotes merged thresholds (`max(pass1,pass2)+margin`) and writes:
+  - `strict-variance-report.tsv`

@@ -4,16 +4,17 @@ import java.nio.ByteBuffer;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
 
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compilation_status_success;
-import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_into_spv;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_initialize;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_release;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_initialize;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_release;
+import static org.lwjgl.util.shaderc.Shaderc.nshaderc_compile_into_spv;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_bytes;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_compilation_status;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_error_message;
@@ -46,8 +47,25 @@ public final class VulkanShaderCompiler {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "shaderc_compile_options_initialize failed", false);
         }
         long result = 0L;
+        ByteBuffer sourceUtf8 = null;
+        ByteBuffer sourceNameUtf8 = null;
+        ByteBuffer entryPointUtf8 = null;
         try {
-            result = shaderc_compile_into_spv(compiler, source, shaderKind, sourceName, "main", options);
+            // Large shader sources can overflow LWJGL MemoryStack when CharSequence overload is used.
+            // Use native-heap UTF8 buffers and explicit source length via nshaderc_* API.
+            sourceUtf8 = MemoryUtil.memUTF8(source, true);
+            // shaderc expects C-strings for source name and entry point.
+            sourceNameUtf8 = MemoryUtil.memUTF8(sourceName == null ? "shader" : sourceName, true);
+            entryPointUtf8 = MemoryUtil.memUTF8("main", true);
+            result = nshaderc_compile_into_spv(
+                    compiler,
+                    MemoryUtil.memAddress(sourceUtf8),
+                    sourceUtf8.remaining() - 1L,
+                    shaderKind,
+                    MemoryUtil.memAddress(sourceNameUtf8),
+                    MemoryUtil.memAddress(entryPointUtf8),
+                    options
+            );
             if (result == 0L) {
                 throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "shaderc_compile_into_spv failed", false);
             }
@@ -70,6 +88,15 @@ public final class VulkanShaderCompiler {
             }
             shaderc_compile_options_release(options);
             shaderc_compiler_release(compiler);
+            if (sourceUtf8 != null) {
+                MemoryUtil.memFree(sourceUtf8);
+            }
+            if (sourceNameUtf8 != null) {
+                MemoryUtil.memFree(sourceNameUtf8);
+            }
+            if (entryPointUtf8 != null) {
+                MemoryUtil.memFree(entryPointUtf8);
+            }
         }
     }
 }

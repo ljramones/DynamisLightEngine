@@ -20,7 +20,7 @@ enforce_java25_for_maven
 OUT_DIR="${DLE_COMPARE_OUTPUT_DIR:-artifacts/compare/aa-real-$(date +%Y%m%d-%H%M%S)}"
 TEST_CLASS="${DLE_COMPARE_TEST_CLASS:-BackendParityIntegrationTest}"
 VULKAN_MODE="${DLE_COMPARE_VULKAN_MODE:-mock}" # mock(default) | auto | real
-SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds | longrun | longrun-motion | upscaler-matrix | shadow-matrix
+SCRIPT_COMMAND="${1:-run}" # run(default) | preflight | lock-thresholds | longrun | longrun-motion | upscaler-matrix | shadow-matrix | stable-promote-real
 LOCK_SOURCE_DIR="${2:-artifacts/compare}"
 THRESHOLDS_FILE="${DLE_COMPARE_THRESHOLDS_FILE:-}"
 REQUIRED_MOLTENVK_VERSION="${DLE_COMPARE_REQUIRE_MOLTENVK_VERSION:-}"
@@ -184,14 +184,13 @@ fi
 if VULKAN_ICD_JSON="$(find_vulkan_icd_json)"; then
   export VK_ICD_FILENAMES="$VULKAN_ICD_JSON"
 fi
-JVM_ARG_LINE="-XstartOnFirstThread"
+BASE_JVM_ARG_LINE="-XstartOnFirstThread"
 STACK_SIZE="${DLE_COMPARE_JVM_STACK_SIZE:-4m}"
-JVM_ARG_LINE="$JVM_ARG_LINE -Xss$STACK_SIZE"
 if [[ -n "$VULKAN_LOADER_DIR" ]]; then
   if [[ -f "$VULKAN_LOADER_DIR/libvulkan.1.dylib" ]]; then
-    JVM_ARG_LINE="$JVM_ARG_LINE -Dorg.lwjgl.vulkan.libname=$VULKAN_LOADER_DIR/libvulkan.1.dylib"
+    BASE_JVM_ARG_LINE="$BASE_JVM_ARG_LINE -Dorg.lwjgl.vulkan.libname=$VULKAN_LOADER_DIR/libvulkan.1.dylib"
   elif [[ -f "$VULKAN_LOADER_DIR/libvulkan.dylib" ]]; then
-    JVM_ARG_LINE="$JVM_ARG_LINE -Dorg.lwjgl.vulkan.libname=$VULKAN_LOADER_DIR/libvulkan.dylib"
+    BASE_JVM_ARG_LINE="$BASE_JVM_ARG_LINE -Dorg.lwjgl.vulkan.libname=$VULKAN_LOADER_DIR/libvulkan.dylib"
   fi
 fi
 OUT_BASE_DIR="$OUT_DIR"
@@ -257,8 +256,13 @@ if [[ "$SCRIPT_COMMAND" == "shadow-matrix" ]]; then
   exit 0
 fi
 
+if [[ "$SCRIPT_COMMAND" == "stable-promote-real" ]]; then
+  "$ROOT_DIR/scripts/aa_threshold_promote_stable_real.sh"
+  exit 0
+fi
+
 if [[ "$SCRIPT_COMMAND" != "run" ]]; then
-  echo "Invalid command '$SCRIPT_COMMAND' (expected: run|preflight|lock-thresholds|longrun|longrun-motion|upscaler-matrix|shadow-matrix)." >&2
+  echo "Invalid command '$SCRIPT_COMMAND' (expected: run|preflight|lock-thresholds|longrun|longrun-motion|upscaler-matrix|shadow-matrix|stable-promote-real)." >&2
   exit 1
 fi
 
@@ -303,6 +307,8 @@ fi
 run_compare_tests() {
   local mock_context="$1"
   local log_file="$2"
+  local stack_size="$3"
+  local jvm_arg_line="$BASE_JVM_ARG_LINE -Xss$stack_size"
   local thresholds_arg=()
   local extra_mvn_args=()
   if [[ -n "$THRESHOLDS_FILE" ]]; then
@@ -319,7 +325,7 @@ run_compare_tests() {
   fi
   set +e
   mvn -q -pl engine-host-sample -am test \
-    -DargLine="$JVM_ARG_LINE" \
+    -DargLine="$jvm_arg_line" \
     -Ddle.compare.tests=true \
     -Ddle.compare.outputDir="$OUT_DIR_ABS" \
     -Ddle.compare.opengl.mockContext=false \
@@ -340,18 +346,47 @@ run_compare_tests() {
   return "$status"
 }
 
+is_stack_overflow_log() {
+  local log_file="$1"
+  rg -q "Out of stack space\\.|StackOverflowError" "$log_file"
+}
+
 LOG_FILE="$(mktemp -t dle-aa-rebaseline.XXXXXX.log)"
-if ! run_compare_tests "$VULKAN_MOCK_CONTEXT" "$LOG_FILE"; then
+run_ok=0
+if run_compare_tests "$VULKAN_MOCK_CONTEXT" "$LOG_FILE" "$STACK_SIZE"; then
+  run_ok=1
+else
+  if is_stack_overflow_log "$LOG_FILE"; then
+    for retry_stack in 8m 12m 16m; do
+      if [[ "$retry_stack" == "$STACK_SIZE" ]]; then
+        continue
+      fi
+      echo "Detected forked JVM stack overflow; retrying with -Xss$retry_stack." >&2
+      STACK_SIZE="$retry_stack"
+      if run_compare_tests "$VULKAN_MOCK_CONTEXT" "$LOG_FILE" "$STACK_SIZE"; then
+        run_ok=1
+        break
+      fi
+      if ! is_stack_overflow_log "$LOG_FILE"; then
+        break
+      fi
+    done
+  fi
+
   if [[ "$MODE_NORMALIZED" == "auto" && "$VULKAN_MOCK_CONTEXT" == "false" ]] && \
     rg -q "No required Vulkan instance extensions from GLFW|Failed to locate library: libvulkan\\.1\\.dylib|Could not initialize class org\\.lwjgl\\.glfw\\.GLFWVulkan" "$LOG_FILE"; then
     echo "Real Vulkan initialization failed; auto mode is retrying with Vulkan mock context." >&2
     VULKAN_MOCK_CONTEXT=true
     OUT_DIR="${OUT_BASE_DIR%/}/vulkan_mock"
     OUT_DIR_ABS="${OUT_BASE_DIR_ABS%/}/vulkan_mock"
-    run_compare_tests "$VULKAN_MOCK_CONTEXT" "$LOG_FILE"
-  else
-    exit 1
+    if run_compare_tests "$VULKAN_MOCK_CONTEXT" "$LOG_FILE" "$STACK_SIZE"; then
+      run_ok=1
+    fi
   fi
+fi
+
+if [[ "$run_ok" -ne 1 ]]; then
+  exit 1
 fi
 
 echo "AA real-hardware compare rebaseline run complete."
