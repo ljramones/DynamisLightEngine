@@ -182,6 +182,16 @@ public final class VulkanShaderSources {
                     vec4 uMaterial;
                     vec4 uMaterialReactive;
                 } obj;
+                struct ProbeData {
+                    vec4 positionAndIntensity;
+                    vec4 extentsMin;
+                    vec4 extentsMax;
+                    ivec4 cubemapIndexAndFlags;
+                };
+                layout(std430, set = 0, binding = 2) readonly buffer ReflectionProbeData {
+                    ivec4 uProbeHeader;
+                    ProbeData uProbes[];
+                } probes;
                 layout(set = 1, binding = 0) uniform sampler2D uAlbedoTexture;
                 layout(set = 1, binding = 1) uniform sampler2D uNormalTexture;
                 layout(set = 1, binding = 2) uniform sampler2D uMetallicRoughnessTexture;
@@ -209,6 +219,41 @@ public final class VulkanShaderSources {
                 }
                 vec3 fresnelSchlick(float cosTheta, vec3 f0) {
                     return f0 + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
+                }
+                float probeAxisWeight(float pointValue, float minValue, float maxValue, float blendDistance) {
+                    float fromMin = (pointValue - minValue) / blendDistance;
+                    float fromMax = (maxValue - pointValue) / blendDistance;
+                    return clamp(min(fromMin, fromMax), 0.0, 1.0);
+                }
+                float probeWeightAtWorldPos(vec3 worldPos, ProbeData probe) {
+                    float blendDistance = max(probe.extentsMin.w, 0.0001);
+                    float wx = probeAxisWeight(worldPos.x, probe.extentsMin.x, probe.extentsMax.x, blendDistance);
+                    float wy = probeAxisWeight(worldPos.y, probe.extentsMin.y, probe.extentsMax.y, blendDistance);
+                    float wz = probeAxisWeight(worldPos.z, probe.extentsMin.z, probe.extentsMax.z, blendDistance);
+                    float intensity = max(probe.positionAndIntensity.w, 0.0);
+                    return wx * wy * wz * intensity;
+                }
+                vec3 probeSampleDirection(vec3 worldPos, vec3 reflectDir, ProbeData probe) {
+                    bool boxProjection = probe.cubemapIndexAndFlags.y != 0;
+                    if (!boxProjection) {
+                        return normalize(reflectDir);
+                    }
+                    vec3 dir = normalize(reflectDir);
+                    vec3 dirSafe = vec3(
+                            abs(dir.x) < 0.0001 ? (dir.x >= 0.0 ? 0.0001 : -0.0001) : dir.x,
+                            abs(dir.y) < 0.0001 ? (dir.y >= 0.0 ? 0.0001 : -0.0001) : dir.y,
+                            abs(dir.z) < 0.0001 ? (dir.z >= 0.0 ? 0.0001 : -0.0001) : dir.z
+                    );
+                    vec3 t1 = (probe.extentsMax.xyz - worldPos) / dirSafe;
+                    vec3 t2 = (probe.extentsMin.xyz - worldPos) / dirSafe;
+                    vec3 tf = max(t1, t2);
+                    float t = max(min(min(tf.x, tf.y), tf.z), 0.0);
+                    vec3 hitPoint = worldPos + dir * t;
+                    vec3 corrected = hitPoint - probe.positionAndIntensity.xyz;
+                    if (length(corrected) < 0.0001) {
+                        return dir;
+                    }
+                    return normalize(corrected);
                 }
                 vec3 sampleIblRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter) {
                     float roughMix = clamp(roughness * (0.45 + 0.55 * prefilter), 0.0, 1.0);
@@ -1505,6 +1550,31 @@ public final class VulkanShaderSources {
                         vec3 reflectDir = reflect(-viewDir, n);
                         vec2 specUv = clamp(reflectDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
                         vec3 rad = sampleIblRadiance(specUv, vUv, roughness, prefilter);
+                        int probeCount = clamp(probes.uProbeHeader.x, 0, 64);
+                        if (probeCount > 0) {
+                            vec3 probeAccum = vec3(0.0);
+                            float probeWeightSum = 0.0;
+                            for (int i = 0; i < probeCount; i++) {
+                                ProbeData probe = probes.uProbes[i];
+                                if (probe.cubemapIndexAndFlags.x < 0) {
+                                    continue;
+                                }
+                                float weight = probeWeightAtWorldPos(vWorldPos, probe);
+                                if (weight <= 0.0) {
+                                    continue;
+                                }
+                                vec3 probeDir = probeSampleDirection(vWorldPos, reflectDir, probe);
+                                vec2 probeUv = clamp(probeDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
+                                vec3 probeRad = sampleIblRadiance(probeUv, vUv, roughness, prefilter);
+                                probeAccum += probeRad * weight;
+                                probeWeightSum += weight;
+                            }
+                            if (probeWeightSum > 0.0) {
+                                vec3 blendedProbeRad = probeAccum / probeWeightSum;
+                                float probeBlend = clamp(probeWeightSum, 0.0, 1.0);
+                                rad = mix(rad, blendedProbeRad, probeBlend);
+                            }
+                        }
                         vec2 brdfUv = vec2(clamp(ndv, 0.0, 1.0), clamp(roughness, 0.0, 1.0));
                         vec2 brdf = texture(uIblBrdfLutTexture, brdfUv).rg;
                         float fresnel = pow(1.0 - ndv, 5.0);
