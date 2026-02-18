@@ -16,9 +16,10 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 - `reflections-planar` (graphical planar reflection lane)
 - `reflections-hybrid` (graphical hybrid reflection lane)
 - `fog-smoke-post` (graphical fog/smoke/post interaction lane)
+- `telemetry-export` (programmatic telemetry capture lane)
 - `aa-matrix` (graphical AA configuration/telemetry)
 
-Current count: `13` demos (`13` graphical)
+Current count: `14` demos (`13` graphical, `1` programmatic)
 
 ## Target Demo Set
 

@@ -28,6 +28,22 @@ List demos:
 mvn -f engine-demos/pom.xml exec:java -Dexec.args="--list"
 ```
 
+Current demo catalog:
+- `hello-triangle`
+- `material-baseline`
+- `lights-local-array`
+- `shadow-cascade-baseline`
+- `shadow-cascade-debug`
+- `shadow-local-atlas`
+- `shadow-quality-matrix`
+- `reflections-ssr-hiz`
+- `reflections-planar`
+- `reflections-hybrid`
+- `fog-smoke-post`
+- `telemetry-export`
+- `aa-motion-stress`
+- `aa-matrix`
+
 Run a demo:
 ```bash
 mvn -f engine-demos/pom.xml exec:java \
@@ -99,6 +115,11 @@ Run hybrid reflections demo:
 Run fog/smoke/post interaction demo:
 ```bash
 ./scripts/run_demo_mac.sh --demo=fog-smoke-post --backend=vulkan --mock=false --seconds=10 --quality=high
+```
+
+Run telemetry export demo with explicit output file:
+```bash
+./scripts/run_demo_mac.sh --demo=telemetry-export --backend=vulkan --mock=true --seconds=10 --quality=high --telemetry=artifacts/demos/telemetry-export.jsonl
 ```
 
 Telemetry outputs:
