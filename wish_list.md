@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:56 ET — Added explicit per-material override policy diagnostics (`REFLECTION_OVERRIDE_POLICY`) with typed count accessor, plus probe streaming budget diagnostics and contact-hardening reflection weighting in Vulkan resolve.
+- Latest reflection update: 2026-02-18 14:58 ET — Expanded RT reflection diagnostics to report dedicated denoise pipeline activation in both warning payload and typed runtime diagnostics, alongside recent override-policy and probe-streaming telemetry work.
 
 Status legend:
 

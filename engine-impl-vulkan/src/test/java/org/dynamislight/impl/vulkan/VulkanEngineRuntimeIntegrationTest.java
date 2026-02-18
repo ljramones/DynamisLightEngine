@@ -642,10 +642,12 @@ class VulkanEngineRuntimeIntegrationTest {
         String rt = warningMessageByCode(frame, "REFLECTION_RT_PATH_REQUESTED");
         assertTrue(rt.contains("singleBounceEnabled=true"));
         assertTrue(rt.contains("multiBounceEnabled=true"));
+        assertTrue(rt.contains("dedicatedDenoisePipelineEnabled=true"));
         assertTrue(rt.contains("denoiseStrength=0.71"));
         var diagnostics = runtime.debugReflectionRtPathDiagnostics();
         assertTrue(diagnostics.laneRequested());
         assertTrue(diagnostics.laneActive());
+        assertTrue(diagnostics.dedicatedDenoisePipelineEnabled());
         assertEquals("rt->ssr->probe", diagnostics.fallbackChain());
         int runtimeMode = runtime.debugReflectionRuntimeMode();
         assertTrue((runtimeMode & 0x7) > 0);

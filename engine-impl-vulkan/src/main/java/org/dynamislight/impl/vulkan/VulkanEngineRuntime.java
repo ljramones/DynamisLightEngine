@@ -902,6 +902,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         "REFLECTION_RT_PATH_REQUESTED",
                         "RT reflection path requested (singleBounceEnabled=" + reflectionRtSingleBounceEnabled
                                 + ", multiBounceEnabled=" + reflectionRtMultiBounceEnabled
+                                + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
                                 + ", denoiseStrength=" + reflectionRtDenoiseStrength
                                 + ", laneActive=" + reflectionRtLaneActive
                                 + ", fallbackChain=" + reflectionRtFallbackChainActive + ")"
@@ -2072,6 +2073,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtLaneActive,
                 reflectionRtSingleBounceEnabled,
                 reflectionRtMultiBounceEnabled,
+                reflectionRtDedicatedDenoisePipelineEnabled,
                 reflectionRtDenoiseStrength,
                 reflectionRtFallbackChainActive
         );
@@ -2254,6 +2256,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean laneActive,
             boolean singleBounceEnabled,
             boolean multiBounceEnabled,
+            boolean dedicatedDenoisePipelineEnabled,
             double denoiseStrength,
             String fallbackChain
     ) {

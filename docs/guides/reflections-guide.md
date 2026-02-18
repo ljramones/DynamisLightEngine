@@ -113,6 +113,7 @@ PostProcessDesc post = new PostProcessDesc(
 - Planar capture currently uses selective pre-main rerender scope; true mirrored clip-plane camera rerender is still pending.
 - Vulkan now emits SSR reprojection envelope diagnostics (`REFLECTION_SSR_REPROJECTION_ENVELOPE`) and breach warnings (`REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`) with threshold/cooldown gating for ghosting/disocclusion risk.
 - Vulkan RT lane now supports dedicated denoise staging (spatial + temporal) behind runtime mode bit activation.
+- RT path diagnostics now explicitly report dedicated-denoise pipeline intent in warning payload and typed runtime diagnostics.
 - Vulkan probe metadata upload now supports streaming cadence + max-visible budget + LOD depth-tier tagging for probe resolve.
 - Warnings are emitted when reflections are active:
   - `REFLECTIONS_BASELINE_ACTIVE`

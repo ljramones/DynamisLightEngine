@@ -97,6 +97,7 @@ Current profile tags in parity tests:
 
 7. RT execution-lane checks
 - Assert `REFLECTION_RT_PATH_REQUESTED` and typed diagnostics (`debugReflectionRtPathDiagnostics`) expose lane request/active state and fallback chain.
+- Assert RT diagnostics include dedicated denoise pipeline activation flag for request and typed snapshot parity.
 - Assert runtime-composed reflection mode bits expose RT active/multi-bounce flags (`debugReflectionRuntimeMode`) and denoise strength (`debugReflectionRuntimeRtDenoiseStrength`).
 - Assert fallback warning (`REFLECTION_RT_PATH_FALLBACK_ACTIVE`) only when RT lane is explicitly unavailable.
 - Assert dedicated RT denoise stage bit is present when dedicated RT denoise pipeline is enabled.
