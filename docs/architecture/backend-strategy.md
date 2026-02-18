@@ -30,6 +30,14 @@
 4. Runtime emits logs/events/errors via callbacks.
 5. Host calls `shutdown`.
 
+Current Vulkan frame execution details are documented in:
+
+- `docs/architecture/vulkan-render-pipeline-current.md`
+
+Feature-composition and migration sequencing policy is documented in:
+
+- `docs/adr/0002-feature-composition-and-pipeline-migration-policy.md`
+
 ## Implementation rule
 
 Backend modules may use LWJGL directly, but cross-backend policies (error mapping, lifecycle semantics, required log categories) must stay in `engine-impl-common`.
