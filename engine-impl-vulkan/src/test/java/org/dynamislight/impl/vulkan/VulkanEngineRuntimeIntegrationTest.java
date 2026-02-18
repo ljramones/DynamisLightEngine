@@ -601,6 +601,20 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void planarReflectionContractReportsConfiguredPlaneHeight() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validPlanarClipHeightScene(2.5f));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+        String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
+        assertTrue(contract.contains("planeHeight=2.5"));
+        runtime.shutdown();
+    }
+
+    @Test
     void rtReflectionRequestInMockContextActivatesExecutionLaneAndDenoisePath() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(
@@ -2806,6 +2820,61 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.fog(),
                 base.smokeEmitters(),
                 base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validPlanarClipHeightScene(float planeHeight) {
+        SceneDescriptor base = validReflectionsScene("planar");
+        ReflectionAdvancedDesc advanced = new ReflectionAdvancedDesc(
+                true,
+                5,
+                2,
+                true,
+                planeHeight,
+                0.2f,
+                8.0f,
+                false,
+                false,
+                2.0f,
+                List.of(),
+                false,
+                0.75f,
+                "planar"
+        );
+        PostProcessDesc post = new PostProcessDesc(
+                base.postProcess().enabled(),
+                base.postProcess().tonemapEnabled(),
+                base.postProcess().exposure(),
+                base.postProcess().gamma(),
+                base.postProcess().bloomEnabled(),
+                base.postProcess().bloomThreshold(),
+                base.postProcess().bloomStrength(),
+                base.postProcess().ssaoEnabled(),
+                base.postProcess().ssaoStrength(),
+                base.postProcess().ssaoRadius(),
+                base.postProcess().ssaoBias(),
+                base.postProcess().ssaoPower(),
+                base.postProcess().smaaEnabled(),
+                base.postProcess().smaaStrength(),
+                base.postProcess().taaEnabled(),
+                base.postProcess().taaBlend(),
+                base.postProcess().taaLumaClipEnabled(),
+                base.postProcess().antiAliasing(),
+                base.postProcess().reflections(),
+                advanced
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
         );
     }
 

@@ -876,6 +876,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", planarPathActive=" + planarPathActive
                             + ", eligibleMeshes=" + planarEligible
                             + ", excludedMeshes=" + planarExcluded
+                            + ", planeHeight=" + currentPost.reflectionsPlanarPlaneHeight()
                             + ", requiredOrder=planar_capture_before_main_sample_before_post)"
             ));
             if (planarPathActive && planarEligible <= 0) {
