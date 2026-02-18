@@ -557,6 +557,14 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.contains("adaptiveTemporalWeightActive="));
         assertTrue(diagnostics.contains("adaptiveSsrStrengthActive="));
         assertTrue(diagnostics.contains("adaptiveSsrStepScaleActive="));
+        String trendReport = warningMessageByCode(frame, "REFLECTION_SSR_TAA_ADAPTIVE_TREND_REPORT");
+        assertTrue(trendReport.contains("windowFrames="));
+        assertTrue(trendReport.contains("windowSamples="));
+        assertTrue(trendReport.contains("meanSeverity="));
+        assertTrue(trendReport.contains("severityHighRatio="));
+        assertTrue(trendReport.contains("meanTemporalDelta="));
+        assertTrue(trendReport.contains("meanSsrStrengthDelta="));
+        assertTrue(trendReport.contains("meanSsrStepScaleDelta="));
         runtime.shutdown();
     }
 
@@ -630,6 +638,7 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTemporalBoostMax=0.18"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveSsrStrengthScaleMin=0.6"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveStepScaleBoostMax=0.25"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWindowFrames=180"));
         String probeDiagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
         assertTrue(probeDiagnostics.contains("warnMinStreak=2"));
         assertTrue(probeDiagnostics.contains("warnCooldownFrames=60"));
@@ -646,7 +655,8 @@ class VulkanEngineRuntimeIntegrationTest {
                 Map.entry("vulkan.reflections.ssrTaaRiskEmaAlpha", "0.33"),
                 Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "155"),
                 Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "false"),
-                Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "0.07")
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "0.07"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames", "64")
         )), new RecordingCallbacks());
         runtime.loadScene(validReflectionsScene("hybrid"));
 
@@ -660,6 +670,7 @@ class VulkanEngineRuntimeIntegrationTest {
         String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
         assertTrue(profileWarning.contains("ssrTaaAdaptiveEnabled=false"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTemporalBoostMax=0.07"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendWindowFrames=64"));
         runtime.shutdown();
     }
 

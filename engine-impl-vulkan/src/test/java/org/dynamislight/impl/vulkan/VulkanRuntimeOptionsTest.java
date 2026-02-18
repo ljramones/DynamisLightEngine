@@ -47,7 +47,8 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "0.21"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin", "0.63"),
-                        Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "0.28")
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "0.28"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames", "240")
                 ),
                 256
         );
@@ -96,6 +97,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.21, parsed.reflectionSsrTaaAdaptiveTemporalBoostMax());
         assertEquals(0.63, parsed.reflectionSsrTaaAdaptiveSsrStrengthScaleMin());
         assertEquals(0.28, parsed.reflectionSsrTaaAdaptiveStepScaleBoostMax());
+        assertEquals(240, parsed.reflectionSsrTaaAdaptiveTrendWindowFrames());
     }
 
     @Test
@@ -132,7 +134,8 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaRiskEmaAlpha", "7.0"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "9.0"),
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin", "-1.0"),
-                        Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "2.0")
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "2.0"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames", "2")
                 ),
                 256
         );
@@ -175,5 +178,6 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.4, parsed.reflectionSsrTaaAdaptiveTemporalBoostMax());
         assertEquals(0.2, parsed.reflectionSsrTaaAdaptiveSsrStrengthScaleMin());
         assertEquals(1.0, parsed.reflectionSsrTaaAdaptiveStepScaleBoostMax());
+        assertEquals(8, parsed.reflectionSsrTaaAdaptiveTrendWindowFrames());
     }
 }
