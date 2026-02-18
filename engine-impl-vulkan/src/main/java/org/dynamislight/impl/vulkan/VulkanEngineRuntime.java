@@ -1500,6 +1500,24 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return snapshotReflectionAdaptiveTrendDiagnostics(reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame);
     }
 
+    ReflectionAdaptiveTrendSloDiagnostics debugReflectionAdaptiveTrendSloDiagnostics() {
+        ReflectionAdaptiveTrendDiagnostics trend = snapshotReflectionAdaptiveTrendDiagnostics(
+                reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame
+        );
+        TrendSloAudit audit = evaluateReflectionAdaptiveTrendSlo(trend);
+        return new ReflectionAdaptiveTrendSloDiagnostics(
+                audit.status(),
+                audit.reason(),
+                audit.failed(),
+                trend.windowSamples(),
+                trend.meanSeverity(),
+                trend.highRatio(),
+                reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax,
+                reflectionSsrTaaAdaptiveTrendSloHighRatioMax,
+                reflectionSsrTaaAdaptiveTrendSloMinSamples
+        );
+    }
+
     static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
     }
 
@@ -1566,6 +1584,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int highRatioWarnHighStreak,
             int highRatioWarnCooldownRemaining,
             boolean highRatioWarnTriggered
+    ) {
+    }
+
+    record ReflectionAdaptiveTrendSloDiagnostics(
+            String status,
+            String reason,
+            boolean failed,
+            int windowSamples,
+            double meanSeverity,
+            double highRatio,
+            double sloMeanSeverityMax,
+            double sloHighRatioMax,
+            int sloMinSamples
     ) {
     }
 

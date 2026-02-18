@@ -718,6 +718,33 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionAdaptiveTrendSloDiagnosticsExposeMachineReadableAuditState() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMeanSeverityMax", "0.42"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloHighRatioMax", "0.31"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples", "5")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        runtime.render();
+        runtime.render();
+        var slo = runtime.debugReflectionAdaptiveTrendSloDiagnostics();
+
+        assertTrue("pass".equals(slo.status()) || "pending".equals(slo.status()) || "fail".equals(slo.status()));
+        assertFalse(slo.reason().isBlank());
+        assertEquals(0.42, slo.sloMeanSeverityMax(), 1e-6);
+        assertEquals(0.31, slo.sloHighRatioMax(), 1e-6);
+        assertEquals(5, slo.sloMinSamples());
+        assertTrue(slo.windowSamples() >= 0);
+        assertTrue(slo.meanSeverity() >= 0.0 && slo.meanSeverity() <= 1.0);
+        assertTrue(slo.highRatio() >= 0.0 && slo.highRatio() <= 1.0);
+        runtime.shutdown();
+    }
+
+    @Test
     void reflectionBlessedProfilesProduceExpectedTrendEnvelopes() throws Exception {
         Map<String, String> forcedRisk = Map.ofEntries(
                 Map.entry("vulkan.mockContext", "true"),

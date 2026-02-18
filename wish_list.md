@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 13:40 ET — Added adaptive trend SLO audit warnings (`REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_AUDIT` / `_FAILED`) with profile-aware defaults and configurable thresholds for CI pass/fail gating.
+- Latest reflection update: 2026-02-18 13:50 ET — Added machine-readable reflection SLO diagnostics accessor (`debugReflectionAdaptiveTrendSloDiagnostics`) so CI/tools can consume audit status without warning-string parsing.
 
 Status legend:
 
@@ -78,6 +78,7 @@ Reflection notes:
 - Vulkan now emits a fixed-window adaptive trend warning report (`REFLECTION_SSR_TAA_ADAPTIVE_TREND_REPORT`) with severity bucket ratios and mean adaptive deltas.
 - Vulkan now includes a CI-friendly high-risk trend gate warning with configurable ratio/streak/sample/cooldown thresholds and a typed trend diagnostics accessor (`debugReflectionAdaptiveTrendDiagnostics`).
 - Vulkan now includes a CI SLO audit warning for adaptive trend quality with explicit `status=pass|pending|fail` and fail-only warning emission.
+- Vulkan now exposes a machine-readable adaptive trend SLO diagnostics snapshot (`debugReflectionAdaptiveTrendSloDiagnostics`) for parser-free CI assertions.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing
