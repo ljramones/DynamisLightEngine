@@ -29,7 +29,7 @@ It is intended as extraction input for future capability contracts and render-gr
   - reflection probe metadata SSBO payload (`set=0`, `binding=2`)
   - SSBO header semantics:
     - `x`: visible probe count uploaded this frame
-    - `y`: global probe-atlas layer count (slot count)
+    - `y`: global probe-array layer count (slot count)
     - `z`: unique probe asset paths requested by visible probes
     - `w`: visible unique paths that could not be assigned a slot
 - Consumed:
@@ -55,7 +55,7 @@ It is intended as extraction input for future capability contracts and render-gr
 
 ### 5. Current limitations discovered
 
-- Probe texture selection now uses a 2D atlas path, not native cubemap-array sampling.
+- Probe texture selection now uses a native 2D-array path, not native cubemap-array sampling.
 - Source probe assets are projected through the existing 2D radiance UV sampling model.
 - Native cubemap-array/image-array upload and sampling remains a future enhancement.
 
@@ -74,4 +74,4 @@ It is intended as extraction input for future capability contracts and render-gr
 
 ## Next reflection implementation target
 
-- Replace 2D probe-radiance atlas path with native cubemap-array/image-array probe sampling while keeping current slot-map and header contracts stable.
+- Replace 2D-array probe path with native cubemap-array/image-array probe sampling while keeping current slot-map and header contracts stable.

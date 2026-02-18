@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 11:09 ET — Vulkan probe reflections now use atlas-backed per-probe slot sampling with metadata-driven box projection and priority overlap blending. Native cubemap-array sampling remains pending.
+- Latest reflection update: 2026-02-18 11:12 ET — Vulkan probe reflections now use native 2D-array per-probe slot sampling with metadata-driven box projection and priority overlap blending. Native cubemap-array sampling remains pending.
 
 Status legend:
 
@@ -63,8 +63,8 @@ Status summary snapshot (2026-02-18):
 
 Reflection notes:
 
-- Vulkan now has per-scene probe slot assignment, frame-visible probe metadata upload, and atlas-backed per-probe reflection selection in main-fragment shading.
-- OpenGL parity for probe slot/atlas path is not yet implemented.
+- Vulkan now has per-scene probe slot assignment, frame-visible probe metadata upload, and native 2D-array per-probe reflection selection in main-fragment shading.
+- OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing
 

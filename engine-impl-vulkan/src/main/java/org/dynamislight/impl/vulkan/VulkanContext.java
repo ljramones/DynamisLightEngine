@@ -1555,27 +1555,23 @@ final class VulkanContext {
             return iblState.radianceTexture;
         }
         int layerBytes = layerWidth * layerHeight * 4;
-        ByteBuffer atlas = MemoryUtil.memAlloc(layerBytes * slotCount);
+        List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> normalizedLayers = new ArrayList<>(slotCount);
         for (int i = 0; i < slotCount; i++) {
             org.dynamislight.impl.vulkan.model.VulkanTexturePixelData layer = layers.get(i);
             if (layer != null && layer.width() == layerWidth && layer.height() == layerHeight && layer.data().remaining() == layerBytes) {
-                ByteBuffer src = layer.data().duplicate();
-                src.position(0);
-                src.limit(layerBytes);
-                atlas.put(src);
+                normalizedLayers.add(layer);
             } else {
+                ByteBuffer fallback = MemoryUtil.memAlloc(layerBytes);
                 for (int p = 0; p < layerBytes / 4; p++) {
-                    atlas.put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF);
+                    fallback.put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF);
                 }
+                fallback.flip();
+                normalizedLayers.add(new org.dynamislight.impl.vulkan.model.VulkanTexturePixelData(fallback, layerWidth, layerHeight));
             }
         }
-        atlas.flip();
-        freePixelLayers(layers);
-        org.dynamislight.impl.vulkan.model.VulkanTexturePixelData atlasPixels =
-                new org.dynamislight.impl.vulkan.model.VulkanTexturePixelData(atlas, layerWidth, layerHeight * slotCount);
         try {
-            return VulkanTextureResourceOps.createTextureFromPixels(
-                    atlasPixels,
+            return VulkanTextureResourceOps.createTextureArrayFromPixels(
+                    normalizedLayers,
                     new VulkanTextureResourceOps.Context(
                             backendResources.device,
                             backendResources.physicalDevice,
@@ -1585,7 +1581,7 @@ final class VulkanContext {
                     )
             );
         } finally {
-            MemoryUtil.memFree(atlasPixels.data());
+            freePixelLayers(normalizedLayers);
         }
     }
 

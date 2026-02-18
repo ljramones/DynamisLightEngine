@@ -68,7 +68,7 @@ Layout has 10 combined image samplers, written per mesh:
 - 6 IBL radiance
 - 7 BRDF LUT
 - 8 shadow moment map array
-- 9 probe radiance atlas (per-scene atlas texture indexed by probe slot)
+- 9 probe radiance array (per-scene 2D-array texture indexed by probe slot)
 
 Files:
 
@@ -99,7 +99,7 @@ Current behavior:
 
 Current limitation:
 
-- Vulkan currently uses a 2D probe-radiance atlas path, not native cubemap-array sampling.
+- Vulkan currently uses a native 2D-array probe-radiance path, not native cubemap-array sampling.
 - Probe texture selection by `cubemapIndex` is active, but source assets are interpreted through the existing 2D radiance projection path.
 
 ### Uniform sizes and upload
