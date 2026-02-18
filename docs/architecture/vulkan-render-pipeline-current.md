@@ -7,6 +7,7 @@ This document describes what is implemented now in `engine-impl-vulkan`. It is i
 Feature-depth sequencing and composition migration policy (including why reflections is next) is in:
 
 - `docs/adr/0002-feature-composition-and-pipeline-migration-policy.md`
+- `docs/architecture/reflections-phase1-observations.md`
 
 ## Scope and entry points
 
