@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 12:50 ET — Added optional adaptive SSR/TAA stabilization policy (`vulkan.reflections.ssrTaaAdaptive*`) that adjusts active reflection temporal/SSR parameters from sustained risk telemetry, with diagnostics exposure.
+- Latest reflection update: 2026-02-18 12:55 ET — Reflection profile defaults now include adaptive SSR/TAA policy knobs (with explicit backend-option override precedence), and warnings expose resolved adaptive policy values.
 
 Status legend:
 
@@ -72,6 +72,7 @@ Reflection notes:
 - Reflection profile selection now drives default telemetry/risk thresholds when explicit backend overrides are absent.
 - Reflection warning envelope now includes a compact profile-threshold summary warning (`REFLECTION_TELEMETRY_PROFILE_ACTIVE`).
 - Vulkan now supports an optional adaptive SSR/TAA stabilization policy that tunes active temporal weight, SSR strength, and SSR step scale from EMA/streak risk signals.
+- Reflection profiles (`performance`, `quality`, `stability`) now also control adaptive SSR/TAA defaults unless explicitly overridden by backend options.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

@@ -564,6 +564,11 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.contains("instabilityWarnMinFrames=2"));
         assertTrue(diagnostics.contains("instabilityWarnCooldownFrames=60"));
         assertTrue(diagnostics.contains("instabilityRiskEmaAlpha=0.45"));
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveEnabled=true"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTemporalBoostMax=0.18"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveSsrStrengthScaleMin=0.6"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveStepScaleBoostMax=0.25"));
         String probeDiagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
         assertTrue(probeDiagnostics.contains("warnMinStreak=2"));
         assertTrue(probeDiagnostics.contains("warnCooldownFrames=60"));
@@ -578,7 +583,9 @@ class VulkanEngineRuntimeIntegrationTest {
                 Map.entry("vulkan.reflectionsProfile", "stability"),
                 Map.entry("vulkan.reflections.ssrTaaInstabilityWarnMinFrames", "9"),
                 Map.entry("vulkan.reflections.ssrTaaRiskEmaAlpha", "0.33"),
-                Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "155")
+                Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "155"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "false"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "0.07")
         )), new RecordingCallbacks());
         runtime.loadScene(validReflectionsScene("hybrid"));
 
@@ -589,6 +596,9 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.contains("instabilityRiskEmaAlpha=0.33"));
         String probeDiagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
         assertTrue(probeDiagnostics.contains("warnCooldownFrames=155"));
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveEnabled=false"));
+        assertTrue(profileWarning.contains("ssrTaaAdaptiveTemporalBoostMax=0.07"));
         runtime.shutdown();
     }
 

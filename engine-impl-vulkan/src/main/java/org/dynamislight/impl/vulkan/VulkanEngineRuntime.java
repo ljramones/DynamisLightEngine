@@ -1338,6 +1338,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnMinFrames")) reflectionSsrTaaInstabilityWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames")) reflectionSsrTaaInstabilityWarnCooldownFrames = 240;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaRiskEmaAlpha")) reflectionSsrTaaRiskEmaAlpha = 0.20;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveEnabled")) reflectionSsrTaaAdaptiveEnabled = false;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax")) reflectionSsrTaaAdaptiveTemporalBoostMax = 0.08;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin")) reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.80;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax")) reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.10;
             }
             case QUALITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -1349,6 +1353,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnMinFrames")) reflectionSsrTaaInstabilityWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames")) reflectionSsrTaaInstabilityWarnCooldownFrames = 90;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaRiskEmaAlpha")) reflectionSsrTaaRiskEmaAlpha = 0.30;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveEnabled")) reflectionSsrTaaAdaptiveEnabled = false;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax")) reflectionSsrTaaAdaptiveTemporalBoostMax = 0.12;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin")) reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.70;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax")) reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.15;
             }
             case STABILITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -1360,6 +1368,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnMinFrames")) reflectionSsrTaaInstabilityWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames")) reflectionSsrTaaInstabilityWarnCooldownFrames = 60;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaRiskEmaAlpha")) reflectionSsrTaaRiskEmaAlpha = 0.45;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveEnabled")) reflectionSsrTaaAdaptiveEnabled = true;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax")) reflectionSsrTaaAdaptiveTemporalBoostMax = 0.18;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin")) reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.60;
+                if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax")) reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.25;
             }
             default -> {
             }
