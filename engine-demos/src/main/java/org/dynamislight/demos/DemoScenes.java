@@ -10,6 +10,8 @@ import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
+import org.dynamislight.api.scene.ReflectionAdvancedDesc;
+import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.TransformDesc;
@@ -585,6 +587,107 @@ final class DemoScenes {
                 meshes,
                 materials,
                 List.of(sun, kickA, kickB),
+                environment,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
+    static SceneDescriptor reflectionsSsrHizScene() {
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 2.6f, 9.0f), new Vec3(0f, 1.0f, -4.6f), 58f, 0.1f, 1000f);
+        List<TransformDesc> transforms = new ArrayList<>();
+        List<MeshDesc> meshes = new ArrayList<>();
+        List<MaterialDesc> materials = new ArrayList<>();
+
+        transforms.add(new TransformDesc("floor", new Vec3(0f, -0.9f, -5.5f), new Vec3(0f, 0f, 0f), new Vec3(8.5f, 0.2f, 9.0f)));
+        meshes.add(new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-floor", new Vec3(0.20f, 0.22f, 0.26f), 0.08f, 0.95f, null, null));
+
+        int columns = 4;
+        int rows = 3;
+        float spacingX = 2.1f;
+        float spacingZ = 2.1f;
+        float startX = -((columns - 1) * spacingX) * 0.5f;
+        float startZ = -1.0f;
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < columns; col++) {
+                String id = "reflect-" + row + "-" + col;
+                String transformId = "xform-" + id;
+                String materialId = "mat-" + id;
+                float x = startX + (col * spacingX);
+                float z = startZ - (row * spacingZ);
+                transforms.add(new TransformDesc(
+                        transformId,
+                        new Vec3(x, 0.3f, z),
+                        new Vec3(0f, row * 16f + col * 18f, 0f),
+                        new Vec3(0.7f, 0.7f, 0.7f)
+                ));
+                meshes.add(new MeshDesc("mesh-" + id, transformId, materialId, "meshes/box.glb"));
+                float roughness = 0.05f + (0.20f * row) + (0.08f * col);
+                float metalness = 0.55f + (0.12f * col);
+                materials.add(new MaterialDesc(
+                        materialId,
+                        new Vec3(0.36f + 0.14f * col, 0.48f - 0.08f * row, 0.72f - 0.10f * col),
+                        Math.min(0.95f, roughness),
+                        Math.min(1.0f, metalness),
+                        null,
+                        null
+                ));
+            }
+        }
+
+        ShadowDesc directionalShadow = new ShadowDesc(1536, 0.0011f, 5, 3);
+        LightDesc sun = new LightDesc(
+                "sun",
+                new Vec3(0f, 11f, 0f),
+                new Vec3(1f, 0.97f, 0.92f),
+                1.05f,
+                110f,
+                true,
+                directionalShadow
+        );
+        LightDesc accentA = new LightDesc("accent-a", new Vec3(-3.2f, 2.1f, -1.8f), new Vec3(0.35f, 0.60f, 1.0f), 0.92f, 8.0f, false, null);
+        LightDesc accentB = new LightDesc("accent-b", new Vec3(3.0f, 2.2f, -4.8f), new Vec3(1.0f, 0.42f, 0.35f), 0.92f, 8.0f, false, null);
+
+        ReflectionDesc reflections = new ReflectionDesc(true, "ssr", 0.78f, 0.88f, 1.05f, 0.84f, 0.18f);
+        ReflectionAdvancedDesc reflectionAdvanced = new ReflectionAdvancedDesc(
+                true,   // hiZEnabled
+                6,      // hiZMipCount
+                2,      // denoisePasses
+                false,  // planarClipPlaneEnabled
+                0.0f,   // planarPlaneHeight
+                0.5f,   // planarFadeStart
+                8.0f,   // planarFadeEnd
+                false,  // probeVolumeEnabled
+                false,  // probeBoxProjectionEnabled
+                2.0f,   // probeBlendDistance
+                false,  // rtEnabled
+                0.75f,  // rtMaxRoughness
+                "ssr"   // rtFallbackMode
+        );
+
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.07f, 0.09f, 0.12f), 0.30f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        PostProcessDesc post = new PostProcessDesc(
+                true, true, 1.05f, 2.2f,
+                true, 0.90f, 0.74f,
+                true, 0.52f, 1.0f, 0.02f, 1.15f,
+                false, 0.0f,
+                true, 0.78f, false,
+                null,
+                reflections,
+                reflectionAdvanced
+        );
+
+        return new SceneDescriptor(
+                "demo-scene-reflections-ssr-hiz",
+                List.of(camera),
+                "main-cam",
+                transforms,
+                meshes,
+                materials,
+                List.of(sun, accentA, accentB),
                 environment,
                 fog,
                 List.of(),

@@ -12,9 +12,10 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 - `shadow-local-atlas` (graphical local shadow atlas pressure)
 - `shadow-quality-matrix` (graphical shadow quality comparison lane)
 - `aa-motion-stress` (graphical AA stress lane)
+- `reflections-ssr-hiz` (graphical SSR + Hi-Z lane)
 - `aa-matrix` (graphical AA configuration/telemetry)
 
-Current count: `9` demos (`9` graphical)
+Current count: `10` demos (`10` graphical)
 
 ## Target Demo Set
 

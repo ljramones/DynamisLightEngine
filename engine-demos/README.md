@@ -81,6 +81,11 @@ Run AA motion stress demo:
 ./scripts/run_demo_mac.sh --demo=aa-motion-stress --backend=vulkan --mock=false --seconds=10 --quality=high --aa-mode=taa
 ```
 
+Run SSR + Hi-Z reflections demo:
+```bash
+./scripts/run_demo_mac.sh --demo=reflections-ssr-hiz --backend=vulkan --mock=false --seconds=10 --quality=high
+```
+
 Telemetry outputs:
 - frame-by-frame JSONL (default under `artifacts/demos/`)
 - summary JSON (`*.summary.json`) with averages/p95/event/log counts

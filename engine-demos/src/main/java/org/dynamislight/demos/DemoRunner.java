@@ -43,7 +43,9 @@ public final class DemoRunner {
             "SHADOW_POLICY_ACTIVE",
             "SHADOW_CASCADE_PROFILE",
             "VULKAN_POST_PROCESS_PIPELINE",
-            "VULKAN_FRAME_RESOURCE_PROFILE"
+            "VULKAN_FRAME_RESOURCE_PROFILE",
+            "REFLECTIONS_BASELINE_ACTIVE",
+            "TAA_BASELINE_ACTIVE"
     );
 
     private DemoRunner() {
