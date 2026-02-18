@@ -280,6 +280,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private String reflectionPlanarPassOrderContractStatus = "inactive";
     private int reflectionPlanarScopedMeshEligibleCount;
     private int reflectionPlanarScopedMeshExcludedCount;
+    private boolean reflectionPlanarMirrorCameraActive;
     private int reflectionTransparentCandidateCount;
     private String reflectionTransparencyStageGateStatus = "not_required";
     private String reflectionTransparencyFallbackPath = "none";
@@ -878,10 +879,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionPlanarPassOrderContractStatus = planarPathActive
                     ? "prepass_capture_then_main_sample"
                     : "inactive";
+            reflectionPlanarMirrorCameraActive = planarPathActive;
             warnings.add(new EngineWarning(
                     "REFLECTION_PLANAR_SCOPE_CONTRACT",
                     "Planar scope contract (status=" + reflectionPlanarPassOrderContractStatus
                             + ", planarPathActive=" + planarPathActive
+                            + ", mirrorCameraActive=" + reflectionPlanarMirrorCameraActive
                             + ", eligibleMeshes=" + planarEligible
                             + ", excludedMeshes=" + planarExcluded
                             + ", planeHeight=" + currentPost.reflectionsPlanarPlaneHeight()
@@ -1200,6 +1203,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionPlanarPassOrderContractStatus = "inactive";
             reflectionPlanarScopedMeshEligibleCount = 0;
             reflectionPlanarScopedMeshExcludedCount = 0;
+            reflectionPlanarMirrorCameraActive = false;
             reflectionRtLaneRequested = false;
             reflectionRtLaneActive = false;
             reflectionRtFallbackChainActive = "probe";
@@ -2052,7 +2056,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return new ReflectionPlanarContractDiagnostics(
                 reflectionPlanarPassOrderContractStatus,
                 reflectionPlanarScopedMeshEligibleCount,
-                reflectionPlanarScopedMeshExcludedCount
+                reflectionPlanarScopedMeshExcludedCount,
+                reflectionPlanarMirrorCameraActive
         );
     }
 
@@ -2238,7 +2243,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     record ReflectionPlanarContractDiagnostics(
             String status,
             int scopedMeshEligibleCount,
-            int scopedMeshExcludedCount
+            int scopedMeshExcludedCount,
+            boolean mirrorCameraActive
     ) {
     }
 

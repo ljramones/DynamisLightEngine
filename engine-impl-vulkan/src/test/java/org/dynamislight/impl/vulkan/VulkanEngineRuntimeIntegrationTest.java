@@ -597,8 +597,10 @@ class VulkanEngineRuntimeIntegrationTest {
         String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
         assertTrue(contract.contains("status=prepass_capture_then_main_sample"));
         assertTrue(contract.contains("requiredOrder=planar_capture_before_main_sample_before_post"));
+        assertTrue(contract.contains("mirrorCameraActive=true"));
         var diagnostics = runtime.debugReflectionPlanarContractDiagnostics();
         assertEquals("prepass_capture_then_main_sample", diagnostics.status());
+        assertTrue(diagnostics.mirrorCameraActive());
         assertTrue(diagnostics.scopedMeshEligibleCount() >= 0);
         assertTrue(diagnostics.scopedMeshExcludedCount() >= 0);
         int runtimeMode = runtime.debugReflectionRuntimeMode();
@@ -621,6 +623,36 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
         String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
         assertTrue(contract.contains("planeHeight=2.5"));
+        assertTrue(contract.contains("mirrorCameraActive=true"));
+        var diagnostics = runtime.debugReflectionPlanarContractDiagnostics();
+        assertTrue(diagnostics.mirrorCameraActive());
+        runtime.shutdown();
+    }
+
+    @Test
+    void planarClipHeightSceneMaintainsMirrorCameraContractAcrossFrames() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validPlanarClipHeightScene(1.75f));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+        var frameC = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+        assertTrue(frameB.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+        assertTrue(frameC.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+        String contractA = warningMessageByCode(frameA, "REFLECTION_PLANAR_SCOPE_CONTRACT");
+        String contractB = warningMessageByCode(frameB, "REFLECTION_PLANAR_SCOPE_CONTRACT");
+        String contractC = warningMessageByCode(frameC, "REFLECTION_PLANAR_SCOPE_CONTRACT");
+        assertTrue(contractA.contains("planeHeight=1.75"));
+        assertTrue(contractB.contains("planeHeight=1.75"));
+        assertTrue(contractC.contains("planeHeight=1.75"));
+        assertTrue(contractA.contains("mirrorCameraActive=true"));
+        assertTrue(contractB.contains("mirrorCameraActive=true"));
+        assertTrue(contractC.contains("mirrorCameraActive=true"));
+        var diagnostics = runtime.debugReflectionPlanarContractDiagnostics();
+        assertTrue(diagnostics.mirrorCameraActive());
         runtime.shutdown();
     }
 

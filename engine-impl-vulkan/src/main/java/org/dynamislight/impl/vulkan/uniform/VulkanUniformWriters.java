@@ -104,6 +104,9 @@ public final class VulkanUniformWriters {
         for (int i = 0; i < in.shadowLightViewProjMatrices().length; i++) {
             fb.put(in.shadowLightViewProjMatrices()[i]);
         }
+        fb.put(in.planarViewMatrix());
+        fb.put(in.planarProjMatrix());
+        fb.put(in.planarPrevViewProjMatrix());
     }
 
     public static void writeObjectUniform(ByteBuffer target, int offset, int objectUniformBytes, VulkanGpuMesh mesh) {
@@ -219,7 +222,10 @@ public final class VulkanUniformWriters {
             boolean smaaEnabled,
             float smaaStrength,
             float[] prevViewProjMatrix,
-            float[][] shadowLightViewProjMatrices
+            float[][] shadowLightViewProjMatrices,
+            float[] planarViewMatrix,
+            float[] planarProjMatrix,
+            float[] planarPrevViewProjMatrix
     ) {
     }
 }

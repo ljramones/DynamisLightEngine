@@ -108,9 +108,10 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan RT hybrid now executes an active RT-oriented reflection trace + denoise path in post shader, with fallback diagnostics only when the lane is disabled.
 - Vulkan now emits transparency/refraction stage-gate diagnostics (`REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) and activates `preview_enabled` integration when RT lane is active.
 - Vulkan now runs an explicit planar selective geometry capture pre-pass before main scene pass, then copies that capture into the planar history source prior to post composite (`planar_capture_before_main_sample_before_post` contract is now backed by execution).
-- Vulkan planar capture now applies shader-level mirror transform and clip-plane culling during the selective pre-main capture pass (push-constant driven, plane height sourced from `reflectionAdvanced.planarPlaneHeight` when planar clip-plane mode is enabled).
+- Vulkan planar capture now runs with mirrored camera matrices (`uPlanarView/uPlanarProj/uPlanarPrevViewProj`) sourced via global uniforms for the selective pre-main capture pass only.
+- Planar clip-plane culling is now evaluated against world/planar camera-consistent height (`vWorldPos.y` vs configured plane height) during planar capture.
 - Vulkan reflection resolve now includes a first contact-hardening pass behavior: near depth-contact SSR hits receive a roughness ramp/weight boost to stabilize sharp contact reflections.
-- Planar capture currently uses selective pre-main rerender scope; true mirrored clip-plane camera rerender is still pending.
+- Planar capture remains selective-scope and still evolves under the broader planar `Partial` maturity status, but mirrored clip-plane camera rerender is now active in the Vulkan path.
 - Vulkan now emits SSR reprojection envelope diagnostics (`REFLECTION_SSR_REPROJECTION_ENVELOPE`) and breach warnings (`REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`) with threshold/cooldown gating for ghosting/disocclusion risk.
 - Vulkan RT lane now supports dedicated denoise staging (spatial + temporal) behind runtime mode bit activation.
 - RT path diagnostics now explicitly report dedicated-denoise pipeline intent in warning payload and typed runtime diagnostics.

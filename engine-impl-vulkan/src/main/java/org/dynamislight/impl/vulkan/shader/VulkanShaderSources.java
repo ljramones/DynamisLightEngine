@@ -36,6 +36,9 @@ public final class VulkanShaderSources {
                     vec4 uAntiAlias;
                     mat4 uPrevViewProj;
                     mat4 uShadowLightViewProj[24];
+                    mat4 uPlanarView;
+                    mat4 uPlanarProj;
+                    mat4 uPlanarPrevViewProj;
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
@@ -114,6 +117,9 @@ public final class VulkanShaderSources {
                     vec4 uAntiAlias;
                     mat4 uPrevViewProj;
                     mat4 uShadowLightViewProj[24];
+                    mat4 uPlanarView;
+                    mat4 uPlanarProj;
+                    mat4 uPlanarPrevViewProj;
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
@@ -127,25 +133,16 @@ public final class VulkanShaderSources {
                 } pc;
                 void main() {
                     vec4 world = obj.uModel * vec4(inPos, 1.0);
-                    float sourceHeight = world.y;
                     bool planarCapturePass = pc.uPlanar.x > 0.5;
-                    float planarHeight = pc.uPlanar.y;
-                    if (planarCapturePass) {
-                        world.y = (2.0 * planarHeight) - world.y;
-                    }
                     vWorldPos = world.xyz;
-                    vHeight = sourceHeight;
-                    vec3 tangent = normalize(mat3(obj.uModel) * inTangent);
-                    vec3 normal = normalize(mat3(obj.uModel) * inNormal);
-                    if (planarCapturePass) {
-                        tangent.y = -tangent.y;
-                        normal.y = -normal.y;
-                    }
-                    vNormal = normal;
-                    vTangent = tangent;
+                    vHeight = world.y;
+                    vNormal = normalize(mat3(obj.uModel) * inNormal);
+                    vTangent = normalize(mat3(obj.uModel) * inTangent);
                     vUv = inUv;
                     vLocalPos = inPos;
-                    gl_Position = gbo.uProj * gbo.uView * world;
+                    mat4 activeView = planarCapturePass ? gbo.uPlanarView : gbo.uView;
+                    mat4 activeProj = planarCapturePass ? gbo.uPlanarProj : gbo.uProj;
+                    gl_Position = activeProj * activeView * world;
                 }
                 """;
     }
@@ -187,6 +184,9 @@ public final class VulkanShaderSources {
                     vec4 uAntiAlias;
                     mat4 uPrevViewProj;
                     mat4 uShadowLightViewProj[24];
+                    mat4 uPlanarView;
+                    mat4 uPlanarProj;
+                    mat4 uPlanarPrevViewProj;
                 } gbo;
                 layout(set = 0, binding = 1) uniform ObjectData {
                     mat4 uModel;
@@ -1159,7 +1159,10 @@ public final class VulkanShaderSources {
                 void main() {
                     bool planarCapturePass = pc.uPlanar.x > 0.5;
                     float planarHeight = pc.uPlanar.y;
-                    if (planarCapturePass && vHeight < planarHeight) {
+                    mat4 activeView = planarCapturePass ? gbo.uPlanarView : gbo.uView;
+                    mat4 activeProj = planarCapturePass ? gbo.uPlanarProj : gbo.uProj;
+                    mat4 activePrevViewProj = planarCapturePass ? gbo.uPlanarPrevViewProj : gbo.uPrevViewProj;
+                    if (planarCapturePass && (vWorldPos.y - planarHeight) < 0.0) {
                         discard;
                     }
                     vec3 n0 = normalize(vNormal);
@@ -1200,7 +1203,7 @@ public final class VulkanShaderSources {
 
                     float ao = clamp(texture(uOcclusionTexture, vUv).r, 0.0, 1.0);
                     vec3 lDir = normalize(-gbo.uDirLightDir.xyz);
-                    vec3 viewPos = (gbo.uView * vec4(vWorldPos, 1.0)).xyz;
+                    vec3 viewPos = (activeView * vec4(vWorldPos, 1.0)).xyz;
                     vec3 viewDir = normalize(-viewPos);
                     float pcssSoftness = clamp(gbo.uDirLightDir.w, 0.25, 2.0);
                     float contactStrengthScale = clamp(gbo.uPointLightDir.w, 0.25, 2.0);
@@ -1208,8 +1211,8 @@ public final class VulkanShaderSources {
                     float taaBlend = clamp(gbo.uAntiAlias.y, 0.0, 1.0);
                     float contactTemporalMotionScale = clamp(gbo.uLightIntensity.z, 0.1, 3.0);
                     float contactTemporalMinStability = clamp(gbo.uLightIntensity.w, 0.2, 1.0);
-                    vec4 contactCurrClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
-                    vec4 contactPrevClip = gbo.uPrevViewProj * (obj.uPrevModel * vec4(vLocalPos, 1.0));
+                    vec4 contactCurrClip = activeProj * activeView * vec4(vWorldPos, 1.0);
+                    vec4 contactPrevClip = activePrevViewProj * (obj.uPrevModel * vec4(vLocalPos, 1.0));
                     float contactCurrW = abs(contactCurrClip.w) > 0.000001 ? contactCurrClip.w : 1.0;
                     float contactPrevW = abs(contactPrevClip.w) > 0.000001 ? contactPrevClip.w : 1.0;
                     vec2 contactMotionNdc = (contactPrevClip.xy / contactPrevW) - (contactCurrClip.xy / contactCurrW);
@@ -1719,8 +1722,8 @@ public final class VulkanShaderSources {
                     float materialReactive = (authoredEnabled ? authoredReactive : heuristicReactive) * (1.0 + (1.0 - taaHistoryClamp) * 0.6) * presetScale;
                     float reflectionMask = float(clamp(reflectionOverrideMode, 0, 3)) / 3.0;
                     outColor = vec4(clamp(color, 0.0, 1.0), reflectionMask);
-                    vec4 currClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
-                    vec4 prevClip = gbo.uPrevViewProj * (obj.uPrevModel * vec4(vLocalPos, 1.0));
+                    vec4 currClip = activeProj * activeView * vec4(vWorldPos, 1.0);
+                    vec4 prevClip = activePrevViewProj * (obj.uPrevModel * vec4(vLocalPos, 1.0));
                     float currW = abs(currClip.w) > 0.000001 ? currClip.w : 1.0;
                     float prevW = abs(prevClip.w) > 0.000001 ? prevClip.w : 1.0;
                     vec2 currNdc = currClip.xy / currW;

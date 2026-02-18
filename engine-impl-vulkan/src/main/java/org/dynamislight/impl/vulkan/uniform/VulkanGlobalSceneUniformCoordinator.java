@@ -92,7 +92,10 @@ public final class VulkanGlobalSceneUniformCoordinator {
                         in.smaaEnabled(),
                         in.smaaStrength(),
                         in.prevViewProjMatrix(),
-                        in.shadowLightViewProjMatrices()
+                        in.shadowLightViewProjMatrices(),
+                        in.planarViewMatrix(),
+                        in.planarProjMatrix(),
+                        in.planarPrevViewProjMatrix()
                 )
         );
     }
@@ -183,7 +186,10 @@ public final class VulkanGlobalSceneUniformCoordinator {
             boolean smaaEnabled,
             float smaaStrength,
             float[] prevViewProjMatrix,
-            float[][] shadowLightViewProjMatrices
+            float[][] shadowLightViewProjMatrices,
+            float[] planarViewMatrix,
+            float[] planarProjMatrix,
+            float[] planarPrevViewProjMatrix
     ) {
     }
 }

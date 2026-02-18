@@ -91,7 +91,10 @@ public final class VulkanGlobalSceneInputBuilder {
                 in.smaaEnabled(),
                 in.smaaStrength(),
                 in.prevViewProjMatrix(),
-                in.shadowLightViewProjMatrices()
+                in.shadowLightViewProjMatrices(),
+                in.planarViewMatrix(),
+                in.planarProjMatrix(),
+                in.planarPrevViewProjMatrix()
         );
     }
 
@@ -191,7 +194,10 @@ public final class VulkanGlobalSceneInputBuilder {
                 post.smaaEnabled(),
                 post.smaaStrength(),
                 post.prevViewProjMatrix(),
-                shadowLightViewProjMatrices
+                shadowLightViewProjMatrices,
+                post.planarViewMatrix(),
+                post.planarProjMatrix(),
+                post.planarPrevViewProjMatrix()
         );
     }
 
@@ -281,7 +287,10 @@ public final class VulkanGlobalSceneInputBuilder {
             boolean smaaEnabled,
             float smaaStrength,
             float[] prevViewProjMatrix,
-            float[][] shadowLightViewProjMatrices
+            float[][] shadowLightViewProjMatrices,
+            float[] planarViewMatrix,
+            float[] planarProjMatrix,
+            float[] planarPrevViewProjMatrix
     ) {
     }
 
@@ -379,7 +388,10 @@ public final class VulkanGlobalSceneInputBuilder {
             float ssaoPower,
             boolean smaaEnabled,
             float smaaStrength,
-            float[] prevViewProjMatrix
+            float[] prevViewProjMatrix,
+            float[] planarViewMatrix,
+            float[] planarProjMatrix,
+            float[] planarPrevViewProjMatrix
     ) {
     }
 }

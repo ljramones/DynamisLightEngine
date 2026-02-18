@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:58 ET — Expanded RT reflection diagnostics to report dedicated denoise pipeline activation in both warning payload and typed runtime diagnostics, alongside recent override-policy and probe-streaming telemetry work.
+- Latest reflection update: 2026-02-18 15:14 ET — Planar selective capture now uses mirrored camera/view-proj uniforms for pre-main capture, with mirror-camera contract diagnostics and plane-height stability checks across frames.
 
 Status legend:
 
@@ -91,7 +91,7 @@ Reflection notes:
 - Vulkan reflection runtime now composes execution mode bits per frame (reprojection/reject policy, planar-selective execution, RT lane active/multi-bounce, transparency integration) and applies them in post shader logic.
 - Vulkan post reflection push constants now carry RT denoise strength; runtime exposes typed debug accessors for composed mode and denoise strength.
 - Vulkan now executes planar selective capture as a real pre-main geometry pass and copies capture to planar history source, using runtime-composed capture bits (`1<<18` capture + `1<<20` geometry-capture execution).
-- Planar path is still `Partial`: mirrored clip-plane camera rerender is not complete yet.
+- Planar path is still `Partial`: mirrored clip-plane camera rerender is now active, but broader production hardening (quality/perf/content edge cases) remains.
 - SSR confidence/reprojection now has explicit envelope diagnostics and cooldown-gated breach warnings for ghost/disocclusion stress.
 - Probe upload now supports cadence rotation + max-visible budget + LOD depth-tier tagging in metadata for progressive probe streaming behavior.
 - OpenGL parity for probe slot/array path is not yet implemented.

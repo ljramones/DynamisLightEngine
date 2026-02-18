@@ -79,7 +79,7 @@ final class VulkanContext {
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 24;
     static final int MAX_LOCAL_LIGHTS = 8;
-    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 2544;
+    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 2736;
     private static final int OBJECT_UNIFORM_BYTES = 176;
     private static final String SHADOW_DEPTH_FORMAT_PROPERTY = "dle.vulkan.shadow.depthFormat";
     private final VulkanBackendResources backendResources = new VulkanBackendResources();
@@ -1414,6 +1414,13 @@ final class VulkanContext {
 
     private void prepareFrameUniforms(int frameIdx) throws EngineException {
         updateReflectionProbeMetadataBuffer();
+        float planarHeight = renderState.reflectionsPlanarPlaneHeight;
+        float[] planeReflection = planarReflectionMatrix(planarHeight);
+        float[] planarViewMatrix = mul(viewMatrix, planeReflection);
+        float[] planarProjMatrix = projMatrix;
+        float[] planarPrevViewProj = taaPrevViewProjValid
+                ? mul(taaPrevViewProj, planeReflection)
+                : mul(planarProjMatrix, planarViewMatrix);
         VulkanUniformUploadCoordinator.prepareFrameUniforms(
                 new VulkanUniformUploadCoordinator.PrepareInputs(
                         frameIdx,
@@ -1512,7 +1519,10 @@ final class VulkanContext {
                                         renderState.smaaEnabled,
                                         renderState.smaaStrength,
                                         taaPrevViewProjValid ? taaPrevViewProj : mul(projMatrix, viewMatrix),
-                                        renderState.shadowLightViewProjMatrices
+                                        renderState.shadowLightViewProjMatrices,
+                                        planarViewMatrix,
+                                        planarProjMatrix,
+                                        planarPrevViewProj
                                 )
                         ),
                         this::vkFailure
@@ -1553,6 +1563,15 @@ final class VulkanContext {
                 reflectionProbeLodDepthScale
         );
         descriptorResources.reflectionProbeMetadataActiveCount = activeCount;
+    }
+
+    private static float[] planarReflectionMatrix(float planeHeight) {
+        return new float[]{
+                1f, 0f, 0f, 0f,
+                0f, -1f, 0f, 0f,
+                0f, 0f, 1f, 0f,
+                0f, 2f * planeHeight, 0f, 1f
+        };
     }
 
     private void rebuildReflectionProbeResources() throws EngineException {

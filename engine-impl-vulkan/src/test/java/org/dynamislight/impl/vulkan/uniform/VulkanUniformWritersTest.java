@@ -9,6 +9,8 @@ import java.nio.FloatBuffer;
 import org.junit.jupiter.api.Test;
 
 class VulkanUniformWritersTest {
+    private static final int GLOBAL_SCENE_UNIFORM_BYTES = 2736;
+
     @Test
     void writeGlobalSceneUniformWritesLocalLightArrayBlock() {
         int maxLocalLights = 8;
@@ -30,7 +32,7 @@ class VulkanUniformWritersTest {
         outerTypeShadow[2] = 1.0f;
 
         VulkanUniformWriters.GlobalSceneUniformInput in = new VulkanUniformWriters.GlobalSceneUniformInput(
-                2544,
+                GLOBAL_SCENE_UNIFORM_BYTES,
                 identity(),
                 identity(),
                 0f, -1f, 0f,
@@ -70,11 +72,15 @@ class VulkanUniformWritersTest {
                 identity(),
                 new float[][]{
                         identity(), identity(), identity(), identity(), identity(), identity(),
+                        identity(), identity(), identity(), identity(), identity(), identity(),
                         identity(), identity(), identity(), identity(), identity(), identity()
-                }
+                },
+                identity(),
+                identity(),
+                identity()
         );
 
-        ByteBuffer target = ByteBuffer.allocateDirect(2544).order(ByteOrder.nativeOrder());
+        ByteBuffer target = ByteBuffer.allocateDirect(GLOBAL_SCENE_UNIFORM_BYTES).order(ByteOrder.nativeOrder());
         VulkanUniformWriters.writeGlobalSceneUniform(target, in);
         FloatBuffer fb = target.order(ByteOrder.nativeOrder()).asFloatBuffer();
         int metaIndex = findSequenceStart(fb, new float[]{2f, 0f, 0f, 0f, 4f, 5f, 6f, 12f});
@@ -86,7 +92,7 @@ class VulkanUniformWritersTest {
         int maxLocalLights = 8;
         float[] zeros = new float[maxLocalLights * 4];
         VulkanUniformWriters.GlobalSceneUniformInput in = new VulkanUniformWriters.GlobalSceneUniformInput(
-                2544,
+                GLOBAL_SCENE_UNIFORM_BYTES,
                 identity(),
                 identity(),
                 0f, -1f, 0f,
@@ -126,10 +132,14 @@ class VulkanUniformWritersTest {
                 identity(),
                 new float[][]{
                         identity(), identity(), identity(), identity(), identity(), identity(),
+                        identity(), identity(), identity(), identity(), identity(), identity(),
                         identity(), identity(), identity(), identity(), identity(), identity()
-                }
+                },
+                identity(),
+                identity(),
+                identity()
         );
-        ByteBuffer target = ByteBuffer.allocateDirect(2544).order(ByteOrder.nativeOrder());
+        ByteBuffer target = ByteBuffer.allocateDirect(GLOBAL_SCENE_UNIFORM_BYTES).order(ByteOrder.nativeOrder());
         VulkanUniformWriters.writeGlobalSceneUniform(target, in);
         FloatBuffer fb = target.order(ByteOrder.nativeOrder()).asFloatBuffer();
         int metaIndex = findSequenceStart(fb, new float[]{0f, 0f, 427f, 0f});
