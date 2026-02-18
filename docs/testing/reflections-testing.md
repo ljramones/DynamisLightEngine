@@ -91,16 +91,26 @@ Current profile tags in parity tests:
 6. Planar contract checks
 - Assert `REFLECTION_PLANAR_SCOPE_CONTRACT` for planar/hybrid modes reports required ordering contract and selective scope counts.
 - Validate typed diagnostics (`debugReflectionPlanarContractDiagnostics`) match warning payload.
+- Assert runtime-composed reflection mode carries planar selective/capture execution bits when eligible scope exists.
 
 7. RT execution-lane checks
 - Assert `REFLECTION_RT_PATH_REQUESTED` and typed diagnostics (`debugReflectionRtPathDiagnostics`) expose lane request/active state and fallback chain.
 - Assert runtime-composed reflection mode bits expose RT active/multi-bounce flags (`debugReflectionRuntimeMode`) and denoise strength (`debugReflectionRuntimeRtDenoiseStrength`).
 - Assert fallback warning (`REFLECTION_RT_PATH_FALLBACK_ACTIVE`) only when RT lane is explicitly unavailable.
+- Assert dedicated RT denoise stage bit is present when dedicated RT denoise pipeline is enabled.
 
 8. Transparency/refraction stage-gate checks
 - For alpha-tested/transparent candidates, assert `REFLECTION_TRANSPARENCY_STAGE_GATE` is emitted.
 - Assert pending warning (`REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) when RT lane is not active, and `preview_enabled` + `rt_or_probe` fallback when RT lane is active.
 - Validate typed diagnostics (`debugReflectionTransparencyDiagnostics`) for candidate count/status/fallback path.
+
+9. SSR calibration envelope checks
+- Assert `REFLECTION_SSR_REPROJECTION_ENVELOPE` always emits under SSR/TAA path.
+- Under strict thresholds, assert cooldown-gated `REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`.
+
+10. Probe streaming/LOD checks
+- Validate `VulkanReflectionProbeCoordinator` cadence rotation keeps top-priority probes and rotates lower-priority probes.
+- Validate probe metadata payload includes bounded LOD tier in probe flags (`cubemapIndexAndFlags.w` in `[0..3]`).
 
 ## Regression Triggers
 

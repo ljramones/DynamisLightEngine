@@ -134,6 +134,10 @@ final class VulkanContext {
     private List<ReflectionProbeDesc> reflectionProbes = List.of();
     private Map<String, Integer> reflectionProbeCubemapSlots = Map.of();
     private int reflectionProbeCubemapSlotCount;
+    private int reflectionProbeUpdateCadenceFrames = 1;
+    private int reflectionProbeMaxVisible = 64;
+    private float reflectionProbeLodDepthScale = 1.0f;
+    private long reflectionProbeFrameTick;
 
     VulkanContext() {
         backendResources.depthFormat = resolveConfiguredDepthFormat();
@@ -774,8 +778,15 @@ final class VulkanContext {
 
     void setReflectionProbes(List<ReflectionProbeDesc> probes) throws EngineException {
         reflectionProbes = probes == null ? List.of() : List.copyOf(probes);
+        reflectionProbeFrameTick = 0L;
         rebuildReflectionProbeResources();
         markGlobalStateDirty();
+    }
+
+    void configureReflectionProbeStreaming(int updateCadenceFrames, int maxVisible, float lodDepthScale) {
+        reflectionProbeUpdateCadenceFrames = Math.max(1, Math.min(120, updateCadenceFrames));
+        reflectionProbeMaxVisible = Math.max(1, Math.min(256, maxVisible));
+        reflectionProbeLodDepthScale = Math.max(0.25f, Math.min(4.0f, lodDepthScale));
     }
 
     void setPostProcessParameters(
@@ -1530,7 +1541,11 @@ final class VulkanContext {
                 reflectionProbeCubemapSlots,
                 reflectionProbeCubemapSlotCount,
                 descriptorResources.reflectionProbeMetadataMappedAddress,
-                descriptorResources.reflectionProbeMetadataBufferBytes
+                descriptorResources.reflectionProbeMetadataBufferBytes,
+                reflectionProbeFrameTick++,
+                reflectionProbeUpdateCadenceFrames,
+                reflectionProbeMaxVisible,
+                reflectionProbeLodDepthScale
         );
         descriptorResources.reflectionProbeMetadataActiveCount = activeCount;
     }

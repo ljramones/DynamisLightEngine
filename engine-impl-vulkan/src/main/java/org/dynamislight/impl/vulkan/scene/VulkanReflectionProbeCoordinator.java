@@ -23,7 +23,11 @@ public final class VulkanReflectionProbeCoordinator {
             Map<String, Integer> cubemapSlots,
             int cubemapSlotCount,
             long mappedAddress,
-            int bufferBytes
+            int bufferBytes,
+            long frameTick,
+            int updateCadenceFrames,
+            int maxVisibleProbes,
+            float lodDepthScale
     ) {
         if (mappedAddress == 0L || bufferBytes <= 0) {
             return 0;
@@ -35,7 +39,11 @@ public final class VulkanReflectionProbeCoordinator {
                 probeStrideBytes,
                 cubemapSlots,
                 cubemapSlotCount,
-                bufferBytes
+                bufferBytes,
+                frameTick,
+                updateCadenceFrames,
+                maxVisibleProbes,
+                lodDepthScale
         );
         ByteBuffer mapped = MemoryUtil.memByteBuffer(mappedAddress, packed.capacity());
         packed.clear();
@@ -52,14 +60,25 @@ public final class VulkanReflectionProbeCoordinator {
             int probeStrideBytes,
             Map<String, Integer> cubemapSlots,
             int cubemapSlotCount,
-            int bufferBytes
+            int bufferBytes,
+            long frameTick,
+            int updateCadenceFrames,
+            int maxVisibleProbes,
+            float lodDepthScale
     ) {
         int clampedMax = Math.max(1, maxProbeCount);
         int clampedStride = Math.max(80, probeStrideBytes);
         int minBytes = 16 + (clampedMax * clampedStride);
         int outBytes = Math.max(minBytes, bufferBytes);
         ByteBuffer packed = ByteBuffer.allocate(outBytes);
-        List<ReflectionProbeDesc> visible = visibleProbes(probes, viewProjMatrix, clampedMax);
+        List<ReflectionProbeDesc> visible = visibleProbes(
+                probes,
+                viewProjMatrix,
+                clampedMax,
+                frameTick,
+                updateCadenceFrames,
+                maxVisibleProbes
+        );
         Set<String> visibleUniquePaths = new HashSet<>();
         int visibleAssigned = 0;
         Map<String, Integer> safeSlots = cubemapSlots == null ? Map.of() : cubemapSlots;
@@ -85,7 +104,8 @@ public final class VulkanReflectionProbeCoordinator {
             Integer existingSlot = safeSlots.get(probe.cubemapAssetPath());
             int cubemapSlot = existingSlot != null ? existingSlot : -1;
             int base = 16 + (i * clampedStride);
-            putProbe(packed, base, probe, cubemapSlot);
+            int lodTier = estimateProbeLodTier(probe, viewProjMatrix, lodDepthScale);
+            putProbe(packed, base, probe, cubemapSlot, lodTier);
         }
         return packed;
     }
@@ -93,7 +113,10 @@ public final class VulkanReflectionProbeCoordinator {
     static List<ReflectionProbeDesc> visibleProbes(
             List<ReflectionProbeDesc> probes,
             float[] viewProjMatrix,
-            int maxProbeCount
+            int maxProbeCount,
+            long frameTick,
+            int updateCadenceFrames,
+            int maxVisibleProbes
     ) {
         if (probes == null || probes.isEmpty()) {
             return List.of();
@@ -109,13 +132,36 @@ public final class VulkanReflectionProbeCoordinator {
             }
         }
         visible.sort(Comparator.comparingInt(ReflectionProbeDesc::priority).reversed());
-        if (visible.size() <= maxProbeCount) {
+        int cappedMax = Math.max(1, Math.min(maxProbeCount, maxVisibleProbes));
+        if (visible.size() <= cappedMax && updateCadenceFrames <= 1) {
             return visible;
         }
-        return visible.subList(0, maxProbeCount);
+        int cadence = Math.max(1, updateCadenceFrames);
+        List<ReflectionProbeDesc> selected = new ArrayList<>(Math.min(cappedMax, visible.size()));
+        int guaranteed = Math.min(Math.min(4, cappedMax), visible.size());
+        for (int i = 0; i < guaranteed; i++) {
+            selected.add(visible.get(i));
+        }
+        if (selected.size() < cappedMax) {
+            for (int i = guaranteed; i < visible.size() && selected.size() < cappedMax; i++) {
+                ReflectionProbeDesc probe = visible.get(i);
+                if (cadence == 1 || Math.floorMod((long) probe.id() + frameTick, cadence) == 0) {
+                    selected.add(probe);
+                }
+            }
+        }
+        if (selected.size() < cappedMax) {
+            for (int i = guaranteed; i < visible.size() && selected.size() < cappedMax; i++) {
+                ReflectionProbeDesc probe = visible.get(i);
+                if (!selected.contains(probe)) {
+                    selected.add(probe);
+                }
+            }
+        }
+        return selected;
     }
 
-    private static void putProbe(ByteBuffer out, int base, ReflectionProbeDesc probe, int cubemapSlot) {
+    private static void putProbe(ByteBuffer out, int base, ReflectionProbeDesc probe, int cubemapSlot, int lodTier) {
         // vec4 positionAndIntensity
         out.putFloat(base, probe.position().x());
         out.putFloat(base + 4, probe.position().y());
@@ -135,8 +181,26 @@ public final class VulkanReflectionProbeCoordinator {
         out.putInt(base + 48, cubemapSlot);
         out.putInt(base + 52, probe.boxProjection() ? 1 : 0);
         out.putInt(base + 56, probe.id());
-        out.putInt(base + 60, 0);
+        out.putInt(base + 60, lodTier);
         // trailing padding (64..79) left zeroed by calloc.
+    }
+
+    private static int estimateProbeLodTier(ReflectionProbeDesc probe, float[] viewProjMatrix, float lodDepthScale) {
+        if (probe == null || viewProjMatrix == null || viewProjMatrix.length < 16) {
+            return 0;
+        }
+        float x = probe.position().x();
+        float y = probe.position().y();
+        float z = probe.position().z();
+        float cx = (viewProjMatrix[0] * x) + (viewProjMatrix[4] * y) + (viewProjMatrix[8] * z) + viewProjMatrix[12];
+        float cy = (viewProjMatrix[1] * x) + (viewProjMatrix[5] * y) + (viewProjMatrix[9] * z) + viewProjMatrix[13];
+        float cz = (viewProjMatrix[2] * x) + (viewProjMatrix[6] * y) + (viewProjMatrix[10] * z) + viewProjMatrix[14];
+        float cw = (viewProjMatrix[3] * x) + (viewProjMatrix[7] * y) + (viewProjMatrix[11] * z) + viewProjMatrix[15];
+        float safeW = Math.abs(cw) < 1.0e-6f ? 1.0f : cw;
+        float ndcZ = cz / safeW;
+        float depth01 = Math.max(0.0f, Math.min(1.0f, ndcZ * 0.5f + 0.5f));
+        float scaled = depth01 * Math.max(0.25f, Math.min(4.0f, lodDepthScale));
+        return Math.max(0, Math.min(3, (int) Math.floor(scaled * 4.0f)));
     }
 
     private static boolean aabbIntersectsFrustum(ReflectionProbeDesc probe, Plane[] planes) {

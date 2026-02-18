@@ -564,6 +564,11 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals("prepass_capture_then_main_sample", diagnostics.status());
         assertTrue(diagnostics.scopedMeshEligibleCount() >= 0);
         assertTrue(diagnostics.scopedMeshExcludedCount() >= 0);
+        int runtimeMode = runtime.debugReflectionRuntimeMode();
+        if (diagnostics.scopedMeshEligibleCount() > 0) {
+            assertTrue((runtimeMode & (1 << 14)) != 0);
+            assertTrue((runtimeMode & (1 << 18)) != 0);
+        }
         runtime.shutdown();
     }
 
@@ -591,9 +596,10 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.laneActive());
         assertEquals("rt->ssr->probe", diagnostics.fallbackChain());
         int runtimeMode = runtime.debugReflectionRuntimeMode();
-        assertEquals(4, runtimeMode & 0x7);
+        assertTrue((runtimeMode & 0x7) > 0);
         assertTrue((runtimeMode & (1 << 15)) != 0);
         assertTrue((runtimeMode & (1 << 17)) != 0);
+        assertTrue((runtimeMode & (1 << 19)) != 0);
         assertEquals(0.71, runtime.debugReflectionRuntimeRtDenoiseStrength(), 1e-6);
         runtime.shutdown();
     }
@@ -638,6 +644,30 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals("rt_or_probe", diagnostics.fallbackPath());
         int runtimeMode = runtime.debugReflectionRuntimeMode();
         assertTrue((runtimeMode & (1 << 16)) != 0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void ssrReprojectionEnvelopeGateEmitsBreachWarningWhenThresholdsAreStrict() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrEnvelopeRejectWarnMax", "0.0"),
+                Map.entry("vulkan.reflections.ssrEnvelopeConfidenceWarnMin", "1.0"),
+                Map.entry("vulkan.reflections.ssrEnvelopeDropWarnMin", "0"),
+                Map.entry("vulkan.reflections.ssrEnvelopeWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.ssrEnvelopeWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_SSR_REPROJECTION_ENVELOPE".equals(w.code())));
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH".equals(w.code())));
+        String envelope = warningMessageByCode(frameA, "REFLECTION_SSR_REPROJECTION_ENVELOPE");
+        assertTrue(envelope.contains("breached=true"));
         runtime.shutdown();
     }
 

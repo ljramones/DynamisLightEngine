@@ -115,6 +115,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static final int REFLECTION_MODE_RT_ACTIVE_BIT = 1 << 15;
     private static final int REFLECTION_MODE_TRANSPARENCY_INTEGRATION_BIT = 1 << 16;
     private static final int REFLECTION_MODE_RT_MULTI_BOUNCE_BIT = 1 << 17;
+    private static final int REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT = 1 << 18;
+    private static final int REFLECTION_MODE_RT_DEDICATED_DENOISE_BIT = 1 << 19;
     private final VulkanContext context = new VulkanContext();
     private final VulkanRuntimeWarningPolicy warningPolicy = new VulkanRuntimeWarningPolicy();
     private final VulkanRuntimeWarningPolicy.State warningState = new VulkanRuntimeWarningPolicy.State();
@@ -256,11 +258,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private String reflectionSsrTaaReprojectionPolicyActive = "surface_motion_vectors";
     private long reflectionSsrTaaDisocclusionRejectDropEventsMin = 2L;
     private double reflectionSsrTaaDisocclusionRejectConfidenceMax = 0.60;
+    private double reflectionSsrEnvelopeRejectWarnMax = 0.45;
+    private double reflectionSsrEnvelopeConfidenceWarnMin = 0.55;
+    private long reflectionSsrEnvelopeDropWarnMin = 2L;
+    private int reflectionSsrEnvelopeWarnMinFrames = 3;
+    private int reflectionSsrEnvelopeWarnCooldownFrames = 120;
+    private int reflectionSsrEnvelopeHighStreak;
+    private int reflectionSsrEnvelopeWarnCooldownRemaining;
+    private boolean reflectionSsrEnvelopeBreachedLastFrame;
     private double reflectionSsrTaaLatestRejectRate;
     private double reflectionSsrTaaLatestConfidenceMean = 1.0;
     private long reflectionSsrTaaLatestDropEvents;
     private boolean reflectionRtSingleBounceEnabled = true;
     private boolean reflectionRtMultiBounceEnabled;
+    private boolean reflectionRtDedicatedDenoisePipelineEnabled = true;
     private double reflectionRtDenoiseStrength = 0.65;
     private boolean reflectionRtLaneRequested;
     private boolean reflectionRtLaneActive;
@@ -271,6 +282,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionTransparentCandidateCount;
     private String reflectionTransparencyStageGateStatus = "not_required";
     private String reflectionTransparencyFallbackPath = "none";
+    private int reflectionProbeUpdateCadenceFrames = 1;
+    private int reflectionProbeMaxVisible = 64;
+    private double reflectionProbeLodDepthScale = 1.0;
     private ReflectionProbeQualityDiagnostics reflectionProbeQualityDiagnostics = ReflectionProbeQualityDiagnostics.zero();
     private List<ReflectionProbeDesc> currentReflectionProbes = List.of();
     private List<MaterialDesc> currentSceneMaterials = List.of();
@@ -376,9 +390,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionSsrTaaHistoryRejectRiskStreakMin = options.reflectionSsrTaaHistoryRejectRiskStreakMin();
         reflectionSsrTaaDisocclusionRejectDropEventsMin = options.reflectionSsrTaaDisocclusionRejectDropEventsMin();
         reflectionSsrTaaDisocclusionRejectConfidenceMax = options.reflectionSsrTaaDisocclusionRejectConfidenceMax();
+        reflectionSsrEnvelopeRejectWarnMax = options.reflectionSsrEnvelopeRejectWarnMax();
+        reflectionSsrEnvelopeConfidenceWarnMin = options.reflectionSsrEnvelopeConfidenceWarnMin();
+        reflectionSsrEnvelopeDropWarnMin = options.reflectionSsrEnvelopeDropWarnMin();
+        reflectionSsrEnvelopeWarnMinFrames = options.reflectionSsrEnvelopeWarnMinFrames();
+        reflectionSsrEnvelopeWarnCooldownFrames = options.reflectionSsrEnvelopeWarnCooldownFrames();
         reflectionRtSingleBounceEnabled = options.reflectionRtSingleBounceEnabled();
         reflectionRtMultiBounceEnabled = options.reflectionRtMultiBounceEnabled();
+        reflectionRtDedicatedDenoisePipelineEnabled = options.reflectionRtDedicatedDenoisePipelineEnabled();
         reflectionRtDenoiseStrength = options.reflectionRtDenoiseStrength();
+        reflectionProbeUpdateCadenceFrames = options.reflectionProbeUpdateCadenceFrames();
+        reflectionProbeMaxVisible = options.reflectionProbeMaxVisible();
+        reflectionProbeLodDepthScale = options.reflectionProbeLodDepthScale();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
@@ -390,6 +413,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         resetReflectionSsrTaaRiskDiagnostics();
         resetReflectionAdaptiveState();
         resetReflectionAdaptiveTelemetryMetrics();
+        reflectionSsrEnvelopeHighStreak = 0;
+        reflectionSsrEnvelopeWarnCooldownRemaining = 0;
+        reflectionSsrEnvelopeBreachedLastFrame = false;
+        context.configureReflectionProbeStreaming(
+                reflectionProbeUpdateCadenceFrames,
+                reflectionProbeMaxVisible,
+                (float) reflectionProbeLodDepthScale
+        );
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -907,9 +938,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", ssrTaaAdaptiveTrendSloMinSamples=" + reflectionSsrTaaAdaptiveTrendSloMinSamples
                             + ", ssrTaaDisocclusionRejectDropEventsMin=" + reflectionSsrTaaDisocclusionRejectDropEventsMin
                             + ", ssrTaaDisocclusionRejectConfidenceMax=" + reflectionSsrTaaDisocclusionRejectConfidenceMax
+                            + ", ssrEnvelopeRejectWarnMax=" + reflectionSsrEnvelopeRejectWarnMax
+                            + ", ssrEnvelopeConfidenceWarnMin=" + reflectionSsrEnvelopeConfidenceWarnMin
+                            + ", ssrEnvelopeDropWarnMin=" + reflectionSsrEnvelopeDropWarnMin
+                            + ", ssrEnvelopeWarnMinFrames=" + reflectionSsrEnvelopeWarnMinFrames
+                            + ", ssrEnvelopeWarnCooldownFrames=" + reflectionSsrEnvelopeWarnCooldownFrames
                             + ", rtSingleBounceEnabled=" + reflectionRtSingleBounceEnabled
                             + ", rtMultiBounceEnabled=" + reflectionRtMultiBounceEnabled
+                            + ", rtDedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
                             + ", rtDenoiseStrength=" + reflectionRtDenoiseStrength
+                            + ", probeUpdateCadenceFrames=" + reflectionProbeUpdateCadenceFrames
+                            + ", probeMaxVisible=" + reflectionProbeMaxVisible
+                            + ", probeLodDepthScale=" + reflectionProbeLodDepthScale
                             + ")"
             ));
             boolean ssrPathActive = reflectionBaseMode == 1 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
@@ -984,6 +1024,48 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", disocclusionRejectConfidenceMax=" + reflectionSsrTaaDisocclusionRejectConfidenceMax
                                 + ")"
                 ));
+                boolean envelopeRisk = taaReject >= reflectionSsrEnvelopeRejectWarnMax
+                        || taaConfidence <= reflectionSsrEnvelopeConfidenceWarnMin
+                        || taaDrops >= reflectionSsrEnvelopeDropWarnMin;
+                if (envelopeRisk) {
+                    reflectionSsrEnvelopeHighStreak++;
+                } else {
+                    reflectionSsrEnvelopeHighStreak = 0;
+                }
+                boolean envelopeTriggered = false;
+                if (reflectionSsrEnvelopeHighStreak >= reflectionSsrEnvelopeWarnMinFrames
+                        && reflectionSsrEnvelopeWarnCooldownRemaining <= 0) {
+                    envelopeTriggered = true;
+                    reflectionSsrEnvelopeWarnCooldownRemaining = reflectionSsrEnvelopeWarnCooldownFrames;
+                }
+                if (reflectionSsrEnvelopeWarnCooldownRemaining > 0) {
+                    reflectionSsrEnvelopeWarnCooldownRemaining--;
+                }
+                reflectionSsrEnvelopeBreachedLastFrame = envelopeTriggered;
+                warnings.add(new EngineWarning(
+                        "REFLECTION_SSR_REPROJECTION_ENVELOPE",
+                        "SSR reprojection envelope (risk=" + envelopeRisk
+                                + ", rejectRate=" + taaReject
+                                + ", confidenceMean=" + taaConfidence
+                                + ", dropEvents=" + taaDrops
+                                + ", rejectWarnMax=" + reflectionSsrEnvelopeRejectWarnMax
+                                + ", confidenceWarnMin=" + reflectionSsrEnvelopeConfidenceWarnMin
+                                + ", dropWarnMin=" + reflectionSsrEnvelopeDropWarnMin
+                                + ", warnMinFrames=" + reflectionSsrEnvelopeWarnMinFrames
+                                + ", warnCooldownFrames=" + reflectionSsrEnvelopeWarnCooldownFrames
+                                + ", highStreak=" + reflectionSsrEnvelopeHighStreak
+                                + ", cooldownRemaining=" + reflectionSsrEnvelopeWarnCooldownRemaining
+                                + ", breached=" + envelopeTriggered
+                                + ")"
+                ));
+                if (envelopeTriggered) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH",
+                            "SSR reprojection envelope breach (rejectRate=" + taaReject
+                                    + ", confidenceMean=" + taaConfidence
+                                    + ", dropEvents=" + taaDrops + ")"
+                    ));
+                }
                 boolean adaptiveTrendWarningTriggered = updateReflectionAdaptiveTrendWarningGate();
                 ReflectionAdaptiveTrendDiagnostics adaptiveTrend = snapshotReflectionAdaptiveTrendDiagnostics(adaptiveTrendWarningTriggered);
                 warnings.add(new EngineWarning(
@@ -1612,9 +1694,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         }
         if (rtLaneActive) {
             mode |= REFLECTION_MODE_RT_ACTIVE_BIT;
+            if (reflectionRtDedicatedDenoisePipelineEnabled) {
+                mode |= REFLECTION_MODE_RT_DEDICATED_DENOISE_BIT;
+            }
         }
         if (planarSelectiveEligible) {
             mode |= REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT;
+            mode |= REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT;
         }
         if (transparencyCandidatesPresent && rtLaneActive) {
             mode |= REFLECTION_MODE_TRANSPARENCY_INTEGRATION_BIT;

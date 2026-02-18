@@ -26,6 +26,9 @@ class VulkanReflectionProbeCoordinatorTest {
         List<ReflectionProbeDesc> visible = VulkanReflectionProbeCoordinator.visibleProbes(
                 List.of(visibleLow, visibleHigh, invisibleBehind),
                 vp,
+                8,
+                0L,
+                1,
                 8
         );
 
@@ -58,7 +61,11 @@ class VulkanReflectionProbeCoordinatorTest {
                 80,
                 Map.of("assets/probes/room_a.ktx2", 0),
                 1,
-                16 + (4 * 80)
+                16 + (4 * 80),
+                0L,
+                1,
+                4,
+                1.0f
         );
 
         assertEquals(1, packed.getInt(0));
@@ -81,6 +88,8 @@ class VulkanReflectionProbeCoordinatorTest {
         assertEquals(0, packed.getInt(base + 48));
         assertEquals(1, packed.getInt(base + 52));
         assertEquals(41, packed.getInt(base + 56));
+        int lodTier = packed.getInt(base + 60);
+        assertEquals(true, lodTier >= 0 && lodTier <= 3);
     }
 
     @Test
@@ -121,7 +130,11 @@ class VulkanReflectionProbeCoordinatorTest {
                         "assets/probes/b.ktx2", 1
                 ),
                 2,
-                16 + (4 * 80)
+                16 + (4 * 80),
+                0L,
+                1,
+                4,
+                1.0f
         );
 
         int base0 = 16;
@@ -170,7 +183,11 @@ class VulkanReflectionProbeCoordinatorTest {
                 80,
                 Map.of("assets/probes/a.ktx2", 0),
                 1,
-                16 + (4 * 80)
+                16 + (4 * 80),
+                0L,
+                1,
+                4,
+                1.0f
         );
 
         assertEquals(2, packed.getInt(0)); // visible probe count
@@ -179,6 +196,31 @@ class VulkanReflectionProbeCoordinatorTest {
         assertEquals(1, packed.getInt(12)); // visible unique paths missing assignment
         assertEquals(0, packed.getInt(16 + 48)); // probeA has slot
         assertEquals(-1, packed.getInt(16 + 80 + 48)); // probeB missing slot
+    }
+
+    @Test
+    void visibleProbesCadenceKeepsTopPriorityAndRotatesLowerPrioritySet() {
+        float[] view = lookAt(0f, 0f, 0f, 0f, 0f, -1f, 0f, 1f, 0f);
+        float[] proj = perspective((float) Math.toRadians(60.0), 1.0f, 0.1f, 100.0f);
+        float[] vp = mul(proj, view);
+        List<ReflectionProbeDesc> probes = List.of(
+                probe(1, -1f, -1f, -4f, 1f, 1f, -2f, 100),
+                probe(2, -1f, -1f, -6f, 1f, 1f, -4f, 90),
+                probe(3, -1f, -1f, -8f, 1f, 1f, -6f, 80),
+                probe(4, -1f, -1f, -10f, 1f, 1f, -8f, 70),
+                probe(5, -1f, -1f, -12f, 1f, 1f, -10f, 60),
+                probe(6, -1f, -1f, -14f, 1f, 1f, -12f, 50)
+        );
+
+        List<ReflectionProbeDesc> frameA = VulkanReflectionProbeCoordinator.visibleProbes(probes, vp, 6, 0L, 2, 6);
+        List<ReflectionProbeDesc> frameB = VulkanReflectionProbeCoordinator.visibleProbes(probes, vp, 6, 1L, 2, 6);
+
+        assertEquals(6, frameA.size());
+        assertEquals(6, frameB.size());
+        assertEquals(1, frameA.get(0).id());
+        assertEquals(2, frameA.get(1).id());
+        assertEquals(1, frameB.get(0).id());
+        assertEquals(2, frameB.get(1).id());
     }
 
     private static ReflectionProbeDesc probe(int id, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, int priority) {

@@ -1593,10 +1593,11 @@ public final class VulkanShaderSources {
                                 }
                                 vec3 probeDir = probeSampleDirection(vWorldPos, reflectDir, probe);
                                 vec2 probeUv = clamp(probeDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
+                                float probeRoughness = clamp(roughness + float(clamp(probe.cubemapIndexAndFlags.w, 0, 3)) * 0.18, 0.04, 1.0);
                                 vec3 probeRad = sampleProbeRadiance(
                                         probeUv,
                                         vUv,
-                                        roughness,
+                                        probeRoughness,
                                         prefilter,
                                         probe.cubemapIndexAndFlags.x,
                                         probeAtlasLayerCount
@@ -1846,6 +1847,8 @@ public final class VulkanShaderSources {
                     bool rtActive = (packedMode & (1 << 15)) != 0;
                     bool transparencyIntegration = (packedMode & (1 << 16)) != 0;
                     bool rtMultiBounce = (packedMode & (1 << 17)) != 0;
+                    bool planarCaptureExecuted = (packedMode & (1 << 18)) != 0;
+                    bool rtDedicatedDenoisePipeline = (packedMode & (1 << 19)) != 0;
                     vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
                     float roughnessProxy = clamp(1.0 - dot(color, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
                     float roughnessMask = 1.0 - smoothstep(clamp(pc.reflectionsA.w, 0.05, 1.0), 1.0, roughnessProxy);
@@ -1883,7 +1886,9 @@ public final class VulkanShaderSources {
                         }
                     }
                     vec2 planarUv = vec2(uv.x, 1.0 - uv.y);
-                    vec3 planarColor = texture(uSceneColor, planarUv).rgb;
+                    vec3 planarColor = planarCaptureExecuted
+                        ? texture(uHistoryVelocityColor, planarUv).rgb
+                        : texture(uSceneColor, planarUv).rgb;
                     float temporalWeight = clamp(pc.reflectionsB.y, 0.0, 0.98);
                     vec2 reprojectionUv = clamp(uv + pc.motion.xy + surfaceVelocityUv * 0.20, vec2(0.0), vec2(1.0));
                     if (reflectionSpaceReprojection) {
@@ -1941,7 +1946,7 @@ public final class VulkanShaderSources {
                             vec3 bounce = textureLod(uSceneColor, bounceUv, 1.0 + roughnessProxy * 2.2).rgb;
                             rtColor = mix(rtColor, bounce, 0.22);
                         }
-                        int rtDenoisePasses = max(1, denoisePasses);
+                        int rtDenoisePasses = rtDedicatedDenoisePipeline ? max(2, denoisePasses + 1) : max(1, denoisePasses);
                         for (int i = 0; i < rtDenoisePasses; i++) {
                             float radius = float(i + 1);
                             vec2 o = texel * radius;
@@ -1951,6 +1956,11 @@ public final class VulkanShaderSources {
                             vec3 n3 = texture(uSceneColor, clamp(rtTraceUv - vec2(0.0, o.y), vec2(0.0), vec2(1.0))).rgb;
                             vec3 cross = (n0 + n1 + n2 + n3) * 0.25;
                             rtColor = mix(rtColor, cross, 0.25 + rtDenoiseStrength * 0.45);
+                        }
+                        if (rtDedicatedDenoisePipeline) {
+                            vec3 rtHistory = texture(uHistoryColor, clamp(reprojectionUv, vec2(0.0), vec2(1.0))).rgb;
+                            float temporalDenoise = clamp(0.25 + rtDenoiseStrength * 0.55, 0.0, 0.95);
+                            rtColor = mix(rtColor, rtHistory, temporalDenoise * clamp(historyConfidenceOut, 0.0, 1.0));
                         }
                         temporalColor = mix(temporalColor, rtColor, clamp(rtHit * 1.20, 0.0, 1.0));
                     }
@@ -1971,9 +1981,11 @@ public final class VulkanShaderSources {
                         float transparencyWeight = clamp(materialReactive * 1.15, 0.0, 1.0);
                         vec2 refractOffset = (surfaceVelocityUv * 0.08) + (rayDir * texel * (2.0 + currentDepth * 10.0));
                         vec3 refracted = texture(uSceneColor, clamp(uv - refractOffset, vec2(0.0), vec2(1.0))).rgb;
-                        vec3 reflectionSource = rtActive ? rtColor : planarColor;
+                        vec3 probeFallback = texture(uSceneColor, clamp((uv - 0.5) * 1.20 + 0.5, vec2(0.0), vec2(1.0))).rgb;
+                        vec3 reflectionSource = rtActive ? rtColor : mix(planarColor, probeFallback, 0.35);
                         float fresnel = clamp(0.04 + pow(clamp(1.0 - currentDepth, 0.0, 1.0), 5.0) * 0.92, 0.04, 1.0);
-                        vec3 transparentComposite = mix(refracted, reflectionSource, fresnel);
+                        float depthHardening = clamp(1.0 - disocclusionSignal * 0.75, 0.2, 1.0);
+                        vec3 transparentComposite = mix(refracted, reflectionSource, fresnel * depthHardening);
                         reflected = mix(reflected, transparentComposite, transparencyWeight * 0.78);
                     }
                     return clamp(reflected, vec3(0.0), vec3(1.0));
