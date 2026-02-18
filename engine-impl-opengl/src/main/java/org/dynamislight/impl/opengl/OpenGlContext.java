@@ -1358,6 +1358,11 @@ final class OpenGlContext {
             GLFW.glfwTerminate();
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Failed to create OpenGL window/context", false);
         }
+        if (windowVisible) {
+            // Make visibility explicit on macOS instead of relying solely on GLFW hints.
+            GLFW.glfwShowWindow(window);
+            GLFW.glfwFocusWindow(window);
+        }
 
         GLFW.glfwMakeContextCurrent(window);
         GLFW.glfwSwapInterval(vsyncEnabled ? 1 : 0);
