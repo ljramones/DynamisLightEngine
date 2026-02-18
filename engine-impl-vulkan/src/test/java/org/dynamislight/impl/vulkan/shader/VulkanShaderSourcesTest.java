@@ -95,5 +95,15 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("float remainingCoverage = 1.0;"));
         assertTrue(shader.contains("float contribution = min(weight, remainingCoverage);"));
         assertTrue(shader.contains("remainingCoverage -= contribution;"));
+        assertTrue(shader.contains("int reflectionOverrideMode = int(mod(floor(reactiveFlags / 4.0), 4.0));"));
+        assertTrue(shader.contains("float reflectionMask = float(clamp(reflectionOverrideMode, 0, 3)) / 3.0;"));
+    }
+
+    @Test
+    void postFragmentIncludesReflectionOverrideModes() {
+        String shader = VulkanShaderSources.postFragment();
+        assertTrue(shader.contains("int reflectionOverrideMode = int(clamp(floor(sceneSample.a * 3.0 + 0.5), 0.0, 3.0));"));
+        assertTrue(shader.contains("if (reflectionOverrideMode == 1) {"));
+        assertTrue(shader.contains("int mode = reflectionOverrideMode == 2 ? 1 : (packedMode & 7);"));
     }
 }
