@@ -316,6 +316,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean reflectionRtMultiBounceEnabled;
     private boolean reflectionRtRequireActive;
     private boolean reflectionRtRequireMultiBounce;
+    private boolean reflectionRtRequireDedicatedPipeline;
     private boolean reflectionRtDedicatedDenoisePipelineEnabled = true;
     private double reflectionRtDenoiseStrength = 0.65;
     private double reflectionRtPerfMaxGpuMsLow = 1.6;
@@ -328,7 +329,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean reflectionRtLaneActive;
     private boolean reflectionRtRequireActiveUnmetLastFrame;
     private boolean reflectionRtRequireMultiBounceUnmetLastFrame;
+    private boolean reflectionRtRequireDedicatedPipelineUnmetLastFrame;
     private String reflectionRtFallbackChainActive = "probe";
+    private boolean reflectionRtDedicatedHardwarePipelineActive;
     private int reflectionRtPerfHighStreak;
     private int reflectionRtPerfWarnCooldownRemaining;
     private double reflectionRtPerfLastGpuMsEstimate;
@@ -476,6 +479,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionRtMultiBounceEnabled = options.reflectionRtMultiBounceEnabled();
         reflectionRtRequireActive = options.reflectionRtRequireActive();
         reflectionRtRequireMultiBounce = options.reflectionRtRequireMultiBounce();
+        reflectionRtRequireDedicatedPipeline = options.reflectionRtRequireDedicatedPipeline();
         reflectionRtDedicatedDenoisePipelineEnabled = options.reflectionRtDedicatedDenoisePipelineEnabled();
         reflectionRtDenoiseStrength = options.reflectionRtDenoiseStrength();
         reflectionRtPerfMaxGpuMsLow = options.reflectionRtPerfMaxGpuMsLow();
@@ -1174,10 +1178,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
             reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled;
             boolean reflectionRtMultiBounceActive = reflectionRtLaneActive && reflectionRtMultiBounceEnabled;
+            // Dedicated hardware RT traversal pipeline remains a separate promotion lane.
+            reflectionRtDedicatedHardwarePipelineActive = false;
             reflectionRtFallbackChainActive = reflectionRtLaneActive ? "rt->ssr->probe" : "ssr->probe";
             reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActive && reflectionRtLaneRequested && !reflectionRtLaneActive;
             reflectionRtRequireMultiBounceUnmetLastFrame =
                     reflectionRtRequireMultiBounce && reflectionRtLaneRequested && !reflectionRtMultiBounceActive;
+            reflectionRtRequireDedicatedPipelineUnmetLastFrame =
+                    reflectionRtRequireDedicatedPipeline && reflectionRtLaneRequested && !reflectionRtDedicatedHardwarePipelineActive;
             if (reflectionRtLaneRequested || reflectionBaseMode == 4) {
                 warnings.add(new EngineWarning(
                         "REFLECTION_RT_PATH_REQUESTED",
@@ -1186,10 +1194,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", multiBounceActive=" + reflectionRtMultiBounceActive
                                 + ", requireActive=" + reflectionRtRequireActive
                                 + ", requireMultiBounce=" + reflectionRtRequireMultiBounce
+                                + ", requireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline
                                 + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
                                 + ", denoiseStrength=" + reflectionRtDenoiseStrength
                                 + ", laneActive=" + reflectionRtLaneActive
                                 + ", fallbackChain=" + reflectionRtFallbackChainActive + ")"
+                ));
+                warnings.add(new EngineWarning(
+                        "REFLECTION_RT_DEDICATED_PIPELINE_PENDING",
+                        "RT dedicated pipeline contract (dedicatedHardwarePipelineActive="
+                                + reflectionRtDedicatedHardwarePipelineActive
+                                + ", requireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline + ")"
                 ));
                 if (!reflectionRtLaneActive) {
                     warnings.add(new EngineWarning(
@@ -1209,6 +1224,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             "REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH",
                             "RT multi-bounce required but unavailable (requireMultiBounce=true, laneActive="
                                     + reflectionRtLaneActive + ", multiBounceEnabled=" + reflectionRtMultiBounceEnabled + ")"
+                    ));
+                }
+                if (reflectionRtRequireDedicatedPipelineUnmetLastFrame) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH",
+                            "RT dedicated pipeline required but unavailable (requireDedicatedPipeline=true)"
                     ));
                 }
                 double rtGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
@@ -1262,6 +1283,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtFallbackChainActive = "probe";
                 reflectionRtRequireActiveUnmetLastFrame = false;
                 reflectionRtRequireMultiBounceUnmetLastFrame = false;
+                reflectionRtRequireDedicatedPipelineUnmetLastFrame = false;
+                reflectionRtDedicatedHardwarePipelineActive = false;
                 reflectionRtPerfHighStreak = 0;
                 reflectionRtPerfWarnCooldownRemaining = 0;
                 reflectionRtPerfBreachedLastFrame = false;
@@ -1349,6 +1372,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", rtMultiBounceEnabled=" + reflectionRtMultiBounceEnabled
                             + ", rtRequireActive=" + reflectionRtRequireActive
                             + ", rtRequireMultiBounce=" + reflectionRtRequireMultiBounce
+                            + ", rtRequireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline
                             + ", rtDedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
                             + ", rtDenoiseStrength=" + reflectionRtDenoiseStrength
                             + ", rtPerfMaxGpuMsLow=" + reflectionRtPerfMaxGpuMsLow
@@ -1583,7 +1607,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtLaneActive = false;
             reflectionRtRequireActiveUnmetLastFrame = false;
             reflectionRtRequireMultiBounceUnmetLastFrame = false;
+            reflectionRtRequireDedicatedPipelineUnmetLastFrame = false;
             reflectionRtFallbackChainActive = "probe";
+            reflectionRtDedicatedHardwarePipelineActive = false;
             reflectionRtPerfHighStreak = 0;
             reflectionRtPerfWarnCooldownRemaining = 0;
             reflectionRtPerfLastGpuMsEstimate = 0.0;
@@ -2563,6 +2589,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtRequireActiveUnmetLastFrame,
                 reflectionRtRequireMultiBounce,
                 reflectionRtRequireMultiBounceUnmetLastFrame,
+                reflectionRtRequireDedicatedPipeline,
+                reflectionRtRequireDedicatedPipelineUnmetLastFrame,
+                reflectionRtDedicatedHardwarePipelineActive,
                 reflectionRtDedicatedDenoisePipelineEnabled,
                 reflectionRtDenoiseStrength,
                 reflectionRtFallbackChainActive
@@ -2796,6 +2825,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean requireActiveUnmetLastFrame,
             boolean requireMultiBounce,
             boolean requireMultiBounceUnmetLastFrame,
+            boolean requireDedicatedPipeline,
+            boolean requireDedicatedPipelineUnmetLastFrame,
+            boolean dedicatedHardwarePipelineActive,
             boolean dedicatedDenoisePipelineEnabled,
             double denoiseStrength,
             String fallbackChain

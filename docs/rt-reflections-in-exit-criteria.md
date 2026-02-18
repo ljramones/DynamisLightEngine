@@ -17,6 +17,8 @@ RT reflections are `In` when the RT lane is truly executable (not fallback-only)
   Evidence: `vulkan.reflections.rtRequireActive=true` + `REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH`.
 - [x] Strict multi-bounce availability policy exists for promotion gating.
   Evidence: `vulkan.reflections.rtRequireMultiBounce=true` + `REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH`.
+- [x] Strict dedicated RT pipeline availability policy exists for promotion gating.
+  Evidence: `vulkan.reflections.rtRequireDedicatedPipeline=true` + `REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH`.
 - [x] RT perf envelope warning and breach gate are emitted with typed diagnostics.
   Evidence: `REFLECTION_RT_PERF_GATES`, `REFLECTION_RT_PERF_GATES_BREACH`, `debugReflectionRtPerfDiagnostics`.
 - [x] Runtime-composed mode bits expose RT active/multi-bounce/denoise state.

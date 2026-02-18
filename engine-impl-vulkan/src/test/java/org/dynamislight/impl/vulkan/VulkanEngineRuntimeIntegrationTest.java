@@ -148,6 +148,34 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void guardedRealVulkanRtRequireDedicatedPipelineAlwaysBreachesUntilDedicatedPathIsActive() {
+        assumeRealVulkanReady("real Vulkan RT require-dedicated-pipeline integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.reflections.rtRequireDedicatedPipeline", "true")
+            ), QualityTier.HIGH), callbacks);
+            runtime.loadScene(validReflectionsScene("rt_hybrid"));
+            var frame = runtime.render();
+
+            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_PENDING".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(
+                    w -> "REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            var diagnostics = runtime.debugReflectionRtPathDiagnostics();
+            assertTrue(diagnostics.requireDedicatedPipeline());
+            assertTrue(diagnostics.requireDedicatedPipelineUnmetLastFrame());
+            assertFalse(diagnostics.dedicatedHardwarePipelineActive());
+        } catch (EngineException e) {
+            assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, e.code());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
     void mockVulkanPathAlwaysWorksInCi() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
@@ -997,6 +1025,9 @@ class VulkanEngineRuntimeIntegrationTest {
         var diagnostics = runtime.debugReflectionRtPathDiagnostics();
         assertTrue(diagnostics.laneRequested());
         assertTrue(diagnostics.laneActive());
+        assertFalse(diagnostics.requireDedicatedPipeline());
+        assertFalse(diagnostics.requireDedicatedPipelineUnmetLastFrame());
+        assertFalse(diagnostics.dedicatedHardwarePipelineActive());
         assertTrue(diagnostics.dedicatedDenoisePipelineEnabled());
         assertEquals("rt->ssr->probe", diagnostics.fallbackChain());
         int runtimeMode = runtime.debugReflectionRuntimeMode();
@@ -1080,6 +1111,32 @@ class VulkanEngineRuntimeIntegrationTest {
         var diagnostics = runtime.debugReflectionRtPathDiagnostics();
         assertEquals(true, diagnostics.requireMultiBounce());
         assertEquals(true, diagnostics.requireMultiBounceUnmetLastFrame());
+        runtime.shutdown();
+    }
+
+    @Test
+    void rtReflectionRequireDedicatedPipelineEmitsBreachWhenUnavailable() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtRequireDedicatedPipeline", "true")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("rt_hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_PENDING".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+        String requested = warningMessageByCode(frame, "REFLECTION_RT_PATH_REQUESTED");
+        assertTrue(requested.contains("requireDedicatedPipeline=true"));
+        var diagnostics = runtime.debugReflectionRtPathDiagnostics();
+        assertTrue(diagnostics.laneRequested());
+        assertTrue(diagnostics.laneActive());
+        assertTrue(diagnostics.requireDedicatedPipeline());
+        assertTrue(diagnostics.requireDedicatedPipelineUnmetLastFrame());
+        assertFalse(diagnostics.dedicatedHardwarePipelineActive());
         runtime.shutdown();
     }
 

@@ -138,6 +138,7 @@ Current profile tags in parity tests:
 - Assert fallback warning (`REFLECTION_RT_PATH_FALLBACK_ACTIVE`) only when RT lane is explicitly unavailable.
 - Assert strict-required RT mode emits breach warning (`REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH`) when `vulkan.reflections.rtRequireActive=true` and lane cannot activate.
 - Assert strict-required RT multi-bounce emits breach warning (`REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH`) when `vulkan.reflections.rtRequireMultiBounce=true` and multi-bounce cannot activate.
+- Assert strict-required dedicated RT pipeline emits breach warning (`REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH`) when `vulkan.reflections.rtRequireDedicatedPipeline=true` and dedicated hardware pipeline is unavailable.
 - Assert RT perf gates emit `REFLECTION_RT_PERF_GATES` and breach under strict caps via `REFLECTION_RT_PERF_GATES_BREACH`.
 - Validate typed RT perf diagnostics (`debugReflectionRtPerfDiagnostics`) against warning payload (`gpuMsEstimate`, `gpuMsCap`, streak/cooldown state).
 - Assert dedicated RT denoise stage bit is present when dedicated RT denoise pipeline is enabled.

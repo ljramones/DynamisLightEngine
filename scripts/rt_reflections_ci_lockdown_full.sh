@@ -12,6 +12,7 @@ VULKAN_TESTS=(
   "rtReflectionRequestInMockContextActivatesExecutionLaneAndDenoisePath"
   "rtReflectionRequireActiveEmitsBreachWhenLaneUnavailable"
   "rtReflectionRequireMultiBounceEmitsBreachWhenUnavailable"
+  "rtReflectionRequireDedicatedPipelineEmitsBreachWhenUnavailable"
   "rtPerfGateBreachEmitsUnderStrictCaps"
   "transparentCandidatesEmitStageGateWarningUntilRtLaneIsActive"
   "transparentCandidatesWithRtPathEnablePreviewStageGateAndRuntimeIntegrationBit"

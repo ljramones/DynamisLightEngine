@@ -130,6 +130,7 @@ PostProcessDesc post = new PostProcessDesc(
 - RT path diagnostics now explicitly report dedicated-denoise pipeline intent in warning payload and typed runtime diagnostics.
 - Optional strict RT-availability gate: `vulkan.reflections.rtRequireActive=true` emits `REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH` when RT path is requested but inactive.
 - Optional strict RT multi-bounce gate: `vulkan.reflections.rtRequireMultiBounce=true` emits `REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH` when requested RT multi-bounce is unavailable.
+- Optional strict dedicated RT pipeline gate: `vulkan.reflections.rtRequireDedicatedPipeline=true` emits `REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH` when dedicated hardware RT pipeline is not active.
 - RT perf envelope controls:
   - `vulkan.reflections.rtPerfMaxGpuMsLow|Medium|High|Ultra`
   - `vulkan.reflections.rtPerfWarnMinFrames`, `vulkan.reflections.rtPerfWarnCooldownFrames`
@@ -147,6 +148,7 @@ PostProcessDesc post = new PostProcessDesc(
   - `REFLECTION_PLANAR_SCOPE_CONTRACT`
   - `REFLECTION_PLANAR_STABILITY_ENVELOPE` / `REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH`
   - `REFLECTION_RT_PATH_REQUESTED` / `REFLECTION_RT_PATH_FALLBACK_ACTIVE` (only when lane unavailable)
+  - `REFLECTION_RT_DEDICATED_PIPELINE_PENDING` / `REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH`
   - `REFLECTION_TRANSPARENCY_STAGE_GATE` / `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`
 - High-risk/fail adaptive trend warnings now also emit `PerformanceWarningEvent` callbacks in Vulkan for parser-free host/CI alerting.
 
