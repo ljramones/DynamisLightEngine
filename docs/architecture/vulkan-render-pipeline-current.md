@@ -101,6 +101,8 @@ Current limitation:
 
 - Vulkan currently uses a native 2D-array probe-radiance path, not native cubemap-array sampling.
 - Probe texture selection by `cubemapIndex` is active, but source assets are interpreted through the existing 2D radiance projection path.
+- Optional cube-face probe discovery (`*_px/_nx/_py/_ny/_pz/_nz`) is present behind `dle.vulkan.reflections.probeCubeArrayEnabled`, but runtime texture creation remains pinned to 2D-array probe sampling.
+- Per-material reflection override lane is now available via `MaterialDesc.reflectionOverride` with `PROBE_ONLY` support in Vulkan.
 
 ### Uniform sizes and upload
 
@@ -126,6 +128,7 @@ Built by `VulkanMainPipelineBuilder`:
   - color (swapchain format, present layout)
   - velocity (swapchain format, shader-read layout)
   - depth (configured depth format)
+- Velocity alpha channel packs temporal reactive strength and material reflection override metadata (`>=1.0` indicates `PROBE_ONLY` override).
 
 Files:
 
@@ -161,6 +164,7 @@ Built by `VulkanPostPipelineBuilder` + `VulkanPostProcessResources`:
   - current velocity
   - history velocity
 - Push constants: 32 floats (128 bytes).
+- Post shader decodes packed velocity metadata and bypasses reflection resolve for `PROBE_ONLY` materials.
 
 Files:
 
