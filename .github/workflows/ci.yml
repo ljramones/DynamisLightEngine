@@ -39,6 +39,10 @@ on:
         description: 'Run two-pass stable real-Vulkan threshold promotion gate'
         required: false
         default: 'false'
+      run_planar_lockdown_full:
+        description: 'Run full planar lockdown sequence (contracts + compare harness)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: read
@@ -310,6 +314,37 @@ jobs:
         with:
           name: shadow-stable-promote-real-artifacts-macos
           path: artifacts/compare/shadow-stable-promote-real
+          if-no-files-found: warn
+
+  planar-lockdown-full:
+    name: Planar Lockdown Full (JDK 25, macos-latest)
+    if: github.event_name == 'schedule'
+      || github.event_name == 'push'
+      || github.event_name == 'pull_request'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_planar_lockdown_full == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run full planar lockdown sequence
+        env:
+          DLE_PLANAR_LOCKDOWN_OUTPUT_ROOT: artifacts/compare/planar-lockdown-full
+        run: ./scripts/planar_ci_lockdown_full.sh
+
+      - name: Upload planar lockdown artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: planar-lockdown-full-artifacts-macos
+          path: artifacts/compare/planar-lockdown-full
           if-no-files-found: warn
 
   vulkan-real-guarded-matrix:

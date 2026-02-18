@@ -49,7 +49,12 @@ mvn -pl engine-impl-opengl -am -Dtest=OpenGlEngineRuntimeLifecycleTest -Dsurefir
 
 # Vulkan reflections runtime tests
 mvn -pl engine-impl-vulkan -am -Dtest=VulkanEngineRuntimeIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test
+
+# Full planar lockdown sequence (contracts + planar compare scenes)
+./scripts/planar_ci_lockdown_full.sh
 ```
+
+See `docs/planar-in-exit-criteria.md` for explicit `Partial -> In` exit criteria and current checklist status.
 
 ## Compare Harness Additions
 
