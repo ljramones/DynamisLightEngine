@@ -1031,6 +1031,7 @@ class VulkanEngineRuntimeIntegrationTest {
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PIPELINE_LIFECYCLE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_HYBRID_COMPOSITION".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_FALLBACK_ACTIVE".equals(w.code())));
         String rt = warningMessageByCode(frame, "REFLECTION_RT_PATH_REQUESTED");
         assertTrue(rt.contains("singleBounceEnabled=true"));
@@ -1052,6 +1053,11 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals("pending", pipeline.tlasLifecycleState());
         assertEquals("pending", pipeline.sbtLifecycleState());
         assertEquals(0, pipeline.blasObjectCount());
+        var hybrid = runtime.debugReflectionRtHybridDiagnostics();
+        assertTrue(hybrid.rtShare() >= 0.0);
+        assertTrue(hybrid.ssrShare() >= 0.0);
+        assertTrue(hybrid.probeShare() >= 0.0);
+        assertEquals(1.0, hybrid.rtShare() + hybrid.ssrShare() + hybrid.probeShare(), 1e-6);
         int runtimeMode = runtime.debugReflectionRuntimeMode();
         assertTrue((runtimeMode & 0x7) > 0);
         assertTrue((runtimeMode & (1 << 15)) != 0);
@@ -1186,6 +1192,7 @@ class VulkanEngineRuntimeIntegrationTest {
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_HYBRID_COMPOSITION".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_PENDING".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(
                 w -> "REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
@@ -1205,6 +1212,8 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(pipeline.blasObjectCount() > 0);
         assertTrue(pipeline.tlasInstanceCount() > 0);
         assertTrue(pipeline.sbtRecordCount() > 0);
+        var hybrid = runtime.debugReflectionRtHybridDiagnostics();
+        assertEquals(1.0, hybrid.rtShare() + hybrid.ssrShare() + hybrid.probeShare(), 1e-6);
         runtime.shutdown();
     }
 

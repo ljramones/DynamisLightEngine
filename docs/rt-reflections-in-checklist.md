@@ -44,6 +44,7 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 
 ## 5. Hybrid Composition Lockdown
 
+- [x] Add hybrid composition telemetry diagnostics/warnings (`REFLECTION_RT_HYBRID_COMPOSITION`, typed runtime accessor).
 - [ ] Lock roughness split policy (`RT` vs `SSR`) and thresholds.
 - [ ] Lock miss/fallback blend policy (`SSR`/`probe`) and envelope gates.
 - [ ] Add hybrid artifact gates for seams and temporal instability.

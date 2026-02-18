@@ -341,6 +341,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionRtBlasObjectCount;
     private int reflectionRtTlasInstanceCount;
     private int reflectionRtSbtRecordCount;
+    private double reflectionRtHybridRtShare;
+    private double reflectionRtHybridSsrShare;
+    private double reflectionRtHybridProbeShare = 1.0;
+    private boolean reflectionRtHybridBreachedLastFrame;
     private int reflectionRtPerfHighStreak;
     private int reflectionRtPerfWarnCooldownRemaining;
     private double reflectionRtPerfLastGpuMsEstimate;
@@ -1333,6 +1337,30 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                     + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled + ")"
                     ));
                 }
+                reflectionRtHybridRtShare = reflectionRtLaneActive
+                        ? Math.max(0.15, Math.min(0.85, 1.0 - currentPost.reflectionsSsrMaxRoughness()))
+                        : 0.0;
+                reflectionRtHybridSsrShare = Math.max(
+                        0.0,
+                        Math.min(1.0 - reflectionRtHybridRtShare, currentPost.reflectionsSsrStrength() * (1.0 - reflectionRtHybridRtShare))
+                );
+                reflectionRtHybridProbeShare = Math.max(0.0, 1.0 - reflectionRtHybridRtShare - reflectionRtHybridSsrShare);
+                reflectionRtHybridBreachedLastFrame = reflectionRtLaneActive && reflectionRtHybridProbeShare > 0.70;
+                warnings.add(new EngineWarning(
+                        "REFLECTION_RT_HYBRID_COMPOSITION",
+                        "RT hybrid composition (rtShare=" + reflectionRtHybridRtShare
+                                + ", ssrShare=" + reflectionRtHybridSsrShare
+                                + ", probeShare=" + reflectionRtHybridProbeShare
+                                + ", laneActive=" + reflectionRtLaneActive
+                                + ", breached=" + reflectionRtHybridBreachedLastFrame + ")"
+                ));
+                if (reflectionRtHybridBreachedLastFrame) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_RT_HYBRID_COMPOSITION_BREACH",
+                            "RT hybrid composition breached (probeShare=" + reflectionRtHybridProbeShare
+                                    + ", threshold=0.70, laneActive=" + reflectionRtLaneActive + ")"
+                    ));
+                }
             } else {
                 reflectionRtFallbackChainActive = "probe";
                 reflectionRtRequireActiveUnmetLastFrame = false;
@@ -1347,6 +1375,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtBlasObjectCount = 0;
                 reflectionRtTlasInstanceCount = 0;
                 reflectionRtSbtRecordCount = 0;
+                reflectionRtHybridRtShare = 0.0;
+                reflectionRtHybridSsrShare = Math.max(0.0, Math.min(1.0, currentPost.reflectionsSsrStrength()));
+                reflectionRtHybridProbeShare = Math.max(0.0, 1.0 - reflectionRtHybridSsrShare);
+                reflectionRtHybridBreachedLastFrame = false;
                 reflectionRtPerfHighStreak = 0;
                 reflectionRtPerfWarnCooldownRemaining = 0;
                 reflectionRtPerfBreachedLastFrame = false;
@@ -1682,6 +1714,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtBlasObjectCount = 0;
             reflectionRtTlasInstanceCount = 0;
             reflectionRtSbtRecordCount = 0;
+            reflectionRtHybridRtShare = 0.0;
+            reflectionRtHybridSsrShare = 0.0;
+            reflectionRtHybridProbeShare = 1.0;
+            reflectionRtHybridBreachedLastFrame = false;
             reflectionRtPerfHighStreak = 0;
             reflectionRtPerfWarnCooldownRemaining = 0;
             reflectionRtPerfLastGpuMsEstimate = 0.0;
@@ -2696,6 +2732,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionRtHybridDiagnostics debugReflectionRtHybridDiagnostics() {
+        return new ReflectionRtHybridDiagnostics(
+                reflectionRtHybridRtShare,
+                reflectionRtHybridSsrShare,
+                reflectionRtHybridProbeShare,
+                reflectionRtHybridBreachedLastFrame
+        );
+    }
+
     ReflectionTransparencyDiagnostics debugReflectionTransparencyDiagnostics() {
         return new ReflectionTransparencyDiagnostics(
                 reflectionTransparentCandidateCount,
@@ -2941,6 +2986,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int blasObjectCount,
             int tlasInstanceCount,
             int sbtRecordCount
+    ) {
+    }
+
+    record ReflectionRtHybridDiagnostics(
+            double rtShare,
+            double ssrShare,
+            double probeShare,
+            boolean breachedLastFrame
     ) {
     }
 
