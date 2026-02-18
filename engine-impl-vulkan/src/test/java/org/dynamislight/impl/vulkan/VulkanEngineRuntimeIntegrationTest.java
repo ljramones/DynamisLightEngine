@@ -396,6 +396,8 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(baseline.contains("probeConfigured=3"));
         assertTrue(baseline.contains("probeSlots=2"));
         assertTrue(baseline.contains("probeCapacity="));
+        assertTrue(baseline.contains("probeDelta="));
+        assertTrue(baseline.contains("probeChurnEvents="));
         int baselineActive = parseIntMetricField(baseline, "probeActive");
         assertTrue(baselineActive >= 0);
         assertTrue(baselineActive <= 3);
@@ -403,6 +405,8 @@ class VulkanEngineRuntimeIntegrationTest {
         String diagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
         assertTrue(diagnostics.contains("configured=3"));
         assertTrue(diagnostics.contains("slots=2"));
+        assertTrue(diagnostics.contains("delta="));
+        assertTrue(diagnostics.contains("churnEvents="));
         int diagnosticActive = parseIntMetricField(diagnostics, "active");
         assertEquals(baselineActive, diagnosticActive);
         var runtimeDiagnostics = runtime.debugReflectionProbeDiagnostics();
@@ -410,6 +414,37 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(2, runtimeDiagnostics.slotCount());
         assertEquals(runtimeDiagnostics.activeProbeCount(), diagnosticActive);
         assertTrue(runtimeDiagnostics.metadataCapacity() >= 0);
+        var churnDiagnostics = runtime.debugReflectionProbeChurnDiagnostics();
+        assertTrue(churnDiagnostics.lastDelta() >= 0);
+        assertTrue(churnDiagnostics.churnEvents() >= 0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionProbeChurnDiagnosticsRemainAvailableAcrossSceneTransitions() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+
+        runtime.loadScene(validReflectionsScene("hybrid"));
+        runtime.render();
+
+        runtime.loadScene(validReflectionProbeDiagnosticsScene());
+        var frameA = runtime.render();
+
+        runtime.loadScene(validReflectionsScene("hybrid"));
+        var frameB = runtime.render();
+
+        runtime.loadScene(validReflectionProbeDiagnosticsScene());
+        var frameC = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_BLEND_DIAGNOSTICS".equals(w.code())));
+        assertTrue(frameB.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_BLEND_DIAGNOSTICS".equals(w.code())));
+        assertTrue(frameC.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_BLEND_DIAGNOSTICS".equals(w.code())));
+        var churnDiagnostics = runtime.debugReflectionProbeChurnDiagnostics();
+        String diagnostics = warningMessageByCode(frameC, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
+        assertTrue(diagnostics.contains("churnEvents="));
+        assertTrue(churnDiagnostics.churnEvents() >= 0);
+        assertTrue(churnDiagnostics.meanDelta() >= 0.0);
         runtime.shutdown();
     }
 
@@ -2005,8 +2040,8 @@ class VulkanEngineRuntimeIntegrationTest {
                         new ReflectionProbeDesc(
                                 1,
                                 new Vec3(0f, 0f, 0f),
-                                new Vec3(-3f, -2f, -3f),
-                                new Vec3(3f, 2f, 3f),
+                                new Vec3(-100f, -100f, -100f),
+                                new Vec3(100f, 100f, 100f),
                                 "textures/probes/atrium.ktx2",
                                 2,
                                 1.5f,

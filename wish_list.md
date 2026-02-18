@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 12:08 ET — Added runtime debug probe diagnostics accessor (`configured/active/slots/capacity`) and bound integration assertions to it; warning telemetry remains aligned with runtime diagnostics.
+- Latest reflection update: 2026-02-18 12:16 ET — Added frame-to-frame probe churn telemetry (`probeDelta`, `probeChurnEvents`, mean/streak/cooldown) with gated `REFLECTION_PROBE_CHURN_HIGH` warning and integration coverage for repeated active-set changes.
 
 Status legend:
 
@@ -63,6 +63,7 @@ Reflection notes:
 - Vulkan reflection baseline warning telemetry now includes per-frame override counts (`AUTO`, `PROBE_ONLY`, `SSR_ONLY`, other).
 - Vulkan reflection warnings now include probe telemetry (`configured`, `active`, `slots`, `capacity`) with dedicated `REFLECTION_PROBE_BLEND_DIAGNOSTICS` emission.
 - Vulkan runtime now exposes probe diagnostics directly for integration/telemetry validation without warning-string parsing.
+- Vulkan now tracks probe active-set churn across frames and emits `REFLECTION_PROBE_CHURN_HIGH` when instability persists.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

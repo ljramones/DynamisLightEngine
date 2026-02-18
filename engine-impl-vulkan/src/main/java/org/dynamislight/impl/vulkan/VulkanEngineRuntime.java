@@ -92,6 +92,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private static final int DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES = 256;
+    private static final int REFLECTION_PROBE_CHURN_WARN_MIN_DELTA = 1;
+    private static final int REFLECTION_PROBE_CHURN_WARN_MIN_STREAK = 3;
+    private static final int REFLECTION_PROBE_CHURN_WARN_COOLDOWN_FRAMES = 120;
     private final VulkanContext context = new VulkanContext();
     private final VulkanRuntimeWarningPolicy warningPolicy = new VulkanRuntimeWarningPolicy();
     private final VulkanRuntimeWarningPolicy.State warningState = new VulkanRuntimeWarningPolicy.State();
@@ -180,6 +183,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowAllocatorEvictions;
     private boolean shadowRtTraversalSupported;
     private boolean shadowRtBvhSupported;
+    private int lastActiveReflectionProbeCount = -1;
+    private int reflectionProbeLastDelta;
+    private int reflectionProbeActiveChurnEvents;
+    private long reflectionProbeActiveDeltaAccum;
+    private int reflectionProbeChurnHighStreak;
+    private int reflectionProbeChurnWarnCooldownRemaining;
 
     public VulkanEngineRuntime() {
         super(
@@ -256,6 +265,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowAllocatorAssignedLights = 0;
         shadowAllocatorReusedAssignments = 0;
         shadowAllocatorEvictions = 0;
+        resetReflectionProbeChurnDiagnostics();
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -554,6 +564,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int reflectionBaseMode = currentPost.reflectionsMode() & 0x7;
             ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
             VulkanContext.ReflectionProbeDiagnostics probeDiagnostics = context.debugReflectionProbeDiagnostics();
+            ReflectionProbeChurnDiagnostics churnDiagnostics = updateReflectionProbeChurnDiagnostics(probeDiagnostics);
             warnings.add(new EngineWarning(
                     "REFLECTIONS_BASELINE_ACTIVE",
                     "Reflections baseline active (mode="
@@ -574,6 +585,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", probeActive=" + probeDiagnostics.activeProbeCount()
                             + ", probeSlots=" + probeDiagnostics.slotCount()
                             + ", probeCapacity=" + probeDiagnostics.metadataCapacity()
+                            + ", probeDelta=" + churnDiagnostics.lastDelta()
+                            + ", probeChurnEvents=" + churnDiagnostics.churnEvents()
                             + ")"
             ));
             warnings.add(new EngineWarning(
@@ -582,14 +595,31 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", active=" + probeDiagnostics.activeProbeCount()
                             + ", slots=" + probeDiagnostics.slotCount()
                             + ", capacity=" + probeDiagnostics.metadataCapacity()
+                            + ", delta=" + churnDiagnostics.lastDelta()
+                            + ", churnEvents=" + churnDiagnostics.churnEvents()
+                            + ", meanDelta=" + churnDiagnostics.meanDelta()
+                            + ", highStreak=" + churnDiagnostics.highStreak()
+                            + ", cooldownRemaining=" + churnDiagnostics.warnCooldownRemaining()
                             + ")"
             ));
+            if (churnDiagnostics.warningTriggered()) {
+                warnings.add(new EngineWarning(
+                        "REFLECTION_PROBE_CHURN_HIGH",
+                        "Active reflection probe set changed repeatedly across frames "
+                                + "(delta=" + churnDiagnostics.lastDelta()
+                                + ", churnEvents=" + churnDiagnostics.churnEvents()
+                                + ", meanDelta=" + churnDiagnostics.meanDelta()
+                                + ", highStreak=" + churnDiagnostics.highStreak() + ")"
+                ));
+            }
             if (qualityTier == QualityTier.MEDIUM) {
                 warnings.add(new EngineWarning(
                         "REFLECTIONS_QUALITY_DEGRADED",
                         "Reflections quality is reduced at MEDIUM tier to stabilize frame time"
                 ));
             }
+        } else {
+            resetReflectionProbeChurnDiagnostics();
         }
         if (currentShadows.enabled()) {
             String momentPhase = "pending";
@@ -798,6 +828,64 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return new ReflectionOverrideSummary(autoCount, probeOnlyCount, ssrOnlyCount, otherCount);
     }
 
+    private ReflectionProbeChurnDiagnostics updateReflectionProbeChurnDiagnostics(VulkanContext.ReflectionProbeDiagnostics diagnostics) {
+        int active = Math.max(0, diagnostics.activeProbeCount());
+        boolean warningTriggered = false;
+        if (lastActiveReflectionProbeCount < 0) {
+            lastActiveReflectionProbeCount = active;
+            reflectionProbeLastDelta = 0;
+            if (reflectionProbeChurnWarnCooldownRemaining > 0) {
+                reflectionProbeChurnWarnCooldownRemaining--;
+            }
+            return snapshotReflectionProbeChurnDiagnostics(false);
+        }
+        int delta = Math.abs(active - lastActiveReflectionProbeCount);
+        reflectionProbeLastDelta = delta;
+        if (delta > 0) {
+            reflectionProbeActiveChurnEvents++;
+            reflectionProbeActiveDeltaAccum += delta;
+        }
+        if (delta >= REFLECTION_PROBE_CHURN_WARN_MIN_DELTA) {
+            reflectionProbeChurnHighStreak++;
+            if (reflectionProbeChurnHighStreak >= REFLECTION_PROBE_CHURN_WARN_MIN_STREAK
+                    && reflectionProbeChurnWarnCooldownRemaining <= 0) {
+                reflectionProbeChurnWarnCooldownRemaining = REFLECTION_PROBE_CHURN_WARN_COOLDOWN_FRAMES;
+                warningTriggered = true;
+            }
+        } else {
+            reflectionProbeChurnHighStreak = 0;
+        }
+        if (reflectionProbeChurnWarnCooldownRemaining > 0) {
+            reflectionProbeChurnWarnCooldownRemaining--;
+        }
+        lastActiveReflectionProbeCount = active;
+        return snapshotReflectionProbeChurnDiagnostics(warningTriggered);
+    }
+
+    private ReflectionProbeChurnDiagnostics snapshotReflectionProbeChurnDiagnostics(boolean warningTriggered) {
+        double meanDelta = reflectionProbeActiveChurnEvents <= 0
+                ? 0.0
+                : (double) reflectionProbeActiveDeltaAccum / (double) reflectionProbeActiveChurnEvents;
+        return new ReflectionProbeChurnDiagnostics(
+                lastActiveReflectionProbeCount,
+                reflectionProbeLastDelta,
+                reflectionProbeActiveChurnEvents,
+                meanDelta,
+                reflectionProbeChurnHighStreak,
+                reflectionProbeChurnWarnCooldownRemaining,
+                warningTriggered
+        );
+    }
+
+    private void resetReflectionProbeChurnDiagnostics() {
+        lastActiveReflectionProbeCount = -1;
+        reflectionProbeLastDelta = 0;
+        reflectionProbeActiveChurnEvents = 0;
+        reflectionProbeActiveDeltaAccum = 0L;
+        reflectionProbeChurnHighStreak = 0;
+        reflectionProbeChurnWarnCooldownRemaining = 0;
+    }
+
     SceneReuseStats debugSceneReuseStats() {
         return context.sceneReuseStats();
     }
@@ -830,6 +918,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionProbeChurnDiagnostics debugReflectionProbeChurnDiagnostics() {
+        return snapshotReflectionProbeChurnDiagnostics(false);
+    }
+
     static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
     }
 
@@ -838,6 +930,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int activeProbeCount,
             int slotCount,
             int metadataCapacity
+    ) {
+    }
+
+    record ReflectionProbeChurnDiagnostics(
+            int lastActiveCount,
+            int lastDelta,
+            int churnEvents,
+            double meanDelta,
+            int highStreak,
+            int warnCooldownRemaining,
+            boolean warningTriggered
     ) {
     }
 
