@@ -128,7 +128,7 @@ Built by `VulkanMainPipelineBuilder`:
   - color (swapchain format, present layout)
   - velocity (swapchain format, shader-read layout)
   - depth (configured depth format)
-- Velocity alpha channel packs temporal reactive strength and material reflection override metadata (`>=1.0` indicates `PROBE_ONLY` override).
+- Velocity alpha now carries temporal reactive strength only.
 
 Files:
 
@@ -164,7 +164,7 @@ Built by `VulkanPostPipelineBuilder` + `VulkanPostProcessResources`:
   - current velocity
   - history velocity
 - Push constants: 32 floats (128 bytes).
-- Post shader decodes packed velocity metadata and bypasses reflection resolve for `PROBE_ONLY` materials.
+- Post shader reads `PROBE_ONLY` override from scene color alpha and bypasses reflection resolve for those pixels.
 
 Files:
 

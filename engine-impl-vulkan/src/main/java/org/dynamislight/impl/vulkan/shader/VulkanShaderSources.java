@@ -1695,7 +1695,8 @@ public final class VulkanShaderSources {
                     heuristicReactive = clamp(heuristicReactive + emissiveMask * emissiveReactiveBoost * 0.45, 0.0, 1.0);
                     float presetScale = reactivePreset < 0.5 ? 1.0 : (reactivePreset < 1.5 ? 0.82 : (reactivePreset < 2.5 ? 1.0 : 1.2));
                     float materialReactive = (authoredEnabled ? authoredReactive : heuristicReactive) * (1.0 + (1.0 - taaHistoryClamp) * 0.6) * presetScale;
-                    outColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+                    float reflectionMask = reflectionProbeOnly ? 1.0 : 0.0;
+                    outColor = vec4(clamp(color, 0.0, 1.0), reflectionMask);
                     vec4 currClip = gbo.uProj * gbo.uView * vec4(vWorldPos, 1.0);
                     vec4 prevClip = gbo.uPrevViewProj * (obj.uPrevModel * vec4(vLocalPos, 1.0));
                     float currW = abs(currClip.w) > 0.000001 ? currClip.w : 1.0;
@@ -1703,11 +1704,7 @@ public final class VulkanShaderSources {
                     vec2 currNdc = currClip.xy / currW;
                     vec2 prevNdc = prevClip.xy / prevW;
                     vec2 velocityNdc = clamp(prevNdc - currNdc, vec2(-1.0), vec2(1.0));
-                    float packedReactive = clamp(materialReactive, 0.0, 0.9999);
-                    if (reflectionProbeOnly) {
-                        packedReactive += 1.0;
-                    }
-                    outVelocity = vec4(velocityNdc * 0.5 + 0.5, clamp(gl_FragCoord.z, 0.0, 1.0), packedReactive);
+                    outVelocity = vec4(velocityNdc * 0.5 + 0.5, clamp(gl_FragCoord.z, 0.0, 1.0), clamp(materialReactive, 0.0, 1.0));
                 }
                 """).toString();
     }
@@ -1901,12 +1898,12 @@ public final class VulkanShaderSources {
                     return clamp(reflected, vec3(0.0), vec3(1.0));
                 }
                 void main() {
-                    vec3 color = texture(uSceneColor, vUv).rgb;
+                    vec4 sceneSample = texture(uSceneColor, vUv);
+                    vec3 color = sceneSample.rgb;
                     vec4 centerVelocitySample = texture(uVelocityColor, vUv);
                     float currentDepth = centerVelocitySample.b;
-                    float packedMaterialMeta = centerVelocitySample.a;
-                    bool probeOnlyOverride = packedMaterialMeta >= 1.0;
-                    float centerMaterialReactive = fract(packedMaterialMeta);
+                    bool probeOnlyOverride = sceneSample.a > 0.5;
+                    float centerMaterialReactive = clamp(centerVelocitySample.a, 0.0, 1.0);
                     float historyConfidenceOut = 1.0;
                     if (pc.tonemap.x > 0.5) {
                         float exposure = max(pc.tonemap.y, 0.0001);

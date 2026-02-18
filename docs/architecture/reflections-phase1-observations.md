@@ -66,7 +66,7 @@ It is intended as extraction input for future capability contracts and render-gr
 - Reflection probe capability gave value without introducing a new pass, while shadows were pass-first.
 - This confirms the feature contract cannot assume "one feature = one pass contribution."
 - Reflection overlap behavior required priority-aware accumulation in shader to avoid exterior bleed in interior volumes.
-- Material-level behavior needed data to cross passes; Vulkan now packs override metadata into velocity alpha, which TAA and reflection resolve both consume.
+- Material-level behavior needed data to cross passes; Vulkan now routes reflection override via main color alpha while keeping velocity alpha dedicated to TAA reactive strength.
 
 ## Current extraction candidates (not final contract)
 
@@ -77,4 +77,4 @@ It is intended as extraction input for future capability contracts and render-gr
 
 ## Next reflection implementation target
 
-- Add dedicated reflection mask/aux channel (instead of velocity-alpha packing) so per-material reflection policy can scale beyond `PROBE_ONLY` without coupling to TAA reactive data.
+- Expand per-material reflection policy beyond `PROBE_ONLY` (for example SSR-only and hybrid-lock) using the existing override lane and post resolve policy hooks.
