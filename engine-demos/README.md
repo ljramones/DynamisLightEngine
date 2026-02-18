@@ -43,6 +43,7 @@ Current demo catalog:
 - `telemetry-export`
 - `threshold-replay`
 - `backend-compare-smoke`
+- `capability-probe`
 - `aa-motion-stress`
 - `aa-matrix`
 
@@ -137,6 +138,11 @@ Run backend compare smoke demo (vulkan):
 Run backend compare smoke demo (opengl):
 ```bash
 ./scripts/run_demo_mac.sh --demo=backend-compare-smoke --backend=opengl --mock=true --seconds=5 --quality=high --telemetry=artifacts/demos/backend-compare-smoke-opengl.jsonl
+```
+
+Run capability probe demo:
+```bash
+./scripts/run_demo_mac.sh --demo=capability-probe --backend=vulkan --mock=true --seconds=3 --quality=high --telemetry=artifacts/demos/capability-probe.jsonl
 ```
 
 Telemetry outputs:
