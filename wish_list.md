@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 15:20 ET — Implemented full reflection-contract diagnostics sweep: SSR confidence/reprojection/disocclusion policy, probe quality envelope gates, planar scope/order contracts, RT minimal lane fallback-chain diagnostics, and transparency/refraction stage-gate signaling with tests.
+- Latest reflection update: 2026-02-18 16:10 ET — Implemented shader/pass-level reflection execution realization: reflection-space reprojection + strict/disocclusion history rejection bits, selective planar execution gating, active RT-oriented reflection trace+denoise lane (with fallback warning only when unavailable), and transparent/refractive integration using RT/probe fallback in-frame.
 
 Status legend:
 
@@ -88,6 +88,8 @@ Reflection notes:
 - Planar reflections now expose selective scope + pass-order contract diagnostics (`planar_capture_before_main_sample_before_post`).
 - RT reflection minimal lane now exposes single/multi-bounce intent + fallback-chain diagnostics (`rt->ssr->probe` vs `ssr->probe`).
 - Transparency/refraction path now has an explicit stage gate tied to RT-minimal readiness, with pending warnings for transparent candidates.
+- Vulkan reflection runtime now composes execution mode bits per frame (reprojection/reject policy, planar-selective execution, RT lane active/multi-bounce, transparency integration) and applies them in post shader logic.
+- Vulkan post reflection push constants now carry RT denoise strength; runtime exposes typed debug accessors for composed mode and denoise strength.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

@@ -100,6 +100,21 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static final int REFLECTION_PROBE_CHURN_WARN_MIN_DELTA = 1;
     private static final int REFLECTION_PROBE_CHURN_WARN_MIN_STREAK = 3;
     private static final int REFLECTION_PROBE_CHURN_WARN_COOLDOWN_FRAMES = 120;
+    private static final int REFLECTION_MODE_BASE_MASK = 0x7;
+    private static final int REFLECTION_MODE_HIZ_BIT = 1 << 3;
+    private static final int REFLECTION_MODE_DENOISE_SHIFT = 4;
+    private static final int REFLECTION_MODE_DENOISE_MASK = 0x7 << REFLECTION_MODE_DENOISE_SHIFT;
+    private static final int REFLECTION_MODE_PLANAR_CLIP_BIT = 1 << 7;
+    private static final int REFLECTION_MODE_PROBE_VOLUME_BIT = 1 << 8;
+    private static final int REFLECTION_MODE_PROBE_BOX_BIT = 1 << 9;
+    private static final int REFLECTION_MODE_RT_REQUEST_BIT = 1 << 10;
+    private static final int REFLECTION_MODE_REPROJECTION_REFLECTION_SPACE_BIT = 1 << 11;
+    private static final int REFLECTION_MODE_HISTORY_STRICT_REJECT_BIT = 1 << 12;
+    private static final int REFLECTION_MODE_DISOCCLUSION_REJECT_BIT = 1 << 13;
+    private static final int REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT = 1 << 14;
+    private static final int REFLECTION_MODE_RT_ACTIVE_BIT = 1 << 15;
+    private static final int REFLECTION_MODE_TRANSPARENCY_INTEGRATION_BIT = 1 << 16;
+    private static final int REFLECTION_MODE_RT_MULTI_BOUNCE_BIT = 1 << 17;
     private final VulkanContext context = new VulkanContext();
     private final VulkanRuntimeWarningPolicy warningPolicy = new VulkanRuntimeWarningPolicy();
     private final VulkanRuntimeWarningPolicy.State warningState = new VulkanRuntimeWarningPolicy.State();
@@ -728,7 +743,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 )
         ));
         if (currentPost.reflectionsEnabled()) {
-            int reflectionBaseMode = currentPost.reflectionsMode() & 0x7;
+            int reflectionBaseMode = currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
             ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
             VulkanContext.ReflectionProbeDiagnostics probeDiagnostics = context.debugReflectionProbeDiagnostics();
             ReflectionProbeChurnDiagnostics churnDiagnostics = updateReflectionProbeChurnDiagnostics(probeDiagnostics);
@@ -816,8 +831,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + "(excluded=" + planarExcluded + ")"
                 ));
             }
-            reflectionRtLaneRequested = (currentPost.reflectionsMode() & (1 << 10)) != 0 || reflectionBaseMode == 4;
-            reflectionRtLaneActive = reflectionRtLaneRequested && !mockContext;
+            reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
+            reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled;
             reflectionRtFallbackChainActive = reflectionRtLaneActive ? "rt->ssr->probe" : "ssr->probe";
             if (reflectionRtLaneRequested || reflectionBaseMode == 4) {
                 warnings.add(new EngineWarning(
@@ -1515,6 +1530,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         } else {
             reflectionAdaptiveSeverityInstant = 0.0;
         }
+        int reflectionBaseMode = currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
+        ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
+        int planarEligible = overrideSummary.autoCount() + overrideSummary.otherCount();
+        reflectionTransparentCandidateCount = countReflectionTransparentCandidates(currentSceneMaterials);
+        reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
+        reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled;
+        int reflectionModeRuntime = composeReflectionExecutionMode(
+                currentPost.reflectionsMode(),
+                reflectionRtLaneActive,
+                planarEligible > 0,
+                reflectionTransparentCandidateCount > 0
+        );
 
         context.setPostProcessParameters(
                 currentPost.tonemapEnabled(),
@@ -1537,12 +1564,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 currentPost.taaSharpenStrength(),
                 currentPost.taaRenderScale(),
                 currentPost.reflectionsEnabled(),
-                currentPost.reflectionsMode(),
+                reflectionModeRuntime,
                 reflectionAdaptiveSsrStrengthActive,
                 currentPost.reflectionsSsrMaxRoughness(),
                 reflectionAdaptiveSsrStepScaleActive,
                 reflectionAdaptiveTemporalWeightActive,
-                currentPost.reflectionsPlanarStrength()
+                currentPost.reflectionsPlanarStrength(),
+                (float) reflectionRtDenoiseStrength
         );
     }
 
@@ -1562,8 +1590,59 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private static boolean isReflectionSsrPathActive(int reflectionsMode) {
-        int baseMode = reflectionsMode & 0x7;
+        int baseMode = reflectionsMode & REFLECTION_MODE_BASE_MASK;
         return baseMode == 1 || baseMode == 3 || baseMode == 4;
+    }
+
+    private int composeReflectionExecutionMode(
+            int configuredMode,
+            boolean rtLaneActive,
+            boolean planarSelectiveEligible,
+            boolean transparencyCandidatesPresent
+    ) {
+        int mode = configuredMode & (REFLECTION_MODE_BASE_MASK
+                | REFLECTION_MODE_HIZ_BIT
+                | REFLECTION_MODE_DENOISE_MASK
+                | REFLECTION_MODE_PLANAR_CLIP_BIT
+                | REFLECTION_MODE_PROBE_VOLUME_BIT
+                | REFLECTION_MODE_PROBE_BOX_BIT
+                | REFLECTION_MODE_RT_REQUEST_BIT);
+        if (reflectionRtMultiBounceEnabled) {
+            mode |= REFLECTION_MODE_RT_MULTI_BOUNCE_BIT;
+        }
+        if (rtLaneActive) {
+            mode |= REFLECTION_MODE_RT_ACTIVE_BIT;
+        }
+        if (planarSelectiveEligible) {
+            mode |= REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT;
+        }
+        if (transparencyCandidatesPresent && rtLaneActive) {
+            mode |= REFLECTION_MODE_TRANSPARENCY_INTEGRATION_BIT;
+        }
+        if (isReflectionSpaceReprojectionPolicyActive()) {
+            mode |= REFLECTION_MODE_REPROJECTION_REFLECTION_SPACE_BIT;
+        }
+        if (isStrictReflectionHistoryRejectPolicyActive()) {
+            mode |= REFLECTION_MODE_HISTORY_STRICT_REJECT_BIT;
+        }
+        if (isDisocclusionRejectPolicyActive()) {
+            mode |= REFLECTION_MODE_DISOCCLUSION_REJECT_BIT;
+        }
+        return mode;
+    }
+
+    private boolean isReflectionSpaceReprojectionPolicyActive() {
+        return "reflection_space_reject".equals(reflectionSsrTaaReprojectionPolicyActive)
+                || "reflection_space_bias".equals(reflectionSsrTaaReprojectionPolicyActive);
+    }
+
+    private boolean isStrictReflectionHistoryRejectPolicyActive() {
+        return "reflection_disocclusion_reject".equals(reflectionSsrTaaHistoryPolicyActive)
+                || "reflection_region_reject".equals(reflectionSsrTaaHistoryPolicyActive);
+    }
+
+    private boolean isDisocclusionRejectPolicyActive() {
+        return "reflection_disocclusion_reject".equals(reflectionSsrTaaHistoryPolicyActive);
     }
 
     private void resetReflectionAdaptiveState() {
@@ -1793,6 +1872,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     List<Integer> debugReflectionOverrideModes() {
         return context.debugGpuMeshReflectionOverrideModes();
+    }
+
+    int debugReflectionRuntimeMode() {
+        return context.debugReflectionsMode();
+    }
+
+    float debugReflectionRuntimeRtDenoiseStrength() {
+        return context.debugReflectionsRtDenoiseStrength();
     }
 
     ReflectionProbeDiagnostics debugReflectionProbeDiagnostics() {

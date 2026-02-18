@@ -568,7 +568,7 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
-    void rtReflectionRequestInMockContextUsesFallbackChainDiagnostics() throws Exception {
+    void rtReflectionRequestInMockContextActivatesExecutionLaneAndDenoisePath() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(
                 Map.entry("vulkan.mockContext", "true"),
@@ -581,15 +581,20 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
-        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_FALLBACK_ACTIVE".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_FALLBACK_ACTIVE".equals(w.code())));
         String rt = warningMessageByCode(frame, "REFLECTION_RT_PATH_REQUESTED");
         assertTrue(rt.contains("singleBounceEnabled=true"));
         assertTrue(rt.contains("multiBounceEnabled=true"));
         assertTrue(rt.contains("denoiseStrength=0.71"));
         var diagnostics = runtime.debugReflectionRtPathDiagnostics();
         assertTrue(diagnostics.laneRequested());
-        assertFalse(diagnostics.laneActive());
-        assertEquals("ssr->probe", diagnostics.fallbackChain());
+        assertTrue(diagnostics.laneActive());
+        assertEquals("rt->ssr->probe", diagnostics.fallbackChain());
+        int runtimeMode = runtime.debugReflectionRuntimeMode();
+        assertEquals(4, runtimeMode & 0x7);
+        assertTrue((runtimeMode & (1 << 15)) != 0);
+        assertTrue((runtimeMode & (1 << 17)) != 0);
+        assertEquals(0.71, runtime.debugReflectionRuntimeRtDenoiseStrength(), 1e-6);
         runtime.shutdown();
     }
 
@@ -609,6 +614,30 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.transparentCandidateCount() > 0);
         assertEquals("blocked_until_rt_minimal_stable", diagnostics.stageGateStatus());
         assertEquals("probe_only", diagnostics.fallbackPath());
+        runtime.shutdown();
+    }
+
+    @Test
+    void transparentCandidatesWithRtPathEnablePreviewStageGateAndRuntimeIntegrationBit() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validAlphaTestedReflectionsScene("rt_hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_STAGE_GATE".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_REFRACTION_PENDING".equals(w.code())));
+        String gate = warningMessageByCode(frame, "REFLECTION_TRANSPARENCY_STAGE_GATE");
+        assertTrue(gate.contains("status=preview_enabled"));
+        var diagnostics = runtime.debugReflectionTransparencyDiagnostics();
+        assertTrue(diagnostics.transparentCandidateCount() > 0);
+        assertEquals("preview_enabled", diagnostics.stageGateStatus());
+        assertEquals("rt_or_probe", diagnostics.fallbackPath());
+        int runtimeMode = runtime.debugReflectionRuntimeMode();
+        assertTrue((runtimeMode & (1 << 16)) != 0);
         runtime.shutdown();
     }
 
@@ -873,6 +902,9 @@ class VulkanEngineRuntimeIntegrationTest {
         var diagnostics = runtime.debugReflectionSsrTaaHistoryPolicyDiagnostics();
         assertEquals("reflection_region_reject", diagnostics.policy());
         assertEquals("reflection_space_reject", diagnostics.reprojectionPolicy());
+        int runtimeMode = runtime.debugReflectionRuntimeMode();
+        assertTrue((runtimeMode & (1 << 11)) != 0);
+        assertTrue((runtimeMode & (1 << 12)) != 0);
         assertEquals(99, diagnostics.rejectRiskStreakMin());
         assertTrue(diagnostics.latestRejectRate() >= 0.0);
         assertTrue(diagnostics.latestConfidenceMean() >= 0.0);

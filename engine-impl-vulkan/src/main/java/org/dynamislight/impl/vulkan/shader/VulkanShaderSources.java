@@ -1815,7 +1815,16 @@ public final class VulkanShaderSources {
                     vec3 sharpened = color + (color - blur) * amount;
                     return clamp(sharpened, vec3(0.0), vec3(1.0));
                 }
-                vec3 applyReflections(vec2 uv, vec3 color, float currentDepth, float historyConfidenceOut, int reflectionOverrideMode) {
+                vec3 applyReflections(
+                    vec2 uv,
+                    vec3 color,
+                    float currentDepth,
+                    float historyConfidenceOut,
+                    int reflectionOverrideMode,
+                    vec2 surfaceVelocityUv,
+                    float materialReactive,
+                    float disocclusionSignal
+                ) {
                     if (pc.reflectionsA.x < 0.5 || int(pc.reflectionsA.y + 0.5) == 0) {
                         return color;
                     }
@@ -1830,11 +1839,19 @@ public final class VulkanShaderSources {
                     bool probeVolumeEnabled = (packedMode & (1 << 8)) != 0;
                     bool probeBoxProjectionEnabled = (packedMode & (1 << 9)) != 0;
                     bool rtRequested = (packedMode & (1 << 10)) != 0;
+                    bool reflectionSpaceReprojection = (packedMode & (1 << 11)) != 0;
+                    bool strictHistoryReject = (packedMode & (1 << 12)) != 0;
+                    bool disocclusionRejectPolicy = (packedMode & (1 << 13)) != 0;
+                    bool planarSelectiveExec = (packedMode & (1 << 14)) != 0;
+                    bool rtActive = (packedMode & (1 << 15)) != 0;
+                    bool transparencyIntegration = (packedMode & (1 << 16)) != 0;
+                    bool rtMultiBounce = (packedMode & (1 << 17)) != 0;
                     vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
                     float roughnessProxy = clamp(1.0 - dot(color, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
                     float roughnessMask = 1.0 - smoothstep(clamp(pc.reflectionsA.w, 0.05, 1.0), 1.0, roughnessProxy);
                     float ssrStrength = clamp(pc.reflectionsA.z, 0.0, 1.0) * roughnessMask;
                     float stepScale = clamp(pc.reflectionsB.x, 0.5, 3.0);
+                    float rtDenoiseStrength = clamp(pc.reflectionsB.w, 0.0, 1.0);
                     vec2 rayDir = normalize(vec2((uv.x - 0.5) * 2.0, (0.5 - uv.y) * 2.0) + vec2(0.0001));
                     vec2 traceUv = uv;
                     vec3 ssrColor = color;
@@ -1868,9 +1885,25 @@ public final class VulkanShaderSources {
                     vec2 planarUv = vec2(uv.x, 1.0 - uv.y);
                     vec3 planarColor = texture(uSceneColor, planarUv).rgb;
                     float temporalWeight = clamp(pc.reflectionsB.y, 0.0, 0.98);
-                    vec3 historyColor = texture(uHistoryColor, clamp(uv + pc.motion.xy, vec2(0.0), vec2(1.0))).rgb;
-                    vec3 temporalColor = mix(ssrColor, historyColor, temporalWeight * clamp(historyConfidenceOut, 0.0, 1.0));
+                    vec2 reprojectionUv = clamp(uv + pc.motion.xy + surfaceVelocityUv * 0.20, vec2(0.0), vec2(1.0));
+                    if (reflectionSpaceReprojection) {
+                        vec2 reflectedMotion = vec2(-surfaceVelocityUv.x, surfaceVelocityUv.y);
+                        reprojectionUv = clamp(
+                            uv + pc.motion.xy + (reflectedMotion * 0.34) + (rayDir * texel * (2.0 + stepScale * 2.0)),
+                            vec2(0.0),
+                            vec2(1.0)
+                        );
+                    }
+                    vec3 historyColor = texture(uHistoryColor, reprojectionUv).rgb;
+                    float historyWeight = temporalWeight * clamp(historyConfidenceOut, 0.0, 1.0);
+                    float policyReject = strictHistoryReject ? clamp(0.35 + disocclusionSignal * 0.65, 0.0, 1.0) : 0.0;
+                    float disocclusionReject = disocclusionRejectPolicy ? clamp(disocclusionSignal * 0.90, 0.0, 1.0) : 0.0;
+                    historyWeight *= (1.0 - max(policyReject, disocclusionReject));
+                    vec3 temporalColor = mix(ssrColor, historyColor, historyWeight);
                     float planarStrength = clamp(pc.reflectionsB.z, 0.0, 1.0);
+                    if (planarSelectiveExec && reflectionOverrideMode != 0) {
+                        planarStrength = 0.0;
+                    }
                     if (planarClipEnabled) {
                         float planeFade = 1.0 - smoothstep(0.05, 0.75, currentDepth);
                         planarStrength *= planeFade;
@@ -1882,6 +1915,45 @@ public final class VulkanShaderSources {
                         float probeBlend = clamp(1.0 - dist, 0.0, 1.0) * 0.42;
                         planarColor = mix(planarColor, probeColor, probeBlend);
                     }
+                    vec3 rtColor = temporalColor;
+                    if (rtRequested && rtActive) {
+                        vec2 rtTraceUv = uv;
+                        float rtHit = 0.0;
+                        vec3 rtAccum = vec3(0.0);
+                        float rtAccumW = 0.0;
+                        int rtSteps = rtMultiBounce ? 28 : 20;
+                        for (int i = 0; i < rtSteps; i++) {
+                            float t = (float(i) + 1.0) / float(rtSteps);
+                            float stride = mix(0.8, 7.5, t * t) * stepScale;
+                            rtTraceUv = clamp(rtTraceUv + rayDir * texel * stride, vec2(0.0), vec2(1.0));
+                            vec3 c = textureLod(uSceneColor, rtTraceUv, 0.5 + roughnessProxy * 1.8).rgb;
+                            float d = texture(uVelocityColor, rtTraceUv).b;
+                            float w = (1.0 - t * 0.55) * (1.0 - smoothstep(0.004, 0.12, abs(d - currentDepth)));
+                            rtAccum += c * w;
+                            rtAccumW += w;
+                            rtHit = max(rtHit, w);
+                        }
+                        if (rtAccumW > 0.0001) {
+                            rtColor = rtAccum / rtAccumW;
+                        }
+                        if (rtMultiBounce) {
+                            vec2 bounceUv = clamp(rtTraceUv - rayDir * texel * 8.0, vec2(0.0), vec2(1.0));
+                            vec3 bounce = textureLod(uSceneColor, bounceUv, 1.0 + roughnessProxy * 2.2).rgb;
+                            rtColor = mix(rtColor, bounce, 0.22);
+                        }
+                        int rtDenoisePasses = max(1, denoisePasses);
+                        for (int i = 0; i < rtDenoisePasses; i++) {
+                            float radius = float(i + 1);
+                            vec2 o = texel * radius;
+                            vec3 n0 = texture(uSceneColor, clamp(rtTraceUv + vec2(o.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                            vec3 n1 = texture(uSceneColor, clamp(rtTraceUv - vec2(o.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                            vec3 n2 = texture(uSceneColor, clamp(rtTraceUv + vec2(0.0, o.y), vec2(0.0), vec2(1.0))).rgb;
+                            vec3 n3 = texture(uSceneColor, clamp(rtTraceUv - vec2(0.0, o.y), vec2(0.0), vec2(1.0))).rgb;
+                            vec3 cross = (n0 + n1 + n2 + n3) * 0.25;
+                            rtColor = mix(rtColor, cross, 0.25 + rtDenoiseStrength * 0.45);
+                        }
+                        temporalColor = mix(temporalColor, rtColor, clamp(rtHit * 1.20, 0.0, 1.0));
+                    }
                     vec3 reflected = color;
                     if (mode == 1) {
                         reflected = mix(color, temporalColor, ssrStrength * clamp(ssrHit * 1.15, 0.0, 1.0));
@@ -1890,10 +1962,19 @@ public final class VulkanShaderSources {
                     } else {
                         vec3 hybrid = mix(temporalColor, planarColor, planarStrength);
                         float hybridWeight = clamp(max(ssrStrength, planarStrength), 0.0, 1.0);
-                        if (mode == 4 || rtRequested) {
+                        if (mode == 4 || rtRequested || rtActive) {
                             hybridWeight = clamp(hybridWeight * 1.08, 0.0, 1.0);
                         }
                         reflected = mix(color, hybrid, hybridWeight);
+                    }
+                    if (transparencyIntegration && reflectionOverrideMode != 1) {
+                        float transparencyWeight = clamp(materialReactive * 1.15, 0.0, 1.0);
+                        vec2 refractOffset = (surfaceVelocityUv * 0.08) + (rayDir * texel * (2.0 + currentDepth * 10.0));
+                        vec3 refracted = texture(uSceneColor, clamp(uv - refractOffset, vec2(0.0), vec2(1.0))).rgb;
+                        vec3 reflectionSource = rtActive ? rtColor : planarColor;
+                        float fresnel = clamp(0.04 + pow(clamp(1.0 - currentDepth, 0.0, 1.0), 5.0) * 0.92, 0.04, 1.0);
+                        vec3 transparentComposite = mix(refracted, reflectionSource, fresnel);
+                        reflected = mix(reflected, transparentComposite, transparencyWeight * 0.78);
                     }
                     return clamp(reflected, vec3(0.0), vec3(1.0));
                 }
@@ -1904,6 +1985,8 @@ public final class VulkanShaderSources {
                     float currentDepth = centerVelocitySample.b;
                     int reflectionOverrideMode = int(clamp(floor(sceneSample.a * 3.0 + 0.5), 0.0, 3.0));
                     float centerMaterialReactive = clamp(centerVelocitySample.a, 0.0, 1.0);
+                    vec2 centerVelocityUv = centerVelocitySample.rg * 2.0 - 1.0;
+                    float reflectionDisocclusionSignal = 0.0;
                     float historyConfidenceOut = 1.0;
                     if (pc.tonemap.x > 0.5) {
                         float exposure = max(pc.tonemap.y, 0.0001);
@@ -1954,7 +2037,7 @@ public final class VulkanShaderSources {
                         bool taaLumaClip = pc.motion.z >= 1.0;
                         float taaSharpenStrength = clamp(pc.motion.z - (taaLumaClip ? 1.0 : 0.0), 0.0, 0.35);
                         vec4 velocitySample = centerVelocitySample;
-                        vec2 velocityUv = velocitySample.rg * 2.0 - 1.0;
+                        vec2 velocityUv = centerVelocityUv;
                         float materialReactive = centerMaterialReactive;
                         vec2 historyUv = clamp(vUv + pc.smaa.zw + pc.motion.xy + (velocityUv * 0.5), vec2(0.0), vec2(1.0));
                         vec4 historySample = texture(uHistoryColor, historyUv);
@@ -2017,6 +2100,7 @@ public final class VulkanShaderSources {
                             }
                         }
                         float disocclusionReject = smoothstep(0.0012, 0.0095, abs(historyDepth - currentDepth) + depthEdge * (0.9 + upsamplePenalty * 0.65));
+                        reflectionDisocclusionSignal = disocclusionReject;
                         float instability = clamp(
                                 abs(lCurr - lHist) * 1.9 +
                                         varianceReject * 1.15 +
@@ -2061,7 +2145,16 @@ public final class VulkanShaderSources {
                             color = mix(color, vec3(1.0, 1.0, 0.2), line * 0.65);
                         }
                     }
-                    color = applyReflections(vUv, color, currentDepth, historyConfidenceOut, reflectionOverrideMode);
+                    color = applyReflections(
+                        vUv,
+                        color,
+                        currentDepth,
+                        historyConfidenceOut,
+                        reflectionOverrideMode,
+                        centerVelocityUv,
+                        centerMaterialReactive,
+                        reflectionDisocclusionSignal
+                    );
                     outColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);
                 }
                 """;

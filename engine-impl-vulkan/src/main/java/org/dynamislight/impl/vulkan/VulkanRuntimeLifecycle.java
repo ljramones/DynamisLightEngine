@@ -212,7 +212,8 @@ final class VulkanRuntimeLifecycle {
                 state.post().reflectionsSsrMaxRoughness(),
                 state.post().reflectionsSsrStepScale(),
                 state.post().reflectionsTemporalWeight(),
-                state.post().reflectionsPlanarStrength()
+                state.post().reflectionsPlanarStrength(),
+                0.65f
         );
         context.setSceneMeshes(state.sceneMeshes());
         context.setPlannedWorkload(state.plannedDrawCalls(), state.plannedTriangles(), state.plannedVisibleObjects());

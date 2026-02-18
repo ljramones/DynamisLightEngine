@@ -115,6 +115,7 @@ public final class VulkanRenderParameterMutator {
         float reflectionsSsrStepScale = current.reflectionsSsrStepScale();
         float reflectionsTemporalWeight = current.reflectionsTemporalWeight();
         float reflectionsPlanarStrength = current.reflectionsPlanarStrength();
+        float reflectionsRtDenoiseStrength = current.reflectionsRtDenoiseStrength();
 
         if (tonemapEnabled != update.tonemapEnabled()) {
             tonemapEnabled = update.tonemapEnabled();
@@ -199,7 +200,7 @@ public final class VulkanRenderParameterMutator {
             reflectionsEnabled = update.reflectionsEnabled();
             changed = true;
         }
-        int clampedReflectionsMode = Math.max(0, Math.min(2047, update.reflectionsMode()));
+        int clampedReflectionsMode = Math.max(0, Math.min(262143, update.reflectionsMode()));
         if (reflectionsMode != clampedReflectionsMode) {
             reflectionsMode = clampedReflectionsMode;
             changed = true;
@@ -209,16 +210,19 @@ public final class VulkanRenderParameterMutator {
         float clampedReflectionsSsrStepScale = Math.max(0.5f, Math.min(3.0f, update.reflectionsSsrStepScale()));
         float clampedReflectionsTemporalWeight = Math.max(0f, Math.min(0.98f, update.reflectionsTemporalWeight()));
         float clampedReflectionsPlanarStrength = Math.max(0f, Math.min(1.0f, update.reflectionsPlanarStrength()));
+        float clampedReflectionsRtDenoiseStrength = Math.max(0f, Math.min(1.0f, update.reflectionsRtDenoiseStrength()));
         if (!floatEquals(reflectionsSsrStrength, clampedReflectionsSsrStrength)
                 || !floatEquals(reflectionsSsrMaxRoughness, clampedReflectionsSsrMaxRoughness)
                 || !floatEquals(reflectionsSsrStepScale, clampedReflectionsSsrStepScale)
                 || !floatEquals(reflectionsTemporalWeight, clampedReflectionsTemporalWeight)
-                || !floatEquals(reflectionsPlanarStrength, clampedReflectionsPlanarStrength)) {
+                || !floatEquals(reflectionsPlanarStrength, clampedReflectionsPlanarStrength)
+                || !floatEquals(reflectionsRtDenoiseStrength, clampedReflectionsRtDenoiseStrength)) {
             reflectionsSsrStrength = clampedReflectionsSsrStrength;
             reflectionsSsrMaxRoughness = clampedReflectionsSsrMaxRoughness;
             reflectionsSsrStepScale = clampedReflectionsSsrStepScale;
             reflectionsTemporalWeight = clampedReflectionsTemporalWeight;
             reflectionsPlanarStrength = clampedReflectionsPlanarStrength;
+            reflectionsRtDenoiseStrength = clampedReflectionsRtDenoiseStrength;
             changed = true;
         }
         return new PostResult(
@@ -227,7 +231,7 @@ public final class VulkanRenderParameterMutator {
                         ssaoEnabled, ssaoStrength, ssaoRadius, ssaoBias, ssaoPower,
                         smaaEnabled, smaaStrength, taaEnabled, taaBlend, taaClipScale, taaRenderScale, taaLumaClipEnabled, taaSharpenStrength,
                         reflectionsEnabled, reflectionsMode, reflectionsSsrStrength, reflectionsSsrMaxRoughness,
-                        reflectionsSsrStepScale, reflectionsTemporalWeight, reflectionsPlanarStrength
+                        reflectionsSsrStepScale, reflectionsTemporalWeight, reflectionsPlanarStrength, reflectionsRtDenoiseStrength
                 ),
                 changed
         );
@@ -309,7 +313,8 @@ public final class VulkanRenderParameterMutator {
             float reflectionsSsrMaxRoughness,
             float reflectionsSsrStepScale,
             float reflectionsTemporalWeight,
-            float reflectionsPlanarStrength
+            float reflectionsPlanarStrength,
+            float reflectionsRtDenoiseStrength
     ) {
     }
 
@@ -339,7 +344,8 @@ public final class VulkanRenderParameterMutator {
             float reflectionsSsrMaxRoughness,
             float reflectionsSsrStepScale,
             float reflectionsTemporalWeight,
-            float reflectionsPlanarStrength
+            float reflectionsPlanarStrength,
+            float reflectionsRtDenoiseStrength
     ) {
     }
 

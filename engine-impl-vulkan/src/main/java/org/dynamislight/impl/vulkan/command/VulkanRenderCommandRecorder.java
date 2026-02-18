@@ -656,7 +656,7 @@ public final class VulkanRenderCommandRecorder {
                 in.taaClipScale(),
                 in.taaEnabled() ? 1f : 0f, in.taaBlend(), in.taaHistoryInitialized() ? 1f : 0f, (float) in.taaDebugView()
                 , in.reflectionsEnabled() ? 1f : 0f, (float) in.reflectionsMode(), in.reflectionsSsrStrength(), in.reflectionsSsrMaxRoughness()
-                , in.reflectionsSsrStepScale(), in.reflectionsTemporalWeight(), in.reflectionsPlanarStrength(), 0f
+                , in.reflectionsSsrStepScale(), in.reflectionsTemporalWeight(), in.reflectionsPlanarStrength(), in.reflectionsRtDenoiseStrength()
         });
         vkCmdPushConstants(commandBuffer, in.postPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, postPush);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -953,6 +953,7 @@ public final class VulkanRenderCommandRecorder {
             float reflectionsSsrStepScale,
             float reflectionsTemporalWeight,
             float reflectionsPlanarStrength,
+            float reflectionsRtDenoiseStrength,
             int taaDebugView,
             long postRenderPass,
             long postGraphicsPipeline,

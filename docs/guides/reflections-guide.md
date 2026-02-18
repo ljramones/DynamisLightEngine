@@ -36,7 +36,7 @@ This guide covers reflection controls in `PostProcessDesc`.
 - `ssr`: screen-space reflections only.
 - `planar`: mirrored screen-space planar sample.
 - `hybrid`: SSR + planar blend.
-- `rt_hybrid`: requests RT reflection path with fallback stack (current backends execute fallback with RT-oriented tuning).
+- `rt_hybrid`: requests RT reflection path with SSR/probe fallback stack.
 
 Advanced reflection flags are packed into runtime mode bits internally, so both OpenGL and Vulkan consume the same high-level API payload without expanding post-pass constant buffers.
 
@@ -102,8 +102,9 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan now emits a formal SSR/TAA reprojection policy signal (`surface_motion_vectors`, `reflection_space_bias`, `reflection_space_reject`) in history-policy diagnostics, including disocclusion-driven rejection gates.
 - Vulkan now emits probe quality sweep diagnostics (`REFLECTION_PROBE_QUALITY_SWEEP`) and envelope breach warnings (`REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`) based on overlap/priority analysis of configured probe volumes.
 - Vulkan now emits planar scope/order contracts (`REFLECTION_PLANAR_SCOPE_CONTRACT`) including selective mesh eligibility and required pass order contract.
-- Vulkan now emits RT reflection lane diagnostics (`REFLECTION_RT_PATH_REQUESTED`, `REFLECTION_RT_PATH_FALLBACK_ACTIVE`) with configured single/multi-bounce and fallback chain.
-- Vulkan now emits transparency/refraction stage-gate diagnostics (`REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) until RT-minimal lane is considered active.
+- Vulkan now executes runtime-composed reflection mode bits for reflection-space reprojection/reject policy, selective planar execution, RT lane activation, and transparent/refraction integration.
+- Vulkan RT hybrid now executes an active RT-oriented reflection trace + denoise path in post shader, with fallback diagnostics only when the lane is disabled.
+- Vulkan now emits transparency/refraction stage-gate diagnostics (`REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) and activates `preview_enabled` integration when RT lane is active.
 - Warnings are emitted when reflections are active:
   - `REFLECTIONS_BASELINE_ACTIVE`
   - `REFLECTIONS_QUALITY_DEGRADED` (MEDIUM tier)
@@ -114,6 +115,6 @@ PostProcessDesc post = new PostProcessDesc(
   - `REFLECTION_SSR_TAA_HISTORY_POLICY` (history-policy mode + bias diagnostics)
   - `REFLECTION_PROBE_QUALITY_SWEEP` / `REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`
   - `REFLECTION_PLANAR_SCOPE_CONTRACT`
-  - `REFLECTION_RT_PATH_REQUESTED` / `REFLECTION_RT_PATH_FALLBACK_ACTIVE`
+  - `REFLECTION_RT_PATH_REQUESTED` / `REFLECTION_RT_PATH_FALLBACK_ACTIVE` (only when lane unavailable)
   - `REFLECTION_TRANSPARENCY_STAGE_GATE` / `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`
 - High-risk/fail adaptive trend warnings now also emit `PerformanceWarningEvent` callbacks in Vulkan for parser-free host/CI alerting.

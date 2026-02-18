@@ -35,7 +35,7 @@ This document defines reflection validation for OpenGL and Vulkan.
 - `planar` scene: confirm vertical mirror sample behavior.
 - `hybrid` scene: confirm stable blend under camera motion.
 - `hybrid_hiz_probe` scene: confirm Hi-Z SSR stepping + denoise + probe blending remains bounded.
-- `rt_hybrid` scene: confirm RT-request lane falls back predictably with bounded parity diff.
+- `rt_hybrid` scene: confirm RT lane activates and denoise path is applied with bounded parity diff.
 
 ## Commands
 
@@ -92,13 +92,14 @@ Current profile tags in parity tests:
 - Assert `REFLECTION_PLANAR_SCOPE_CONTRACT` for planar/hybrid modes reports required ordering contract and selective scope counts.
 - Validate typed diagnostics (`debugReflectionPlanarContractDiagnostics`) match warning payload.
 
-7. RT minimal fallback checks
-- In mock/non-RT contexts, assert `REFLECTION_RT_PATH_REQUESTED` plus `REFLECTION_RT_PATH_FALLBACK_ACTIVE`.
-- Validate typed diagnostics (`debugReflectionRtPathDiagnostics`) expose lane request/active state and fallback chain.
+7. RT execution-lane checks
+- Assert `REFLECTION_RT_PATH_REQUESTED` and typed diagnostics (`debugReflectionRtPathDiagnostics`) expose lane request/active state and fallback chain.
+- Assert runtime-composed reflection mode bits expose RT active/multi-bounce flags (`debugReflectionRuntimeMode`) and denoise strength (`debugReflectionRuntimeRtDenoiseStrength`).
+- Assert fallback warning (`REFLECTION_RT_PATH_FALLBACK_ACTIVE`) only when RT lane is explicitly unavailable.
 
 8. Transparency/refraction stage-gate checks
 - For alpha-tested/transparent candidates, assert `REFLECTION_TRANSPARENCY_STAGE_GATE` is emitted.
-- Assert pending warning (`REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) when RT lane is not active.
+- Assert pending warning (`REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) when RT lane is not active, and `preview_enabled` + `rt_or_probe` fallback when RT lane is active.
 - Validate typed diagnostics (`debugReflectionTransparencyDiagnostics`) for candidate count/status/fallback path.
 
 ## Regression Triggers
