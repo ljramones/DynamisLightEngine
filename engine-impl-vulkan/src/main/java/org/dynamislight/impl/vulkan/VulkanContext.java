@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1524,6 +1525,7 @@ final class VulkanContext {
         if (backendResources.device == null || slotCount <= 0 || slots.isEmpty()) {
             return iblState.radianceTexture;
         }
+        boolean probeCubeArrayEnabled = Boolean.getBoolean("dle.vulkan.reflections.probeCubeArrayEnabled");
         String[] pathBySlot = new String[slotCount];
         for (Map.Entry<String, Integer> entry : slots.entrySet()) {
             int slot = entry.getValue() == null ? -1 : entry.getValue();
@@ -1531,33 +1533,54 @@ final class VulkanContext {
                 pathBySlot[slot] = entry.getKey();
             }
         }
-        List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> layers = new ArrayList<>(slotCount);
+        List<ProbeSlotPixels> slotPixels = new ArrayList<>(slotCount);
         int layerWidth = -1;
         int layerHeight = -1;
         for (int i = 0; i < slotCount; i++) {
             org.dynamislight.impl.vulkan.model.VulkanTexturePixelData pixels = null;
+            List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> cubeFaces = null;
             String rawPath = pathBySlot[i];
             if (rawPath != null && !rawPath.isBlank()) {
                 try {
                     pixels = VulkanTexturePixelLoader.loadTexturePixels(Path.of(rawPath));
+                    if (probeCubeArrayEnabled) {
+                        cubeFaces = loadProbeCubeFaces(rawPath);
+                    }
                 } catch (RuntimeException ignored) {
                     pixels = null;
+                    cubeFaces = null;
                 }
             }
-            if (pixels != null && layerWidth < 0) {
-                layerWidth = pixels.width();
-                layerHeight = pixels.height();
+            if (layerWidth < 0) {
+                if (cubeFaces != null && !cubeFaces.isEmpty()) {
+                    layerWidth = cubeFaces.get(0).width();
+                    layerHeight = cubeFaces.get(0).height();
+                } else if (pixels != null) {
+                    layerWidth = pixels.width();
+                    layerHeight = pixels.height();
+                }
             }
-            layers.add(pixels);
+            slotPixels.add(new ProbeSlotPixels(pixels, cubeFaces));
         }
         if (layerWidth <= 0 || layerHeight <= 0) {
-            freePixelLayers(layers);
+            freeProbeSlotPixels(slotPixels);
             return iblState.radianceTexture;
         }
         int layerBytes = layerWidth * layerHeight * 4;
+        boolean cubePathReady = probeCubeArrayEnabled;
+        if (probeCubeArrayEnabled) {
+            for (ProbeSlotPixels slot : slotPixels) {
+                if (slot.cubeFaces == null || slot.cubeFaces.size() != 6 || !allFacesMatchDimensions(slot.cubeFaces, layerWidth, layerHeight, layerBytes)) {
+                    cubePathReady = false;
+                    break;
+                }
+            }
+        }
         List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> normalizedLayers = new ArrayList<>(slotCount);
+        List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> cubeFaceLayers = new ArrayList<>(slotCount * 6);
         for (int i = 0; i < slotCount; i++) {
-            org.dynamislight.impl.vulkan.model.VulkanTexturePixelData layer = layers.get(i);
+            ProbeSlotPixels slot = slotPixels.get(i);
+            org.dynamislight.impl.vulkan.model.VulkanTexturePixelData layer = slot.layer;
             if (layer != null && layer.width() == layerWidth && layer.height() == layerHeight && layer.data().remaining() == layerBytes) {
                 normalizedLayers.add(layer);
             } else {
@@ -1568,21 +1591,74 @@ final class VulkanContext {
                 fallback.flip();
                 normalizedLayers.add(new org.dynamislight.impl.vulkan.model.VulkanTexturePixelData(fallback, layerWidth, layerHeight));
             }
+            if (cubePathReady) {
+                for (org.dynamislight.impl.vulkan.model.VulkanTexturePixelData face : slot.cubeFaces) {
+                    cubeFaceLayers.add(face);
+                }
+            }
         }
         try {
-            return VulkanTextureResourceOps.createTextureArrayFromPixels(
-                    normalizedLayers,
-                    new VulkanTextureResourceOps.Context(
-                            backendResources.device,
-                            backendResources.physicalDevice,
-                            backendResources.commandPool,
-                            backendResources.graphicsQueue,
-                            this::vkFailure
-                    )
+            VulkanTextureResourceOps.Context context = new VulkanTextureResourceOps.Context(
+                    backendResources.device,
+                    backendResources.physicalDevice,
+                    backendResources.commandPool,
+                    backendResources.graphicsQueue,
+                    this::vkFailure
             );
+            if (cubePathReady && !cubeFaceLayers.isEmpty()) {
+                return VulkanTextureResourceOps.createCubeTextureArrayFromPixels(cubeFaceLayers, context);
+            }
+            return VulkanTextureResourceOps.createTextureArrayFromPixels(normalizedLayers, context);
         } finally {
+            freeProbeSlotPixels(slotPixels);
             freePixelLayers(normalizedLayers);
         }
+    }
+
+    private static boolean allFacesMatchDimensions(
+            List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> faces,
+            int width,
+            int height,
+            int layerBytes
+    ) {
+        if (faces == null || faces.size() != 6) {
+            return false;
+        }
+        for (org.dynamislight.impl.vulkan.model.VulkanTexturePixelData face : faces) {
+            if (face == null || face.width() != width || face.height() != height || face.data().remaining() != layerBytes) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> loadProbeCubeFaces(String rawPath) {
+        if (rawPath == null || rawPath.isBlank()) {
+            return null;
+        }
+        Path source = Paths.get(rawPath);
+        String file = source.getFileName() == null ? null : source.getFileName().toString();
+        if (file == null || file.isBlank()) {
+            return null;
+        }
+        int dot = file.lastIndexOf('.');
+        if (dot <= 0) {
+            return null;
+        }
+        String stem = file.substring(0, dot);
+        String ext = file.substring(dot);
+        String[] suffixes = new String[]{"px", "nx", "py", "ny", "pz", "nz"};
+        List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> faces = new ArrayList<>(6);
+        for (String suffix : suffixes) {
+            Path facePath = source.resolveSibling(stem + "_" + suffix + ext);
+            org.dynamislight.impl.vulkan.model.VulkanTexturePixelData face = VulkanTexturePixelLoader.loadTexturePixels(facePath);
+            if (face == null) {
+                freePixelLayers(faces);
+                return null;
+            }
+            faces.add(face);
+        }
+        return faces;
     }
 
     private static void freePixelLayers(List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> layers) {
@@ -1591,6 +1667,20 @@ final class VulkanContext {
                 continue;
             }
             MemoryUtil.memFree(layer.data());
+        }
+    }
+
+    private static void freeProbeSlotPixels(List<ProbeSlotPixels> slots) {
+        for (ProbeSlotPixels slot : slots) {
+            if (slot == null) {
+                continue;
+            }
+            if (slot.layer != null) {
+                MemoryUtil.memFree(slot.layer.data());
+            }
+            if (slot.cubeFaces != null) {
+                freePixelLayers(slot.cubeFaces);
+            }
         }
     }
 
@@ -1628,6 +1718,12 @@ final class VulkanContext {
             return false;
         }
         return a.image() == b.image() && a.view() == b.view() && a.sampler() == b.sampler();
+    }
+
+    private record ProbeSlotPixels(
+            org.dynamislight.impl.vulkan.model.VulkanTexturePixelData layer,
+            List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> cubeFaces
+    ) {
     }
 
     private static int clamp(int value, int min, int max) {
