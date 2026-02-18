@@ -13,9 +13,10 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 - `shadow-quality-matrix` (graphical shadow quality comparison lane)
 - `aa-motion-stress` (graphical AA stress lane)
 - `reflections-ssr-hiz` (graphical SSR + Hi-Z lane)
+- `reflections-planar` (graphical planar reflection lane)
 - `aa-matrix` (graphical AA configuration/telemetry)
 
-Current count: `10` demos (`10` graphical)
+Current count: `11` demos (`11` graphical)
 
 ## Target Demo Set
 

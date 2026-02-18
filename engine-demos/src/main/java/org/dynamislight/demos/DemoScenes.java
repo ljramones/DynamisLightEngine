@@ -695,6 +695,87 @@ final class DemoScenes {
         );
     }
 
+    static SceneDescriptor reflectionsPlanarScene() {
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 1.5f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 1000f);
+
+        List<TransformDesc> transforms = new ArrayList<>();
+        List<MeshDesc> meshes = new ArrayList<>();
+        List<MaterialDesc> materials = new ArrayList<>();
+
+        transforms.add(new TransformDesc("floor", new Vec3(0f, -0.95f, -5.2f), new Vec3(0f, 0f, 0f), new Vec3(9.0f, 0.12f, 9.0f)));
+        meshes.add(new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-floor", new Vec3(0.16f, 0.18f, 0.21f), 0.03f, 0.98f, null, null));
+
+        transforms.add(new TransformDesc("pillar-a", new Vec3(-1.8f, 0.2f, -3.7f), new Vec3(0f, 20f, 0f), new Vec3(0.8f, 1.5f, 0.8f)));
+        meshes.add(new MeshDesc("mesh-pillar-a", "pillar-a", "mat-pillar-a", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-pillar-a", new Vec3(0.82f, 0.36f, 0.28f), 0.14f, 0.74f, null, null));
+
+        transforms.add(new TransformDesc("pillar-b", new Vec3(1.9f, 0.25f, -4.2f), new Vec3(0f, -24f, 0f), new Vec3(0.9f, 1.3f, 0.9f)));
+        meshes.add(new MeshDesc("mesh-pillar-b", "pillar-b", "mat-pillar-b", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-pillar-b", new Vec3(0.30f, 0.58f, 0.86f), 0.11f, 0.68f, null, null));
+
+        transforms.add(new TransformDesc("center", new Vec3(0.0f, 0.35f, -5.1f), new Vec3(0f, 35f, 0f), new Vec3(1.2f, 0.75f, 1.2f)));
+        meshes.add(new MeshDesc("mesh-center", "center", "mat-center", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-center", new Vec3(0.80f, 0.83f, 0.88f), 0.08f, 0.92f, null, null));
+
+        ShadowDesc directionalShadow = new ShadowDesc(1536, 0.0011f, 5, 3);
+        LightDesc sun = new LightDesc(
+                "sun",
+                new Vec3(0f, 11f, 0f),
+                new Vec3(1f, 0.97f, 0.92f),
+                1.10f,
+                110f,
+                true,
+                directionalShadow
+        );
+        LightDesc accentA = new LightDesc("accent-a", new Vec3(-2.8f, 2.1f, -3.0f), new Vec3(0.30f, 0.58f, 1.0f), 0.88f, 8.0f, false, null);
+        LightDesc accentB = new LightDesc("accent-b", new Vec3(2.9f, 2.2f, -6.2f), new Vec3(1.0f, 0.44f, 0.35f), 0.88f, 8.0f, false, null);
+
+        ReflectionDesc reflections = new ReflectionDesc(true, "planar", 0.84f, 0.92f, 1.0f, 0.90f, 0.12f);
+        ReflectionAdvancedDesc reflectionAdvanced = new ReflectionAdvancedDesc(
+                true,   // hiZEnabled
+                5,      // hiZMipCount
+                2,      // denoisePasses
+                true,   // planarClipPlaneEnabled
+                -0.90f, // planarPlaneHeight
+                0.2f,   // planarFadeStart
+                7.0f,   // planarFadeEnd
+                false,  // probeVolumeEnabled
+                false,  // probeBoxProjectionEnabled
+                2.0f,   // probeBlendDistance
+                false,  // rtEnabled
+                0.75f,  // rtMaxRoughness
+                "ssr"   // rtFallbackMode
+        );
+
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.06f, 0.08f, 0.11f), 0.28f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        PostProcessDesc post = new PostProcessDesc(
+                true, true, 1.03f, 2.1f,
+                true, 0.90f, 0.72f,
+                true, 0.52f, 1.0f, 0.02f, 1.10f,
+                false, 0.0f,
+                true, 0.80f, false,
+                null,
+                reflections,
+                reflectionAdvanced
+        );
+
+        return new SceneDescriptor(
+                "demo-scene-reflections-planar",
+                List.of(camera),
+                "main-cam",
+                transforms,
+                meshes,
+                materials,
+                List.of(sun, accentA, accentB),
+                environment,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
     static SceneDescriptor sceneWithAa(String aaMode, boolean postEnabled, float blend, float renderScale) {
         CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 1.5f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 1000f);
         TransformDesc triangleTransform = new TransformDesc("triangle", new Vec3(0f, 0f, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f));
