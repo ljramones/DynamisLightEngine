@@ -267,6 +267,30 @@ final class VulkanContext {
         return taaConfidenceDropEvents;
     }
 
+    List<Integer> debugGpuMeshReflectionOverrideModes() {
+        if (!sceneResources.gpuMeshes.isEmpty()) {
+            List<Integer> modes = new ArrayList<>(sceneResources.gpuMeshes.size());
+            for (VulkanGpuMesh mesh : sceneResources.gpuMeshes) {
+                if (mesh == null) {
+                    continue;
+                }
+                modes.add(Math.max(0, Math.min(3, mesh.reflectionOverrideMode)));
+            }
+            return List.copyOf(modes);
+        }
+        if (sceneResources.pendingSceneMeshes == null || sceneResources.pendingSceneMeshes.isEmpty()) {
+            return List.of();
+        }
+        List<Integer> modes = new ArrayList<>(sceneResources.pendingSceneMeshes.size());
+        for (VulkanSceneMeshData mesh : sceneResources.pendingSceneMeshes) {
+            if (mesh == null) {
+                continue;
+            }
+            modes.add(Math.max(0, Math.min(3, mesh.reflectionOverrideMode())));
+        }
+        return List.copyOf(modes);
+    }
+
     void resize(int width, int height) throws EngineException {
         if (backendResources.device == null || backendResources.swapchain == VK_NULL_HANDLE) {
             return;

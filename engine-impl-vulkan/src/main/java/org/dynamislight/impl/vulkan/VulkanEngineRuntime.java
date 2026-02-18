@@ -368,8 +368,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowAllocatorReusedAssignments = sceneState.lighting().shadowAllocatorReusedAssignments();
         shadowAllocatorEvictions = sceneState.lighting().shadowAllocatorEvictions();
         updateShadowSchedulerTicks(currentShadows.renderedShadowLightIdsCsv());
+        VulkanRuntimeLifecycle.applySceneToContext(context, sceneState);
         if (!mockContext) {
-            VulkanRuntimeLifecycle.applySceneToContext(context, sceneState);
             currentShadows = withRuntimeMomentPipelineState(currentShadows);
             context.setShadowQualityModes(
                     currentShadows.runtimeFilterPath(),
@@ -778,6 +778,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 context.configuredDescriptorRingMaxSetCapacity(),
                 meshGeometryCacheMaxEntries
         );
+    }
+
+    List<Integer> debugReflectionOverrideModes() {
+        return context.debugGpuMeshReflectionOverrideModes();
     }
 
     static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {

@@ -34,6 +34,7 @@ import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.ReflectionDesc;
+import org.dynamislight.api.scene.ReflectionOverrideMode;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
@@ -301,6 +302,33 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionOverrideModesAreMappedIntoRuntimeMeshState() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validMaterialOverrideReflectionScene(ReflectionOverrideMode.PROBE_ONLY));
+
+        runtime.render();
+
+        assertEquals(List.of(1), runtime.debugReflectionOverrideModes());
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionOverrideModesUpdateThroughDynamicSceneReloadPath() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validMaterialOverrideReflectionScene(ReflectionOverrideMode.AUTO));
+        runtime.render();
+        assertEquals(List.of(0), runtime.debugReflectionOverrideModes());
+
+        runtime.loadScene(validMaterialOverrideReflectionScene(ReflectionOverrideMode.SSR_ONLY));
+        runtime.render();
+
+        assertEquals(List.of(2), runtime.debugReflectionOverrideModes());
         runtime.shutdown();
     }
 
@@ -1767,6 +1795,41 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.fog(),
                 base.smokeEmitters(),
                 post
+        );
+    }
+
+    private static SceneDescriptor validMaterialOverrideReflectionScene(ReflectionOverrideMode overrideMode) {
+        SceneDescriptor base = validReflectionsScene("hybrid");
+        MaterialDesc mat = new MaterialDesc(
+                "mat",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0f,
+                false,
+                false,
+                1.0f,
+                1.0f,
+                1.0f,
+                null,
+                overrideMode
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(mat),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
         );
     }
 
