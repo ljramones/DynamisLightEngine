@@ -103,6 +103,8 @@ import static org.lwjgl.opengl.GL33.glGenQueries;
 import static org.lwjgl.opengl.GL33.glGetQueryObjecti64;
 import static org.lwjgl.opengl.GL14.GL_TEXTURE_COMPARE_MODE;
 import static org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE;
+import static org.lwjgl.opengl.GL12.GL_TEXTURE_MAX_LEVEL;
+import static org.lwjgl.opengl.GL21.GL_SRGB8_ALPHA8;
 import static org.lwjgl.opengl.GL30.GL_FRAMEBUFFER_COMPLETE;
 import static org.lwjgl.stb.STBImage.stbi_image_free;
 import static org.lwjgl.stb.STBImage.stbi_info;
@@ -2660,7 +2662,7 @@ final class OpenGlContext {
 
         TextureData albedoTexture = mesh.preloadedAlbedoTextureId() != 0
                 ? new TextureData(mesh.preloadedAlbedoTextureId(), 0, 0)
-                : loadTexture(mesh.albedoTexturePath());
+                : loadTexture(mesh.albedoTexturePath(), true);
         TextureData normalTexture = mesh.preloadedNormalTextureId() != 0
                 ? new TextureData(mesh.preloadedNormalTextureId(), 0, 0)
                 : loadTexture(mesh.normalTexturePath());
@@ -2703,12 +2705,16 @@ final class OpenGlContext {
     }
 
     private TextureData loadTexture(Path texturePath) {
+        return loadTexture(texturePath, false);
+    }
+
+    private TextureData loadTexture(Path texturePath, boolean sRgb) {
         Path sourcePath = texturePath;
         if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
             return new TextureData(0, 0, 0);
         }
         if (isKtxContainerPath(sourcePath)) {
-            TextureData decoded = loadTextureFromKtx(sourcePath);
+            TextureData decoded = loadTextureFromKtx(sourcePath, sRgb);
             if (decoded.id() != 0) {
                 return decoded;
             }
@@ -2720,15 +2726,15 @@ final class OpenGlContext {
         try {
             BufferedImage image = ImageIO.read(sourcePath.toFile());
             if (image != null) {
-                return uploadBufferedImageTexture(image);
+                return uploadBufferedImageTexture(image, sRgb);
             }
         } catch (IOException ignored) {
             // Fall through to stb path.
         }
-        return loadTextureViaStb(sourcePath);
+        return loadTextureViaStb(sourcePath, sRgb);
     }
 
-    private TextureData loadTextureFromKtx(Path containerPath) {
+    private TextureData loadTextureFromKtx(Path containerPath, boolean sRgb) {
         KtxDecodeUtil.DecodedRgba decoded = KtxDecodeUtil.decodeToRgbaIfSupported(containerPath);
         if (decoded == null) {
             return new TextureData(0, 0, 0);
@@ -2736,10 +2742,10 @@ final class OpenGlContext {
         ByteBuffer rgba = ByteBuffer.allocateDirect(decoded.rgbaBytes().length).order(ByteOrder.nativeOrder());
         rgba.put(decoded.rgbaBytes());
         rgba.flip();
-        return uploadRgbaTexture(rgba, decoded.width(), decoded.height());
+        return uploadRgbaTexture(rgba, decoded.width(), decoded.height(), sRgb);
     }
 
-    private TextureData uploadBufferedImageTexture(BufferedImage image) {
+    private TextureData uploadBufferedImageTexture(BufferedImage image, boolean sRgb) {
         int width = image.getWidth();
         int height = image.getHeight();
         ByteBuffer rgba = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
@@ -2753,10 +2759,10 @@ final class OpenGlContext {
             }
         }
         rgba.flip();
-        return uploadRgbaTexture(rgba, width, height);
+        return uploadRgbaTexture(rgba, width, height, sRgb);
     }
 
-    private TextureData loadTextureViaStb(Path texturePath) {
+    private TextureData loadTextureViaStb(Path texturePath, boolean sRgb) {
         String path = texturePath.toAbsolutePath().toString();
         try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
             var x = stack.mallocInt(1);
@@ -2790,7 +2796,7 @@ final class OpenGlContext {
                         rgba.put((byte) rb).put((byte) gb).put((byte) bb).put((byte) ab);
                     }
                     rgba.flip();
-                    return uploadRgbaTexture(rgba, width, height);
+                    return uploadRgbaTexture(rgba, width, height, sRgb);
                 } finally {
                     stbi_image_free(hdr);
                 }
@@ -2801,7 +2807,7 @@ final class OpenGlContext {
                 return new TextureData(0, 0, 0);
             }
             try {
-                return uploadRgbaTexture(ldr, width, height);
+                return uploadRgbaTexture(ldr, width, height, sRgb);
             } finally {
                 stbi_image_free(ldr);
             }
@@ -2811,6 +2817,10 @@ final class OpenGlContext {
     }
 
     int loadTextureFromMemory(ByteBuffer imageData) {
+        return loadTextureFromMemory(imageData, false);
+    }
+
+    int loadTextureFromMemory(ByteBuffer imageData, boolean sRgb) {
         if (imageData == null || imageData.remaining() == 0) {
             return 0;
         }
@@ -2823,7 +2833,7 @@ final class OpenGlContext {
                 return 0;
             }
             try {
-                return uploadRgbaTexture(ldr, x.get(0), y.get(0)).id();
+                return uploadRgbaTexture(ldr, x.get(0), y.get(0), sRgb).id();
             } finally {
                 stbi_image_free(ldr);
             }
@@ -2833,10 +2843,15 @@ final class OpenGlContext {
     }
 
     private TextureData uploadRgbaTexture(ByteBuffer rgba, int width, int height) {
+        return uploadRgbaTexture(rgba, width, height, false);
+    }
+
+    private TextureData uploadRgbaTexture(ByteBuffer rgba, int width, int height, boolean sRgb) {
         int textureId = glGenTextures();
         glBindTexture(GL_TEXTURE_2D, textureId);
         int maxLod = (int) Math.floor(Math.log(Math.max(1, Math.max(width, height))) / Math.log(2));
         maxLod = Math.max(0, maxLod);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, maxLod);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         if (maxAnisotropy > 0f) {
@@ -2844,7 +2859,8 @@ final class OpenGlContext {
                     org.lwjgl.opengl.EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,
                     Math.min(maxAnisotropy, 16f));
         }
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        int internalFormat = sRgb ? GL_SRGB8_ALPHA8 : GL_RGBA;
+        glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
         glGenerateMipmap(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, 0);
         return new TextureData(textureId, (long) width * height * 4L, maxLod);

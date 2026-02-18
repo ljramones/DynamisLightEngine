@@ -1674,12 +1674,20 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         TransformDesc sceneTransform = transforms.get(mesh.transformId());
         float[] sceneModel = modelMatrixOf(sceneTransform);
 
+        // Identify which images are used as color (sRGB) textures
+        java.util.Set<Integer> sRgbImages = new java.util.HashSet<>();
+        for (var mat : loaded.materials()) {
+            if (mat.baseColorTextureIndex() >= 0) {
+                sRgbImages.add(mat.baseColorTextureIndex());
+            }
+        }
+
         // Upload embedded textures
         int[] textureIds = new int[loaded.imageBuffers().size()];
         for (int ti = 0; ti < loaded.imageBuffers().size(); ti++) {
             java.nio.ByteBuffer imgBuf = loaded.imageBuffers().get(ti);
             if (imgBuf != null) {
-                textureIds[ti] = context.loadTextureFromMemory(imgBuf);
+                textureIds[ti] = context.loadTextureFromMemory(imgBuf, sRgbImages.contains(ti));
             }
         }
 
