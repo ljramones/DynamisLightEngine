@@ -820,7 +820,25 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return context.debugGpuMeshReflectionOverrideModes();
     }
 
+    ReflectionProbeDiagnostics debugReflectionProbeDiagnostics() {
+        VulkanContext.ReflectionProbeDiagnostics diagnostics = context.debugReflectionProbeDiagnostics();
+        return new ReflectionProbeDiagnostics(
+                diagnostics.configuredProbeCount(),
+                diagnostics.activeProbeCount(),
+                diagnostics.slotCount(),
+                diagnostics.metadataCapacity()
+        );
+    }
+
     static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
+    }
+
+    record ReflectionProbeDiagnostics(
+            int configuredProbeCount,
+            int activeProbeCount,
+            int slotCount,
+            int metadataCapacity
+    ) {
     }
 
     private record ReflectionOverrideSummary(int autoCount, int probeOnlyCount, int ssrOnlyCount, int otherCount) {

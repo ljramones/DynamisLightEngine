@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 12:03 ET — Vulkan reflection warning telemetry now includes probe diagnostics (`probeConfigured/probeActive/probeSlots/probeCapacity`) and emits `REFLECTION_PROBE_BLEND_DIAGNOSTICS`; integration coverage now includes an advanced-probe scene.
+- Latest reflection update: 2026-02-18 12:08 ET — Added runtime debug probe diagnostics accessor (`configured/active/slots/capacity`) and bound integration assertions to it; warning telemetry remains aligned with runtime diagnostics.
 
 Status legend:
 
@@ -62,6 +62,7 @@ Reflection notes:
 - Vulkan now supports per-material reflection overrides (`PROBE_ONLY`, `SSR_ONLY`) via scene color alpha metadata in post reflection resolve.
 - Vulkan reflection baseline warning telemetry now includes per-frame override counts (`AUTO`, `PROBE_ONLY`, `SSR_ONLY`, other).
 - Vulkan reflection warnings now include probe telemetry (`configured`, `active`, `slots`, `capacity`) with dedicated `REFLECTION_PROBE_BLEND_DIAGNOSTICS` emission.
+- Vulkan runtime now exposes probe diagnostics directly for integration/telemetry validation without warning-string parsing.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

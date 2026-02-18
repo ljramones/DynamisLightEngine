@@ -405,6 +405,11 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.contains("slots=2"));
         int diagnosticActive = parseIntMetricField(diagnostics, "active");
         assertEquals(baselineActive, diagnosticActive);
+        var runtimeDiagnostics = runtime.debugReflectionProbeDiagnostics();
+        assertEquals(3, runtimeDiagnostics.configuredProbeCount());
+        assertEquals(2, runtimeDiagnostics.slotCount());
+        assertEquals(runtimeDiagnostics.activeProbeCount(), diagnosticActive);
+        assertTrue(runtimeDiagnostics.metadataCapacity() >= 0);
         runtime.shutdown();
     }
 
