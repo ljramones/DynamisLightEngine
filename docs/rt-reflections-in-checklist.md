@@ -7,9 +7,10 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 
 ## 0. Scope Lock
 
-- [ ] Lock `In` scope statement (Vulkan-only vs engine-wide).
-- [ ] If Vulkan-only: update docs/wishlist with explicit scope note.
-- [ ] If engine-wide: define OpenGL status policy for RT reflections.
+- [x] Lock `In` scope statement (Vulkan-only vs engine-wide).
+- [x] If Vulkan-only: update docs/wishlist with explicit scope note.
+- [x] If engine-wide: define OpenGL status policy for RT reflections.
+  Current policy: RT reflections `In` is Vulkan-scoped; OpenGL RT parity is out of scope for this promotion.
 
 ## 1. Dedicated RT Execution Path
 

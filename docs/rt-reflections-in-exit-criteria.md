@@ -2,6 +2,7 @@
 
 Scope date: 2026-02-18  
 Primary scope: Vulkan production path (`engine-impl-vulkan`)
+Scope lock: RT reflections `In` is Vulkan-scoped for this promotion cycle.
 
 Detailed execution checklist: `docs/rt-reflections-in-checklist.md`.
 
