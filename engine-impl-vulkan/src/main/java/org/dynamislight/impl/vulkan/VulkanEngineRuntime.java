@@ -195,6 +195,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double reflectionSsrTaaInstabilityRejectMin = 0.35;
     private double reflectionSsrTaaInstabilityConfidenceMax = 0.70;
     private long reflectionSsrTaaInstabilityDropEventsMin;
+    private int reflectionSsrTaaInstabilityWarnMinFrames = 3;
+    private int reflectionSsrTaaInstabilityWarnCooldownFrames = 120;
+    private double reflectionSsrTaaRiskEmaAlpha = 0.25;
+    private int reflectionSsrTaaRiskHighStreak;
+    private int reflectionSsrTaaRiskWarnCooldownRemaining;
+    private double reflectionSsrTaaEmaReject = -1.0;
+    private double reflectionSsrTaaEmaConfidence = -1.0;
 
     public VulkanEngineRuntime() {
         super(
@@ -270,6 +277,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionSsrTaaInstabilityRejectMin = options.reflectionSsrTaaInstabilityRejectMin();
         reflectionSsrTaaInstabilityConfidenceMax = options.reflectionSsrTaaInstabilityConfidenceMax();
         reflectionSsrTaaInstabilityDropEventsMin = options.reflectionSsrTaaInstabilityDropEventsMin();
+        reflectionSsrTaaInstabilityWarnMinFrames = options.reflectionSsrTaaInstabilityWarnMinFrames();
+        reflectionSsrTaaInstabilityWarnCooldownFrames = options.reflectionSsrTaaInstabilityWarnCooldownFrames();
+        reflectionSsrTaaRiskEmaAlpha = options.reflectionSsrTaaRiskEmaAlpha();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
@@ -278,6 +288,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowAllocatorReusedAssignments = 0;
         shadowAllocatorEvictions = 0;
         resetReflectionProbeChurnDiagnostics();
+        resetReflectionSsrTaaRiskDiagnostics();
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -622,6 +633,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 double taaReject = context.taaHistoryRejectRate();
                 double taaConfidence = context.taaConfidenceMean();
                 long taaDrops = context.taaConfidenceDropEvents();
+                ReflectionSsrTaaRiskDiagnostics ssrTaaRisk = updateReflectionSsrTaaRiskDiagnostics(taaReject, taaConfidence, taaDrops);
                 warnings.add(new EngineWarning(
                         "REFLECTION_SSR_TAA_DIAGNOSTICS",
                         "SSR/TAA diagnostics (mode="
@@ -644,19 +656,30 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", instabilityRejectMin=" + reflectionSsrTaaInstabilityRejectMin
                                 + ", instabilityConfidenceMax=" + reflectionSsrTaaInstabilityConfidenceMax
                                 + ", instabilityDropEventsMin=" + reflectionSsrTaaInstabilityDropEventsMin
+                                + ", instabilityWarnMinFrames=" + reflectionSsrTaaInstabilityWarnMinFrames
+                                + ", instabilityWarnCooldownFrames=" + reflectionSsrTaaInstabilityWarnCooldownFrames
+                                + ", instabilityRiskEmaAlpha=" + reflectionSsrTaaRiskEmaAlpha
+                                + ", instabilityRiskHighStreak=" + ssrTaaRisk.highStreak()
+                                + ", instabilityRiskCooldownRemaining=" + ssrTaaRisk.warnCooldownRemaining()
+                                + ", instabilityRiskEmaReject=" + ssrTaaRisk.emaReject()
+                                + ", instabilityRiskEmaConfidence=" + ssrTaaRisk.emaConfidence()
+                                + ", instabilityRiskInstant=" + ssrTaaRisk.instantRisk()
                                 + ")"
                 ));
-                if (taaReject > reflectionSsrTaaInstabilityRejectMin
-                        && taaConfidence < reflectionSsrTaaInstabilityConfidenceMax
-                        && taaDrops >= reflectionSsrTaaInstabilityDropEventsMin) {
+                if (ssrTaaRisk.warningTriggered()) {
                     warnings.add(new EngineWarning(
                             "REFLECTION_SSR_TAA_INSTABILITY_RISK",
                             "SSR/TAA instability risk detected (historyRejectRate="
                                     + taaReject
                                     + ", confidenceMean=" + taaConfidence
-                                    + ", confidenceDropEvents=" + taaDrops + ")"
+                                    + ", confidenceDropEvents=" + taaDrops
+                                    + ", riskHighStreak=" + ssrTaaRisk.highStreak()
+                                    + ", riskEmaReject=" + ssrTaaRisk.emaReject()
+                                    + ", riskEmaConfidence=" + ssrTaaRisk.emaConfidence() + ")"
                     ));
                 }
+            } else {
+                resetReflectionSsrTaaRiskDiagnostics();
             }
             if (churnDiagnostics.warningTriggered()) {
                 warnings.add(new EngineWarning(
@@ -942,6 +965,53 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionProbeChurnWarnCooldownRemaining = 0;
     }
 
+    private ReflectionSsrTaaRiskDiagnostics updateReflectionSsrTaaRiskDiagnostics(
+            double taaReject,
+            double taaConfidence,
+            long taaDrops
+    ) {
+        boolean instantRisk = taaReject > reflectionSsrTaaInstabilityRejectMin
+                && taaConfidence < reflectionSsrTaaInstabilityConfidenceMax
+                && taaDrops >= reflectionSsrTaaInstabilityDropEventsMin;
+        if (reflectionSsrTaaEmaReject < 0.0 || reflectionSsrTaaEmaConfidence < 0.0) {
+            reflectionSsrTaaEmaReject = taaReject;
+            reflectionSsrTaaEmaConfidence = taaConfidence;
+        } else {
+            double alpha = Math.max(0.01, Math.min(1.0, reflectionSsrTaaRiskEmaAlpha));
+            reflectionSsrTaaEmaReject = (taaReject * alpha) + (reflectionSsrTaaEmaReject * (1.0 - alpha));
+            reflectionSsrTaaEmaConfidence = (taaConfidence * alpha) + (reflectionSsrTaaEmaConfidence * (1.0 - alpha));
+        }
+        boolean warningTriggered = false;
+        if (instantRisk) {
+            reflectionSsrTaaRiskHighStreak++;
+            if (reflectionSsrTaaRiskHighStreak >= reflectionSsrTaaInstabilityWarnMinFrames
+                    && reflectionSsrTaaRiskWarnCooldownRemaining <= 0) {
+                reflectionSsrTaaRiskWarnCooldownRemaining = reflectionSsrTaaInstabilityWarnCooldownFrames;
+                warningTriggered = true;
+            }
+        } else {
+            reflectionSsrTaaRiskHighStreak = 0;
+        }
+        if (reflectionSsrTaaRiskWarnCooldownRemaining > 0) {
+            reflectionSsrTaaRiskWarnCooldownRemaining--;
+        }
+        return new ReflectionSsrTaaRiskDiagnostics(
+                instantRisk,
+                reflectionSsrTaaRiskHighStreak,
+                reflectionSsrTaaRiskWarnCooldownRemaining,
+                reflectionSsrTaaEmaReject,
+                reflectionSsrTaaEmaConfidence,
+                warningTriggered
+        );
+    }
+
+    private void resetReflectionSsrTaaRiskDiagnostics() {
+        reflectionSsrTaaRiskHighStreak = 0;
+        reflectionSsrTaaRiskWarnCooldownRemaining = 0;
+        reflectionSsrTaaEmaReject = -1.0;
+        reflectionSsrTaaEmaConfidence = -1.0;
+    }
+
     SceneReuseStats debugSceneReuseStats() {
         return context.sceneReuseStats();
     }
@@ -978,6 +1048,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return snapshotReflectionProbeChurnDiagnostics(false);
     }
 
+    ReflectionSsrTaaRiskDiagnostics debugReflectionSsrTaaRiskDiagnostics() {
+        return new ReflectionSsrTaaRiskDiagnostics(
+                false,
+                reflectionSsrTaaRiskHighStreak,
+                reflectionSsrTaaRiskWarnCooldownRemaining,
+                reflectionSsrTaaEmaReject < 0.0 ? 0.0 : reflectionSsrTaaEmaReject,
+                reflectionSsrTaaEmaConfidence < 0.0 ? 1.0 : reflectionSsrTaaEmaConfidence,
+                false
+        );
+    }
+
     static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
     }
 
@@ -996,6 +1077,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             double meanDelta,
             int highStreak,
             int warnCooldownRemaining,
+            boolean warningTriggered
+    ) {
+    }
+
+    record ReflectionSsrTaaRiskDiagnostics(
+            boolean instantRisk,
+            int highStreak,
+            int warnCooldownRemaining,
+            double emaReject,
+            double emaConfidence,
             boolean warningTriggered
     ) {
     }

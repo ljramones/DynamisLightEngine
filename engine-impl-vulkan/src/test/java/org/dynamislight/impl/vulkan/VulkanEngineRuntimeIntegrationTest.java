@@ -471,6 +471,16 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.contains("instabilityRejectMin="));
         assertTrue(diagnostics.contains("instabilityConfidenceMax="));
         assertTrue(diagnostics.contains("instabilityDropEventsMin="));
+        assertTrue(diagnostics.contains("instabilityWarnMinFrames="));
+        assertTrue(diagnostics.contains("instabilityWarnCooldownFrames="));
+        assertTrue(diagnostics.contains("instabilityRiskEmaAlpha="));
+        assertTrue(diagnostics.contains("instabilityRiskHighStreak="));
+        assertTrue(diagnostics.contains("instabilityRiskEmaReject="));
+        assertTrue(diagnostics.contains("instabilityRiskEmaConfidence="));
+        var riskDiagnostics = runtime.debugReflectionSsrTaaRiskDiagnostics();
+        assertTrue(riskDiagnostics.highStreak() >= 0);
+        assertTrue(riskDiagnostics.emaReject() >= 0.0);
+        assertTrue(riskDiagnostics.emaConfidence() >= 0.0);
         runtime.shutdown();
     }
 
