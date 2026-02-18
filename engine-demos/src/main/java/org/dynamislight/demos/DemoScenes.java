@@ -193,6 +193,165 @@ final class DemoScenes {
         );
     }
 
+    static SceneDescriptor shadowCascadeDebugScene() {
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 3.0f, 13.5f), new Vec3(0f, 1.0f, -8.0f), 55f, 0.1f, 1000f);
+        List<TransformDesc> transforms = new ArrayList<>();
+        List<MeshDesc> meshes = new ArrayList<>();
+        List<MaterialDesc> materials = new ArrayList<>();
+
+        transforms.add(new TransformDesc("floor", new Vec3(0f, -0.9f, -12f), new Vec3(0f, 0f, 0f), new Vec3(8.0f, 0.20f, 18.0f)));
+        meshes.add(new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-floor", new Vec3(0.15f, 0.17f, 0.20f), 0.85f, 0.0f, null, null));
+
+        int lanes = 3;
+        int depthSteps = 8;
+        float laneSpacing = 2.0f;
+        float depthSpacing = 3.4f;
+        for (int lane = 0; lane < lanes; lane++) {
+            float x = (lane - 1) * laneSpacing;
+            for (int step = 0; step < depthSteps; step++) {
+                String id = "cascade-" + lane + "-" + step;
+                String transformId = "xform-" + id;
+                String materialId = "mat-" + id;
+                float z = -1.5f - (step * depthSpacing);
+                float y = 0.25f + (0.10f * (step % 2));
+                transforms.add(new TransformDesc(
+                        transformId,
+                        new Vec3(x, y, z),
+                        new Vec3(0f, (lane * 20f) + (step * 9f), 0f),
+                        new Vec3(0.55f, 0.55f + (0.04f * lane), 0.55f)
+                ));
+                meshes.add(new MeshDesc("mesh-" + id, transformId, materialId, "meshes/box.glb"));
+                float depthBias = step / (float) (depthSteps - 1);
+                materials.add(new MaterialDesc(
+                        materialId,
+                        new Vec3(0.28f + 0.25f * depthBias, 0.40f + 0.20f * (1.0f - depthBias), 0.72f - 0.20f * depthBias),
+                        0.32f + (0.08f * lane),
+                        0.18f + (0.10f * lane),
+                        null,
+                        null
+                ));
+            }
+        }
+
+        ShadowDesc directionalShadow = new ShadowDesc(2048, 0.0011f, 5, 4);
+        LightDesc sun = new LightDesc(
+                "sun",
+                new Vec3(0f, 14f, 0f),
+                new Vec3(1f, 0.97f, 0.92f),
+                1.20f,
+                140f,
+                true,
+                directionalShadow
+        );
+        LightDesc fill = new LightDesc(
+                "fill",
+                new Vec3(-5.0f, 3.0f, -4.0f),
+                new Vec3(0.48f, 0.62f, 0.95f),
+                0.72f,
+                22f,
+                false,
+                null
+        );
+
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.07f, 0.09f, 0.12f), 0.33f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.05f, 2.2f, true, 0.90f, 0.75f);
+
+        return new SceneDescriptor(
+                "demo-scene-shadow-cascade-debug",
+                List.of(camera),
+                "main-cam",
+                transforms,
+                meshes,
+                materials,
+                List.of(sun, fill),
+                environment,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
+    static SceneDescriptor shadowCascadeBaselineScene() {
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 2.5f, 10.5f), new Vec3(0f, 0.9f, -6.2f), 55f, 0.1f, 1000f);
+        List<TransformDesc> transforms = new ArrayList<>();
+        List<MeshDesc> meshes = new ArrayList<>();
+        List<MaterialDesc> materials = new ArrayList<>();
+
+        transforms.add(new TransformDesc("floor", new Vec3(0f, -0.85f, -8.0f), new Vec3(0f, 0f, 0f), new Vec3(6.5f, 0.20f, 12.0f)));
+        meshes.add(new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-floor", new Vec3(0.16f, 0.18f, 0.22f), 0.82f, 0.0f, null, null));
+
+        int lanes = 3;
+        int depthSteps = 5;
+        float laneSpacing = 1.9f;
+        float depthSpacing = 2.6f;
+        for (int lane = 0; lane < lanes; lane++) {
+            float x = (lane - 1) * laneSpacing;
+            for (int step = 0; step < depthSteps; step++) {
+                String id = "baseline-" + lane + "-" + step;
+                String transformId = "xform-" + id;
+                String materialId = "mat-" + id;
+                float z = -1.4f - (step * depthSpacing);
+                transforms.add(new TransformDesc(
+                        transformId,
+                        new Vec3(x, 0.20f, z),
+                        new Vec3(0f, lane * 16f + step * 7f, 0f),
+                        new Vec3(0.58f, 0.58f, 0.58f)
+                ));
+                meshes.add(new MeshDesc("mesh-" + id, transformId, materialId, "meshes/box.glb"));
+                float depthFactor = step / (float) (depthSteps - 1);
+                materials.add(new MaterialDesc(
+                        materialId,
+                        new Vec3(0.30f + 0.22f * depthFactor, 0.44f + 0.12f * (1.0f - depthFactor), 0.66f - 0.14f * depthFactor),
+                        0.34f + (0.06f * lane),
+                        0.18f + (0.08f * lane),
+                        null,
+                        null
+                ));
+            }
+        }
+
+        ShadowDesc directionalShadow = new ShadowDesc(2048, 0.0010f, 4, 3);
+        LightDesc sun = new LightDesc(
+                "sun",
+                new Vec3(0f, 12f, 0f),
+                new Vec3(1f, 0.97f, 0.92f),
+                1.18f,
+                120f,
+                true,
+                directionalShadow
+        );
+        LightDesc fill = new LightDesc(
+                "fill",
+                new Vec3(-4.5f, 2.8f, -3.5f),
+                new Vec3(0.48f, 0.62f, 0.95f),
+                0.62f,
+                18f,
+                false,
+                null
+        );
+
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.07f, 0.09f, 0.12f), 0.31f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.05f, 2.2f, true, 0.90f, 0.75f);
+
+        return new SceneDescriptor(
+                "demo-scene-shadow-cascade-baseline",
+                List.of(camera),
+                "main-cam",
+                transforms,
+                meshes,
+                materials,
+                List.of(sun, fill),
+                environment,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
     static SceneDescriptor sceneWithAa(String aaMode, boolean postEnabled, float blend, float renderScale) {
         CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 1.5f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 1000f);
         TransformDesc triangleTransform = new TransformDesc("triangle", new Vec3(0f, 0f, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f));

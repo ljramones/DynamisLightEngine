@@ -56,6 +56,16 @@ Run local lights array demo:
 ./scripts/run_demo_mac.sh --demo=lights-local-array --backend=vulkan --mock=false --seconds=10 --quality=high
 ```
 
+Run shadow cascade debug demo:
+```bash
+./scripts/run_demo_mac.sh --demo=shadow-cascade-debug --backend=vulkan --mock=false --seconds=10 --quality=high
+```
+
+Run shadow cascade baseline demo:
+```bash
+./scripts/run_demo_mac.sh --demo=shadow-cascade-baseline --backend=vulkan --mock=false --seconds=10 --quality=high
+```
+
 Telemetry outputs:
 - frame-by-frame JSONL (default under `artifacts/demos/`)
 - summary JSON (`*.summary.json`) with averages/p95/event/log counts
