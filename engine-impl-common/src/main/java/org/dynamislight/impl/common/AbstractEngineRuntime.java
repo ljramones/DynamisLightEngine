@@ -36,6 +36,7 @@ import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.EngineEvent;
 import org.dynamislight.api.event.EngineWarning;
+import org.dynamislight.api.event.PerformanceWarningEvent;
 import org.dynamislight.api.runtime.FrameHandle;
 import org.dynamislight.api.logging.LogLevel;
 import org.dynamislight.api.logging.LogMessage;
@@ -215,6 +216,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
             warnings.addAll(baselineWarnings());
             warnings.addAll(frameWarnings());
             if (host != null) {
+                for (EngineWarning warning : warnings) {
+                    if (shouldEmitPerformanceWarningEvent(warning)) {
+                        host.onEvent(new PerformanceWarningEvent(warning.code(), warning.message()));
+                    }
+                }
                 host.onEvent(new AaTelemetryEvent(
                         frameIndex,
                         stats.taaHistoryRejectRate(),
@@ -325,6 +331,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected EngineEvent additionalTelemetryEvent(long frameIndex) {
         return null;
+    }
+
+    protected boolean shouldEmitPerformanceWarningEvent(EngineWarning warning) {
+        return false;
     }
 
     protected ReflectionAdaptiveTrendSloDiagnostics backendReflectionAdaptiveTrendSloDiagnostics() {

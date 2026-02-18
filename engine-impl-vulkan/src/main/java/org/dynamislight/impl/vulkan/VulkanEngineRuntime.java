@@ -650,6 +650,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
+    protected boolean shouldEmitPerformanceWarningEvent(EngineWarning warning) {
+        if (warning == null || warning.code() == null) {
+            return false;
+        }
+        return "REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_FAILED".equals(warning.code())
+                || "REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK".equals(warning.code());
+    }
+
+    @Override
     protected java.util.List<EngineWarning> frameWarnings() {
         java.util.List<EngineWarning> warnings = new java.util.ArrayList<>(warningPolicy.frameWarnings(
                 warningState,

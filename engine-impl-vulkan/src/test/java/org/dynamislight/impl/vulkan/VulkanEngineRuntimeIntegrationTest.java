@@ -16,6 +16,7 @@ import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.AaTelemetryEvent;
+import org.dynamislight.api.event.PerformanceWarningEvent;
 import org.dynamislight.api.event.ReflectionAdaptiveTelemetryEvent;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineErrorReport;
@@ -682,6 +683,46 @@ class VulkanEngineRuntimeIntegrationTest {
             }
         }
         assertTrue(observedStructuredAudit);
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionTrendFailuresCanEmitPerformanceWarningEvents() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "1.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames", "8"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples", "1"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMeanSeverityMax", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloHighRatioMax", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples", "1")
+        )), callbacks);
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        boolean emitted = false;
+        for (int i = 0; i < 8; i++) {
+            runtime.render();
+            emitted = callbacks.events.stream()
+                    .filter(PerformanceWarningEvent.class::isInstance)
+                    .map(PerformanceWarningEvent.class::cast)
+                    .anyMatch(e ->
+                            "REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_FAILED".equals(e.warningCode())
+                                    || "REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK".equals(e.warningCode())
+                    );
+            if (emitted) {
+                break;
+            }
+        }
+
+        assertTrue(emitted);
         runtime.shutdown();
     }
 
