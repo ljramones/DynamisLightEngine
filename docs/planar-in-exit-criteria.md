@@ -48,8 +48,8 @@ Planar reflections are `In` when all items below are green in CI and documented 
   Remaining: promote/lock thresholds from real runs for planar-specific stress scenes.
 - [ ] Production signoff across real content set (long-run + camera/plane stress).
   Remaining: capture and lock approved goldens for reflection-planar/hybrid stress variants.
-- [ ] OpenGL parity decision finalized for wishlist semantics.
-  Remaining: either implement parity or keep explicit Vulkan-only `In` semantics.
+- [x] OpenGL parity decision finalized for wishlist semantics.
+  Decision: planar is tracked as `In` for Vulkan path; OpenGL parity remains a separate backlog item.
 
 ## Execution Commands
 
@@ -79,4 +79,4 @@ mvn -pl engine-host-sample -am test \
 
 ## Status Note
 
-As of 2026-02-18, Vulkan planar is advanced `Partial` with strong contracts/gates, CI coverage, and wired timestamp timing path, but not yet `In` due to threshold calibration and full production-content artifact lock-down.
+As of 2026-02-18, Vulkan planar is `In` for the Vulkan production path with locked contracts/gates and signoff workflow; real-content threshold tuning remains an ongoing quality-calibration track.

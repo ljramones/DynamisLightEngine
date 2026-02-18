@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 16:25 ET — Wired Vulkan planar capture timestamp query timing (`gpu_timestamp`) into runtime perf diagnostics/gates while retaining strict timing-source promotion control (`planarPerfRequireGpuTimestamp`).
+- Latest reflection update: 2026-02-18 16:31 ET — Planar promotion finalized as Vulkan-scoped `In` with real-signoff runner, profile-locked envelopes, and timestamp-backed perf timing path.
 
 Status legend:
 
@@ -19,9 +19,9 @@ Status summary snapshot (2026-02-18):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 21 |
-| `Partial` | 57 |
-| `Not In Yet` | 113 |
+| `In` | 22 |
+| `Partial` | 59 |
+| `Not In Yet` | 110 |
 
 ## Shadows
 
@@ -46,7 +46,7 @@ Status summary snapshot (2026-02-18):
 - Box-projected parallax-corrected probes — `Partial`
 - Probe blending (distance, priority, volume-weighted) — `Partial`
 - Screen-space reflections (Hi-Z marching, variable quality) — `In`
-- Planar reflections (clip-plane re-render, selective objects) — `Partial`
+- Planar reflections (clip-plane re-render, selective objects) — `In`
 - SSR + probe fallback (seamless blend at SSR miss) — `In`
 - RT reflections (single-bounce, multi-bounce) — `Partial`
 - RT + SSR hybrid (RT for rough, SSR for sharp, probe for miss) — `Partial`
@@ -96,7 +96,7 @@ Reflection notes:
 - Vulkan now emits planar resource/performance gate diagnostics (`REFLECTION_PLANAR_RESOURCE_CONTRACT`, `REFLECTION_PLANAR_PERF_GATES`, `REFLECTION_PLANAR_PERF_GATES_BREACH`) and exposes typed runtime perf counters (`debugReflectionPlanarPerfDiagnostics`) for parser-free CI assertions.
 - Planar selective scope policy now supports explicit include/exclude categories (auto/probe-only/ssr-only/other) via backend options and is validated in integration coverage.
 - Planar CI coverage now includes interior/outdoor/multi-plane/dynamic-crossing scene matrix checks plus strict-threshold perf-breach assertions.
-- Planar path is still `Partial`: mirrored clip-plane camera rerender is now active, but broader production hardening (quality/perf/content edge cases) remains.
+- Planar path is now `In` for Vulkan scope: mirrored clip-plane camera rerender, selective prepass capture, stability/perf/resource gates, stress coverage, and guarded real-Vulkan signoff runner are in place.
 - SSR confidence/reprojection now has explicit envelope diagnostics and cooldown-gated breach warnings for ghost/disocclusion stress.
 - Probe upload now supports cadence rotation + max-visible budget + LOD depth-tier tagging in metadata for progressive probe streaming behavior.
 - OpenGL parity for probe slot/array path is not yet implemented.
