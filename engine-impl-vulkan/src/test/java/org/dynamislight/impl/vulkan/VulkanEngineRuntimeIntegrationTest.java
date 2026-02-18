@@ -1025,6 +1025,7 @@ class VulkanEngineRuntimeIntegrationTest {
         var diagnostics = runtime.debugReflectionRtPathDiagnostics();
         assertTrue(diagnostics.laneRequested());
         assertTrue(diagnostics.laneActive());
+        assertTrue(diagnostics.traversalSupported());
         assertFalse(diagnostics.requireDedicatedPipeline());
         assertFalse(diagnostics.requireDedicatedPipelineUnmetLastFrame());
         assertFalse(diagnostics.dedicatedHardwarePipelineActive());
@@ -1120,6 +1121,7 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.initialize(validConfig(Map.ofEntries(
                 Map.entry("vulkan.mockContext", "true"),
                 Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtDedicatedPipelineEnabled", "false"),
                 Map.entry("vulkan.reflections.rtRequireDedicatedPipeline", "true")
         )), new RecordingCallbacks());
         runtime.loadScene(validReflectionsScene("rt_hybrid"));
@@ -1134,9 +1136,39 @@ class VulkanEngineRuntimeIntegrationTest {
         var diagnostics = runtime.debugReflectionRtPathDiagnostics();
         assertTrue(diagnostics.laneRequested());
         assertTrue(diagnostics.laneActive());
+        assertFalse(diagnostics.dedicatedPipelineEnabled());
+        assertTrue(diagnostics.traversalSupported());
         assertTrue(diagnostics.requireDedicatedPipeline());
         assertTrue(diagnostics.requireDedicatedPipelineUnmetLastFrame());
         assertFalse(diagnostics.dedicatedHardwarePipelineActive());
+        runtime.shutdown();
+    }
+
+    @Test
+    void rtReflectionDedicatedPipelineEnabledActivatesPreviewLaneInMockContext() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtDedicatedPipelineEnabled", "true"),
+                Map.entry("vulkan.reflections.rtRequireDedicatedPipeline", "true")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("rt_hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_ACTIVE".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_PENDING".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(
+                w -> "REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+        var diagnostics = runtime.debugReflectionRtPathDiagnostics();
+        assertTrue(diagnostics.laneActive());
+        assertTrue(diagnostics.dedicatedPipelineEnabled());
+        assertTrue(diagnostics.traversalSupported());
+        assertTrue(diagnostics.requireDedicatedPipeline());
+        assertFalse(diagnostics.requireDedicatedPipelineUnmetLastFrame());
+        assertTrue(diagnostics.dedicatedHardwarePipelineActive());
         runtime.shutdown();
     }
 

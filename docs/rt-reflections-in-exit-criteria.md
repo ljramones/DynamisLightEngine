@@ -3,6 +3,8 @@
 Scope date: 2026-02-18  
 Primary scope: Vulkan production path (`engine-impl-vulkan`)
 
+Detailed execution checklist: `docs/rt-reflections-in-checklist.md`.
+
 ## Definition of `In` (Vulkan-scoped)
 
 RT reflections are `In` when the RT lane is truly executable (not fallback-only), denoise/hybrid composition are stable, and perf/artifact gates are locked from real-content runs.

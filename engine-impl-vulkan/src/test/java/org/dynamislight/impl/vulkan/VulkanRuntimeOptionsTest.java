@@ -74,6 +74,7 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtRequireActive", "true"),
                         Map.entry("vulkan.reflections.rtRequireMultiBounce", "true"),
                         Map.entry("vulkan.reflections.rtRequireDedicatedPipeline", "true"),
+                        Map.entry("vulkan.reflections.rtDedicatedPipelineEnabled", "true"),
                         Map.entry("vulkan.reflections.rtDedicatedDenoisePipelineEnabled", "false"),
                         Map.entry("vulkan.reflections.rtDenoiseStrength", "0.73"),
                         Map.entry("vulkan.reflections.rtPerfMaxGpuMsLow", "1.3"),
@@ -160,6 +161,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(true, parsed.reflectionRtRequireActive());
         assertEquals(true, parsed.reflectionRtRequireMultiBounce());
         assertEquals(true, parsed.reflectionRtRequireDedicatedPipeline());
+        assertEquals(true, parsed.reflectionRtDedicatedPipelineEnabled());
         assertEquals(false, parsed.reflectionRtDedicatedDenoisePipelineEnabled());
         assertEquals(0.73, parsed.reflectionRtDenoiseStrength());
         assertEquals(1.3, parsed.reflectionRtPerfMaxGpuMsLow());
@@ -234,6 +236,7 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtRequireActive", "true"),
                         Map.entry("vulkan.reflections.rtRequireMultiBounce", "true"),
                         Map.entry("vulkan.reflections.rtRequireDedicatedPipeline", "true"),
+                        Map.entry("vulkan.reflections.rtDedicatedPipelineEnabled", "true"),
                         Map.entry("vulkan.reflections.rtDenoiseStrength", "9.0"),
                         Map.entry("vulkan.reflections.rtPerfMaxGpuMsLow", "-1.0"),
                         Map.entry("vulkan.reflections.rtPerfMaxGpuMsMedium", "20000.0"),
@@ -312,6 +315,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(true, parsed.reflectionRtRequireActive());
         assertEquals(true, parsed.reflectionRtRequireMultiBounce());
         assertEquals(true, parsed.reflectionRtRequireDedicatedPipeline());
+        assertEquals(true, parsed.reflectionRtDedicatedPipelineEnabled());
         assertEquals(true, parsed.reflectionRtDedicatedDenoisePipelineEnabled());
         assertEquals(1.0, parsed.reflectionRtDenoiseStrength());
         assertEquals(0.0, parsed.reflectionRtPerfMaxGpuMsLow());
