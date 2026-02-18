@@ -108,7 +108,7 @@ public final class DemoRunner {
                 true,
                 60,
                 qualityTier,
-                Path.of("assets"),
+                resolveAssetRoot(),
                 backendOptions
         );
 
@@ -319,6 +319,19 @@ public final class DemoRunner {
             return false;
         }
         return fallback;
+    }
+
+    private static Path resolveAssetRoot() {
+        Path candidate = Path.of("assets");
+        if (Files.isDirectory(candidate)) {
+            return candidate;
+        }
+        // exec:exec CWD may be a module subdir — try project root
+        candidate = Path.of("../assets");
+        if (Files.isDirectory(candidate)) {
+            return candidate.toAbsolutePath().normalize();
+        }
+        return Path.of("assets");
     }
 
     private static QualityTier parseQuality(String raw) {

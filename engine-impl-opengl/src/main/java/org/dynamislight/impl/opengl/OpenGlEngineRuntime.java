@@ -1647,7 +1647,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
     private List<OpenGlContext.SceneMesh> expandGltfScene(
             MeshDesc mesh, Map<String, TransformDesc> transforms, Map<String, MaterialDesc> materials) {
-        Path glbPath = resolveTexturePath(mesh.meshAssetPath());
+        Path glbPath = mesh.meshAssetPath() == null ? null : Path.of(mesh.meshAssetPath());
         if (glbPath == null) {
             return List.of();
         }

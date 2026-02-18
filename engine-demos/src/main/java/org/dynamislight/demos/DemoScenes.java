@@ -1075,9 +1075,9 @@ final class DemoScenes {
     static SceneDescriptor sponzaScene() {
         CameraDesc camera = new CameraDesc(
                 "main-cam",
-                new Vec3(0f, 5f, 0f),
-                new Vec3(-10f, 4f, 0f),
-                65f, 0.1f, 200f
+                new Vec3(0f, 120f, 0f),
+                new Vec3(0f, -90f, 0f),
+                65f, 1f, 5000f
         );
 
         TransformDesc sceneTransform = new TransformDesc(
@@ -1106,37 +1106,37 @@ final class DemoScenes {
         ShadowDesc directionalShadow = new ShadowDesc(2048, 0.0012f, 5, 4);
         LightDesc sun = new LightDesc(
                 "sun",
-                new Vec3(0f, 20f, 0f),
+                new Vec3(0f, 2000f, 0f),
                 new Vec3(1f, 0.97f, 0.92f),
                 1.30f,
-                200f,
+                5000f,
                 true,
                 directionalShadow
         );
         LightDesc warmA = new LightDesc(
                 "warm-a",
-                new Vec3(-5f, 3f, 0f),
+                new Vec3(-500f, 300f, 0f),
                 new Vec3(1.0f, 0.85f, 0.65f),
                 1.10f,
-                15f,
+                1500f,
                 false,
                 null
         );
         LightDesc warmB = new LightDesc(
                 "warm-b",
-                new Vec3(5f, 3f, 0f),
+                new Vec3(500f, 300f, 0f),
                 new Vec3(1.0f, 0.85f, 0.65f),
                 1.10f,
-                15f,
+                1500f,
                 false,
                 null
         );
         LightDesc coolFill = new LightDesc(
                 "cool-fill",
-                new Vec3(0f, 8f, -4f),
+                new Vec3(0f, 800f, -400f),
                 new Vec3(0.55f, 0.70f, 1.0f),
                 0.65f,
-                25f,
+                2500f,
                 false,
                 null
         );
