@@ -132,6 +132,7 @@ PostProcessDesc post = new PostProcessDesc(
 - Optional strict RT multi-bounce gate: `vulkan.reflections.rtRequireMultiBounce=true` emits `REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH` when requested RT multi-bounce is unavailable.
 - Optional strict dedicated RT pipeline gate: `vulkan.reflections.rtRequireDedicatedPipeline=true` emits `REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH` when dedicated hardware RT pipeline is not active.
 - Optional dedicated RT preview activation: `vulkan.reflections.rtDedicatedPipelineEnabled=true` (capability-conditioned in real Vulkan, always available in mock contract lane).
+- Real-Vulkan duration stress replay runner: `scripts/rt_reflections_real_longrun_signoff.sh` (iterations via `DLE_RT_REFLECTIONS_LONGRUN_ITERATIONS`).
 - RT perf envelope controls:
   - `vulkan.reflections.rtPerfMaxGpuMsLow|Medium|High|Ultra`
   - `vulkan.reflections.rtPerfWarnMinFrames`, `vulkan.reflections.rtPerfWarnCooldownFrames`

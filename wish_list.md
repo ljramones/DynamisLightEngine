@@ -110,6 +110,7 @@ Reflection notes:
 - RT reflections now include strict dedicated pipeline availability gating (`vulkan.reflections.rtRequireDedicatedPipeline`) with explicit breach warning (`REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH`) and typed diagnostics parity.
 - RT reflections now include a dedicated-path preview activation switch (`vulkan.reflections.rtDedicatedPipelineEnabled`) with capability-conditioned activation/signaling (`REFLECTION_RT_DEDICATED_PIPELINE_ACTIVE`) and strict required-path breach behavior.
 - RT reflections now emit BLAS/TLAS/SBT lifecycle telemetry (`REFLECTION_RT_PIPELINE_LIFECYCLE`) with typed runtime diagnostics (`debugReflectionRtPipelineDiagnostics`) for scaffolded RT pipeline progression tracking.
+- RT reflections now include a long-run guarded real-Vulkan replay runner (`scripts/rt_reflections_real_longrun_signoff.sh`) for duration stress signoff.
 - RT `Partial -> In` promotion tasks are tracked in `docs/rt-reflections-in-checklist.md`.
 - RT reflections now include a guarded real-Vulkan signoff runner (`scripts/rt_reflections_real_gpu_signoff.sh`) for RT lane contract validation on real hardware paths.
 

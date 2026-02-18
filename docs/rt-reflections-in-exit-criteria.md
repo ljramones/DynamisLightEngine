@@ -58,6 +58,10 @@ mvn -pl engine-impl-vulkan -am test \
 
 # or use the packaged runner:
 ./scripts/rt_reflections_real_gpu_signoff.sh
+
+# long-run stress replay (default 5 iterations):
+./scripts/rt_reflections_real_longrun_signoff.sh
+# optional: DLE_RT_REFLECTIONS_LONGRUN_ITERATIONS=10 ./scripts/rt_reflections_real_longrun_signoff.sh
 ```
 
 ## Status Note

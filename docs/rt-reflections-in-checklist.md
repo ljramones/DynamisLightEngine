@@ -70,7 +70,7 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 
 - [x] Maintain RT lockdown lane (`scripts/rt_reflections_ci_lockdown_full.sh`).
 - [x] Maintain guarded real-Vulkan signoff lane (`scripts/rt_reflections_real_gpu_signoff.sh`).
-- [ ] Add long-run real-Vulkan RT signoff lane (duration stress).
+- [x] Add long-run real-Vulkan RT signoff lane (duration stress).
 - [ ] Add promotion command bundle for final `In` signoff replay.
 
 ## 10. Final Promotion
