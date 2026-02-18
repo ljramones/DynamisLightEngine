@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:10 ET — Wired reflection trend fail/high-risk warnings into `PerformanceWarningEvent` emission path for callback-driven CI alerting (in addition to frame warnings).
+- Latest reflection update: 2026-02-18 14:25 ET — Added blessed-profile reflection trend envelope assertions (`performance`, `quality`, `stability`) and common-runtime performance-warning event coverage in tests/docs.
 
 Status legend:
 
@@ -81,6 +81,7 @@ Reflection notes:
 - Vulkan now exposes a machine-readable adaptive trend SLO diagnostics snapshot (`debugReflectionAdaptiveTrendSloDiagnostics`) for parser-free CI assertions.
 - Reflection adaptive trend SLO diagnostics are now exposed through the backend-agnostic runtime API surface, with `unavailable` fallback for backends that do not publish it.
 - Reflection adaptive trend fail/high-risk warnings now also propagate as `PerformanceWarningEvent` callbacks for parser-free host-side alerting.
+- Blessed profile trend envelopes now have explicit integration-test assertions for expected window/threshold SLO bounds per profile.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

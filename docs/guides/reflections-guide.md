@@ -97,6 +97,12 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan probe path now uses a dedicated probe-radiance sampler lane with per-scene 2D-array texture generation and per-probe slot sampling in main fragment shading.
 - Vulkan native cubemap-array probe sampling is still pending; current per-probe selection uses the 2D-array slot path.
 - LOW quality tier disables reflections; MEDIUM applies conservative scaling.
+- Vulkan adaptive reflection trend diagnostics are exposed through runtime API (`EngineRuntime#reflectionAdaptiveTrendSloDiagnostics`) and backend debug accessors.
 - Warnings are emitted when reflections are active:
   - `REFLECTIONS_BASELINE_ACTIVE`
   - `REFLECTIONS_QUALITY_DEGRADED` (MEDIUM tier)
+  - `REFLECTION_SSR_TAA_ADAPTIVE_TREND_REPORT` (window metrics)
+  - `REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_AUDIT` (`status=pass|pending|fail`)
+  - `REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_FAILED` (fail-only)
+  - `REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK` (threshold/cooldown gate)
+- High-risk/fail adaptive trend warnings now also emit `PerformanceWarningEvent` callbacks in Vulkan for parser-free host/CI alerting.
