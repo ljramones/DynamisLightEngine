@@ -246,6 +246,20 @@ public final class VulkanMemoryOps {
             int newLayout,
             BiFunction<String, Integer, EngineException> vkFailure
     ) throws EngineException {
+        transitionImageLayout(device, commandPool, graphicsQueue, image, oldLayout, newLayout, 1, 1, vkFailure);
+    }
+
+    public static void transitionImageLayout(
+            VkDevice device,
+            long commandPool,
+            VkQueue graphicsQueue,
+            long image,
+            int oldLayout,
+            int newLayout,
+            int layerCount,
+            int mipLevelCount,
+            BiFunction<String, Integer, EngineException> vkFailure
+    ) throws EngineException {
         try (MemoryStack stack = stackPush()) {
             VkCommandBuffer cmd = beginSingleTimeCommands(device, commandPool, stack, vkFailure);
             VkImageMemoryBarrier.Buffer barrier = VkImageMemoryBarrier.calloc(1, stack)
@@ -258,9 +272,9 @@ public final class VulkanMemoryOps {
             barrier.get(0).subresourceRange()
                     .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
                     .baseMipLevel(0)
-                    .levelCount(1)
+                    .levelCount(Math.max(1, mipLevelCount))
                     .baseArrayLayer(0)
-                    .layerCount(1);
+                    .layerCount(Math.max(1, layerCount));
 
             int sourceStage;
             int destinationStage;
@@ -302,20 +316,39 @@ public final class VulkanMemoryOps {
             int height,
             BiFunction<String, Integer, EngineException> vkFailure
     ) throws EngineException {
+        copyBufferToImageLayers(device, commandPool, graphicsQueue, buffer, image, width, height, 1, width * height * 4, vkFailure);
+    }
+
+    public static void copyBufferToImageLayers(
+            VkDevice device,
+            long commandPool,
+            VkQueue graphicsQueue,
+            long buffer,
+            long image,
+            int width,
+            int height,
+            int layerCount,
+            long bytesPerLayer,
+            BiFunction<String, Integer, EngineException> vkFailure
+    ) throws EngineException {
         try (MemoryStack stack = stackPush()) {
             VkCommandBuffer cmd = beginSingleTimeCommands(device, commandPool, stack, vkFailure);
-            VkBufferImageCopy.Buffer region = VkBufferImageCopy.calloc(1, stack);
-            region.get(0)
-                    .bufferOffset(0)
-                    .bufferRowLength(0)
-                    .bufferImageHeight(0);
-            region.get(0).imageSubresource()
-                    .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
-                    .mipLevel(0)
-                    .baseArrayLayer(0)
-                    .layerCount(1);
-            region.get(0).imageOffset().set(0, 0, 0);
-            region.get(0).imageExtent().set(width, height, 1);
+            int safeLayers = Math.max(1, layerCount);
+            long safeLayerBytes = Math.max(1L, bytesPerLayer);
+            VkBufferImageCopy.Buffer region = VkBufferImageCopy.calloc(safeLayers, stack);
+            for (int layer = 0; layer < safeLayers; layer++) {
+                region.get(layer)
+                        .bufferOffset(safeLayerBytes * layer)
+                        .bufferRowLength(0)
+                        .bufferImageHeight(0);
+                region.get(layer).imageSubresource()
+                        .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                        .mipLevel(0)
+                        .baseArrayLayer(layer)
+                        .layerCount(1);
+                region.get(layer).imageOffset().set(0, 0, 0);
+                region.get(layer).imageExtent().set(width, height, 1);
+            }
             VK10.vkCmdCopyBufferToImage(cmd, buffer, image, VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, region);
             endSingleTimeCommands(device, commandPool, graphicsQueue, stack, cmd, vkFailure);
         }

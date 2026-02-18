@@ -28,6 +28,7 @@ import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_2D;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
@@ -185,19 +186,152 @@ public final class VulkanTextureResourceOps {
         }
     }
 
-    private static long createImageView(org.lwjgl.vulkan.VkDevice device, MemoryStack stack, long image, int format, int aspectMask)
-            throws EngineException {
+    public static VulkanGpuTexture createTextureArrayFromPixels(
+            List<VulkanTexturePixelData> layers,
+            Context context
+    ) throws EngineException {
+        if (layers == null || layers.isEmpty()) {
+            throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "Texture array requires at least one layer", false);
+        }
+        VulkanTexturePixelData first = layers.get(0);
+        if (first == null || first.width() <= 0 || first.height() <= 0) {
+            throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "Texture array first layer is invalid", false);
+        }
+        int width = first.width();
+        int height = first.height();
+        int layerCount = layers.size();
+        int bytesPerLayer = width * height * 4;
+        for (int i = 0; i < layerCount; i++) {
+            VulkanTexturePixelData layer = layers.get(i);
+            if (layer == null || layer.width() != width || layer.height() != height || layer.data().remaining() != bytesPerLayer) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "Texture array layers must match size and format", false);
+            }
+        }
+        long totalBytes = (long) bytesPerLayer * layerCount;
+        if (totalBytes > Integer.MAX_VALUE) {
+            throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "Texture array upload exceeds supported staging size", false);
+        }
+        ByteBuffer interleaved = memAlloc((int) totalBytes);
+        for (int i = 0; i < layerCount; i++) {
+            ByteBuffer src = layers.get(i).data().duplicate();
+            src.position(0);
+            src.limit(bytesPerLayer);
+            interleaved.put(src);
+        }
+        interleaved.flip();
+
+        try (MemoryStack stack = stackPush()) {
+            VulkanBufferAlloc staging = VulkanMemoryOps.createBuffer(
+                    context.device(),
+                    context.physicalDevice(),
+                    stack,
+                    (int) totalBytes,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            );
+            try {
+                VulkanMemoryOps.uploadToMemory(context.device(), staging.memory(), interleaved, context.vkFailure()::failure);
+                VulkanImageAlloc imageAlloc = VulkanMemoryOps.createImage(
+                        context.device(),
+                        context.physicalDevice(),
+                        stack,
+                        width,
+                        height,
+                        VK10.VK_FORMAT_R8G8B8A8_SRGB,
+                        VK10.VK_IMAGE_TILING_OPTIMAL,
+                        VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                        layerCount
+                );
+                VulkanMemoryOps.transitionImageLayout(
+                        context.device(),
+                        context.commandPool(),
+                        context.graphicsQueue(),
+                        imageAlloc.image(),
+                        VK_IMAGE_LAYOUT_UNDEFINED,
+                        VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        layerCount,
+                        1,
+                        context.vkFailure()::failure
+                );
+                VulkanMemoryOps.copyBufferToImageLayers(
+                        context.device(),
+                        context.commandPool(),
+                        context.graphicsQueue(),
+                        staging.buffer(),
+                        imageAlloc.image(),
+                        width,
+                        height,
+                        layerCount,
+                        bytesPerLayer,
+                        context.vkFailure()::failure
+                );
+                VulkanMemoryOps.transitionImageLayout(
+                        context.device(),
+                        context.commandPool(),
+                        context.graphicsQueue(),
+                        imageAlloc.image(),
+                        VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                        layerCount,
+                        1,
+                        context.vkFailure()::failure
+                );
+
+                long imageView = createImageView(
+                        context.device(),
+                        stack,
+                        imageAlloc.image(),
+                        VK10.VK_FORMAT_R8G8B8A8_SRGB,
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+                        layerCount
+                );
+                long sampler = createSampler(context.device(), stack);
+                return new VulkanGpuTexture(imageAlloc.image(), imageAlloc.memory(), imageView, sampler, totalBytes);
+            } finally {
+                if (staging.buffer() != VK_NULL_HANDLE) {
+                    vkDestroyBuffer(context.device(), staging.buffer(), null);
+                }
+                if (staging.memory() != VK_NULL_HANDLE) {
+                    vkFreeMemory(context.device(), staging.memory(), null);
+                }
+            }
+        } finally {
+            memFree(interleaved);
+        }
+    }
+
+    private static long createImageView(
+            org.lwjgl.vulkan.VkDevice device,
+            MemoryStack stack,
+            long image,
+            int format,
+            int aspectMask
+    ) throws EngineException {
+        return createImageView(device, stack, image, format, aspectMask, VK_IMAGE_VIEW_TYPE_2D, 1);
+    }
+
+    private static long createImageView(
+            org.lwjgl.vulkan.VkDevice device,
+            MemoryStack stack,
+            long image,
+            int format,
+            int aspectMask,
+            int viewType,
+            int layerCount
+    ) throws EngineException {
         VkImageViewCreateInfo viewInfo = VkImageViewCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO)
                 .image(image)
-                .viewType(VK_IMAGE_VIEW_TYPE_2D)
+                .viewType(viewType)
                 .format(format);
         viewInfo.subresourceRange()
                 .aspectMask(aspectMask)
                 .baseMipLevel(0)
                 .levelCount(1)
                 .baseArrayLayer(0)
-                .layerCount(1);
+                .layerCount(Math.max(1, layerCount));
         var pView = stack.longs(VK_NULL_HANDLE);
         int result = vkCreateImageView(device, viewInfo, null, pView);
         if (result != VK_SUCCESS || pView.get(0) == VK_NULL_HANDLE) {
