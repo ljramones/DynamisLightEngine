@@ -46,6 +46,16 @@ mvn -f engine-demos/pom.xml exec:java \
   -Dexec.args="--demo=aa-matrix --backend=vulkan --aa-mode=tsr --aa-render-scale=0.64 --seconds=12 --telemetry=artifacts/demos/aa-tsr.jsonl"
 ```
 
+Run material baseline demo:
+```bash
+./scripts/run_demo_mac.sh --demo=material-baseline --backend=vulkan --mock=false --seconds=10 --quality=high
+```
+
 Telemetry outputs:
 - frame-by-frame JSONL (default under `artifacts/demos/`)
 - summary JSON (`*.summary.json`) with averages/p95/event/log counts
+
+## Demo Planning
+
+- Roadmap and target demo catalog:
+  `docs/guides/demos-roadmap.md`
