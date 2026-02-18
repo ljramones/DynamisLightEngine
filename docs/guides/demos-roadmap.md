@@ -14,9 +14,10 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 - `aa-motion-stress` (graphical AA stress lane)
 - `reflections-ssr-hiz` (graphical SSR + Hi-Z lane)
 - `reflections-planar` (graphical planar reflection lane)
+- `reflections-hybrid` (graphical hybrid reflection lane)
 - `aa-matrix` (graphical AA configuration/telemetry)
 
-Current count: `11` demos (`11` graphical)
+Current count: `12` demos (`12` graphical)
 
 ## Target Demo Set
 

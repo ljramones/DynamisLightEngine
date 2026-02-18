@@ -18,6 +18,7 @@ final class DemoRegistry {
         register(demos, new ShadowQualityMatrixDemo());
         register(demos, new ReflectionsSsrHizDemo());
         register(demos, new ReflectionsPlanarDemo());
+        register(demos, new ReflectionsHybridDemo());
         register(demos, new AaMotionStressDemo());
         register(demos, new AaMatrixDemo());
         return Map.copyOf(demos);
