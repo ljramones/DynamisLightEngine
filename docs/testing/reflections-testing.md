@@ -98,6 +98,9 @@ Current profile tags in parity tests:
 - Validate planar clip-plane height from `ReflectionAdvancedDesc.planarPlaneHeight` is consumed by Vulkan planar capture path (mirrored/clip behavior follows configured plane).
 - Add multi-frame plane-height stability assertions to ensure planar contract (`planeHeight`, `mirrorCameraActive`) remains consistent across consecutive renders.
 - Validate swapchain/post resource wiring includes dedicated planar capture image/view/sampler lane (no coupling to TAA history-velocity texture).
+- Include planar contract/stability coverage checks across `planar`, `hybrid`, and `rt_hybrid` reflection modes.
+- Assert `REFLECTION_PLANAR_STABILITY_ENVELOPE` emits for planar-active modes and assert cooldown-gated `REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH` under strict envelope thresholds.
+- Validate typed diagnostics (`debugReflectionPlanarStabilityDiagnostics`) for parser-free CI gating.
 
 7. RT execution-lane checks
 - Assert `REFLECTION_RT_PATH_REQUESTED` and typed diagnostics (`debugReflectionRtPathDiagnostics`) expose lane request/active state and fallback chain.

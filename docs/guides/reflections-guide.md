@@ -111,6 +111,7 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan planar capture now runs with mirrored camera matrices (`uPlanarView/uPlanarProj/uPlanarPrevViewProj`) sourced via global uniforms for the selective pre-main capture pass only.
 - Planar clip-plane culling is now evaluated against world/planar camera-consistent height (`vWorldPos.y` vs configured plane height) during planar capture.
 - Planar reflection sampling now uses a dedicated post planar-capture texture lane (`uPlanarCaptureColor`) instead of reusing TAA history-velocity storage.
+- Vulkan now emits planar stability envelope diagnostics (`REFLECTION_PLANAR_STABILITY_ENVELOPE`) and breach warnings (`REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH`) with threshold/cooldown gating for planar contract, scope coverage, and plane-height delta risk.
 - Vulkan reflection resolve now includes a first contact-hardening pass behavior: near depth-contact SSR hits receive a roughness ramp/weight boost to stabilize sharp contact reflections.
 - Planar capture remains selective-scope and still evolves under the broader planar `Partial` maturity status, but mirrored clip-plane camera rerender is now active in the Vulkan path.
 - Vulkan now emits SSR reprojection envelope diagnostics (`REFLECTION_SSR_REPROJECTION_ENVELOPE`) and breach warnings (`REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`) with threshold/cooldown gating for ghosting/disocclusion risk.
@@ -127,6 +128,7 @@ PostProcessDesc post = new PostProcessDesc(
   - `REFLECTION_SSR_TAA_HISTORY_POLICY` (history-policy mode + bias diagnostics)
   - `REFLECTION_PROBE_QUALITY_SWEEP` / `REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`
   - `REFLECTION_PLANAR_SCOPE_CONTRACT`
+  - `REFLECTION_PLANAR_STABILITY_ENVELOPE` / `REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH`
   - `REFLECTION_RT_PATH_REQUESTED` / `REFLECTION_RT_PATH_FALLBACK_ACTIVE` (only when lane unavailable)
   - `REFLECTION_TRANSPARENCY_STAGE_GATE` / `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`
 - High-risk/fail adaptive trend warnings now also emit `PerformanceWarningEvent` callbacks in Vulkan for parser-free host/CI alerting.

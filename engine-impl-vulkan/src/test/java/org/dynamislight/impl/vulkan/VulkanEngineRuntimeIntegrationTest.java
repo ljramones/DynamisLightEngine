@@ -594,6 +594,7 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE".equals(w.code())));
         String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
         assertTrue(contract.contains("status=prepass_capture_then_main_sample"));
         assertTrue(contract.contains("requiredOrder=planar_capture_before_main_sample_before_post"));
@@ -623,6 +624,7 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE".equals(w.code())));
         String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
         assertTrue(contract.contains("planeHeight=2.5"));
         assertTrue(contract.contains("mirrorCameraActive=true"));
@@ -646,6 +648,9 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
         assertTrue(frameB.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
         assertTrue(frameC.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE".equals(w.code())));
+        assertTrue(frameB.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE".equals(w.code())));
+        assertTrue(frameC.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE".equals(w.code())));
         String contractA = warningMessageByCode(frameA, "REFLECTION_PLANAR_SCOPE_CONTRACT");
         String contractB = warningMessageByCode(frameB, "REFLECTION_PLANAR_SCOPE_CONTRACT");
         String contractC = warningMessageByCode(frameC, "REFLECTION_PLANAR_SCOPE_CONTRACT");
@@ -661,6 +666,52 @@ class VulkanEngineRuntimeIntegrationTest {
         var diagnostics = runtime.debugReflectionPlanarContractDiagnostics();
         assertTrue(diagnostics.mirrorCameraActive());
         assertTrue(diagnostics.dedicatedCaptureLaneActive());
+        var stability = runtime.debugReflectionPlanarStabilityDiagnostics();
+        assertTrue(stability.coverageRatio() >= 0.0);
+        assertTrue(stability.planeDelta() >= 0.0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void planarContractCoverageIncludesHybridAndRtHybridModes() throws Exception {
+        for (String mode : List.of("planar", "hybrid", "rt_hybrid")) {
+            var runtime = new VulkanEngineRuntime();
+            runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+            runtime.loadScene(validReflectionsScene(mode));
+
+            var frame = runtime.render();
+
+            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE".equals(w.code())));
+            String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
+            assertTrue(contract.contains("status=prepass_capture_then_main_sample"));
+            assertTrue(contract.contains("mirrorCameraActive=true"));
+            assertTrue(contract.contains("dedicatedCaptureLaneActive=true"));
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void planarStabilityEnvelopeBreachEmitsUnderStrictThresholdsWhenScopeIsEmpty() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.planarEnvelopeWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.planarEnvelopeWarnCooldownFrames", "8"),
+                Map.entry("vulkan.reflections.planarEnvelopeCoverageRatioWarnMin", "0.95")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validPlanarExcludedScopeScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH".equals(w.code())));
+        String envelope = warningMessageByCode(frame, "REFLECTION_PLANAR_STABILITY_ENVELOPE");
+        assertTrue(envelope.contains("risk=true"));
+        assertTrue(envelope.contains("emptyScopeRisk=true"));
+        var diagnostics = runtime.debugReflectionPlanarStabilityDiagnostics();
+        assertTrue(diagnostics.breachedLastFrame());
+        assertTrue(diagnostics.highStreak() >= 1);
         runtime.shutdown();
     }
 
@@ -2927,6 +2978,41 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.fog(),
                 base.smokeEmitters(),
                 post
+        );
+    }
+
+    private static SceneDescriptor validPlanarExcludedScopeScene() {
+        SceneDescriptor base = validReflectionsScene("planar");
+        MaterialDesc mat = new MaterialDesc(
+                "mat",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0f,
+                false,
+                false,
+                1.0f,
+                1.0f,
+                1.0f,
+                null,
+                ReflectionOverrideMode.PROBE_ONLY
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(mat),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
         );
     }
 

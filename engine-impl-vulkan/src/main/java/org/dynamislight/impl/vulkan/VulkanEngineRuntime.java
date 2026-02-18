@@ -267,6 +267,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionSsrEnvelopeHighStreak;
     private int reflectionSsrEnvelopeWarnCooldownRemaining;
     private boolean reflectionSsrEnvelopeBreachedLastFrame;
+    private double reflectionPlanarEnvelopePlaneDeltaWarnMax = 0.35;
+    private double reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.25;
+    private int reflectionPlanarEnvelopeWarnMinFrames = 3;
+    private int reflectionPlanarEnvelopeWarnCooldownFrames = 120;
+    private int reflectionPlanarEnvelopeHighStreak;
+    private int reflectionPlanarEnvelopeWarnCooldownRemaining;
+    private boolean reflectionPlanarEnvelopeBreachedLastFrame;
+    private double reflectionPlanarPrevPlaneHeight = Double.NaN;
+    private double reflectionPlanarLatestPlaneDelta;
+    private double reflectionPlanarLatestCoverageRatio = 1.0;
     private double reflectionSsrTaaLatestRejectRate;
     private double reflectionSsrTaaLatestConfidenceMean = 1.0;
     private long reflectionSsrTaaLatestDropEvents;
@@ -398,6 +408,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionSsrEnvelopeDropWarnMin = options.reflectionSsrEnvelopeDropWarnMin();
         reflectionSsrEnvelopeWarnMinFrames = options.reflectionSsrEnvelopeWarnMinFrames();
         reflectionSsrEnvelopeWarnCooldownFrames = options.reflectionSsrEnvelopeWarnCooldownFrames();
+        reflectionPlanarEnvelopePlaneDeltaWarnMax = options.reflectionPlanarEnvelopePlaneDeltaWarnMax();
+        reflectionPlanarEnvelopeCoverageRatioWarnMin = options.reflectionPlanarEnvelopeCoverageRatioWarnMin();
+        reflectionPlanarEnvelopeWarnMinFrames = options.reflectionPlanarEnvelopeWarnMinFrames();
+        reflectionPlanarEnvelopeWarnCooldownFrames = options.reflectionPlanarEnvelopeWarnCooldownFrames();
         reflectionRtSingleBounceEnabled = options.reflectionRtSingleBounceEnabled();
         reflectionRtMultiBounceEnabled = options.reflectionRtMultiBounceEnabled();
         reflectionRtDedicatedDenoisePipelineEnabled = options.reflectionRtDedicatedDenoisePipelineEnabled();
@@ -419,6 +433,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionSsrEnvelopeHighStreak = 0;
         reflectionSsrEnvelopeWarnCooldownRemaining = 0;
         reflectionSsrEnvelopeBreachedLastFrame = false;
+        reflectionPlanarEnvelopeHighStreak = 0;
+        reflectionPlanarEnvelopeWarnCooldownRemaining = 0;
+        reflectionPlanarEnvelopeBreachedLastFrame = false;
+        reflectionPlanarPrevPlaneHeight = Double.NaN;
+        reflectionPlanarLatestPlaneDelta = 0.0;
+        reflectionPlanarLatestCoverageRatio = 1.0;
         context.configureReflectionProbeStreaming(
                 reflectionProbeUpdateCadenceFrames,
                 reflectionProbeMaxVisible,
@@ -874,6 +894,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             int planarEligible = overrideSummary.autoCount() + overrideSummary.otherCount();
             int planarExcluded = overrideSummary.probeOnlyCount() + overrideSummary.ssrOnlyCount();
+            int planarTotalMeshes = Math.max(0, planarEligible + planarExcluded);
             boolean planarPathActive = reflectionBaseMode == 2 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
             reflectionPlanarScopedMeshEligibleCount = planarEligible;
             reflectionPlanarScopedMeshExcludedCount = planarExcluded;
@@ -891,6 +912,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", dedicatedCaptureLaneActive=" + reflectionPlanarDedicatedCaptureLaneActive
                             + ", eligibleMeshes=" + planarEligible
                             + ", excludedMeshes=" + planarExcluded
+                            + ", totalMeshes=" + planarTotalMeshes
                             + ", planeHeight=" + currentPost.reflectionsPlanarPlaneHeight()
                             + ", requiredOrder=planar_capture_before_main_sample_before_post)"
             ));
@@ -900,6 +922,72 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         "Planar path active but selective scope has zero eligible meshes "
                                 + "(excluded=" + planarExcluded + ")"
                 ));
+            }
+            if (planarPathActive) {
+                double planarCoverageRatio = planarTotalMeshes > 0
+                        ? ((double) planarEligible / (double) planarTotalMeshes)
+                        : 1.0;
+                reflectionPlanarLatestCoverageRatio = planarCoverageRatio;
+                double currentPlaneHeight = currentPost.reflectionsPlanarPlaneHeight();
+                double planeDelta = Double.isNaN(reflectionPlanarPrevPlaneHeight)
+                        ? 0.0
+                        : Math.abs(currentPlaneHeight - reflectionPlanarPrevPlaneHeight);
+                reflectionPlanarLatestPlaneDelta = planeDelta;
+                boolean deltaRisk = !Double.isNaN(reflectionPlanarPrevPlaneHeight)
+                        && planeDelta > reflectionPlanarEnvelopePlaneDeltaWarnMax;
+                boolean coverageRisk = planarTotalMeshes > 0
+                        && planarCoverageRatio < reflectionPlanarEnvelopeCoverageRatioWarnMin;
+                boolean contractRisk = !reflectionPlanarMirrorCameraActive || !reflectionPlanarDedicatedCaptureLaneActive;
+                boolean emptyRisk = planarEligible <= 0;
+                boolean planarEnvelopeRisk = deltaRisk || coverageRisk || contractRisk || emptyRisk;
+                if (planarEnvelopeRisk) {
+                    reflectionPlanarEnvelopeHighStreak++;
+                } else {
+                    reflectionPlanarEnvelopeHighStreak = 0;
+                }
+                boolean planarEnvelopeTriggered = false;
+                if (reflectionPlanarEnvelopeWarnCooldownRemaining > 0) {
+                    reflectionPlanarEnvelopeWarnCooldownRemaining--;
+                }
+                if (planarEnvelopeRisk
+                        && reflectionPlanarEnvelopeHighStreak >= reflectionPlanarEnvelopeWarnMinFrames
+                        && reflectionPlanarEnvelopeWarnCooldownRemaining <= 0) {
+                    planarEnvelopeTriggered = true;
+                    reflectionPlanarEnvelopeWarnCooldownRemaining = reflectionPlanarEnvelopeWarnCooldownFrames;
+                }
+                reflectionPlanarEnvelopeBreachedLastFrame = planarEnvelopeTriggered;
+                warnings.add(new EngineWarning(
+                        "REFLECTION_PLANAR_STABILITY_ENVELOPE",
+                        "Planar stability envelope (risk=" + planarEnvelopeRisk
+                                + ", planeDelta=" + planeDelta
+                                + ", planeDeltaWarnMax=" + reflectionPlanarEnvelopePlaneDeltaWarnMax
+                                + ", coverageRatio=" + planarCoverageRatio
+                                + ", coverageRatioWarnMin=" + reflectionPlanarEnvelopeCoverageRatioWarnMin
+                                + ", contractRisk=" + contractRisk
+                                + ", emptyScopeRisk=" + emptyRisk
+                                + ", highStreak=" + reflectionPlanarEnvelopeHighStreak
+                                + ", warnMinFrames=" + reflectionPlanarEnvelopeWarnMinFrames
+                                + ", warnCooldownFrames=" + reflectionPlanarEnvelopeWarnCooldownFrames
+                                + ", cooldownRemaining=" + reflectionPlanarEnvelopeWarnCooldownRemaining
+                                + ", breached=" + planarEnvelopeTriggered
+                                + ")"
+                ));
+                if (planarEnvelopeTriggered) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH",
+                            "Planar stability envelope breach (planeDelta=" + planeDelta
+                                    + ", coverageRatio=" + planarCoverageRatio
+                                    + ", contractRisk=" + contractRisk
+                                    + ", emptyScopeRisk=" + emptyRisk + ")"
+                    ));
+                }
+                reflectionPlanarPrevPlaneHeight = currentPlaneHeight;
+            } else {
+                reflectionPlanarEnvelopeHighStreak = 0;
+                reflectionPlanarEnvelopeBreachedLastFrame = false;
+                reflectionPlanarPrevPlaneHeight = Double.NaN;
+                reflectionPlanarLatestPlaneDelta = 0.0;
+                reflectionPlanarLatestCoverageRatio = 1.0;
             }
             reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
             reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled;
@@ -983,6 +1071,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", ssrEnvelopeDropWarnMin=" + reflectionSsrEnvelopeDropWarnMin
                             + ", ssrEnvelopeWarnMinFrames=" + reflectionSsrEnvelopeWarnMinFrames
                             + ", ssrEnvelopeWarnCooldownFrames=" + reflectionSsrEnvelopeWarnCooldownFrames
+                            + ", planarEnvelopePlaneDeltaWarnMax=" + reflectionPlanarEnvelopePlaneDeltaWarnMax
+                            + ", planarEnvelopeCoverageRatioWarnMin=" + reflectionPlanarEnvelopeCoverageRatioWarnMin
+                            + ", planarEnvelopeWarnMinFrames=" + reflectionPlanarEnvelopeWarnMinFrames
+                            + ", planarEnvelopeWarnCooldownFrames=" + reflectionPlanarEnvelopeWarnCooldownFrames
                             + ", rtSingleBounceEnabled=" + reflectionRtSingleBounceEnabled
                             + ", rtMultiBounceEnabled=" + reflectionRtMultiBounceEnabled
                             + ", rtDedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
@@ -2067,6 +2159,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionPlanarStabilityDiagnostics debugReflectionPlanarStabilityDiagnostics() {
+        return new ReflectionPlanarStabilityDiagnostics(
+                reflectionPlanarLatestPlaneDelta,
+                reflectionPlanarLatestCoverageRatio,
+                reflectionPlanarEnvelopePlaneDeltaWarnMax,
+                reflectionPlanarEnvelopeCoverageRatioWarnMin,
+                reflectionPlanarEnvelopeHighStreak,
+                reflectionPlanarEnvelopeWarnMinFrames,
+                reflectionPlanarEnvelopeWarnCooldownFrames,
+                reflectionPlanarEnvelopeWarnCooldownRemaining,
+                reflectionPlanarEnvelopeBreachedLastFrame
+        );
+    }
+
     ReflectionOverridePolicyDiagnostics debugReflectionOverridePolicyDiagnostics() {
         ReflectionOverrideSummary summary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
         return new ReflectionOverridePolicyDiagnostics(
@@ -2252,6 +2358,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int scopedMeshExcludedCount,
             boolean mirrorCameraActive,
             boolean dedicatedCaptureLaneActive
+    ) {
+    }
+
+    record ReflectionPlanarStabilityDiagnostics(
+            double planeDelta,
+            double coverageRatio,
+            double planeDeltaWarnMax,
+            double coverageRatioWarnMin,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
+            boolean breachedLastFrame
     ) {
     }
 
@@ -2462,6 +2581,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples")) reflectionSsrTaaAdaptiveTrendSloMinSamples = 30;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectDropEventsMin")) reflectionSsrTaaDisocclusionRejectDropEventsMin = 3;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectConfidenceMax")) reflectionSsrTaaDisocclusionRejectConfidenceMax = 0.58;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopePlaneDeltaWarnMax")) reflectionPlanarEnvelopePlaneDeltaWarnMax = 0.45;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeCoverageRatioWarnMin")) reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.30;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnMinFrames")) reflectionPlanarEnvelopeWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnCooldownFrames")) reflectionPlanarEnvelopeWarnCooldownFrames = 180;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = false;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.58;
@@ -2493,6 +2616,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples")) reflectionSsrTaaAdaptiveTrendSloMinSamples = 24;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectDropEventsMin")) reflectionSsrTaaDisocclusionRejectDropEventsMin = 2;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectConfidenceMax")) reflectionSsrTaaDisocclusionRejectConfidenceMax = 0.62;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopePlaneDeltaWarnMax")) reflectionPlanarEnvelopePlaneDeltaWarnMax = 0.30;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeCoverageRatioWarnMin")) reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.20;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnMinFrames")) reflectionPlanarEnvelopeWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnCooldownFrames")) reflectionPlanarEnvelopeWarnCooldownFrames = 120;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.72;
@@ -2524,6 +2651,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples")) reflectionSsrTaaAdaptiveTrendSloMinSamples = 16;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectDropEventsMin")) reflectionSsrTaaDisocclusionRejectDropEventsMin = 1;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectConfidenceMax")) reflectionSsrTaaDisocclusionRejectConfidenceMax = 0.70;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopePlaneDeltaWarnMax")) reflectionPlanarEnvelopePlaneDeltaWarnMax = 0.22;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeCoverageRatioWarnMin")) reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.15;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnMinFrames")) reflectionPlanarEnvelopeWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnCooldownFrames")) reflectionPlanarEnvelopeWarnCooldownFrames = 90;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = false;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.80;

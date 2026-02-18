@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 15:22 ET — Planar path now uses a dedicated planar capture texture lane in post (separate from TAA history-velocity), alongside mirrored camera uniforms and contract stability checks.
+- Latest reflection update: 2026-02-18 15:33 ET — Added planar stability envelope diagnostics/breach gating (contract + coverage + plane-delta), expanded planar mode coverage tests, and CI-friendly planar stress checks.
 
 Status legend:
 
@@ -92,6 +92,7 @@ Reflection notes:
 - Vulkan post reflection push constants now carry RT denoise strength; runtime exposes typed debug accessors for composed mode and denoise strength.
 - Vulkan now executes planar selective capture as a real pre-main geometry pass and copies capture to planar history source, using runtime-composed capture bits (`1<<18` capture + `1<<20` geometry-capture execution).
 - Vulkan planar sampling now reads from a dedicated planar capture texture lane in post composite (`uPlanarCaptureColor`), decoupled from TAA history velocity.
+- Vulkan now emits planar stability envelope diagnostics (`REFLECTION_PLANAR_STABILITY_ENVELOPE` / `REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH`) with threshold/cooldown controls and typed runtime diagnostics for CI gating.
 - Planar path is still `Partial`: mirrored clip-plane camera rerender is now active, but broader production hardening (quality/perf/content edge cases) remains.
 - SSR confidence/reprojection now has explicit envelope diagnostics and cooldown-gated breach warnings for ghost/disocclusion stress.
 - Probe upload now supports cadence rotation + max-visible budget + LOD depth-tier tagging in metadata for progressive probe streaming behavior.
