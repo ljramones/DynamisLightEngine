@@ -1010,6 +1010,28 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void rtReflectionRequireMultiBounceEmitsBreachWhenUnavailable() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtMultiBounceEnabled", "false"),
+                Map.entry("vulkan.reflections.rtRequireMultiBounce", "true")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("rt_hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+        String requested = warningMessageByCode(frame, "REFLECTION_RT_PATH_REQUESTED");
+        assertTrue(requested.contains("requireMultiBounce=true"));
+        var diagnostics = runtime.debugReflectionRtPathDiagnostics();
+        assertEquals(true, diagnostics.requireMultiBounce());
+        assertEquals(true, diagnostics.requireMultiBounceUnmetLastFrame());
+        runtime.shutdown();
+    }
+
     void transparentCandidatesEmitStageGateWarningUntilRtLaneIsActive() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());

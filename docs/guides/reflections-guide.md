@@ -129,6 +129,7 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan RT lane now supports dedicated denoise staging (spatial + temporal) behind runtime mode bit activation.
 - RT path diagnostics now explicitly report dedicated-denoise pipeline intent in warning payload and typed runtime diagnostics.
 - Optional strict RT-availability gate: `vulkan.reflections.rtRequireActive=true` emits `REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH` when RT path is requested but inactive.
+- Optional strict RT multi-bounce gate: `vulkan.reflections.rtRequireMultiBounce=true` emits `REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH` when requested RT multi-bounce is unavailable.
 - RT perf envelope controls:
   - `vulkan.reflections.rtPerfMaxGpuMsLow|Medium|High|Ultra`
   - `vulkan.reflections.rtPerfWarnMinFrames`, `vulkan.reflections.rtPerfWarnCooldownFrames`

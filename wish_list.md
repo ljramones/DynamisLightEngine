@@ -106,6 +106,7 @@ Reflection notes:
 - Planar promotion workflow now includes a guarded real-Vulkan signoff runner (`scripts/planar_real_gpu_signoff.sh`) for timestamp-source validation and stress replay outside mock-only CI.
 - RT reflections now include an explicit strict-availability gate (`vulkan.reflections.rtRequireActive`) with breach warning (`REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH`) plus a dedicated lockdown runner (`scripts/rt_reflections_ci_lockdown_full.sh`).
 - RT reflections now also include perf envelope warnings/gates (`REFLECTION_RT_PERF_GATES`, `REFLECTION_RT_PERF_GATES_BREACH`) with typed runtime diagnostics (`debugReflectionRtPerfDiagnostics`).
+- RT reflections now include strict multi-bounce availability gating (`vulkan.reflections.rtRequireMultiBounce`) with explicit breach warning (`REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH`) and mode-bit contract tests.
 
 ## Anti-Aliasing
 
