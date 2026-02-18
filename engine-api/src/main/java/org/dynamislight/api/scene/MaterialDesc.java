@@ -18,7 +18,8 @@ public record MaterialDesc(
         float reactiveBoost,
         float taaHistoryClamp,
         float emissiveReactiveBoost,
-        ReactivePreset reactivePreset
+        ReactivePreset reactivePreset,
+        ReflectionOverrideMode reflectionOverride
 ) {
     public MaterialDesc(
             String id,
@@ -48,7 +49,8 @@ public record MaterialDesc(
                 1.0f,
                 1.0f,
                 1.0f,
-                ReactivePreset.AUTO
+                ReactivePreset.AUTO,
+                ReflectionOverrideMode.AUTO
         );
     }
 
@@ -60,7 +62,24 @@ public record MaterialDesc(
             String albedoTexturePath,
             String normalTexturePath
     ) {
-        this(id, albedo, metallic, roughness, albedoTexturePath, normalTexturePath, null, null, 0f, false, false, 1.0f, 1.0f);
+        this(
+                id,
+                albedo,
+                metallic,
+                roughness,
+                albedoTexturePath,
+                normalTexturePath,
+                null,
+                null,
+                0f,
+                false,
+                false,
+                1.0f,
+                1.0f,
+                1.0f,
+                ReactivePreset.AUTO,
+                ReflectionOverrideMode.AUTO
+        );
     }
 
     public MaterialDesc(
@@ -88,7 +107,8 @@ public record MaterialDesc(
                 1.0f,
                 1.0f,
                 1.0f,
-                ReactivePreset.AUTO
+                ReactivePreset.AUTO,
+                ReflectionOverrideMode.AUTO
         );
     }
 
@@ -122,7 +142,45 @@ public record MaterialDesc(
                 reactiveBoost,
                 taaHistoryClamp,
                 1.0f,
-                ReactivePreset.AUTO
+                ReactivePreset.AUTO,
+                ReflectionOverrideMode.AUTO
+        );
+    }
+
+    public MaterialDesc(
+            String id,
+            Vec3 albedo,
+            float metallic,
+            float roughness,
+            String albedoTexturePath,
+            String normalTexturePath,
+            String metallicRoughnessTexturePath,
+            String occlusionTexturePath,
+            float reactiveStrength,
+            boolean alphaTested,
+            boolean foliage,
+            float reactiveBoost,
+            float taaHistoryClamp,
+            float emissiveReactiveBoost,
+            ReactivePreset reactivePreset
+    ) {
+        this(
+                id,
+                albedo,
+                metallic,
+                roughness,
+                albedoTexturePath,
+                normalTexturePath,
+                metallicRoughnessTexturePath,
+                occlusionTexturePath,
+                reactiveStrength,
+                alphaTested,
+                foliage,
+                reactiveBoost,
+                taaHistoryClamp,
+                emissiveReactiveBoost,
+                reactivePreset,
+                ReflectionOverrideMode.AUTO
         );
     }
 }

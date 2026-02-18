@@ -11,6 +11,7 @@ It is intended as extraction input for future capability contracts and render-gr
 - Vulkan maps probes into runtime state and uploads frame-visible probe metadata into a per-frame SSBO.
 - Main fragment shader consumes probe metadata, evaluates per-fragment probe influence, applies optional box-projected direction shaping, and blends probe influence into the existing IBL radiance path.
 - Probe overlap uses priority-aware remaining-coverage blending.
+- Per-material reflection override groundwork is in place via `MaterialDesc.reflectionOverride`, currently with `PROBE_ONLY` support in Vulkan.
 
 ## Capability observations
 
@@ -57,13 +58,15 @@ It is intended as extraction input for future capability contracts and render-gr
 
 - Probe texture selection now uses a native 2D-array path, not native cubemap-array sampling.
 - Source probe assets are projected through the existing 2D radiance UV sampling model.
-- Native cubemap-array/image-array upload and sampling remains a future enhancement.
+- Cubemap-face ingestion/discovery (`*_px/_nx/_py/_ny/_pz/_nz`) is now wired as optional groundwork behind `dle.vulkan.reflections.probeCubeArrayEnabled`.
+- Runtime texture creation remains pinned to the validated 2D-array path to avoid shader/view-type mismatch until fragment sampling contract is updated for cube arrays.
 
 ### 6. Surprises vs shadow domain
 
 - Reflection probe capability gave value without introducing a new pass, while shadows were pass-first.
 - This confirms the feature contract cannot assume "one feature = one pass contribution."
 - Reflection overlap behavior required priority-aware accumulation in shader to avoid exterior bleed in interior volumes.
+- Material-level behavior needed data to cross passes; Vulkan now packs override metadata into velocity alpha, which TAA and reflection resolve both consume.
 
 ## Current extraction candidates (not final contract)
 
@@ -74,4 +77,4 @@ It is intended as extraction input for future capability contracts and render-gr
 
 ## Next reflection implementation target
 
-- Replace 2D-array probe path with native cubemap-array/image-array probe sampling while keeping current slot-map and header contracts stable.
+- Add dedicated reflection mask/aux channel (instead of velocity-alpha packing) so per-material reflection policy can scale beyond `PROBE_ONLY` without coupling to TAA reactive data.

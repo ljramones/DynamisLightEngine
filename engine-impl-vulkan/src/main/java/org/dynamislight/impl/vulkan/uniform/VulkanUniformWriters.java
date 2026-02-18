@@ -125,7 +125,9 @@ public final class VulkanUniformWriters {
                     mesh.metallic,
                     mesh.roughness,
                     mesh.reactiveStrength,
-                    (mesh.alphaTested ? 1f : 0f) + (mesh.foliage ? 2f : 0f)
+                    (mesh.alphaTested ? 1f : 0f)
+                            + (mesh.foliage ? 2f : 0f)
+                            + (mesh.reflectionProbeOnly ? 4f : 0f)
             });
             fb.put(new float[]{mesh.reactiveBoost, mesh.taaHistoryClamp, mesh.emissiveReactiveBoost, mesh.reactivePreset});
         }

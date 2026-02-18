@@ -40,6 +40,7 @@ public final class VulkanDynamicSceneUpdater {
                     sceneMesh.reactiveStrength(),
                     sceneMesh.alphaTested(),
                     sceneMesh.foliage(),
+                    sceneMesh.reflectionProbeOnly(),
                     sceneMesh.reactiveBoost(),
                     sceneMesh.taaHistoryClamp(),
                     sceneMesh.emissiveReactiveBoost(),

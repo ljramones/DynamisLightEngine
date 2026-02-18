@@ -1161,6 +1161,7 @@ public final class VulkanShaderSources {
                     float reactivePreset = clamp(obj.uMaterialReactive.w, 0.0, 3.0);
                     bool alphaTested = mod(reactiveFlags, 2.0) >= 1.0;
                     bool foliage = mod(floor(reactiveFlags / 2.0), 2.0) >= 1.0;
+                    bool reflectionProbeOnly = mod(floor(reactiveFlags / 4.0), 2.0) >= 1.0;
                     float normalVariance = clamp((length(dFdx(n)) + length(dFdy(n))) * 0.30, 0.0, 1.0);
                     float normalMapVariance = clamp((1.0 - clamp(length(normalTex), 0.0, 1.0)) * 1.55, 0.0, 1.0);
                     float toksvigVariance = clamp(normalVariance * 0.70 + normalMapVariance * 0.65, 0.0, 1.0);
@@ -1702,7 +1703,11 @@ public final class VulkanShaderSources {
                     vec2 currNdc = currClip.xy / currW;
                     vec2 prevNdc = prevClip.xy / prevW;
                     vec2 velocityNdc = clamp(prevNdc - currNdc, vec2(-1.0), vec2(1.0));
-                    outVelocity = vec4(velocityNdc * 0.5 + 0.5, clamp(gl_FragCoord.z, 0.0, 1.0), materialReactive);
+                    float packedReactive = clamp(materialReactive, 0.0, 0.9999);
+                    if (reflectionProbeOnly) {
+                        packedReactive += 1.0;
+                    }
+                    outVelocity = vec4(velocityNdc * 0.5 + 0.5, clamp(gl_FragCoord.z, 0.0, 1.0), packedReactive);
                 }
                 """).toString();
     }
@@ -1813,8 +1818,11 @@ public final class VulkanShaderSources {
                     vec3 sharpened = color + (color - blur) * amount;
                     return clamp(sharpened, vec3(0.0), vec3(1.0));
                 }
-                vec3 applyReflections(vec2 uv, vec3 color, float currentDepth, float historyConfidenceOut) {
+                vec3 applyReflections(vec2 uv, vec3 color, float currentDepth, float historyConfidenceOut, bool probeOnlyOverride) {
                     if (pc.reflectionsA.x < 0.5 || int(pc.reflectionsA.y + 0.5) == 0) {
+                        return color;
+                    }
+                    if (probeOnlyOverride) {
                         return color;
                     }
                     int packedMode = max(int(pc.reflectionsA.y + 0.5), 0);
@@ -1894,7 +1902,11 @@ public final class VulkanShaderSources {
                 }
                 void main() {
                     vec3 color = texture(uSceneColor, vUv).rgb;
-                    float currentDepth = texture(uVelocityColor, vUv).b;
+                    vec4 centerVelocitySample = texture(uVelocityColor, vUv);
+                    float currentDepth = centerVelocitySample.b;
+                    float packedMaterialMeta = centerVelocitySample.a;
+                    bool probeOnlyOverride = packedMaterialMeta >= 1.0;
+                    float centerMaterialReactive = fract(packedMaterialMeta);
                     float historyConfidenceOut = 1.0;
                     if (pc.tonemap.x > 0.5) {
                         float exposure = max(pc.tonemap.y, 0.0001);
@@ -1944,9 +1956,9 @@ public final class VulkanShaderSources {
                         vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
                         bool taaLumaClip = pc.motion.z >= 1.0;
                         float taaSharpenStrength = clamp(pc.motion.z - (taaLumaClip ? 1.0 : 0.0), 0.0, 0.35);
-                        vec4 velocitySample = texture(uVelocityColor, vUv);
+                        vec4 velocitySample = centerVelocitySample;
                         vec2 velocityUv = velocitySample.rg * 2.0 - 1.0;
-                        float materialReactive = velocitySample.a;
+                        float materialReactive = centerMaterialReactive;
                         vec2 historyUv = clamp(vUv + pc.smaa.zw + pc.motion.xy + (velocityUv * 0.5), vec2(0.0), vec2(1.0));
                         vec4 historySample = texture(uHistoryColor, historyUv);
                         vec3 history = historySample.rgb;
@@ -2052,7 +2064,7 @@ public final class VulkanShaderSources {
                             color = mix(color, vec3(1.0, 1.0, 0.2), line * 0.65);
                         }
                     }
-                    color = applyReflections(vUv, color, currentDepth, historyConfidenceOut);
+                    color = applyReflections(vUv, color, currentDepth, historyConfidenceOut, probeOnlyOverride);
                     outColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);
                 }
                 """;

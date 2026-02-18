@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 11:36 ET — Vulkan probe reflections now use native 2D-array per-probe slot sampling with metadata-driven box projection and priority overlap blending. Optional cubemap-face ingestion/discovery groundwork is present behind `dle.vulkan.reflections.probeCubeArrayEnabled`, but runtime texture creation remains pinned to the validated 2D-array sampling path.
+- Latest reflection update: 2026-02-18 11:34 ET — Added per-material reflection override groundwork (`PROBE_ONLY`) through API → Vulkan uniform packing → shader decode. Probe overrides currently bypass post reflection resolve for flagged materials while default paths remain unchanged.
 
 Status legend:
 
@@ -57,7 +57,7 @@ Status summary snapshot (2026-02-18):
 - RT reflections (single-bounce, multi-bounce) — `Partial`
 - RT + SSR hybrid (RT for rough, SSR for sharp, probe for miss) — `Partial`
 - Reflection probe streaming (LOD, priority-based update) — `Not In Yet`
-- Per-material reflection override (force probe-only for specific surfaces) — `Not In Yet`
+- Per-material reflection override (force probe-only for specific surfaces) — `Partial`
 - Contact-hardening reflections (roughness ramp near contact) — `Not In Yet`
 - Transparent/refractive surface reflections — `Partial`
 
@@ -65,6 +65,7 @@ Reflection notes:
 
 - Vulkan now has per-scene probe slot assignment, frame-visible probe metadata upload, and native 2D-array per-probe reflection selection in main-fragment shading.
 - Optional probe cubemap-face ingestion/discovery (`*_px/_nx/_py/_ny/_pz/_nz`) is wired behind a disabled-by-default flag as groundwork; runtime shading still consumes 2D-array probe radiance textures.
+- Vulkan now supports a per-material `PROBE_ONLY` reflection override lane that disables post reflection resolve for those surfaces via packed velocity metadata.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing
