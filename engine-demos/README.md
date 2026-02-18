@@ -4,6 +4,7 @@ This module is the home for first-party demo content:
 - demo scene descriptors
 - material definitions
 - reusable demo assets/manifests
+- runnable command-line demos with telemetry output
 
 ## Layout
 
@@ -11,9 +12,34 @@ This module is the home for first-party demo content:
   material definitions and material manifests.
 - `src/main/resources/demos/scenes`:
   scene descriptors and scene manifests.
+- `src/main/java/org/dynamislight/demos`:
+  demo runner, registry, and demo implementations.
 
 ## Conventions
 
 - Keep paths relative to `src/main/resources/demos`.
 - Use stable IDs in manifests to avoid breaking references between scenes and materials.
 - Add new demos under this module instead of `engine-host-sample` so sample host code stays runtime-focused.
+
+## CLI Usage
+
+List demos:
+```bash
+mvn -f engine-demos/pom.xml exec:java -Dexec.args="--list"
+```
+
+Run a demo:
+```bash
+mvn -f engine-demos/pom.xml exec:java \
+  -Dexec.args="--demo=hello-triangle --backend=vulkan --seconds=10 --quality=high"
+```
+
+Run AA demo with explicit mode and telemetry file:
+```bash
+mvn -f engine-demos/pom.xml exec:java \
+  -Dexec.args="--demo=aa-matrix --backend=vulkan --aa-mode=tsr --aa-render-scale=0.64 --seconds=12 --telemetry=artifacts/demos/aa-tsr.jsonl"
+```
+
+Telemetry outputs:
+- frame-by-frame JSONL (default under `artifacts/demos/`)
+- summary JSON (`*.summary.json`) with averages/p95/event/log counts
