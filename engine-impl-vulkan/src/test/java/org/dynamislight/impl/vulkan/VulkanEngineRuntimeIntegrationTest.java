@@ -1120,6 +1120,84 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void rtHybridCompositionBreachUsesConfiguredThresholdAndCooldown() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtHybridProbeShareWarnMax", "0.0"),
+                Map.entry("vulkan.reflections.rtHybridWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.rtHybridWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("rt_hybrid"));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_RT_HYBRID_COMPOSITION".equals(w.code())));
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_RT_HYBRID_COMPOSITION_BREACH".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "REFLECTION_RT_HYBRID_COMPOSITION_BREACH".equals(w.code())));
+        var diagnostics = runtime.debugReflectionRtHybridDiagnostics();
+        assertTrue(diagnostics.probeShareWarnMax() <= 0.000001);
+        assertTrue(diagnostics.warnCooldownRemaining() > 0);
+        assertTrue(diagnostics.breachedLastFrame() || diagnostics.highStreak() >= 0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void rtDenoiseEnvelopeBreachEmitsUnderStrictThresholds() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtDenoiseStrength", "0.0"),
+                Map.entry("vulkan.reflections.rtDenoiseSpatialVarianceWarnMax", "0.01"),
+                Map.entry("vulkan.reflections.rtDenoiseTemporalLagWarnMax", "0.01"),
+                Map.entry("vulkan.reflections.rtDenoiseWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.rtDenoiseWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("rt_hybrid"));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_RT_DENOISE_ENVELOPE".equals(w.code())));
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_RT_DENOISE_ENVELOPE_BREACH".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "REFLECTION_RT_DENOISE_ENVELOPE_BREACH".equals(w.code())));
+        var diagnostics = runtime.debugReflectionRtDenoiseDiagnostics();
+        assertTrue(diagnostics.spatialVariance() >= 0.0);
+        assertTrue(diagnostics.spatialVarianceWarnMax() <= 0.01 + 1e-9);
+        assertTrue(diagnostics.warnCooldownRemaining() > 0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void rtAsBudgetBreachEmitsUnderStrictThresholds() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtAsBuildGpuMsWarnMax", "0.0001"),
+                Map.entry("vulkan.reflections.rtAsMemoryBudgetMb", "0.01"),
+                Map.entry("vulkan.reflections.rtPerfWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.rtPerfWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("rt_hybrid"));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_RT_AS_BUDGET".equals(w.code())));
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_RT_AS_BUDGET_BREACH".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "REFLECTION_RT_AS_BUDGET_BREACH".equals(w.code())));
+        var diagnostics = runtime.debugReflectionRtAsBudgetDiagnostics();
+        assertTrue(diagnostics.buildGpuMsWarnMax() <= 0.0001 + 1e-9);
+        assertTrue(diagnostics.memoryMbBudget() <= 1.0 + 1e-9);
+        assertTrue(diagnostics.warnCooldownRemaining() > 0);
+        runtime.shutdown();
+    }
+
+    @Test
     void rtReflectionRequireMultiBounceEmitsBreachWhenUnavailable() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(

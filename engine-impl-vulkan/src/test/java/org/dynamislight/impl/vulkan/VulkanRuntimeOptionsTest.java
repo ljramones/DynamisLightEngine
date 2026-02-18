@@ -83,6 +83,15 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtPerfMaxGpuMsUltra", "3.7"),
                         Map.entry("vulkan.reflections.rtPerfWarnMinFrames", "5"),
                         Map.entry("vulkan.reflections.rtPerfWarnCooldownFrames", "210"),
+                        Map.entry("vulkan.reflections.rtHybridProbeShareWarnMax", "0.62"),
+                        Map.entry("vulkan.reflections.rtHybridWarnMinFrames", "6"),
+                        Map.entry("vulkan.reflections.rtHybridWarnCooldownFrames", "190"),
+                        Map.entry("vulkan.reflections.rtDenoiseSpatialVarianceWarnMax", "0.33"),
+                        Map.entry("vulkan.reflections.rtDenoiseTemporalLagWarnMax", "0.27"),
+                        Map.entry("vulkan.reflections.rtDenoiseWarnMinFrames", "4"),
+                        Map.entry("vulkan.reflections.rtDenoiseWarnCooldownFrames", "160"),
+                        Map.entry("vulkan.reflections.rtAsBuildGpuMsWarnMax", "1.9"),
+                        Map.entry("vulkan.reflections.rtAsMemoryBudgetMb", "88.0"),
                         Map.entry("vulkan.reflections.planarPerfRequireGpuTimestamp", "true")
                         ,Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "6")
                         ,Map.entry("vulkan.reflections.probeMaxVisible", "48")
@@ -170,6 +179,15 @@ class VulkanRuntimeOptionsTest {
         assertEquals(3.7, parsed.reflectionRtPerfMaxGpuMsUltra());
         assertEquals(5, parsed.reflectionRtPerfWarnMinFrames());
         assertEquals(210, parsed.reflectionRtPerfWarnCooldownFrames());
+        assertEquals(0.62, parsed.reflectionRtHybridProbeShareWarnMax());
+        assertEquals(6, parsed.reflectionRtHybridWarnMinFrames());
+        assertEquals(190, parsed.reflectionRtHybridWarnCooldownFrames());
+        assertEquals(0.33, parsed.reflectionRtDenoiseSpatialVarianceWarnMax());
+        assertEquals(0.27, parsed.reflectionRtDenoiseTemporalLagWarnMax());
+        assertEquals(4, parsed.reflectionRtDenoiseWarnMinFrames());
+        assertEquals(160, parsed.reflectionRtDenoiseWarnCooldownFrames());
+        assertEquals(1.9, parsed.reflectionRtAsBuildGpuMsWarnMax());
+        assertEquals(88.0, parsed.reflectionRtAsMemoryBudgetMb());
         assertEquals(true, parsed.reflectionPlanarPerfRequireGpuTimestamp());
         assertEquals(6, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(48, parsed.reflectionProbeMaxVisible());
@@ -244,6 +262,15 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtPerfMaxGpuMsUltra", "20000.0"),
                         Map.entry("vulkan.reflections.rtPerfWarnMinFrames", "0"),
                         Map.entry("vulkan.reflections.rtPerfWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.reflections.rtHybridProbeShareWarnMax", "2.0"),
+                        Map.entry("vulkan.reflections.rtHybridWarnMinFrames", "0"),
+                        Map.entry("vulkan.reflections.rtHybridWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.reflections.rtDenoiseSpatialVarianceWarnMax", "-1.0"),
+                        Map.entry("vulkan.reflections.rtDenoiseTemporalLagWarnMax", "2.0"),
+                        Map.entry("vulkan.reflections.rtDenoiseWarnMinFrames", "0"),
+                        Map.entry("vulkan.reflections.rtDenoiseWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.reflections.rtAsBuildGpuMsWarnMax", "-1.0"),
+                        Map.entry("vulkan.reflections.rtAsMemoryBudgetMb", "99999.0"),
                         Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "0"),
                         Map.entry("vulkan.reflections.probeMaxVisible", "999"),
                         Map.entry("vulkan.reflections.probeLodDepthScale", "9.0")
@@ -324,6 +351,15 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1000.0, parsed.reflectionRtPerfMaxGpuMsUltra());
         assertEquals(1, parsed.reflectionRtPerfWarnMinFrames());
         assertEquals(10000, parsed.reflectionRtPerfWarnCooldownFrames());
+        assertEquals(1.0, parsed.reflectionRtHybridProbeShareWarnMax());
+        assertEquals(1, parsed.reflectionRtHybridWarnMinFrames());
+        assertEquals(10000, parsed.reflectionRtHybridWarnCooldownFrames());
+        assertEquals(0.0, parsed.reflectionRtDenoiseSpatialVarianceWarnMax());
+        assertEquals(1.0, parsed.reflectionRtDenoiseTemporalLagWarnMax());
+        assertEquals(1, parsed.reflectionRtDenoiseWarnMinFrames());
+        assertEquals(10000, parsed.reflectionRtDenoiseWarnCooldownFrames());
+        assertEquals(0.0, parsed.reflectionRtAsBuildGpuMsWarnMax());
+        assertEquals(4096.0, parsed.reflectionRtAsMemoryBudgetMb());
         assertEquals(false, parsed.reflectionPlanarPerfRequireGpuTimestamp());
         assertEquals(1, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(256, parsed.reflectionProbeMaxVisible());

@@ -38,9 +38,9 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 
 ## 4. Denoise Hardening
 
-- [ ] Lock spatial denoise envelope gates.
-- [ ] Lock temporal denoise envelope gates for camera/disocclusion stress.
-- [ ] Add typed denoise diagnostics for CI assertions.
+- [x] Lock spatial denoise envelope gates.
+- [x] Lock temporal denoise envelope gates for camera/disocclusion stress.
+- [x] Add typed denoise diagnostics for CI assertions.
 
 ## 5. Hybrid Composition Lockdown
 
@@ -59,8 +59,8 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 
 - [x] Add RT perf warning/breach gates and typed diagnostics.
 - [ ] Lock per-tier RT GPU-ms caps on real hardware.
-- [ ] Add AS update/build budget gates.
-- [ ] Add RT resource memory budget gates.
+- [x] Add AS update/build budget gates.
+- [x] Add RT resource memory budget gates.
 
 ## 8. Artifact/Stability Gates
 

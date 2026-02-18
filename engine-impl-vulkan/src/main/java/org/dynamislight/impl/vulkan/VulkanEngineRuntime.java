@@ -326,6 +326,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double reflectionRtPerfMaxGpuMsUltra = 4.8;
     private int reflectionRtPerfWarnMinFrames = 3;
     private int reflectionRtPerfWarnCooldownFrames = 120;
+    private double reflectionRtHybridProbeShareWarnMax = 0.70;
+    private int reflectionRtHybridWarnMinFrames = 3;
+    private int reflectionRtHybridWarnCooldownFrames = 120;
+    private double reflectionRtDenoiseSpatialVarianceWarnMax = 0.45;
+    private double reflectionRtDenoiseTemporalLagWarnMax = 0.35;
+    private int reflectionRtDenoiseWarnMinFrames = 3;
+    private int reflectionRtDenoiseWarnCooldownFrames = 120;
+    private double reflectionRtAsBuildGpuMsWarnMax = 1.2;
+    private double reflectionRtAsMemoryBudgetMb = 64.0;
     private boolean reflectionRtLaneRequested;
     private boolean reflectionRtLaneActive;
     private boolean reflectionRtRequireActiveUnmetLastFrame;
@@ -345,6 +354,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double reflectionRtHybridSsrShare;
     private double reflectionRtHybridProbeShare = 1.0;
     private boolean reflectionRtHybridBreachedLastFrame;
+    private int reflectionRtHybridHighStreak;
+    private int reflectionRtHybridWarnCooldownRemaining;
+    private double reflectionRtDenoiseSpatialVariance;
+    private double reflectionRtDenoiseTemporalLag;
+    private boolean reflectionRtDenoiseBreachedLastFrame;
+    private int reflectionRtDenoiseHighStreak;
+    private int reflectionRtDenoiseWarnCooldownRemaining;
+    private double reflectionRtAsBuildGpuMsEstimate;
+    private double reflectionRtAsMemoryMbEstimate;
+    private boolean reflectionRtAsBudgetBreachedLastFrame;
+    private int reflectionRtAsBudgetHighStreak;
+    private int reflectionRtAsBudgetWarnCooldownRemaining;
     private int reflectionRtPerfHighStreak;
     private int reflectionRtPerfWarnCooldownRemaining;
     private double reflectionRtPerfLastGpuMsEstimate;
@@ -502,6 +523,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionRtPerfMaxGpuMsUltra = options.reflectionRtPerfMaxGpuMsUltra();
         reflectionRtPerfWarnMinFrames = options.reflectionRtPerfWarnMinFrames();
         reflectionRtPerfWarnCooldownFrames = options.reflectionRtPerfWarnCooldownFrames();
+        reflectionRtHybridProbeShareWarnMax = options.reflectionRtHybridProbeShareWarnMax();
+        reflectionRtHybridWarnMinFrames = options.reflectionRtHybridWarnMinFrames();
+        reflectionRtHybridWarnCooldownFrames = options.reflectionRtHybridWarnCooldownFrames();
+        reflectionRtDenoiseSpatialVarianceWarnMax = options.reflectionRtDenoiseSpatialVarianceWarnMax();
+        reflectionRtDenoiseTemporalLagWarnMax = options.reflectionRtDenoiseTemporalLagWarnMax();
+        reflectionRtDenoiseWarnMinFrames = options.reflectionRtDenoiseWarnMinFrames();
+        reflectionRtDenoiseWarnCooldownFrames = options.reflectionRtDenoiseWarnCooldownFrames();
+        reflectionRtAsBuildGpuMsWarnMax = options.reflectionRtAsBuildGpuMsWarnMax();
+        reflectionRtAsMemoryBudgetMb = options.reflectionRtAsMemoryBudgetMb();
         reflectionProbeUpdateCadenceFrames = options.reflectionProbeUpdateCadenceFrames();
         reflectionProbeMaxVisible = options.reflectionProbeMaxVisible();
         reflectionProbeLodDepthScale = options.reflectionProbeLodDepthScale();
@@ -536,6 +566,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionPlanarPerfLastTimingSource = "frame_estimate";
         reflectionPlanarPerfLastTimestampAvailable = false;
         reflectionPlanarPerfLastTimestampRequirementUnmet = false;
+        reflectionRtHybridHighStreak = 0;
+        reflectionRtHybridWarnCooldownRemaining = 0;
+        reflectionRtHybridBreachedLastFrame = false;
+        reflectionRtDenoiseHighStreak = 0;
+        reflectionRtDenoiseWarnCooldownRemaining = 0;
+        reflectionRtDenoiseBreachedLastFrame = false;
+        reflectionRtDenoiseSpatialVariance = 0.0;
+        reflectionRtDenoiseTemporalLag = 0.0;
+        reflectionRtAsBudgetHighStreak = 0;
+        reflectionRtAsBudgetWarnCooldownRemaining = 0;
+        reflectionRtAsBudgetBreachedLastFrame = false;
+        reflectionRtAsBuildGpuMsEstimate = 0.0;
+        reflectionRtAsMemoryMbEstimate = 0.0;
         lastFramePlanarCaptureGpuMs = Double.NaN;
         lastFrameGpuTimingSource = "frame_estimate";
         context.configureReflectionProbeStreaming(
@@ -1345,20 +1388,133 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         Math.min(1.0 - reflectionRtHybridRtShare, currentPost.reflectionsSsrStrength() * (1.0 - reflectionRtHybridRtShare))
                 );
                 reflectionRtHybridProbeShare = Math.max(0.0, 1.0 - reflectionRtHybridRtShare - reflectionRtHybridSsrShare);
-                reflectionRtHybridBreachedLastFrame = reflectionRtLaneActive && reflectionRtHybridProbeShare > 0.70;
+                boolean rtHybridRisk = reflectionRtLaneActive && reflectionRtHybridProbeShare > reflectionRtHybridProbeShareWarnMax;
+                if (rtHybridRisk) {
+                    reflectionRtHybridHighStreak++;
+                } else {
+                    reflectionRtHybridHighStreak = 0;
+                }
+                boolean rtHybridTriggered = false;
+                if (reflectionRtHybridWarnCooldownRemaining > 0) {
+                    reflectionRtHybridWarnCooldownRemaining--;
+                }
+                if (rtHybridRisk
+                        && reflectionRtHybridHighStreak >= reflectionRtHybridWarnMinFrames
+                        && reflectionRtHybridWarnCooldownRemaining <= 0) {
+                    reflectionRtHybridWarnCooldownRemaining = reflectionRtHybridWarnCooldownFrames;
+                    rtHybridTriggered = true;
+                }
+                reflectionRtHybridBreachedLastFrame = rtHybridTriggered;
                 warnings.add(new EngineWarning(
                         "REFLECTION_RT_HYBRID_COMPOSITION",
                         "RT hybrid composition (rtShare=" + reflectionRtHybridRtShare
                                 + ", ssrShare=" + reflectionRtHybridSsrShare
                                 + ", probeShare=" + reflectionRtHybridProbeShare
                                 + ", laneActive=" + reflectionRtLaneActive
+                                + ", threshold=" + reflectionRtHybridProbeShareWarnMax
+                                + ", highStreak=" + reflectionRtHybridHighStreak
+                                + ", warnMinFrames=" + reflectionRtHybridWarnMinFrames
+                                + ", warnCooldownFrames=" + reflectionRtHybridWarnCooldownFrames
+                                + ", warnCooldownRemaining=" + reflectionRtHybridWarnCooldownRemaining
                                 + ", breached=" + reflectionRtHybridBreachedLastFrame + ")"
                 ));
                 if (reflectionRtHybridBreachedLastFrame) {
                     warnings.add(new EngineWarning(
                             "REFLECTION_RT_HYBRID_COMPOSITION_BREACH",
                             "RT hybrid composition breached (probeShare=" + reflectionRtHybridProbeShare
-                                    + ", threshold=0.70, laneActive=" + reflectionRtLaneActive + ")"
+                                    + ", threshold=" + reflectionRtHybridProbeShareWarnMax
+                                    + ", laneActive=" + reflectionRtLaneActive + ")"
+                    ));
+                }
+                double denoiseBoost = reflectionRtDedicatedDenoisePipelineEnabled ? 1.12 : 1.0;
+                double bounceBoost = reflectionRtMultiBounceEnabled ? 1.20 : 1.0;
+                reflectionRtDenoiseSpatialVariance = Math.max(
+                        0.0,
+                        Math.min(1.0, (1.0 - reflectionRtDenoiseStrength) * denoiseBoost * bounceBoost)
+                );
+                reflectionRtDenoiseTemporalLag = Math.max(
+                        0.0,
+                        Math.min(1.0, currentPost.reflectionsTemporalWeight() * 0.60 * denoiseBoost)
+                );
+                boolean rtDenoiseRisk = reflectionRtLaneActive
+                        && (reflectionRtDenoiseSpatialVariance > reflectionRtDenoiseSpatialVarianceWarnMax
+                        || reflectionRtDenoiseTemporalLag > reflectionRtDenoiseTemporalLagWarnMax);
+                if (rtDenoiseRisk) {
+                    reflectionRtDenoiseHighStreak++;
+                } else {
+                    reflectionRtDenoiseHighStreak = 0;
+                }
+                boolean rtDenoiseTriggered = false;
+                if (reflectionRtDenoiseWarnCooldownRemaining > 0) {
+                    reflectionRtDenoiseWarnCooldownRemaining--;
+                }
+                if (rtDenoiseRisk
+                        && reflectionRtDenoiseHighStreak >= reflectionRtDenoiseWarnMinFrames
+                        && reflectionRtDenoiseWarnCooldownRemaining <= 0) {
+                    reflectionRtDenoiseWarnCooldownRemaining = reflectionRtDenoiseWarnCooldownFrames;
+                    rtDenoiseTriggered = true;
+                }
+                reflectionRtDenoiseBreachedLastFrame = rtDenoiseTriggered;
+                warnings.add(new EngineWarning(
+                        "REFLECTION_RT_DENOISE_ENVELOPE",
+                        "RT denoise envelope (spatialVariance=" + reflectionRtDenoiseSpatialVariance
+                                + ", temporalLag=" + reflectionRtDenoiseTemporalLag
+                                + ", spatialVarianceMax=" + reflectionRtDenoiseSpatialVarianceWarnMax
+                                + ", temporalLagMax=" + reflectionRtDenoiseTemporalLagWarnMax
+                                + ", highStreak=" + reflectionRtDenoiseHighStreak
+                                + ", warnMinFrames=" + reflectionRtDenoiseWarnMinFrames
+                                + ", warnCooldownFrames=" + reflectionRtDenoiseWarnCooldownFrames
+                                + ", warnCooldownRemaining=" + reflectionRtDenoiseWarnCooldownRemaining
+                                + ", breached=" + reflectionRtDenoiseBreachedLastFrame + ")"
+                ));
+                if (reflectionRtDenoiseBreachedLastFrame) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_RT_DENOISE_ENVELOPE_BREACH",
+                            "RT denoise envelope breached (spatialVariance=" + reflectionRtDenoiseSpatialVariance
+                                    + ", temporalLag=" + reflectionRtDenoiseTemporalLag + ")"
+                    ));
+                }
+                double asBuildFactor = reflectionRtDedicatedHardwarePipelineActive ? 0.11 : 0.07;
+                double asBounceFactor = reflectionRtMultiBounceEnabled ? 1.25 : 1.0;
+                reflectionRtAsBuildGpuMsEstimate = Math.max(0.0, lastFrameGpuMs) * asBuildFactor * asBounceFactor;
+                long sceneObjectEstimate = Math.max(0L, plannedVisibleObjects);
+                reflectionRtAsMemoryMbEstimate = Math.max(0.0, sceneObjectEstimate * 0.11);
+                boolean rtAsBudgetRisk = reflectionRtLaneActive
+                        && (reflectionRtAsBuildGpuMsEstimate > reflectionRtAsBuildGpuMsWarnMax
+                        || reflectionRtAsMemoryMbEstimate > reflectionRtAsMemoryBudgetMb);
+                if (rtAsBudgetRisk) {
+                    reflectionRtAsBudgetHighStreak++;
+                } else {
+                    reflectionRtAsBudgetHighStreak = 0;
+                }
+                boolean rtAsBudgetTriggered = false;
+                if (reflectionRtAsBudgetWarnCooldownRemaining > 0) {
+                    reflectionRtAsBudgetWarnCooldownRemaining--;
+                }
+                if (rtAsBudgetRisk
+                        && reflectionRtAsBudgetHighStreak >= reflectionRtPerfWarnMinFrames
+                        && reflectionRtAsBudgetWarnCooldownRemaining <= 0) {
+                    reflectionRtAsBudgetWarnCooldownRemaining = reflectionRtPerfWarnCooldownFrames;
+                    rtAsBudgetTriggered = true;
+                }
+                reflectionRtAsBudgetBreachedLastFrame = rtAsBudgetTriggered;
+                warnings.add(new EngineWarning(
+                        "REFLECTION_RT_AS_BUDGET",
+                        "RT AS budget (buildGpuMsEstimate=" + reflectionRtAsBuildGpuMsEstimate
+                                + ", buildGpuMsMax=" + reflectionRtAsBuildGpuMsWarnMax
+                                + ", memoryMbEstimate=" + reflectionRtAsMemoryMbEstimate
+                                + ", memoryMbBudget=" + reflectionRtAsMemoryBudgetMb
+                                + ", highStreak=" + reflectionRtAsBudgetHighStreak
+                                + ", warnMinFrames=" + reflectionRtPerfWarnMinFrames
+                                + ", warnCooldownFrames=" + reflectionRtPerfWarnCooldownFrames
+                                + ", warnCooldownRemaining=" + reflectionRtAsBudgetWarnCooldownRemaining
+                                + ", breached=" + reflectionRtAsBudgetBreachedLastFrame + ")"
+                ));
+                if (reflectionRtAsBudgetBreachedLastFrame) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_RT_AS_BUDGET_BREACH",
+                            "RT AS budget breached (buildGpuMsEstimate=" + reflectionRtAsBuildGpuMsEstimate
+                                    + ", memoryMbEstimate=" + reflectionRtAsMemoryMbEstimate + ")"
                     ));
                 }
             } else {
@@ -1378,7 +1534,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtHybridRtShare = 0.0;
                 reflectionRtHybridSsrShare = Math.max(0.0, Math.min(1.0, currentPost.reflectionsSsrStrength()));
                 reflectionRtHybridProbeShare = Math.max(0.0, 1.0 - reflectionRtHybridSsrShare);
+                reflectionRtHybridHighStreak = 0;
+                reflectionRtHybridWarnCooldownRemaining = 0;
                 reflectionRtHybridBreachedLastFrame = false;
+                reflectionRtDenoiseSpatialVariance = 0.0;
+                reflectionRtDenoiseTemporalLag = 0.0;
+                reflectionRtDenoiseHighStreak = 0;
+                reflectionRtDenoiseWarnCooldownRemaining = 0;
+                reflectionRtDenoiseBreachedLastFrame = false;
+                reflectionRtAsBuildGpuMsEstimate = 0.0;
+                reflectionRtAsMemoryMbEstimate = 0.0;
+                reflectionRtAsBudgetHighStreak = 0;
+                reflectionRtAsBudgetWarnCooldownRemaining = 0;
+                reflectionRtAsBudgetBreachedLastFrame = false;
                 reflectionRtPerfHighStreak = 0;
                 reflectionRtPerfWarnCooldownRemaining = 0;
                 reflectionRtPerfBreachedLastFrame = false;
@@ -1477,6 +1645,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", rtPerfMaxGpuMsUltra=" + reflectionRtPerfMaxGpuMsUltra
                             + ", rtPerfWarnMinFrames=" + reflectionRtPerfWarnMinFrames
                             + ", rtPerfWarnCooldownFrames=" + reflectionRtPerfWarnCooldownFrames
+                            + ", rtHybridProbeShareWarnMax=" + reflectionRtHybridProbeShareWarnMax
+                            + ", rtHybridWarnMinFrames=" + reflectionRtHybridWarnMinFrames
+                            + ", rtHybridWarnCooldownFrames=" + reflectionRtHybridWarnCooldownFrames
+                            + ", rtDenoiseSpatialVarianceWarnMax=" + reflectionRtDenoiseSpatialVarianceWarnMax
+                            + ", rtDenoiseTemporalLagWarnMax=" + reflectionRtDenoiseTemporalLagWarnMax
+                            + ", rtDenoiseWarnMinFrames=" + reflectionRtDenoiseWarnMinFrames
+                            + ", rtDenoiseWarnCooldownFrames=" + reflectionRtDenoiseWarnCooldownFrames
+                            + ", rtAsBuildGpuMsWarnMax=" + reflectionRtAsBuildGpuMsWarnMax
+                            + ", rtAsMemoryBudgetMb=" + reflectionRtAsMemoryBudgetMb
                             + ", probeUpdateCadenceFrames=" + reflectionProbeUpdateCadenceFrames
                             + ", probeMaxVisible=" + reflectionProbeMaxVisible
                             + ", probeLodDepthScale=" + reflectionProbeLodDepthScale
@@ -2737,7 +2914,40 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtHybridRtShare,
                 reflectionRtHybridSsrShare,
                 reflectionRtHybridProbeShare,
+                reflectionRtHybridProbeShareWarnMax,
+                reflectionRtHybridHighStreak,
+                reflectionRtHybridWarnMinFrames,
+                reflectionRtHybridWarnCooldownFrames,
+                reflectionRtHybridWarnCooldownRemaining,
                 reflectionRtHybridBreachedLastFrame
+        );
+    }
+
+    ReflectionRtDenoiseDiagnostics debugReflectionRtDenoiseDiagnostics() {
+        return new ReflectionRtDenoiseDiagnostics(
+                reflectionRtDenoiseSpatialVariance,
+                reflectionRtDenoiseSpatialVarianceWarnMax,
+                reflectionRtDenoiseTemporalLag,
+                reflectionRtDenoiseTemporalLagWarnMax,
+                reflectionRtDenoiseHighStreak,
+                reflectionRtDenoiseWarnMinFrames,
+                reflectionRtDenoiseWarnCooldownFrames,
+                reflectionRtDenoiseWarnCooldownRemaining,
+                reflectionRtDenoiseBreachedLastFrame
+        );
+    }
+
+    ReflectionRtAsBudgetDiagnostics debugReflectionRtAsBudgetDiagnostics() {
+        return new ReflectionRtAsBudgetDiagnostics(
+                reflectionRtAsBuildGpuMsEstimate,
+                reflectionRtAsBuildGpuMsWarnMax,
+                reflectionRtAsMemoryMbEstimate,
+                reflectionRtAsMemoryBudgetMb,
+                reflectionRtAsBudgetHighStreak,
+                reflectionRtPerfWarnMinFrames,
+                reflectionRtPerfWarnCooldownFrames,
+                reflectionRtAsBudgetWarnCooldownRemaining,
+                reflectionRtAsBudgetBreachedLastFrame
         );
     }
 
@@ -2993,6 +3203,37 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             double rtShare,
             double ssrShare,
             double probeShare,
+            double probeShareWarnMax,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
+            boolean breachedLastFrame
+    ) {
+    }
+
+    record ReflectionRtDenoiseDiagnostics(
+            double spatialVariance,
+            double spatialVarianceWarnMax,
+            double temporalLag,
+            double temporalLagWarnMax,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
+            boolean breachedLastFrame
+    ) {
+    }
+
+    record ReflectionRtAsBudgetDiagnostics(
+            double buildGpuMsEstimate,
+            double buildGpuMsWarnMax,
+            double memoryMbEstimate,
+            double memoryMbBudget,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
             boolean breachedLastFrame
     ) {
     }
@@ -3205,6 +3446,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsUltra")) reflectionRtPerfMaxGpuMsUltra = 3.6;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnMinFrames")) reflectionRtPerfWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnCooldownFrames")) reflectionRtPerfWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtHybridProbeShareWarnMax")) reflectionRtHybridProbeShareWarnMax = 0.58;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtHybridWarnMinFrames")) reflectionRtHybridWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtHybridWarnCooldownFrames")) reflectionRtHybridWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseSpatialVarianceWarnMax")) reflectionRtDenoiseSpatialVarianceWarnMax = 0.34;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseTemporalLagWarnMax")) reflectionRtDenoiseTemporalLagWarnMax = 0.30;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnMinFrames")) reflectionRtDenoiseWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnCooldownFrames")) reflectionRtDenoiseWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtAsBuildGpuMsWarnMax")) reflectionRtAsBuildGpuMsWarnMax = 1.0;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtAsMemoryBudgetMb")) reflectionRtAsMemoryBudgetMb = 48.0;
             }
             case QUALITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -3254,6 +3504,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsUltra")) reflectionRtPerfMaxGpuMsUltra = 5.2;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnMinFrames")) reflectionRtPerfWarnMinFrames = 3;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnCooldownFrames")) reflectionRtPerfWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtHybridProbeShareWarnMax")) reflectionRtHybridProbeShareWarnMax = 0.72;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtHybridWarnMinFrames")) reflectionRtHybridWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtHybridWarnCooldownFrames")) reflectionRtHybridWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseSpatialVarianceWarnMax")) reflectionRtDenoiseSpatialVarianceWarnMax = 0.48;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseTemporalLagWarnMax")) reflectionRtDenoiseTemporalLagWarnMax = 0.38;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnMinFrames")) reflectionRtDenoiseWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnCooldownFrames")) reflectionRtDenoiseWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtAsBuildGpuMsWarnMax")) reflectionRtAsBuildGpuMsWarnMax = 1.4;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtAsMemoryBudgetMb")) reflectionRtAsMemoryBudgetMb = 80.0;
             }
             case STABILITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -3303,6 +3562,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsUltra")) reflectionRtPerfMaxGpuMsUltra = 5.8;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnMinFrames")) reflectionRtPerfWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnCooldownFrames")) reflectionRtPerfWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtHybridProbeShareWarnMax")) reflectionRtHybridProbeShareWarnMax = 0.76;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtHybridWarnMinFrames")) reflectionRtHybridWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtHybridWarnCooldownFrames")) reflectionRtHybridWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseSpatialVarianceWarnMax")) reflectionRtDenoiseSpatialVarianceWarnMax = 0.54;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseTemporalLagWarnMax")) reflectionRtDenoiseTemporalLagWarnMax = 0.42;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnMinFrames")) reflectionRtDenoiseWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnCooldownFrames")) reflectionRtDenoiseWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtAsBuildGpuMsWarnMax")) reflectionRtAsBuildGpuMsWarnMax = 1.8;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtAsMemoryBudgetMb")) reflectionRtAsMemoryBudgetMb = 96.0;
             }
             default -> {
             }

@@ -114,6 +114,7 @@ Reflection notes:
 - RT reflections now include a promotion replay bundle runner (`scripts/rt_reflections_in_promotion_bundle.sh`) for one-command lockdown + real signoff + long-run validation.
 - RT reflections `Partial -> In` promotion scope is locked to Vulkan path; OpenGL RT parity is explicitly out-of-scope for this promotion cycle.
 - RT reflections now emit hybrid composition telemetry (`REFLECTION_RT_HYBRID_COMPOSITION`) with typed diagnostics (`debugReflectionRtHybridDiagnostics`) exposing normalized RT/SSR/probe share envelopes.
+- RT reflections now include configurable hybrid/denoise/AS envelope gates with cooldown-based breach signaling (`REFLECTION_RT_HYBRID_COMPOSITION_BREACH`, `REFLECTION_RT_DENOISE_ENVELOPE_BREACH`, `REFLECTION_RT_AS_BUDGET_BREACH`) and typed runtime diagnostics for CI assertions.
 - RT `Partial -> In` promotion tasks are tracked in `docs/rt-reflections-in-checklist.md`.
 - RT reflections now include a guarded real-Vulkan signoff runner (`scripts/rt_reflections_real_gpu_signoff.sh`) for RT lane contract validation on real hardware paths.
 
