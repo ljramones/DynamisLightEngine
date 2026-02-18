@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 12:31 ET — Reflection profile presets now auto-apply telemetry/risk defaults (`performance/balanced/quality/stability`) when backend options are not explicitly provided; explicit options still override profile defaults.
+- Latest reflection update: 2026-02-18 12:33 ET — Added integration coverage for profile-default telemetry mappings across `performance`, `quality`, and `stability`, plus explicit override precedence checks.
 
 Status legend:
 

@@ -530,6 +530,54 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void performanceReflectionProfileAppliesTelemetryDefaultsWhenNotOverridden() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflectionsProfile", "performance")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+
+        String diagnostics = warningMessageByCode(frame, "REFLECTION_SSR_TAA_DIAGNOSTICS");
+        assertTrue(diagnostics.contains("instabilityRejectMin=0.45"));
+        assertTrue(diagnostics.contains("instabilityConfidenceMax=0.6"));
+        assertTrue(diagnostics.contains("instabilityWarnMinFrames=4"));
+        assertTrue(diagnostics.contains("instabilityWarnCooldownFrames=240"));
+        assertTrue(diagnostics.contains("instabilityRiskEmaAlpha=0.2"));
+        String probeDiagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
+        assertTrue(probeDiagnostics.contains("warnMinDelta=2"));
+        assertTrue(probeDiagnostics.contains("warnMinStreak=4"));
+        assertTrue(probeDiagnostics.contains("warnCooldownFrames=180"));
+        runtime.shutdown();
+    }
+
+    @Test
+    void qualityReflectionProfileAppliesTelemetryDefaultsWhenNotOverridden() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflectionsProfile", "quality")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+
+        String diagnostics = warningMessageByCode(frame, "REFLECTION_SSR_TAA_DIAGNOSTICS");
+        assertTrue(diagnostics.contains("instabilityRejectMin=0.32"));
+        assertTrue(diagnostics.contains("instabilityConfidenceMax=0.74"));
+        assertTrue(diagnostics.contains("instabilityWarnMinFrames=2"));
+        assertTrue(diagnostics.contains("instabilityWarnCooldownFrames=90"));
+        assertTrue(diagnostics.contains("instabilityRiskEmaAlpha=0.3"));
+        String probeDiagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
+        assertTrue(probeDiagnostics.contains("warnMinDelta=1"));
+        assertTrue(probeDiagnostics.contains("warnMinStreak=2"));
+        assertTrue(probeDiagnostics.contains("warnCooldownFrames=90"));
+        runtime.shutdown();
+    }
+
+    @Test
     void iblEnvironmentEmitsBaselineActiveWarning() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
