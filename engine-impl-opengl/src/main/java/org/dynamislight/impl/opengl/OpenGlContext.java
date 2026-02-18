@@ -1451,6 +1451,7 @@ final class OpenGlContext {
     }
 
     void beginFrame() {
+        syncFramebufferSizeFromWindow();
         frameCounter++;
         updateTemporalJitterState();
         glViewport(0, 0, sceneRenderWidth, sceneRenderHeight);
@@ -2870,6 +2871,22 @@ final class OpenGlContext {
         }
         taaPrevViewProj = mul(projMatrix, viewMatrix);
         taaPrevViewProjValid = true;
+    }
+
+    private void syncFramebufferSizeFromWindow() {
+        if (window == 0) {
+            return;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            var pWidth = stack.mallocInt(1);
+            var pHeight = stack.mallocInt(1);
+            GLFW.glfwGetFramebufferSize(window, pWidth, pHeight);
+            int fbWidth = Math.max(1, pWidth.get(0));
+            int fbHeight = Math.max(1, pHeight.get(0));
+            if (fbWidth != width || fbHeight != height) {
+                resize(fbWidth, fbHeight);
+            }
+        }
     }
 
     private float taaJitterUvDeltaX() {
