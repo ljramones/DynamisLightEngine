@@ -18,6 +18,9 @@ VULKAN_TESTS=(
   "planarPerfGateBreachEmitsUnderStrictCaps"
   "planarPerfGateBreachEmitsWhenGpuTimestampIsRequiredButUnavailable"
   "planarScopePolicyAllowsProbeOnlyWhenConfigured"
+  "planarRapidCameraMovementMaintainsContractAndCoverage"
+  "planarFrequentPlaneHeightChangesMaintainMirrorContract"
+  "planarSelectiveScopeStressMaintainsDeterministicEligibleCounts"
   "planarSceneCoverageMatrixEmitsContractsForInteriorOutdoorMultiAndDynamic"
 )
 VULKAN_TEST_FILTER="VulkanEngineRuntimeIntegrationTest#$(IFS=+; echo "${VULKAN_TESTS[*]}")"

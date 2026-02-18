@@ -34,6 +34,8 @@ Planar reflections are `In` when all items below are green in CI and documented 
   Evidence: `vulkan.reflections.planarScopeInclude*` + integration tests.
 - [x] Coverage matrix tests exist (interior/outdoor/multi-plane/dynamic-crossing).
   Evidence: `VulkanEngineRuntimeIntegrationTest#planarSceneCoverageMatrixEmitsContractsForInteriorOutdoorMultiAndDynamic`.
+- [x] Planar stress tests exist for camera-motion/plane-height/scope-pressure paths.
+  Evidence: `planarRapidCameraMovementMaintainsContractAndCoverage`, `planarFrequentPlaneHeightChangesMaintainMirrorContract`, `planarSelectiveScopeStressMaintainsDeterministicEligibleCounts`.
 - [x] CI lockdown lane exists for planar contract/perf/stability checks.
   Evidence: `scripts/planar_ci_lockdown_full.sh`, `.github/workflows/ci.yml`.
 - [x] Real-GPU planar pass timing path is wired (timestamp query when supported, estimate fallback otherwise).
