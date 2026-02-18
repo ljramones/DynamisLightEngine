@@ -272,9 +272,12 @@ public final class VulkanShaderSources {
                     vec3 c4 = textureLod(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
                     return (c0 * 0.44) + (c1 * 0.18) + (c2 * 0.18) + (c3 * 0.10) + (c4 * 0.10);
                 }
-                vec3 sampleProbeRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter) {
+                vec3 sampleProbeRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter, int layerIndex, int layerCount) {
                     float roughMix = clamp(roughness * (0.45 + 0.55 * prefilter), 0.0, 1.0);
                     vec2 roughUv = mix(specUv, baseUv, roughMix);
+                    float layers = float(max(layerCount, 1));
+                    float safeLayer = float(clamp(layerIndex, 0, max(layerCount - 1, 0)));
+                    roughUv.y = clamp((safeLayer + roughUv.y) / layers, 0.0, 1.0);
                     float maxLod = float(max(textureQueryLevels(uProbeRadianceTexture) - 1, 0));
                     float lod = roughMix * maxLod;
                     vec2 texel = 1.0 / vec2(textureSize(uProbeRadianceTexture, 0));
@@ -1568,6 +1571,7 @@ public final class VulkanShaderSources {
                         vec2 specUv = clamp(reflectDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
                         vec3 rad = sampleIblRadiance(specUv, vUv, roughness, prefilter);
                         int probeCount = clamp(probes.uProbeHeader.x, 0, 64);
+                        int probeAtlasLayerCount = max(probes.uProbeHeader.y, 1);
                         if (probeCount > 0) {
                             vec3 probeAccum = vec3(0.0);
                             float probeWeightSum = 0.0;
@@ -1590,7 +1594,14 @@ public final class VulkanShaderSources {
                                 }
                                 vec3 probeDir = probeSampleDirection(vWorldPos, reflectDir, probe);
                                 vec2 probeUv = clamp(probeDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
-                                vec3 probeRad = sampleProbeRadiance(probeUv, vUv, roughness, prefilter);
+                                vec3 probeRad = sampleProbeRadiance(
+                                        probeUv,
+                                        vUv,
+                                        roughness,
+                                        prefilter,
+                                        probe.cubemapIndexAndFlags.x,
+                                        probeAtlasLayerCount
+                                );
                                 probeAccum += probeRad * contribution;
                                 probeWeightSum += contribution;
                                 remainingCoverage -= contribution;

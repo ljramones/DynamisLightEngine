@@ -69,7 +69,8 @@ public final class VulkanSceneTextureCoordinator {
                         in.shadowMomentSampler(),
                         in.iblIrradianceTexture(),
                         in.iblRadianceTexture(),
-                        in.iblBrdfLutTexture()
+                        in.iblBrdfLutTexture(),
+                        in.probeRadianceTexture()
                 )
         );
     }
@@ -101,7 +102,8 @@ public final class VulkanSceneTextureCoordinator {
             long shadowMomentSampler,
             VulkanGpuTexture iblIrradianceTexture,
             VulkanGpuTexture iblRadianceTexture,
-            VulkanGpuTexture iblBrdfLutTexture
+            VulkanGpuTexture iblBrdfLutTexture,
+            VulkanGpuTexture probeRadianceTexture
     ) {
     }
 }

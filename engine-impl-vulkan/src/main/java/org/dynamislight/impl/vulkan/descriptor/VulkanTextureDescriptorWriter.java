@@ -36,7 +36,8 @@ public final class VulkanTextureDescriptorWriter {
             long shadowMomentSampler,
             VulkanGpuTexture iblIrradianceTexture,
             VulkanGpuTexture iblRadianceTexture,
-            VulkanGpuTexture iblBrdfLutTexture
+            VulkanGpuTexture iblBrdfLutTexture,
+            VulkanGpuTexture probeRadianceTexture
     ) throws EngineException {
         int requiredSetCount = meshes.size();
         if (requiredSetCount <= 0 || textureDescriptorSetLayout == VK_NULL_HANDLE || textureDescriptorPool == VK_NULL_HANDLE) {
@@ -79,6 +80,7 @@ public final class VulkanTextureDescriptorWriter {
             VkDescriptorImageInfo.Buffer iblRadianceInfo = imageInfo(stack, iblRadianceTexture.view(), iblRadianceTexture.sampler());
             VkDescriptorImageInfo.Buffer iblBrdfLutInfo = imageInfo(stack, iblBrdfLutTexture.view(), iblBrdfLutTexture.sampler());
             VkDescriptorImageInfo.Buffer shadowMomentInfo = imageInfo(stack, shadowMomentImageView, shadowMomentSampler);
+            VkDescriptorImageInfo.Buffer probeRadianceInfo = imageInfo(stack, probeRadianceTexture.view(), probeRadianceTexture.sampler());
 
             // Binding 9 is a dedicated probe-radiance sampler lane (currently aliased to IBL radiance).
             VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(10, stack);
@@ -151,7 +153,7 @@ public final class VulkanTextureDescriptorWriter {
                     .dstBinding(9)
                     .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
-                    .pImageInfo(iblRadianceInfo);
+                    .pImageInfo(probeRadianceInfo);
             vkUpdateDescriptorSets(device, writes, null);
         }
     }

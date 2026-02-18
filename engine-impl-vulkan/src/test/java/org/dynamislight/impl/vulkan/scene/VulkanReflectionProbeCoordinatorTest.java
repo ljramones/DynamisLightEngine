@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Map;
 
 import static org.dynamislight.impl.vulkan.math.VulkanMath.lookAt;
 import static org.dynamislight.impl.vulkan.math.VulkanMath.mul;
@@ -50,7 +51,15 @@ class VulkanReflectionProbeCoordinatorTest {
                 true
         );
 
-        ByteBuffer packed = VulkanReflectionProbeCoordinator.packVisibleProbes(List.of(probe), vp, 4, 80, 16 + (4 * 80));
+        ByteBuffer packed = VulkanReflectionProbeCoordinator.packVisibleProbes(
+                List.of(probe),
+                vp,
+                4,
+                80,
+                Map.of("assets/probes/room_a.ktx2", 0),
+                1,
+                16 + (4 * 80)
+        );
 
         assertEquals(1, packed.getInt(0));
         assertEquals(1, packed.getInt(4));
@@ -107,6 +116,11 @@ class VulkanReflectionProbeCoordinatorTest {
                 vp,
                 4,
                 80,
+                Map.of(
+                        "assets/probes/a.ktx2", 0,
+                        "assets/probes/b.ktx2", 1
+                ),
+                2,
                 16 + (4 * 80)
         );
 

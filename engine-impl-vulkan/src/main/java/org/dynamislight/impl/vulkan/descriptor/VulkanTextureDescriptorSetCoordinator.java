@@ -44,7 +44,8 @@ public final class VulkanTextureDescriptorSetCoordinator {
                 inputs.shadowMomentSampler(),
                 inputs.iblIrradianceTexture(),
                 inputs.iblRadianceTexture(),
-                inputs.iblBrdfLutTexture()
+                inputs.iblBrdfLutTexture(),
+                inputs.probeRadianceTexture()
         );
         return new Result(
                 state.textureDescriptorPool(),
@@ -85,7 +86,8 @@ public final class VulkanTextureDescriptorSetCoordinator {
             long shadowMomentSampler,
             VulkanGpuTexture iblIrradianceTexture,
             VulkanGpuTexture iblRadianceTexture,
-            VulkanGpuTexture iblBrdfLutTexture
+            VulkanGpuTexture iblBrdfLutTexture,
+            VulkanGpuTexture probeRadianceTexture
     ) {
     }
 

@@ -1,8 +1,14 @@
 package org.dynamislight.impl.vulkan;
 
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -40,12 +46,14 @@ import org.dynamislight.impl.vulkan.state.VulkanBackendResources;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainRecreateCoordinator;
 import org.dynamislight.impl.vulkan.texture.VulkanTextureResourceOps;
+import org.dynamislight.impl.vulkan.texture.VulkanTexturePixelLoader;
 import org.dynamislight.impl.vulkan.uniform.VulkanFrameUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformFrameCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUploadStateTracker;
 import org.lwjgl.system.MemoryStack;
+import org.lwjgl.system.MemoryUtil;
 import org.lwjgl.vulkan.*;
 
 import static org.dynamislight.impl.vulkan.math.VulkanMath.*;
@@ -123,6 +131,8 @@ final class VulkanContext {
     private final float[] localLightOuterTypeShadow = new float[MAX_LOCAL_LIGHTS * 4];
     private final VulkanIblState iblState = new VulkanIblState();
     private List<ReflectionProbeDesc> reflectionProbes = List.of();
+    private Map<String, Integer> reflectionProbeCubemapSlots = Map.of();
+    private int reflectionProbeCubemapSlotCount;
 
     VulkanContext() {
         backendResources.depthFormat = resolveConfiguredDepthFormat();
@@ -713,8 +723,9 @@ final class VulkanContext {
         iblState.brdfLutPath = brdfLutPath;
     }
 
-    void setReflectionProbes(List<ReflectionProbeDesc> probes) {
+    void setReflectionProbes(List<ReflectionProbeDesc> probes) throws EngineException {
         reflectionProbes = probes == null ? List.of() : List.copyOf(probes);
+        rebuildReflectionProbeResources();
         markGlobalStateDirty();
     }
 
@@ -1267,6 +1278,7 @@ final class VulkanContext {
     }
 
     private void destroySceneMeshes() {
+        destroyOwnedProbeRadianceTexture();
         VulkanSceneMeshCoordinator.destroySceneMeshes(
                 new VulkanSceneMeshCoordinator.DestroyRequest(
                         backendResources,
@@ -1275,6 +1287,9 @@ final class VulkanContext {
                         descriptorResources
                 )
         );
+        iblState.probeRadianceTexture = null;
+        reflectionProbeCubemapSlots = Map.of();
+        reflectionProbeCubemapSlotCount = 0;
     }
 
     private VulkanGpuTexture resolveOrCreateTexture(
@@ -1458,10 +1473,165 @@ final class VulkanContext {
                 viewProj,
                 descriptorResources.reflectionProbeMetadataMaxCount,
                 descriptorResources.reflectionProbeMetadataStrideBytes,
+                reflectionProbeCubemapSlots,
+                reflectionProbeCubemapSlotCount,
                 descriptorResources.reflectionProbeMetadataMappedAddress,
                 descriptorResources.reflectionProbeMetadataBufferBytes
         );
         descriptorResources.reflectionProbeMetadataActiveCount = activeCount;
+    }
+
+    private void rebuildReflectionProbeResources() throws EngineException {
+        int maxSlots = Math.max(1, descriptorResources.reflectionProbeMetadataMaxCount > 0
+                ? descriptorResources.reflectionProbeMetadataMaxCount
+                : DEFAULT_MAX_REFLECTION_PROBES);
+        TreeSet<String> uniquePaths = new TreeSet<>();
+        for (ReflectionProbeDesc probe : reflectionProbes) {
+            if (probe == null) {
+                continue;
+            }
+            String path = probe.cubemapAssetPath();
+            if (path == null || path.isBlank()) {
+                continue;
+            }
+            uniquePaths.add(path);
+        }
+        Map<String, Integer> slots = new HashMap<>();
+        int nextSlot = 0;
+        for (String path : uniquePaths) {
+            if (nextSlot >= maxSlots) {
+                break;
+            }
+            slots.put(path, nextSlot);
+            nextSlot++;
+        }
+        reflectionProbeCubemapSlots = Map.copyOf(slots);
+        reflectionProbeCubemapSlotCount = slots.size();
+        VulkanGpuTexture newProbeTexture = buildProbeRadianceAtlasTexture(slots, reflectionProbeCubemapSlotCount);
+        VulkanGpuTexture oldProbeTexture = iblState.probeRadianceTexture;
+        iblState.probeRadianceTexture = newProbeTexture;
+        if (oldProbeTexture != null && !sameTexture(oldProbeTexture, newProbeTexture) && !sameTexture(oldProbeTexture, iblState.radianceTexture)) {
+            destroyTexture(oldProbeTexture);
+        }
+        if (backendResources.device != null && !sceneResources.gpuMeshes.isEmpty()) {
+            try (MemoryStack stack = stackPush()) {
+                createTextureDescriptorSets(stack);
+            }
+        }
+    }
+
+    private VulkanGpuTexture buildProbeRadianceAtlasTexture(Map<String, Integer> slots, int slotCount) throws EngineException {
+        if (backendResources.device == null || slotCount <= 0 || slots.isEmpty()) {
+            return iblState.radianceTexture;
+        }
+        String[] pathBySlot = new String[slotCount];
+        for (Map.Entry<String, Integer> entry : slots.entrySet()) {
+            int slot = entry.getValue() == null ? -1 : entry.getValue();
+            if (slot >= 0 && slot < slotCount) {
+                pathBySlot[slot] = entry.getKey();
+            }
+        }
+        List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> layers = new ArrayList<>(slotCount);
+        int layerWidth = -1;
+        int layerHeight = -1;
+        for (int i = 0; i < slotCount; i++) {
+            org.dynamislight.impl.vulkan.model.VulkanTexturePixelData pixels = null;
+            String rawPath = pathBySlot[i];
+            if (rawPath != null && !rawPath.isBlank()) {
+                try {
+                    pixels = VulkanTexturePixelLoader.loadTexturePixels(Path.of(rawPath));
+                } catch (RuntimeException ignored) {
+                    pixels = null;
+                }
+            }
+            if (pixels != null && layerWidth < 0) {
+                layerWidth = pixels.width();
+                layerHeight = pixels.height();
+            }
+            layers.add(pixels);
+        }
+        if (layerWidth <= 0 || layerHeight <= 0) {
+            freePixelLayers(layers);
+            return iblState.radianceTexture;
+        }
+        int layerBytes = layerWidth * layerHeight * 4;
+        ByteBuffer atlas = MemoryUtil.memAlloc(layerBytes * slotCount);
+        for (int i = 0; i < slotCount; i++) {
+            org.dynamislight.impl.vulkan.model.VulkanTexturePixelData layer = layers.get(i);
+            if (layer != null && layer.width() == layerWidth && layer.height() == layerHeight && layer.data().remaining() == layerBytes) {
+                ByteBuffer src = layer.data().duplicate();
+                src.position(0);
+                src.limit(layerBytes);
+                atlas.put(src);
+            } else {
+                for (int p = 0; p < layerBytes / 4; p++) {
+                    atlas.put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF).put((byte) 0xFF);
+                }
+            }
+        }
+        atlas.flip();
+        freePixelLayers(layers);
+        org.dynamislight.impl.vulkan.model.VulkanTexturePixelData atlasPixels =
+                new org.dynamislight.impl.vulkan.model.VulkanTexturePixelData(atlas, layerWidth, layerHeight * slotCount);
+        try {
+            return VulkanTextureResourceOps.createTextureFromPixels(
+                    atlasPixels,
+                    new VulkanTextureResourceOps.Context(
+                            backendResources.device,
+                            backendResources.physicalDevice,
+                            backendResources.commandPool,
+                            backendResources.graphicsQueue,
+                            this::vkFailure
+                    )
+            );
+        } finally {
+            MemoryUtil.memFree(atlasPixels.data());
+        }
+    }
+
+    private static void freePixelLayers(List<org.dynamislight.impl.vulkan.model.VulkanTexturePixelData> layers) {
+        for (org.dynamislight.impl.vulkan.model.VulkanTexturePixelData layer : layers) {
+            if (layer == null) {
+                continue;
+            }
+            MemoryUtil.memFree(layer.data());
+        }
+    }
+
+    private void destroyOwnedProbeRadianceTexture() {
+        VulkanGpuTexture probe = iblState.probeRadianceTexture;
+        if (probe == null) {
+            return;
+        }
+        if (sameTexture(probe, iblState.radianceTexture)) {
+            return;
+        }
+        destroyTexture(probe);
+    }
+
+    private void destroyTexture(VulkanGpuTexture texture) {
+        if (backendResources.device == null || texture == null) {
+            return;
+        }
+        if (texture.sampler() != VK_NULL_HANDLE) {
+            vkDestroySampler(backendResources.device, texture.sampler(), null);
+        }
+        if (texture.view() != VK_NULL_HANDLE) {
+            vkDestroyImageView(backendResources.device, texture.view(), null);
+        }
+        if (texture.image() != VK_NULL_HANDLE) {
+            vkDestroyImage(backendResources.device, texture.image(), null);
+        }
+        if (texture.memory() != VK_NULL_HANDLE) {
+            vkFreeMemory(backendResources.device, texture.memory(), null);
+        }
+    }
+
+    private static boolean sameTexture(VulkanGpuTexture a, VulkanGpuTexture b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        return a.image() == b.image() && a.view() == b.view() && a.sampler() == b.sampler();
     }
 
     private static int clamp(int value, int min, int max) {

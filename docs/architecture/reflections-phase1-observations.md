@@ -29,9 +29,9 @@ It is intended as extraction input for future capability contracts and render-gr
   - reflection probe metadata SSBO payload (`set=0`, `binding=2`)
   - SSBO header semantics:
     - `x`: visible probe count uploaded this frame
-    - `y`: unique cubemap asset path count requested by visible probes
-    - `z`: unique cubemap slot count assigned this frame
-    - `w`: reserved (currently used for dropped-count bookkeeping, expected `0` with current coupled probe/slot cap)
+    - `y`: global probe-atlas layer count (slot count)
+    - `z`: unique probe asset paths requested by visible probes
+    - `w`: visible unique paths that could not be assigned a slot
 - Consumed:
   - same probe metadata SSBO in main fragment shader
   - existing IBL radiance texture path for probe-weighted radiance sampling (transitional path)
@@ -55,9 +55,9 @@ It is intended as extraction input for future capability contracts and render-gr
 
 ### 5. Current limitations discovered
 
-- Per-probe cubemap-array texture sampling is not yet implemented.
-- `cubemapIndex` is populated in metadata, but probe sampling currently reuses baseline radiance source.
-- Result: spatial weighting and overlap logic are live, but probe-specific texture selection is pending.
+- Probe texture selection now uses a 2D atlas path, not native cubemap-array sampling.
+- Source probe assets are projected through the existing 2D radiance UV sampling model.
+- Native cubemap-array/image-array upload and sampling remains a future enhancement.
 
 ### 6. Surprises vs shadow domain
 
@@ -74,4 +74,4 @@ It is intended as extraction input for future capability contracts and render-gr
 
 ## Next reflection implementation target
 
-- Land per-probe cubemap-array texture path in Vulkan so `cubemapIndex` selects unique probe radiance sources instead of baseline radiance reuse.
+- Replace 2D probe-radiance atlas path with native cubemap-array/image-array probe sampling while keeping current slot-map and header contracts stable.

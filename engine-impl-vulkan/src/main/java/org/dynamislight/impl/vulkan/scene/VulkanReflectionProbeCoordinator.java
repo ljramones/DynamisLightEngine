@@ -6,11 +6,10 @@ import org.lwjgl.system.MemoryUtil;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.TreeSet;
 
 public final class VulkanReflectionProbeCoordinator {
     private VulkanReflectionProbeCoordinator() {
@@ -21,13 +20,23 @@ public final class VulkanReflectionProbeCoordinator {
             float[] viewProjMatrix,
             int maxProbeCount,
             int probeStrideBytes,
+            Map<String, Integer> cubemapSlots,
+            int cubemapSlotCount,
             long mappedAddress,
             int bufferBytes
     ) {
         if (mappedAddress == 0L || bufferBytes <= 0) {
             return 0;
         }
-        ByteBuffer packed = packVisibleProbes(probes, viewProjMatrix, maxProbeCount, probeStrideBytes, bufferBytes);
+        ByteBuffer packed = packVisibleProbes(
+                probes,
+                viewProjMatrix,
+                maxProbeCount,
+                probeStrideBytes,
+                cubemapSlots,
+                cubemapSlotCount,
+                bufferBytes
+        );
         ByteBuffer mapped = MemoryUtil.memByteBuffer(mappedAddress, packed.capacity());
         packed.clear();
         mapped.position(0);
@@ -41,6 +50,8 @@ public final class VulkanReflectionProbeCoordinator {
             float[] viewProjMatrix,
             int maxProbeCount,
             int probeStrideBytes,
+            Map<String, Integer> cubemapSlots,
+            int cubemapSlotCount,
             int bufferBytes
     ) {
         int clampedMax = Math.max(1, maxProbeCount);
@@ -49,28 +60,9 @@ public final class VulkanReflectionProbeCoordinator {
         int outBytes = Math.max(minBytes, bufferBytes);
         ByteBuffer packed = ByteBuffer.allocate(outBytes);
         List<ReflectionProbeDesc> visible = visibleProbes(probes, viewProjMatrix, clampedMax);
-        CubemapSlotPlan slotPlan = buildCubemapSlots(visible, clampedMax);
-        packed.putInt(0, visible.size());
-        packed.putInt(4, slotPlan.uniqueRequestedCount());
-        packed.putInt(8, slotPlan.uniqueAssignedCount());
-        packed.putInt(12, slotPlan.uniqueDroppedCount());
-
-        Map<String, Integer> cubemapSlots = slotPlan.slots();
-        for (int i = 0; i < visible.size(); i++) {
-            ReflectionProbeDesc probe = visible.get(i);
-            Integer existingSlot = cubemapSlots.get(probe.cubemapAssetPath());
-            int cubemapSlot = existingSlot != null ? existingSlot : -1;
-            int base = 16 + (i * clampedStride);
-            putProbe(packed, base, probe, cubemapSlot);
-        }
-        return packed;
-    }
-
-    private static CubemapSlotPlan buildCubemapSlots(List<ReflectionProbeDesc> visible, int maxSlots) {
-        if (visible.isEmpty() || maxSlots <= 0) {
-            return new CubemapSlotPlan(Map.of(), 0, 0, 0);
-        }
-        Set<String> uniquePaths = new TreeSet<>();
+        Set<String> visibleUniquePaths = new HashSet<>();
+        int visibleAssigned = 0;
+        Map<String, Integer> safeSlots = cubemapSlots == null ? Map.of() : cubemapSlots;
         for (ReflectionProbeDesc probe : visible) {
             if (probe == null) {
                 continue;
@@ -79,24 +71,23 @@ public final class VulkanReflectionProbeCoordinator {
             if (path == null || path.isBlank()) {
                 continue;
             }
-            uniquePaths.add(path);
-        }
-        if (uniquePaths.isEmpty()) {
-            return new CubemapSlotPlan(Map.of(), 0, 0, 0);
-        }
-        Map<String, Integer> slots = new HashMap<>();
-        int next = 0;
-        for (String path : uniquePaths) {
-            if (next >= maxSlots) {
-                break;
+            if (visibleUniquePaths.add(path) && safeSlots.containsKey(path)) {
+                visibleAssigned++;
             }
-            slots.put(path, next);
-            next++;
         }
-        int uniqueRequested = uniquePaths.size();
-        int uniqueAssigned = slots.size();
-        int uniqueDropped = Math.max(0, uniqueRequested - uniqueAssigned);
-        return new CubemapSlotPlan(slots, uniqueRequested, uniqueAssigned, uniqueDropped);
+        packed.putInt(0, visible.size());
+        packed.putInt(4, Math.max(0, cubemapSlotCount));
+        packed.putInt(8, visibleUniquePaths.size());
+        packed.putInt(12, Math.max(0, visibleUniquePaths.size() - visibleAssigned));
+
+        for (int i = 0; i < visible.size(); i++) {
+            ReflectionProbeDesc probe = visible.get(i);
+            Integer existingSlot = safeSlots.get(probe.cubemapAssetPath());
+            int cubemapSlot = existingSlot != null ? existingSlot : -1;
+            int base = 16 + (i * clampedStride);
+            putProbe(packed, base, probe, cubemapSlot);
+        }
+        return packed;
     }
 
     static List<ReflectionProbeDesc> visibleProbes(
@@ -190,13 +181,5 @@ public final class VulkanReflectionProbeCoordinator {
     }
 
     private record Plane(float nx, float ny, float nz, float d) {
-    }
-
-    private record CubemapSlotPlan(
-            Map<String, Integer> slots,
-            int uniqueRequestedCount,
-            int uniqueAssignedCount,
-            int uniqueDroppedCount
-    ) {
     }
 }

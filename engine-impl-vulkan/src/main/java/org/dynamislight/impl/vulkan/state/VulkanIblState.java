@@ -17,4 +17,5 @@ public final class VulkanIblState {
     public VulkanGpuTexture irradianceTexture;
     public VulkanGpuTexture radianceTexture;
     public VulkanGpuTexture brdfLutTexture;
+    public VulkanGpuTexture probeRadianceTexture;
 }

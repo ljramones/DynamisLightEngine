@@ -68,7 +68,7 @@ Layout has 10 combined image samplers, written per mesh:
 - 6 IBL radiance
 - 7 BRDF LUT
 - 8 shadow moment map array
-- 9 probe radiance (currently aliased to IBL radiance until per-probe texture array lands)
+- 9 probe radiance atlas (per-scene atlas texture indexed by probe slot)
 
 Files:
 
@@ -89,15 +89,18 @@ Current behavior:
 - Per frame, runtime frustum-culls probe AABBs against current view-projection.
 - Surviving probes are sorted by priority (descending).
 - Probe metadata is packed to a persistently-mapped SSBO (`set=0`, `binding=2`).
-- Probe SSBO header publishes frame counts for visible probes and unique cubemap-slot planning.
+- Probe SSBO header fields are:
+  - `x`: visible probe count
+  - `y`: probe atlas layer count (global slot count)
+  - `z`: visible unique probe-path count
+  - `w`: visible unique probe-path count that could not be assigned a slot
 - Main fragment shader consumes this metadata and computes per-fragment probe weighting.
 - Probe overlap uses priority-aware remaining-coverage accumulation to suppress lower-priority probes when higher-priority probes fully cover.
 
 Current limitation:
 
-- Per-probe cubemap-array sampling is not yet landed.
-- Probe contribution currently reuses the existing IBL radiance sampling path while honoring probe weight and box-projected direction shaping.
-- Spatial weighting/projection is active, but probe-specific cubemap texture selection is still pending.
+- Vulkan currently uses a 2D probe-radiance atlas path, not native cubemap-array sampling.
+- Probe texture selection by `cubemapIndex` is active, but source assets are interpreted through the existing 2D radiance projection path.
 
 ### Uniform sizes and upload
 

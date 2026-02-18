@@ -88,7 +88,7 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("layout(set = 1, binding = 9) uniform sampler2D uProbeRadianceTexture;"));
         assertTrue(shader.contains("float probeWeightAtWorldPos(vec3 worldPos, ProbeData probe)"));
         assertTrue(shader.contains("vec3 probeSampleDirection(vec3 worldPos, vec3 reflectDir, ProbeData probe)"));
-        assertTrue(shader.contains("vec3 sampleProbeRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter)"));
+        assertTrue(shader.contains("vec3 sampleProbeRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter, int layerIndex, int layerCount)"));
         assertTrue(shader.contains("float remainingCoverage = 1.0;"));
         assertTrue(shader.contains("float contribution = min(weight, remainingCoverage);"));
         assertTrue(shader.contains("remainingCoverage -= contribution;"));

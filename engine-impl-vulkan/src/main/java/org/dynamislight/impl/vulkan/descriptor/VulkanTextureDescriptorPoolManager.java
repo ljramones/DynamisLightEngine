@@ -45,7 +45,8 @@ public final class VulkanTextureDescriptorPoolManager {
             long shadowMomentSampler,
             VulkanGpuTexture iblIrradianceTexture,
             VulkanGpuTexture iblRadianceTexture,
-            VulkanGpuTexture iblBrdfLutTexture
+            VulkanGpuTexture iblBrdfLutTexture,
+            VulkanGpuTexture probeRadianceTexture
     ) throws EngineException {
         int requiredSetCount = gpuMeshes.size();
         boolean needsRebuild = textureDescriptorPool == VK_NULL_HANDLE || requiredSetCount > descriptorRingSetCapacity;
@@ -110,7 +111,8 @@ public final class VulkanTextureDescriptorPoolManager {
                 shadowMomentSampler,
                 iblIrradianceTexture,
                 iblRadianceTexture,
-                iblBrdfLutTexture
+                iblBrdfLutTexture,
+                probeRadianceTexture
         );
 
         return new State(

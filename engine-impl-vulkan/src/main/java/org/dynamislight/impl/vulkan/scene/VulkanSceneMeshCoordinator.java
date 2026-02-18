@@ -156,6 +156,7 @@ public final class VulkanSceneMeshCoordinator {
         org.dynamislight.impl.vulkan.model.VulkanGpuTexture iblIrradianceTexture = in.iblState().irradianceTexture;
         org.dynamislight.impl.vulkan.model.VulkanGpuTexture iblRadianceTexture = in.iblState().radianceTexture;
         org.dynamislight.impl.vulkan.model.VulkanGpuTexture iblBrdfLutTexture = in.iblState().brdfLutTexture;
+        org.dynamislight.impl.vulkan.model.VulkanGpuTexture probeRadianceTexture = in.iblState().probeRadianceTexture;
         if ((!in.sceneResources().gpuMeshes.isEmpty())
                 && (iblIrradianceTexture == null || iblRadianceTexture == null || iblBrdfLutTexture == null)) {
             org.dynamislight.impl.vulkan.model.VulkanGpuTexture fallback = in.sceneResources().gpuMeshes.get(0).albedoTexture;
@@ -168,6 +169,11 @@ public final class VulkanSceneMeshCoordinator {
             if (iblBrdfLutTexture == null) {
                 iblBrdfLutTexture = fallback;
             }
+            if (probeRadianceTexture == null) {
+                probeRadianceTexture = iblRadianceTexture != null ? iblRadianceTexture : fallback;
+            }
+        } else if (probeRadianceTexture == null) {
+            probeRadianceTexture = iblRadianceTexture;
         }
         VulkanTextureDescriptorSetCoordinator.Result state = VulkanSceneTextureCoordinator.createTextureDescriptorSets(
                 new VulkanSceneTextureCoordinator.CreateInputs(
@@ -196,7 +202,8 @@ public final class VulkanSceneMeshCoordinator {
                                 : iblBrdfLutTexture.sampler(),
                         iblIrradianceTexture,
                         iblRadianceTexture,
-                        iblBrdfLutTexture
+                        iblBrdfLutTexture,
+                        probeRadianceTexture
                 )
         );
         if (state == null) {
