@@ -341,12 +341,22 @@ class VulkanEngineRuntimeIntegrationTest {
         var probeOnlyFrame = runtime.render();
         assertTrue(probeOnlyFrame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
         assertTrue(probeOnlyFrame.warnings().stream().anyMatch(w -> "REFLECTIONS_QUALITY_DEGRADED".equals(w.code())));
+        String probeOnlyBaseline = warningMessageByCode(probeOnlyFrame, "REFLECTIONS_BASELINE_ACTIVE");
+        assertTrue(probeOnlyBaseline.contains("overrideAuto=0"));
+        assertTrue(probeOnlyBaseline.contains("overrideProbeOnly=1"));
+        assertTrue(probeOnlyBaseline.contains("overrideSsrOnly=0"));
+        assertTrue(probeOnlyBaseline.contains("overrideOther=0"));
         assertEquals(List.of(1), runtime.debugReflectionOverrideModes());
 
         runtime.loadScene(validMaterialOverrideReflectionScene(ReflectionOverrideMode.SSR_ONLY));
         var ssrOnlyFrame = runtime.render();
         assertTrue(ssrOnlyFrame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
         assertTrue(ssrOnlyFrame.warnings().stream().anyMatch(w -> "REFLECTIONS_QUALITY_DEGRADED".equals(w.code())));
+        String ssrOnlyBaseline = warningMessageByCode(ssrOnlyFrame, "REFLECTIONS_BASELINE_ACTIVE");
+        assertTrue(ssrOnlyBaseline.contains("overrideAuto=0"));
+        assertTrue(ssrOnlyBaseline.contains("overrideProbeOnly=0"));
+        assertTrue(ssrOnlyBaseline.contains("overrideSsrOnly=1"));
+        assertTrue(ssrOnlyBaseline.contains("overrideOther=0"));
         assertEquals(List.of(2), runtime.debugReflectionOverrideModes());
 
         runtime.shutdown();
@@ -1851,6 +1861,14 @@ class VulkanEngineRuntimeIntegrationTest {
                 base.smokeEmitters(),
                 base.postProcess()
         );
+    }
+
+    private static String warningMessageByCode(org.dynamislight.api.runtime.EngineFrameResult frame, String code) {
+        return frame.warnings().stream()
+                .filter(w -> code.equals(w.code()))
+                .findFirst()
+                .map(org.dynamislight.api.event.EngineWarning::message)
+                .orElse("");
     }
 
     private static SceneDescriptor validMultiMeshScene() {

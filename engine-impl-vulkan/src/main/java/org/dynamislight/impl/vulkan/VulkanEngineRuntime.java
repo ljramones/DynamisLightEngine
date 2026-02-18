@@ -552,6 +552,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         ));
         if (currentPost.reflectionsEnabled()) {
             int reflectionBaseMode = currentPost.reflectionsMode() & 0x7;
+            ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
             warnings.add(new EngineWarning(
                     "REFLECTIONS_BASELINE_ACTIVE",
                     "Reflections baseline active (mode="
@@ -563,7 +564,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         default -> "ibl_only";
                     }
                             + ", ssrStrength=" + currentPost.reflectionsSsrStrength()
-                            + ", planarStrength=" + currentPost.reflectionsPlanarStrength() + ")"
+                            + ", planarStrength=" + currentPost.reflectionsPlanarStrength()
+                            + ", overrideAuto=" + overrideSummary.autoCount()
+                            + ", overrideProbeOnly=" + overrideSummary.probeOnlyCount()
+                            + ", overrideSsrOnly=" + overrideSummary.ssrOnlyCount()
+                            + ", overrideOther=" + overrideSummary.otherCount()
+                            + ")"
             ));
             if (qualityTier == QualityTier.MEDIUM) {
                 warnings.add(new EngineWarning(
@@ -762,6 +768,23 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return warnings;
     }
 
+    private static ReflectionOverrideSummary summarizeReflectionOverrides(List<Integer> modes) {
+        int autoCount = 0;
+        int probeOnlyCount = 0;
+        int ssrOnlyCount = 0;
+        int otherCount = 0;
+        for (Integer rawMode : modes) {
+            int mode = rawMode == null ? 0 : rawMode;
+            switch (mode) {
+                case 0 -> autoCount++;
+                case 1 -> probeOnlyCount++;
+                case 2 -> ssrOnlyCount++;
+                default -> otherCount++;
+            }
+        }
+        return new ReflectionOverrideSummary(autoCount, probeOnlyCount, ssrOnlyCount, otherCount);
+    }
+
     SceneReuseStats debugSceneReuseStats() {
         return context.sceneReuseStats();
     }
@@ -785,6 +808,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
+    }
+
+    private record ReflectionOverrideSummary(int autoCount, int probeOnlyCount, int ssrOnlyCount, int otherCount) {
     }
 
     private PostProcessRenderConfig applyExternalUpscalerDecision(PostProcessRenderConfig base) {
