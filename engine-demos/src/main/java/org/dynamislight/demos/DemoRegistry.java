@@ -27,6 +27,7 @@ final class DemoRegistry {
         register(demos, new CapabilityProbeDemo());
         register(demos, new AaMotionStressDemo());
         register(demos, new AaMatrixDemo());
+        register(demos, new SponzaDemo());
         return Map.copyOf(demos);
     }
 

@@ -1595,6 +1595,13 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         List<OpenGlContext.SceneMesh> sceneMeshes = new ArrayList<>(scene.meshes().size());
         for (int i = 0; i < scene.meshes().size(); i++) {
             MeshDesc mesh = scene.meshes().get(i);
+
+            if (mesh.id() != null && mesh.id().startsWith("gltf-scene:")) {
+                List<OpenGlContext.SceneMesh> expanded = expandGltfScene(mesh, transforms, materials);
+                sceneMeshes.addAll(expanded);
+                continue;
+            }
+
             OpenGlContext.MeshGeometry geometry = meshLoader.loadMeshGeometry(mesh, i);
             TransformDesc transform = transforms.get(mesh.transformId());
             MaterialDesc material = materials.get(mesh.materialId());
@@ -1636,6 +1643,85 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             ));
         }
         return sceneMeshes;
+    }
+
+    private List<OpenGlContext.SceneMesh> expandGltfScene(
+            MeshDesc mesh, Map<String, TransformDesc> transforms, Map<String, MaterialDesc> materials) {
+        Path glbPath = resolveTexturePath(mesh.meshAssetPath());
+        if (glbPath == null) {
+            return List.of();
+        }
+        OpenGlMeshAssetLoader.LoadedGltfScene loaded = meshLoader.loadGltfScene(glbPath);
+        if (loaded == null) {
+            return List.of();
+        }
+        TransformDesc sceneTransform = transforms.get(mesh.transformId());
+        float[] sceneModel = modelMatrixOf(sceneTransform);
+
+        // Upload embedded textures
+        int[] textureIds = new int[loaded.imageBuffers().size()];
+        for (int ti = 0; ti < loaded.imageBuffers().size(); ti++) {
+            java.nio.ByteBuffer imgBuf = loaded.imageBuffers().get(ti);
+            if (imgBuf != null) {
+                textureIds[ti] = context.loadTextureFromMemory(imgBuf);
+            }
+        }
+
+        List<OpenGlContext.SceneMesh> result = new ArrayList<>(loaded.primitives().size());
+        for (var prim : loaded.primitives()) {
+            float[] albedoColor = new float[]{1f, 1f, 1f};
+            float metallic = 0.0f;
+            float roughness = 1.0f;
+            int albedoTexId = 0;
+            int normalTexId = 0;
+            int mrTexId = 0;
+            int occlusionTexId = 0;
+
+            if (prim.materialIndex() >= 0 && prim.materialIndex() < loaded.materials().size()) {
+                var gltfMat = loaded.materials().get(prim.materialIndex());
+                albedoColor = new float[]{gltfMat.baseColorFactor()[0], gltfMat.baseColorFactor()[1], gltfMat.baseColorFactor()[2]};
+                metallic = gltfMat.metallicFactor();
+                roughness = gltfMat.roughnessFactor();
+                if (gltfMat.baseColorTextureIndex() >= 0 && gltfMat.baseColorTextureIndex() < textureIds.length) {
+                    albedoTexId = textureIds[gltfMat.baseColorTextureIndex()];
+                }
+                if (gltfMat.normalTextureIndex() >= 0 && gltfMat.normalTextureIndex() < textureIds.length) {
+                    normalTexId = textureIds[gltfMat.normalTextureIndex()];
+                }
+                if (gltfMat.metallicRoughnessTextureIndex() >= 0 && gltfMat.metallicRoughnessTextureIndex() < textureIds.length) {
+                    mrTexId = textureIds[gltfMat.metallicRoughnessTextureIndex()];
+                }
+                if (gltfMat.occlusionTextureIndex() >= 0 && gltfMat.occlusionTextureIndex() < textureIds.length) {
+                    occlusionTexId = textureIds[gltfMat.occlusionTextureIndex()];
+                }
+            }
+
+            String primId = prim.meshName() + "-p" + prim.primitiveIndex();
+            result.add(new OpenGlContext.SceneMesh(
+                    primId,
+                    prim.geometry(),
+                    sceneModel.clone(),
+                    albedoColor,
+                    metallic,
+                    roughness,
+                    0f,     // reactiveStrength
+                    false,  // alphaTested
+                    false,  // foliage
+                    1.0f,   // reactiveBoost
+                    1.0f,   // taaHistoryClamp
+                    1.0f,   // emissiveReactiveBoost
+                    0f,     // reactivePreset
+                    null,   // albedoTexturePath
+                    null,   // normalTexturePath
+                    null,   // metallicRoughnessTexturePath
+                    null,   // occlusionTexturePath
+                    albedoTexId,
+                    normalTexId,
+                    mrTexId,
+                    occlusionTexId
+            ));
+        }
+        return result;
     }
 
     private static LightingConfig mapLighting(List<LightDesc> lights) {

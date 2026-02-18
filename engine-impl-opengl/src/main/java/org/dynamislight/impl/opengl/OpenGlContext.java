@@ -105,6 +105,7 @@ import static org.lwjgl.stb.STBImage.stbi_image_free;
 import static org.lwjgl.stb.STBImage.stbi_info;
 import static org.lwjgl.stb.STBImage.stbi_is_hdr;
 import static org.lwjgl.stb.STBImage.stbi_load;
+import static org.lwjgl.stb.STBImage.stbi_load_from_memory;
 import static org.lwjgl.stb.STBImage.stbi_loadf;
 
 import java.awt.image.BufferedImage;
@@ -130,15 +131,28 @@ import org.lwjgl.system.MemoryStack;
 final class OpenGlContext {
     static final int MAX_LOCAL_LIGHTS = 8;
     static final int MAX_LOCAL_SHADOWS = 4;
-    static record MeshGeometry(float[] vertices) {
+
+    enum VertexFormat {
+        POS_COLOR_6F(6),
+        POS_NORMAL_UV_8F(8);
+        final int stride;
+        VertexFormat(int stride) { this.stride = stride; }
+    }
+
+    static record MeshGeometry(float[] vertices, VertexFormat format) {
+        MeshGeometry(float[] vertices) {
+            this(vertices, VertexFormat.POS_COLOR_6F);
+        }
+
         MeshGeometry {
-            if (vertices == null || vertices.length == 0 || vertices.length % 6 != 0) {
-                throw new IllegalArgumentException("Mesh vertices must be non-empty and packed as x,y,z,r,g,b");
+            if (vertices == null || vertices.length == 0 || vertices.length % format.stride != 0) {
+                throw new IllegalArgumentException(
+                        "Mesh vertices must be non-empty and divisible by stride " + format.stride);
             }
         }
 
         int vertexCount() {
-            return vertices.length / 6;
+            return vertices.length / format.stride;
         }
     }
 
@@ -159,8 +173,36 @@ final class OpenGlContext {
             Path albedoTexturePath,
             Path normalTexturePath,
             Path metallicRoughnessTexturePath,
-            Path occlusionTexturePath
+            Path occlusionTexturePath,
+            int preloadedAlbedoTextureId,
+            int preloadedNormalTextureId,
+            int preloadedMetallicRoughnessTextureId,
+            int preloadedOcclusionTextureId
     ) {
+        SceneMesh(
+                String meshId,
+                MeshGeometry geometry,
+                float[] modelMatrix,
+                float[] albedoColor,
+                float metallic,
+                float roughness,
+                float reactiveStrength,
+                boolean alphaTested,
+                boolean foliage,
+                float reactiveBoost,
+                float taaHistoryClamp,
+                float emissiveReactiveBoost,
+                float reactivePreset,
+                Path albedoTexturePath,
+                Path normalTexturePath,
+                Path metallicRoughnessTexturePath,
+                Path occlusionTexturePath
+        ) {
+            this(meshId, geometry, modelMatrix, albedoColor, metallic, roughness,
+                    reactiveStrength, alphaTested, foliage, reactiveBoost, taaHistoryClamp,
+                    emissiveReactiveBoost, reactivePreset, albedoTexturePath, normalTexturePath,
+                    metallicRoughnessTexturePath, occlusionTexturePath, 0, 0, 0, 0);
+        }
         SceneMesh {
             if (meshId == null || meshId.isBlank()) {
                 throw new IllegalArgumentException("meshId is required");
@@ -181,6 +223,7 @@ final class OpenGlContext {
         private final int vaoId;
         private final int vboId;
         private final int vertexCount;
+        private final int vertexFormat; // 0 = POS_COLOR_6F, 1 = POS_NORMAL_UV_8F
         private final String meshId;
         private final float[] modelMatrix;
         private final float[] prevModelMatrix;
@@ -208,6 +251,7 @@ final class OpenGlContext {
                 int vaoId,
                 int vboId,
                 int vertexCount,
+                int vertexFormat,
                 String meshId,
                 float[] modelMatrix,
                 float[] prevModelMatrix,
@@ -234,6 +278,7 @@ final class OpenGlContext {
             this.vaoId = vaoId;
             this.vboId = vboId;
             this.vertexCount = vertexCount;
+            this.vertexFormat = vertexFormat;
             this.meshId = meshId;
             this.modelMatrix = modelMatrix;
             this.prevModelMatrix = prevModelMatrix;
@@ -265,25 +310,35 @@ final class OpenGlContext {
     private static final String VERTEX_SHADER = """
             #version 330 core
             layout (location = 0) in vec3 aPos;
-            layout (location = 1) in vec3 aColor;
+            layout (location = 1) in vec3 aData1;
+            layout (location = 2) in vec2 aData2;
             uniform mat4 uModel;
             uniform mat4 uView;
             uniform mat4 uProj;
+            uniform int uVertexFormat;
             out vec3 vColor;
             out vec3 vWorldPos;
             out vec3 vLocalPos;
+            out vec3 vNormal;
             out float vHeight;
             out vec2 vUv;
             out vec4 vLightSpacePos;
             uniform mat4 uLightViewProj;
             void main() {
                 vec4 world = uModel * vec4(aPos, 1.0);
-                vColor = aColor;
                 vWorldPos = world.xyz;
                 vLocalPos = aPos;
                 vHeight = world.y;
-                vUv = aPos.xy * 0.5 + vec2(0.5);
                 vLightSpacePos = uLightViewProj * world;
+                if (uVertexFormat == 1) {
+                    vColor = vec3(1.0);
+                    vNormal = normalize(mat3(uModel) * aData1);
+                    vUv = aData2;
+                } else {
+                    vColor = aData1;
+                    vNormal = normalize(mat3(uModel) * vec3(0.0, 1.0, 0.0));
+                    vUv = aPos.xy * 0.5 + vec2(0.5);
+                }
                 gl_Position = uProj * uView * world;
             }
             """;
@@ -308,6 +363,7 @@ final class OpenGlContext {
             in vec3 vColor;
             in vec3 vWorldPos;
             in vec3 vLocalPos;
+            in vec3 vNormal;
             in float vHeight;
             in vec2 vUv;
             in vec4 vLightSpacePos;
@@ -504,7 +560,7 @@ final class OpenGlContext {
             void main() {
                 vec3 albedo = vColor * uMaterialAlbedo;
                 float albedoAlpha = 1.0;
-                vec3 normal = vec3(0.0, 0.0, 1.0);
+                vec3 normal = normalize(vNormal);
                 if (uUseAlbedoTexture == 1) {
                     vec4 tex = texture(uAlbedoTexture, vUv);
                     albedo *= tex.rgb;
@@ -512,7 +568,17 @@ final class OpenGlContext {
                 }
                 if (uUseNormalTexture == 1) {
                     vec3 ntex = texture(uNormalTexture, vUv).rgb * 2.0 - 1.0;
-                    normal = normalize(mix(normal, ntex, 0.55));
+                    vec3 dPdx = dFdx(vWorldPos);
+                    vec3 dPdy = dFdy(vWorldPos);
+                    vec2 dUVdx = dFdx(vUv);
+                    vec2 dUVdy = dFdy(vUv);
+                    float invDet = 1.0 / max(abs(dUVdx.x * dUVdy.y - dUVdx.y * dUVdy.x), 0.00001);
+                    vec3 T = normalize((dPdx * dUVdy.y - dPdy * dUVdx.y) * invDet);
+                    vec3 B = normalize((dPdy * dUVdx.x - dPdx * dUVdy.x) * invDet);
+                    vec3 N = normal;
+                    T = normalize(T - dot(T, N) * N);
+                    B = cross(N, T);
+                    normal = normalize(T * ntex.x + B * ntex.y + N * ntex.z);
                 }
                 float metallic = clamp(uMaterialMetallic, 0.0, 1.0);
                 float roughness = clamp(uMaterialRoughness, 0.04, 1.0);
@@ -1098,10 +1164,13 @@ final class OpenGlContext {
     private long window;
     private int width;
     private int height;
+    private volatile int pendingFramebufferWidth;
+    private volatile int pendingFramebufferHeight;
     private int sceneRenderWidth = 1;
     private int sceneRenderHeight = 1;
     private int programId;
     private final List<MeshBuffer> sceneMeshes = new ArrayList<>();
+    private int vertexFormatLocation;
     private int modelLocation;
     private int prevModelLocation;
     private int viewLocation;
@@ -1353,6 +1422,8 @@ final class OpenGlContext {
         GLFW.glfwWindowHint(GLFW.GLFW_CONTEXT_VERSION_MINOR, 3);
         GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_PROFILE, GLFW.GLFW_OPENGL_CORE_PROFILE);
         GLFW.glfwWindowHint(GLFW.GLFW_OPENGL_FORWARD_COMPAT, GLFW.GLFW_TRUE);
+        GLFW.glfwWindowHint(GLFW.GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW.GLFW_TRUE);
+        GLFW.glfwWindowHint(GLFW.GLFW_SCALE_FRAMEBUFFER, GLFW.GLFW_TRUE);
 
         window = GLFW.glfwCreateWindow(width, height, appName, 0, 0);
         if (window == 0) {
@@ -1367,21 +1438,33 @@ final class OpenGlContext {
             GLFW.glfwFocusWindow(window);
         }
 
+        GLFW.glfwSetFramebufferSizeCallback(window, (win, fbW, fbH) -> {
+            if (fbW > 0 && fbH > 0) {
+                pendingFramebufferWidth = fbW;
+                pendingFramebufferHeight = fbH;
+            }
+        });
+
         GLFW.glfwMakeContextCurrent(window);
         GLFW.glfwSwapInterval(vsyncEnabled ? 1 : 0);
         GL.createCapabilities();
         glEnable(GL_DEPTH_TEST);
 
-        int framebufferWidth = width;
-        int framebufferHeight = height;
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            var pWidth = stack.mallocInt(1);
-            var pHeight = stack.mallocInt(1);
-            GLFW.glfwGetFramebufferSize(window, pWidth, pHeight);
-            if (pWidth.get(0) > 0 && pHeight.get(0) > 0) {
-                framebufferWidth = pWidth.get(0);
-                framebufferHeight = pHeight.get(0);
-            }
+        // Poll events so macOS delivers the Retina framebuffer size callback.
+        GLFW.glfwPollEvents();
+
+        // Use the callback-reported size if available, otherwise query directly.
+        int framebufferWidth;
+        int framebufferHeight;
+        if (pendingFramebufferWidth > 0 && pendingFramebufferHeight > 0) {
+            framebufferWidth = pendingFramebufferWidth;
+            framebufferHeight = pendingFramebufferHeight;
+            pendingFramebufferWidth = 0;
+            pendingFramebufferHeight = 0;
+        } else {
+            int[] drawable = queryDrawableSize(width, height);
+            framebufferWidth = drawable[0];
+            framebufferHeight = drawable[1];
         }
         this.width = framebufferWidth;
         this.height = framebufferHeight;
@@ -1420,10 +1503,11 @@ final class OpenGlContext {
     }
 
     void resize(int width, int height) {
-        this.width = width;
-        this.height = height;
+        int[] drawable = queryDrawableSize(width, height);
+        this.width = drawable[0];
+        this.height = drawable[1];
         updateSceneRenderResolution();
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, this.width, this.height);
         recreatePostProcessTargets();
     }
 
@@ -1485,6 +1569,7 @@ final class OpenGlContext {
         lastTriangles = 0;
         lastVisibleObjects = sceneMeshes.size();
         for (MeshBuffer mesh : sceneMeshes) {
+            glUniform1i(vertexFormatLocation, mesh.vertexFormat);
             glUniformMatrix4fv(modelLocation, false, mesh.modelMatrix);
             glUniformMatrix4fv(prevModelLocation, false, mesh.prevModelMatrix);
             glUniform3f(materialAlbedoLocation, mesh.albedoColor[0], mesh.albedoColor[1], mesh.albedoColor[2]);
@@ -1809,6 +1894,7 @@ final class OpenGlContext {
             return;
         }
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
         glViewport(0, 0, width, height);
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(postProgramId);
@@ -2249,6 +2335,7 @@ final class OpenGlContext {
 
         glDeleteShader(vertexShaderId);
         glDeleteShader(fragmentShaderId);
+        vertexFormatLocation = glGetUniformLocation(programId, "uVertexFormat");
         modelLocation = glGetUniformLocation(programId, "uModel");
         prevModelLocation = glGetUniformLocation(programId, "uPrevModel");
         viewLocation = glGetUniformLocation(programId, "uView");
@@ -2489,29 +2576,49 @@ final class OpenGlContext {
     private MeshBuffer uploadMesh(SceneMesh mesh, float[] prevModelMatrix) {
         int vaoId = glGenVertexArrays();
         int vboId = glGenBuffers();
+        VertexFormat fmt = mesh.geometry().format();
+        int formatInt = fmt == VertexFormat.POS_NORMAL_UV_8F ? 1 : 0;
 
         glBindVertexArray(vaoId);
         glBindBuffer(GL_ARRAY_BUFFER, vboId);
         glBufferData(GL_ARRAY_BUFFER, mesh.geometry().vertices(), GL_STATIC_DRAW);
 
-        glVertexAttribPointer(0, 3, GL_FLOAT, false, 6 * Float.BYTES, 0L);
-        glEnableVertexAttribArray(0);
-
-        glVertexAttribPointer(1, 3, GL_FLOAT, false, 6 * Float.BYTES, 3L * Float.BYTES);
-        glEnableVertexAttribArray(1);
+        if (fmt == VertexFormat.POS_NORMAL_UV_8F) {
+            int stride = 8 * Float.BYTES;
+            glVertexAttribPointer(0, 3, GL_FLOAT, false, stride, 0L);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(1, 3, GL_FLOAT, false, stride, 3L * Float.BYTES);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(2, 2, GL_FLOAT, false, stride, 6L * Float.BYTES);
+            glEnableVertexAttribArray(2);
+        } else {
+            glVertexAttribPointer(0, 3, GL_FLOAT, false, 6 * Float.BYTES, 0L);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(1, 3, GL_FLOAT, false, 6 * Float.BYTES, 3L * Float.BYTES);
+            glEnableVertexAttribArray(1);
+        }
 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
 
-        TextureData albedoTexture = loadTexture(mesh.albedoTexturePath());
-        TextureData normalTexture = loadTexture(mesh.normalTexturePath());
-        TextureData metallicRoughnessTexture = loadTexture(mesh.metallicRoughnessTexturePath());
-        TextureData occlusionTexture = loadTexture(mesh.occlusionTexturePath());
+        TextureData albedoTexture = mesh.preloadedAlbedoTextureId() != 0
+                ? new TextureData(mesh.preloadedAlbedoTextureId(), 0, 0)
+                : loadTexture(mesh.albedoTexturePath());
+        TextureData normalTexture = mesh.preloadedNormalTextureId() != 0
+                ? new TextureData(mesh.preloadedNormalTextureId(), 0, 0)
+                : loadTexture(mesh.normalTexturePath());
+        TextureData metallicRoughnessTexture = mesh.preloadedMetallicRoughnessTextureId() != 0
+                ? new TextureData(mesh.preloadedMetallicRoughnessTextureId(), 0, 0)
+                : loadTexture(mesh.metallicRoughnessTexturePath());
+        TextureData occlusionTexture = mesh.preloadedOcclusionTextureId() != 0
+                ? new TextureData(mesh.preloadedOcclusionTextureId(), 0, 0)
+                : loadTexture(mesh.occlusionTexturePath());
         long vertexBytes = (long) mesh.geometry().vertices().length * Float.BYTES;
         return new MeshBuffer(
                 vaoId,
                 vboId,
                 mesh.geometry().vertexCount(),
+                formatInt,
                 mesh.meshId(),
                 mesh.modelMatrix().clone(),
                 prevModelMatrix.clone(),
@@ -2642,6 +2749,28 @@ final class OpenGlContext {
             }
         } catch (Throwable ignored) {
             return new TextureData(0, 0, 0);
+        }
+    }
+
+    int loadTextureFromMemory(ByteBuffer imageData) {
+        if (imageData == null || imageData.remaining() == 0) {
+            return 0;
+        }
+        try (var stack = MemoryStack.stackPush()) {
+            var x = stack.mallocInt(1);
+            var y = stack.mallocInt(1);
+            var channels = stack.mallocInt(1);
+            ByteBuffer ldr = stbi_load_from_memory(imageData, x, y, channels, 4);
+            if (ldr == null) {
+                return 0;
+            }
+            try {
+                return uploadRgbaTexture(ldr, x.get(0), y.get(0)).id();
+            } finally {
+                stbi_image_free(ldr);
+            }
+        } catch (Throwable ignored) {
+            return 0;
         }
     }
 
@@ -2890,16 +3019,53 @@ final class OpenGlContext {
         if (window == 0) {
             return;
         }
-        try (MemoryStack stack = MemoryStack.stackPush()) {
-            var pWidth = stack.mallocInt(1);
-            var pHeight = stack.mallocInt(1);
-            GLFW.glfwGetFramebufferSize(window, pWidth, pHeight);
-            int fbWidth = Math.max(1, pWidth.get(0));
-            int fbHeight = Math.max(1, pHeight.get(0));
-            if (fbWidth != width || fbHeight != height) {
-                resize(fbWidth, fbHeight);
-            }
+        int fbWidth;
+        int fbHeight;
+        int pw = pendingFramebufferWidth;
+        int ph = pendingFramebufferHeight;
+        if (pw > 0 && ph > 0) {
+            fbWidth = pw;
+            fbHeight = ph;
+            pendingFramebufferWidth = 0;
+            pendingFramebufferHeight = 0;
+        } else {
+            int[] drawable = queryDrawableSize(width, height);
+            fbWidth = drawable[0];
+            fbHeight = drawable[1];
         }
+        if (fbWidth != width || fbHeight != height) {
+            resize(fbWidth, fbHeight);
+        }
+    }
+
+    private int[] queryDrawableSize(int fallbackWidth, int fallbackHeight) {
+        int targetWidth = Math.max(1, fallbackWidth);
+        int targetHeight = Math.max(1, fallbackHeight);
+        if (window == 0) {
+            return new int[]{targetWidth, targetHeight};
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            var pFbWidth = stack.mallocInt(1);
+            var pFbHeight = stack.mallocInt(1);
+            GLFW.glfwGetFramebufferSize(window, pFbWidth, pFbHeight);
+
+            var pWinWidth = stack.mallocInt(1);
+            var pWinHeight = stack.mallocInt(1);
+            GLFW.glfwGetWindowSize(window, pWinWidth, pWinHeight);
+
+            var pScaleX = stack.mallocFloat(1);
+            var pScaleY = stack.mallocFloat(1);
+            GLFW.glfwGetWindowContentScale(window, pScaleX, pScaleY);
+
+            int fbWidth = Math.max(1, pFbWidth.get(0));
+            int fbHeight = Math.max(1, pFbHeight.get(0));
+            int scaledWinWidth = Math.max(1, Math.round(Math.max(1, pWinWidth.get(0)) * Math.max(1.0f, pScaleX.get(0))));
+            int scaledWinHeight = Math.max(1, Math.round(Math.max(1, pWinHeight.get(0)) * Math.max(1.0f, pScaleY.get(0))));
+
+            targetWidth = Math.max(targetWidth, Math.max(fbWidth, scaledWinWidth));
+            targetHeight = Math.max(targetHeight, Math.max(fbHeight, scaledWinHeight));
+        }
+        return new int[]{targetWidth, targetHeight};
     }
 
     private float taaJitterUvDeltaX() {

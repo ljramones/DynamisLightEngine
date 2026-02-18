@@ -1,5 +1,6 @@
 package org.dynamislight.impl.opengl;
 
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +39,43 @@ final class OpenGlMeshAssetLoader {
             }
         }
         return mapByName(meshPath, index);
+    }
+
+    /**
+     * Full glTF scene load — returns all primitives with geometry, material data, and embedded textures.
+     * The caller is responsible for uploading textures to GL and assembling SceneMesh instances.
+     */
+    record LoadedGltfScene(
+            List<LoadedPrimitive> primitives,
+            List<OpenGlGltfMeshParser.GltfMaterial> materials,
+            List<ByteBuffer> imageBuffers
+    ) {
+    }
+
+    record LoadedPrimitive(
+            OpenGlContext.MeshGeometry geometry,
+            int materialIndex,
+            String meshName,
+            int meshIndex,
+            int primitiveIndex
+    ) {
+    }
+
+    LoadedGltfScene loadGltfScene(Path glbPath) {
+        if (glbPath == null) {
+            return null;
+        }
+        var sceneOpt = gltfParser.parseScene(glbPath);
+        if (sceneOpt.isEmpty()) {
+            return null;
+        }
+        var scene = sceneOpt.get();
+        List<LoadedPrimitive> primitives = new ArrayList<>(scene.primitives().size());
+        for (var p : scene.primitives()) {
+            primitives.add(new LoadedPrimitive(
+                    p.geometry(), p.materialIndex(), p.meshName(), p.meshIndex(), p.primitiveIndex()));
+        }
+        return new LoadedGltfScene(primitives, scene.materials(), scene.imageBuffers());
     }
 
     private Path resolve(String meshAssetPath) {

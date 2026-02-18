@@ -1026,17 +1026,17 @@ final class DemoScenes {
     }
 
     static SceneDescriptor orbitCameraScene(float orbitAngleRadians) {
-        float radius = 4.6f;
-        float movingX = (float) Math.sin(orbitAngleRadians * 1.7f) * 1.8f;
-        float movingZ = -2.8f + (float) Math.cos(orbitAngleRadians * 1.2f) * 0.9f;
+        float radius = 5.2f;
+        float movingX = (float) Math.sin(orbitAngleRadians * 1.8f) * 1.2f;
+        float movingZ = (float) Math.cos(orbitAngleRadians * 1.4f) * 0.8f;
         float camX = (float) Math.cos(orbitAngleRadians) * radius;
-        float camZ = (float) Math.sin(orbitAngleRadians) * radius - 1.8f;
-        CameraDesc camera = new CameraDesc("main-cam", new Vec3(camX, 2.4f, camZ), new Vec3(movingX, 0.9f, movingZ), 62f, 0.1f, 1000f);
+        float camZ = (float) Math.sin(orbitAngleRadians) * radius;
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(camX, 2.8f, camZ), new Vec3(movingX, 0.85f, movingZ), 64f, 0.1f, 1000f);
 
-        TransformDesc floor = new TransformDesc("floor", new Vec3(0f, -0.9f, -2.8f), new Vec3(0f, 0f, 0f), new Vec3(8.0f, 0.2f, 7.2f));
-        TransformDesc center = new TransformDesc("center", new Vec3(movingX, 0.35f, movingZ), new Vec3(0f, (float) Math.toDegrees(orbitAngleRadians) * 2.0f, 0f), new Vec3(1.7f, 1.7f, 1.7f));
-        TransformDesc left = new TransformDesc("left", new Vec3(-2.6f, 0.25f, -2.4f), new Vec3(0f, 24f, 0f), new Vec3(1.0f, 1.0f, 1.0f));
-        TransformDesc right = new TransformDesc("right", new Vec3(2.6f, 0.25f, -3.2f), new Vec3(0f, -18f, 0f), new Vec3(1.0f, 1.0f, 1.0f));
+        TransformDesc floor = new TransformDesc("floor", new Vec3(0f, -1.15f, 0f), new Vec3(0f, 0f, 0f), new Vec3(7.6f, 0.18f, 7.6f));
+        TransformDesc center = new TransformDesc("center", new Vec3(movingX, 0.45f, movingZ), new Vec3(0f, (float) Math.toDegrees(orbitAngleRadians) * 3.0f, 0f), new Vec3(2.1f, 2.1f, 2.1f));
+        TransformDesc left = new TransformDesc("left", new Vec3(-2.2f, 0.35f, -1.1f), new Vec3(0f, 38f, 0f), new Vec3(1.25f, 1.25f, 1.25f));
+        TransformDesc right = new TransformDesc("right", new Vec3(2.2f, 0.35f, 1.1f), new Vec3(0f, -42f, 0f), new Vec3(1.25f, 1.25f, 1.25f));
 
         MeshDesc floorMesh = new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb");
         MeshDesc centerMesh = new MeshDesc("mesh-center", "center", "mat-center", "meshes/box.glb");
@@ -1049,9 +1049,9 @@ final class DemoScenes {
         MaterialDesc rightMat = new MaterialDesc("mat-right", new Vec3(0.80f, 0.84f, 0.88f), 0.08f, 0.90f, null, null);
 
         ShadowDesc directionalShadow = new ShadowDesc(1536, 0.0011f, 5, 3);
-        LightDesc sun = new LightDesc("sun", new Vec3(0f, 10f, 0f), new Vec3(1f, 0.97f, 0.92f), 1.12f, 100f, true, directionalShadow);
-        LightDesc accentA = new LightDesc("accent-a", new Vec3(-2.8f, 2.0f, -1.6f), new Vec3(0.30f, 0.60f, 1.0f), 1.10f, 8.0f, false, null);
-        LightDesc accentB = new LightDesc("accent-b", new Vec3(2.8f, 2.0f, -4.2f), new Vec3(1.0f, 0.44f, 0.35f), 1.10f, 8.0f, false, null);
+        LightDesc sun = new LightDesc("sun", new Vec3(0f, 10f, 0f), new Vec3(1f, 0.97f, 0.92f), 1.18f, 100f, true, directionalShadow);
+        LightDesc accentA = new LightDesc("accent-a", new Vec3(-2.6f, 2.2f, -1.0f), new Vec3(0.30f, 0.60f, 1.0f), 1.22f, 8.0f, false, null);
+        LightDesc accentB = new LightDesc("accent-b", new Vec3(2.6f, 2.2f, 1.0f), new Vec3(1.0f, 0.44f, 0.35f), 1.22f, 8.0f, false, null);
 
         EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.30f, null);
         FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
@@ -1062,9 +1062,97 @@ final class DemoScenes {
                 List.of(camera),
                 "main-cam",
                 List.of(floor, center, left, right),
-                List.of(floorMesh, centerMesh, leftMesh, rightMesh),
+                List.of(centerMesh, leftMesh, rightMesh, floorMesh),
                 List.of(floorMat, centerMat, leftMat, rightMat),
                 List.of(sun, accentA, accentB),
+                environment,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
+    static SceneDescriptor sponzaScene() {
+        CameraDesc camera = new CameraDesc(
+                "main-cam",
+                new Vec3(0f, 5f, 0f),
+                new Vec3(-10f, 4f, 0f),
+                65f, 0.1f, 200f
+        );
+
+        TransformDesc sceneTransform = new TransformDesc(
+                "sponza-root",
+                new Vec3(0f, 0f, 0f),
+                new Vec3(0f, 0f, 0f),
+                new Vec3(1f, 1f, 1f)
+        );
+
+        MaterialDesc defaultMat = new MaterialDesc(
+                "sponza-default",
+                new Vec3(0.8f, 0.8f, 0.8f),
+                0f,
+                0.5f,
+                null,
+                null
+        );
+
+        MeshDesc sponzaMesh = new MeshDesc(
+                "gltf-scene:sponza",
+                "sponza-root",
+                "sponza-default",
+                "scenes/Sponza/Sponza.gltf"
+        );
+
+        ShadowDesc directionalShadow = new ShadowDesc(2048, 0.0012f, 5, 4);
+        LightDesc sun = new LightDesc(
+                "sun",
+                new Vec3(0f, 20f, 0f),
+                new Vec3(1f, 0.97f, 0.92f),
+                1.30f,
+                200f,
+                true,
+                directionalShadow
+        );
+        LightDesc warmA = new LightDesc(
+                "warm-a",
+                new Vec3(-5f, 3f, 0f),
+                new Vec3(1.0f, 0.85f, 0.65f),
+                1.10f,
+                15f,
+                false,
+                null
+        );
+        LightDesc warmB = new LightDesc(
+                "warm-b",
+                new Vec3(5f, 3f, 0f),
+                new Vec3(1.0f, 0.85f, 0.65f),
+                1.10f,
+                15f,
+                false,
+                null
+        );
+        LightDesc coolFill = new LightDesc(
+                "cool-fill",
+                new Vec3(0f, 8f, -4f),
+                new Vec3(0.55f, 0.70f, 1.0f),
+                0.65f,
+                25f,
+                false,
+                null
+        );
+
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.10f, 0.12f, 0.15f), 0.40f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.10f, 2.2f, true, 0.88f, 0.80f);
+
+        return new SceneDescriptor(
+                "demo-scene-sponza",
+                List.of(camera),
+                "main-cam",
+                List.of(sceneTransform),
+                List.of(sponzaMesh),
+                List.of(defaultMat),
+                List.of(sun, warmA, warmB, coolFill),
                 environment,
                 fog,
                 List.of(),

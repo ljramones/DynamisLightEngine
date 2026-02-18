@@ -32,6 +32,9 @@ Thumbs.db
 .env
 .env.*
 
+# Downloaded scene assets (large binary files)
+assets/scenes/
+
 # JVM crash artifacts
 hs_err_pid*
 replay_pid*
