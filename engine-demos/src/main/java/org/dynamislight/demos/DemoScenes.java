@@ -1026,15 +1026,17 @@ final class DemoScenes {
     }
 
     static SceneDescriptor orbitCameraScene(float orbitAngleRadians) {
-        float radius = 6.8f;
+        float radius = 4.6f;
+        float movingX = (float) Math.sin(orbitAngleRadians * 1.7f) * 1.8f;
+        float movingZ = -2.8f + (float) Math.cos(orbitAngleRadians * 1.2f) * 0.9f;
         float camX = (float) Math.cos(orbitAngleRadians) * radius;
-        float camZ = (float) Math.sin(orbitAngleRadians) * radius - 2.0f;
-        CameraDesc camera = new CameraDesc("main-cam", new Vec3(camX, 2.2f, camZ), new Vec3(0f, 0.8f, -2.8f), 58f, 0.1f, 1000f);
+        float camZ = (float) Math.sin(orbitAngleRadians) * radius - 1.8f;
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(camX, 2.4f, camZ), new Vec3(movingX, 0.9f, movingZ), 62f, 0.1f, 1000f);
 
-        TransformDesc floor = new TransformDesc("floor", new Vec3(0f, -0.9f, -2.8f), new Vec3(0f, 0f, 0f), new Vec3(9.0f, 0.2f, 8.0f));
-        TransformDesc center = new TransformDesc("center", new Vec3(0f, 0.25f, -2.8f), new Vec3(0f, (float) Math.toDegrees(orbitAngleRadians), 0f), new Vec3(1.3f, 1.3f, 1.3f));
-        TransformDesc left = new TransformDesc("left", new Vec3(-2.4f, 0.25f, -2.2f), new Vec3(0f, 24f, 0f), new Vec3(0.8f, 0.8f, 0.8f));
-        TransformDesc right = new TransformDesc("right", new Vec3(2.4f, 0.25f, -3.4f), new Vec3(0f, -18f, 0f), new Vec3(0.8f, 0.8f, 0.8f));
+        TransformDesc floor = new TransformDesc("floor", new Vec3(0f, -0.9f, -2.8f), new Vec3(0f, 0f, 0f), new Vec3(8.0f, 0.2f, 7.2f));
+        TransformDesc center = new TransformDesc("center", new Vec3(movingX, 0.35f, movingZ), new Vec3(0f, (float) Math.toDegrees(orbitAngleRadians) * 2.0f, 0f), new Vec3(1.7f, 1.7f, 1.7f));
+        TransformDesc left = new TransformDesc("left", new Vec3(-2.6f, 0.25f, -2.4f), new Vec3(0f, 24f, 0f), new Vec3(1.0f, 1.0f, 1.0f));
+        TransformDesc right = new TransformDesc("right", new Vec3(2.6f, 0.25f, -3.2f), new Vec3(0f, -18f, 0f), new Vec3(1.0f, 1.0f, 1.0f));
 
         MeshDesc floorMesh = new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb");
         MeshDesc centerMesh = new MeshDesc("mesh-center", "center", "mat-center", "meshes/box.glb");
@@ -1042,14 +1044,14 @@ final class DemoScenes {
         MeshDesc rightMesh = new MeshDesc("mesh-right", "right", "mat-right", "meshes/box.glb");
 
         MaterialDesc floorMat = new MaterialDesc("mat-floor", new Vec3(0.18f, 0.20f, 0.24f), 0.80f, 0.0f, null, null);
-        MaterialDesc centerMat = new MaterialDesc("mat-center", new Vec3(0.86f, 0.42f, 0.34f), 0.16f, 0.72f, null, null);
+        MaterialDesc centerMat = new MaterialDesc("mat-center", new Vec3(0.92f, 0.46f, 0.36f), 0.10f, 0.84f, null, null);
         MaterialDesc leftMat = new MaterialDesc("mat-left", new Vec3(0.30f, 0.58f, 0.90f), 0.22f, 0.60f, null, null);
         MaterialDesc rightMat = new MaterialDesc("mat-right", new Vec3(0.80f, 0.84f, 0.88f), 0.08f, 0.90f, null, null);
 
         ShadowDesc directionalShadow = new ShadowDesc(1536, 0.0011f, 5, 3);
         LightDesc sun = new LightDesc("sun", new Vec3(0f, 10f, 0f), new Vec3(1f, 0.97f, 0.92f), 1.12f, 100f, true, directionalShadow);
-        LightDesc accentA = new LightDesc("accent-a", new Vec3(-2.8f, 2.0f, -1.6f), new Vec3(0.30f, 0.60f, 1.0f), 0.90f, 8.0f, false, null);
-        LightDesc accentB = new LightDesc("accent-b", new Vec3(2.8f, 2.0f, -4.2f), new Vec3(1.0f, 0.44f, 0.35f), 0.90f, 8.0f, false, null);
+        LightDesc accentA = new LightDesc("accent-a", new Vec3(-2.8f, 2.0f, -1.6f), new Vec3(0.30f, 0.60f, 1.0f), 1.10f, 8.0f, false, null);
+        LightDesc accentB = new LightDesc("accent-b", new Vec3(2.8f, 2.0f, -4.2f), new Vec3(1.0f, 0.44f, 0.35f), 1.10f, 8.0f, false, null);
 
         EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.08f, 0.10f, 0.12f), 0.30f, null);
         FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);

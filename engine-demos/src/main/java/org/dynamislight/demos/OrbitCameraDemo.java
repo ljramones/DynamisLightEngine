@@ -27,7 +27,7 @@ final class OrbitCameraDemo implements DemoDefinition {
 
     @Override
     public SceneDescriptor sceneForFrame(DemoRequest request, int frameIndex, int totalFrames, double elapsedSeconds) {
-        float radiansPerSecond = request.argFloat("orbit-speed-rads", 0.9f, 0.1f, 3.0f);
+        float radiansPerSecond = request.argFloat("orbit-speed-rads", 1.8f, 0.1f, 6.0f);
         float phase = request.argFloat("orbit-phase-rads", 0.0f, -6.28318f, 6.28318f);
         float angle = phase + (float) elapsedSeconds * radiansPerSecond;
         return DemoScenes.orbitCameraScene(angle);
