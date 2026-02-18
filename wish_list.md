@@ -108,7 +108,7 @@ Reflection notes:
 - RT reflections now also include perf envelope warnings/gates (`REFLECTION_RT_PERF_GATES`, `REFLECTION_RT_PERF_GATES_BREACH`) with typed runtime diagnostics (`debugReflectionRtPerfDiagnostics`).
 - RT reflections now include strict multi-bounce availability gating (`vulkan.reflections.rtRequireMultiBounce`) with explicit breach warning (`REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH`) and mode-bit contract tests.
 - RT reflections now include strict dedicated pipeline availability gating (`vulkan.reflections.rtRequireDedicatedPipeline`) with explicit breach warning (`REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH`) and typed diagnostics parity.
-- RT reflections now include a dedicated-path preview activation switch (`vulkan.reflections.rtDedicatedPipelineEnabled`) for mock contract execution and `REFLECTION_RT_DEDICATED_PIPELINE_ACTIVE` signaling.
+- RT reflections now include a dedicated-path preview activation switch (`vulkan.reflections.rtDedicatedPipelineEnabled`) with capability-conditioned activation/signaling (`REFLECTION_RT_DEDICATED_PIPELINE_ACTIVE`) and strict required-path breach behavior.
 - RT `Partial -> In` promotion tasks are tracked in `docs/rt-reflections-in-checklist.md`.
 - RT reflections now include a guarded real-Vulkan signoff runner (`scripts/rt_reflections_real_gpu_signoff.sh`) for RT lane contract validation on real hardware paths.
 

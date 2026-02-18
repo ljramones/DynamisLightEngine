@@ -51,7 +51,7 @@ Guarded real-Vulkan signoff slice:
 mvn -pl engine-impl-vulkan -am test \
   -DskipITs \
   -Ddle.test.vulkan.real=true \
-  -Dtest=VulkanEngineRuntimeIntegrationTest#guardedRealVulkanInitPath+guardedRealVulkanRtReflectionContractEmitsPathDiagnostics+guardedRealVulkanRtRequireActiveBehaviorMatchesLaneAvailability \
+  -Dtest=VulkanEngineRuntimeIntegrationTest#guardedRealVulkanInitPath+guardedRealVulkanRtReflectionContractEmitsPathDiagnostics+guardedRealVulkanRtRequireActiveBehaviorMatchesLaneAvailability+guardedRealVulkanRtRequireDedicatedPipelineFollowsCapabilityAndEnableState \
   -Dsurefire.failIfNoSpecifiedTests=false
 
 # or use the packaged runner:

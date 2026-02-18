@@ -333,6 +333,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean reflectionRtRequireDedicatedPipelineUnmetLastFrame;
     private String reflectionRtFallbackChainActive = "probe";
     private boolean reflectionRtTraversalSupported;
+    private boolean reflectionRtDedicatedCapabilitySupported;
     private boolean reflectionRtDedicatedHardwarePipelineActive;
     private int reflectionRtPerfHighStreak;
     private int reflectionRtPerfWarnCooldownRemaining;
@@ -1180,12 +1181,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
             reflectionRtTraversalSupported = mockContext || context.isHardwareRtShadowTraversalSupported();
+            reflectionRtDedicatedCapabilitySupported = mockContext || context.isHardwareRtShadowBvhSupported();
             reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled && reflectionRtTraversalSupported;
             boolean reflectionRtMultiBounceActive = reflectionRtLaneActive && reflectionRtMultiBounceEnabled;
-            // Dedicated pipeline preview can be exercised in mock mode; real hardware path is a follow-up.
+            // Dedicated reflection path is still preview contracting, but can be capability-gated on real Vulkan.
             reflectionRtDedicatedHardwarePipelineActive = reflectionRtLaneActive
                     && reflectionRtDedicatedPipelineEnabled
-                    && mockContext;
+                    && reflectionRtDedicatedCapabilitySupported;
             reflectionRtFallbackChainActive = reflectionRtLaneActive ? "rt->ssr->probe" : "ssr->probe";
             reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActive && reflectionRtLaneRequested && !reflectionRtLaneActive;
             reflectionRtRequireMultiBounceUnmetLastFrame =
@@ -1203,6 +1205,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", requireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline
                                 + ", dedicatedPipelineEnabled=" + reflectionRtDedicatedPipelineEnabled
                                 + ", traversalSupported=" + reflectionRtTraversalSupported
+                                + ", dedicatedCapabilitySupported=" + reflectionRtDedicatedCapabilitySupported
                                 + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
                                 + ", denoiseStrength=" + reflectionRtDenoiseStrength
                                 + ", laneActive=" + reflectionRtLaneActive
@@ -1212,15 +1215,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     warnings.add(new EngineWarning(
                             "REFLECTION_RT_DEDICATED_PIPELINE_ACTIVE",
                             "RT dedicated pipeline active (dedicatedHardwarePipelineActive=true, mockContext="
-                                    + mockContext + ")"
+                                    + mockContext + ", dedicatedCapabilitySupported="
+                                    + reflectionRtDedicatedCapabilitySupported + ")"
                     ));
                 } else {
                     warnings.add(new EngineWarning(
-                            "REFLECTION_RT_DEDICATED_PIPELINE_PENDING",
-                            "RT dedicated pipeline contract (dedicatedHardwarePipelineActive="
-                                    + reflectionRtDedicatedHardwarePipelineActive
-                                    + ", dedicatedPipelineEnabled=" + reflectionRtDedicatedPipelineEnabled
-                                    + ", requireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline + ")"
+                        "REFLECTION_RT_DEDICATED_PIPELINE_PENDING",
+                        "RT dedicated pipeline contract (dedicatedHardwarePipelineActive="
+                                + reflectionRtDedicatedHardwarePipelineActive
+                                + ", dedicatedPipelineEnabled=" + reflectionRtDedicatedPipelineEnabled
+                                + ", dedicatedCapabilitySupported=" + reflectionRtDedicatedCapabilitySupported
+                                + ", requireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline + ")"
                     ));
                 }
                 if (!reflectionRtLaneActive) {
@@ -1302,6 +1307,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtRequireMultiBounceUnmetLastFrame = false;
                 reflectionRtRequireDedicatedPipelineUnmetLastFrame = false;
                 reflectionRtTraversalSupported = false;
+                reflectionRtDedicatedCapabilitySupported = false;
                 reflectionRtDedicatedHardwarePipelineActive = false;
                 reflectionRtPerfHighStreak = 0;
                 reflectionRtPerfWarnCooldownRemaining = 0;
@@ -1392,6 +1398,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", rtRequireMultiBounce=" + reflectionRtRequireMultiBounce
                             + ", rtRequireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline
                             + ", rtDedicatedPipelineEnabled=" + reflectionRtDedicatedPipelineEnabled
+                            + ", rtDedicatedCapabilitySupported=" + reflectionRtDedicatedCapabilitySupported
                             + ", rtDedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
                             + ", rtDenoiseStrength=" + reflectionRtDenoiseStrength
                             + ", rtPerfMaxGpuMsLow=" + reflectionRtPerfMaxGpuMsLow
@@ -1629,6 +1636,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtRequireDedicatedPipelineUnmetLastFrame = false;
             reflectionRtFallbackChainActive = "probe";
             reflectionRtTraversalSupported = false;
+            reflectionRtDedicatedCapabilitySupported = false;
             reflectionRtDedicatedHardwarePipelineActive = false;
             reflectionRtPerfHighStreak = 0;
             reflectionRtPerfWarnCooldownRemaining = 0;
@@ -2613,6 +2621,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtRequireDedicatedPipelineUnmetLastFrame,
                 reflectionRtDedicatedPipelineEnabled,
                 reflectionRtTraversalSupported,
+                reflectionRtDedicatedCapabilitySupported,
                 reflectionRtDedicatedHardwarePipelineActive,
                 reflectionRtDedicatedDenoisePipelineEnabled,
                 reflectionRtDenoiseStrength,
@@ -2851,6 +2860,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean requireDedicatedPipelineUnmetLastFrame,
             boolean dedicatedPipelineEnabled,
             boolean traversalSupported,
+            boolean dedicatedCapabilitySupported,
             boolean dedicatedHardwarePipelineActive,
             boolean dedicatedDenoisePipelineEnabled,
             double denoiseStrength,

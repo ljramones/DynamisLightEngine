@@ -148,26 +148,40 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
-    void guardedRealVulkanRtRequireDedicatedPipelineAlwaysBreachesUntilDedicatedPathIsActive() {
+    void guardedRealVulkanRtRequireDedicatedPipelineFollowsCapabilityAndEnableState() {
         assumeRealVulkanReady("real Vulkan RT require-dedicated-pipeline integration test");
 
         var runtime = new VulkanEngineRuntime();
         var callbacks = new RecordingCallbacks();
         try {
             runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.reflections.rtDedicatedPipelineEnabled", "true"),
                     Map.entry("vulkan.reflections.rtRequireDedicatedPipeline", "true")
             ), QualityTier.HIGH), callbacks);
             runtime.loadScene(validReflectionsScene("rt_hybrid"));
             var frame = runtime.render();
 
             assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
-            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_PENDING".equals(w.code())));
-            assertTrue(frame.warnings().stream().anyMatch(
-                    w -> "REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            boolean active = frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_ACTIVE".equals(w.code()));
+            boolean pending = frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_DEDICATED_PIPELINE_PENDING".equals(w.code()));
+            boolean breach = frame.warnings().stream().anyMatch(
+                    w -> "REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH".equals(w.code()));
             var diagnostics = runtime.debugReflectionRtPathDiagnostics();
             assertTrue(diagnostics.requireDedicatedPipeline());
-            assertTrue(diagnostics.requireDedicatedPipelineUnmetLastFrame());
-            assertFalse(diagnostics.dedicatedHardwarePipelineActive());
+            assertTrue(diagnostics.dedicatedPipelineEnabled());
+            if (diagnostics.dedicatedCapabilitySupported() && diagnostics.laneActive()) {
+                assertTrue(active);
+                assertFalse(pending);
+                assertFalse(breach);
+                assertFalse(diagnostics.requireDedicatedPipelineUnmetLastFrame());
+                assertTrue(diagnostics.dedicatedHardwarePipelineActive());
+            } else {
+                assertFalse(active);
+                assertTrue(pending);
+                assertTrue(breach);
+                assertTrue(diagnostics.requireDedicatedPipelineUnmetLastFrame());
+                assertFalse(diagnostics.dedicatedHardwarePipelineActive());
+            }
         } catch (EngineException e) {
             assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, e.code());
         } finally {
@@ -1026,6 +1040,7 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.laneRequested());
         assertTrue(diagnostics.laneActive());
         assertTrue(diagnostics.traversalSupported());
+        assertTrue(diagnostics.dedicatedCapabilitySupported());
         assertFalse(diagnostics.requireDedicatedPipeline());
         assertFalse(diagnostics.requireDedicatedPipelineUnmetLastFrame());
         assertFalse(diagnostics.dedicatedHardwarePipelineActive());
@@ -1138,6 +1153,7 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.laneActive());
         assertFalse(diagnostics.dedicatedPipelineEnabled());
         assertTrue(diagnostics.traversalSupported());
+        assertTrue(diagnostics.dedicatedCapabilitySupported());
         assertTrue(diagnostics.requireDedicatedPipeline());
         assertTrue(diagnostics.requireDedicatedPipelineUnmetLastFrame());
         assertFalse(diagnostics.dedicatedHardwarePipelineActive());
@@ -1166,6 +1182,7 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.laneActive());
         assertTrue(diagnostics.dedicatedPipelineEnabled());
         assertTrue(diagnostics.traversalSupported());
+        assertTrue(diagnostics.dedicatedCapabilitySupported());
         assertTrue(diagnostics.requireDedicatedPipeline());
         assertFalse(diagnostics.requireDedicatedPipelineUnmetLastFrame());
         assertTrue(diagnostics.dedicatedHardwarePipelineActive());

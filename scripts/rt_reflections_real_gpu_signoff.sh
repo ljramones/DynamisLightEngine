@@ -11,7 +11,7 @@ REAL_TESTS=(
   "guardedRealVulkanInitPath"
   "guardedRealVulkanRtReflectionContractEmitsPathDiagnostics"
   "guardedRealVulkanRtRequireActiveBehaviorMatchesLaneAvailability"
-  "guardedRealVulkanRtRequireDedicatedPipelineAlwaysBreachesUntilDedicatedPathIsActive"
+  "guardedRealVulkanRtRequireDedicatedPipelineFollowsCapabilityAndEnableState"
 )
 REAL_TEST_FILTER="VulkanEngineRuntimeIntegrationTest#$(IFS=+; echo "${REAL_TESTS[*]}")"
 
