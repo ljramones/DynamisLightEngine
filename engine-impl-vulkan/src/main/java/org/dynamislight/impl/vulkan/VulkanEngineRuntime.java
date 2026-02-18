@@ -804,6 +804,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ")"
             ));
             warnings.add(new EngineWarning(
+                    "REFLECTION_OVERRIDE_POLICY",
+                    "Reflection override policy (auto=" + overrideSummary.autoCount()
+                            + ", probeOnly=" + overrideSummary.probeOnlyCount()
+                            + ", ssrOnly=" + overrideSummary.ssrOnlyCount()
+                            + ", other=" + overrideSummary.otherCount()
+                            + ", planarSelectiveExcludes=probe_only|ssr_only)"
+            ));
+            warnings.add(new EngineWarning(
                     "REFLECTION_PROBE_BLEND_DIAGNOSTICS",
                     "Probe blend diagnostics (configured=" + probeDiagnostics.configuredProbeCount()
                             + ", active=" + probeDiagnostics.activeProbeCount()
@@ -2047,6 +2055,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionOverridePolicyDiagnostics debugReflectionOverridePolicyDiagnostics() {
+        ReflectionOverrideSummary summary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
+        return new ReflectionOverridePolicyDiagnostics(
+                summary.autoCount(),
+                summary.probeOnlyCount(),
+                summary.ssrOnlyCount(),
+                summary.otherCount(),
+                "probe_only|ssr_only"
+        );
+    }
+
     ReflectionRtPathDiagnostics debugReflectionRtPathDiagnostics() {
         return new ReflectionRtPathDiagnostics(
                 reflectionRtLaneRequested,
@@ -2218,6 +2237,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             String status,
             int scopedMeshEligibleCount,
             int scopedMeshExcludedCount
+    ) {
+    }
+
+    record ReflectionOverridePolicyDiagnostics(
+            int autoCount,
+            int probeOnlyCount,
+            int ssrOnlyCount,
+            int otherCount,
+            String planarSelectiveExcludes
     ) {
     }
 

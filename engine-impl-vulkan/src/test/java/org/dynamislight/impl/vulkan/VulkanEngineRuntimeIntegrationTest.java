@@ -409,12 +409,22 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_OVERRIDE_POLICY".equals(w.code())));
         String baseline = warningMessageByCode(frame, "REFLECTIONS_BASELINE_ACTIVE");
         assertTrue(baseline.contains("overrideAuto=1"));
         assertTrue(baseline.contains("overrideProbeOnly=1"));
         assertTrue(baseline.contains("overrideSsrOnly=1"));
         assertTrue(baseline.contains("overrideOther=0"));
+        String policy = warningMessageByCode(frame, "REFLECTION_OVERRIDE_POLICY");
+        assertTrue(policy.contains("auto=1"));
+        assertTrue(policy.contains("probeOnly=1"));
+        assertTrue(policy.contains("ssrOnly=1"));
+        assertTrue(policy.contains("planarSelectiveExcludes=probe_only|ssr_only"));
         assertEquals(List.of(0, 1, 2), runtime.debugReflectionOverrideModes());
+        var policyDiagnostics = runtime.debugReflectionOverridePolicyDiagnostics();
+        assertEquals(1, policyDiagnostics.autoCount());
+        assertEquals(1, policyDiagnostics.probeOnlyCount());
+        assertEquals(1, policyDiagnostics.ssrOnlyCount());
         runtime.shutdown();
     }
 

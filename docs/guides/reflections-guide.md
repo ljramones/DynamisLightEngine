@@ -103,6 +103,7 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan now emits probe quality sweep diagnostics (`REFLECTION_PROBE_QUALITY_SWEEP`) and envelope breach warnings (`REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`) based on overlap/priority analysis of configured probe volumes.
 - Vulkan now emits probe streaming diagnostics (`REFLECTION_PROBE_STREAMING_DIAGNOSTICS`) plus budget-pressure warnings (`REFLECTION_PROBE_STREAMING_BUDGET_PRESSURE`) when active probe budget is saturated.
 - Vulkan now emits planar scope/order contracts (`REFLECTION_PLANAR_SCOPE_CONTRACT`) including selective mesh eligibility and required pass order contract.
+- Vulkan now emits explicit per-material override policy diagnostics (`REFLECTION_OVERRIDE_POLICY`) and provides a typed runtime snapshot of override counts for parser-free validation.
 - Vulkan now executes runtime-composed reflection mode bits for reflection-space reprojection/reject policy, selective planar execution, RT lane activation, and transparent/refraction integration.
 - Vulkan RT hybrid now executes an active RT-oriented reflection trace + denoise path in post shader, with fallback diagnostics only when the lane is disabled.
 - Vulkan now emits transparency/refraction stage-gate diagnostics (`REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) and activates `preview_enabled` integration when RT lane is active.

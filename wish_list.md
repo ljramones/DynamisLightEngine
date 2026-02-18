@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:52 ET — Added probe streaming diagnostics + budget-pressure warning/typed accessor (`effectiveBudget`, cadence, budgetPressure) and first contact-hardening reflection weighting in Vulkan resolve.
+- Latest reflection update: 2026-02-18 14:56 ET — Added explicit per-material override policy diagnostics (`REFLECTION_OVERRIDE_POLICY`) with typed count accessor, plus probe streaming budget diagnostics and contact-hardening reflection weighting in Vulkan resolve.
 
 Status legend:
 

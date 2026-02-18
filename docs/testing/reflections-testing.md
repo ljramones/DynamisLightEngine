@@ -19,6 +19,7 @@ This document defines reflection validation for OpenGL and Vulkan.
 2. Runtime warnings
 - Reflection-enabled scenes emit `REFLECTIONS_BASELINE_ACTIVE`.
 - MEDIUM-tier reflection scenes emit `REFLECTIONS_QUALITY_DEGRADED`.
+- Mixed override scenes emit `REFLECTION_OVERRIDE_POLICY` and expose typed override-policy diagnostics for counts/scope assertions.
 
 3. Profile validation
 - Run each reflection mode with `performance`, `balanced`, `quality`, `stability`.
