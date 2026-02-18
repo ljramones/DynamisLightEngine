@@ -49,7 +49,10 @@ find_vulkan_icd_json() {
   for candidate in \
     "${DLE_VULKAN_ICD_JSON:-}" \
     "${VULKAN_SDK:-}/share/vulkan/icd.d/MoltenVK_icd.json" \
+    "${VULKAN_SDK:-}/etc/vulkan/icd.d/MoltenVK_icd.json" \
+    /opt/homebrew/etc/vulkan/icd.d/MoltenVK_icd.json \
     /opt/homebrew/share/vulkan/icd.d/MoltenVK_icd.json \
+    /usr/local/etc/vulkan/icd.d/MoltenVK_icd.json \
     /usr/local/share/vulkan/icd.d/MoltenVK_icd.json \
     /opt/homebrew/share/vulkan/icd.d/MoltenVK_icd.json.bak; do
     [[ -z "$candidate" ]] && continue

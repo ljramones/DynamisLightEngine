@@ -2,6 +2,7 @@ package org.dynamislight.demos;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -35,6 +36,15 @@ import org.dynamislight.spi.registry.BackendRegistry;
 
 public final class DemoRunner {
     private static final EngineApiVersion HOST_REQUIRED_API = new EngineApiVersion(1, 0, 0);
+    private static final Set<String> DEMO_PROFILE_WARNING_CODES = Set.of(
+            "FEATURE_BASELINE",
+            "SCENE_REUSE_PROFILE",
+            "MESH_GEOMETRY_CACHE_PROFILE",
+            "SHADOW_POLICY_ACTIVE",
+            "SHADOW_CASCADE_PROFILE",
+            "VULKAN_POST_PROCESS_PIPELINE",
+            "VULKAN_FRAME_RESOURCE_PROFILE"
+    );
 
     private DemoRunner() {
     }
@@ -122,8 +132,10 @@ public final class DemoRunner {
                 runtime.update(1.0 / 60.0, emptyInput());
                 EngineFrameResult render = runtime.render();
                 EngineStats stats = runtime.getStats();
-                statsAccumulator.record(stats);
-                telemetry.writeFrame(demoId, backendId, qualityTier, render, stats);
+                StatsSample sample = StatsSample.from(stats);
+                statsAccumulator.record(sample);
+                telemetry.writeFrame(demoId, backendId, qualityTier, render, sample);
+                int actionableWarnings = actionableWarningCount(render);
                 if ((i + 1) % 60 == 0 || i == 0 || i + 1 == frames) {
                     System.out.printf(
                             Locale.ROOT,
@@ -132,10 +144,10 @@ public final class DemoRunner {
                             backendId,
                             i + 1,
                             frames,
-                            stats.fps(),
-                            stats.cpuFrameMs(),
-                            stats.gpuFrameMs(),
-                            render.warnings().size()
+                            sample.fps,
+                            sample.cpuMs,
+                            sample.gpuMs,
+                            actionableWarnings
                     );
                 }
             }
@@ -172,6 +184,20 @@ public final class DemoRunner {
 
     private static EngineInput emptyInput() {
         return new EngineInput(0, 0, 0, 0, false, false, Set.<KeyCode>of(), 0);
+    }
+
+    private static int actionableWarningCount(EngineFrameResult frame) {
+        int count = 0;
+        for (var warning : frame.warnings()) {
+            if (isActionableWarningCode(warning.code())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static boolean isActionableWarningCode(String warningCode) {
+        return warningCode != null && !DEMO_PROFILE_WARNING_CODES.contains(warningCode);
     }
 
     private static Map<String, String> parseArgs(String[] args) {
@@ -316,16 +342,16 @@ public final class DemoRunner {
         private long trianglesMax;
         private long visibleMax;
 
-        void record(EngineStats stats) {
-            cpu.add(stats.cpuFrameMs());
-            gpu.add(stats.gpuFrameMs());
-            fps.add(stats.fps());
-            reject.add(stats.taaHistoryRejectRate());
-            confidence.add(stats.taaConfidenceMean());
-            confidenceDrops += stats.taaConfidenceDropEvents();
-            drawCallsMax = Math.max(drawCallsMax, stats.drawCalls());
-            trianglesMax = Math.max(trianglesMax, stats.triangles());
-            visibleMax = Math.max(visibleMax, stats.visibleObjects());
+        void record(StatsSample stats) {
+            cpu.add(stats.cpuMs);
+            gpu.add(stats.gpuMs);
+            fps.add(stats.fps);
+            reject.add(stats.taaRejectRate);
+            confidence.add(stats.taaConfidenceMean);
+            confidenceDrops += stats.taaConfidenceDrops;
+            drawCallsMax = Math.max(drawCallsMax, stats.drawCalls);
+            trianglesMax = Math.max(trianglesMax, stats.triangles);
+            visibleMax = Math.max(visibleMax, stats.visibleObjects);
         }
 
         double avg(List<Double> samples) {
@@ -385,8 +411,16 @@ public final class DemoRunner {
             );
         }
 
-        void writeFrame(String demoId, String backend, QualityTier qualityTier, EngineFrameResult frame, EngineStats stats) throws IOException {
-            String warningCodes = frame.warnings().stream().map(w -> w.code()).collect(Collectors.joining(","));
+        void writeFrame(String demoId, String backend, QualityTier qualityTier, EngineFrameResult frame, StatsSample stats) throws IOException {
+            String totalWarningCodes = frame.warnings().stream().map(w -> w.code()).collect(Collectors.joining(","));
+            String warningCodes = frame.warnings().stream()
+                    .map(w -> w.code())
+                    .filter(DemoRunner::isActionableWarningCode)
+                    .collect(Collectors.joining(","));
+            int warningCount = (int) frame.warnings().stream()
+                    .map(w -> w.code())
+                    .filter(DemoRunner::isActionableWarningCode)
+                    .count();
             writeLine(
                     "{"
                             + "\"type\":\"frame\","
@@ -395,18 +429,20 @@ public final class DemoRunner {
                             + "\"backend\":" + quote(backend) + ","
                             + "\"qualityTier\":" + quote(qualityTier.name().toLowerCase(Locale.ROOT)) + ","
                             + "\"frameIndex\":" + frame.frameIndex() + ","
-                            + "\"cpuMs\":" + format(stats.cpuFrameMs()) + ","
-                            + "\"gpuMs\":" + format(stats.gpuFrameMs()) + ","
-                            + "\"fps\":" + format(stats.fps()) + ","
-                            + "\"drawCalls\":" + stats.drawCalls() + ","
-                            + "\"triangles\":" + stats.triangles() + ","
-                            + "\"visibleObjects\":" + stats.visibleObjects() + ","
-                            + "\"gpuMemoryBytes\":" + stats.gpuMemoryBytes() + ","
-                            + "\"taaRejectRate\":" + format(stats.taaHistoryRejectRate()) + ","
-                            + "\"taaConfidenceMean\":" + format(stats.taaConfidenceMean()) + ","
-                            + "\"taaConfidenceDrops\":" + stats.taaConfidenceDropEvents() + ","
-                            + "\"warningCount\":" + frame.warnings().size() + ","
-                            + "\"warningCodes\":" + quote(warningCodes)
+                            + "\"cpuMs\":" + format(stats.cpuMs) + ","
+                            + "\"gpuMs\":" + format(stats.gpuMs) + ","
+                            + "\"fps\":" + format(stats.fps) + ","
+                            + "\"drawCalls\":" + stats.drawCalls + ","
+                            + "\"triangles\":" + stats.triangles + ","
+                            + "\"visibleObjects\":" + stats.visibleObjects + ","
+                            + "\"gpuMemoryBytes\":" + stats.gpuMemoryBytes + ","
+                            + "\"taaRejectRate\":" + format(stats.taaRejectRate) + ","
+                            + "\"taaConfidenceMean\":" + format(stats.taaConfidenceMean) + ","
+                            + "\"taaConfidenceDrops\":" + stats.taaConfidenceDrops + ","
+                            + "\"warningCount\":" + warningCount + ","
+                            + "\"warningCodes\":" + quote(warningCodes) + ","
+                            + "\"totalWarningCount\":" + frame.warnings().size() + ","
+                            + "\"totalWarningCodes\":" + quote(totalWarningCodes)
                             + "}"
             );
         }
@@ -465,6 +501,86 @@ public final class DemoRunner {
         @Override
         public void close() throws IOException {
             jsonl.close();
+        }
+    }
+
+    private static final class StatsSample {
+        final double fps;
+        final double cpuMs;
+        final double gpuMs;
+        final long drawCalls;
+        final long triangles;
+        final long visibleObjects;
+        final long gpuMemoryBytes;
+        final double taaRejectRate;
+        final double taaConfidenceMean;
+        final long taaConfidenceDrops;
+
+        private StatsSample(
+                double fps,
+                double cpuMs,
+                double gpuMs,
+                long drawCalls,
+                long triangles,
+                long visibleObjects,
+                long gpuMemoryBytes,
+                double taaRejectRate,
+                double taaConfidenceMean,
+                long taaConfidenceDrops
+        ) {
+            this.fps = fps;
+            this.cpuMs = cpuMs;
+            this.gpuMs = gpuMs;
+            this.drawCalls = drawCalls;
+            this.triangles = triangles;
+            this.visibleObjects = visibleObjects;
+            this.gpuMemoryBytes = gpuMemoryBytes;
+            this.taaRejectRate = taaRejectRate;
+            this.taaConfidenceMean = taaConfidenceMean;
+            this.taaConfidenceDrops = taaConfidenceDrops;
+        }
+
+        static StatsSample from(EngineStats stats) {
+            if (stats == null) {
+                return new StatsSample(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            }
+            Class<?> c = stats.getClass();
+            return new StatsSample(
+                    invokeDouble(c, stats, "fps", 0.0),
+                    invokeDouble(c, stats, "cpuFrameMs", 0.0),
+                    invokeDouble(c, stats, "gpuFrameMs", 0.0),
+                    invokeLong(c, stats, "drawCalls", 0L),
+                    invokeLong(c, stats, "triangles", 0L),
+                    invokeLong(c, stats, "visibleObjects", 0L),
+                    invokeLong(c, stats, "gpuMemoryBytes", 0L),
+                    invokeDouble(c, stats, "taaHistoryRejectRate", 0.0),
+                    invokeDouble(c, stats, "taaConfidenceMean", 0.0),
+                    invokeLong(c, stats, "taaConfidenceDropEvents", 0L)
+            );
+        }
+
+        private static double invokeDouble(Class<?> cls, Object target, String method, double fallback) {
+            try {
+                Method m = cls.getMethod(method);
+                Object value = m.invoke(target);
+                if (value instanceof Number n) {
+                    return n.doubleValue();
+                }
+            } catch (ReflectiveOperationException ignored) {
+            }
+            return fallback;
+        }
+
+        private static long invokeLong(Class<?> cls, Object target, String method, long fallback) {
+            try {
+                Method m = cls.getMethod(method);
+                Object value = m.invoke(target);
+                if (value instanceof Number n) {
+                    return n.longValue();
+                }
+            } catch (ReflectiveOperationException ignored) {
+            }
+            return fallback;
         }
     }
 }

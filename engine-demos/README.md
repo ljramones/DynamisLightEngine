@@ -34,6 +34,12 @@ mvn -f engine-demos/pom.xml exec:java \
   -Dexec.args="--demo=hello-triangle --backend=vulkan --seconds=10 --quality=high"
 ```
 
+Run a demo on macOS with Vulkan real/mock wiring (recommended):
+```bash
+./scripts/run_demo_mac.sh --demo=hello-triangle --backend=vulkan --mock=false --seconds=10 --quality=high
+```
+If you update backend modules, refresh local snapshots first with `mvn -DskipTests install`.
+
 Run AA demo with explicit mode and telemetry file:
 ```bash
 mvn -f engine-demos/pom.xml exec:java \

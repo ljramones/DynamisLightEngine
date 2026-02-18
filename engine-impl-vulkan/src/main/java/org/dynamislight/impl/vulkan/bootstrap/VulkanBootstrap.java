@@ -77,14 +77,6 @@ public final class VulkanBootstrap {
     }
 
     public static VkInstance createInstance(MemoryStack stack, String appName) throws EngineException {
-        VkApplicationInfo appInfo = VkApplicationInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_APPLICATION_INFO)
-                .pApplicationName(stack.UTF8(appName))
-                .applicationVersion(VK10.VK_MAKE_API_VERSION(0, 0, 1, 0))
-                .pEngineName(stack.UTF8("DynamicLightEngine"))
-                .engineVersion(VK10.VK_MAKE_API_VERSION(0, 0, 1, 0))
-                .apiVersion(VK10.VK_MAKE_API_VERSION(0, 1, 1, 0));
-
         PointerBuffer requiredExtensions = glfwGetRequiredInstanceExtensions();
         if (requiredExtensions == null) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "No required Vulkan instance extensions from GLFW", false);
@@ -99,20 +91,40 @@ public final class VulkanBootstrap {
 
         VkInstanceCreateInfo createInfo = VkInstanceCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
-                .pApplicationInfo(appInfo)
                 .flags(VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR)
                 .ppEnabledExtensionNames(instanceExtensions);
+        int[] apiVersions = {
+                VK10.VK_MAKE_API_VERSION(0, 1, 1, 0),
+                VK10.VK_MAKE_API_VERSION(0, 1, 0, 0)
+        };
+        int lastResult = VK_ERROR_INITIALIZATION_FAILED;
+        for (int i = 0; i < apiVersions.length; i++) {
+            int apiVersion = apiVersions[i];
+            VkApplicationInfo appInfo = VkApplicationInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_APPLICATION_INFO)
+                    .pApplicationName(stack.UTF8(appName))
+                    .applicationVersion(VK10.VK_MAKE_API_VERSION(0, 0, 1, 0))
+                    .pEngineName(stack.UTF8("DynamicLightEngine"))
+                    .engineVersion(VK10.VK_MAKE_API_VERSION(0, 0, 1, 0))
+                    .apiVersion(apiVersion);
+            createInfo.pApplicationInfo(appInfo);
 
-        PointerBuffer pInstance = stack.mallocPointer(1);
-        int result = vkCreateInstance(createInfo, null, pInstance);
-        if (result != VK_SUCCESS) {
-            throw new EngineException(
-                    EngineErrorCode.BACKEND_INIT_FAILED,
-                    "vkCreateInstance failed: " + result,
-                    result == VK_ERROR_INITIALIZATION_FAILED
-            );
+            PointerBuffer pInstance = stack.mallocPointer(1);
+            int result = vkCreateInstance(createInfo, null, pInstance);
+            if (result == VK_SUCCESS) {
+                return new VkInstance(pInstance.get(0), createInfo);
+            }
+            lastResult = result;
+            boolean canRetryLowerVersion = (result == VK10.VK_ERROR_INCOMPATIBLE_DRIVER) && (i + 1 < apiVersions.length);
+            if (!canRetryLowerVersion) {
+                break;
+            }
         }
-        return new VkInstance(pInstance.get(0), createInfo);
+        throw new EngineException(
+                EngineErrorCode.BACKEND_INIT_FAILED,
+                "vkCreateInstance failed: " + lastResult,
+                lastResult == VK_ERROR_INITIALIZATION_FAILED
+        );
     }
 
     public static long createSurface(VkInstance instance, long window, MemoryStack stack) throws EngineException {
