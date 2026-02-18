@@ -43,7 +43,11 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "3"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityWarnMinFrames", "6"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames", "180"),
-                        Map.entry("vulkan.reflections.ssrTaaRiskEmaAlpha", "0.35")
+                        Map.entry("vulkan.reflections.ssrTaaRiskEmaAlpha", "0.35"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "0.21"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin", "0.63"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "0.28")
                 ),
                 256
         );
@@ -88,6 +92,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(6, parsed.reflectionSsrTaaInstabilityWarnMinFrames());
         assertEquals(180, parsed.reflectionSsrTaaInstabilityWarnCooldownFrames());
         assertEquals(0.35, parsed.reflectionSsrTaaRiskEmaAlpha());
+        assertEquals(true, parsed.reflectionSsrTaaAdaptiveEnabled());
+        assertEquals(0.21, parsed.reflectionSsrTaaAdaptiveTemporalBoostMax());
+        assertEquals(0.63, parsed.reflectionSsrTaaAdaptiveSsrStrengthScaleMin());
+        assertEquals(0.28, parsed.reflectionSsrTaaAdaptiveStepScaleBoostMax());
     }
 
     @Test
@@ -121,7 +129,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "-5"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityWarnMinFrames", "0"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames", "999999"),
-                        Map.entry("vulkan.reflections.ssrTaaRiskEmaAlpha", "7.0")
+                        Map.entry("vulkan.reflections.ssrTaaRiskEmaAlpha", "7.0"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "9.0"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin", "-1.0"),
+                        Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "2.0")
                 ),
                 256
         );
@@ -160,5 +171,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1, parsed.reflectionSsrTaaInstabilityWarnMinFrames());
         assertEquals(10000, parsed.reflectionSsrTaaInstabilityWarnCooldownFrames());
         assertEquals(1.0, parsed.reflectionSsrTaaRiskEmaAlpha());
+        assertEquals(false, parsed.reflectionSsrTaaAdaptiveEnabled());
+        assertEquals(0.4, parsed.reflectionSsrTaaAdaptiveTemporalBoostMax());
+        assertEquals(0.2, parsed.reflectionSsrTaaAdaptiveSsrStrengthScaleMin());
+        assertEquals(1.0, parsed.reflectionSsrTaaAdaptiveStepScaleBoostMax());
     }
 }

@@ -198,10 +198,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionSsrTaaInstabilityWarnMinFrames = 3;
     private int reflectionSsrTaaInstabilityWarnCooldownFrames = 120;
     private double reflectionSsrTaaRiskEmaAlpha = 0.25;
+    private boolean reflectionSsrTaaAdaptiveEnabled;
+    private double reflectionSsrTaaAdaptiveTemporalBoostMax = 0.12;
+    private double reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.70;
+    private double reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.15;
     private int reflectionSsrTaaRiskHighStreak;
     private int reflectionSsrTaaRiskWarnCooldownRemaining;
     private double reflectionSsrTaaEmaReject = -1.0;
     private double reflectionSsrTaaEmaConfidence = -1.0;
+    private float reflectionAdaptiveTemporalWeightActive = 0.80f;
+    private float reflectionAdaptiveSsrStrengthActive = 0.6f;
+    private float reflectionAdaptiveSsrStepScaleActive = 1.0f;
 
     public VulkanEngineRuntime() {
         super(
@@ -280,6 +287,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionSsrTaaInstabilityWarnMinFrames = options.reflectionSsrTaaInstabilityWarnMinFrames();
         reflectionSsrTaaInstabilityWarnCooldownFrames = options.reflectionSsrTaaInstabilityWarnCooldownFrames();
         reflectionSsrTaaRiskEmaAlpha = options.reflectionSsrTaaRiskEmaAlpha();
+        reflectionSsrTaaAdaptiveEnabled = options.reflectionSsrTaaAdaptiveEnabled();
+        reflectionSsrTaaAdaptiveTemporalBoostMax = options.reflectionSsrTaaAdaptiveTemporalBoostMax();
+        reflectionSsrTaaAdaptiveSsrStrengthScaleMin = options.reflectionSsrTaaAdaptiveSsrStrengthScaleMin();
+        reflectionSsrTaaAdaptiveStepScaleBoostMax = options.reflectionSsrTaaAdaptiveStepScaleBoostMax();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
@@ -289,6 +300,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowAllocatorEvictions = 0;
         resetReflectionProbeChurnDiagnostics();
         resetReflectionSsrTaaRiskDiagnostics();
+        resetReflectionAdaptiveState();
         context.setTaaDebugView(taaDebugView);
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
@@ -388,6 +400,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         currentShadows = sceneState.shadows();
         currentPost = sceneState.post();
         currentPost = applyExternalUpscalerDecision(currentPost);
+        resetReflectionAdaptiveState();
         currentIbl = sceneState.ibl();
         nonDirectionalShadowRequested = sceneState.nonDirectionalShadowRequested();
         meshGeometryCacheProfile = sceneState.meshGeometryCacheProfile();
@@ -508,6 +521,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowDirectionalTexelSnapScale
             );
         }
+        applyAdaptiveReflectionPostParameters();
         VulkanRuntimeLifecycle.RenderState frame = VulkanRuntimeLifecycle.render(
                 context,
                 mockContext,
@@ -641,6 +655,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", ssrTaaWarnMinFrames=" + reflectionSsrTaaInstabilityWarnMinFrames
                             + ", ssrTaaWarnCooldownFrames=" + reflectionSsrTaaInstabilityWarnCooldownFrames
                             + ", ssrTaaRiskEmaAlpha=" + reflectionSsrTaaRiskEmaAlpha
+                            + ", ssrTaaAdaptiveEnabled=" + reflectionSsrTaaAdaptiveEnabled
+                            + ", ssrTaaAdaptiveTemporalBoostMax=" + reflectionSsrTaaAdaptiveTemporalBoostMax
+                            + ", ssrTaaAdaptiveSsrStrengthScaleMin=" + reflectionSsrTaaAdaptiveSsrStrengthScaleMin
+                            + ", ssrTaaAdaptiveStepScaleBoostMax=" + reflectionSsrTaaAdaptiveStepScaleBoostMax
                             + ")"
             ));
             boolean ssrPathActive = reflectionBaseMode == 1 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
@@ -679,6 +697,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", instabilityRiskEmaReject=" + ssrTaaRisk.emaReject()
                                 + ", instabilityRiskEmaConfidence=" + ssrTaaRisk.emaConfidence()
                                 + ", instabilityRiskInstant=" + ssrTaaRisk.instantRisk()
+                                + ", adaptiveTemporalWeightActive=" + reflectionAdaptiveTemporalWeightActive
+                                + ", adaptiveSsrStrengthActive=" + reflectionAdaptiveSsrStrengthActive
+                                + ", adaptiveSsrStepScaleActive=" + reflectionAdaptiveSsrStepScaleActive
+                                + ")"
+                ));
+                warnings.add(new EngineWarning(
+                        "REFLECTION_SSR_TAA_ADAPTIVE_POLICY_ACTIVE",
+                        "SSR/TAA adaptive policy (enabled=" + reflectionSsrTaaAdaptiveEnabled
+                                + ", baseTemporalWeight=" + currentPost.reflectionsTemporalWeight()
+                                + ", activeTemporalWeight=" + reflectionAdaptiveTemporalWeightActive
+                                + ", baseSsrStrength=" + currentPost.reflectionsSsrStrength()
+                                + ", activeSsrStrength=" + reflectionAdaptiveSsrStrengthActive
+                                + ", baseSsrStepScale=" + currentPost.reflectionsSsrStepScale()
+                                + ", activeSsrStepScale=" + reflectionAdaptiveSsrStepScaleActive
+                                + ", riskHighStreak=" + ssrTaaRisk.highStreak()
+                                + ", riskWarnCooldownRemaining=" + ssrTaaRisk.warnCooldownRemaining()
                                 + ")"
                 ));
                 if (ssrTaaRisk.warningTriggered()) {
@@ -695,6 +729,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 }
             } else {
                 resetReflectionSsrTaaRiskDiagnostics();
+                resetReflectionAdaptiveState();
             }
             if (churnDiagnostics.warningTriggered()) {
                 warnings.add(new EngineWarning(
@@ -1025,6 +1060,93 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionSsrTaaRiskWarnCooldownRemaining = 0;
         reflectionSsrTaaEmaReject = -1.0;
         reflectionSsrTaaEmaConfidence = -1.0;
+    }
+
+    private void applyAdaptiveReflectionPostParameters() {
+        float baseTemporalWeight = currentPost.reflectionsTemporalWeight();
+        float baseSsrStrength = currentPost.reflectionsSsrStrength();
+        float baseSsrStepScale = currentPost.reflectionsSsrStepScale();
+        reflectionAdaptiveTemporalWeightActive = baseTemporalWeight;
+        reflectionAdaptiveSsrStrengthActive = baseSsrStrength;
+        reflectionAdaptiveSsrStepScaleActive = baseSsrStepScale;
+
+        if (reflectionSsrTaaAdaptiveEnabled
+                && currentPost.reflectionsEnabled()
+                && currentPost.taaEnabled()
+                && isReflectionSsrPathActive(currentPost.reflectionsMode())) {
+            double severity = computeReflectionAdaptiveSeverity();
+            reflectionAdaptiveTemporalWeightActive = clamp(
+                    (float) (baseTemporalWeight + severity * reflectionSsrTaaAdaptiveTemporalBoostMax),
+                    0.0f,
+                    0.98f
+            );
+            double strengthScale = 1.0 - severity * (1.0 - reflectionSsrTaaAdaptiveSsrStrengthScaleMin);
+            reflectionAdaptiveSsrStrengthActive = clamp(
+                    (float) (baseSsrStrength * strengthScale),
+                    0.0f,
+                    1.0f
+            );
+            reflectionAdaptiveSsrStepScaleActive = clamp(
+                    (float) (baseSsrStepScale * (1.0 + severity * reflectionSsrTaaAdaptiveStepScaleBoostMax)),
+                    0.5f,
+                    3.0f
+            );
+        }
+
+        context.setPostProcessParameters(
+                currentPost.tonemapEnabled(),
+                currentPost.exposure(),
+                currentPost.gamma(),
+                currentPost.bloomEnabled(),
+                currentPost.bloomThreshold(),
+                currentPost.bloomStrength(),
+                currentPost.ssaoEnabled(),
+                currentPost.ssaoStrength(),
+                currentPost.ssaoRadius(),
+                currentPost.ssaoBias(),
+                currentPost.ssaoPower(),
+                currentPost.smaaEnabled(),
+                currentPost.smaaStrength(),
+                currentPost.taaEnabled(),
+                currentPost.taaBlend(),
+                currentPost.taaClipScale(),
+                currentPost.taaLumaClipEnabled(),
+                currentPost.taaSharpenStrength(),
+                currentPost.taaRenderScale(),
+                currentPost.reflectionsEnabled(),
+                currentPost.reflectionsMode(),
+                reflectionAdaptiveSsrStrengthActive,
+                currentPost.reflectionsSsrMaxRoughness(),
+                reflectionAdaptiveSsrStepScaleActive,
+                reflectionAdaptiveTemporalWeightActive,
+                currentPost.reflectionsPlanarStrength()
+        );
+    }
+
+    private double computeReflectionAdaptiveSeverity() {
+        if (reflectionSsrTaaEmaReject < 0.0 || reflectionSsrTaaEmaConfidence < 0.0) {
+            return 0.0;
+        }
+        double rejectRange = Math.max(1e-6, 1.0 - reflectionSsrTaaInstabilityRejectMin);
+        double rejectSeverity = Math.max(0.0, Math.min(1.0,
+                (reflectionSsrTaaEmaReject - reflectionSsrTaaInstabilityRejectMin) / rejectRange));
+        double confidenceRange = Math.max(1e-6, reflectionSsrTaaInstabilityConfidenceMax);
+        double confidenceSeverity = Math.max(0.0, Math.min(1.0,
+                (reflectionSsrTaaInstabilityConfidenceMax - reflectionSsrTaaEmaConfidence) / confidenceRange));
+        double streakDenominator = Math.max(1, reflectionSsrTaaInstabilityWarnMinFrames);
+        double streakSeverity = Math.max(0.0, Math.min(1.0, reflectionSsrTaaRiskHighStreak / streakDenominator));
+        return Math.max(streakSeverity, Math.max(rejectSeverity, confidenceSeverity));
+    }
+
+    private static boolean isReflectionSsrPathActive(int reflectionsMode) {
+        int baseMode = reflectionsMode & 0x7;
+        return baseMode == 1 || baseMode == 3 || baseMode == 4;
+    }
+
+    private void resetReflectionAdaptiveState() {
+        reflectionAdaptiveTemporalWeightActive = currentPost == null ? 0.80f : currentPost.reflectionsTemporalWeight();
+        reflectionAdaptiveSsrStrengthActive = currentPost == null ? 0.6f : currentPost.reflectionsSsrStrength();
+        reflectionAdaptiveSsrStepScaleActive = currentPost == null ? 1.0f : currentPost.reflectionsSsrStepScale();
     }
 
     SceneReuseStats debugSceneReuseStats() {

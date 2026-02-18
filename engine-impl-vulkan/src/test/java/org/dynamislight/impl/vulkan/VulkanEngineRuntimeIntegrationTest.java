@@ -488,6 +488,66 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionSsrTaaAdaptivePolicyAdjustsActiveValuesWhenEnabled() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveEnabled", "true"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax", "0.24"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin", "0.55"),
+                Map.entry("vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax", "0.30"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "0.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "1.0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "0"),
+                Map.entry("vulkan.reflections.ssrTaaInstabilityWarnMinFrames", "1")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        runtime.render();
+        var frame = runtime.render();
+
+        String adaptivePolicy = warningMessageByCode(frame, "REFLECTION_SSR_TAA_ADAPTIVE_POLICY_ACTIVE");
+        assertTrue(adaptivePolicy.contains("enabled=true"));
+        double baseTemporalWeight = parseDoubleMetricField(adaptivePolicy, "baseTemporalWeight");
+        double activeTemporalWeight = parseDoubleMetricField(adaptivePolicy, "activeTemporalWeight");
+        double baseSsrStrength = parseDoubleMetricField(adaptivePolicy, "baseSsrStrength");
+        double activeSsrStrength = parseDoubleMetricField(adaptivePolicy, "activeSsrStrength");
+        double baseSsrStepScale = parseDoubleMetricField(adaptivePolicy, "baseSsrStepScale");
+        double activeSsrStepScale = parseDoubleMetricField(adaptivePolicy, "activeSsrStepScale");
+        assertTrue(activeTemporalWeight >= baseTemporalWeight);
+        assertTrue(activeSsrStrength <= baseSsrStrength);
+        assertTrue(activeSsrStepScale >= baseSsrStepScale);
+
+        String diagnostics = warningMessageByCode(frame, "REFLECTION_SSR_TAA_DIAGNOSTICS");
+        assertTrue(diagnostics.contains("adaptiveTemporalWeightActive="));
+        assertTrue(diagnostics.contains("adaptiveSsrStrengthActive="));
+        assertTrue(diagnostics.contains("adaptiveSsrStepScaleActive="));
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionSsrTaaAdaptivePolicyLeavesValuesUnchangedWhenDisabled() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+
+        String adaptivePolicy = warningMessageByCode(frame, "REFLECTION_SSR_TAA_ADAPTIVE_POLICY_ACTIVE");
+        assertTrue(adaptivePolicy.contains("enabled=false"));
+        double baseTemporalWeight = parseDoubleMetricField(adaptivePolicy, "baseTemporalWeight");
+        double activeTemporalWeight = parseDoubleMetricField(adaptivePolicy, "activeTemporalWeight");
+        double baseSsrStrength = parseDoubleMetricField(adaptivePolicy, "baseSsrStrength");
+        double activeSsrStrength = parseDoubleMetricField(adaptivePolicy, "activeSsrStrength");
+        double baseSsrStepScale = parseDoubleMetricField(adaptivePolicy, "baseSsrStepScale");
+        double activeSsrStepScale = parseDoubleMetricField(adaptivePolicy, "activeSsrStepScale");
+        assertEquals(baseTemporalWeight, activeTemporalWeight, 1e-6);
+        assertEquals(baseSsrStrength, activeSsrStrength, 1e-6);
+        assertEquals(baseSsrStepScale, activeSsrStepScale, 1e-6);
+        runtime.shutdown();
+    }
+
+    @Test
     void stabilityReflectionProfileAppliesTelemetryDefaultsWhenNotOverridden() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(
@@ -2276,6 +2336,28 @@ class VulkanEngineRuntimeIntegrationTest {
             return -1;
         }
         return Integer.parseInt(message.substring(valueStart, end));
+    }
+
+    private static double parseDoubleMetricField(String message, String key) {
+        String token = key + "=";
+        int start = message.indexOf(token);
+        if (start < 0) {
+            return Double.NaN;
+        }
+        int valueStart = start + token.length();
+        int end = valueStart;
+        while (end < message.length()) {
+            char c = message.charAt(end);
+            if ((c >= '0' && c <= '9') || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E') {
+                end++;
+            } else {
+                break;
+            }
+        }
+        if (end == valueStart) {
+            return Double.NaN;
+        }
+        return Double.parseDouble(message.substring(valueStart, end));
     }
 
     private static SceneDescriptor validMultiMeshScene() {
