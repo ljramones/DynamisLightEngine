@@ -53,6 +53,9 @@ class VulkanReflectionProbeCoordinatorTest {
         ByteBuffer packed = VulkanReflectionProbeCoordinator.packVisibleProbes(List.of(probe), vp, 4, 80, 16 + (4 * 80));
 
         assertEquals(1, packed.getInt(0));
+        assertEquals(1, packed.getInt(4));
+        assertEquals(1, packed.getInt(8));
+        assertEquals(0, packed.getInt(12));
         int base = 16;
         assertEquals(1f, packed.getFloat(base), 1.0e-6f);
         assertEquals(2f, packed.getFloat(base + 4), 1.0e-6f);
@@ -110,6 +113,9 @@ class VulkanReflectionProbeCoordinatorTest {
         int base0 = 16;
         int base1 = 16 + 80;
         assertEquals(2, packed.getInt(0));
+        assertEquals(2, packed.getInt(4));
+        assertEquals(2, packed.getInt(8));
+        assertEquals(0, packed.getInt(12));
         // Visible probes are sorted by priority (B then A), but cubemap slots are deterministic by path (a=0, b=1).
         assertEquals(1, packed.getInt(base0 + 48));
         assertEquals(0, packed.getInt(base1 + 48));

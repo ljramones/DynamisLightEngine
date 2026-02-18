@@ -49,12 +49,13 @@ public final class VulkanReflectionProbeCoordinator {
         int outBytes = Math.max(minBytes, bufferBytes);
         ByteBuffer packed = ByteBuffer.allocate(outBytes);
         List<ReflectionProbeDesc> visible = visibleProbes(probes, viewProjMatrix, clampedMax);
+        CubemapSlotPlan slotPlan = buildCubemapSlots(visible, clampedMax);
         packed.putInt(0, visible.size());
-        packed.putInt(4, 0);
-        packed.putInt(8, 0);
-        packed.putInt(12, 0);
+        packed.putInt(4, slotPlan.uniqueRequestedCount());
+        packed.putInt(8, slotPlan.uniqueAssignedCount());
+        packed.putInt(12, slotPlan.uniqueDroppedCount());
 
-        Map<String, Integer> cubemapSlots = buildCubemapSlots(visible, clampedMax);
+        Map<String, Integer> cubemapSlots = slotPlan.slots();
         for (int i = 0; i < visible.size(); i++) {
             ReflectionProbeDesc probe = visible.get(i);
             Integer existingSlot = cubemapSlots.get(probe.cubemapAssetPath());
@@ -65,9 +66,9 @@ public final class VulkanReflectionProbeCoordinator {
         return packed;
     }
 
-    private static Map<String, Integer> buildCubemapSlots(List<ReflectionProbeDesc> visible, int maxSlots) {
+    private static CubemapSlotPlan buildCubemapSlots(List<ReflectionProbeDesc> visible, int maxSlots) {
         if (visible.isEmpty() || maxSlots <= 0) {
-            return Map.of();
+            return new CubemapSlotPlan(Map.of(), 0, 0, 0);
         }
         Set<String> uniquePaths = new TreeSet<>();
         for (ReflectionProbeDesc probe : visible) {
@@ -81,7 +82,7 @@ public final class VulkanReflectionProbeCoordinator {
             uniquePaths.add(path);
         }
         if (uniquePaths.isEmpty()) {
-            return Map.of();
+            return new CubemapSlotPlan(Map.of(), 0, 0, 0);
         }
         Map<String, Integer> slots = new HashMap<>();
         int next = 0;
@@ -92,7 +93,10 @@ public final class VulkanReflectionProbeCoordinator {
             slots.put(path, next);
             next++;
         }
-        return slots;
+        int uniqueRequested = uniquePaths.size();
+        int uniqueAssigned = slots.size();
+        int uniqueDropped = Math.max(0, uniqueRequested - uniqueAssigned);
+        return new CubemapSlotPlan(slots, uniqueRequested, uniqueAssigned, uniqueDropped);
     }
 
     static List<ReflectionProbeDesc> visibleProbes(
@@ -186,5 +190,13 @@ public final class VulkanReflectionProbeCoordinator {
     }
 
     private record Plane(float nx, float ny, float nz, float d) {
+    }
+
+    private record CubemapSlotPlan(
+            Map<String, Integer> slots,
+            int uniqueRequestedCount,
+            int uniqueAssignedCount,
+            int uniqueDroppedCount
+    ) {
     }
 }
