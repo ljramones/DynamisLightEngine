@@ -1224,6 +1224,7 @@ final class VulkanContext {
                         backendResources.offscreenColorImage,
                         backendResources.postTaaHistoryImage,
                         backendResources.postTaaHistoryVelocityImage,
+                        backendResources.postPlanarCaptureImage,
                         backendResources.velocityImage,
                         backendResources.swapchainImages,
                         backendResources.postFramebuffers,

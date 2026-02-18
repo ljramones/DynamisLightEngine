@@ -76,6 +76,10 @@ public final class VulkanBackendResources {
     public long postTaaHistoryVelocityMemory = VK_NULL_HANDLE;
     public long postTaaHistoryVelocityImageView = VK_NULL_HANDLE;
     public long postTaaHistoryVelocitySampler = VK_NULL_HANDLE;
+    public long postPlanarCaptureImage = VK_NULL_HANDLE;
+    public long postPlanarCaptureMemory = VK_NULL_HANDLE;
+    public long postPlanarCaptureImageView = VK_NULL_HANDLE;
+    public long postPlanarCaptureSampler = VK_NULL_HANDLE;
     public long postRenderPass = VK_NULL_HANDLE;
     public long postPipelineLayout = VK_NULL_HANDLE;
     public long postGraphicsPipeline = VK_NULL_HANDLE;

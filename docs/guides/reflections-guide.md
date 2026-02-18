@@ -110,6 +110,7 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan now runs an explicit planar selective geometry capture pre-pass before main scene pass, then copies that capture into the planar history source prior to post composite (`planar_capture_before_main_sample_before_post` contract is now backed by execution).
 - Vulkan planar capture now runs with mirrored camera matrices (`uPlanarView/uPlanarProj/uPlanarPrevViewProj`) sourced via global uniforms for the selective pre-main capture pass only.
 - Planar clip-plane culling is now evaluated against world/planar camera-consistent height (`vWorldPos.y` vs configured plane height) during planar capture.
+- Planar reflection sampling now uses a dedicated post planar-capture texture lane (`uPlanarCaptureColor`) instead of reusing TAA history-velocity storage.
 - Vulkan reflection resolve now includes a first contact-hardening pass behavior: near depth-contact SSR hits receive a roughness ramp/weight boost to stabilize sharp contact reflections.
 - Planar capture remains selective-scope and still evolves under the broader planar `Partial` maturity status, but mirrored clip-plane camera rerender is now active in the Vulkan path.
 - Vulkan now emits SSR reprojection envelope diagnostics (`REFLECTION_SSR_REPROJECTION_ENVELOPE`) and breach warnings (`REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`) with threshold/cooldown gating for ghosting/disocclusion risk.

@@ -110,6 +110,10 @@ public final class VulkanLifecycleOrchestrator {
                         request.backendResources().postTaaHistoryVelocityMemory,
                         request.backendResources().postTaaHistoryVelocityImageView,
                         request.backendResources().postTaaHistoryVelocitySampler,
+                        request.backendResources().postPlanarCaptureImage,
+                        request.backendResources().postPlanarCaptureMemory,
+                        request.backendResources().postPlanarCaptureImageView,
+                        request.backendResources().postPlanarCaptureSampler,
                         request.backendResources().postDescriptorSetLayout,
                         request.backendResources().postDescriptorPool,
                         request.backendResources().postDescriptorSet,
@@ -158,6 +162,10 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.postTaaHistoryVelocityMemory = state.postTaaHistoryVelocityMemory();
         backendResources.postTaaHistoryVelocityImageView = state.postTaaHistoryVelocityImageView();
         backendResources.postTaaHistoryVelocitySampler = state.postTaaHistoryVelocitySampler();
+        backendResources.postPlanarCaptureImage = state.postPlanarCaptureImage();
+        backendResources.postPlanarCaptureMemory = state.postPlanarCaptureMemory();
+        backendResources.postPlanarCaptureImageView = state.postPlanarCaptureImageView();
+        backendResources.postPlanarCaptureSampler = state.postPlanarCaptureSampler();
         backendResources.postDescriptorSetLayout = state.postDescriptorSetLayout();
         backendResources.postDescriptorPool = state.postDescriptorPool();
         backendResources.postDescriptorSet = state.postDescriptorSet();

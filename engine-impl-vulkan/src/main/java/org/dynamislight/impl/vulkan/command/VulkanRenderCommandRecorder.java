@@ -364,7 +364,7 @@ public final class VulkanRenderCommandRecorder {
         if (planarCaptureRequested
                 && planarSelectiveRequested
                 && planarGeometryCaptureRequested
-                && in.taaHistoryVelocityImage() != VK_NULL_HANDLE) {
+                && in.planarCaptureImage() != VK_NULL_HANDLE) {
             recordMainRenderPass(
                     stack,
                     commandBuffer,
@@ -373,7 +373,7 @@ public final class VulkanRenderCommandRecorder {
                     dynamicUniformOffset,
                     true
             );
-            copyPlanarCaptureToHistoryVelocity(stack, commandBuffer, in);
+            copyPlanarCaptureImage(stack, commandBuffer, in);
         }
         recordMainRenderPass(
                 stack,
@@ -458,7 +458,7 @@ public final class VulkanRenderCommandRecorder {
         return reflectionOverrideMode != 1 && reflectionOverrideMode != 2;
     }
 
-    private static void copyPlanarCaptureToHistoryVelocity(
+    private static void copyPlanarCaptureImage(
             MemoryStack stack,
             VkCommandBuffer commandBuffer,
             RenderPassInputs in
@@ -499,7 +499,7 @@ public final class VulkanRenderCommandRecorder {
                 .newLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
                 .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                 .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .image(in.taaHistoryVelocityImage());
+                .image(in.planarCaptureImage());
         captureDstToTransfer.get(0).subresourceRange()
                 .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
                 .baseMipLevel(0)
@@ -527,7 +527,7 @@ public final class VulkanRenderCommandRecorder {
                 commandBuffer,
                 in.swapchainImageForCapture(),
                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                in.taaHistoryVelocityImage(),
+                in.planarCaptureImage(),
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 copyRegion
         );
@@ -540,7 +540,7 @@ public final class VulkanRenderCommandRecorder {
                 .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
                 .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                 .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                .image(in.taaHistoryVelocityImage());
+                .image(in.planarCaptureImage());
         captureDstToShaderRead.get(0).subresourceRange()
                 .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
                 .baseMipLevel(0)
@@ -758,7 +758,7 @@ public final class VulkanRenderCommandRecorder {
         }
         boolean planarCapturePassRequested = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT) != 0;
         boolean planarGeometryCaptureExecuted = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT) != 0;
-        if (planarCapturePassRequested && !planarGeometryCaptureExecuted && in.taaHistoryVelocityImage() != VK_NULL_HANDLE) {
+        if (planarCapturePassRequested && !planarGeometryCaptureExecuted && in.planarCaptureImage() != VK_NULL_HANDLE) {
             VkImageMemoryBarrier.Buffer planarCaptureDst = VkImageMemoryBarrier.calloc(1, stack)
                     .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
                     .srcAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
@@ -767,7 +767,7 @@ public final class VulkanRenderCommandRecorder {
                     .newLayout(VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
                     .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                     .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                    .image(in.taaHistoryVelocityImage());
+                    .image(in.planarCaptureImage());
             planarCaptureDst.get(0).subresourceRange()
                     .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
                     .baseMipLevel(0)
@@ -813,7 +813,7 @@ public final class VulkanRenderCommandRecorder {
                     commandBuffer,
                     in.offscreenColorImage(),
                     VK10.VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    in.taaHistoryVelocityImage(),
+                    in.planarCaptureImage(),
                     VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     copyRegion
             );
@@ -826,7 +826,7 @@ public final class VulkanRenderCommandRecorder {
                     .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
                     .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                     .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
-                    .image(in.taaHistoryVelocityImage());
+                    .image(in.planarCaptureImage());
             planarCaptureDstShaderRead.get(0).subresourceRange()
                     .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
                     .baseMipLevel(0)
@@ -1214,7 +1214,7 @@ public final class VulkanRenderCommandRecorder {
             boolean shadowMomentInitialized,
             int reflectionsMode,
             boolean taaHistoryInitialized,
-            long taaHistoryVelocityImage,
+            long planarCaptureImage,
             long swapchainImageForCapture,
             float reflectionsPlanarPlaneHeight
     ) {
@@ -1265,6 +1265,7 @@ public final class VulkanRenderCommandRecorder {
             long offscreenColorImage,
             long taaHistoryImage,
             long taaHistoryVelocityImage,
+            long planarCaptureImage,
             long velocityImage,
             long swapchainImage,
             long[] postFramebuffers

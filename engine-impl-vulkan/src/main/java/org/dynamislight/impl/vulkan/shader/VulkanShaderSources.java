@@ -1756,6 +1756,7 @@ public final class VulkanShaderSources {
                 layout(set = 0, binding = 1) uniform sampler2D uHistoryColor;
                 layout(set = 0, binding = 2) uniform sampler2D uVelocityColor;
                 layout(set = 0, binding = 3) uniform sampler2D uHistoryVelocityColor;
+                layout(set = 0, binding = 4) uniform sampler2D uPlanarCaptureColor;
                 layout(push_constant) uniform PostPush {
                     vec4 tonemap;
                     vec4 bloom;
@@ -1917,7 +1918,7 @@ public final class VulkanShaderSources {
                     }
                     vec2 planarUv = vec2(uv.x, 1.0 - uv.y);
                     vec3 planarColor = planarCaptureExecuted
-                        ? texture(uHistoryVelocityColor, planarUv).rgb
+                        ? texture(uPlanarCaptureColor, planarUv).rgb
                         : texture(uSceneColor, planarUv).rgb;
                     float temporalWeight = clamp(pc.reflectionsB.y, 0.0, 0.98);
                     vec2 reprojectionUv = clamp(uv + pc.motion.xy + surfaceVelocityUv * 0.20, vec2(0.0), vec2(1.0));

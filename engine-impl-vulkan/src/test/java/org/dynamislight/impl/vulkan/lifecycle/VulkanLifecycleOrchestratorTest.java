@@ -29,6 +29,7 @@ class VulkanLifecycleOrchestratorTest {
                 15L, 16L, 17L, 18L,
                 19L, 20L, 21L, 22L,
                 28L, 29L, 30L, 31L,
+                36L, 37L, 38L, 39L,
                 32L, 33L, 34L,
                 23L, 24L, 35L,
                 postFramebuffers, true, true
@@ -43,6 +44,10 @@ class VulkanLifecycleOrchestratorTest {
         assertSame(swapchainImages, backend.swapchainImages);
         assertSame(framebuffers, backend.framebuffers);
         assertSame(postFramebuffers, backend.postFramebuffers);
+        assertEquals(36L, backend.postPlanarCaptureImage);
+        assertEquals(37L, backend.postPlanarCaptureMemory);
+        assertEquals(38L, backend.postPlanarCaptureImageView);
+        assertEquals(39L, backend.postPlanarCaptureSampler);
         assertEquals(35L, backend.postGraphicsPipeline);
         assertEquals(true, render.postOffscreenActive);
         assertEquals(true, render.postIntermediateInitialized);

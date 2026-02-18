@@ -78,7 +78,7 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.shadowMomentInitialized(),
                         inputs.reflectionsMode(),
                         inputs.taaHistoryInitialized(),
-                        inputs.taaHistoryVelocityImage(),
+                        inputs.planarCaptureImage(),
                         inputs.swapchainImages()[imageIndex],
                         inputs.reflectionsPlanarPlaneHeight()
                 ),
@@ -135,6 +135,7 @@ public final class VulkanFrameCommandOrchestrator {
                             inputs.offscreenColorImage(),
                             inputs.taaHistoryImage(),
                             inputs.taaHistoryVelocityImage(),
+                            inputs.planarCaptureImage(),
                             inputs.velocityImage(),
                             inputs.swapchainImages()[imageIndex],
                             inputs.postFramebuffers()
@@ -241,6 +242,7 @@ public final class VulkanFrameCommandOrchestrator {
             long offscreenColorImage,
             long taaHistoryImage,
             long taaHistoryVelocityImage,
+            long planarCaptureImage,
             long velocityImage,
             long[] swapchainImages,
             long[] postFramebuffers,
