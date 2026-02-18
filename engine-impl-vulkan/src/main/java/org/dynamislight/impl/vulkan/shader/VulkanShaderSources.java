@@ -201,6 +201,7 @@ public final class VulkanShaderSources {
                 layout(set = 1, binding = 6) uniform sampler2D uIblRadianceTexture;
                 layout(set = 1, binding = 7) uniform sampler2D uIblBrdfLutTexture;
                 layout(set = 1, binding = 8) uniform sampler2DArray uShadowMomentMap;
+                layout(set = 1, binding = 9) uniform sampler2D uProbeRadianceTexture;
                 layout(location = 0) out vec4 outColor;
                 layout(location = 1) out vec4 outVelocity;
                 float distributionGGX(float ndh, float roughness) {
@@ -269,6 +270,22 @@ public final class VulkanShaderSources {
                     vec3 c2 = textureLod(uIblRadianceTexture, clamp(roughUv - axis * texel * spread, vec2(0.0), vec2(1.0)), lod).rgb;
                     vec3 c3 = textureLod(uIblRadianceTexture, clamp(roughUv + side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
                     vec3 c4 = textureLod(uIblRadianceTexture, clamp(roughUv - side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
+                    return (c0 * 0.44) + (c1 * 0.18) + (c2 * 0.18) + (c3 * 0.10) + (c4 * 0.10);
+                }
+                vec3 sampleProbeRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter) {
+                    float roughMix = clamp(roughness * (0.45 + 0.55 * prefilter), 0.0, 1.0);
+                    vec2 roughUv = mix(specUv, baseUv, roughMix);
+                    float maxLod = float(max(textureQueryLevels(uProbeRadianceTexture) - 1, 0));
+                    float lod = roughMix * maxLod;
+                    vec2 texel = 1.0 / vec2(textureSize(uProbeRadianceTexture, 0));
+                    vec2 axis = normalize(vec2(0.37, 0.93) + vec2(roughMix, 1.0 - roughMix) * 0.45);
+                    vec2 side = vec2(-axis.y, axis.x);
+                    float spread = mix(0.5, 3.0, roughMix);
+                    vec3 c0 = textureLod(uProbeRadianceTexture, roughUv, lod).rgb;
+                    vec3 c1 = textureLod(uProbeRadianceTexture, clamp(roughUv + axis * texel * spread, vec2(0.0), vec2(1.0)), lod).rgb;
+                    vec3 c2 = textureLod(uProbeRadianceTexture, clamp(roughUv - axis * texel * spread, vec2(0.0), vec2(1.0)), lod).rgb;
+                    vec3 c3 = textureLod(uProbeRadianceTexture, clamp(roughUv + side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
+                    vec3 c4 = textureLod(uProbeRadianceTexture, clamp(roughUv - side * texel * spread * 0.75, vec2(0.0), vec2(1.0)), lod).rgb;
                     return (c0 * 0.44) + (c1 * 0.18) + (c2 * 0.18) + (c3 * 0.10) + (c4 * 0.10);
                 }
                 """).append("""
@@ -1573,7 +1590,7 @@ public final class VulkanShaderSources {
                                 }
                                 vec3 probeDir = probeSampleDirection(vWorldPos, reflectDir, probe);
                                 vec2 probeUv = clamp(probeDir.xy * 0.5 + vec2(0.5), vec2(0.0), vec2(1.0));
-                                vec3 probeRad = sampleIblRadiance(probeUv, vUv, roughness, prefilter);
+                                vec3 probeRad = sampleProbeRadiance(probeUv, vUv, roughness, prefilter);
                                 probeAccum += probeRad * contribution;
                                 probeWeightSum += contribution;
                                 remainingCoverage -= contribution;

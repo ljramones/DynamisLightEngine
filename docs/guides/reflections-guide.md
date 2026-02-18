@@ -94,6 +94,7 @@ PostProcessDesc post = new PostProcessDesc(
 - OpenGL and Vulkan both consume the same reflection descriptor.
 - Advanced reflection controls (`ReflectionAdvancedDesc`) are consumed by both backends.
 - Vulkan probe path currently supports probe metadata cull/sort/upload and main-pass probe-weighted reflection blending.
+- Vulkan now reserves a dedicated probe-radiance sampler lane in texture descriptors; current implementation aliases this lane to baseline radiance texture until per-probe cubemap arrays land.
 - Vulkan per-probe cubemap-array texture sampling is still pending (current probe path reuses the baseline radiance sample source).
 - LOW quality tier disables reflections; MEDIUM applies conservative scaling.
 - Warnings are emitted when reflections are active:

@@ -57,7 +57,7 @@ File: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/
 
 ### Texture descriptor set (`set=1`)
 
-Layout has 9 combined image samplers, written per mesh:
+Layout has 10 combined image samplers, written per mesh:
 
 - 0 albedo
 - 1 normal
@@ -68,6 +68,7 @@ Layout has 9 combined image samplers, written per mesh:
 - 6 IBL radiance
 - 7 BRDF LUT
 - 8 shadow moment map array
+- 9 probe radiance (currently aliased to IBL radiance until per-probe texture array lands)
 
 Files:
 

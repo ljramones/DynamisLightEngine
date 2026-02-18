@@ -77,7 +77,7 @@ public final class VulkanTextureDescriptorPoolManager {
             VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
             poolSizes.get(0)
                     .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                    .descriptorCount(descriptorRingSetCapacity * 9);
+                    .descriptorCount(descriptorRingSetCapacity * 10);
 
             VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)

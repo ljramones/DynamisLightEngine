@@ -80,7 +80,8 @@ public final class VulkanTextureDescriptorWriter {
             VkDescriptorImageInfo.Buffer iblBrdfLutInfo = imageInfo(stack, iblBrdfLutTexture.view(), iblBrdfLutTexture.sampler());
             VkDescriptorImageInfo.Buffer shadowMomentInfo = imageInfo(stack, shadowMomentImageView, shadowMomentSampler);
 
-            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(9, stack);
+            // Binding 9 is a dedicated probe-radiance sampler lane (currently aliased to IBL radiance).
+            VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(10, stack);
             writes.get(0)
                     .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
                     .dstSet(mesh.textureDescriptorSet)
@@ -144,6 +145,13 @@ public final class VulkanTextureDescriptorWriter {
                     .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
                     .pImageInfo(shadowMomentInfo);
+            writes.get(9)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(mesh.textureDescriptorSet)
+                    .dstBinding(9)
+                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1)
+                    .pImageInfo(iblRadianceInfo);
             vkUpdateDescriptorSets(device, writes, null);
         }
     }
