@@ -135,6 +135,52 @@ class VulkanReflectionProbeCoordinatorTest {
         assertEquals(0, packed.getInt(base1 + 48));
     }
 
+    @Test
+    void packVisibleProbesTracksVisibleUnassignedProbePaths() {
+        float[] view = lookAt(0f, 0f, 0f, 0f, 0f, -1f, 0f, 1f, 0f);
+        float[] proj = perspective((float) Math.toRadians(70.0), 1.0f, 0.1f, 100.0f);
+        float[] vp = mul(proj, view);
+        ReflectionProbeDesc probeA = new ReflectionProbeDesc(
+                20,
+                new Vec3(0f, 1f, -5f),
+                new Vec3(-1f, 0f, -6f),
+                new Vec3(1f, 2f, -4f),
+                "assets/probes/a.ktx2",
+                10,
+                1.0f,
+                1.0f,
+                true
+        );
+        ReflectionProbeDesc probeB = new ReflectionProbeDesc(
+                21,
+                new Vec3(0f, 1f, -7f),
+                new Vec3(-1f, 0f, -8f),
+                new Vec3(1f, 2f, -6f),
+                "assets/probes/b.ktx2",
+                9,
+                1.0f,
+                1.0f,
+                true
+        );
+
+        ByteBuffer packed = VulkanReflectionProbeCoordinator.packVisibleProbes(
+                List.of(probeA, probeB),
+                vp,
+                4,
+                80,
+                Map.of("assets/probes/a.ktx2", 0),
+                1,
+                16 + (4 * 80)
+        );
+
+        assertEquals(2, packed.getInt(0)); // visible probe count
+        assertEquals(1, packed.getInt(4)); // total global slot count
+        assertEquals(2, packed.getInt(8)); // visible unique paths
+        assertEquals(1, packed.getInt(12)); // visible unique paths missing assignment
+        assertEquals(0, packed.getInt(16 + 48)); // probeA has slot
+        assertEquals(-1, packed.getInt(16 + 80 + 48)); // probeB missing slot
+    }
+
     private static ReflectionProbeDesc probe(int id, float minX, float minY, float minZ, float maxX, float maxY, float maxZ, int priority) {
         return new ReflectionProbeDesc(
                 id,
