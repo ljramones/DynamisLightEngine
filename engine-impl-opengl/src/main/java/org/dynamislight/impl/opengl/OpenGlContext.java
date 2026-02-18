@@ -125,6 +125,7 @@ import org.dynamislight.impl.common.texture.KtxDecodeUtil;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.system.MemoryStack;
 
 final class OpenGlContext {
     static final int MAX_LOCAL_LIGHTS = 8;
@@ -1371,14 +1372,25 @@ final class OpenGlContext {
         GL.createCapabilities();
         glEnable(GL_DEPTH_TEST);
 
-        this.width = width;
-        this.height = height;
+        int framebufferWidth = width;
+        int framebufferHeight = height;
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            var pWidth = stack.mallocInt(1);
+            var pHeight = stack.mallocInt(1);
+            GLFW.glfwGetFramebufferSize(window, pWidth, pHeight);
+            if (pWidth.get(0) > 0 && pHeight.get(0) > 0) {
+                framebufferWidth = pWidth.get(0);
+                framebufferHeight = pHeight.get(0);
+            }
+        }
+        this.width = framebufferWidth;
+        this.height = framebufferHeight;
         for (int i = 0; i < localShadowSlotLightIndex.length; i++) {
             localShadowSlotLightIndex[i] = -1;
             localShadowSlotLastUpdateFrame[i] = Integer.MIN_VALUE / 2;
         }
         updateSceneRenderResolution();
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, this.width, this.height);
 
         initializeShaderPipeline();
         initializeShadowPipeline();
