@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 11:58 ET — Reflection baseline warning telemetry now reports per-frame material override counts (`overrideAuto/overrideProbeOnly/overrideSsrOnly/overrideOther`) alongside mode/strength envelope, with integration coverage for single-mode and mixed `AUTO + PROBE_ONLY + SSR_ONLY` scenes.
+- Latest reflection update: 2026-02-18 12:03 ET — Vulkan reflection warning telemetry now includes probe diagnostics (`probeConfigured/probeActive/probeSlots/probeCapacity`) and emits `REFLECTION_PROBE_BLEND_DIAGNOSTICS`; integration coverage now includes an advanced-probe scene.
 
 Status legend:
 
@@ -61,6 +61,7 @@ Reflection notes:
 - Optional probe cubemap-face ingestion/discovery (`*_px/_nx/_py/_ny/_pz/_nz`) is wired behind a disabled-by-default flag as groundwork; runtime shading still consumes 2D-array probe radiance textures.
 - Vulkan now supports per-material reflection overrides (`PROBE_ONLY`, `SSR_ONLY`) via scene color alpha metadata in post reflection resolve.
 - Vulkan reflection baseline warning telemetry now includes per-frame override counts (`AUTO`, `PROBE_ONLY`, `SSR_ONLY`, other).
+- Vulkan reflection warnings now include probe telemetry (`configured`, `active`, `slots`, `capacity`) with dedicated `REFLECTION_PROBE_BLEND_DIAGNOSTICS` emission.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

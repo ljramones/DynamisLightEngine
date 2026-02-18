@@ -33,8 +33,10 @@ import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.api.scene.ReflectionAdvancedDesc;
 import org.dynamislight.api.scene.ReflectionDesc;
 import org.dynamislight.api.scene.ReflectionOverrideMode;
+import org.dynamislight.api.scene.ReflectionProbeDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
@@ -377,6 +379,32 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(baseline.contains("overrideSsrOnly=1"));
         assertTrue(baseline.contains("overrideOther=0"));
         assertEquals(List.of(0, 1, 2), runtime.debugReflectionOverrideModes());
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionProbeBlendDiagnosticsWarningReportsProbeTelemetry() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(true), new RecordingCallbacks());
+        runtime.loadScene(validReflectionProbeDiagnosticsScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_BLEND_DIAGNOSTICS".equals(w.code())));
+        String baseline = warningMessageByCode(frame, "REFLECTIONS_BASELINE_ACTIVE");
+        assertTrue(baseline.contains("probeConfigured=3"));
+        assertTrue(baseline.contains("probeSlots=2"));
+        assertTrue(baseline.contains("probeCapacity="));
+        int baselineActive = parseIntMetricField(baseline, "probeActive");
+        assertTrue(baselineActive >= 0);
+        assertTrue(baselineActive <= 3);
+
+        String diagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
+        assertTrue(diagnostics.contains("configured=3"));
+        assertTrue(diagnostics.contains("slots=2"));
+        int diagnosticActive = parseIntMetricField(diagnostics, "active");
+        assertEquals(baselineActive, diagnosticActive);
         runtime.shutdown();
     }
 
@@ -1955,12 +1983,123 @@ class VulkanEngineRuntimeIntegrationTest {
         );
     }
 
+    private static SceneDescriptor validReflectionProbeDiagnosticsScene() {
+        SceneDescriptor base = validReflectionsScene("hybrid");
+        ReflectionAdvancedDesc advanced = new ReflectionAdvancedDesc(
+                true,
+                5,
+                2,
+                false,
+                0.0f,
+                0.5f,
+                6.0f,
+                true,
+                true,
+                2.0f,
+                List.of(
+                        new ReflectionProbeDesc(
+                                1,
+                                new Vec3(0f, 0f, 0f),
+                                new Vec3(-3f, -2f, -3f),
+                                new Vec3(3f, 2f, 3f),
+                                "textures/probes/atrium.ktx2",
+                                2,
+                                1.5f,
+                                1.0f,
+                                true
+                        ),
+                        new ReflectionProbeDesc(
+                                2,
+                                new Vec3(6f, 0f, 0f),
+                                new Vec3(3f, -2f, -3f),
+                                new Vec3(9f, 2f, 3f),
+                                "textures/probes/atrium.ktx2",
+                                1,
+                                1.25f,
+                                0.9f,
+                                true
+                        ),
+                        new ReflectionProbeDesc(
+                                3,
+                                new Vec3(-6f, 0f, 0f),
+                                new Vec3(-9f, -2f, -3f),
+                                new Vec3(-3f, 2f, 3f),
+                                "textures/probes/gallery.ktx2",
+                                3,
+                                1.0f,
+                                1.1f,
+                                false
+                        )
+                ),
+                false,
+                0.75f,
+                "hybrid"
+        );
+        PostProcessDesc post = new PostProcessDesc(
+                base.postProcess().enabled(),
+                base.postProcess().tonemapEnabled(),
+                base.postProcess().exposure(),
+                base.postProcess().gamma(),
+                base.postProcess().bloomEnabled(),
+                base.postProcess().bloomThreshold(),
+                base.postProcess().bloomStrength(),
+                base.postProcess().ssaoEnabled(),
+                base.postProcess().ssaoStrength(),
+                base.postProcess().ssaoRadius(),
+                base.postProcess().ssaoBias(),
+                base.postProcess().ssaoPower(),
+                base.postProcess().smaaEnabled(),
+                base.postProcess().smaaStrength(),
+                base.postProcess().taaEnabled(),
+                base.postProcess().taaBlend(),
+                base.postProcess().taaLumaClipEnabled(),
+                base.postProcess().antiAliasing(),
+                base.postProcess().reflections(),
+                advanced
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
     private static String warningMessageByCode(org.dynamislight.api.runtime.EngineFrameResult frame, String code) {
         return frame.warnings().stream()
                 .filter(w -> code.equals(w.code()))
                 .findFirst()
                 .map(org.dynamislight.api.event.EngineWarning::message)
                 .orElse("");
+    }
+
+    private static int parseIntMetricField(String message, String key) {
+        String token = key + "=";
+        int start = message.indexOf(token);
+        if (start < 0) {
+            return -1;
+        }
+        int valueStart = start + token.length();
+        int end = valueStart;
+        while (end < message.length()) {
+            char c = message.charAt(end);
+            if ((c >= '0' && c <= '9') || c == '-') {
+                end++;
+            } else {
+                break;
+            }
+        }
+        if (end == valueStart) {
+            return -1;
+        }
+        return Integer.parseInt(message.substring(valueStart, end));
     }
 
     private static SceneDescriptor validMultiMeshScene() {

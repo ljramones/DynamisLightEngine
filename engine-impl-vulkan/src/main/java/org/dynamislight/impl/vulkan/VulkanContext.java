@@ -291,6 +291,14 @@ final class VulkanContext {
         return List.copyOf(modes);
     }
 
+    ReflectionProbeDiagnostics debugReflectionProbeDiagnostics() {
+        int configuredProbeCount = reflectionProbes == null ? 0 : reflectionProbes.size();
+        int activeProbeCount = Math.max(0, descriptorResources.reflectionProbeMetadataActiveCount);
+        int slotCount = Math.max(0, reflectionProbeCubemapSlotCount);
+        int metadataCapacity = Math.max(0, descriptorResources.reflectionProbeMetadataMaxCount);
+        return new ReflectionProbeDiagnostics(configuredProbeCount, activeProbeCount, slotCount, metadataCapacity);
+    }
+
     void resize(int width, int height) throws EngineException {
         if (backendResources.device == null || backendResources.swapchain == VK_NULL_HANDLE) {
             return;
@@ -357,6 +365,14 @@ final class VulkanContext {
                                 && descriptorResources.sceneGlobalUniformStagingMappedAddress != 0L
                 )
         );
+    }
+
+    record ReflectionProbeDiagnostics(
+            int configuredProbeCount,
+            int activeProbeCount,
+            int slotCount,
+            int metadataCapacity
+    ) {
     }
 
     ShadowCascadeProfile shadowCascadeProfile() {

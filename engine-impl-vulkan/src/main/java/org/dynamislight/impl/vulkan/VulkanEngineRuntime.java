@@ -553,6 +553,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (currentPost.reflectionsEnabled()) {
             int reflectionBaseMode = currentPost.reflectionsMode() & 0x7;
             ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
+            VulkanContext.ReflectionProbeDiagnostics probeDiagnostics = context.debugReflectionProbeDiagnostics();
             warnings.add(new EngineWarning(
                     "REFLECTIONS_BASELINE_ACTIVE",
                     "Reflections baseline active (mode="
@@ -569,6 +570,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", overrideProbeOnly=" + overrideSummary.probeOnlyCount()
                             + ", overrideSsrOnly=" + overrideSummary.ssrOnlyCount()
                             + ", overrideOther=" + overrideSummary.otherCount()
+                            + ", probeConfigured=" + probeDiagnostics.configuredProbeCount()
+                            + ", probeActive=" + probeDiagnostics.activeProbeCount()
+                            + ", probeSlots=" + probeDiagnostics.slotCount()
+                            + ", probeCapacity=" + probeDiagnostics.metadataCapacity()
+                            + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "REFLECTION_PROBE_BLEND_DIAGNOSTICS",
+                    "Probe blend diagnostics (configured=" + probeDiagnostics.configuredProbeCount()
+                            + ", active=" + probeDiagnostics.activeProbeCount()
+                            + ", slots=" + probeDiagnostics.slotCount()
+                            + ", capacity=" + probeDiagnostics.metadataCapacity()
                             + ")"
             ));
             if (qualityTier == QualityTier.MEDIUM) {
