@@ -111,6 +111,7 @@ Current profile tags in parity tests:
 - Validate typed diagnostics (`debugReflectionPlanarPerfDiagnostics`) against warning payload fields (`gpuMsEstimate`, draw inflation, memory estimate, caps, cooldown/high-streak state).
 - Add strict timing-source gate check: with `vulkan.reflections.planarPerfRequireGpuTimestamp=true`, assert breach when timing source is not `gpu_timestamp`.
 - For guarded real-Vulkan runs, assert planar perf diagnostics report `timingSource=gpu_timestamp` when timestamp queries are supported and enabled.
+  - Current test: `VulkanEngineRuntimeIntegrationTest#guardedRealVulkanPlanarPerfTimingSourceFollowsTimestampAvailability`.
 - Include planar scene-matrix coverage checks:
   - interior mirror-like scene
   - outdoor plane scene

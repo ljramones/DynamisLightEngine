@@ -69,6 +69,34 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void guardedRealVulkanPlanarPerfTimingSourceFollowsTimestampAvailability() {
+        assumeRealVulkanReady("real Vulkan planar perf timing-source integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        try {
+            runtime.initialize(validConfig(false), callbacks);
+            runtime.loadScene(validReflectionsScene("planar"));
+            runtime.render();
+            runtime.render();
+
+            var diagnostics = runtime.debugReflectionPlanarPerfDiagnostics();
+            assertNotNull(diagnostics);
+            assertNotNull(diagnostics.timingSource());
+            if (diagnostics.timestampAvailable()) {
+                assertEquals("gpu_timestamp", diagnostics.timingSource());
+                assertEquals(false, diagnostics.timestampRequirementUnmet());
+            } else {
+                assertEquals("frame_estimate", diagnostics.timingSource());
+            }
+        } catch (EngineException e) {
+            assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, e.code());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
     void mockVulkanPathAlwaysWorksInCi() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
