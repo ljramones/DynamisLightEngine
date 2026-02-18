@@ -74,6 +74,12 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtRequireActive", "true"),
                         Map.entry("vulkan.reflections.rtDedicatedDenoisePipelineEnabled", "false"),
                         Map.entry("vulkan.reflections.rtDenoiseStrength", "0.73"),
+                        Map.entry("vulkan.reflections.rtPerfMaxGpuMsLow", "1.3"),
+                        Map.entry("vulkan.reflections.rtPerfMaxGpuMsMedium", "2.1"),
+                        Map.entry("vulkan.reflections.rtPerfMaxGpuMsHigh", "2.9"),
+                        Map.entry("vulkan.reflections.rtPerfMaxGpuMsUltra", "3.7"),
+                        Map.entry("vulkan.reflections.rtPerfWarnMinFrames", "5"),
+                        Map.entry("vulkan.reflections.rtPerfWarnCooldownFrames", "210"),
                         Map.entry("vulkan.reflections.planarPerfRequireGpuTimestamp", "true")
                         ,Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "6")
                         ,Map.entry("vulkan.reflections.probeMaxVisible", "48")
@@ -152,6 +158,12 @@ class VulkanRuntimeOptionsTest {
         assertEquals(true, parsed.reflectionRtRequireActive());
         assertEquals(false, parsed.reflectionRtDedicatedDenoisePipelineEnabled());
         assertEquals(0.73, parsed.reflectionRtDenoiseStrength());
+        assertEquals(1.3, parsed.reflectionRtPerfMaxGpuMsLow());
+        assertEquals(2.1, parsed.reflectionRtPerfMaxGpuMsMedium());
+        assertEquals(2.9, parsed.reflectionRtPerfMaxGpuMsHigh());
+        assertEquals(3.7, parsed.reflectionRtPerfMaxGpuMsUltra());
+        assertEquals(5, parsed.reflectionRtPerfWarnMinFrames());
+        assertEquals(210, parsed.reflectionRtPerfWarnCooldownFrames());
         assertEquals(true, parsed.reflectionPlanarPerfRequireGpuTimestamp());
         assertEquals(6, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(48, parsed.reflectionProbeMaxVisible());
@@ -217,6 +229,12 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtDedicatedDenoisePipelineEnabled", "true"),
                         Map.entry("vulkan.reflections.rtRequireActive", "true"),
                         Map.entry("vulkan.reflections.rtDenoiseStrength", "9.0"),
+                        Map.entry("vulkan.reflections.rtPerfMaxGpuMsLow", "-1.0"),
+                        Map.entry("vulkan.reflections.rtPerfMaxGpuMsMedium", "20000.0"),
+                        Map.entry("vulkan.reflections.rtPerfMaxGpuMsHigh", "-1.0"),
+                        Map.entry("vulkan.reflections.rtPerfMaxGpuMsUltra", "20000.0"),
+                        Map.entry("vulkan.reflections.rtPerfWarnMinFrames", "0"),
+                        Map.entry("vulkan.reflections.rtPerfWarnCooldownFrames", "999999"),
                         Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "0"),
                         Map.entry("vulkan.reflections.probeMaxVisible", "999"),
                         Map.entry("vulkan.reflections.probeLodDepthScale", "9.0")
@@ -288,6 +306,12 @@ class VulkanRuntimeOptionsTest {
         assertEquals(true, parsed.reflectionRtRequireActive());
         assertEquals(true, parsed.reflectionRtDedicatedDenoisePipelineEnabled());
         assertEquals(1.0, parsed.reflectionRtDenoiseStrength());
+        assertEquals(0.0, parsed.reflectionRtPerfMaxGpuMsLow());
+        assertEquals(1000.0, parsed.reflectionRtPerfMaxGpuMsMedium());
+        assertEquals(0.0, parsed.reflectionRtPerfMaxGpuMsHigh());
+        assertEquals(1000.0, parsed.reflectionRtPerfMaxGpuMsUltra());
+        assertEquals(1, parsed.reflectionRtPerfWarnMinFrames());
+        assertEquals(10000, parsed.reflectionRtPerfWarnCooldownFrames());
         assertEquals(false, parsed.reflectionPlanarPerfRequireGpuTimestamp());
         assertEquals(1, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(256, parsed.reflectionProbeMaxVisible());

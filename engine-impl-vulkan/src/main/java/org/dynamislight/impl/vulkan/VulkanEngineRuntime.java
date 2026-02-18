@@ -317,10 +317,21 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean reflectionRtRequireActive;
     private boolean reflectionRtDedicatedDenoisePipelineEnabled = true;
     private double reflectionRtDenoiseStrength = 0.65;
+    private double reflectionRtPerfMaxGpuMsLow = 1.6;
+    private double reflectionRtPerfMaxGpuMsMedium = 2.6;
+    private double reflectionRtPerfMaxGpuMsHigh = 3.6;
+    private double reflectionRtPerfMaxGpuMsUltra = 4.8;
+    private int reflectionRtPerfWarnMinFrames = 3;
+    private int reflectionRtPerfWarnCooldownFrames = 120;
     private boolean reflectionRtLaneRequested;
     private boolean reflectionRtLaneActive;
     private boolean reflectionRtRequireActiveUnmetLastFrame;
     private String reflectionRtFallbackChainActive = "probe";
+    private int reflectionRtPerfHighStreak;
+    private int reflectionRtPerfWarnCooldownRemaining;
+    private double reflectionRtPerfLastGpuMsEstimate;
+    private double reflectionRtPerfLastGpuMsCap;
+    private boolean reflectionRtPerfBreachedLastFrame;
     private String reflectionPlanarPassOrderContractStatus = "inactive";
     private int reflectionPlanarScopedMeshEligibleCount;
     private int reflectionPlanarScopedMeshExcludedCount;
@@ -464,6 +475,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionRtRequireActive = options.reflectionRtRequireActive();
         reflectionRtDedicatedDenoisePipelineEnabled = options.reflectionRtDedicatedDenoisePipelineEnabled();
         reflectionRtDenoiseStrength = options.reflectionRtDenoiseStrength();
+        reflectionRtPerfMaxGpuMsLow = options.reflectionRtPerfMaxGpuMsLow();
+        reflectionRtPerfMaxGpuMsMedium = options.reflectionRtPerfMaxGpuMsMedium();
+        reflectionRtPerfMaxGpuMsHigh = options.reflectionRtPerfMaxGpuMsHigh();
+        reflectionRtPerfMaxGpuMsUltra = options.reflectionRtPerfMaxGpuMsUltra();
+        reflectionRtPerfWarnMinFrames = options.reflectionRtPerfWarnMinFrames();
+        reflectionRtPerfWarnCooldownFrames = options.reflectionRtPerfWarnCooldownFrames();
         reflectionProbeUpdateCadenceFrames = options.reflectionProbeUpdateCadenceFrames();
         reflectionProbeMaxVisible = options.reflectionProbeMaxVisible();
         reflectionProbeLodDepthScale = options.reflectionProbeLodDepthScale();
@@ -1179,9 +1196,61 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                     + reflectionRtFallbackChainActive + ")"
                     ));
                 }
+                double rtGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
+                double rtLaneWeight = reflectionRtLaneActive ? 0.45 : 0.0;
+                double bounceFactor = reflectionRtMultiBounceEnabled ? 1.35 : 1.0;
+                double denoiseFactor = reflectionRtDedicatedDenoisePipelineEnabled ? 1.08 : 1.0;
+                double rtGpuMsEstimate = Math.max(0.0, lastFrameGpuMs) * rtLaneWeight * bounceFactor * denoiseFactor;
+                boolean rtPerfRisk = rtGpuMsEstimate > rtGpuMsCap;
+                if (rtPerfRisk) {
+                    reflectionRtPerfHighStreak++;
+                } else {
+                    reflectionRtPerfHighStreak = 0;
+                }
+                boolean rtPerfTriggered = false;
+                if (reflectionRtPerfWarnCooldownRemaining > 0) {
+                    reflectionRtPerfWarnCooldownRemaining--;
+                }
+                if (rtPerfRisk
+                        && reflectionRtPerfHighStreak >= reflectionRtPerfWarnMinFrames
+                        && reflectionRtPerfWarnCooldownRemaining <= 0) {
+                    reflectionRtPerfWarnCooldownRemaining = reflectionRtPerfWarnCooldownFrames;
+                    rtPerfTriggered = true;
+                }
+                reflectionRtPerfLastGpuMsEstimate = rtGpuMsEstimate;
+                reflectionRtPerfLastGpuMsCap = rtGpuMsCap;
+                reflectionRtPerfBreachedLastFrame = rtPerfTriggered;
+                warnings.add(new EngineWarning(
+                        "REFLECTION_RT_PERF_GATES",
+                        "RT perf gates (risk=" + rtPerfRisk
+                                + ", laneActive=" + reflectionRtLaneActive
+                                + ", gpuMsEstimate=" + rtGpuMsEstimate
+                                + ", gpuMsCap=" + rtGpuMsCap
+                                + ", multiBounceEnabled=" + reflectionRtMultiBounceEnabled
+                                + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
+                                + ", highStreak=" + reflectionRtPerfHighStreak
+                                + ", warnMinFrames=" + reflectionRtPerfWarnMinFrames
+                                + ", warnCooldownFrames=" + reflectionRtPerfWarnCooldownFrames
+                                + ", warnCooldownRemaining=" + reflectionRtPerfWarnCooldownRemaining
+                                + ", breached=" + rtPerfTriggered + ")"
+                ));
+                if (rtPerfTriggered) {
+                    warnings.add(new EngineWarning(
+                            "REFLECTION_RT_PERF_GATES_BREACH",
+                            "RT perf gates breached (gpuMsEstimate=" + rtGpuMsEstimate
+                                    + ", gpuMsCap=" + rtGpuMsCap
+                                    + ", multiBounceEnabled=" + reflectionRtMultiBounceEnabled
+                                    + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled + ")"
+                    ));
+                }
             } else {
                 reflectionRtFallbackChainActive = "probe";
                 reflectionRtRequireActiveUnmetLastFrame = false;
+                reflectionRtPerfHighStreak = 0;
+                reflectionRtPerfWarnCooldownRemaining = 0;
+                reflectionRtPerfBreachedLastFrame = false;
+                reflectionRtPerfLastGpuMsEstimate = 0.0;
+                reflectionRtPerfLastGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
             }
             reflectionTransparentCandidateCount = countReflectionTransparentCandidates(currentSceneMaterials);
             if (reflectionTransparentCandidateCount > 0) {
@@ -1265,6 +1334,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", rtRequireActive=" + reflectionRtRequireActive
                             + ", rtDedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
                             + ", rtDenoiseStrength=" + reflectionRtDenoiseStrength
+                            + ", rtPerfMaxGpuMsLow=" + reflectionRtPerfMaxGpuMsLow
+                            + ", rtPerfMaxGpuMsMedium=" + reflectionRtPerfMaxGpuMsMedium
+                            + ", rtPerfMaxGpuMsHigh=" + reflectionRtPerfMaxGpuMsHigh
+                            + ", rtPerfMaxGpuMsUltra=" + reflectionRtPerfMaxGpuMsUltra
+                            + ", rtPerfWarnMinFrames=" + reflectionRtPerfWarnMinFrames
+                            + ", rtPerfWarnCooldownFrames=" + reflectionRtPerfWarnCooldownFrames
                             + ", probeUpdateCadenceFrames=" + reflectionProbeUpdateCadenceFrames
                             + ", probeMaxVisible=" + reflectionProbeMaxVisible
                             + ", probeLodDepthScale=" + reflectionProbeLodDepthScale
@@ -1491,6 +1566,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtLaneActive = false;
             reflectionRtRequireActiveUnmetLastFrame = false;
             reflectionRtFallbackChainActive = "probe";
+            reflectionRtPerfHighStreak = 0;
+            reflectionRtPerfWarnCooldownRemaining = 0;
+            reflectionRtPerfLastGpuMsEstimate = 0.0;
+            reflectionRtPerfLastGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
+            reflectionRtPerfBreachedLastFrame = false;
             reflectionTransparentCandidateCount = 0;
             reflectionTransparencyStageGateStatus = "not_required";
             reflectionTransparencyFallbackPath = "none";
@@ -1817,6 +1897,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             case MEDIUM -> reflectionPlanarPerfMaxGpuMsMedium;
             case HIGH -> reflectionPlanarPerfMaxGpuMsHigh;
             case ULTRA -> reflectionPlanarPerfMaxGpuMsUltra;
+        };
+    }
+
+    private double rtPerfGpuMsCapForTier(QualityTier tier) {
+        return switch (tier) {
+            case LOW -> reflectionRtPerfMaxGpuMsLow;
+            case MEDIUM -> reflectionRtPerfMaxGpuMsMedium;
+            case HIGH -> reflectionRtPerfMaxGpuMsHigh;
+            case ULTRA -> reflectionRtPerfMaxGpuMsUltra;
         };
     }
 
@@ -2460,6 +2549,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionRtPerfDiagnostics debugReflectionRtPerfDiagnostics() {
+        return new ReflectionRtPerfDiagnostics(
+                reflectionRtPerfLastGpuMsEstimate,
+                reflectionRtPerfLastGpuMsCap,
+                reflectionRtPerfHighStreak,
+                reflectionRtPerfWarnMinFrames,
+                reflectionRtPerfWarnCooldownFrames,
+                reflectionRtPerfWarnCooldownRemaining,
+                reflectionRtPerfBreachedLastFrame
+        );
+    }
+
     ReflectionTransparencyDiagnostics debugReflectionTransparencyDiagnostics() {
         return new ReflectionTransparencyDiagnostics(
                 reflectionTransparentCandidateCount,
@@ -2679,6 +2780,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     ) {
     }
 
+    record ReflectionRtPerfDiagnostics(
+            double gpuMsEstimate,
+            double gpuMsCap,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
+            boolean breachedLastFrame
+    ) {
+    }
+
     record ReflectionTransparencyDiagnostics(
             int transparentCandidateCount,
             String stageGateStatus,
@@ -2881,6 +2993,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = false;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.58;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsLow")) reflectionRtPerfMaxGpuMsLow = 1.4;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsMedium")) reflectionRtPerfMaxGpuMsMedium = 2.0;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsHigh")) reflectionRtPerfMaxGpuMsHigh = 2.8;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsUltra")) reflectionRtPerfMaxGpuMsUltra = 3.6;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnMinFrames")) reflectionRtPerfWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnCooldownFrames")) reflectionRtPerfWarnCooldownFrames = 180;
             }
             case QUALITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -2924,6 +3042,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.72;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsLow")) reflectionRtPerfMaxGpuMsLow = 1.8;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsMedium")) reflectionRtPerfMaxGpuMsMedium = 2.8;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsHigh")) reflectionRtPerfMaxGpuMsHigh = 3.9;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsUltra")) reflectionRtPerfMaxGpuMsUltra = 5.2;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnMinFrames")) reflectionRtPerfWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnCooldownFrames")) reflectionRtPerfWarnCooldownFrames = 120;
             }
             case STABILITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -2967,6 +3091,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = false;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.80;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsLow")) reflectionRtPerfMaxGpuMsLow = 2.2;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsMedium")) reflectionRtPerfMaxGpuMsMedium = 3.2;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsHigh")) reflectionRtPerfMaxGpuMsHigh = 4.4;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsUltra")) reflectionRtPerfMaxGpuMsUltra = 5.8;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnMinFrames")) reflectionRtPerfWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.rtPerfWarnCooldownFrames")) reflectionRtPerfWarnCooldownFrames = 90;
             }
             default -> {
             }

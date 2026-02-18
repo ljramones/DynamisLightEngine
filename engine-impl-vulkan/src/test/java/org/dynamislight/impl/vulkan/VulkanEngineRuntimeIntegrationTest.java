@@ -984,6 +984,32 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void rtPerfGateBreachEmitsUnderStrictCaps() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtMultiBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtDedicatedDenoisePipelineEnabled", "true"),
+                Map.entry("vulkan.reflections.rtPerfMaxGpuMsMedium", "0.0001"),
+                Map.entry("vulkan.reflections.rtPerfWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.rtPerfWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("rt_hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PERF_GATES".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PERF_GATES_BREACH".equals(w.code())));
+        String perf = warningMessageByCode(frame, "REFLECTION_RT_PERF_GATES");
+        assertTrue(perf.contains("risk=true"));
+        var diagnostics = runtime.debugReflectionRtPerfDiagnostics();
+        assertTrue(diagnostics.breachedLastFrame());
+        assertTrue(diagnostics.gpuMsCap() <= 0.0001 + 1e-9);
+        runtime.shutdown();
+    }
+
+    @Test
     void transparentCandidatesEmitStageGateWarningUntilRtLaneIsActive() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
@@ -1446,6 +1472,12 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendSloMeanSeverityMax=0.65"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendSloHighRatioMax=0.45"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendSloMinSamples=16"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsLow=2.2"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsMedium=3.2"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsHigh=4.4"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsUltra=5.8"));
+        assertTrue(profileWarning.contains("rtPerfWarnMinFrames=2"));
+        assertTrue(profileWarning.contains("rtPerfWarnCooldownFrames=90"));
         String probeDiagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
         assertTrue(probeDiagnostics.contains("warnMinStreak=2"));
         assertTrue(probeDiagnostics.contains("warnCooldownFrames=60"));
@@ -1504,6 +1536,12 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendSloMeanSeverityMax=0.25"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendSloHighRatioMax=0.2"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendSloMinSamples=30"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsLow=1.4"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsMedium=2.0"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsHigh=2.8"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsUltra=3.6"));
+        assertTrue(profileWarning.contains("rtPerfWarnMinFrames=4"));
+        assertTrue(profileWarning.contains("rtPerfWarnCooldownFrames=180"));
         String diagnostics = warningMessageByCode(frame, "REFLECTION_SSR_TAA_DIAGNOSTICS");
         assertTrue(diagnostics.contains("instabilityRejectMin=0.45"));
         assertTrue(diagnostics.contains("instabilityConfidenceMax=0.6"));
@@ -1543,6 +1581,12 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendSloMeanSeverityMax=0.4"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendSloHighRatioMax=0.3"));
         assertTrue(profileWarning.contains("ssrTaaAdaptiveTrendSloMinSamples=24"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsLow=1.8"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsMedium=2.8"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsHigh=3.9"));
+        assertTrue(profileWarning.contains("rtPerfMaxGpuMsUltra=5.2"));
+        assertTrue(profileWarning.contains("rtPerfWarnMinFrames=3"));
+        assertTrue(profileWarning.contains("rtPerfWarnCooldownFrames=120"));
         String probeDiagnostics = warningMessageByCode(frame, "REFLECTION_PROBE_BLEND_DIAGNOSTICS");
         assertTrue(probeDiagnostics.contains("warnMinDelta=1"));
         assertTrue(probeDiagnostics.contains("warnMinStreak=2"));

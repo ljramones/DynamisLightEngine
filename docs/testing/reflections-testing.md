@@ -134,6 +134,8 @@ Current profile tags in parity tests:
 - Assert runtime-composed reflection mode bits expose RT active/multi-bounce flags (`debugReflectionRuntimeMode`) and denoise strength (`debugReflectionRuntimeRtDenoiseStrength`).
 - Assert fallback warning (`REFLECTION_RT_PATH_FALLBACK_ACTIVE`) only when RT lane is explicitly unavailable.
 - Assert strict-required RT mode emits breach warning (`REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH`) when `vulkan.reflections.rtRequireActive=true` and lane cannot activate.
+- Assert RT perf gates emit `REFLECTION_RT_PERF_GATES` and breach under strict caps via `REFLECTION_RT_PERF_GATES_BREACH`.
+- Validate typed RT perf diagnostics (`debugReflectionRtPerfDiagnostics`) against warning payload (`gpuMsEstimate`, `gpuMsCap`, streak/cooldown state).
 - Assert dedicated RT denoise stage bit is present when dedicated RT denoise pipeline is enabled.
 
 8. Transparency/refraction stage-gate checks

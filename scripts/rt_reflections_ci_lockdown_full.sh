@@ -11,6 +11,7 @@ mkdir -p "${LOG_DIR}" "${COMPARE_DIR}"
 VULKAN_TESTS=(
   "rtReflectionRequestInMockContextActivatesExecutionLaneAndDenoisePath"
   "rtReflectionRequireActiveEmitsBreachWhenLaneUnavailable"
+  "rtPerfGateBreachEmitsUnderStrictCaps"
   "transparentCandidatesEmitStageGateWarningUntilRtLaneIsActive"
   "transparentCandidatesWithRtPathEnablePreviewStageGateAndRuntimeIntegrationBit"
   "planarContractCoverageIncludesHybridAndRtHybridModes"
