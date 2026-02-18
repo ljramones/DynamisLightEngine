@@ -1605,9 +1605,6 @@ final class VulkanContext {
                     backendResources.graphicsQueue,
                     this::vkFailure
             );
-            if (cubePathReady && !cubeFaceLayers.isEmpty()) {
-                return VulkanTextureResourceOps.createCubeTextureArrayFromPixels(cubeFaceLayers, context);
-            }
             return VulkanTextureResourceOps.createTextureArrayFromPixels(normalizedLayers, context);
         } finally {
             freeProbeSlotPixels(slotPixels);
