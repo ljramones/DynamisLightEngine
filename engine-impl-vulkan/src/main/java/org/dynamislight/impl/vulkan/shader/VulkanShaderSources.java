@@ -122,12 +122,25 @@ public final class VulkanShaderSources {
                     vec4 uMaterial;
                     vec4 uMaterialReactive;
                 } obj;
+                layout(push_constant) uniform MainPush {
+                    vec4 uPlanar;
+                } pc;
                 void main() {
                     vec4 world = obj.uModel * vec4(inPos, 1.0);
+                    float sourceHeight = world.y;
+                    bool planarCapturePass = pc.uPlanar.x > 0.5;
+                    float planarHeight = pc.uPlanar.y;
+                    if (planarCapturePass) {
+                        world.y = (2.0 * planarHeight) - world.y;
+                    }
                     vWorldPos = world.xyz;
-                    vHeight = world.y;
+                    vHeight = sourceHeight;
                     vec3 tangent = normalize(mat3(obj.uModel) * inTangent);
                     vec3 normal = normalize(mat3(obj.uModel) * inNormal);
+                    if (planarCapturePass) {
+                        tangent.y = -tangent.y;
+                        normal.y = -normal.y;
+                    }
                     vNormal = normal;
                     vTangent = tangent;
                     vUv = inUv;
@@ -182,6 +195,9 @@ public final class VulkanShaderSources {
                     vec4 uMaterial;
                     vec4 uMaterialReactive;
                 } obj;
+                layout(push_constant) uniform MainPush {
+                    vec4 uPlanar;
+                } pc;
                 struct ProbeData {
                     vec4 positionAndIntensity;
                     vec4 extentsMin;
@@ -1141,6 +1157,11 @@ public final class VulkanShaderSources {
                     return clamp(visibility, 0.0, 1.0);
                 }
                 void main() {
+                    bool planarCapturePass = pc.uPlanar.x > 0.5;
+                    float planarHeight = pc.uPlanar.y;
+                    if (planarCapturePass && vHeight < planarHeight) {
+                        discard;
+                    }
                     vec3 n0 = normalize(vNormal);
                     vec3 t = normalize(vTangent - dot(vTangent, n0) * n0);
                     vec3 b = normalize(cross(n0, t));

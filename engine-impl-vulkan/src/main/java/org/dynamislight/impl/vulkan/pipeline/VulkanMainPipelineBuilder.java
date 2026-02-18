@@ -22,6 +22,7 @@ import org.lwjgl.vulkan.VkPipelineRasterizationStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineShaderStageCreateInfo;
 import org.lwjgl.vulkan.VkPipelineVertexInputStateCreateInfo;
 import org.lwjgl.vulkan.VkPipelineViewportStateCreateInfo;
+import org.lwjgl.vulkan.VkPushConstantRange;
 import org.lwjgl.vulkan.VkRect2D;
 import org.lwjgl.vulkan.VkRenderPassCreateInfo;
 import org.lwjgl.vulkan.VkSubpassDependency;
@@ -220,7 +221,11 @@ public final class VulkanMainPipelineBuilder {
 
                 VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
                         .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
-                        .pSetLayouts(stack.longs(descriptorSetLayout, textureDescriptorSetLayout));
+                        .pSetLayouts(stack.longs(descriptorSetLayout, textureDescriptorSetLayout))
+                        .pPushConstantRanges(VkPushConstantRange.calloc(1, stack)
+                                .stageFlags(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+                                .offset(0)
+                                .size(4 * Float.BYTES));
                 var pPipelineLayout = stack.longs(VK_NULL_HANDLE);
                 int layoutResult = vkCreatePipelineLayout(device, pipelineLayoutInfo, null, pPipelineLayout);
                 if (layoutResult != VK_SUCCESS || pPipelineLayout.get(0) == VK_NULL_HANDLE) {

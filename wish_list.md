@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:35 ET — Implemented planar selective geometry pre-pass execution path (capture before main scene pass) with runtime geometry-capture mode bit, plus prior SSR envelope gates, RT dedicated denoise stage, transparent/refractive hardening, and probe streaming cadence/max-visible/LOD metadata path.
+- Latest reflection update: 2026-02-18 14:39 ET — Added shader/pass-level planar capture realization: selective pre-main geometry capture now executes mirrored vertex transform + clip-plane culling (push-constant driven) before capture copy; runtime geometry-capture mode bit remains active.
 
 Status legend:
 

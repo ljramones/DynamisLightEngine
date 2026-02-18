@@ -57,6 +57,7 @@ public final class VulkanRenderCommandRecorder {
     private static final int REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT = 1 << 14;
     private static final int REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT = 1 << 18;
     private static final int REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT = 1 << 20;
+    private static final int REFLECTION_MODE_PLANAR_CLIP_BIT = 1 << 7;
 
     private VulkanRenderCommandRecorder() {
     }
@@ -414,6 +415,18 @@ public final class VulkanRenderCommandRecorder {
 
         vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, in.graphicsPipeline());
+        boolean planarClipEnabled = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_CLIP_BIT) != 0;
+        float planarCaptureFlag = planarSelectiveOnly ? 1.0f : 0.0f;
+        float planarHeight = planarClipEnabled ? 0.0f : -10_000.0f;
+        ByteBuffer planarPush = stack.malloc(4 * Float.BYTES);
+        planarPush.asFloatBuffer().put(new float[]{planarCaptureFlag, planarHeight, 0.0f, 0.0f});
+        vkCmdPushConstants(
+                commandBuffer,
+                in.pipelineLayout(),
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                0,
+                planarPush
+        );
         boolean anyDrawn = false;
         for (int meshIndex = 0; meshIndex < in.drawCount() && meshIndex < meshes.size(); meshIndex++) {
             MeshDrawCmd mesh = meshes.get(meshIndex);
