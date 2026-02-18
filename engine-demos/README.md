@@ -59,6 +59,7 @@ Run a demo on macOS with Vulkan real/mock wiring (recommended):
 ./scripts/run_demo_mac.sh --demo=hello-triangle --backend=vulkan --mock=false --seconds=10 --quality=high
 ```
 If you update backend modules, refresh local snapshots first with `mvn -DskipTests install`.
+When `--mock=false`, demo windows are now visible by default. You can override with `--window-visible=true|false`.
 
 Run AA demo with explicit mode and telemetry file:
 ```bash

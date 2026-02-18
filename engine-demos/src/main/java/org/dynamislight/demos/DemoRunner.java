@@ -174,11 +174,20 @@ public final class DemoRunner {
         Map<String, String> options = new LinkedHashMap<>();
         String prefix = request.backendId().toLowerCase(Locale.ROOT);
         options.put(prefix + ".mockContext", Boolean.toString(request.mockContext()));
+        String explicitWindowVisible = request.arg("window-visible", "");
+        boolean windowVisible = explicitWindowVisible.isBlank()
+                ? !request.mockContext()
+                : parseBoolean(explicitWindowVisible, !request.mockContext());
+        options.put(prefix + ".windowVisible", Boolean.toString(windowVisible));
         options.put(prefix + ".aaPreset", request.aaPreset());
         options.put(prefix + ".taaDebugView", Integer.toString(request.taaDebugView()));
         String mode = request.arg("aa-mode", "");
         if (!mode.isBlank()) {
             options.put(prefix + ".aaMode", mode);
+        }
+        String explicitPostOffscreen = request.arg("post-offscreen", "");
+        if (!explicitPostOffscreen.isBlank()) {
+            options.put(prefix + ".postOffscreen", Boolean.toString(parseBoolean(explicitPostOffscreen, true)));
         }
         String renderScale = request.arg("aa-render-scale", "");
         if (!renderScale.isBlank()) {
@@ -244,6 +253,8 @@ public final class DemoRunner {
         System.out.println("  --width=<px> --height=<px>");
         System.out.println("  --telemetry=<path.jsonl>");
         System.out.println("  --summary=<path.json>");
+        System.out.println("  --window-visible=true|false (default true when --mock=false)");
+        System.out.println("  --post-offscreen=true|false (maps to <backend>.postOffscreen)");
         System.out.println("  --aa-mode=<taa|tuua|tsr|msaa_selective|hybrid_tuua_msaa|dlaa|fxaa_low>");
         System.out.println("  --aa-render-scale=<0.5..1.0>");
         System.out.println("  --aa-preset=<performance|balanced|quality|stability>");
