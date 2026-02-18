@@ -62,6 +62,9 @@ mvn -pl engine-impl-vulkan -am test \
 # long-run stress replay (default 5 iterations):
 ./scripts/rt_reflections_real_longrun_signoff.sh
 # optional: DLE_RT_REFLECTIONS_LONGRUN_ITERATIONS=10 ./scripts/rt_reflections_real_longrun_signoff.sh
+
+# promotion bundle (lockdown + guarded signoff + long-run):
+./scripts/rt_reflections_in_promotion_bundle.sh
 ```
 
 ## Status Note
