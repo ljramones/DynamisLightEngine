@@ -352,6 +352,89 @@ final class DemoScenes {
         );
     }
 
+    static SceneDescriptor shadowLocalAtlasScene() {
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 3.2f, 11.5f), new Vec3(0f, 1.1f, -5.0f), 58f, 0.1f, 1000f);
+        List<TransformDesc> transforms = new ArrayList<>();
+        List<MeshDesc> meshes = new ArrayList<>();
+        List<MaterialDesc> materials = new ArrayList<>();
+
+        transforms.add(new TransformDesc("floor", new Vec3(0f, -0.9f, -5.8f), new Vec3(0f, 0f, 0f), new Vec3(8.5f, 0.2f, 9.5f)));
+        meshes.add(new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-floor", new Vec3(0.13f, 0.15f, 0.18f), 0.84f, 0.0f, null, null));
+
+        int columns = 4;
+        int rows = 3;
+        float spacingX = 2.2f;
+        float spacingZ = 2.0f;
+        float startX = -((columns - 1) * spacingX) * 0.5f;
+        float startZ = -0.6f;
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < columns; col++) {
+                String id = "atlas-" + row + "-" + col;
+                String transformId = "xform-" + id;
+                String materialId = "mat-" + id;
+                float x = startX + (col * spacingX);
+                float z = startZ - (row * spacingZ);
+                transforms.add(new TransformDesc(
+                        transformId,
+                        new Vec3(x, 0.2f, z),
+                        new Vec3(0f, row * 18f + col * 12f, 0f),
+                        new Vec3(0.62f, 0.62f, 0.62f)
+                ));
+                meshes.add(new MeshDesc("mesh-" + id, transformId, materialId, "meshes/box.glb"));
+                float tint = (row * columns + col) / 11.0f;
+                materials.add(new MaterialDesc(
+                        materialId,
+                        new Vec3(0.24f + 0.36f * tint, 0.35f + 0.22f * (1.0f - tint), 0.62f - 0.18f * tint),
+                        0.34f + (0.06f * row),
+                        0.15f + (0.14f * (col / 3.0f)),
+                        null,
+                        null
+                ));
+            }
+        }
+
+        ShadowDesc directionalShadow = new ShadowDesc(1536, 0.0011f, 5, 3);
+        LightDesc sun = new LightDesc(
+                "sun",
+                new Vec3(0f, 12f, 0f),
+                new Vec3(1f, 0.97f, 0.92f),
+                1.05f,
+                120f,
+                true,
+                directionalShadow
+        );
+
+        List<LightDesc> lights = new ArrayList<>();
+        lights.add(sun);
+        ShadowDesc localShadow = new ShadowDesc(1024, 0.0014f, 5, 1);
+        lights.add(new LightDesc("atlas-local-1", new Vec3(-3.6f, 2.0f, -1.0f), new Vec3(1.0f, 0.38f, 0.30f), 1.05f, 8.5f, true, localShadow));
+        lights.add(new LightDesc("atlas-local-2", new Vec3(-1.2f, 2.1f, -3.0f), new Vec3(0.35f, 1.0f, 0.45f), 1.00f, 8.0f, true, localShadow));
+        lights.add(new LightDesc("atlas-local-3", new Vec3(1.1f, 2.1f, -1.6f), new Vec3(0.38f, 0.58f, 1.0f), 1.00f, 8.0f, true, localShadow));
+        lights.add(new LightDesc("atlas-local-4", new Vec3(3.5f, 2.1f, -3.1f), new Vec3(1.0f, 0.72f, 0.30f), 1.02f, 8.5f, true, localShadow));
+        lights.add(new LightDesc("atlas-local-5", new Vec3(-2.7f, 1.8f, -5.0f), new Vec3(0.30f, 0.95f, 1.0f), 0.95f, 7.5f, true, localShadow));
+        lights.add(new LightDesc("atlas-local-6", new Vec3(0.0f, 1.9f, -5.6f), new Vec3(1.0f, 0.35f, 0.95f), 0.95f, 7.5f, true, localShadow));
+        lights.add(new LightDesc("atlas-local-7", new Vec3(2.7f, 1.8f, -5.0f), new Vec3(0.65f, 1.0f, 0.25f), 0.95f, 7.5f, true, localShadow));
+
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.06f, 0.08f, 0.10f), 0.28f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        PostProcessDesc post = new PostProcessDesc(true, true, 1.05f, 2.2f, true, 0.88f, 0.72f);
+
+        return new SceneDescriptor(
+                "demo-scene-shadow-local-atlas",
+                List.of(camera),
+                "main-cam",
+                transforms,
+                meshes,
+                materials,
+                lights,
+                environment,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
     static SceneDescriptor sceneWithAa(String aaMode, boolean postEnabled, float blend, float renderScale) {
         CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 1.5f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 1000f);
         TransformDesc triangleTransform = new TransformDesc("triangle", new Vec3(0f, 0f, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f));

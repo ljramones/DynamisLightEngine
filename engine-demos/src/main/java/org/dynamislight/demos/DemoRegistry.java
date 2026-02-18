@@ -14,6 +14,7 @@ final class DemoRegistry {
         register(demos, new LightsLocalArrayDemo());
         register(demos, new ShadowCascadeBaselineDemo());
         register(demos, new ShadowCascadeDebugDemo());
+        register(demos, new ShadowLocalAtlasDemo());
         register(demos, new AaMatrixDemo());
         return Map.copyOf(demos);
     }

@@ -5,9 +5,14 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 ## Current
 
 - `hello-triangle` (graphical baseline)
+- `material-baseline` (graphical PBR sweep)
+- `lights-local-array` (graphical local-light validation)
+- `shadow-cascade-baseline` (graphical clean shadow lane)
+- `shadow-cascade-debug` (graphical shadow stress lane)
+- `shadow-local-atlas` (graphical local shadow atlas pressure)
 - `aa-matrix` (graphical AA configuration/telemetry)
 
-Current count: `2` demos (`2` graphical)
+Current count: `7` demos (`7` graphical)
 
 ## Target Demo Set
 
@@ -60,4 +65,3 @@ This order front-loads the highest visual impact and highest regression value co
 ```bash
 ./scripts/run_demo_mac.sh --demo=<id> --backend=vulkan --mock=false --seconds=10 --quality=high
 ```
-
