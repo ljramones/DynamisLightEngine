@@ -38,6 +38,9 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "2"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "5"),
                         Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "240"),
+                        Map.entry("vulkan.reflections.probeQualityOverlapWarnMaxPairs", "12"),
+                        Map.entry("vulkan.reflections.probeQualityBleedRiskWarnMaxPairs", "2"),
+                        Map.entry("vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple", "3"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "0.42"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "0.61"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "3"),
@@ -58,7 +61,12 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples", "28"),
                         Map.entry("vulkan.reflections.ssrTaaHistoryRejectSeverityMin", "0.81"),
                         Map.entry("vulkan.reflections.ssrTaaHistoryConfidenceDecaySeverityMin", "0.51"),
-                        Map.entry("vulkan.reflections.ssrTaaHistoryRejectRiskStreakMin", "7")
+                        Map.entry("vulkan.reflections.ssrTaaHistoryRejectRiskStreakMin", "7"),
+                        Map.entry("vulkan.reflections.ssrTaaDisocclusionRejectDropEventsMin", "6"),
+                        Map.entry("vulkan.reflections.ssrTaaDisocclusionRejectConfidenceMax", "0.57"),
+                        Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                        Map.entry("vulkan.reflections.rtMultiBounceEnabled", "true"),
+                        Map.entry("vulkan.reflections.rtDenoiseStrength", "0.73")
                 ),
                 256
         );
@@ -97,6 +105,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(2, parsed.reflectionProbeChurnWarnMinDelta());
         assertEquals(5, parsed.reflectionProbeChurnWarnMinStreak());
         assertEquals(240, parsed.reflectionProbeChurnWarnCooldownFrames());
+        assertEquals(12, parsed.reflectionProbeQualityOverlapWarnMaxPairs());
+        assertEquals(2, parsed.reflectionProbeQualityBleedRiskWarnMaxPairs());
+        assertEquals(3, parsed.reflectionProbeQualityMinOverlapPairsWhenMultiple());
         assertEquals(0.42, parsed.reflectionSsrTaaInstabilityRejectMin());
         assertEquals(0.61, parsed.reflectionSsrTaaInstabilityConfidenceMax());
         assertEquals(3L, parsed.reflectionSsrTaaInstabilityDropEventsMin());
@@ -118,6 +129,11 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.81, parsed.reflectionSsrTaaHistoryRejectSeverityMin());
         assertEquals(0.51, parsed.reflectionSsrTaaHistoryConfidenceDecaySeverityMin());
         assertEquals(7, parsed.reflectionSsrTaaHistoryRejectRiskStreakMin());
+        assertEquals(6L, parsed.reflectionSsrTaaDisocclusionRejectDropEventsMin());
+        assertEquals(0.57, parsed.reflectionSsrTaaDisocclusionRejectConfidenceMax());
+        assertEquals(true, parsed.reflectionRtSingleBounceEnabled());
+        assertEquals(true, parsed.reflectionRtMultiBounceEnabled());
+        assertEquals(0.73, parsed.reflectionRtDenoiseStrength());
     }
 
     @Test
@@ -146,6 +162,9 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "0"),
                         Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.reflections.probeQualityOverlapWarnMaxPairs", "-1"),
+                        Map.entry("vulkan.reflections.probeQualityBleedRiskWarnMaxPairs", "-1"),
+                        Map.entry("vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple", "-1"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "9.0"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "-2.0"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "-5"),
@@ -165,7 +184,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples", "0"),
                         Map.entry("vulkan.reflections.ssrTaaHistoryRejectSeverityMin", "2.0"),
                         Map.entry("vulkan.reflections.ssrTaaHistoryConfidenceDecaySeverityMin", "-1.0"),
-                        Map.entry("vulkan.reflections.ssrTaaHistoryRejectRiskStreakMin", "0")
+                        Map.entry("vulkan.reflections.ssrTaaHistoryRejectRiskStreakMin", "0"),
+                        Map.entry("vulkan.reflections.ssrTaaDisocclusionRejectDropEventsMin", "-9"),
+                        Map.entry("vulkan.reflections.ssrTaaDisocclusionRejectConfidenceMax", "9.0"),
+                        Map.entry("vulkan.reflections.rtDenoiseStrength", "9.0")
                 ),
                 256
         );
@@ -198,6 +220,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1, parsed.reflectionProbeChurnWarnMinDelta());
         assertEquals(1, parsed.reflectionProbeChurnWarnMinStreak());
         assertEquals(10000, parsed.reflectionProbeChurnWarnCooldownFrames());
+        assertEquals(0, parsed.reflectionProbeQualityOverlapWarnMaxPairs());
+        assertEquals(0, parsed.reflectionProbeQualityBleedRiskWarnMaxPairs());
+        assertEquals(0, parsed.reflectionProbeQualityMinOverlapPairsWhenMultiple());
         assertEquals(1.0, parsed.reflectionSsrTaaInstabilityRejectMin());
         assertEquals(0.0, parsed.reflectionSsrTaaInstabilityConfidenceMax());
         assertEquals(0L, parsed.reflectionSsrTaaInstabilityDropEventsMin());
@@ -219,5 +244,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1.0, parsed.reflectionSsrTaaHistoryRejectSeverityMin());
         assertEquals(0.0, parsed.reflectionSsrTaaHistoryConfidenceDecaySeverityMin());
         assertEquals(1, parsed.reflectionSsrTaaHistoryRejectRiskStreakMin());
+        assertEquals(0L, parsed.reflectionSsrTaaDisocclusionRejectDropEventsMin());
+        assertEquals(1.0, parsed.reflectionSsrTaaDisocclusionRejectConfidenceMax());
+        assertEquals(true, parsed.reflectionRtSingleBounceEnabled());
+        assertEquals(false, parsed.reflectionRtMultiBounceEnabled());
+        assertEquals(1.0, parsed.reflectionRtDenoiseStrength());
     }
 }

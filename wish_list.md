@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:45 ET — Added explicit SSR/TAA reflected-region history policy diagnostics (warning + typed Vulkan accessor), plus option parsing and integration tests for deterministic policy escalation.
+- Latest reflection update: 2026-02-18 15:20 ET — Implemented full reflection-contract diagnostics sweep: SSR confidence/reprojection/disocclusion policy, probe quality envelope gates, planar scope/order contracts, RT minimal lane fallback-chain diagnostics, and transparency/refraction stage-gate signaling with tests.
 
 Status legend:
 
@@ -83,6 +83,11 @@ Reflection notes:
 - Reflection adaptive trend fail/high-risk warnings now also propagate as `PerformanceWarningEvent` callbacks for parser-free host-side alerting.
 - Blessed profile trend envelopes now have explicit integration-test assertions for expected window/threshold SLO bounds per profile.
 - SSR/TAA reflection ghosting mitigation now surfaces explicit history-policy mode diagnostics (`surface_motion_vectors`, `reflection_region_decay`, `reflection_region_reject`) with threshold and bias telemetry.
+- SSR/TAA diagnostics now include explicit reprojection policy and disocclusion-triggered rejection gates (`reflection_space_reject`) for stricter reflected-region history handling.
+- Probe quality sweep now reports overlap/priority bleed metrics with configurable envelope gates and breach warnings.
+- Planar reflections now expose selective scope + pass-order contract diagnostics (`planar_capture_before_main_sample_before_post`).
+- RT reflection minimal lane now exposes single/multi-bounce intent + fallback-chain diagnostics (`rt->ssr->probe` vs `ssr->probe`).
+- Transparency/refraction path now has an explicit stage gate tied to RT-minimal readiness, with pending warnings for transparent candidates.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

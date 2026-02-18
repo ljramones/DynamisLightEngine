@@ -460,6 +460,31 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionProbeQualitySweepEmitsEnvelopeDiagnostics() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.probeQualityOverlapWarnMaxPairs", "0"),
+                Map.entry("vulkan.reflections.probeQualityBleedRiskWarnMaxPairs", "0"),
+                Map.entry("vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple", "0")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionProbeDiagnosticsScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_QUALITY_SWEEP".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH".equals(w.code())));
+        String sweep = warningMessageByCode(frame, "REFLECTION_PROBE_QUALITY_SWEEP");
+        assertTrue(sweep.contains("configured=3"));
+        assertTrue(sweep.contains("overlapPairs="));
+        assertTrue(sweep.contains("bleedRiskPairs="));
+        var diagnostics = runtime.debugReflectionProbeQualityDiagnostics();
+        assertEquals(3, diagnostics.configuredProbeCount());
+        assertTrue(diagnostics.envelopeBreached());
+        runtime.shutdown();
+    }
+
+    @Test
     void reflectionProbeChurnDiagnosticsRemainAvailableAcrossSceneTransitions() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
@@ -520,6 +545,70 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(riskDiagnostics.emaConfidence() >= 0.0);
         String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
         assertTrue(profileWarning.contains("profile=balanced"));
+        runtime.shutdown();
+    }
+
+    @Test
+    void planarReflectionPathEmitsScopeAndOrderingContracts() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("planar"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_SCOPE_CONTRACT".equals(w.code())));
+        String contract = warningMessageByCode(frame, "REFLECTION_PLANAR_SCOPE_CONTRACT");
+        assertTrue(contract.contains("status=prepass_capture_then_main_sample"));
+        assertTrue(contract.contains("requiredOrder=planar_capture_before_main_sample_before_post"));
+        var diagnostics = runtime.debugReflectionPlanarContractDiagnostics();
+        assertEquals("prepass_capture_then_main_sample", diagnostics.status());
+        assertTrue(diagnostics.scopedMeshEligibleCount() >= 0);
+        assertTrue(diagnostics.scopedMeshExcludedCount() >= 0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void rtReflectionRequestInMockContextUsesFallbackChainDiagnostics() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtMultiBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtDenoiseStrength", "0.71")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("rt_hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_REQUESTED".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PATH_FALLBACK_ACTIVE".equals(w.code())));
+        String rt = warningMessageByCode(frame, "REFLECTION_RT_PATH_REQUESTED");
+        assertTrue(rt.contains("singleBounceEnabled=true"));
+        assertTrue(rt.contains("multiBounceEnabled=true"));
+        assertTrue(rt.contains("denoiseStrength=0.71"));
+        var diagnostics = runtime.debugReflectionRtPathDiagnostics();
+        assertTrue(diagnostics.laneRequested());
+        assertFalse(diagnostics.laneActive());
+        assertEquals("ssr->probe", diagnostics.fallbackChain());
+        runtime.shutdown();
+    }
+
+    @Test
+    void transparentCandidatesEmitStageGateWarningUntilRtLaneIsActive() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validAlphaTestedReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_STAGE_GATE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_REFRACTION_PENDING".equals(w.code())));
+        String gate = warningMessageByCode(frame, "REFLECTION_TRANSPARENCY_STAGE_GATE");
+        assertTrue(gate.contains("status=blocked_until_rt_minimal_stable"));
+        var diagnostics = runtime.debugReflectionTransparencyDiagnostics();
+        assertTrue(diagnostics.transparentCandidateCount() > 0);
+        assertEquals("blocked_until_rt_minimal_stable", diagnostics.stageGateStatus());
+        assertEquals("probe_only", diagnostics.fallbackPath());
         runtime.shutdown();
     }
 
@@ -779,10 +868,15 @@ class VulkanEngineRuntimeIntegrationTest {
 
         String historyPolicy = warningMessageByCode(frame, "REFLECTION_SSR_TAA_HISTORY_POLICY");
         assertTrue(historyPolicy.contains("policy=reflection_region_reject"));
+        assertTrue(historyPolicy.contains("reprojectionPolicy=reflection_space_reject"));
         assertTrue(historyPolicy.contains("rejectSeverityMin=0.0"));
         var diagnostics = runtime.debugReflectionSsrTaaHistoryPolicyDiagnostics();
         assertEquals("reflection_region_reject", diagnostics.policy());
+        assertEquals("reflection_space_reject", diagnostics.reprojectionPolicy());
         assertEquals(99, diagnostics.rejectRiskStreakMin());
+        assertTrue(diagnostics.latestRejectRate() >= 0.0);
+        assertTrue(diagnostics.latestConfidenceMean() >= 0.0);
+        assertTrue(diagnostics.latestDropEvents() >= 0);
         assertTrue(diagnostics.rejectBias() >= 0.0 && diagnostics.rejectBias() <= 1.0);
         assertTrue(diagnostics.confidenceDecay() >= 0.0 && diagnostics.confidenceDecay() <= 1.0);
         runtime.shutdown();
@@ -2500,6 +2594,41 @@ class VulkanEngineRuntimeIntegrationTest {
                 1.0f,
                 null,
                 overrideMode
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(mat),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validAlphaTestedReflectionsScene(String mode) {
+        SceneDescriptor base = validReflectionsScene(mode);
+        MaterialDesc mat = new MaterialDesc(
+                "mat",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0f,
+                true,
+                false,
+                1.0f,
+                1.0f,
+                1.0f,
+                null,
+                ReflectionOverrideMode.AUTO
         );
         return new SceneDescriptor(
                 base.sceneName(),

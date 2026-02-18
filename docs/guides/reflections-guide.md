@@ -99,6 +99,11 @@ PostProcessDesc post = new PostProcessDesc(
 - LOW quality tier disables reflections; MEDIUM applies conservative scaling.
 - Vulkan adaptive reflection trend diagnostics are exposed through runtime API (`EngineRuntime#reflectionAdaptiveTrendSloDiagnostics`) and backend debug accessors.
 - Vulkan now emits an explicit SSR/TAA history policy warning (`REFLECTION_SSR_TAA_HISTORY_POLICY`) describing active reflected-region history strategy (`surface_motion_vectors`, `reflection_region_decay`, `reflection_region_reject`) with thresholds and active reject/decay bias.
+- Vulkan now emits a formal SSR/TAA reprojection policy signal (`surface_motion_vectors`, `reflection_space_bias`, `reflection_space_reject`) in history-policy diagnostics, including disocclusion-driven rejection gates.
+- Vulkan now emits probe quality sweep diagnostics (`REFLECTION_PROBE_QUALITY_SWEEP`) and envelope breach warnings (`REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`) based on overlap/priority analysis of configured probe volumes.
+- Vulkan now emits planar scope/order contracts (`REFLECTION_PLANAR_SCOPE_CONTRACT`) including selective mesh eligibility and required pass order contract.
+- Vulkan now emits RT reflection lane diagnostics (`REFLECTION_RT_PATH_REQUESTED`, `REFLECTION_RT_PATH_FALLBACK_ACTIVE`) with configured single/multi-bounce and fallback chain.
+- Vulkan now emits transparency/refraction stage-gate diagnostics (`REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) until RT-minimal lane is considered active.
 - Warnings are emitted when reflections are active:
   - `REFLECTIONS_BASELINE_ACTIVE`
   - `REFLECTIONS_QUALITY_DEGRADED` (MEDIUM tier)
@@ -107,4 +112,8 @@ PostProcessDesc post = new PostProcessDesc(
   - `REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_FAILED` (fail-only)
   - `REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK` (threshold/cooldown gate)
   - `REFLECTION_SSR_TAA_HISTORY_POLICY` (history-policy mode + bias diagnostics)
+  - `REFLECTION_PROBE_QUALITY_SWEEP` / `REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`
+  - `REFLECTION_PLANAR_SCOPE_CONTRACT`
+  - `REFLECTION_RT_PATH_REQUESTED` / `REFLECTION_RT_PATH_FALLBACK_ACTIVE`
+  - `REFLECTION_TRANSPARENCY_STAGE_GATE` / `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`
 - High-risk/fail adaptive trend warnings now also emit `PerformanceWarningEvent` callbacks in Vulkan for parser-free host/CI alerting.

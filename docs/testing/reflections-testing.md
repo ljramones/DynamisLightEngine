@@ -81,6 +81,25 @@ Current profile tags in parity tests:
 4. SSR/TAA history policy checks
 - Assert `REFLECTION_SSR_TAA_HISTORY_POLICY` emits deterministic mode transitions under controlled thresholds.
 - Validate typed diagnostics (`debugReflectionSsrTaaHistoryPolicyDiagnostics` in Vulkan tests) agree with warning payload fields.
+- Assert disocclusion-driven rejection thresholds trigger `reflection_disocclusion_reject` / `reflection_space_reject` policy when configured.
+
+5. Probe quality sweep checks
+- Assert `REFLECTION_PROBE_QUALITY_SWEEP` always reports overlap/bleed/transition counts for probe-enabled scenes.
+- Assert `REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH` under intentionally strict overlap/bleed thresholds.
+- Validate typed diagnostics (`debugReflectionProbeQualityDiagnostics`) against warning payload.
+
+6. Planar contract checks
+- Assert `REFLECTION_PLANAR_SCOPE_CONTRACT` for planar/hybrid modes reports required ordering contract and selective scope counts.
+- Validate typed diagnostics (`debugReflectionPlanarContractDiagnostics`) match warning payload.
+
+7. RT minimal fallback checks
+- In mock/non-RT contexts, assert `REFLECTION_RT_PATH_REQUESTED` plus `REFLECTION_RT_PATH_FALLBACK_ACTIVE`.
+- Validate typed diagnostics (`debugReflectionRtPathDiagnostics`) expose lane request/active state and fallback chain.
+
+8. Transparency/refraction stage-gate checks
+- For alpha-tested/transparent candidates, assert `REFLECTION_TRANSPARENCY_STAGE_GATE` is emitted.
+- Assert pending warning (`REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) when RT lane is not active.
+- Validate typed diagnostics (`debugReflectionTransparencyDiagnostics`) for candidate count/status/fallback path.
 
 ## Regression Triggers
 
