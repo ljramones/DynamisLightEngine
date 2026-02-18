@@ -96,6 +96,11 @@ Run hybrid reflections demo:
 ./scripts/run_demo_mac.sh --demo=reflections-hybrid --backend=vulkan --mock=false --seconds=10 --quality=high
 ```
 
+Run fog/smoke/post interaction demo:
+```bash
+./scripts/run_demo_mac.sh --demo=fog-smoke-post --backend=vulkan --mock=false --seconds=10 --quality=high
+```
+
 Telemetry outputs:
 - frame-by-frame JSONL (default under `artifacts/demos/`)
 - summary JSON (`*.summary.json`) with averages/p95/event/log counts

@@ -15,28 +15,30 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 - `reflections-ssr-hiz` (graphical SSR + Hi-Z lane)
 - `reflections-planar` (graphical planar reflection lane)
 - `reflections-hybrid` (graphical hybrid reflection lane)
+- `fog-smoke-post` (graphical fog/smoke/post interaction lane)
 - `aa-matrix` (graphical AA configuration/telemetry)
 
-Current count: `12` demos (`12` graphical)
+Current count: `13` demos (`13` graphical)
 
 ## Target Demo Set
 
-Target count: `16` demos (`12` graphical, `4` programmatic/CLI-focused)
+Target count: `17` demos (`13` graphical, `4` programmatic/CLI-focused)
 
 ### Graphical Demos (Priority)
 
 1. `hello-triangle`
 2. `material-baseline` (PBR roughness/metalness sweep)
 3. `lights-local-array` (multi point/spot budgets and attenuation)
-4. `shadow-cascade-debug` (cascade splits, bias tuning lanes)
-5. `shadow-local-atlas` (local shadow budget and atlas pressure)
-6. `shadow-quality-matrix` (PCF/quality-tier comparison)
-7. `aa-matrix` (TAA/TUAA/TSR/SMAA/FXAA profiles)
-8. `aa-motion-stress` (fast pan, thin geo, alpha foliage)
-9. `reflections-ssr-hiz` (SSR + Hi-Z behavior)
-10. `reflections-planar` (planar reflection path)
-11. `reflections-hybrid` (hybrid fallback chain)
-12. `fog-smoke-post` (fog/smoke/post-process interaction)
+4. `shadow-cascade-baseline` (clean cascade baseline lane)
+5. `shadow-cascade-debug` (cascade splits, bias tuning lanes)
+6. `shadow-local-atlas` (local shadow budget and atlas pressure)
+7. `shadow-quality-matrix` (PCF/quality-tier comparison)
+8. `aa-matrix` (TAA/TUAA/TSR/SMAA/FXAA profiles)
+9. `aa-motion-stress` (fast pan, thin geo, alpha foliage)
+10. `reflections-ssr-hiz` (SSR + Hi-Z behavior)
+11. `reflections-planar` (planar reflection path)
+12. `reflections-hybrid` (hybrid fallback chain)
+13. `fog-smoke-post` (fog/smoke/post-process interaction)
 
 ### Programmatic/CLI Demos
 

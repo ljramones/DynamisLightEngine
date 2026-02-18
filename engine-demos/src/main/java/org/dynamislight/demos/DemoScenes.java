@@ -875,6 +875,93 @@ final class DemoScenes {
         );
     }
 
+    static SceneDescriptor fogSmokePostScene() {
+        CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 2.0f, 10.5f), new Vec3(0f, 1.0f, -6.5f), 58f, 0.1f, 1000f);
+        List<TransformDesc> transforms = new ArrayList<>();
+        List<MeshDesc> meshes = new ArrayList<>();
+        List<MaterialDesc> materials = new ArrayList<>();
+
+        transforms.add(new TransformDesc("floor", new Vec3(0f, -0.95f, -8.0f), new Vec3(0f, 0f, 0f), new Vec3(11.0f, 0.20f, 16.0f)));
+        meshes.add(new MeshDesc("mesh-floor", "floor", "mat-floor", "meshes/box.glb"));
+        materials.add(new MaterialDesc("mat-floor", new Vec3(0.14f, 0.15f, 0.17f), 0.80f, 0.0f, null, null));
+
+        for (int lane = 0; lane < 3; lane++) {
+            float x = (lane - 1) * 2.2f;
+            for (int step = 0; step < 6; step++) {
+                String id = "fog-" + lane + "-" + step;
+                String transformId = "xform-" + id;
+                String materialId = "mat-" + id;
+                transforms.add(new TransformDesc(
+                        transformId,
+                        new Vec3(x, 0.35f + 0.05f * (step % 2), -2.0f - step * 2.2f),
+                        new Vec3(0f, lane * 18f + step * 13f, 0f),
+                        new Vec3(0.80f, 0.80f, 0.80f)
+                ));
+                meshes.add(new MeshDesc("mesh-" + id, transformId, materialId, "meshes/box.glb"));
+                float depth = step / 5.0f;
+                materials.add(new MaterialDesc(
+                        materialId,
+                        new Vec3(0.30f + 0.25f * depth, 0.34f + 0.20f * (1.0f - depth), 0.40f + 0.20f * lane / 2.0f),
+                        0.24f + 0.20f * depth,
+                        0.15f + 0.10f * lane,
+                        null,
+                        null
+                ));
+            }
+        }
+
+        ShadowDesc directionalShadow = new ShadowDesc(1536, 0.0012f, 5, 3);
+        LightDesc sun = new LightDesc(
+                "sun",
+                new Vec3(0f, 12f, 0f),
+                new Vec3(1f, 0.95f, 0.88f),
+                1.00f,
+                130f,
+                true,
+                directionalShadow
+        );
+        LightDesc emberA = new LightDesc("ember-a", new Vec3(-3.0f, 1.8f, -4.5f), new Vec3(1.0f, 0.45f, 0.30f), 1.05f, 10.0f, false, null);
+        LightDesc emberB = new LightDesc("ember-b", new Vec3(0.0f, 1.8f, -7.5f), new Vec3(1.0f, 0.52f, 0.34f), 1.00f, 9.0f, false, null);
+        LightDesc coolFill = new LightDesc("cool-fill", new Vec3(3.0f, 2.0f, -5.8f), new Vec3(0.36f, 0.60f, 1.0f), 0.78f, 12.0f, false, null);
+
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.06f, 0.08f, 0.10f), 0.26f, null);
+        FogDesc fog = new FogDesc(
+                true,
+                FogMode.HEIGHT_EXPONENTIAL,
+                new Vec3(0.48f, 0.52f, 0.58f),
+                0.34f,
+                0.30f,
+                0.74f,
+                0.10f,
+                1.0f,
+                0.20f
+        );
+        PostProcessDesc post = new PostProcessDesc(
+                true, true, 1.10f, 2.2f,
+                true, 0.75f, 0.95f,
+                true, 0.62f, 1.1f, 0.02f, 1.2f,
+                true, 0.88f,
+                true, 0.82f, false,
+                null,
+                null,
+                null
+        );
+
+        return new SceneDescriptor(
+                "demo-scene-fog-smoke-post",
+                List.of(camera),
+                "main-cam",
+                transforms,
+                meshes,
+                materials,
+                List.of(sun, emberA, emberB, coolFill),
+                environment,
+                fog,
+                List.of(),
+                post
+        );
+    }
+
     static SceneDescriptor sceneWithAa(String aaMode, boolean postEnabled, float blend, float renderScale) {
         CameraDesc camera = new CameraDesc("main-cam", new Vec3(0f, 1.5f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 1000f);
         TransformDesc triangleTransform = new TransformDesc("triangle", new Vec3(0f, 0f, 0f), new Vec3(0f, 0f, 0f), new Vec3(1f, 1f, 1f));
