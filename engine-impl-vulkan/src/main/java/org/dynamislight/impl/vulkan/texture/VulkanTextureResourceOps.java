@@ -25,10 +25,12 @@ import static org.lwjgl.system.MemoryUtil.memAlloc;
 import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.system.MemoryUtil.memFree;
 import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_UNDEFINED;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_2D;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
 import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 import static org.lwjgl.vulkan.VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
@@ -190,6 +192,29 @@ public final class VulkanTextureResourceOps {
             List<VulkanTexturePixelData> layers,
             Context context
     ) throws EngineException {
+        return createLayeredTextureFromPixels(layers, context, VK_IMAGE_VIEW_TYPE_2D_ARRAY, 0);
+    }
+
+    public static VulkanGpuTexture createCubeTextureArrayFromPixels(
+            List<VulkanTexturePixelData> faces,
+            Context context
+    ) throws EngineException {
+        if (faces == null || faces.isEmpty() || (faces.size() % 6) != 0) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "Cube texture array requires a non-empty face list in groups of 6",
+                    false
+            );
+        }
+        return createLayeredTextureFromPixels(faces, context, VK_IMAGE_VIEW_TYPE_CUBE_ARRAY, VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT);
+    }
+
+    private static VulkanGpuTexture createLayeredTextureFromPixels(
+            List<VulkanTexturePixelData> layers,
+            Context context,
+            int viewType,
+            int imageCreateFlags
+    ) throws EngineException {
         if (layers == null || layers.isEmpty()) {
             throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "Texture array requires at least one layer", false);
         }
@@ -241,7 +266,9 @@ public final class VulkanTextureResourceOps {
                         VK10.VK_IMAGE_TILING_OPTIMAL,
                         VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                        layerCount
+                        layerCount,
+                        1,
+                        imageCreateFlags
                 );
                 VulkanMemoryOps.transitionImageLayout(
                         context.device(),
@@ -284,7 +311,7 @@ public final class VulkanTextureResourceOps {
                         imageAlloc.image(),
                         VK10.VK_FORMAT_R8G8B8A8_SRGB,
                         VK_IMAGE_ASPECT_COLOR_BIT,
-                        VK_IMAGE_VIEW_TYPE_2D_ARRAY,
+                        viewType,
                         layerCount
                 );
                 long sampler = createSampler(context.device(), stack);

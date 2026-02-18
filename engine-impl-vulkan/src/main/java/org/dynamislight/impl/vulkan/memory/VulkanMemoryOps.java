@@ -193,8 +193,39 @@ public final class VulkanMemoryOps {
             int arrayLayers,
             int mipLevels
     ) throws EngineException {
+        return createImage(
+                device,
+                physicalDevice,
+                stack,
+                width,
+                height,
+                format,
+                tiling,
+                usage,
+                properties,
+                arrayLayers,
+                mipLevels,
+                0
+        );
+    }
+
+    public static VulkanImageAlloc createImage(
+            VkDevice device,
+            VkPhysicalDevice physicalDevice,
+            MemoryStack stack,
+            int width,
+            int height,
+            int format,
+            int tiling,
+            int usage,
+            int properties,
+            int arrayLayers,
+            int mipLevels,
+            int createFlags
+    ) throws EngineException {
         VkImageCreateInfo imageInfo = VkImageCreateInfo.calloc(stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO)
+                .flags(createFlags)
                 .imageType(VK10.VK_IMAGE_TYPE_2D)
                 .extent(e -> e.width(width).height(height).depth(1))
                 .mipLevels(Math.max(1, mipLevels))

@@ -39,4 +39,19 @@ class VulkanTextureResourceOpsTest {
             MemoryUtil.memFree(b);
         }
     }
+
+    @Test
+    void createCubeTextureArrayFromPixelsRejectsNonMultipleOfSixFaces() {
+        ByteBuffer a = MemoryUtil.memAlloc(4 * 4 * 4);
+        try {
+            VulkanTexturePixelData layer = new VulkanTexturePixelData(a, 4, 4);
+            EngineException ex = assertThrows(
+                    EngineException.class,
+                    () -> VulkanTextureResourceOps.createCubeTextureArrayFromPixels(List.of(layer), null)
+            );
+            assertEquals(EngineErrorCode.INVALID_ARGUMENT, ex.code());
+        } finally {
+            MemoryUtil.memFree(a);
+        }
+    }
 }
