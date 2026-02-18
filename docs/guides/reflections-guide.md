@@ -147,7 +147,7 @@ PostProcessDesc post = new PostProcessDesc(
 ## Planar Limits (Current)
 
 - Scope: production-hardening work is currently Vulkan-first; OpenGL planar parity is not yet the baseline target.
-- Planar perf gate `gpuMsEstimate` is an in-runtime estimate, not a hardware timestamp query.
+- Planar perf gate uses hardware timestamp timing (`gpu_timestamp`) when Vulkan query support is available; otherwise it falls back to frame-estimate timing.
 - `REFLECTION_PLANAR_PERF_GATES` exposes timing-source metadata (`timingSource`, `timestampAvailable`, `requireGpuTimestamp`, `timestampRequirementUnmet`) to make promotion gating explicit.
 - Known unsupported/limited cases:
   - full OpenGL parity for planar selective capture path

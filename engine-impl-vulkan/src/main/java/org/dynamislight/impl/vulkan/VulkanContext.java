@@ -98,6 +98,8 @@ final class VulkanContext {
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
     private String lastGpuTimingSource = "frame_estimate";
+    private double lastPlanarCaptureGpuMs = Double.NaN;
+    private boolean lastPlanarCaptureGpuMsValid;
     private final VulkanSceneResourceState sceneResources = new VulkanSceneResourceState();
     private final VulkanDescriptorRingStats descriptorRingStats = new VulkanDescriptorRingStats();
     private long estimatedGpuMemoryBytes;
@@ -247,8 +249,19 @@ final class VulkanContext {
         promotePreviousModelMatrices();
         updateAaTelemetry();
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
-        lastGpuTimingSource = "frame_estimate";
-        return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, estimatedGpuMemoryBytes);
+        if (!lastPlanarCaptureGpuMsValid) {
+            lastGpuTimingSource = "frame_estimate";
+        }
+        return new VulkanFrameMetrics(
+                cpuMs,
+                cpuMs * 0.7,
+                lastPlanarCaptureGpuMsValid ? lastPlanarCaptureGpuMs : Double.NaN,
+                lastGpuTimingSource,
+                plannedDrawCalls,
+                plannedTriangles,
+                plannedVisibleObjects,
+                estimatedGpuMemoryBytes
+        );
     }
 
     String gpuTimingSource() {
@@ -938,6 +951,7 @@ final class VulkanContext {
     }
 
     void shutdown() {
+        destroyPlanarTimestampResources();
         var result = VulkanLifecycleOrchestrator.shutdown(
                 new VulkanLifecycleOrchestrator.ShutdownRequest(
                         backendResources,
@@ -1124,6 +1138,98 @@ final class VulkanContext {
                 )
         );
         VulkanLifecycleOrchestrator.applyFrameSyncState(backendResources, state);
+        createPlanarTimestampResources(stack);
+    }
+
+    private void createPlanarTimestampResources(MemoryStack stack) throws EngineException {
+        destroyPlanarTimestampResources();
+        backendResources.planarTimestampSupported = false;
+        backendResources.timestampPeriodNs = 0.0f;
+        lastGpuTimingSource = "frame_estimate";
+        lastPlanarCaptureGpuMs = Double.NaN;
+        lastPlanarCaptureGpuMsValid = false;
+        if (backendResources.device == null
+                || backendResources.physicalDevice == null
+                || backendResources.graphicsQueueFamilyIndex < 0) {
+            return;
+        }
+        var pQueueFamilyCount = stack.ints(0);
+        vkGetPhysicalDeviceQueueFamilyProperties(backendResources.physicalDevice, pQueueFamilyCount, null);
+        int queueFamilyCount = pQueueFamilyCount.get(0);
+        if (queueFamilyCount <= 0 || backendResources.graphicsQueueFamilyIndex >= queueFamilyCount) {
+            return;
+        }
+        var queueFamilies = VkQueueFamilyProperties.calloc(queueFamilyCount, stack);
+        vkGetPhysicalDeviceQueueFamilyProperties(backendResources.physicalDevice, pQueueFamilyCount, queueFamilies);
+        if (queueFamilies.get(backendResources.graphicsQueueFamilyIndex).timestampValidBits() <= 0) {
+            return;
+        }
+        VkPhysicalDeviceProperties properties = VkPhysicalDeviceProperties.calloc(stack);
+        vkGetPhysicalDeviceProperties(backendResources.physicalDevice, properties);
+        backendResources.timestampPeriodNs = Math.max(0.0f, properties.limits().timestampPeriod());
+        int queryCount = Math.max(1, framesInFlight) * 2;
+        var queryInfo = VkQueryPoolCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO)
+                .queryType(VK_QUERY_TYPE_TIMESTAMP)
+                .queryCount(queryCount);
+        var pQueryPool = stack.mallocLong(1);
+        int createResult = vkCreateQueryPool(backendResources.device, queryInfo, null, pQueryPool);
+        if (createResult != VK_SUCCESS || pQueryPool.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateQueryPool(planar) failed: " + createResult, false);
+        }
+        backendResources.planarTimestampQueryPool = pQueryPool.get(0);
+        backendResources.planarTimestampSupported = true;
+    }
+
+    private void destroyPlanarTimestampResources() {
+        if (backendResources.device != null && backendResources.planarTimestampQueryPool != VK_NULL_HANDLE) {
+            vkDestroyQueryPool(backendResources.device, backendResources.planarTimestampQueryPool, null);
+        }
+        backendResources.planarTimestampQueryPool = VK_NULL_HANDLE;
+        backendResources.planarTimestampSupported = false;
+        backendResources.timestampPeriodNs = 0.0f;
+    }
+
+    private void samplePlanarCaptureTimingForFrame(MemoryStack stack, int frameIdx) throws EngineException {
+        lastPlanarCaptureGpuMs = Double.NaN;
+        lastPlanarCaptureGpuMsValid = false;
+        lastGpuTimingSource = "frame_estimate";
+        if (!backendResources.planarTimestampSupported
+                || backendResources.planarTimestampQueryPool == VK_NULL_HANDLE
+                || backendResources.device == null) {
+            return;
+        }
+        int queryStart = planarTimestampQueryStartIndex(frameIdx);
+        if (queryStart < 0) {
+            return;
+        }
+        var data = stack.mallocLong(4);
+        int queryResult = vkGetQueryPoolResults(
+                backendResources.device,
+                backendResources.planarTimestampQueryPool,
+                queryStart,
+                2,
+                data,
+                2L * Long.BYTES,
+                VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT
+        );
+        if (queryResult == VK_NOT_READY) {
+            return;
+        }
+        if (queryResult != VK_SUCCESS) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkGetQueryPoolResults(planar) failed: " + queryResult, false);
+        }
+        long startTimestamp = data.get(0);
+        long startAvailable = data.get(1);
+        long endTimestamp = data.get(2);
+        long endAvailable = data.get(3);
+        if (startAvailable != 0L && endAvailable != 0L && endTimestamp >= startTimestamp) {
+            double deltaTicks = (double) (endTimestamp - startTimestamp);
+            double periodNs = Math.max(0.0, backendResources.timestampPeriodNs);
+            lastPlanarCaptureGpuMs = (deltaTicks * periodNs) / 1_000_000.0;
+            lastPlanarCaptureGpuMsValid = true;
+            lastGpuTimingSource = "gpu_timestamp";
+        }
     }
 
     private int acquireNextImage(MemoryStack stack, int frameIdx) throws EngineException {
@@ -1138,7 +1244,8 @@ final class VulkanContext {
                         backendResources.imageAvailableSemaphores[frameIdx],
                         backendResources.renderFinishedSemaphores[frameIdx],
                         backendResources.renderFences[frameIdx],
-                        imageIndex -> recordCommandBuffer(stack, commandBuffer, imageIndex, frameIdx)
+                        imageIndex -> recordCommandBuffer(stack, commandBuffer, imageIndex, frameIdx),
+                        () -> samplePlanarCaptureTimingForFrame(stack, frameIdx)
                 )
         );
     }
@@ -1187,6 +1294,9 @@ final class VulkanContext {
                         backendResources.shadowMomentMipLevels,
                         renderState.shadowMomentPipelineRequested,
                         renderState.shadowMomentInitialized,
+                        backendResources.planarTimestampQueryPool,
+                        planarTimestampQueryStartIndex(frameIdx),
+                        planarTimestampQueryEndIndex(frameIdx),
                         renderState.postOffscreenActive,
                         renderState.postIntermediateInitialized,
                         renderState.tonemapEnabled,
@@ -1241,6 +1351,19 @@ final class VulkanContext {
                         this::vkFailure
                 )
         );
+    }
+
+    private int planarTimestampQueryStartIndex(int frameIdx) {
+        if (backendResources.planarTimestampQueryPool == VK_NULL_HANDLE || framesInFlight <= 0) {
+            return -1;
+        }
+        int safeFrame = Math.max(0, Math.min(Math.max(0, framesInFlight - 1), frameIdx));
+        return safeFrame * 2;
+    }
+
+    private int planarTimestampQueryEndIndex(int frameIdx) {
+        int start = planarTimestampQueryStartIndex(frameIdx);
+        return start < 0 ? -1 : start + 1;
     }
 
     private void recreateSwapchainFromWindow() throws EngineException {

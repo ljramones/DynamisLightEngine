@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 16:20 ET — Added strict planar perf timing-source gate (`planarPerfRequireGpuTimestamp`) with diagnostics/CI assertions, so Planar promotion can explicitly fail until real GPU timestamp timing is available.
+- Latest reflection update: 2026-02-18 16:25 ET — Wired Vulkan planar capture timestamp query timing (`gpu_timestamp`) into runtime perf diagnostics/gates while retaining strict timing-source promotion control (`planarPerfRequireGpuTimestamp`).
 
 Status legend:
 
@@ -102,7 +102,7 @@ Reflection notes:
 - OpenGL parity for probe slot/array path is not yet implemented.
 - Vulkan is the implementation target for current planar hardening; wishlist `In` promotion for planar should be interpreted as Vulkan-path scoped until explicit OpenGL parity lands.
 - Planar maturity now has an explicit exit checklist with pass/fail criteria in `docs/planar-in-exit-criteria.md`.
-- Planar perf diagnostics now report timing-source state (`gpu_timestamp` vs `frame_estimate`) and can be configured to require timestamp timing for `In` promotion gating.
+- Planar perf diagnostics now report timing-source state (`gpu_timestamp` vs `frame_estimate`), use Vulkan timestamp query timing when available, and can be configured to require timestamp timing for `In` promotion gating.
 
 ## Anti-Aliasing
 

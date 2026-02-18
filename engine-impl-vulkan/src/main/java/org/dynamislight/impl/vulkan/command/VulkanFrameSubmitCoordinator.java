@@ -20,13 +20,19 @@ public final class VulkanFrameSubmitCoordinator {
                 in.imageAvailableSemaphore(),
                 in.renderFinishedSemaphore(),
                 in.renderFence(),
-                imageIndex -> in.frameRecorder().record(imageIndex)
+                imageIndex -> in.frameRecorder().record(imageIndex),
+                () -> in.fenceReadyHook().onFenceReady()
         );
     }
 
     @FunctionalInterface
     public interface FrameRecorder {
         void record(int imageIndex) throws EngineException;
+    }
+
+    @FunctionalInterface
+    public interface FenceReadyHook {
+        void onFenceReady() throws EngineException;
     }
 
     public record Inputs(
@@ -38,7 +44,8 @@ public final class VulkanFrameSubmitCoordinator {
             long imageAvailableSemaphore,
             long renderFinishedSemaphore,
             long renderFence,
-            FrameRecorder frameRecorder
+            FrameRecorder frameRecorder,
+            FenceReadyHook fenceReadyHook
     ) {
     }
 }

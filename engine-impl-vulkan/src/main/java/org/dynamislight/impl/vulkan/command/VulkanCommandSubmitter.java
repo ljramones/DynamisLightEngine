@@ -32,6 +32,11 @@ public final class VulkanCommandSubmitter {
         void record(int imageIndex) throws EngineException;
     }
 
+    @FunctionalInterface
+    public interface FenceReadyHook {
+        void onFenceReady() throws EngineException;
+    }
+
     public static int acquireRecordSubmitPresent(
             MemoryStack stack,
             VkDevice device,
@@ -41,7 +46,8 @@ public final class VulkanCommandSubmitter {
             long imageAvailableSemaphore,
             long renderFinishedSemaphore,
             long renderFence,
-            FrameRecorder recorder
+            FrameRecorder recorder,
+            FenceReadyHook fenceReadyHook
     ) throws EngineException {
         var pImageIndex = stack.ints(0);
         int acquireResult = vkAcquireNextImageKHR(device, swapchain, Long.MAX_VALUE, imageAvailableSemaphore, VK10.VK_NULL_HANDLE, pImageIndex);
@@ -50,6 +56,9 @@ public final class VulkanCommandSubmitter {
             int waitResult = vkWaitForFences(device, stack.longs(renderFence), true, Long.MAX_VALUE);
             if (waitResult != VK_SUCCESS) {
                 throw vkFailure("vkWaitForFences", waitResult);
+            }
+            if (fenceReadyHook != null) {
+                fenceReadyHook.onFenceReady();
             }
             int resetFenceResult = vkResetFences(device, stack.longs(renderFence));
             if (resetFenceResult != VK_SUCCESS) {

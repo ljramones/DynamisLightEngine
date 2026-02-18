@@ -29,6 +29,7 @@ import static org.lwjgl.vulkan.VK10.VK_INDEX_TYPE_UINT32;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_BIND_POINT_GRAPHICS;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -51,6 +52,8 @@ import static org.lwjgl.vulkan.VK10.vkCmdDrawIndexed;
 import static org.lwjgl.vulkan.VK10.vkCmdEndRenderPass;
 import static org.lwjgl.vulkan.VK10.vkCmdPipelineBarrier;
 import static org.lwjgl.vulkan.VK10.vkCmdPushConstants;
+import static org.lwjgl.vulkan.VK10.vkCmdResetQueryPool;
+import static org.lwjgl.vulkan.VK10.vkCmdWriteTimestamp;
 import static org.lwjgl.vulkan.VK10.vkEndCommandBuffer;
 
 public final class VulkanRenderCommandRecorder {
@@ -84,6 +87,17 @@ public final class VulkanRenderCommandRecorder {
             List<MeshDrawCmd> meshes,
             IntUnaryOperator dynamicUniformOffset
     ) {
+        if (in.planarTimestampQueryPool() != VK_NULL_HANDLE
+                && in.planarTimestampQueryStartIndex() >= 0
+                && in.planarTimestampQueryEndIndex() >= in.planarTimestampQueryStartIndex()) {
+            vkCmdResetQueryPool(
+                    commandBuffer,
+                    in.planarTimestampQueryPool(),
+                    in.planarTimestampQueryStartIndex(),
+                    (in.planarTimestampQueryEndIndex() - in.planarTimestampQueryStartIndex()) + 1
+            );
+        }
+
         if (in.shadowMomentPipelineRequested()
                 && in.shadowMomentImage() != VK_NULL_HANDLE) {
             int mipLevels = Math.max(1, in.shadowMomentMipLevels());
@@ -369,6 +383,16 @@ public final class VulkanRenderCommandRecorder {
                 && planarSelectiveRequested
                 && planarGeometryCaptureRequested
                 && in.planarCaptureImage() != VK_NULL_HANDLE) {
+            if (in.planarTimestampQueryPool() != VK_NULL_HANDLE
+                    && in.planarTimestampQueryStartIndex() >= 0
+                    && in.planarTimestampQueryEndIndex() >= in.planarTimestampQueryStartIndex()) {
+                vkCmdWriteTimestamp(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                        in.planarTimestampQueryPool(),
+                        in.planarTimestampQueryStartIndex()
+                );
+            }
             recordMainRenderPass(
                     stack,
                     commandBuffer,
@@ -378,6 +402,15 @@ public final class VulkanRenderCommandRecorder {
                     true
             );
             copyPlanarCaptureImage(stack, commandBuffer, in);
+            if (in.planarTimestampQueryPool() != VK_NULL_HANDLE
+                    && in.planarTimestampQueryEndIndex() >= in.planarTimestampQueryStartIndex()) {
+                vkCmdWriteTimestamp(
+                        commandBuffer,
+                        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                        in.planarTimestampQueryPool(),
+                        in.planarTimestampQueryEndIndex()
+                );
+            }
         }
         recordMainRenderPass(
                 stack,
@@ -1230,6 +1263,9 @@ public final class VulkanRenderCommandRecorder {
             boolean shadowMomentPipelineRequested,
             boolean shadowMomentInitialized,
             int reflectionsMode,
+            long planarTimestampQueryPool,
+            int planarTimestampQueryStartIndex,
+            int planarTimestampQueryEndIndex,
             boolean taaHistoryInitialized,
             long planarCaptureImage,
             long swapchainImageForCapture,

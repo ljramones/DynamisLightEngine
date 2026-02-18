@@ -62,6 +62,9 @@ public final class VulkanBackendResources {
     public long[] imageAvailableSemaphores = new long[0];
     public long[] renderFinishedSemaphores = new long[0];
     public long[] renderFences = new long[0];
+    public long planarTimestampQueryPool = VK_NULL_HANDLE;
+    public boolean planarTimestampSupported;
+    public float timestampPeriodNs;
     public int currentFrame;
 
     public long offscreenColorImage = VK_NULL_HANDLE;

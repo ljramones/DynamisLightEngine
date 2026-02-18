@@ -36,8 +36,10 @@ Planar reflections are `In` when all items below are green in CI and documented 
   Evidence: `VulkanEngineRuntimeIntegrationTest#planarSceneCoverageMatrixEmitsContractsForInteriorOutdoorMultiAndDynamic`.
 - [x] CI lockdown lane exists for planar contract/perf/stability checks.
   Evidence: `scripts/planar_ci_lockdown_full.sh`, `.github/workflows/ci.yml`.
-- [ ] Real-GPU planar pass timing gate (timestamp-based) replaces estimate-based gate.
-  Remaining: wire Vulkan timestamp query path for planar pass and calibrate thresholds.
+- [x] Real-GPU planar pass timing path is wired (timestamp query when supported, estimate fallback otherwise).
+  Evidence: Vulkan planar capture timestamps are recorded via query pool and surfaced as `timingSource=gpu_timestamp` when available.
+- [ ] Timestamp caps/thresholds calibrated and locked from guarded real-Vulkan content runs.
+  Remaining: promote per-profile/tier planar GPU-ms envelopes from real content baselines.
 - [ ] Artifact gates are locked from real-content baseline and enforced fail-on-breach.
   Remaining: promote/lock thresholds from real runs for planar-specific stress scenes.
 - [ ] Production signoff across real content set (long-run + camera/plane stress).
@@ -70,4 +72,4 @@ mvn -pl engine-host-sample -am test \
 
 ## Status Note
 
-As of 2026-02-18, Vulkan planar is advanced `Partial` with strong contracts/gates and CI coverage, but not yet `In` due to real-GPU timing calibration and full production-content artifact lock-down.
+As of 2026-02-18, Vulkan planar is advanced `Partial` with strong contracts/gates, CI coverage, and wired timestamp timing path, but not yet `In` due to threshold calibration and full production-content artifact lock-down.

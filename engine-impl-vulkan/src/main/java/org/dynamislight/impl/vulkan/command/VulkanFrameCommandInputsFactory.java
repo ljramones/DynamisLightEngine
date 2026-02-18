@@ -61,6 +61,9 @@ public final class VulkanFrameCommandInputsFactory {
                 inputs.taaSharpenStrength(),
                 inputs.reflectionsEnabled(),
                 inputs.reflectionsMode(),
+                inputs.planarTimestampQueryPool(),
+                inputs.planarTimestampQueryStartIndex(),
+                inputs.planarTimestampQueryEndIndex(),
                 inputs.reflectionsSsrStrength(),
                 inputs.reflectionsSsrMaxRoughness(),
                 inputs.reflectionsSsrStepScale(),
@@ -145,6 +148,9 @@ public final class VulkanFrameCommandInputsFactory {
                 post.taaSharpenStrength(),
                 post.reflectionsEnabled(),
                 post.reflectionsMode(),
+                common.planarTimestampQueryPool(),
+                common.planarTimestampQueryStartIndex(),
+                common.planarTimestampQueryEndIndex(),
                 post.reflectionsSsrStrength(),
                 post.reflectionsSsrMaxRoughness(),
                 post.reflectionsSsrStepScale(),
@@ -194,6 +200,9 @@ public final class VulkanFrameCommandInputsFactory {
             int shadowMomentMipLevels,
             boolean shadowMomentPipelineRequested,
             boolean shadowMomentInitialized,
+            long planarTimestampQueryPool,
+            int planarTimestampQueryStartIndex,
+            int planarTimestampQueryEndIndex,
             boolean postOffscreenActive,
             boolean postIntermediateInitialized,
             boolean tonemapEnabled,
@@ -270,7 +279,10 @@ public final class VulkanFrameCommandInputsFactory {
             long shadowMomentImage,
             int shadowMomentMipLevels,
             boolean shadowMomentPipelineRequested,
-            boolean shadowMomentInitialized
+            boolean shadowMomentInitialized,
+            long planarTimestampQueryPool,
+            int planarTimestampQueryStartIndex,
+            int planarTimestampQueryEndIndex
     ) {
     }
 
