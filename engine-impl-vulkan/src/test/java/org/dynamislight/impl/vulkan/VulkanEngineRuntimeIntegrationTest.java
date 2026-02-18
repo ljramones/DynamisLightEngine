@@ -745,6 +745,30 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionAdaptiveTrendSloDiagnosticsAreAvailableViaBackendAgnosticRuntimeApi() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        runtime.render();
+        runtime.render();
+        var apiDiagnostics = runtime.reflectionAdaptiveTrendSloDiagnostics();
+        var backendDiagnostics = runtime.debugReflectionAdaptiveTrendSloDiagnostics();
+
+        assertFalse("unavailable".equals(apiDiagnostics.status()));
+        assertEquals(backendDiagnostics.status(), apiDiagnostics.status());
+        assertEquals(backendDiagnostics.reason(), apiDiagnostics.reason());
+        assertEquals(backendDiagnostics.failed(), apiDiagnostics.failed());
+        assertEquals(backendDiagnostics.windowSamples(), apiDiagnostics.windowSamples());
+        assertEquals(backendDiagnostics.meanSeverity(), apiDiagnostics.meanSeverity(), 1e-6);
+        assertEquals(backendDiagnostics.highRatio(), apiDiagnostics.highRatio(), 1e-6);
+        assertEquals(backendDiagnostics.sloMeanSeverityMax(), apiDiagnostics.sloMeanSeverityMax(), 1e-6);
+        assertEquals(backendDiagnostics.sloHighRatioMax(), apiDiagnostics.sloHighRatioMax(), 1e-6);
+        assertEquals(backendDiagnostics.sloMinSamples(), apiDiagnostics.sloMinSamples());
+        runtime.shutdown();
+    }
+
+    @Test
     void reflectionBlessedProfilesProduceExpectedTrendEnvelopes() throws Exception {
         Map<String, String> forcedRisk = Map.ofEntries(
                 Map.entry("vulkan.mockContext", "true"),

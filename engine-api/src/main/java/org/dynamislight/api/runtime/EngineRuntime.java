@@ -159,6 +159,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic reflection adaptive-trend SLO diagnostics.
+     *
+     * Backends that do not expose reflection SLO diagnostics return
+     * {@link ReflectionAdaptiveTrendSloDiagnostics#unavailable()}.
+     *
+     * @return current reflection adaptive-trend SLO diagnostics snapshot.
+     */
+    default ReflectionAdaptiveTrendSloDiagnostics reflectionAdaptiveTrendSloDiagnostics() {
+        return ReflectionAdaptiveTrendSloDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

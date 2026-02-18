@@ -634,6 +634,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
+    protected org.dynamislight.api.runtime.ReflectionAdaptiveTrendSloDiagnostics backendReflectionAdaptiveTrendSloDiagnostics() {
+        ReflectionAdaptiveTrendSloDiagnostics diagnostics = debugReflectionAdaptiveTrendSloDiagnostics();
+        return new org.dynamislight.api.runtime.ReflectionAdaptiveTrendSloDiagnostics(
+                diagnostics.status(),
+                diagnostics.reason(),
+                diagnostics.failed(),
+                diagnostics.windowSamples(),
+                diagnostics.meanSeverity(),
+                diagnostics.highRatio(),
+                diagnostics.sloMeanSeverityMax(),
+                diagnostics.sloHighRatioMax(),
+                diagnostics.sloMinSamples()
+        );
+    }
+
+    @Override
     protected java.util.List<EngineWarning> frameWarnings() {
         java.util.List<EngineWarning> warnings = new java.util.ArrayList<>(warningPolicy.frameWarnings(
                 warningState,

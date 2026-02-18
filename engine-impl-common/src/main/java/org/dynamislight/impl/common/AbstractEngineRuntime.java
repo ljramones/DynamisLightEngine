@@ -31,6 +31,7 @@ import org.dynamislight.api.error.EngineErrorReport;
 import org.dynamislight.api.resource.EngineResourceService;
 import org.dynamislight.api.runtime.EngineRuntime;
 import org.dynamislight.api.runtime.EngineStats;
+import org.dynamislight.api.runtime.ReflectionAdaptiveTrendSloDiagnostics;
 import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.EngineEvent;
@@ -266,6 +267,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public ReflectionAdaptiveTrendSloDiagnostics reflectionAdaptiveTrendSloDiagnostics() {
+        return backendReflectionAdaptiveTrendSloDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -319,6 +325,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected EngineEvent additionalTelemetryEvent(long frameIndex) {
         return null;
+    }
+
+    protected ReflectionAdaptiveTrendSloDiagnostics backendReflectionAdaptiveTrendSloDiagnostics() {
+        return ReflectionAdaptiveTrendSloDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(
