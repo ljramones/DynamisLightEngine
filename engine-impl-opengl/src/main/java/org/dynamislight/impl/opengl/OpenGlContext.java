@@ -1454,7 +1454,7 @@ final class OpenGlContext {
         syncFramebufferSizeFromWindow();
         frameCounter++;
         updateTemporalJitterState();
-        glViewport(0, 0, sceneRenderWidth, sceneRenderHeight);
+        glViewport(0, 0, activeRenderWidth(), activeRenderHeight());
         if (gpuTimerQuerySupported) {
             glBeginQuery(GL_TIME_ELAPSED, gpuTimeQueryId);
         }
@@ -1471,7 +1471,7 @@ final class OpenGlContext {
     }
 
     void renderGeometryPass() {
-        glViewport(0, 0, sceneRenderWidth, sceneRenderHeight);
+        glViewport(0, 0, activeRenderWidth(), activeRenderHeight());
         glUseProgram(programId);
         applyFogUniforms();
         applySmokeUniforms();
@@ -2801,9 +2801,22 @@ final class OpenGlContext {
     }
 
     private void updateSceneRenderResolution() {
+        if (!useDedicatedPostPass()) {
+            sceneRenderWidth = Math.max(1, width);
+            sceneRenderHeight = Math.max(1, height);
+            return;
+        }
         float scale = taaEnabled ? taaRenderScale : 1.0f;
         sceneRenderWidth = Math.max(1, Math.round(Math.max(1, width) * scale));
         sceneRenderHeight = Math.max(1, Math.round(Math.max(1, height) * scale));
+    }
+
+    private int activeRenderWidth() {
+        return useDedicatedPostPass() ? sceneRenderWidth : width;
+    }
+
+    private int activeRenderHeight() {
+        return useDedicatedPostPass() ? sceneRenderHeight : height;
     }
 
     private void updateTemporalJitterState() {
