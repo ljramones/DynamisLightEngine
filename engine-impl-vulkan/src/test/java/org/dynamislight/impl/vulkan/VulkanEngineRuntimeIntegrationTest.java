@@ -757,6 +757,34 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void planarPerfGateBreachEmitsWhenGpuTimestampIsRequiredButUnavailable() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.planarPerfRequireGpuTimestamp", "true"),
+                Map.entry("vulkan.reflections.planarPerfWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.planarPerfWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("planar"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_PERF_GATES".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PLANAR_PERF_GATES_BREACH".equals(w.code())));
+        String perf = warningMessageByCode(frame, "REFLECTION_PLANAR_PERF_GATES");
+        assertTrue(perf.contains("timingSource=frame_estimate"));
+        assertTrue(perf.contains("requireGpuTimestamp=true"));
+        assertTrue(perf.contains("timestampRequirementUnmet=true"));
+        var diagnostics = runtime.debugReflectionPlanarPerfDiagnostics();
+        assertEquals("frame_estimate", diagnostics.timingSource());
+        assertEquals(false, diagnostics.timestampAvailable());
+        assertEquals(true, diagnostics.requireGpuTimestamp());
+        assertEquals(true, diagnostics.timestampRequirementUnmet());
+        assertTrue(diagnostics.breachedLastFrame());
+        runtime.shutdown();
+    }
+
+    @Test
     void planarScopePolicyAllowsProbeOnlyWhenConfigured() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(

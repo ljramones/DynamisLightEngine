@@ -293,6 +293,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double reflectionPlanarPerfMemoryBudgetMb = 32.0;
     private int reflectionPlanarPerfWarnMinFrames = 3;
     private int reflectionPlanarPerfWarnCooldownFrames = 120;
+    private boolean reflectionPlanarPerfRequireGpuTimestamp;
     private int reflectionPlanarPerfHighStreak;
     private int reflectionPlanarPerfWarnCooldownRemaining;
     private boolean reflectionPlanarPerfBreachedLastFrame;
@@ -301,6 +302,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double reflectionPlanarPerfLastDrawInflation = 1.0;
     private long reflectionPlanarPerfLastMemoryBytes;
     private long reflectionPlanarPerfLastMemoryBudgetBytes;
+    private String reflectionPlanarPerfLastTimingSource = "frame_estimate";
+    private boolean reflectionPlanarPerfLastTimestampAvailable;
+    private boolean reflectionPlanarPerfLastTimestampRequirementUnmet;
     private double lastFrameGpuMs;
     private long lastFrameDrawCalls = 1L;
     private double reflectionSsrTaaLatestRejectRate;
@@ -450,6 +454,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionPlanarPerfMemoryBudgetMb = options.reflectionPlanarPerfMemoryBudgetMb();
         reflectionPlanarPerfWarnMinFrames = options.reflectionPlanarPerfWarnMinFrames();
         reflectionPlanarPerfWarnCooldownFrames = options.reflectionPlanarPerfWarnCooldownFrames();
+        reflectionPlanarPerfRequireGpuTimestamp = options.reflectionPlanarPerfRequireGpuTimestamp();
         reflectionRtSingleBounceEnabled = options.reflectionRtSingleBounceEnabled();
         reflectionRtMultiBounceEnabled = options.reflectionRtMultiBounceEnabled();
         reflectionRtDedicatedDenoisePipelineEnabled = options.reflectionRtDedicatedDenoisePipelineEnabled();
@@ -485,6 +490,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionPlanarPerfLastDrawInflation = 1.0;
         reflectionPlanarPerfLastMemoryBytes = 0L;
         reflectionPlanarPerfLastMemoryBudgetBytes = 0L;
+        reflectionPlanarPerfLastTimingSource = "frame_estimate";
+        reflectionPlanarPerfLastTimestampAvailable = false;
+        reflectionPlanarPerfLastTimestampRequirementUnmet = false;
         context.configureReflectionProbeStreaming(
                 reflectionProbeUpdateCadenceFrames,
                 reflectionProbeMaxVisible,
@@ -1045,7 +1053,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 }
                 reflectionPlanarPrevPlaneHeight = currentPlaneHeight;
                 double planarGpuMsCap = planarPerfGpuMsCapForTier(qualityTier);
-                double planarGpuMsEstimate = Math.max(0.0, lastFrameGpuMs) * (0.28 + 0.52 * planarCoverageRatio);
+                String planarTimingSource = context.gpuTimingSource();
+                boolean planarTimestampAvailable = "gpu_timestamp".equalsIgnoreCase(planarTimingSource);
+                boolean planarTimestampRequirementUnmet = reflectionPlanarPerfRequireGpuTimestamp && !planarTimestampAvailable;
+                double planarGpuMsEstimate = planarTimestampAvailable
+                        ? Math.max(0.0, lastFrameGpuMs)
+                        : Math.max(0.0, lastFrameGpuMs) * (0.28 + 0.52 * planarCoverageRatio);
                 double planarDrawInflation = 1.0 + planarCoverageRatio;
                 long planarMemoryEstimate = (long) Math.max(0.0, lastFrameGpuMs * 0.0);
                 long planarBudgetBytes = (long) (reflectionPlanarPerfMemoryBudgetMb * 1024.0 * 1024.0);
@@ -1053,7 +1066,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 planarMemoryEstimate = (long) Math.max(0.0, viewportWidth) * Math.max(0L, viewportHeight) * 4L;
                 boolean planarPerfRisk = planarGpuMsEstimate > planarGpuMsCap
                         || planarDrawInflation > reflectionPlanarPerfDrawInflationWarnMax
-                        || planarMemoryEstimate > planarBudgetBytes;
+                        || planarMemoryEstimate > planarBudgetBytes
+                        || planarTimestampRequirementUnmet;
                 if (planarPerfRisk) {
                     reflectionPlanarPerfHighStreak++;
                 } else {
@@ -1075,11 +1089,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionPlanarPerfLastDrawInflation = planarDrawInflation;
                 reflectionPlanarPerfLastMemoryBytes = planarMemoryEstimate;
                 reflectionPlanarPerfLastMemoryBudgetBytes = planarBudgetBytes;
+                reflectionPlanarPerfLastTimingSource = planarTimingSource;
+                reflectionPlanarPerfLastTimestampAvailable = planarTimestampAvailable;
+                reflectionPlanarPerfLastTimestampRequirementUnmet = planarTimestampRequirementUnmet;
                 warnings.add(new EngineWarning(
                         "REFLECTION_PLANAR_PERF_GATES",
                         "Planar perf gates (risk=" + planarPerfRisk
                                 + ", gpuMsEstimate=" + planarGpuMsEstimate
                                 + ", gpuMsCap=" + planarGpuMsCap
+                                + ", timingSource=" + planarTimingSource
+                                + ", timestampAvailable=" + planarTimestampAvailable
+                                + ", requireGpuTimestamp=" + reflectionPlanarPerfRequireGpuTimestamp
+                                + ", timestampRequirementUnmet=" + planarTimestampRequirementUnmet
                                 + ", drawInflation=" + planarDrawInflation
                                 + ", drawInflationWarnMax=" + reflectionPlanarPerfDrawInflationWarnMax
                                 + ", memoryBytes=" + planarMemoryEstimate
@@ -1096,6 +1117,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             "REFLECTION_PLANAR_PERF_GATES_BREACH",
                             "Planar perf gates breached (gpuMsEstimate=" + planarGpuMsEstimate
                                     + ", gpuMsCap=" + planarGpuMsCap
+                                    + ", timingSource=" + planarTimingSource
+                                    + ", timestampRequirementUnmet=" + planarTimestampRequirementUnmet
                                     + ", drawInflation=" + planarDrawInflation
                                     + ", memoryBytes=" + planarMemoryEstimate
                                     + ", memoryBudgetBytes=" + planarBudgetBytes + ")"
@@ -1114,6 +1137,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionPlanarPerfLastDrawInflation = 1.0;
                 reflectionPlanarPerfLastMemoryBytes = 0L;
                 reflectionPlanarPerfLastMemoryBudgetBytes = (long) (reflectionPlanarPerfMemoryBudgetMb * 1024.0 * 1024.0);
+                reflectionPlanarPerfLastTimingSource = context.gpuTimingSource();
+                reflectionPlanarPerfLastTimestampAvailable = "gpu_timestamp".equalsIgnoreCase(reflectionPlanarPerfLastTimingSource);
+                reflectionPlanarPerfLastTimestampRequirementUnmet = reflectionPlanarPerfRequireGpuTimestamp
+                        && !reflectionPlanarPerfLastTimestampAvailable;
             }
             reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
             reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled;
@@ -1209,6 +1236,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", planarPerfMemoryBudgetMb=" + reflectionPlanarPerfMemoryBudgetMb
                             + ", planarPerfWarnMinFrames=" + reflectionPlanarPerfWarnMinFrames
                             + ", planarPerfWarnCooldownFrames=" + reflectionPlanarPerfWarnCooldownFrames
+                            + ", planarPerfRequireGpuTimestamp=" + reflectionPlanarPerfRequireGpuTimestamp
                             + ", planarScopeIncludeAuto=" + reflectionPlanarScopeIncludeAuto
                             + ", planarScopeIncludeProbeOnly=" + reflectionPlanarScopeIncludeProbeOnly
                             + ", planarScopeIncludeSsrOnly=" + reflectionPlanarScopeIncludeSsrOnly
@@ -2370,6 +2398,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return new ReflectionPlanarPerfDiagnostics(
                 reflectionPlanarPerfLastGpuMsEstimate,
                 reflectionPlanarPerfLastGpuMsCap,
+                reflectionPlanarPerfLastTimingSource,
+                reflectionPlanarPerfLastTimestampAvailable,
+                reflectionPlanarPerfRequireGpuTimestamp,
+                reflectionPlanarPerfLastTimestampRequirementUnmet,
                 reflectionPlanarPerfLastDrawInflation,
                 reflectionPlanarPerfDrawInflationWarnMax,
                 reflectionPlanarPerfLastMemoryBytes,
@@ -2586,6 +2618,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     record ReflectionPlanarPerfDiagnostics(
             double gpuMsEstimate,
             double gpuMsCap,
+            String timingSource,
+            boolean timestampAvailable,
+            boolean requireGpuTimestamp,
+            boolean timestampRequirementUnmet,
             double drawInflation,
             double drawInflationWarnMax,
             long memoryBytes,

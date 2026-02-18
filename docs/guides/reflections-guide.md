@@ -122,6 +122,7 @@ PostProcessDesc post = new PostProcessDesc(
   - per-tier GPU caps: `vulkan.reflections.planarPerfMaxGpuMsLow|Medium|High|Ultra`
   - draw inflation and memory caps: `vulkan.reflections.planarPerfDrawInflationWarnMax`, `vulkan.reflections.planarPerfMemoryBudgetMb`
   - perf gate persistence/cooldown: `vulkan.reflections.planarPerfWarnMinFrames`, `vulkan.reflections.planarPerfWarnCooldownFrames`
+  - strict timing requirement gate: `vulkan.reflections.planarPerfRequireGpuTimestamp` (forces breach when timestamp timing source is unavailable)
 - Vulkan reflection resolve now includes a first contact-hardening pass behavior: near depth-contact SSR hits receive a roughness ramp/weight boost to stabilize sharp contact reflections.
 - Planar capture remains selective-scope and still evolves under the broader planar `Partial` maturity status, but mirrored clip-plane camera rerender is now active in the Vulkan path.
 - Vulkan now emits SSR reprojection envelope diagnostics (`REFLECTION_SSR_REPROJECTION_ENVELOPE`) and breach warnings (`REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`) with threshold/cooldown gating for ghosting/disocclusion risk.
@@ -147,6 +148,7 @@ PostProcessDesc post = new PostProcessDesc(
 
 - Scope: production-hardening work is currently Vulkan-first; OpenGL planar parity is not yet the baseline target.
 - Planar perf gate `gpuMsEstimate` is an in-runtime estimate, not a hardware timestamp query.
+- `REFLECTION_PLANAR_PERF_GATES` exposes timing-source metadata (`timingSource`, `timestampAvailable`, `requireGpuTimestamp`, `timestampRequirementUnmet`) to make promotion gating explicit.
 - Known unsupported/limited cases:
   - full OpenGL parity for planar selective capture path
   - broad real-content certification across all production scenes

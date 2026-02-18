@@ -72,7 +72,8 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
                         Map.entry("vulkan.reflections.rtMultiBounceEnabled", "true"),
                         Map.entry("vulkan.reflections.rtDedicatedDenoisePipelineEnabled", "false"),
-                        Map.entry("vulkan.reflections.rtDenoiseStrength", "0.73")
+                        Map.entry("vulkan.reflections.rtDenoiseStrength", "0.73"),
+                        Map.entry("vulkan.reflections.planarPerfRequireGpuTimestamp", "true")
                         ,Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "6")
                         ,Map.entry("vulkan.reflections.probeMaxVisible", "48")
                         ,Map.entry("vulkan.reflections.probeLodDepthScale", "1.8")
@@ -149,6 +150,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(true, parsed.reflectionRtMultiBounceEnabled());
         assertEquals(false, parsed.reflectionRtDedicatedDenoisePipelineEnabled());
         assertEquals(0.73, parsed.reflectionRtDenoiseStrength());
+        assertEquals(true, parsed.reflectionPlanarPerfRequireGpuTimestamp());
         assertEquals(6, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(48, parsed.reflectionProbeMaxVisible());
         assertEquals(1.8, parsed.reflectionProbeLodDepthScale());
@@ -282,6 +284,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(false, parsed.reflectionRtMultiBounceEnabled());
         assertEquals(true, parsed.reflectionRtDedicatedDenoisePipelineEnabled());
         assertEquals(1.0, parsed.reflectionRtDenoiseStrength());
+        assertEquals(false, parsed.reflectionPlanarPerfRequireGpuTimestamp());
         assertEquals(1, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(256, parsed.reflectionProbeMaxVisible());
         assertEquals(4.0, parsed.reflectionProbeLodDepthScale());

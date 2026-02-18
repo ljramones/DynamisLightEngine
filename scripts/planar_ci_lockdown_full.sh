@@ -16,6 +16,7 @@ VULKAN_TESTS=(
   "planarResourceContractFallsBackWhenPlanarPathInactive"
   "planarStabilityEnvelopeBreachEmitsUnderStrictThresholdsWhenScopeIsEmpty"
   "planarPerfGateBreachEmitsUnderStrictCaps"
+  "planarPerfGateBreachEmitsWhenGpuTimestampIsRequiredButUnavailable"
   "planarScopePolicyAllowsProbeOnlyWhenConfigured"
   "planarSceneCoverageMatrixEmitsContractsForInteriorOutdoorMultiAndDynamic"
 )

@@ -97,6 +97,7 @@ final class VulkanContext {
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
+    private String lastGpuTimingSource = "frame_estimate";
     private final VulkanSceneResourceState sceneResources = new VulkanSceneResourceState();
     private final VulkanDescriptorRingStats descriptorRingStats = new VulkanDescriptorRingStats();
     private long estimatedGpuMemoryBytes;
@@ -246,7 +247,12 @@ final class VulkanContext {
         promotePreviousModelMatrices();
         updateAaTelemetry();
         double cpuMs = (System.nanoTime() - start) / 1_000_000.0;
+        lastGpuTimingSource = "frame_estimate";
         return new VulkanFrameMetrics(cpuMs, cpuMs * 0.7, plannedDrawCalls, plannedTriangles, plannedVisibleObjects, estimatedGpuMemoryBytes);
+    }
+
+    String gpuTimingSource() {
+        return lastGpuTimingSource;
     }
 
     private void promotePreviousModelMatrices() {

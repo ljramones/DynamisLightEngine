@@ -28,6 +28,8 @@ Planar reflections are `In` when all items below are green in CI and documented 
   Evidence: `REFLECTION_PLANAR_PERF_GATES`, `REFLECTION_PLANAR_PERF_GATES_BREACH`.
 - [x] Typed planar perf diagnostics are exposed.
   Evidence: `debugReflectionPlanarPerfDiagnostics`.
+- [x] Strict timestamp-required perf mode is available for promotion gating.
+  Evidence: `vulkan.reflections.planarPerfRequireGpuTimestamp=true` forces perf-gate breach when timestamp timing is unavailable.
 - [x] Selective scope include/exclude policy is runtime-configurable and tested.
   Evidence: `vulkan.reflections.planarScopeInclude*` + integration tests.
 - [x] Coverage matrix tests exist (interior/outdoor/multi-plane/dynamic-crossing).

@@ -109,6 +109,7 @@ Current profile tags in parity tests:
 - Assert `REFLECTION_PLANAR_RESOURCE_CONTRACT` reports `capture_available_before_post_sample` for planar-active paths and `fallback_scene_color` otherwise.
 - Assert planar perf gates emit `REFLECTION_PLANAR_PERF_GATES` every planar-active frame and `REFLECTION_PLANAR_PERF_GATES_BREACH` under strict thresholds.
 - Validate typed diagnostics (`debugReflectionPlanarPerfDiagnostics`) against warning payload fields (`gpuMsEstimate`, draw inflation, memory estimate, caps, cooldown/high-streak state).
+- Add strict timing-source gate check: with `vulkan.reflections.planarPerfRequireGpuTimestamp=true`, assert breach when timing source is not `gpu_timestamp`.
 - Include planar scene-matrix coverage checks:
   - interior mirror-like scene
   - outdoor plane scene

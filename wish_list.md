@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 16:08 ET — Added Planar-In exit criteria doc + executable planar lockdown CI lane/script (`planar_ci_lockdown_full.sh`) that runs contract/perf/stability gates and planar compare-harness scenes.
+- Latest reflection update: 2026-02-18 16:20 ET — Added strict planar perf timing-source gate (`planarPerfRequireGpuTimestamp`) with diagnostics/CI assertions, so Planar promotion can explicitly fail until real GPU timestamp timing is available.
 
 Status legend:
 
@@ -102,6 +102,7 @@ Reflection notes:
 - OpenGL parity for probe slot/array path is not yet implemented.
 - Vulkan is the implementation target for current planar hardening; wishlist `In` promotion for planar should be interpreted as Vulkan-path scoped until explicit OpenGL parity lands.
 - Planar maturity now has an explicit exit checklist with pass/fail criteria in `docs/planar-in-exit-criteria.md`.
+- Planar perf diagnostics now report timing-source state (`gpu_timestamp` vs `frame_estimate`) and can be configured to require timestamp timing for `In` promotion gating.
 
 ## Anti-Aliasing
 
