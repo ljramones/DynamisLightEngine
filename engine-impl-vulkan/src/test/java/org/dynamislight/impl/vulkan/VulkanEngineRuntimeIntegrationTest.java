@@ -468,6 +468,9 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(diagnostics.contains("historyRejectRate="));
         assertTrue(diagnostics.contains("confidenceMean="));
         assertTrue(diagnostics.contains("confidenceDropEvents="));
+        assertTrue(diagnostics.contains("instabilityRejectMin="));
+        assertTrue(diagnostics.contains("instabilityConfidenceMax="));
+        assertTrue(diagnostics.contains("instabilityDropEventsMin="));
         runtime.shutdown();
     }
 

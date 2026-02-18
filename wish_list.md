@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 12:22 ET — Added `REFLECTION_SSR_TAA_DIAGNOSTICS` warning telemetry for SSR/TAA integration (SSR knobs + TAA reject/confidence/drop signals), with instability-risk gating via `REFLECTION_SSR_TAA_INSTABILITY_RISK`.
+- Latest reflection update: 2026-02-18 12:24 ET — SSR/TAA instability thresholds are now backend-configurable (`vulkan.reflections.ssrTaaInstability*`) and emitted in diagnostics payload for profile-aware telemetry.
 
 Status legend:
 
@@ -67,6 +67,7 @@ Reflection notes:
 - Vulkan probe-churn warning thresholds are configurable per tier/profile through backend options.
 - Probe diagnostics warnings now report configured churn threshold values alongside live churn metrics.
 - Vulkan now emits SSR/TAA diagnostics warning telemetry for reflection-temporal interaction monitoring.
+- SSR/TAA instability-risk warning thresholds are configurable per profile and included in diagnostic warning payloads.
 - OpenGL parity for probe slot/array path is not yet implemented.
 
 ## Anti-Aliasing

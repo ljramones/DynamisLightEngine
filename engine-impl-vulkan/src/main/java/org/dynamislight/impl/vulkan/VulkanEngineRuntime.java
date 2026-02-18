@@ -192,6 +192,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionProbeChurnWarnMinDelta = REFLECTION_PROBE_CHURN_WARN_MIN_DELTA;
     private int reflectionProbeChurnWarnMinStreak = REFLECTION_PROBE_CHURN_WARN_MIN_STREAK;
     private int reflectionProbeChurnWarnCooldownFrames = REFLECTION_PROBE_CHURN_WARN_COOLDOWN_FRAMES;
+    private double reflectionSsrTaaInstabilityRejectMin = 0.35;
+    private double reflectionSsrTaaInstabilityConfidenceMax = 0.70;
+    private long reflectionSsrTaaInstabilityDropEventsMin;
 
     public VulkanEngineRuntime() {
         super(
@@ -264,6 +267,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionProbeChurnWarnMinDelta = options.reflectionProbeChurnWarnMinDelta();
         reflectionProbeChurnWarnMinStreak = options.reflectionProbeChurnWarnMinStreak();
         reflectionProbeChurnWarnCooldownFrames = options.reflectionProbeChurnWarnCooldownFrames();
+        reflectionSsrTaaInstabilityRejectMin = options.reflectionSsrTaaInstabilityRejectMin();
+        reflectionSsrTaaInstabilityConfidenceMax = options.reflectionSsrTaaInstabilityConfidenceMax();
+        reflectionSsrTaaInstabilityDropEventsMin = options.reflectionSsrTaaInstabilityDropEventsMin();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
@@ -635,9 +641,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", historyRejectRate=" + taaReject
                                 + ", confidenceMean=" + taaConfidence
                                 + ", confidenceDropEvents=" + taaDrops
+                                + ", instabilityRejectMin=" + reflectionSsrTaaInstabilityRejectMin
+                                + ", instabilityConfidenceMax=" + reflectionSsrTaaInstabilityConfidenceMax
+                                + ", instabilityDropEventsMin=" + reflectionSsrTaaInstabilityDropEventsMin
                                 + ")"
                 ));
-                if (taaReject > 0.35 && taaConfidence < 0.70) {
+                if (taaReject > reflectionSsrTaaInstabilityRejectMin
+                        && taaConfidence < reflectionSsrTaaInstabilityConfidenceMax
+                        && taaDrops >= reflectionSsrTaaInstabilityDropEventsMin) {
                     warnings.add(new EngineWarning(
                             "REFLECTION_SSR_TAA_INSTABILITY_RISK",
                             "SSR/TAA instability risk detected (historyRejectRate="

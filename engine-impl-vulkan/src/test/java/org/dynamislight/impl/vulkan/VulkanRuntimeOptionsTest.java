@@ -37,7 +37,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "1.75"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "2"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "5"),
-                        Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "240")
+                        Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "240"),
+                        Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "0.42"),
+                        Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "0.61"),
+                        Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "3")
                 ),
                 256
         );
@@ -76,6 +79,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(2, parsed.reflectionProbeChurnWarnMinDelta());
         assertEquals(5, parsed.reflectionProbeChurnWarnMinStreak());
         assertEquals(240, parsed.reflectionProbeChurnWarnCooldownFrames());
+        assertEquals(0.42, parsed.reflectionSsrTaaInstabilityRejectMin());
+        assertEquals(0.61, parsed.reflectionSsrTaaInstabilityConfidenceMax());
+        assertEquals(3L, parsed.reflectionSsrTaaInstabilityDropEventsMin());
     }
 
     @Test
@@ -103,7 +109,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "10.0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "0"),
-                        Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "999999")
+                        Map.entry("vulkan.reflections.probeChurnWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "9.0"),
+                        Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "-2.0"),
+                        Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "-5")
                 ),
                 256
         );
@@ -136,5 +145,8 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1, parsed.reflectionProbeChurnWarnMinDelta());
         assertEquals(1, parsed.reflectionProbeChurnWarnMinStreak());
         assertEquals(10000, parsed.reflectionProbeChurnWarnCooldownFrames());
+        assertEquals(1.0, parsed.reflectionSsrTaaInstabilityRejectMin());
+        assertEquals(0.0, parsed.reflectionSsrTaaInstabilityConfidenceMax());
+        assertEquals(0L, parsed.reflectionSsrTaaInstabilityDropEventsMin());
     }
 }
