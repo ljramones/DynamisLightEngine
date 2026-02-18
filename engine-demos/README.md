@@ -42,6 +42,7 @@ Current demo catalog:
 - `fog-smoke-post`
 - `telemetry-export`
 - `threshold-replay`
+- `backend-compare-smoke`
 - `aa-motion-stress`
 - `aa-matrix`
 
@@ -126,6 +127,16 @@ Run telemetry export demo with explicit output file:
 Run threshold replay demo with explicit replay inputs:
 ```bash
 ./scripts/run_demo_mac.sh --demo=threshold-replay --backend=vulkan --mock=true --seconds=3 --quality=high --thresholds-file=../engine-host-sample/src/test/resources/thresholds/vulkan-real.properties --threshold-key=threshold.post-process-high --observed-diff=0.070000
+```
+
+Run backend compare smoke demo (vulkan):
+```bash
+./scripts/run_demo_mac.sh --demo=backend-compare-smoke --backend=vulkan --mock=true --seconds=5 --quality=high --telemetry=artifacts/demos/backend-compare-smoke-vulkan.jsonl
+```
+
+Run backend compare smoke demo (opengl):
+```bash
+./scripts/run_demo_mac.sh --demo=backend-compare-smoke --backend=opengl --mock=true --seconds=5 --quality=high --telemetry=artifacts/demos/backend-compare-smoke-opengl.jsonl
 ```
 
 Telemetry outputs:

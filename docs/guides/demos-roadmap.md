@@ -18,9 +18,10 @@ This document defines the planned demo set for `engine-demos` with emphasis on g
 - `fog-smoke-post` (graphical fog/smoke/post interaction lane)
 - `telemetry-export` (programmatic telemetry capture lane)
 - `threshold-replay` (programmatic threshold replay lane)
+- `backend-compare-smoke` (programmatic backend A/B smoke lane)
 - `aa-matrix` (graphical AA configuration/telemetry)
 
-Current count: `15` demos (`13` graphical, `2` programmatic)
+Current count: `16` demos (`13` graphical, `3` programmatic)
 
 ## Target Demo Set
 
