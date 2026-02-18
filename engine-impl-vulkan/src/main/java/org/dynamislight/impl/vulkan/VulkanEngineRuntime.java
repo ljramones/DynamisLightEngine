@@ -819,6 +819,28 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", cooldownRemaining=" + churnDiagnostics.warnCooldownRemaining()
                             + ")"
             ));
+            int effectiveStreamingBudget = Math.max(1, Math.min(reflectionProbeMaxVisible, probeDiagnostics.metadataCapacity()));
+            boolean streamingBudgetPressure = probeDiagnostics.configuredProbeCount() > probeDiagnostics.activeProbeCount()
+                    && (probeDiagnostics.activeProbeCount() >= effectiveStreamingBudget || probeDiagnostics.activeProbeCount() == 0);
+            warnings.add(new EngineWarning(
+                    "REFLECTION_PROBE_STREAMING_DIAGNOSTICS",
+                    "Probe streaming diagnostics (configured=" + probeDiagnostics.configuredProbeCount()
+                            + ", active=" + probeDiagnostics.activeProbeCount()
+                            + ", effectiveBudget=" + effectiveStreamingBudget
+                            + ", cadenceFrames=" + reflectionProbeUpdateCadenceFrames
+                            + ", maxVisible=" + reflectionProbeMaxVisible
+                            + ", lodDepthScale=" + reflectionProbeLodDepthScale
+                            + ", budgetPressure=" + streamingBudgetPressure + ")"
+            ));
+            if (streamingBudgetPressure) {
+                warnings.add(new EngineWarning(
+                        "REFLECTION_PROBE_STREAMING_BUDGET_PRESSURE",
+                        "Reflection probe streaming budget pressure detected "
+                                + "(configured=" + probeDiagnostics.configuredProbeCount()
+                                + ", active=" + probeDiagnostics.activeProbeCount()
+                                + ", effectiveBudget=" + effectiveStreamingBudget + ")"
+                ));
+            }
             warnings.add(new EngineWarning(
                     "REFLECTION_PROBE_QUALITY_SWEEP",
                     "Probe quality sweep (configured=" + reflectionProbeQualityDiagnostics.configuredProbeCount()
@@ -1981,6 +2003,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionProbeStreamingDiagnostics debugReflectionProbeStreamingDiagnostics() {
+        VulkanContext.ReflectionProbeDiagnostics diagnostics = context.debugReflectionProbeDiagnostics();
+        int effectiveStreamingBudget = Math.max(1, Math.min(reflectionProbeMaxVisible, diagnostics.metadataCapacity()));
+        boolean budgetPressure = diagnostics.configuredProbeCount() > diagnostics.activeProbeCount()
+                && (diagnostics.activeProbeCount() >= effectiveStreamingBudget || diagnostics.activeProbeCount() == 0);
+        return new ReflectionProbeStreamingDiagnostics(
+                diagnostics.configuredProbeCount(),
+                diagnostics.activeProbeCount(),
+                reflectionProbeMaxVisible,
+                effectiveStreamingBudget,
+                reflectionProbeUpdateCadenceFrames,
+                reflectionProbeLodDepthScale,
+                budgetPressure
+        );
+    }
+
     ReflectionProbeChurnDiagnostics debugReflectionProbeChurnDiagnostics() {
         return snapshotReflectionProbeChurnDiagnostics(false);
     }
@@ -2104,6 +2142,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int highStreak,
             int warnCooldownRemaining,
             boolean warningTriggered
+    ) {
+    }
+
+    record ReflectionProbeStreamingDiagnostics(
+            int configuredProbeCount,
+            int activeProbeCount,
+            int maxVisibleBudget,
+            int effectiveStreamingBudget,
+            int updateCadenceFrames,
+            double lodDepthScale,
+            boolean budgetPressure
     ) {
     }
 

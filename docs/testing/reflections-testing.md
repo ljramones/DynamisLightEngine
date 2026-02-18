@@ -112,6 +112,8 @@ Current profile tags in parity tests:
 10. Probe streaming/LOD checks
 - Validate `VulkanReflectionProbeCoordinator` cadence rotation keeps top-priority probes and rotates lower-priority probes.
 - Validate probe metadata payload includes bounded LOD tier in probe flags (`cubemapIndexAndFlags.w` in `[0..3]`).
+- Assert streaming diagnostics warning (`REFLECTION_PROBE_STREAMING_DIAGNOSTICS`) and budget-pressure warning (`REFLECTION_PROBE_STREAMING_BUDGET_PRESSURE`) under tight `probeMaxVisible` settings.
+- Validate typed diagnostics (`debugReflectionProbeStreamingDiagnostics`) mirror warning payload fields (`effectiveBudget`, `cadenceFrames`, `budgetPressure`).
 
 ## Regression Triggers
 

@@ -485,6 +485,33 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionProbeStreamingDiagnosticsEmitBudgetPressureWhenVisibleBudgetIsTight() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.probeMaxVisible", "1"),
+                Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "2")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionProbeDiagnosticsScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_STREAMING_DIAGNOSTICS".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_STREAMING_BUDGET_PRESSURE".equals(w.code())));
+        String streaming = warningMessageByCode(frame, "REFLECTION_PROBE_STREAMING_DIAGNOSTICS");
+        assertTrue(streaming.contains("configured=3"));
+        assertTrue(streaming.contains("effectiveBudget=1"));
+        assertTrue(streaming.contains("cadenceFrames=2"));
+        assertTrue(streaming.contains("budgetPressure=true"));
+        var diagnostics = runtime.debugReflectionProbeStreamingDiagnostics();
+        assertEquals(3, diagnostics.configuredProbeCount());
+        assertEquals(1, diagnostics.maxVisibleBudget());
+        assertEquals(2, diagnostics.updateCadenceFrames());
+        assertTrue(diagnostics.budgetPressure());
+        runtime.shutdown();
+    }
+
+    @Test
     void reflectionProbeChurnDiagnosticsRemainAvailableAcrossSceneTransitions() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());

@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-18
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 14:50 ET — Added first contact-hardening reflection behavior in Vulkan post reflection resolve (depth-contact-driven roughness ramp/strength boost for SSR + planar blend), alongside configurable planar clip height plumbing.
+- Latest reflection update: 2026-02-18 14:52 ET — Added probe streaming diagnostics + budget-pressure warning/typed accessor (`effectiveBudget`, cadence, budgetPressure) and first contact-hardening reflection weighting in Vulkan resolve.
 
 Status legend:
 
@@ -50,7 +50,7 @@ Status summary snapshot (2026-02-18):
 - SSR + probe fallback (seamless blend at SSR miss) — `In`
 - RT reflections (single-bounce, multi-bounce) — `Partial`
 - RT + SSR hybrid (RT for rough, SSR for sharp, probe for miss) — `Partial`
-- Reflection probe streaming (LOD, priority-based update) — `Not In Yet`
+- Reflection probe streaming (LOD, priority-based update) — `Partial`
 - Per-material reflection override (force probe-only for specific surfaces) — `Partial`
 - Contact-hardening reflections (roughness ramp near contact) — `Partial`
 - Transparent/refractive surface reflections — `Partial`
