@@ -126,6 +126,19 @@ class VulkanEngineRuntimeLightingMapperTest {
         );
         assertFalse(unsupported.rtShadowActive());
         assertTrue(supported.rtShadowActive());
+
+        VulkanEngineRuntime.ShadowRenderConfig nativeUnsupported = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "rt_native", 0, 0, 0, false
+        );
+        VulkanEngineRuntime.ShadowRenderConfig nativeSupported = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "rt_native", 0, 0, 0, true
+        );
+        VulkanEngineRuntime.ShadowRenderConfig nativeDenoisedSupported = VulkanEngineRuntimeLightingMapper.mapShadows(
+                lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "rt_native_denoised", 0, 0, 0, true
+        );
+        assertFalse(nativeUnsupported.rtShadowActive());
+        assertTrue(nativeSupported.rtShadowActive());
+        assertTrue(nativeDenoisedSupported.rtShadowActive());
     }
 
     @Test

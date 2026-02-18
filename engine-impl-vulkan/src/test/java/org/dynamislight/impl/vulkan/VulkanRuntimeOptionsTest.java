@@ -43,6 +43,8 @@ class VulkanRuntimeOptionsTest {
         assertEquals("bvh", VulkanRuntimeOptions.parse(Map.of("vulkan.shadow.rtMode", "bvh"), 256).shadowRtMode());
         assertEquals("bvh_dedicated", VulkanRuntimeOptions.parse(Map.of("vulkan.shadow.rtMode", "bvh_dedicated"), 256).shadowRtMode());
         assertEquals("bvh_production", VulkanRuntimeOptions.parse(Map.of("vulkan.shadow.rtMode", "bvh_production"), 256).shadowRtMode());
+        assertEquals("rt_native", VulkanRuntimeOptions.parse(Map.of("vulkan.shadow.rtMode", "rt_native"), 256).shadowRtMode());
+        assertEquals("rt_native_denoised", VulkanRuntimeOptions.parse(Map.of("vulkan.shadow.rtMode", "rt_native_denoised"), 256).shadowRtMode());
         assertEquals(true, parsed.shadowRtBvhStrict());
         assertEquals(7, parsed.shadowMaxShadowedLocalLights());
         assertEquals(12, parsed.shadowMaxLocalLayers());

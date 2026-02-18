@@ -505,6 +505,8 @@ final class VulkanContext {
             case "bvh" -> 3;
             case "bvh_dedicated" -> 4;
             case "bvh_production" -> 5;
+            case "rt_native" -> 6;
+            case "rt_native_denoised" -> 7;
             default -> 0;
         };
         boolean changed = false;

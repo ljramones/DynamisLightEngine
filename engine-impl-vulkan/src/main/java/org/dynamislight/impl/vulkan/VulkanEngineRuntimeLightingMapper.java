@@ -956,6 +956,8 @@ final class VulkanEngineRuntimeLightingMapper {
         boolean rtShadowActive;
         if ("bvh_dedicated".equals(rtMode) || "bvh_production".equals(rtMode)) {
             rtShadowActive = shadowRtBvhSupported;
+        } else if ("rt_native".equals(rtMode) || "rt_native_denoised".equals(rtMode)) {
+            rtShadowActive = shadowRtTraversalSupported;
         } else if ("bvh".equals(rtMode)) {
             rtShadowActive = shadowRtBvhSupported;
         } else {

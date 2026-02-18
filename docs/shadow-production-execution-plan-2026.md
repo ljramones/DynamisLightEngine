@@ -112,6 +112,8 @@ Status: In progress (started and partially landed).
  - Note: current RT path now exposes two approximation lanes with denoise refinement:
    - `rtMode=bvh` -> `bvhTraversalVisibilityApprox` (hybrid traversal path)
    - `rtMode=bvh_dedicated` -> `bvhDedicatedTraversalVisibilityApprox` + `rtDedicatedDenoiseStack` (dedicated-preview traversal + denoise stack)
+   - `rtMode=rt_native` -> `rtNativeTraversalVisibility` (native traversal preview shaping)
+   - `rtMode=rt_native_denoised` -> `rtNativeTraversalVisibility` + `rtNativeDenoiseStack` (native traversal preview + dedicated denoise)
  - Dedicated runtime tuning overrides for `bvh_dedicated` are now supported (`rtDedicatedDenoiseStrength`, `rtDedicatedRayLength`, `rtDedicatedSampleCount`) and flow into effective shader RT parameters.
  - Runtime now includes `bvh_production` mode with dedicated production-preview traversal+denoise shaping/overrides, and still emits `SHADOW_RT_BVH_PIPELINE_PENDING` until full hardware BVH traversal + dedicated denoiser pipeline lands.
  - Strict rollout guard via `vulkan.shadow.rtBvhStrict=true` remains available:

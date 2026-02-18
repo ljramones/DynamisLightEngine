@@ -718,6 +718,118 @@ public final class VulkanShaderSources {
                     float denoiseC = mix(denoiseB, ringAvg, clamp(0.10 + 0.28 * shadowRtDenoiseStrength * (1.0 - shadowTemporalStability), 0.04, 0.40));
                     return clamp(denoiseC, 0.0, 1.0);
                 }
+                float rtNativeTraversalVisibility(
+                        vec2 uv,
+                        float texel,
+                        int layer,
+                        float compareDepth,
+                        float ndl,
+                        float depthRatio,
+                        int shadowRtSampleCount,
+                        float shadowRtRayLength
+                ) {
+                    float rayScale = clamp(shadowRtRayLength / 130.0, 0.6, 7.0);
+                    int rtSteps = clamp(shadowRtSampleCount * 7, 20, 96);
+                    vec2 axisA = normalize(vec2(0.58 + (1.0 - ndl) * 0.72, 0.40 + depthRatio * 0.72));
+                    vec2 axisB = vec2(-axisA.y, axisA.x);
+                    float accum = 0.0;
+                    float weightSum = 0.0;
+                    for (int i = 0; i < rtSteps; i++) {
+                        float t = (float(i) + 0.5) / float(rtSteps);
+                        float stride = mix(0.35, 16.0, t * t) * rayScale;
+                        float fan = mix(-1.0, 1.0, t);
+                        vec2 fanDir = normalize(mix(axisA, axisB, fan * 0.92));
+                        vec2 sampleUv = clamp(uv + fanDir * texel * stride, vec2(0.0), vec2(1.0));
+                        float sampleVis = texture(uShadowMap, vec4(sampleUv, float(layer), compareDepth));
+                        float w = mix(1.0, 0.08, t) * mix(1.0, 0.52, abs(fan));
+                        accum += sampleVis * w;
+                        weightSum += w;
+                    }
+                    float traversal = weightSum > 0.0 ? (accum / weightSum) : 1.0;
+                    float ringNear = 0.0;
+                    float ringMid = 0.0;
+                    float ringFar = 0.0;
+                    float wNear = 0.0;
+                    float wMid = 0.0;
+                    float wFar = 0.0;
+                    for (int i = 0; i < 16; i++) {
+                        float a = (6.2831853 * float(i)) / 16.0;
+                        vec2 dir = vec2(cos(a), sin(a));
+                        vec2 uvNear = clamp(uv + dir * texel * 2.4, vec2(0.0), vec2(1.0));
+                        vec2 uvMid = clamp(uv + dir * texel * 5.8, vec2(0.0), vec2(1.0));
+                        vec2 uvFar = clamp(uv + dir * texel * 10.2, vec2(0.0), vec2(1.0));
+                        float wn = mix(1.0, 0.74, float(i & 1));
+                        float wm = mix(0.84, 0.58, float(i & 1));
+                        float wf = mix(0.62, 0.40, float(i & 1));
+                        ringNear += texture(uShadowMap, vec4(uvNear, float(layer), compareDepth)) * wn;
+                        ringMid += texture(uShadowMap, vec4(uvMid, float(layer), compareDepth)) * wm;
+                        ringFar += texture(uShadowMap, vec4(uvFar, float(layer), compareDepth)) * wf;
+                        wNear += wn;
+                        wMid += wm;
+                        wFar += wf;
+                    }
+                    float nearAvg = ringNear / max(wNear, 0.0001);
+                    float midAvg = ringMid / max(wMid, 0.0001);
+                    float farAvg = ringFar / max(wFar, 0.0001);
+                    float stageA = mix(traversal, nearAvg, 0.38);
+                    float stageB = mix(stageA, midAvg, 0.30);
+                    float stageC = mix(stageB, farAvg, 0.18);
+                    return clamp(stageC, 0.0, 1.0);
+                }
+                float rtNativeDenoiseStack(
+                        float traversalVisibility,
+                        vec2 uv,
+                        float texel,
+                        int layer,
+                        float compareDepth,
+                        float shadowRtDenoiseStrength,
+                        float shadowTemporalStability
+                ) {
+                    float center = traversalVisibility;
+                    float cross = 0.0;
+                    float diag = 0.0;
+                    float ringNear = 0.0;
+                    float ringFar = 0.0;
+                    float crossW = 0.0;
+                    float diagW = 0.0;
+                    float ringNearW = 0.0;
+                    float ringFarW = 0.0;
+                    vec2 crossOffsets[4] = vec2[](vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0));
+                    vec2 diagOffsets[4] = vec2[](vec2(1.0, 1.0), vec2(1.0, -1.0), vec2(-1.0, 1.0), vec2(-1.0, -1.0));
+                    for (int i = 0; i < 4; i++) {
+                        vec2 c = clamp(uv + crossOffsets[i] * texel * 1.8, vec2(0.0), vec2(1.0));
+                        vec2 d = clamp(uv + diagOffsets[i] * texel * 2.6, vec2(0.0), vec2(1.0));
+                        float cv = texture(uShadowMap, vec4(c, float(layer), compareDepth));
+                        float dv = texture(uShadowMap, vec4(d, float(layer), compareDepth));
+                        cross += cv;
+                        diag += dv;
+                        crossW += 1.0;
+                        diagW += 1.0;
+                    }
+                    for (int i = 0; i < 12; i++) {
+                        float a = (6.2831853 * float(i)) / 12.0;
+                        vec2 dir = vec2(cos(a), sin(a));
+                        vec2 rn = clamp(uv + dir * texel * 4.2, vec2(0.0), vec2(1.0));
+                        vec2 rf = clamp(uv + dir * texel * 8.6, vec2(0.0), vec2(1.0));
+                        float nv = texture(uShadowMap, vec4(rn, float(layer), compareDepth));
+                        float fv = texture(uShadowMap, vec4(rf, float(layer), compareDepth));
+                        float nw = mix(0.86, 0.52, float(i & 1));
+                        float fw = mix(0.64, 0.36, float(i & 1));
+                        ringNear += nv * nw;
+                        ringFar += fv * fw;
+                        ringNearW += nw;
+                        ringFarW += fw;
+                    }
+                    float crossAvg = cross / max(crossW, 0.0001);
+                    float diagAvg = diag / max(diagW, 0.0001);
+                    float nearAvg = ringNear / max(ringNearW, 0.0001);
+                    float farAvg = ringFar / max(ringFarW, 0.0001);
+                    float denoiseA = mix(center, crossAvg, clamp(0.40 + 0.34 * shadowRtDenoiseStrength, 0.16, 0.84));
+                    float denoiseB = mix(denoiseA, diagAvg, clamp(0.28 + 0.30 * shadowRtDenoiseStrength, 0.10, 0.72));
+                    float denoiseC = mix(denoiseB, nearAvg, clamp(0.18 + 0.34 * shadowRtDenoiseStrength, 0.08, 0.58));
+                    float denoiseD = mix(denoiseC, farAvg, clamp(0.08 + 0.30 * shadowRtDenoiseStrength * (1.0 - shadowTemporalStability), 0.03, 0.44));
+                    return clamp(denoiseD, 0.0, 1.0);
+                }
                 float finalizeShadowVisibility(
                         float pcfVisibility,
                         int shadowFilterMode,
@@ -846,7 +958,40 @@ public final class VulkanShaderSources {
                     }
                     if (shadowRtEnabled) {
                         float texel = 1.0 / max(gbo.uShadowCascade.y, 1.0);
-                        if (shadowRtMode > 4) {
+                        if (shadowRtMode > 6) {
+                            float nativeVis = rtNativeTraversalVisibility(
+                                    uv,
+                                    texel,
+                                    layer,
+                                    compareDepth,
+                                    ndl,
+                                    depthRatio,
+                                    shadowRtSampleCount,
+                                    shadowRtRayLength
+                            );
+                            float nativeDenoised = rtNativeDenoiseStack(
+                                    nativeVis,
+                                    uv,
+                                    texel,
+                                    layer,
+                                    compareDepth,
+                                    shadowRtDenoiseStrength,
+                                    shadowTemporalStability
+                            );
+                            visibility = mix(visibility, nativeDenoised, 0.84);
+                        } else if (shadowRtMode > 5) {
+                            float nativeVis = rtNativeTraversalVisibility(
+                                    uv,
+                                    texel,
+                                    layer,
+                                    compareDepth,
+                                    ndl,
+                                    depthRatio,
+                                    shadowRtSampleCount,
+                                    shadowRtRayLength
+                            );
+                            visibility = mix(visibility, nativeVis, 0.78);
+                        } else if (shadowRtMode > 4) {
                             float bvhProductionVis = bvhProductionTraversalVisibility(
                                     uv,
                                     texel,

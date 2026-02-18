@@ -32,7 +32,7 @@ mvn -q -pl engine-impl-opengl -am test \
   -Dtest=OpenGlEngineRuntimeLifecycleTest \
   -Dsurefire.failIfNoSpecifiedTests=false
 mvn -q -pl engine-impl-vulkan -am test \
-  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+shadowAllocatorTelemetryShowsReuseAcrossFrames+shadowSchedulerCadenceDefersPointWorkUnderFaceBudget+shadowQualityPathRequestsEmitTrackingWarnings+bvhShadowModeRequestEmitsExplicitFallbackContext+productionBvhShadowModeRequestUsesProductionOverrides+pcssShadowQualityRequestTracksActivePathWithoutMomentWarning+shadowQualityTuningOptionsAreReportedInPolicyWarning \
+  -Dtest=VulkanEngineRuntimeLightingMapperTest,VulkanRuntimeOptionsTest,VulkanShadowMatrixBuilderTest,VulkanEngineRuntimeIntegrationTest#strictNativeRtModeFailsFastWhenTraversalCapabilityIsUnavailable+spotShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+pointShadowRequestDoesNotEmitShadowTypeUnsupportedWarning+shadowAllocatorTelemetryShowsReuseAcrossFrames+shadowSchedulerCadenceDefersPointWorkUnderFaceBudget+shadowQualityPathRequestsEmitTrackingWarnings+bvhShadowModeRequestEmitsExplicitFallbackContext+productionBvhShadowModeRequestUsesProductionOverrides+pcssShadowQualityRequestTracksActivePathWithoutMomentWarning+shadowQualityTuningOptionsAreReportedInPolicyWarning \
   -Dsurefire.failIfNoSpecifiedTests=false
 
 echo ""
@@ -44,6 +44,8 @@ declare -a shadow_profiles=(
   "evsm::-Dvulkan.shadow.filterPath=evsm -Dvulkan.shadow.momentBlend=1.20 -Dvulkan.shadow.momentBleedReduction=1.20"
   "rt-bvh-dedicated::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh_dedicated -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtDedicatedDenoiseStrength=0.94 -Dvulkan.shadow.rtDedicatedRayLength=180 -Dvulkan.shadow.rtDedicatedSampleCount=10 -Dvulkan.shadow.rtBvhStrict=0"
   "rt-bvh-production::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=bvh_production -Dvulkan.shadow.rtSampleCount=6 -Dvulkan.shadow.rtProductionDenoiseStrength=0.97 -Dvulkan.shadow.rtProductionRayLength=240 -Dvulkan.shadow.rtProductionSampleCount=14 -Dvulkan.shadow.rtBvhStrict=0"
+  "rt-native::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=rt_native -Dvulkan.shadow.rtDenoiseStrength=0.86 -Dvulkan.shadow.rtRayLength=220 -Dvulkan.shadow.rtSampleCount=12"
+  "rt-native-denoised::-Dvulkan.shadow.filterPath=pcss -Dvulkan.shadow.contactShadows=true -Dvulkan.shadow.rtMode=rt_native_denoised -Dvulkan.shadow.rtDenoiseStrength=0.88 -Dvulkan.shadow.rtRayLength=240 -Dvulkan.shadow.rtSampleCount=12 -Dvulkan.shadow.rtDedicatedDenoiseStrength=0.98 -Dvulkan.shadow.rtDedicatedRayLength=260 -Dvulkan.shadow.rtDedicatedSampleCount=14"
 )
 for profile in "${shadow_profiles[@]}"; do
   mode="${profile%%::*}"

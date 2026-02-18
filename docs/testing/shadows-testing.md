@@ -21,6 +21,7 @@ Validate shadow stability, policy selection, and quality-tier fallback behavior 
   - `SHADOW_RT_PATH_REQUESTED`
   - `SHADOW_RT_PATH_FALLBACK_ACTIVE`
   - `SHADOW_RT_BVH_PIPELINE_PENDING`
+  - `SHADOW_RT_NATIVE_PATH_ACTIVE`
 - Shadow matrix deterministic equality in unit tests.
 - Shadow memory telemetry:
   - atlas allocation bytes
@@ -39,7 +40,7 @@ CI always-on rollout:
 - GitHub Actions `shadow-matrix` runs on `push`/`pull_request` with mock Vulkan safety.
 - Weekly scheduled run (`schedule`) also executes long-run AA/shadow motion sampling.
 - GitHub Actions `shadow-real-longrun-guarded` now runs on `push`/`pull_request`/`schedule` and emits guarded threshold-lock recommendations when real Vulkan is available.
-- GitHub Actions `shadow-production-quality-sweeps` now runs on `push`/`pull_request`/`schedule` and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`, `rt bvh_dedicated`, `rt bvh_production`) with guarded threshold-lock output.
+- GitHub Actions `shadow-production-quality-sweeps` now runs on `push`/`pull_request`/`schedule` and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`, `rt bvh_dedicated`, `rt bvh_production`, `rt native`, `rt native denoised`) with guarded threshold-lock output.
 - CI lockdown policy now runs stricter scheduled lanes:
   - `shadow-real-longrun-guarded`: 3-run schedule cadence (2 runs on push/PR)
   - `shadow-production-quality-sweeps`: 3-run schedule cadence with strict BVH lane enabled by default (2 runs on push/PR)
@@ -137,6 +138,13 @@ Optional one-shot promotion into repo defaults after sweep lock:
 ```bash
 DLE_SHADOW_PROD_SWEEP_PROMOTE_MODE=real \
 ./scripts/shadow_production_quality_sweeps.sh
+```
+
+AA strict real-Vulkan two-pass stable re-lock + promotion:
+```bash
+./scripts/aa_threshold_promote_stable_real.sh
+# or:
+./scripts/aa_rebaseline_real_mac.sh stable-promote-real
 ```
 
 Cadence scheduler check (real Vulkan):

@@ -113,6 +113,25 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void strictNativeRtModeFailsFastWhenTraversalCapabilityIsUnavailable() {
+        var runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.rtMode", "rt_native"),
+                    Map.entry("vulkan.shadow.rtBvhStrict", "true")
+            )), new RecordingCallbacks());
+        } catch (EngineException e) {
+            assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, e.code());
+            assertTrue(e.getMessage().contains("Strict native RT shadow mode requested"));
+            return;
+        } finally {
+            runtime.shutdown();
+        }
+        throw new AssertionError("Expected strict native RT mode to fail when traversal capability is unavailable");
+    }
+
+    @Test
     void mockVulkanBackendOptionsConfigureFrameAndCacheLimits() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(
