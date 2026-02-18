@@ -30,7 +30,9 @@ import static org.lwjgl.glfw.GLFW.glfwCreateWindow;
 import static org.lwjgl.glfw.GLFW.glfwDefaultWindowHints;
 import static org.lwjgl.glfw.GLFW.glfwFocusWindow;
 import static org.lwjgl.glfw.GLFW.glfwInit;
+import static org.lwjgl.glfw.GLFW.glfwRestoreWindow;
 import static org.lwjgl.glfw.GLFW.glfwShowWindow;
+import static org.lwjgl.glfw.GLFW.glfwSetWindowPos;
 import static org.lwjgl.glfw.GLFW.glfwWindowHint;
 import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
 import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
@@ -77,6 +79,8 @@ public final class VulkanBootstrap {
         }
         if (windowVisible) {
             // Make visibility explicit on macOS instead of relying solely on GLFW hints.
+            glfwRestoreWindow(window);
+            glfwSetWindowPos(window, 120, 120);
             glfwShowWindow(window);
             glfwFocusWindow(window);
         }

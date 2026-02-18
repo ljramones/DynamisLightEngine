@@ -1360,6 +1360,8 @@ final class OpenGlContext {
         }
         if (windowVisible) {
             // Make visibility explicit on macOS instead of relying solely on GLFW hints.
+            GLFW.glfwRestoreWindow(window);
+            GLFW.glfwSetWindowPos(window, 120, 120);
             GLFW.glfwShowWindow(window);
             GLFW.glfwFocusWindow(window);
         }
