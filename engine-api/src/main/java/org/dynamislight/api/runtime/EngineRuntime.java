@@ -315,6 +315,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic AA/post capability-plan diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link AaPostCapabilityDiagnostics#unavailable()}.
+     *
+     * @return current AA/post capability-plan diagnostics snapshot.
+     */
+    default AaPostCapabilityDiagnostics aaPostCapabilityDiagnostics() {
+        return AaPostCapabilityDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

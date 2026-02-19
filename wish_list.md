@@ -176,6 +176,7 @@ AA notes:
 
 - Vulkan AA now has v2 capability descriptors for all runtime AA modes (`taa`, `tsr`, `tuua`, `msaa_selective`, `hybrid_tuua_msaa`, `dlaa`, `fxaa_low`) with explicit temporal-resource contracts and ordered post injection points.
 - AA v2 contracts are validated in composition with shadow/reflection/post descriptors through `RenderCapabilityContractV2Validator` and are covered by `scripts/aa_post_contract_v2_lockdown.sh`.
+- Vulkan runtime now emits `AA_POST_CAPABILITY_PLAN_ACTIVE` each frame and exposes typed runtime diagnostics (`aaPostCapabilityDiagnostics()`) so hosts/CI can assert active/pruned AA+post capability planning without warning-string parsing.
 
 ## Global Illumination
 

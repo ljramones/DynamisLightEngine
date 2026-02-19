@@ -21,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.dynamislight.api.runtime.EngineApiVersion;
 import org.dynamislight.api.runtime.EngineCapabilities;
+import org.dynamislight.api.runtime.AaPostCapabilityDiagnostics;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -350,6 +351,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public AaPostCapabilityDiagnostics aaPostCapabilityDiagnostics() {
+        return backendAaPostCapabilityDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -459,6 +465,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected ShadowPhaseDPromotionDiagnostics backendShadowPhaseDPromotionDiagnostics() {
         return ShadowPhaseDPromotionDiagnostics.unavailable();
+    }
+
+    protected AaPostCapabilityDiagnostics backendAaPostCapabilityDiagnostics() {
+        return AaPostCapabilityDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(

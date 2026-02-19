@@ -18,6 +18,7 @@ import org.dynamislight.api.event.EngineEvent;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.event.ReflectionAdaptiveTelemetryEvent;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.api.runtime.AaPostCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
@@ -51,6 +52,9 @@ import org.dynamislight.impl.common.AbstractEngineRuntime;
 import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
+import org.dynamislight.impl.vulkan.capability.VulkanAaPostCapabilityPlanner;
+import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityMode;
+import org.dynamislight.impl.vulkan.capability.VulkanAaPostCapabilityPlan;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
 import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
@@ -180,6 +184,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean taaLumaClipEnabledDefault;
     private AaPreset aaPreset = AaPreset.BALANCED;
     private AaMode aaMode = AaMode.TAA;
+    private String aaPostAaModeLastFrame = "taa";
+    private boolean aaPostAaEnabledLastFrame = true;
+    private boolean aaPostTemporalHistoryActiveLastFrame = true;
+    private List<String> aaPostActiveCapabilitiesLastFrame = List.of();
+    private List<String> aaPostPrunedCapabilitiesLastFrame = List.of();
     private UpscalerMode upscalerMode = UpscalerMode.NONE;
     private UpscalerQuality upscalerQuality = UpscalerQuality.QUALITY;
     private ReflectionProfile reflectionProfile = ReflectionProfile.BALANCED;
@@ -1197,6 +1206,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
+    protected AaPostCapabilityDiagnostics backendAaPostCapabilityDiagnostics() {
+        return new AaPostCapabilityDiagnostics(
+                !aaPostAaModeLastFrame.isBlank(),
+                aaPostAaModeLastFrame,
+                aaPostAaEnabledLastFrame,
+                aaPostTemporalHistoryActiveLastFrame,
+                aaPostActiveCapabilitiesLastFrame,
+                aaPostPrunedCapabilitiesLastFrame
+        );
+    }
+
+    @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
         boolean available = !"unavailable".equals(shadowCapabilityFeatureIdLastFrame)
                 && !"unavailable".equals(shadowCapabilityModeLastFrame);
@@ -1453,6 +1474,48 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         meshGeometryCacheProfile,
                         context
                 )
+        ));
+        VulkanAaCapabilityMode aaCapabilityMode = switch (aaMode) {
+            case TAA -> VulkanAaCapabilityMode.TAA;
+            case TSR -> VulkanAaCapabilityMode.TSR;
+            case TUUA -> VulkanAaCapabilityMode.TUUA;
+            case MSAA_SELECTIVE -> VulkanAaCapabilityMode.MSAA_SELECTIVE;
+            case HYBRID_TUUA_MSAA -> VulkanAaCapabilityMode.HYBRID_TUUA_MSAA;
+            case FXAA_LOW -> VulkanAaCapabilityMode.FXAA_LOW;
+            case DLAA -> VulkanAaCapabilityMode.DLAA;
+        };
+        VulkanAaPostCapabilityPlan aaPostPlan = VulkanAaPostCapabilityPlanner.plan(
+                new VulkanAaPostCapabilityPlanner.PlanInput(
+                        qualityTier,
+                        aaCapabilityMode,
+                        true,
+                        currentPost.taaEnabled(),
+                        currentPost.smaaEnabled(),
+                        currentPost.tonemapEnabled(),
+                        currentPost.bloomEnabled(),
+                        currentPost.ssaoEnabled(),
+                        currentFog.enabled()
+                )
+        );
+        aaPostAaModeLastFrame = aaCapabilityMode.name().toLowerCase(Locale.ROOT);
+        aaPostAaEnabledLastFrame = true;
+        aaPostTemporalHistoryActiveLastFrame = currentPost.taaEnabled()
+                && (aaCapabilityMode == VulkanAaCapabilityMode.TAA
+                || aaCapabilityMode == VulkanAaCapabilityMode.TSR
+                || aaCapabilityMode == VulkanAaCapabilityMode.TUUA
+                || aaCapabilityMode == VulkanAaCapabilityMode.HYBRID_TUUA_MSAA
+                || aaCapabilityMode == VulkanAaCapabilityMode.DLAA);
+        aaPostActiveCapabilitiesLastFrame = aaPostPlan.activeCapabilities().stream()
+                .map(capability -> capability.contract().featureId())
+                .toList();
+        aaPostPrunedCapabilitiesLastFrame = aaPostPlan.prunedCapabilities();
+        warnings.add(new EngineWarning(
+                "AA_POST_CAPABILITY_PLAN_ACTIVE",
+                "AA/post capability plan active (aaMode=" + aaPostAaModeLastFrame
+                        + ", aaEnabled=" + aaPostAaEnabledLastFrame
+                        + ", temporalHistoryActive=" + aaPostTemporalHistoryActiveLastFrame
+                        + ", active=[" + String.join(", ", aaPostActiveCapabilitiesLastFrame) + "]"
+                        + ", pruned=[" + String.join(", ", aaPostPrunedCapabilitiesLastFrame) + "])"
         ));
         if (currentPost.reflectionsEnabled()) {
             int reflectionBaseMode = currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
