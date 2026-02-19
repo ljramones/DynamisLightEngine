@@ -874,6 +874,74 @@ class VulkanShadowCapabilityWarningIntegrationTest {
         }
     }
 
+    @ParameterizedTest
+    @EnumSource(value = QualityTier.class, names = {"LOW", "MEDIUM", "HIGH", "ULTRA"})
+    void cacheEnvelopeStaysStableAcrossBlessedTiers(QualityTier tier) throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "false"),
+                    Map.entry("vulkan.shadow.maxShadowedLocalLights", "1"),
+                    Map.entry("vulkan.shadow.maxLocalShadowLayers", "24"),
+                    Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "24")
+            ), tier), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_CACHE_POLICY_ACTIVE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_CACHE_CHURN_HIGH".equals(w.code())));
+            var cache = runtime.shadowCacheDiagnostics();
+            assertTrue(cache.available());
+            assertFalse(cache.envelopeBreachedLastFrame());
+            assertEquals(0, cache.warnCooldownRemaining());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = QualityTier.class, names = {"LOW", "MEDIUM", "HIGH", "ULTRA"})
+    void rtEnvelopeStaysStableAcrossBlessedTiers(QualityTier tier) throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.rtMode", "off")
+            ), tier), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            var frame = runtime.render();
+            assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_RT_DENOISE_ENVELOPE_BREACH".equals(w.code())));
+            var rt = runtime.shadowRtDiagnostics();
+            assertTrue(rt.available());
+            assertFalse(rt.envelopeBreachedLastFrame());
+            assertEquals(0, rt.warnCooldownRemaining());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = QualityTier.class, names = {"LOW", "MEDIUM", "HIGH", "ULTRA"})
+    void hybridEnvelopeStaysStableAcrossBlessedTiers(QualityTier tier) throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.rtMode", "off")
+            ), tier), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_HYBRID_COMPOSITION".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_HYBRID_COMPOSITION_BREACH".equals(w.code())));
+            var hybrid = runtime.shadowHybridDiagnostics();
+            assertTrue(hybrid.available());
+            assertFalse(hybrid.envelopeBreachedLastFrame());
+            assertEquals(0, hybrid.warnCooldownRemaining());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     private static String warningMessageByCode(EngineFrameResult frame, String code) {
         return frame.warnings().stream()
                 .filter(w -> code.equals(w.code()))

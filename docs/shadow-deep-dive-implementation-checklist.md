@@ -65,6 +65,7 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 
 - [x] Activate strict denoise/perf envelope gates with typed runtime diagnostics parity (`shadowRtDiagnostics()`, `SHADOW_RT_DENOISE_ENVELOPE`, `SHADOW_RT_DENOISE_ENVELOPE_BREACH`).
 - [x] Lock RT perf + denoise thresholds by tier profile with explicit override precedence (`SHADOW_TELEMETRY_PROFILE_ACTIVE`).
+- [x] Add strict Phase C lockdown runner (`scripts/shadow_phasec_lockdown.sh`) for RT/cache/hybrid breach + tier-stability matrix assertions.
 
 ### 6) Hybrid cascade + contact + RT
 
