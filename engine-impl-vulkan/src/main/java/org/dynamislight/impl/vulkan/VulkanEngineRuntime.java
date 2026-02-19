@@ -1540,198 +1540,78 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionProbeStreamingBreachedLastFrame = coreState.reflectionProbeStreamingBreachedLastFrame;
             int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
             int planarExcluded = planarScopeExclusionCountFromOverrideSummary(overrideSummary);
-            int planarTotalMeshes = Math.max(0, planarEligible + planarExcluded);
-            boolean planarPathActive = reflectionBaseMode == 2 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
-            reflectionPlanarScopedMeshEligibleCount = planarEligible;
-            reflectionPlanarScopedMeshExcludedCount = planarExcluded;
-            reflectionPlanarPassOrderContractStatus = planarPathActive
-                    ? "prepass_capture_then_main_sample"
-                    : "inactive";
-            reflectionPlanarMirrorCameraActive = planarPathActive;
-            // In mock/offscreen-disabled contexts, surface the logical planar lane contract as active.
-            reflectionPlanarDedicatedCaptureLaneActive = planarPathActive;
-            String planarScopeIncludes = "auto=" + reflectionPlanarScopeIncludeAuto
-                    + "|probe_only=" + reflectionPlanarScopeIncludeProbeOnly
-                    + "|ssr_only=" + reflectionPlanarScopeIncludeSsrOnly
-                    + "|other=" + reflectionPlanarScopeIncludeOther;
-            warnings.add(new EngineWarning(
-                    "REFLECTION_PLANAR_SCOPE_CONTRACT",
-                    "Planar scope contract (status=" + reflectionPlanarPassOrderContractStatus
-                            + ", planarPathActive=" + planarPathActive
-                            + ", mirrorCameraActive=" + reflectionPlanarMirrorCameraActive
-                            + ", dedicatedCaptureLaneActive=" + reflectionPlanarDedicatedCaptureLaneActive
-                            + ", scopeIncludes=" + planarScopeIncludes
-                            + ", eligibleMeshes=" + planarEligible
-                            + ", excludedMeshes=" + planarExcluded
-                            + ", totalMeshes=" + planarTotalMeshes
-                            + ", planeHeight=" + currentPost.reflectionsPlanarPlaneHeight()
-                            + ", requiredOrder=planar_capture_before_main_sample_before_post)"
-            ));
-            String captureResourceStatus = planarPathActive
-                    ? (reflectionPlanarDedicatedCaptureLaneActive ? "capture_available_before_post_sample" : "fallback_scene_color")
-                    : "fallback_scene_color";
-            warnings.add(new EngineWarning(
-                    "REFLECTION_PLANAR_RESOURCE_CONTRACT",
-                    "Planar resource contract (status=" + captureResourceStatus
-                            + ", planarPathActive=" + planarPathActive
-                            + ", dedicatedCaptureLaneActive=" + reflectionPlanarDedicatedCaptureLaneActive + ")"
-            ));
-            if (planarPathActive && planarEligible <= 0) {
-                warnings.add(new EngineWarning(
-                        "REFLECTION_PLANAR_SCOPE_EMPTY",
-                        "Planar path active but selective scope has zero eligible meshes "
-                                + "(excluded=" + planarExcluded + ")"
-                ));
-            }
-            if (planarPathActive) {
-                double planarCoverageRatio = planarTotalMeshes > 0
-                        ? ((double) planarEligible / (double) planarTotalMeshes)
-                        : 1.0;
-                reflectionPlanarLatestCoverageRatio = planarCoverageRatio;
-                double currentPlaneHeight = currentPost.reflectionsPlanarPlaneHeight();
-                double planeDelta = Double.isNaN(reflectionPlanarPrevPlaneHeight)
-                        ? 0.0
-                        : Math.abs(currentPlaneHeight - reflectionPlanarPrevPlaneHeight);
-                reflectionPlanarLatestPlaneDelta = planeDelta;
-                boolean deltaRisk = !Double.isNaN(reflectionPlanarPrevPlaneHeight)
-                        && planeDelta > reflectionPlanarEnvelopePlaneDeltaWarnMax;
-                boolean coverageRisk = planarTotalMeshes > 0
-                        && planarCoverageRatio < reflectionPlanarEnvelopeCoverageRatioWarnMin;
-                boolean contractRisk = !reflectionPlanarMirrorCameraActive || !reflectionPlanarDedicatedCaptureLaneActive;
-                boolean emptyRisk = planarEligible <= 0;
-                boolean planarEnvelopeRisk = deltaRisk || coverageRisk || contractRisk || emptyRisk;
-                if (planarEnvelopeRisk) {
-                    reflectionPlanarEnvelopeHighStreak++;
-                } else {
-                    reflectionPlanarEnvelopeHighStreak = 0;
-                }
-                boolean planarEnvelopeTriggered = false;
-                if (reflectionPlanarEnvelopeWarnCooldownRemaining > 0) {
-                    reflectionPlanarEnvelopeWarnCooldownRemaining--;
-                }
-                if (planarEnvelopeRisk
-                        && reflectionPlanarEnvelopeHighStreak >= reflectionPlanarEnvelopeWarnMinFrames
-                        && reflectionPlanarEnvelopeWarnCooldownRemaining <= 0) {
-                    planarEnvelopeTriggered = true;
-                    reflectionPlanarEnvelopeWarnCooldownRemaining = reflectionPlanarEnvelopeWarnCooldownFrames;
-                }
-                reflectionPlanarEnvelopeBreachedLastFrame = planarEnvelopeTriggered;
-                warnings.add(new EngineWarning(
-                        "REFLECTION_PLANAR_STABILITY_ENVELOPE",
-                        "Planar stability envelope (risk=" + planarEnvelopeRisk
-                                + ", planeDelta=" + planeDelta
-                                + ", planeDeltaWarnMax=" + reflectionPlanarEnvelopePlaneDeltaWarnMax
-                                + ", coverageRatio=" + planarCoverageRatio
-                                + ", coverageRatioWarnMin=" + reflectionPlanarEnvelopeCoverageRatioWarnMin
-                                + ", contractRisk=" + contractRisk
-                                + ", emptyScopeRisk=" + emptyRisk
-                                + ", highStreak=" + reflectionPlanarEnvelopeHighStreak
-                                + ", warnMinFrames=" + reflectionPlanarEnvelopeWarnMinFrames
-                                + ", warnCooldownFrames=" + reflectionPlanarEnvelopeWarnCooldownFrames
-                                + ", cooldownRemaining=" + reflectionPlanarEnvelopeWarnCooldownRemaining
-                                + ", breached=" + planarEnvelopeTriggered
-                                + ")"
-                ));
-                if (planarEnvelopeTriggered) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_PLANAR_STABILITY_ENVELOPE_BREACH",
-                            "Planar stability envelope breach (planeDelta=" + planeDelta
-                                    + ", coverageRatio=" + planarCoverageRatio
-                                    + ", contractRisk=" + contractRisk
-                                    + ", emptyScopeRisk=" + emptyRisk + ")"
-                    ));
-                }
-                reflectionPlanarPrevPlaneHeight = currentPlaneHeight;
-                double planarGpuMsCap = planarPerfGpuMsCapForTier(qualityTier);
-                String planarTimingSource = lastFrameGpuTimingSource == null ? "frame_estimate" : lastFrameGpuTimingSource;
-                boolean planarTimestampAvailable = "gpu_timestamp".equalsIgnoreCase(planarTimingSource);
-                boolean planarTimestampRequirementUnmet = reflectionPlanarPerfRequireGpuTimestamp && !planarTimestampAvailable;
-                double planarGpuMsEstimate = planarTimestampAvailable
-                        ? Math.max(0.0, Double.isFinite(lastFramePlanarCaptureGpuMs) ? lastFramePlanarCaptureGpuMs : lastFrameGpuMs)
-                        : Math.max(0.0, lastFrameGpuMs) * (0.28 + 0.52 * planarCoverageRatio);
-                double planarDrawInflation = 1.0 + planarCoverageRatio;
-                long planarMemoryEstimate = (long) Math.max(0.0, lastFrameGpuMs * 0.0);
-                long planarBudgetBytes = (long) (reflectionPlanarPerfMemoryBudgetMb * 1024.0 * 1024.0);
-                // Approximate dedicated planar lane memory from active viewport dimensions.
-                planarMemoryEstimate = (long) Math.max(0.0, viewportWidth) * Math.max(0L, viewportHeight) * 4L;
-                boolean planarPerfRisk = planarGpuMsEstimate > planarGpuMsCap
-                        || planarDrawInflation > reflectionPlanarPerfDrawInflationWarnMax
-                        || planarMemoryEstimate > planarBudgetBytes
-                        || planarTimestampRequirementUnmet;
-                if (planarPerfRisk) {
-                    reflectionPlanarPerfHighStreak++;
-                } else {
-                    reflectionPlanarPerfHighStreak = 0;
-                }
-                boolean planarPerfTriggered = false;
-                if (reflectionPlanarPerfWarnCooldownRemaining > 0) {
-                    reflectionPlanarPerfWarnCooldownRemaining--;
-                }
-                if (planarPerfRisk
-                        && reflectionPlanarPerfHighStreak >= reflectionPlanarPerfWarnMinFrames
-                        && reflectionPlanarPerfWarnCooldownRemaining <= 0) {
-                    planarPerfTriggered = true;
-                    reflectionPlanarPerfWarnCooldownRemaining = reflectionPlanarPerfWarnCooldownFrames;
-                }
-                reflectionPlanarPerfBreachedLastFrame = planarPerfTriggered;
-                reflectionPlanarPerfLastGpuMsEstimate = planarGpuMsEstimate;
-                reflectionPlanarPerfLastGpuMsCap = planarGpuMsCap;
-                reflectionPlanarPerfLastDrawInflation = planarDrawInflation;
-                reflectionPlanarPerfLastMemoryBytes = planarMemoryEstimate;
-                reflectionPlanarPerfLastMemoryBudgetBytes = planarBudgetBytes;
-                reflectionPlanarPerfLastTimingSource = planarTimingSource;
-                reflectionPlanarPerfLastTimestampAvailable = planarTimestampAvailable;
-                reflectionPlanarPerfLastTimestampRequirementUnmet = planarTimestampRequirementUnmet;
-                warnings.add(new EngineWarning(
-                        "REFLECTION_PLANAR_PERF_GATES",
-                        "Planar perf gates (risk=" + planarPerfRisk
-                                + ", gpuMsEstimate=" + planarGpuMsEstimate
-                                + ", gpuMsCap=" + planarGpuMsCap
-                                + ", timingSource=" + planarTimingSource
-                                + ", timestampAvailable=" + planarTimestampAvailable
-                                + ", requireGpuTimestamp=" + reflectionPlanarPerfRequireGpuTimestamp
-                                + ", timestampRequirementUnmet=" + planarTimestampRequirementUnmet
-                                + ", drawInflation=" + planarDrawInflation
-                                + ", drawInflationWarnMax=" + reflectionPlanarPerfDrawInflationWarnMax
-                                + ", memoryBytes=" + planarMemoryEstimate
-                                + ", memoryBudgetBytes=" + planarBudgetBytes
-                                + ", highStreak=" + reflectionPlanarPerfHighStreak
-                                + ", warnMinFrames=" + reflectionPlanarPerfWarnMinFrames
-                                + ", warnCooldownFrames=" + reflectionPlanarPerfWarnCooldownFrames
-                                + ", cooldownRemaining=" + reflectionPlanarPerfWarnCooldownRemaining
-                                + ", breached=" + planarPerfTriggered
-                                + ")"
-                ));
-                if (planarPerfTriggered) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_PLANAR_PERF_GATES_BREACH",
-                            "Planar perf gates breached (gpuMsEstimate=" + planarGpuMsEstimate
-                                    + ", gpuMsCap=" + planarGpuMsCap
-                                    + ", timingSource=" + planarTimingSource
-                                    + ", timestampRequirementUnmet=" + planarTimestampRequirementUnmet
-                                    + ", drawInflation=" + planarDrawInflation
-                                    + ", memoryBytes=" + planarMemoryEstimate
-                                    + ", memoryBudgetBytes=" + planarBudgetBytes + ")"
-                    ));
-                }
-            } else {
-                reflectionPlanarEnvelopeHighStreak = 0;
-                reflectionPlanarEnvelopeBreachedLastFrame = false;
-                reflectionPlanarPrevPlaneHeight = Double.NaN;
-                reflectionPlanarLatestPlaneDelta = 0.0;
-                reflectionPlanarLatestCoverageRatio = 1.0;
-                reflectionPlanarPerfHighStreak = 0;
-                reflectionPlanarPerfBreachedLastFrame = false;
-                reflectionPlanarPerfLastGpuMsEstimate = 0.0;
-                reflectionPlanarPerfLastGpuMsCap = planarPerfGpuMsCapForTier(qualityTier);
-                reflectionPlanarPerfLastDrawInflation = 1.0;
-                reflectionPlanarPerfLastMemoryBytes = 0L;
-                reflectionPlanarPerfLastMemoryBudgetBytes = (long) (reflectionPlanarPerfMemoryBudgetMb * 1024.0 * 1024.0);
-                reflectionPlanarPerfLastTimingSource = lastFrameGpuTimingSource == null ? "frame_estimate" : lastFrameGpuTimingSource;
-                reflectionPlanarPerfLastTimestampAvailable = "gpu_timestamp".equalsIgnoreCase(reflectionPlanarPerfLastTimingSource);
-                reflectionPlanarPerfLastTimestampRequirementUnmet = reflectionPlanarPerfRequireGpuTimestamp
-                        && !reflectionPlanarPerfLastTimestampAvailable;
-            }
+            VulkanReflectionPlanarWarningEmitter.State planarState = new VulkanReflectionPlanarWarningEmitter.State();
+            planarState.reflectionBaseMode = reflectionBaseMode;
+            planarState.reflectionPlanarScopeIncludeAuto = reflectionPlanarScopeIncludeAuto;
+            planarState.reflectionPlanarScopeIncludeProbeOnly = reflectionPlanarScopeIncludeProbeOnly;
+            planarState.reflectionPlanarScopeIncludeSsrOnly = reflectionPlanarScopeIncludeSsrOnly;
+            planarState.reflectionPlanarScopeIncludeOther = reflectionPlanarScopeIncludeOther;
+            planarState.reflectionPlanarScopedMeshEligibleCount = reflectionPlanarScopedMeshEligibleCount;
+            planarState.reflectionPlanarScopedMeshExcludedCount = reflectionPlanarScopedMeshExcludedCount;
+            planarState.reflectionPlanarPassOrderContractStatus = reflectionPlanarPassOrderContractStatus;
+            planarState.reflectionPlanarMirrorCameraActive = reflectionPlanarMirrorCameraActive;
+            planarState.reflectionPlanarDedicatedCaptureLaneActive = reflectionPlanarDedicatedCaptureLaneActive;
+            planarState.reflectionPlanarLatestCoverageRatio = reflectionPlanarLatestCoverageRatio;
+            planarState.reflectionPlanarPrevPlaneHeight = reflectionPlanarPrevPlaneHeight;
+            planarState.reflectionPlanarLatestPlaneDelta = reflectionPlanarLatestPlaneDelta;
+            planarState.reflectionPlanarEnvelopePlaneDeltaWarnMax = reflectionPlanarEnvelopePlaneDeltaWarnMax;
+            planarState.reflectionPlanarEnvelopeCoverageRatioWarnMin = reflectionPlanarEnvelopeCoverageRatioWarnMin;
+            planarState.reflectionPlanarEnvelopeHighStreak = reflectionPlanarEnvelopeHighStreak;
+            planarState.reflectionPlanarEnvelopeWarnMinFrames = reflectionPlanarEnvelopeWarnMinFrames;
+            planarState.reflectionPlanarEnvelopeWarnCooldownFrames = reflectionPlanarEnvelopeWarnCooldownFrames;
+            planarState.reflectionPlanarEnvelopeWarnCooldownRemaining = reflectionPlanarEnvelopeWarnCooldownRemaining;
+            planarState.reflectionPlanarEnvelopeBreachedLastFrame = reflectionPlanarEnvelopeBreachedLastFrame;
+            planarState.reflectionPlanarPerfRequireGpuTimestamp = reflectionPlanarPerfRequireGpuTimestamp;
+            planarState.lastFramePlanarCaptureGpuMs = lastFramePlanarCaptureGpuMs;
+            planarState.lastFrameGpuMs = lastFrameGpuMs;
+            planarState.lastFrameGpuTimingSource = lastFrameGpuTimingSource;
+            planarState.viewportWidth = viewportWidth;
+            planarState.viewportHeight = viewportHeight;
+            planarState.reflectionPlanarPerfMemoryBudgetMb = reflectionPlanarPerfMemoryBudgetMb;
+            planarState.reflectionPlanarPerfDrawInflationWarnMax = reflectionPlanarPerfDrawInflationWarnMax;
+            planarState.reflectionPlanarPerfHighStreak = reflectionPlanarPerfHighStreak;
+            planarState.reflectionPlanarPerfWarnMinFrames = reflectionPlanarPerfWarnMinFrames;
+            planarState.reflectionPlanarPerfWarnCooldownFrames = reflectionPlanarPerfWarnCooldownFrames;
+            planarState.reflectionPlanarPerfWarnCooldownRemaining = reflectionPlanarPerfWarnCooldownRemaining;
+            planarState.reflectionPlanarPerfBreachedLastFrame = reflectionPlanarPerfBreachedLastFrame;
+            planarState.reflectionPlanarPerfLastGpuMsEstimate = reflectionPlanarPerfLastGpuMsEstimate;
+            planarState.reflectionPlanarPerfLastGpuMsCap = reflectionPlanarPerfLastGpuMsCap;
+            planarState.reflectionPlanarPerfLastDrawInflation = reflectionPlanarPerfLastDrawInflation;
+            planarState.reflectionPlanarPerfLastMemoryBytes = reflectionPlanarPerfLastMemoryBytes;
+            planarState.reflectionPlanarPerfLastMemoryBudgetBytes = reflectionPlanarPerfLastMemoryBudgetBytes;
+            planarState.reflectionPlanarPerfLastTimingSource = reflectionPlanarPerfLastTimingSource;
+            planarState.reflectionPlanarPerfLastTimestampAvailable = reflectionPlanarPerfLastTimestampAvailable;
+            planarState.reflectionPlanarPerfLastTimestampRequirementUnmet = reflectionPlanarPerfLastTimestampRequirementUnmet;
+            VulkanReflectionPlanarWarningEmitter.emit(
+                    warnings,
+                    planarState,
+                    planarEligible,
+                    planarExcluded,
+                    currentPost.reflectionsPlanarPlaneHeight(),
+                    planarPerfGpuMsCapForTier(qualityTier)
+            );
+            reflectionPlanarScopedMeshEligibleCount = planarState.reflectionPlanarScopedMeshEligibleCount;
+            reflectionPlanarScopedMeshExcludedCount = planarState.reflectionPlanarScopedMeshExcludedCount;
+            reflectionPlanarPassOrderContractStatus = planarState.reflectionPlanarPassOrderContractStatus;
+            reflectionPlanarMirrorCameraActive = planarState.reflectionPlanarMirrorCameraActive;
+            reflectionPlanarDedicatedCaptureLaneActive = planarState.reflectionPlanarDedicatedCaptureLaneActive;
+            reflectionPlanarLatestCoverageRatio = planarState.reflectionPlanarLatestCoverageRatio;
+            reflectionPlanarPrevPlaneHeight = planarState.reflectionPlanarPrevPlaneHeight;
+            reflectionPlanarLatestPlaneDelta = planarState.reflectionPlanarLatestPlaneDelta;
+            reflectionPlanarEnvelopeHighStreak = planarState.reflectionPlanarEnvelopeHighStreak;
+            reflectionPlanarEnvelopeWarnCooldownRemaining = planarState.reflectionPlanarEnvelopeWarnCooldownRemaining;
+            reflectionPlanarEnvelopeBreachedLastFrame = planarState.reflectionPlanarEnvelopeBreachedLastFrame;
+            reflectionPlanarPerfHighStreak = planarState.reflectionPlanarPerfHighStreak;
+            reflectionPlanarPerfWarnCooldownRemaining = planarState.reflectionPlanarPerfWarnCooldownRemaining;
+            reflectionPlanarPerfBreachedLastFrame = planarState.reflectionPlanarPerfBreachedLastFrame;
+            reflectionPlanarPerfLastGpuMsEstimate = planarState.reflectionPlanarPerfLastGpuMsEstimate;
+            reflectionPlanarPerfLastGpuMsCap = planarState.reflectionPlanarPerfLastGpuMsCap;
+            reflectionPlanarPerfLastDrawInflation = planarState.reflectionPlanarPerfLastDrawInflation;
+            reflectionPlanarPerfLastMemoryBytes = planarState.reflectionPlanarPerfLastMemoryBytes;
+            reflectionPlanarPerfLastMemoryBudgetBytes = planarState.reflectionPlanarPerfLastMemoryBudgetBytes;
+            reflectionPlanarPerfLastTimingSource = planarState.reflectionPlanarPerfLastTimingSource;
+            reflectionPlanarPerfLastTimestampAvailable = planarState.reflectionPlanarPerfLastTimestampAvailable;
+            reflectionPlanarPerfLastTimestampRequirementUnmet = planarState.reflectionPlanarPerfLastTimestampRequirementUnmet;
             refreshReflectionRtPathState(reflectionBaseMode);
             boolean reflectionRtMultiBounceActive = reflectionRtLaneActive && reflectionRtMultiBounceEnabled;
             if (reflectionRtLaneRequested || reflectionBaseMode == 4) {
