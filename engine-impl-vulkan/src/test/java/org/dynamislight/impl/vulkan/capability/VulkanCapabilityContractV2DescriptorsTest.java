@@ -14,6 +14,8 @@ import org.dynamislight.spi.render.RenderCapabilityContractV2;
 import org.dynamislight.spi.render.RenderDescriptorRequirement;
 import org.dynamislight.spi.render.RenderFeatureCapabilityV2;
 import org.dynamislight.spi.render.RenderFeatureMode;
+import org.dynamislight.spi.render.RenderShaderModuleBinding;
+import org.dynamislight.spi.render.RenderShaderModuleDeclaration;
 import org.junit.jupiter.api.Test;
 
 class VulkanCapabilityContractV2DescriptorsTest {
@@ -174,6 +176,42 @@ class VulkanCapabilityContractV2DescriptorsTest {
             );
             assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),
                     "expected zero errors for mode " + mode.id() + ", got: " + issues);
+        }
+    }
+
+    @Test
+    void everyShadowModeProducesShaderModulesWithDescriptorAlignedBindings() {
+        for (RenderFeatureMode mode : VulkanShadowCapabilityDescriptorV2.withMode(null).supportedModes()) {
+            VulkanShadowCapabilityDescriptorV2 shadow = VulkanShadowCapabilityDescriptorV2.withMode(mode);
+            List<RenderShaderModuleDeclaration> modules = shadow.shaderModules(mode);
+            assertFalse(modules.isEmpty(), "mode " + mode.id() + " must declare at least one shader module");
+
+            List<RenderDescriptorRequirement> descriptorRequirements = shadow.descriptorRequirements(mode);
+            for (RenderShaderModuleDeclaration module : modules) {
+                assertEqualsNonBlank(module.moduleId());
+                assertEqualsNonBlank(module.providerFeatureId());
+                assertEqualsNonBlank(module.targetPassId());
+                assertEqualsNonBlank(module.hookFunction());
+                assertEqualsNonBlank(module.functionSignature());
+                assertTrue(module.functionSignature().contains(module.hookFunction()),
+                        "signature must contain hook function for module " + module.moduleId());
+                assertEqualsNonBlank(module.glslBody());
+                assertFalse(module.bindings().isEmpty(),
+                        "module " + module.moduleId() + " must declare at least one binding");
+
+                for (RenderShaderModuleBinding binding : module.bindings()) {
+                    assertEqualsNonBlank(binding.symbolName());
+                    RenderDescriptorRequirement descriptor = binding.descriptor();
+                    boolean descriptorExists = descriptorRequirements.stream().anyMatch(req ->
+                            req.targetPassId().equals(descriptor.targetPassId())
+                                    && req.setIndex() == descriptor.setIndex()
+                                    && req.bindingIndex() == descriptor.bindingIndex()
+                    );
+                    assertTrue(descriptorExists,
+                            "module binding must map to declared descriptor requirement for mode "
+                                    + mode.id() + ": " + binding);
+                }
+            }
         }
     }
 

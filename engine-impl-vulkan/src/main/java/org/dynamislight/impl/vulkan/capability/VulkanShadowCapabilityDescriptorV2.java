@@ -17,6 +17,8 @@ import org.dynamislight.spi.render.RenderResourceType;
 import org.dynamislight.spi.render.RenderSchedulerDeclaration;
 import org.dynamislight.spi.render.RenderShaderContribution;
 import org.dynamislight.spi.render.RenderShaderInjectionPoint;
+import org.dynamislight.spi.render.RenderShaderModuleBinding;
+import org.dynamislight.spi.render.RenderShaderModuleDeclaration;
 import org.dynamislight.spi.render.RenderShaderStage;
 import org.dynamislight.spi.render.RenderTelemetryDeclaration;
 import org.dynamislight.spi.render.RenderUniformRequirement;
@@ -146,23 +148,54 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
     }
 
     @Override
-    public List<RenderDescriptorRequirement> descriptorRequirements(RenderFeatureMode mode) {
+    public List<RenderShaderModuleDeclaration> shaderModules(RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
-        boolean momentPipeline = isMomentMode(active);
-        boolean rtDenoiseMode = MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active);
+        java.util.ArrayList<RenderShaderModuleDeclaration> modules = new java.util.ArrayList<>(List.of(new RenderShaderModuleDeclaration(
+                "shadow.main.evaluate." + active.id(),
+                featureId(),
+                "main_geometry",
+                RenderShaderInjectionPoint.LIGHTING_EVAL,
+                RenderShaderStage.FRAGMENT,
+                "evaluateShadow",
+                "float evaluateShadow(in vec3 worldPos, in vec3 normal, in vec3 viewDir)",
+                shadowMainModuleBody(active),
+                shadowMainModuleBindings(active),
+                uniformRequirements(active),
+                List.of(),
+                10,
+                false
+        )));
+        if (MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active)) {
+            modules.add(new RenderShaderModuleDeclaration(
+                    "shadow.denoise.resolve." + active.id(),
+                    featureId(),
+                    "shadow_rt_denoise",
+                    RenderShaderInjectionPoint.AUXILIARY,
+                    RenderShaderStage.FRAGMENT,
+                    "resolveShadowRtDenoise",
+                    "vec4 resolveShadowRtDenoise(in vec2 uv)",
+                    "vec4 resolveShadowRtDenoise(in vec2 uv) {\n" +
+                            "    vec4 rtRaw = texture(uShadowRtVisibility, uv);\n" +
+                            "    vec4 rtFiltered = texture(uShadowRtDenoised, uv);\n" +
+                            "    float blendWeight = clamp(uShadowRtDenoiseBlend, 0.0, 1.0);\n" +
+                            "    return mix(rtRaw, rtFiltered, blendWeight);\n" +
+                            "}",
+                    List.of(
+                            new RenderShaderModuleBinding("uShadowRtVisibility", descriptorByTargetSetBinding(active, "main_geometry", 1, 10)),
+                            new RenderShaderModuleBinding("uShadowRtDenoised", descriptorByTargetSetBinding(active, "main_geometry", 1, 10))
+                    ),
+                    List.of(new RenderUniformRequirement("global_scene", "uShadowRtDenoiseBlend", 0, 0)),
+                    List.of(),
+                    20,
+                    true
+            ));
+        }
+        return List.copyOf(modules);
+    }
 
-        java.util.ArrayList<RenderDescriptorRequirement> requirements = new java.util.ArrayList<>(List.of(
-                new RenderDescriptorRequirement("main_geometry", 1, 4, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, false),
-                new RenderDescriptorRequirement("shadow_passes", 0, 0, RenderDescriptorType.UNIFORM_BUFFER, RenderBindingFrequency.PER_FRAME, false),
-                new RenderDescriptorRequirement("shadow_passes", 0, 1, RenderDescriptorType.UNIFORM_BUFFER, RenderBindingFrequency.PER_DRAW, false)
-        ));
-        if (momentPipeline) {
-            requirements.add(new RenderDescriptorRequirement("main_geometry", 1, 8, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
-        }
-        if (rtDenoiseMode) {
-            requirements.add(new RenderDescriptorRequirement("main_geometry", 1, 10, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
-        }
-        return List.copyOf(requirements);
+    @Override
+    public List<RenderDescriptorRequirement> descriptorRequirements(RenderFeatureMode mode) {
+        return descriptorRequirementsStatic(mode);
     }
 
     @Override
@@ -393,5 +426,97 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
     private static boolean isMomentMode(RenderFeatureMode mode) {
         String id = sanitizeMode(mode).id();
         return "vsm".equals(id) || "evsm".equals(id);
+    }
+
+    private static List<RenderShaderModuleBinding> shadowMainModuleBindings(RenderFeatureMode mode) {
+        RenderFeatureMode active = sanitizeMode(mode);
+        java.util.ArrayList<RenderShaderModuleBinding> bindings = new java.util.ArrayList<>(List.of(
+                new RenderShaderModuleBinding(
+                        "uShadowMap",
+                        descriptorByTargetSetBinding(active, "main_geometry", 1, 4)
+                )
+        ));
+        if (isMomentMode(active)) {
+            bindings.add(new RenderShaderModuleBinding(
+                    "uShadowMomentAtlas",
+                    descriptorByTargetSetBinding(active, "main_geometry", 1, 8)
+            ));
+        }
+        if (MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active)) {
+            bindings.add(new RenderShaderModuleBinding(
+                    "uShadowRtDenoised",
+                    descriptorByTargetSetBinding(active, "main_geometry", 1, 10)
+            ));
+        }
+        return List.copyOf(bindings);
+    }
+
+    private static String shadowMainModuleBody(RenderFeatureMode mode) {
+        RenderFeatureMode active = sanitizeMode(mode);
+        String id = active.id();
+        if (MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active)) {
+            return "float evaluateShadow(in vec3 worldPos, in vec3 normal, in vec3 viewDir) {\n" +
+                    "    float atlasSample = texture(uShadowMap, vec3(worldPos.xy, 0.0));\n" +
+                    "    float rtSample = texture(uShadowRtDenoised, worldPos.xy).r;\n" +
+                    "    float rtBlend = clamp(uShadowHybridBlendParams.x, 0.0, 1.0);\n" +
+                    "    return mix(atlasSample, rtSample, rtBlend);\n" +
+                    "}";
+        }
+        if (isMomentMode(active)) {
+            return "float evaluateShadow(in vec3 worldPos, in vec3 normal, in vec3 viewDir) {\n" +
+                    "    vec2 moments = texture(uShadowMomentAtlas, worldPos.xy).rg;\n" +
+                    "    float d = moments.x;\n" +
+                    "    float variance = max(moments.y - (d * d), 0.00001);\n" +
+                    "    float m = worldPos.z - d;\n" +
+                    "    float p = variance / (variance + (m * m));\n" +
+                    "    return clamp(p, 0.0, 1.0);\n" +
+                    "}";
+        }
+        return "float evaluateShadow(in vec3 worldPos, in vec3 normal, in vec3 viewDir) {\n" +
+                "    float shadowTerm = texture(uShadowMap, vec3(worldPos.xy, 0.0));\n" +
+                "    return clamp(shadowTerm, 0.0, 1.0);\n" +
+                "}";
+    }
+
+    private static RenderDescriptorRequirement descriptorByTargetSetBinding(
+            RenderFeatureMode mode,
+            String targetPassId,
+            int setIndex,
+            int bindingIndex
+    ) {
+        for (RenderDescriptorRequirement requirement : descriptorRequirementsStatic(mode)) {
+            if (requirement.targetPassId().equals(targetPassId)
+                    && requirement.setIndex() == setIndex
+                    && requirement.bindingIndex() == bindingIndex) {
+                return requirement;
+            }
+        }
+        return new RenderDescriptorRequirement(
+                targetPassId,
+                setIndex,
+                bindingIndex,
+                RenderDescriptorType.COMBINED_IMAGE_SAMPLER,
+                RenderBindingFrequency.PER_FRAME,
+                true
+        );
+    }
+
+    private static List<RenderDescriptorRequirement> descriptorRequirementsStatic(RenderFeatureMode mode) {
+        RenderFeatureMode active = sanitizeMode(mode);
+        boolean momentPipeline = isMomentMode(active);
+        boolean rtDenoiseMode = MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active);
+
+        java.util.ArrayList<RenderDescriptorRequirement> requirements = new java.util.ArrayList<>(List.of(
+                new RenderDescriptorRequirement("main_geometry", 1, 4, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, false),
+                new RenderDescriptorRequirement("shadow_passes", 0, 0, RenderDescriptorType.UNIFORM_BUFFER, RenderBindingFrequency.PER_FRAME, false),
+                new RenderDescriptorRequirement("shadow_passes", 0, 1, RenderDescriptorType.UNIFORM_BUFFER, RenderBindingFrequency.PER_DRAW, false)
+        ));
+        if (momentPipeline) {
+            requirements.add(new RenderDescriptorRequirement("main_geometry", 1, 8, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
+        }
+        if (rtDenoiseMode) {
+            requirements.add(new RenderDescriptorRequirement("main_geometry", 1, 10, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
+        }
+        return List.copyOf(requirements);
     }
 }

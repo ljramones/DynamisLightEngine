@@ -6,7 +6,7 @@ Scope: final architecture migration for composed shaders, composed descriptor la
 ## C.1 Shader Module System
 
 - [x] C.1.1 Define shader module format in SPI (`RenderShaderModuleDeclaration`, `RenderShaderModuleBinding`, `RenderShaderModuleContributor`).
-- [ ] C.1.2 Extract shadow shader module(s) from Vulkan shader sources.
+- [x] C.1.2 Extract shadow shader module(s) from Vulkan shader sources.
 - [ ] C.1.3 Extract reflection shader module(s) from Vulkan shader sources.
 - [ ] C.1.4 Extract AA shader module(s) from Vulkan shader sources.
 - [ ] C.1.5 Implement shader assembler (host template + module injection).
