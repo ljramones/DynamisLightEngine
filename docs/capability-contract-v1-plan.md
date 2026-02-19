@@ -43,3 +43,9 @@ Scope: post-reflections sequencing kickoff
 - AA/post contract hardening artifacts are tracked in:
   - `docs/capability-contract-phase2-aa-post.md`
   - `docs/capability-contract-phase2-aa-post-checklist.md`
+
+## Phase 3 status
+
+- Post modularization activation/planning artifacts are tracked in:
+  - `docs/capability-contract-phase3-post-modularization.md`
+  - `docs/capability-contract-phase3-post-modularization-checklist.md`
