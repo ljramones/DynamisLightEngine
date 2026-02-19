@@ -88,6 +88,13 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                     .orElse(null);
             assertNotNull(modeWarning);
             assertTrue(modeWarning.message().contains("mode=hybrid_cascade_contact_rt"), modeWarning.message());
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_HYBRID_COMPOSITION".equals(w.code())));
+            var hybrid = runtime.shadowHybridDiagnostics();
+            assertTrue(hybrid.available());
+            assertTrue(hybrid.hybridModeActive());
+            assertTrue(hybrid.cascadeShare() > 0.0);
+            assertTrue(hybrid.contactShare() > 0.0);
+            assertTrue(hybrid.rtShare() > 0.0);
             var diagnostics = runtime.shadowCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertEquals("vulkan.shadow", diagnostics.featureId());
@@ -228,6 +235,10 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("rtPerfMaxGpuMsUltra=4.8"), profileWarning);
             assertTrue(profileWarning.contains("rtWarnMinFrames=2"), profileWarning);
             assertTrue(profileWarning.contains("rtWarnCooldownFrames=60"), profileWarning);
+            assertTrue(profileWarning.contains("hybridRtShareWarnMin=0.12"), profileWarning);
+            assertTrue(profileWarning.contains("hybridContactShareWarnMin=0.06"), profileWarning);
+            assertTrue(profileWarning.contains("hybridWarnMinFrames=2"), profileWarning);
+            assertTrue(profileWarning.contains("hybridWarnCooldownFrames=60"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.35, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(2, cadence.warnMinFrames());
@@ -241,6 +252,11 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals(1, cache.missWarnMax());
             assertEquals(2, cache.warnMinFrames());
             assertEquals(60, cache.warnCooldownFrames());
+            var hybrid = runtime.shadowHybridDiagnostics();
+            assertEquals(0.12, hybrid.rtShareWarnMin(), 1e-6);
+            assertEquals(0.06, hybrid.contactShareWarnMin(), 1e-6);
+            assertEquals(2, hybrid.warnMinFrames());
+            assertEquals(60, hybrid.warnCooldownFrames());
         } finally {
             runtime.shutdown();
         }
@@ -269,7 +285,11 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                     Map.entry("vulkan.shadow.rtPerfMaxGpuMsHigh", "1.0"),
                     Map.entry("vulkan.shadow.rtPerfMaxGpuMsUltra", "1.1"),
                     Map.entry("vulkan.shadow.rtWarnMinFrames", "5"),
-                    Map.entry("vulkan.shadow.rtWarnCooldownFrames", "44")
+                    Map.entry("vulkan.shadow.rtWarnCooldownFrames", "44"),
+                    Map.entry("vulkan.shadow.hybridRtShareWarnMin", "0.45"),
+                    Map.entry("vulkan.shadow.hybridContactShareWarnMin", "0.30"),
+                    Map.entry("vulkan.shadow.hybridWarnMinFrames", "6"),
+                    Map.entry("vulkan.shadow.hybridWarnCooldownFrames", "70")
             ), QualityTier.ULTRA), new NoopCallbacks());
             runtime.loadScene(validThreeSpotShadowScene());
             var frame = runtime.render();
@@ -292,6 +312,10 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("rtPerfMaxGpuMsUltra=1.1"), profileWarning);
             assertTrue(profileWarning.contains("rtWarnMinFrames=5"), profileWarning);
             assertTrue(profileWarning.contains("rtWarnCooldownFrames=44"), profileWarning);
+            assertTrue(profileWarning.contains("hybridRtShareWarnMin=0.45"), profileWarning);
+            assertTrue(profileWarning.contains("hybridContactShareWarnMin=0.3"), profileWarning);
+            assertTrue(profileWarning.contains("hybridWarnMinFrames=6"), profileWarning);
+            assertTrue(profileWarning.contains("hybridWarnCooldownFrames=70"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.22, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(7, cadence.warnMinFrames());
@@ -314,6 +338,11 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals(1.1, runtimeWarningRtCapByTier(profileWarning, "rtPerfMaxGpuMsUltra"), 1e-6);
             assertEquals(5, rt.warnMinFrames());
             assertEquals(44, rt.warnCooldownFrames());
+            var hybrid = runtime.shadowHybridDiagnostics();
+            assertEquals(0.45, hybrid.rtShareWarnMin(), 1e-6);
+            assertEquals(0.30, hybrid.contactShareWarnMin(), 1e-6);
+            assertEquals(6, hybrid.warnMinFrames());
+            assertEquals(70, hybrid.warnCooldownFrames());
         } finally {
             runtime.shutdown();
         }
@@ -374,6 +403,33 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals("optional", rt.mode());
             assertTrue(rt.envelopeBreachedLastFrame());
             assertTrue(rt.denoiseStrength() < rt.denoiseWarnMin() || rt.sampleCount() < rt.sampleWarnMin() || rt.perfGpuMsEstimate() > rt.perfGpuMsWarnMax());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void shadowHybridCompositionBreachGateTriggersWithAggressiveThresholds() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.filterPath", "evsm"),
+                    Map.entry("vulkan.shadow.rtMode", "bvh_dedicated"),
+                    Map.entry("vulkan.shadow.contactShadows", "true"),
+                    Map.entry("vulkan.shadow.hybridRtShareWarnMin", "0.50"),
+                    Map.entry("vulkan.shadow.hybridContactShareWarnMin", "0.40"),
+                    Map.entry("vulkan.shadow.hybridWarnMinFrames", "1"),
+                    Map.entry("vulkan.shadow.hybridWarnCooldownFrames", "0")
+            )), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_HYBRID_COMPOSITION".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_HYBRID_COMPOSITION_BREACH".equals(w.code())));
+            var hybrid = runtime.shadowHybridDiagnostics();
+            assertTrue(hybrid.available());
+            assertTrue(hybrid.hybridModeActive());
+            assertTrue(hybrid.envelopeBreachedLastFrame());
         } finally {
             runtime.shutdown();
         }

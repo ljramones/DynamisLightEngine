@@ -55,6 +55,7 @@ Shadow notes:
 - Vulkan shadow telemetry defaults are now locked per blessed tier profile with explicit override precedence and emitted each frame via `SHADOW_TELEMETRY_PROFILE_ACTIVE`; cadence stability CI assertions now run across `LOW|MEDIUM|HIGH|ULTRA`.
 - Engine runtime API now exposes typed shadow-cache diagnostics (`shadowCacheDiagnostics()`), and Vulkan emits cache policy/churn warnings (`SHADOW_CACHE_POLICY_ACTIVE`, `SHADOW_CACHE_CHURN_HIGH`) including invalidation reason telemetry with cooldown-gated CI breach signaling.
 - Engine runtime API now exposes typed shadow RT diagnostics (`shadowRtDiagnostics()`), and Vulkan emits RT denoise/perf envelope warnings (`SHADOW_RT_DENOISE_ENVELOPE`, `SHADOW_RT_DENOISE_ENVELOPE_BREACH`) with tier-locked thresholds and override precedence.
+- Engine runtime API now exposes typed shadow hybrid diagnostics (`shadowHybridDiagnostics()`), and Vulkan emits hybrid composition-share telemetry/warnings (`SHADOW_HYBRID_COMPOSITION`, `SHADOW_HYBRID_COMPOSITION_BREACH`) with tier-locked share-envelope thresholds.
 
 ## Reflections
 

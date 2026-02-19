@@ -61,8 +61,8 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 
 ### 6) Hybrid cascade + contact + RT
 
-- [ ] Add composition-share diagnostics and breach gates.
-- [ ] Add hybrid stability CI envelope assertions.
+- [x] Add composition-share diagnostics and breach gates (`shadowHybridDiagnostics()`, `SHADOW_HYBRID_COMPOSITION`, `SHADOW_HYBRID_COMPOSITION_BREACH`).
+- [x] Add hybrid stability CI envelope assertions (`VulkanShadowCapabilityWarningIntegrationTest#shadowHybridCompositionBreachGateTriggersWithAggressiveThresholds`).
 
 ### 7) Transparent shadow receivers
 

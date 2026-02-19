@@ -243,6 +243,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic shadow hybrid composition diagnostics.
+     *
+     * Backends that do not expose hybrid diagnostics return
+     * {@link ShadowHybridDiagnostics#unavailable()}.
+     *
+     * @return current shadow hybrid diagnostics snapshot.
+     */
+    default ShadowHybridDiagnostics shadowHybridDiagnostics() {
+        return ShadowHybridDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release
