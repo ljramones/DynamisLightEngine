@@ -538,6 +538,26 @@ class VulkanShadowCapabilityWarningIntegrationTest {
     }
 
     @Test
+    void localRenderDeferralUsesPolicyWarningInsteadOfBaselineWarning() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "false"),
+                    Map.entry("vulkan.shadow.maxShadowedLocalLights", "6"),
+                    Map.entry("vulkan.shadow.maxLocalShadowLayers", "24"),
+                    Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "6")
+            )), new NoopCallbacks());
+            runtime.loadScene(validThreePointShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_LOCAL_RENDER_DEFERRED_POLICY".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_LOCAL_RENDER_BASELINE".equals(w.code())));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
     void shadowExtendedModeRequiredBreachesTriggerForUnavailableAreaAndDistanceField() throws Exception {
         VulkanEngineRuntime runtime = new VulkanEngineRuntime();
         try {

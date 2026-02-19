@@ -3171,13 +3171,33 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " slopeBiasScale=" + currentShadows.slopeBiasScale()
             ));
             if (currentShadows.renderedLocalShadowLights() < currentShadows.selectedLocalShadowLights()) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_LOCAL_RENDER_BASELINE",
-                        "Vulkan local-shadow render path is still primary-local baseline "
-                                + "(requestedLocalShadows=" + currentShadows.selectedLocalShadowLights()
-                                + ", renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
-                                + ", atlas/cubemap multi-local rollout pending)"
-                ));
+                boolean budgetBoundDeferral = currentShadows.deferredShadowLightCount() > 0
+                        || (shadowMaxFacesPerFrame > 0
+                        && shadowPointBudgetRenderedFacesLastFrame >= shadowMaxFacesPerFrame)
+                        || (shadowMaxLocalLayers > 0
+                        && currentShadows.maxShadowedLocalLights() > shadowMaxLocalLayers)
+                        || shadowSchedulerEnabled;
+                if (budgetBoundDeferral) {
+                    warnings.add(new EngineWarning(
+                            "SHADOW_LOCAL_RENDER_DEFERRED_POLICY",
+                            "Vulkan local-shadow deferral active by policy/budget "
+                                    + "(requestedLocalShadows=" + currentShadows.selectedLocalShadowLights()
+                                    + ", renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
+                                    + ", deferredShadowLights=" + currentShadows.deferredShadowLightCount()
+                                    + ", schedulerEnabled=" + shadowSchedulerEnabled
+                                    + ", maxShadowFacesPerFrameConfigured=" + (shadowMaxFacesPerFrame > 0 ? Integer.toString(shadowMaxFacesPerFrame) : "auto")
+                                    + ", maxLocalShadowLayersConfigured=" + (shadowMaxLocalLayers > 0 ? Integer.toString(shadowMaxLocalLayers) : "auto")
+                                    + ")"
+                    ));
+                } else {
+                    warnings.add(new EngineWarning(
+                            "SHADOW_LOCAL_RENDER_BASELINE",
+                            "Vulkan local-shadow render path is below expected coverage without explicit policy constraint "
+                                    + "(requestedLocalShadows=" + currentShadows.selectedLocalShadowLights()
+                                    + ", renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
+                                    + ", deferredShadowLights=" + currentShadows.deferredShadowLightCount() + ")"
+                    ));
+                }
             }
             if (currentShadows.momentFilterEstimateOnly()) {
                 warnings.add(new EngineWarning(
