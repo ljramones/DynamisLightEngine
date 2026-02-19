@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
 
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 
@@ -6,11 +6,11 @@ import java.util.Map;
 
 import org.dynamislight.api.config.QualityTier;
 
-final class VulkanShadowTelemetryDefaults {
+public final class VulkanShadowTelemetryDefaults {
     private VulkanShadowTelemetryDefaults() {
     }
 
-    static final class State {
+    public static final class State {
         double shadowCadenceWarnDeferredRatioMax;
         int shadowCadenceWarnMinFrames;
         int shadowCadenceWarnCooldownFrames;
@@ -49,7 +49,7 @@ final class VulkanShadowTelemetryDefaults {
         int shadowPhaseDPromotionReadyMinFrames;
     }
 
-    static void apply(State state, Map<String, String> backendOptions, QualityTier tier) {
+    public static void apply(State state, Map<String, String> backendOptions, QualityTier tier) {
         Map<String, String> safe = backendOptions == null ? Map.of() : backendOptions;
         switch (tier) {
             case LOW -> {

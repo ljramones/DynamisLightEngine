@@ -1,6 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
+import org.dynamislight.impl.vulkan.reflection.VulkanReflectionTelemetryProfileWarning;
 
 import org.dynamislight.impl.vulkan.runtime.config.*;
 
@@ -84,7 +85,7 @@ final class VulkanReflectionWarningCoreFlow {
 
         VulkanReflectionTelemetryProfileWarning.State telemetryProfileState = new VulkanReflectionTelemetryProfileWarning.State();
         VulkanTelemetryStateBinder.copyMatchingFields(runtime, telemetryProfileState);
-        telemetryProfileState.reflectionProfile = reflectionProfile;
+        telemetryProfileState.setReflectionProfile(reflectionProfile);
         warnings.add(VulkanReflectionTelemetryProfileWarning.warning(telemetryProfileState));
     }
 

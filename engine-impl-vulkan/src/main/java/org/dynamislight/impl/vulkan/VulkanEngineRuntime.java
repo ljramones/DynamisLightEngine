@@ -10,6 +10,8 @@ import org.dynamislight.impl.vulkan.runtime.config.UpscalerMode;
 import org.dynamislight.impl.vulkan.runtime.config.UpscalerQuality;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptions;
+import org.dynamislight.impl.vulkan.reflection.VulkanReflectionTelemetryDefaults;
+import org.dynamislight.impl.vulkan.shadow.VulkanShadowTelemetryDefaults;
 
 import java.nio.file.Path;
 import java.nio.file.Files;

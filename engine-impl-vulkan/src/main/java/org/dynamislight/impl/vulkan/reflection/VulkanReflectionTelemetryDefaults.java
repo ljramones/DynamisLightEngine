@@ -1,15 +1,15 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
 import org.dynamislight.impl.vulkan.runtime.config.ReflectionProfile;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 
 import java.util.Map;
 
-final class VulkanReflectionTelemetryDefaults {
+public final class VulkanReflectionTelemetryDefaults {
     private VulkanReflectionTelemetryDefaults() {
     }
 
-    static final class State {
+    public static final class State {
         double reflectionContactHardeningMinSsrMaxRoughness;
         double reflectionContactHardeningMinSsrStrength;
         int reflectionContactHardeningWarnCooldownFrames;
@@ -90,7 +90,7 @@ final class VulkanReflectionTelemetryDefaults {
         int reflectionTransparencyWarnMinFrames;
     }
 
-    static void apply(State state, ReflectionProfile profile, Map<String, String> backendOptions) {
+    public static void apply(State state, ReflectionProfile profile, Map<String, String> backendOptions) {
         if (profile == ReflectionProfile.BALANCED) {
             return;
         }

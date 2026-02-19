@@ -1,14 +1,14 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
 import org.dynamislight.impl.vulkan.runtime.config.*;
 
 import org.dynamislight.api.event.EngineWarning;
 
-final class VulkanReflectionTelemetryProfileWarning {
+public final class VulkanReflectionTelemetryProfileWarning {
     private VulkanReflectionTelemetryProfileWarning() {
     }
 
-    static final class State {
+    public static final class State {
         ReflectionProfile reflectionProfile;
         int reflectionProbeChurnWarnMinDelta;
         int reflectionProbeChurnWarnMinStreak;
@@ -108,9 +108,13 @@ final class VulkanReflectionTelemetryProfileWarning {
         double reflectionProbeStreamingDeferredRatioWarnMax;
         double reflectionProbeStreamingLodSkewWarnMax;
         double reflectionProbeStreamingMemoryBudgetMb;
+
+        public void setReflectionProfile(ReflectionProfile reflectionProfile) {
+            this.reflectionProfile = reflectionProfile;
+        }
     }
 
-    static EngineWarning warning(State s) {
+    public static EngineWarning warning(State s) {
         return new EngineWarning(
                 "REFLECTION_TELEMETRY_PROFILE_ACTIVE",
                 "Reflection telemetry profile active (profile=" + s.reflectionProfile.name().toLowerCase()
