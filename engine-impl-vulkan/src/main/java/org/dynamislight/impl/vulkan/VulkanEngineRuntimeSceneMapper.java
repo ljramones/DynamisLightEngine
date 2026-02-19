@@ -28,12 +28,12 @@ final class VulkanEngineRuntimeSceneMapper {
             PostProcessDesc desc,
             QualityTier qualityTier,
             boolean taaLumaClipEnabledDefault,
-            VulkanEngineRuntime.AaPreset aaPreset,
-            VulkanEngineRuntime.AaMode aaMode,
-            VulkanEngineRuntime.UpscalerMode upscalerMode,
-            VulkanEngineRuntime.UpscalerQuality upscalerQuality,
-            VulkanEngineRuntime.TsrControls tsrControls,
-            VulkanEngineRuntime.ReflectionProfile reflectionProfile
+            AaPreset aaPreset,
+            AaMode aaMode,
+            UpscalerMode upscalerMode,
+            UpscalerQuality upscalerQuality,
+            TsrControls tsrControls,
+            ReflectionProfile reflectionProfile
     ) {
         return VulkanEngineRuntimeLightingMapper.mapPostProcess(
                 desc,

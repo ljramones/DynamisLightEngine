@@ -92,7 +92,7 @@ final class VulkanRuntimeWarningPolicy {
                     "TAA baseline temporal blend path is active"
             ));
         }
-        if (in.upscalerMode() != VulkanEngineRuntime.UpscalerMode.NONE && in.currentPost().taaEnabled()) {
+        if (in.upscalerMode() != UpscalerMode.NONE && in.currentPost().taaEnabled()) {
             warnings.add(new EngineWarning(
                     "UPSCALER_HOOK_ACTIVE",
                     "Upscaler hook requested (mode=" + in.upscalerMode().name().toLowerCase()
@@ -321,15 +321,15 @@ final class VulkanRuntimeWarningPolicy {
             VulkanEngineRuntime.ShadowRenderConfig currentShadows,
             VulkanEngineRuntime.PostProcessRenderConfig currentPost,
             VulkanEngineRuntime.IblRenderConfig currentIbl,
-            VulkanEngineRuntime.UpscalerMode upscalerMode,
-            VulkanEngineRuntime.UpscalerQuality upscalerQuality,
+            UpscalerMode upscalerMode,
+            UpscalerQuality upscalerQuality,
             boolean nativeUpscalerActive,
             String nativeUpscalerProvider,
             String nativeUpscalerDetail,
             boolean nonDirectionalShadowRequested,
             boolean mockContext,
             boolean postOffscreenRequested,
-            VulkanEngineRuntime.MeshGeometryCacheProfile meshGeometryCacheProfile,
+            MeshGeometryCacheProfile meshGeometryCacheProfile,
             VulkanContext context
     ) {
     }

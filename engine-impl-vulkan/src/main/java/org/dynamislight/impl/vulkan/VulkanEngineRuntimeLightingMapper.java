@@ -28,12 +28,12 @@ final class VulkanEngineRuntimeLightingMapper {
             PostProcessDesc desc,
             QualityTier qualityTier,
             boolean taaLumaClipEnabledDefault,
-            VulkanEngineRuntime.AaPreset aaPreset,
-            VulkanEngineRuntime.AaMode aaMode,
-            VulkanEngineRuntime.UpscalerMode upscalerMode,
-            VulkanEngineRuntime.UpscalerQuality upscalerQuality,
-            VulkanEngineRuntime.TsrControls tsrControls,
-            VulkanEngineRuntime.ReflectionProfile reflectionProfile
+            AaPreset aaPreset,
+            AaMode aaMode,
+            UpscalerMode upscalerMode,
+            UpscalerQuality upscalerQuality,
+            TsrControls tsrControls,
+            ReflectionProfile reflectionProfile
     ) {
         if (desc == null || !desc.enabled()) {
             return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f, 0.0f);
@@ -173,8 +173,8 @@ final class VulkanEngineRuntimeLightingMapper {
                 }
             }
         }
-        if ((aaMode == VulkanEngineRuntime.AaMode.TSR || aaMode == VulkanEngineRuntime.AaMode.TUUA)
-                && upscalerMode != VulkanEngineRuntime.UpscalerMode.NONE) {
+        if ((aaMode == AaMode.TSR || aaMode == AaMode.TUUA)
+                && upscalerMode != UpscalerMode.NONE) {
             float qualityScale = switch (upscalerQuality) {
                 case PERFORMANCE -> 0.88f;
                 case BALANCED -> 0.94f;

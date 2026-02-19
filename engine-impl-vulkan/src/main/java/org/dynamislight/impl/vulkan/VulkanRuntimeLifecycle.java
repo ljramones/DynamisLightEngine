@@ -52,12 +52,12 @@ final class VulkanRuntimeLifecycle {
             Path assetRoot,
             VulkanMeshAssetLoader meshLoader,
             boolean taaLumaClipEnabledDefault,
-            VulkanEngineRuntime.AaPreset aaPreset,
-            VulkanEngineRuntime.AaMode aaMode,
-            VulkanEngineRuntime.UpscalerMode upscalerMode,
-            VulkanEngineRuntime.UpscalerQuality upscalerQuality,
-            VulkanEngineRuntime.TsrControls tsrControls,
-            VulkanEngineRuntime.ReflectionProfile reflectionProfile,
+            AaPreset aaPreset,
+            AaMode aaMode,
+            UpscalerMode upscalerMode,
+            UpscalerQuality upscalerQuality,
+            TsrControls tsrControls,
+            ReflectionProfile reflectionProfile,
             String shadowFilterPath,
             boolean shadowContactShadows,
             String shadowRtMode,
@@ -129,7 +129,7 @@ final class VulkanRuntimeLifecycle {
         boolean nonDirectionalShadowRequested = VulkanEngineRuntimeSceneMapper.hasNonDirectionalShadowRequest(scene == null ? null : scene.lights());
         List<VulkanSceneMeshData> sceneMeshes = VulkanEngineRuntimeSceneMapper.buildSceneMeshes(scene, meshLoader, assetRoot);
         VulkanMeshAssetLoader.CacheProfile cache = meshLoader.cacheProfile();
-        var cacheProfile = new VulkanEngineRuntime.MeshGeometryCacheProfile(
+        var cacheProfile = new MeshGeometryCacheProfile(
                 cache.hits(), cache.misses(), cache.evictions(), cache.entries(), cache.maxEntries()
         );
         long plannedDrawCalls = sceneMeshes.size();
@@ -336,7 +336,7 @@ final class VulkanRuntimeLifecycle {
             List<ReflectionProbeDesc> reflectionProbes,
             boolean nonDirectionalShadowRequested,
             List<VulkanSceneMeshData> sceneMeshes,
-            VulkanEngineRuntime.MeshGeometryCacheProfile meshGeometryCacheProfile,
+            MeshGeometryCacheProfile meshGeometryCacheProfile,
             long plannedDrawCalls,
             long plannedTriangles,
             long plannedVisibleObjects

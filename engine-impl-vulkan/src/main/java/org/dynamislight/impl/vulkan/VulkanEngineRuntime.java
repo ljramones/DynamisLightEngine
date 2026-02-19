@@ -52,9 +52,8 @@ import org.dynamislight.impl.common.AbstractEngineRuntime;
 import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
-import org.dynamislight.impl.vulkan.capability.VulkanAaPostCapabilityPlanner;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityMode;
-import org.dynamislight.impl.vulkan.capability.VulkanAaPostCapabilityPlan;
+import org.dynamislight.impl.vulkan.warning.aa.VulkanAaPostWarningEmitter;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
 import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
@@ -65,56 +64,6 @@ import org.dynamislight.impl.common.upscale.ExternalUpscalerBridge;
 import org.dynamislight.impl.common.upscale.ExternalUpscalerIntegration;
 
 public final class VulkanEngineRuntime extends AbstractEngineRuntime {
-    enum AaPreset {
-        PERFORMANCE,
-        BALANCED,
-        QUALITY,
-        STABILITY
-    }
-
-    enum AaMode {
-        TAA,
-        TSR,
-        TUUA,
-        MSAA_SELECTIVE,
-        HYBRID_TUUA_MSAA,
-        DLAA,
-        FXAA_LOW
-    }
-
-    enum UpscalerMode {
-        NONE,
-        FSR,
-        XESS,
-        DLSS
-    }
-
-    enum UpscalerQuality {
-        PERFORMANCE,
-        BALANCED,
-        QUALITY,
-        ULTRA_QUALITY
-    }
-
-    enum ReflectionProfile {
-        PERFORMANCE,
-        BALANCED,
-        QUALITY,
-        STABILITY
-    }
-
-    record TsrControls(
-            float historyWeight,
-            float responsiveMask,
-            float neighborhoodClamp,
-            float reprojectionConfidence,
-            float sharpen,
-            float antiRinging,
-            float tsrRenderScale,
-            float tuuaRenderScale
-    ) {
-    }
-
     private static final int DEFAULT_MESH_GEOMETRY_CACHE_ENTRIES = 256;
     private static final int REFLECTION_PROBE_CHURN_WARN_MIN_DELTA = 1;
     private static final int REFLECTION_PROBE_CHURN_WARN_MIN_STREAK = 3;
@@ -848,11 +797,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         context.setTaaDebugView(taaDebugView);
         Map<String, String> safeBackendOptions = config.backendOptions() == null ? Map.of() : config.backendOptions();
         taaLumaClipEnabledDefault = Boolean.parseBoolean(safeBackendOptions.getOrDefault("vulkan.taaLumaClip", "false"));
-        aaPreset = parseAaPreset(safeBackendOptions.get("vulkan.aaPreset"));
-        aaMode = parseAaMode(safeBackendOptions.get("vulkan.aaMode"));
-        upscalerMode = parseUpscalerMode(safeBackendOptions.get("vulkan.upscalerMode"));
-        upscalerQuality = parseUpscalerQuality(safeBackendOptions.get("vulkan.upscalerQuality"));
-        reflectionProfile = parseReflectionProfile(safeBackendOptions.get("vulkan.reflectionsProfile"));
+        aaPreset = VulkanRuntimeOptionParsing.parseAaPreset(safeBackendOptions.get("vulkan.aaPreset"));
+        aaMode = VulkanRuntimeOptionParsing.parseAaMode(safeBackendOptions.get("vulkan.aaMode"));
+        upscalerMode = VulkanRuntimeOptionParsing.parseUpscalerMode(safeBackendOptions.get("vulkan.upscalerMode"));
+        upscalerQuality = VulkanRuntimeOptionParsing.parseUpscalerQuality(safeBackendOptions.get("vulkan.upscalerQuality"));
+        reflectionProfile = VulkanRuntimeOptionParsing.parseReflectionProfile(safeBackendOptions.get("vulkan.reflectionsProfile"));
         shadowCadencePromotionReadyMinFrames = parseBackendIntOption(
                 safeBackendOptions,
                 "vulkan.shadow.cadencePromotionReadyMinFrames",
@@ -890,7 +839,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
         applyShadowTelemetryProfileDefaults(safeBackendOptions, config.qualityTier());
         applyReflectionProfileTelemetryDefaults(safeBackendOptions);
-        tsrControls = parseTsrControls(safeBackendOptions, "vulkan.");
+        tsrControls = VulkanRuntimeOptionParsing.parseTsrControls(safeBackendOptions, "vulkan.");
         externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", safeBackendOptions);
         nativeUpscalerActive = false;
         nativeUpscalerProvider = externalUpscaler.providerId();
@@ -943,8 +892,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected void onLoadScene(SceneDescriptor scene) throws EngineException {
-        aaMode = resolveAaMode(scene.postProcess(), aaMode);
-        taaDebugView = resolveTaaDebugView(scene.postProcess(), taaDebugView);
+        aaMode = VulkanRuntimeOptionParsing.resolveAaMode(scene.postProcess(), aaMode);
+        taaDebugView = VulkanRuntimeOptionParsing.resolveTaaDebugView(scene.postProcess(), taaDebugView);
         context.setTaaDebugView(taaDebugView);
         VulkanRuntimeLifecycle.SceneLoadState sceneState = VulkanRuntimeLifecycle.prepareScene(
                 scene,
@@ -986,7 +935,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         currentIbl = sceneState.ibl();
         currentReflectionProbes = sceneState.reflectionProbes() == null ? List.of() : List.copyOf(sceneState.reflectionProbes());
         currentSceneMaterials = scene == null || scene.materials() == null ? List.of() : List.copyOf(scene.materials());
-        reflectionProbeQualityDiagnostics = analyzeReflectionProbeQuality(currentReflectionProbes);
+        reflectionProbeQualityDiagnostics = VulkanReflectionAnalysis.analyzeReflectionProbeQuality(
+                currentReflectionProbes,
+                new VulkanReflectionAnalysis.ProbeQualityThresholds(
+                        reflectionProbeQualityOverlapWarnMaxPairs,
+                        reflectionProbeQualityBleedRiskWarnMaxPairs,
+                        reflectionProbeQualityMinOverlapPairsWhenMultiple,
+                        reflectionProbeQualityBoxProjectionMinRatio,
+                        reflectionProbeQualityInvalidBlendDistanceWarnMax,
+                        reflectionProbeQualityOverlapCoverageWarnMin
+                )
+        );
         nonDirectionalShadowRequested = sceneState.nonDirectionalShadowRequested();
         meshGeometryCacheProfile = sceneState.meshGeometryCacheProfile();
         plannedDrawCalls = sceneState.plannedDrawCalls();
@@ -1484,42 +1443,25 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             case FXAA_LOW -> VulkanAaCapabilityMode.FXAA_LOW;
             case DLAA -> VulkanAaCapabilityMode.DLAA;
         };
-        VulkanAaPostCapabilityPlan aaPostPlan = VulkanAaPostCapabilityPlanner.plan(
-                new VulkanAaPostCapabilityPlanner.PlanInput(
-                        qualityTier,
-                        aaCapabilityMode,
-                        true,
-                        currentPost.taaEnabled(),
-                        currentPost.smaaEnabled(),
-                        currentPost.tonemapEnabled(),
-                        currentPost.bloomEnabled(),
-                        currentPost.ssaoEnabled(),
-                        currentFog.enabled()
-                )
+        VulkanAaPostWarningEmitter.Result aaPostEmission = VulkanAaPostWarningEmitter.emit(
+                qualityTier,
+                aaCapabilityMode,
+                currentPost.taaEnabled(),
+                currentPost.smaaEnabled(),
+                currentPost.tonemapEnabled(),
+                currentPost.bloomEnabled(),
+                currentPost.ssaoEnabled(),
+                currentFog.enabled()
         );
-        aaPostAaModeLastFrame = aaCapabilityMode.name().toLowerCase(Locale.ROOT);
+        aaPostAaModeLastFrame = aaPostEmission.aaModeId();
         aaPostAaEnabledLastFrame = true;
-        aaPostTemporalHistoryActiveLastFrame = currentPost.taaEnabled()
-                && (aaCapabilityMode == VulkanAaCapabilityMode.TAA
-                || aaCapabilityMode == VulkanAaCapabilityMode.TSR
-                || aaCapabilityMode == VulkanAaCapabilityMode.TUUA
-                || aaCapabilityMode == VulkanAaCapabilityMode.HYBRID_TUUA_MSAA
-                || aaCapabilityMode == VulkanAaCapabilityMode.DLAA);
-        aaPostActiveCapabilitiesLastFrame = aaPostPlan.activeCapabilities().stream()
-                .map(capability -> capability.contract().featureId())
-                .toList();
-        aaPostPrunedCapabilitiesLastFrame = aaPostPlan.prunedCapabilities();
-        warnings.add(new EngineWarning(
-                "AA_POST_CAPABILITY_PLAN_ACTIVE",
-                "AA/post capability plan active (aaMode=" + aaPostAaModeLastFrame
-                        + ", aaEnabled=" + aaPostAaEnabledLastFrame
-                        + ", temporalHistoryActive=" + aaPostTemporalHistoryActiveLastFrame
-                        + ", active=[" + String.join(", ", aaPostActiveCapabilitiesLastFrame) + "]"
-                        + ", pruned=[" + String.join(", ", aaPostPrunedCapabilitiesLastFrame) + "])"
-        ));
+        aaPostTemporalHistoryActiveLastFrame = aaPostEmission.temporalHistoryActive();
+        aaPostActiveCapabilitiesLastFrame = aaPostEmission.activeCapabilities();
+        aaPostPrunedCapabilitiesLastFrame = aaPostEmission.prunedCapabilities();
+        warnings.add(aaPostEmission.warning());
         if (currentPost.reflectionsEnabled()) {
             int reflectionBaseMode = currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
-            ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
+            ReflectionOverrideSummary overrideSummary = VulkanReflectionAnalysis.summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
             VulkanContext.ReflectionProbeDiagnostics probeDiagnostics = context.debugReflectionProbeDiagnostics();
             ReflectionProbeChurnDiagnostics churnDiagnostics = updateReflectionProbeChurnDiagnostics(probeDiagnostics);
             warnings.add(new EngineWarning(
@@ -2268,7 +2210,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtPerfLastGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
             }
             TransparencyCandidateSummary transparencySummary =
-                    summarizeReflectionTransparencyCandidates(currentSceneMaterials, reflectionTransparencyCandidateReactiveMin);
+                    VulkanReflectionAnalysis.summarizeReflectionTransparencyCandidates(currentSceneMaterials, reflectionTransparencyCandidateReactiveMin);
             reflectionTransparentCandidateCount = transparencySummary.totalCount();
             reflectionTransparencyAlphaTestedCandidateCount = transparencySummary.alphaTestedCount();
             reflectionTransparencyReactiveCandidateCount = transparencySummary.reactiveCandidateCount();
@@ -3673,206 +3615,6 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return warnings;
     }
 
-    private static ReflectionOverrideSummary summarizeReflectionOverrides(List<Integer> modes) {
-        int autoCount = 0;
-        int probeOnlyCount = 0;
-        int ssrOnlyCount = 0;
-        int otherCount = 0;
-        for (Integer rawMode : modes) {
-            int mode = rawMode == null ? 0 : rawMode;
-            switch (mode) {
-                case 0 -> autoCount++;
-                case 1 -> probeOnlyCount++;
-                case 2 -> ssrOnlyCount++;
-                default -> otherCount++;
-            }
-        }
-        return new ReflectionOverrideSummary(autoCount, probeOnlyCount, ssrOnlyCount, otherCount);
-    }
-
-    private ReflectionProbeQualityDiagnostics analyzeReflectionProbeQuality(List<ReflectionProbeDesc> probes) {
-        List<ReflectionProbeDesc> safe = probes == null ? List.of() : probes;
-        if (safe.isEmpty()) {
-            return ReflectionProbeQualityDiagnostics.zero();
-        }
-        int configured = 0;
-        int boxProjected = 0;
-        int invalidBlendDistanceCount = 0;
-        int invalidExtentCount = 0;
-        int overlapPairs = 0;
-        int bleedRiskPairs = 0;
-        int transitionPairs = 0;
-        int maxPriorityDelta = 0;
-        double overlapCoverageAccum = 0.0;
-        for (ReflectionProbeDesc probe : safe) {
-            if (probe == null) {
-                continue;
-            }
-            configured++;
-            if (probe.boxProjection()) {
-                boxProjected++;
-            }
-            if (probe.blendDistance() <= 0.0f) {
-                invalidBlendDistanceCount++;
-            }
-            if (!isValidExtents(probe)) {
-                invalidExtentCount++;
-            }
-        }
-        for (int i = 0; i < safe.size(); i++) {
-            ReflectionProbeDesc a = safe.get(i);
-            if (a == null) {
-                continue;
-            }
-            for (int j = i + 1; j < safe.size(); j++) {
-                ReflectionProbeDesc b = safe.get(j);
-                if (b == null) {
-                    continue;
-                }
-                if (!overlapsAabb(a, b)) {
-                    continue;
-                }
-                overlapPairs++;
-                double overlapCoverage = overlapCoverageRatio(a, b);
-                overlapCoverageAccum += overlapCoverage;
-                int priorityDelta = Math.abs(a.priority() - b.priority());
-                maxPriorityDelta = Math.max(maxPriorityDelta, priorityDelta);
-                if (priorityDelta == 0 && overlapCoverage >= 0.20) {
-                    bleedRiskPairs++;
-                } else {
-                    transitionPairs++;
-                }
-            }
-        }
-        double boxProjectionRatio = configured <= 0 ? 0.0 : (double) boxProjected / (double) configured;
-        double meanOverlapCoverage = overlapPairs <= 0 ? 0.0 : overlapCoverageAccum / (double) overlapPairs;
-        boolean tooManyOverlaps = overlapPairs > reflectionProbeQualityOverlapWarnMaxPairs;
-        boolean tooManyBleedRisks = bleedRiskPairs > reflectionProbeQualityBleedRiskWarnMaxPairs;
-        boolean tooFewTransitions = configured > 1
-                && overlapPairs < reflectionProbeQualityMinOverlapPairsWhenMultiple;
-        boolean tooFewBoxProjected = configured > 1
-                && boxProjectionRatio < reflectionProbeQualityBoxProjectionMinRatio;
-        boolean tooManyInvalidBlendDistances = invalidBlendDistanceCount > reflectionProbeQualityInvalidBlendDistanceWarnMax;
-        boolean poorOverlapCoverage = overlapPairs > 0
-                && meanOverlapCoverage < reflectionProbeQualityOverlapCoverageWarnMin;
-        boolean invalidExtents = invalidExtentCount > 0;
-        boolean envelopeBreached = tooManyOverlaps
-                || tooManyBleedRisks
-                || tooFewTransitions
-                || tooFewBoxProjected
-                || tooManyInvalidBlendDistances
-                || poorOverlapCoverage
-                || invalidExtents;
-        String breachReason = !envelopeBreached
-                ? "none"
-                : (tooManyBleedRisks
-                ? "bleed_risk_pairs_exceeded"
-                : (tooManyOverlaps
-                ? "overlap_pairs_exceeded"
-                : (invalidExtents
-                ? "invalid_probe_extents"
-                : (tooManyInvalidBlendDistances
-                ? "invalid_blend_distance_count_exceeded"
-                : (tooFewBoxProjected
-                ? "box_projection_ratio_below_min"
-                : (poorOverlapCoverage ? "overlap_coverage_below_min" : "insufficient_overlap_pairs"))))));
-        return new ReflectionProbeQualityDiagnostics(
-                configured,
-                boxProjected,
-                boxProjectionRatio,
-                invalidBlendDistanceCount,
-                invalidExtentCount,
-                overlapPairs,
-                meanOverlapCoverage,
-                bleedRiskPairs,
-                transitionPairs,
-                maxPriorityDelta,
-                envelopeBreached,
-                breachReason
-        );
-    }
-
-    private static boolean overlapsAabb(ReflectionProbeDesc a, ReflectionProbeDesc b) {
-        return a.extentsMin().x() <= b.extentsMax().x()
-                && a.extentsMax().x() >= b.extentsMin().x()
-                && a.extentsMin().y() <= b.extentsMax().y()
-                && a.extentsMax().y() >= b.extentsMin().y()
-                && a.extentsMin().z() <= b.extentsMax().z()
-                && a.extentsMax().z() >= b.extentsMin().z();
-    }
-
-    private static boolean isValidExtents(ReflectionProbeDesc probe) {
-        if (probe == null) {
-            return false;
-        }
-        return probe.extentsMin().x() <= probe.extentsMax().x()
-                && probe.extentsMin().y() <= probe.extentsMax().y()
-                && probe.extentsMin().z() <= probe.extentsMax().z();
-    }
-
-    private static double overlapCoverageRatio(ReflectionProbeDesc a, ReflectionProbeDesc b) {
-        if (a == null || b == null) {
-            return 0.0;
-        }
-        double overlapX = Math.max(0.0, Math.min(a.extentsMax().x(), b.extentsMax().x()) - Math.max(a.extentsMin().x(), b.extentsMin().x()));
-        double overlapY = Math.max(0.0, Math.min(a.extentsMax().y(), b.extentsMax().y()) - Math.max(a.extentsMin().y(), b.extentsMin().y()));
-        double overlapZ = Math.max(0.0, Math.min(a.extentsMax().z(), b.extentsMax().z()) - Math.max(a.extentsMin().z(), b.extentsMin().z()));
-        double overlapVolume = overlapX * overlapY * overlapZ;
-        if (overlapVolume <= 0.0) {
-            return 0.0;
-        }
-        double volumeA = aabbVolume(a);
-        double volumeB = aabbVolume(b);
-        double minVolume = Math.max(Math.min(volumeA, volumeB), 1.0e-6);
-        return overlapVolume / minVolume;
-    }
-
-    private static double aabbVolume(ReflectionProbeDesc probe) {
-        if (probe == null) {
-            return 0.0;
-        }
-        double x = Math.max(0.0, probe.extentsMax().x() - probe.extentsMin().x());
-        double y = Math.max(0.0, probe.extentsMax().y() - probe.extentsMin().y());
-        double z = Math.max(0.0, probe.extentsMax().z() - probe.extentsMin().z());
-        return x * y * z;
-    }
-
-    private static TransparencyCandidateSummary summarizeReflectionTransparencyCandidates(
-            List<MaterialDesc> materials,
-            double candidateReactiveMin
-    ) {
-        if (materials == null || materials.isEmpty()) {
-            return TransparencyCandidateSummary.zero();
-        }
-        int total = 0;
-        int alphaTested = 0;
-        int reactive = 0;
-        int probeOnlyOverrides = 0;
-        float reactiveThreshold = (float) Math.max(0.0, Math.min(1.0, candidateReactiveMin));
-        for (MaterialDesc material : materials) {
-            if (material == null) {
-                continue;
-            }
-            boolean alphaCandidate = material.alphaTested();
-            boolean reactiveCandidate = material.reactiveStrength() >= reactiveThreshold;
-            boolean candidate = alphaCandidate || reactiveCandidate;
-            if (!candidate) {
-                continue;
-            }
-            total++;
-            if (alphaCandidate) {
-                alphaTested++;
-            }
-            if (reactiveCandidate) {
-                reactive++;
-            }
-            if (material.reflectionOverride() == ReflectionOverrideMode.PROBE_ONLY) {
-                probeOnlyOverrides++;
-            }
-        }
-        return new TransparencyCandidateSummary(total, alphaTested, reactive, probeOnlyOverrides);
-    }
-
     private int countPlanarEligibleFromOverrideSummary(ReflectionOverrideSummary summary) {
         int eligible = 0;
         if (reflectionPlanarScopeIncludeAuto) {
@@ -4082,9 +3824,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionAdaptiveSeverityInstant = 0.0;
         }
         int reflectionBaseMode = currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
-        ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
+        ReflectionOverrideSummary overrideSummary = VulkanReflectionAnalysis.summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
         int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
-        reflectionTransparentCandidateCount = summarizeReflectionTransparencyCandidates(
+        reflectionTransparentCandidateCount = VulkanReflectionAnalysis.summarizeReflectionTransparencyCandidates(
                 currentSceneMaterials,
                 reflectionTransparencyCandidateReactiveMin
         ).totalCount();
@@ -4623,7 +4365,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     ReflectionOverridePolicyDiagnostics debugReflectionOverridePolicyDiagnostics() {
-        ReflectionOverrideSummary summary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
+        ReflectionOverrideSummary summary = VulkanReflectionAnalysis.summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
         int total = Math.max(1, summary.totalCount());
         return new ReflectionOverridePolicyDiagnostics(
                 summary.autoCount(),
@@ -4835,369 +4577,6 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
-    static record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
-    }
-
-    record ReflectionProbeDiagnostics(
-            int configuredProbeCount,
-            int activeProbeCount,
-            int slotCount,
-            int metadataCapacity,
-            int frustumVisibleCount,
-            int deferredProbeCount,
-            int visibleUniquePathCount,
-            int missingSlotPathCount,
-            int lodTier0Count,
-            int lodTier1Count,
-            int lodTier2Count,
-            int lodTier3Count
-    ) {
-    }
-
-    record ReflectionProbeChurnDiagnostics(
-            int lastActiveCount,
-            int lastDelta,
-            int churnEvents,
-            double meanDelta,
-            int highStreak,
-            int warnCooldownRemaining,
-            boolean warningTriggered
-    ) {
-    }
-
-    record ReflectionProbeStreamingDiagnostics(
-            int configuredProbeCount,
-            int activeProbeCount,
-            int maxVisibleBudget,
-            int effectiveStreamingBudget,
-            int updateCadenceFrames,
-            double lodDepthScale,
-            int frustumVisibleCount,
-            int deferredProbeCount,
-            int visibleUniquePathCount,
-            int missingSlotPathCount,
-            double missingSlotRatio,
-            double deferredRatio,
-            double lodSkewRatio,
-            double memoryBudgetMb,
-            double memoryEstimateMb,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean budgetPressure,
-            boolean breachedLastFrame
-    ) {
-    }
-
-    record ReflectionProbeQualityDiagnostics(
-            int configuredProbeCount,
-            int boxProjectedCount,
-            double boxProjectionRatio,
-            int invalidBlendDistanceCount,
-            int invalidExtentCount,
-            int overlapPairs,
-            double meanOverlapCoverage,
-            int bleedRiskPairs,
-            int transitionPairs,
-            int maxPriorityDelta,
-            boolean envelopeBreached,
-            String breachReason
-    ) {
-        static ReflectionProbeQualityDiagnostics zero() {
-            return new ReflectionProbeQualityDiagnostics(0, 0, 0.0, 0, 0, 0, 0.0, 0, 0, 0, false, "none");
-        }
-    }
-
-    record ReflectionSsrTaaRiskDiagnostics(
-            boolean instantRisk,
-            int highStreak,
-            int warnCooldownRemaining,
-            double emaReject,
-            double emaConfidence,
-            boolean warningTriggered
-    ) {
-    }
-
-    record ReflectionAdaptivePolicyDiagnostics(
-            boolean enabled,
-            float baseTemporalWeight,
-            float activeTemporalWeight,
-            float baseSsrStrength,
-            float activeSsrStrength,
-            float baseSsrStepScale,
-            float activeSsrStepScale,
-            double temporalBoostMax,
-            double ssrStrengthScaleMin,
-            double stepScaleBoostMax
-    ) {
-    }
-
-    record ReflectionSsrTaaHistoryPolicyDiagnostics(
-            String policy,
-            String reprojectionPolicy,
-            double severityInstant,
-            int riskHighStreak,
-            double latestRejectRate,
-            double latestConfidenceMean,
-            long latestDropEvents,
-            double rejectBias,
-            double confidenceDecay,
-            double rejectSeverityMin,
-            double decaySeverityMin,
-            int rejectRiskStreakMin,
-            long disocclusionRejectDropEventsMin,
-            double disocclusionRejectConfidenceMax,
-            boolean adaptiveEnabled
-    ) {
-    }
-
-    record ReflectionPlanarContractDiagnostics(
-            String status,
-            int scopedMeshEligibleCount,
-            int scopedMeshExcludedCount,
-            boolean mirrorCameraActive,
-            boolean dedicatedCaptureLaneActive
-    ) {
-    }
-
-    record ReflectionPlanarStabilityDiagnostics(
-            double planeDelta,
-            double coverageRatio,
-            double planeDeltaWarnMax,
-            double coverageRatioWarnMin,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean breachedLastFrame
-    ) {
-    }
-
-    record ReflectionPlanarPerfDiagnostics(
-            double gpuMsEstimate,
-            double gpuMsCap,
-            String timingSource,
-            boolean timestampAvailable,
-            boolean requireGpuTimestamp,
-            boolean timestampRequirementUnmet,
-            double drawInflation,
-            double drawInflationWarnMax,
-            long memoryBytes,
-            long memoryBudgetBytes,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean breachedLastFrame
-    ) {
-    }
-
-    record ReflectionOverridePolicyDiagnostics(
-            int autoCount,
-            int probeOnlyCount,
-            int ssrOnlyCount,
-            int otherCount,
-            double probeOnlyRatio,
-            double ssrOnlyRatio,
-            double probeOnlyRatioWarnMax,
-            double ssrOnlyRatioWarnMax,
-            int otherWarnMax,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean breachedLastFrame,
-            String planarSelectiveExcludes
-    ) {
-    }
-
-    record ReflectionContactHardeningDiagnostics(
-            boolean activeLastFrame,
-            double estimatedStrengthLastFrame,
-            double minSsrStrength,
-            double minSsrMaxRoughness,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean breachedLastFrame
-    ) {
-    }
-
-    record ReflectionRtPathDiagnostics(
-            boolean laneRequested,
-            boolean laneActive,
-            boolean singleBounceEnabled,
-            boolean multiBounceEnabled,
-            boolean requireActive,
-            boolean requireActiveUnmetLastFrame,
-            boolean requireMultiBounce,
-            boolean requireMultiBounceUnmetLastFrame,
-            boolean requireDedicatedPipeline,
-            boolean requireDedicatedPipelineUnmetLastFrame,
-            boolean dedicatedPipelineEnabled,
-            boolean traversalSupported,
-            boolean dedicatedCapabilitySupported,
-            boolean dedicatedHardwarePipelineActive,
-            boolean dedicatedDenoisePipelineEnabled,
-            double denoiseStrength,
-            String fallbackChain
-    ) {
-    }
-
-    record ReflectionRtPerfDiagnostics(
-            double gpuMsEstimate,
-            double gpuMsCap,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean breachedLastFrame
-    ) {
-    }
-
-    record ReflectionRtPipelineDiagnostics(
-            String blasLifecycleState,
-            String tlasLifecycleState,
-            String sbtLifecycleState,
-            int blasObjectCount,
-            int tlasInstanceCount,
-            int sbtRecordCount
-    ) {
-    }
-
-    record ReflectionRtHybridDiagnostics(
-            double rtShare,
-            double ssrShare,
-            double probeShare,
-            double probeShareWarnMax,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean breachedLastFrame
-    ) {
-    }
-
-    record ReflectionRtDenoiseDiagnostics(
-            double spatialVariance,
-            double spatialVarianceWarnMax,
-            double temporalLag,
-            double temporalLagWarnMax,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean breachedLastFrame
-    ) {
-    }
-
-    record ReflectionRtAsBudgetDiagnostics(
-            double buildGpuMsEstimate,
-            double buildGpuMsWarnMax,
-            double memoryMbEstimate,
-            double memoryMbBudget,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean breachedLastFrame
-    ) {
-    }
-
-    record ReflectionRtPromotionDiagnostics(
-            boolean readyLastFrame,
-            int highStreak,
-            int minFrames,
-            boolean dedicatedActive,
-            boolean perfBreach,
-            boolean hybridBreach,
-            boolean denoiseBreach,
-            boolean asBudgetBreach,
-            String transparencyStageGateStatus
-    ) {
-    }
-
-    record ReflectionTransparencyDiagnostics(
-            int transparentCandidateCount,
-            int alphaTestedCandidateCount,
-            int reactiveCandidateCount,
-            int probeOnlyCandidateCount,
-            String stageGateStatus,
-            String fallbackPath,
-            boolean rtLaneActive,
-            double candidateReactiveMin,
-            double probeOnlyRatioWarnMax,
-            int highStreak,
-            int warnMinFrames,
-            int warnCooldownFrames,
-            int warnCooldownRemaining,
-            boolean breachedLastFrame
-    ) {
-    }
-
-    record ReflectionAdaptiveTrendDiagnostics(
-            int windowSamples,
-            double meanSeverity,
-            double peakSeverity,
-            int lowCount,
-            int mediumCount,
-            int highCount,
-            double lowRatio,
-            double mediumRatio,
-            double highRatio,
-            double meanTemporalDelta,
-            double meanSsrStrengthDelta,
-            double meanSsrStepScaleDelta,
-            double highRatioWarnMin,
-            int highRatioWarnMinFrames,
-            int highRatioWarnCooldownFrames,
-            int highRatioWarnMinSamples,
-            int highRatioWarnHighStreak,
-            int highRatioWarnCooldownRemaining,
-            boolean highRatioWarnTriggered
-    ) {
-    }
-
-    record ReflectionAdaptiveTrendSloDiagnostics(
-            String status,
-            String reason,
-            boolean failed,
-            int windowSamples,
-            double meanSeverity,
-            double highRatio,
-            double sloMeanSeverityMax,
-            double sloHighRatioMax,
-            int sloMinSamples
-    ) {
-    }
-
-    private record ReflectionOverrideSummary(int autoCount, int probeOnlyCount, int ssrOnlyCount, int otherCount) {
-        private int totalCount() {
-            return Math.max(0, autoCount + probeOnlyCount + ssrOnlyCount + otherCount);
-        }
-    }
-
-    private record TransparencyCandidateSummary(
-            int totalCount,
-            int alphaTestedCount,
-            int reactiveCandidateCount,
-            int probeOnlyOverrideCount
-    ) {
-        private static TransparencyCandidateSummary zero() {
-            return new TransparencyCandidateSummary(0, 0, 0, 0);
-        }
-    }
-
-    private record ReflectionAdaptiveWindowSample(
-            double severity,
-            double temporalDelta,
-            double ssrStrengthDelta,
-            double ssrStepScaleDelta
-    ) {
-    }
-
     private record TrendSloAudit(
             String status,
             String reason,
@@ -5283,18 +4662,6 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private static float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
-    }
-
-    private static ReflectionProfile parseReflectionProfile(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return ReflectionProfile.BALANCED;
-        }
-        return switch (raw.trim().toLowerCase()) {
-            case "performance" -> ReflectionProfile.PERFORMANCE;
-            case "quality" -> ReflectionProfile.QUALITY;
-            case "stability" -> ReflectionProfile.STABILITY;
-            default -> ReflectionProfile.BALANCED;
-        };
     }
 
     private void applyReflectionProfileTelemetryDefaults(Map<String, String> backendOptions) {
@@ -5725,97 +5092,6 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         try {
             int parsed = Integer.parseInt(value.trim());
             return Math.max(min, Math.min(max, parsed));
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
-    }
-
-    private AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {
-        if (postProcess == null || postProcess.antiAliasing() == null) {
-            return fallback;
-        }
-        String raw = postProcess.antiAliasing().mode();
-        if (raw == null || raw.isBlank()) {
-            return fallback;
-        }
-        return parseAaMode(raw);
-    }
-
-    private static int resolveTaaDebugView(PostProcessDesc postProcess, int fallback) {
-        if (postProcess == null || postProcess.antiAliasing() == null) {
-            return fallback;
-        }
-        AntiAliasingDesc aa = postProcess.antiAliasing();
-        return Math.max(0, Math.min(5, aa.debugView()));
-    }
-
-    private static AaPreset parseAaPreset(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return AaPreset.BALANCED;
-        }
-        try {
-            return AaPreset.valueOf(raw.trim().toUpperCase());
-        } catch (IllegalArgumentException ignored) {
-            return AaPreset.BALANCED;
-        }
-    }
-
-    private static AaMode parseAaMode(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return AaMode.TAA;
-        }
-        String normalized = raw.trim().toUpperCase().replace('-', '_');
-        try {
-            return AaMode.valueOf(normalized);
-        } catch (IllegalArgumentException ignored) {
-            return AaMode.TAA;
-        }
-    }
-
-    private static UpscalerMode parseUpscalerMode(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return UpscalerMode.NONE;
-        }
-        String normalized = raw.trim().toUpperCase().replace('-', '_');
-        try {
-            return UpscalerMode.valueOf(normalized);
-        } catch (IllegalArgumentException ignored) {
-            return UpscalerMode.NONE;
-        }
-    }
-
-    private static UpscalerQuality parseUpscalerQuality(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return UpscalerQuality.QUALITY;
-        }
-        String normalized = raw.trim().toUpperCase().replace('-', '_');
-        try {
-            return UpscalerQuality.valueOf(normalized);
-        } catch (IllegalArgumentException ignored) {
-            return UpscalerQuality.QUALITY;
-        }
-    }
-
-    private static TsrControls parseTsrControls(java.util.Map<String, String> options, String prefix) {
-        return new TsrControls(
-                parseFloatOption(options, prefix + "tsrHistoryWeight", 0.90f, 0.50f, 0.99f),
-                parseFloatOption(options, prefix + "tsrResponsiveMask", 0.65f, 0.0f, 1.0f),
-                parseFloatOption(options, prefix + "tsrNeighborhoodClamp", 0.88f, 0.50f, 1.20f),
-                parseFloatOption(options, prefix + "tsrReprojectionConfidence", 0.85f, 0.10f, 1.0f),
-                parseFloatOption(options, prefix + "tsrSharpen", 0.14f, 0.0f, 0.35f),
-                parseFloatOption(options, prefix + "tsrAntiRinging", 0.75f, 0.0f, 1.0f),
-                parseFloatOption(options, prefix + "tsrRenderScale", 0.60f, 0.50f, 1.0f),
-                parseFloatOption(options, prefix + "tuuaRenderScale", 0.72f, 0.50f, 1.0f)
-        );
-    }
-
-    private static float parseFloatOption(java.util.Map<String, String> options, String key, float fallback, float min, float max) {
-        String raw = options == null ? null : options.get(key);
-        if (raw == null || raw.isBlank()) {
-            return fallback;
-        }
-        try {
-            return Math.max(min, Math.min(max, Float.parseFloat(raw.trim())));
         } catch (NumberFormatException ignored) {
             return fallback;
         }
