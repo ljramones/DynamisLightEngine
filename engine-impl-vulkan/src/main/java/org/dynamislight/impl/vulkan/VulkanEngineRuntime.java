@@ -1908,114 +1908,46 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             TransparencyCandidateSummary transparencySummary =
                     VulkanReflectionAnalysis.summarizeReflectionTransparencyCandidates(currentSceneMaterials, reflectionTransparencyCandidateReactiveMin);
-            reflectionTransparentCandidateCount = transparencySummary.totalCount();
-            reflectionTransparencyAlphaTestedCandidateCount = transparencySummary.alphaTestedCount();
-            reflectionTransparencyReactiveCandidateCount = transparencySummary.reactiveCandidateCount();
-            reflectionTransparencyProbeOnlyCandidateCount = transparencySummary.probeOnlyOverrideCount();
-            if (reflectionTransparentCandidateCount > 0) {
-                if (reflectionRtLaneActive) {
-                    reflectionTransparencyStageGateStatus = "active_rt_or_probe";
-                    reflectionTransparencyFallbackPath = "rt_or_probe";
-                } else {
-                    reflectionTransparencyStageGateStatus = "active_probe_fallback";
-                    reflectionTransparencyFallbackPath = "probe_only";
-                }
-                double probeOnlyRatio = (double) reflectionTransparencyProbeOnlyCandidateCount
-                        / (double) Math.max(1, reflectionTransparentCandidateCount);
-                boolean transparencyRisk = probeOnlyRatio > reflectionTransparencyProbeOnlyRatioWarnMax;
-                if (transparencyRisk) {
-                    reflectionTransparencyHighStreak++;
-                } else {
-                    reflectionTransparencyHighStreak = 0;
-                }
-                if (reflectionTransparencyWarnCooldownRemaining > 0) {
-                    reflectionTransparencyWarnCooldownRemaining--;
-                }
-                boolean transparencyTriggered = false;
-                if (transparencyRisk
-                        && reflectionTransparencyHighStreak >= reflectionTransparencyWarnMinFrames
-                        && reflectionTransparencyWarnCooldownRemaining <= 0) {
-                    reflectionTransparencyWarnCooldownRemaining = reflectionTransparencyWarnCooldownFrames;
-                    transparencyTriggered = true;
-                }
-                reflectionTransparencyBreachedLastFrame = transparencyTriggered;
-                warnings.add(new EngineWarning(
-                        "REFLECTION_TRANSPARENCY_STAGE_GATE",
-                        "Transparency/refraction stage gate (status=" + reflectionTransparencyStageGateStatus
-                                + ", transparentCandidates=" + reflectionTransparentCandidateCount
-                                + ", alphaTestedCandidates=" + reflectionTransparencyAlphaTestedCandidateCount
-                                + ", reactiveCandidates=" + reflectionTransparencyReactiveCandidateCount
-                                + ", fallbackPath=" + reflectionTransparencyFallbackPath + ")"
-                ));
-                warnings.add(new EngineWarning(
-                        "REFLECTION_TRANSPARENCY_POLICY",
-                        "Transparency policy (candidateReactiveMin=" + reflectionTransparencyCandidateReactiveMin
-                                + ", probeOnlyCandidates=" + reflectionTransparencyProbeOnlyCandidateCount
-                                + ", probeOnlyRatio=" + probeOnlyRatio
-                                + ", probeOnlyRatioWarnMax=" + reflectionTransparencyProbeOnlyRatioWarnMax
-                                + ", highStreak=" + reflectionTransparencyHighStreak
-                                + ", warnMinFrames=" + reflectionTransparencyWarnMinFrames
-                                + ", warnCooldownFrames=" + reflectionTransparencyWarnCooldownFrames
-                                + ", warnCooldownRemaining=" + reflectionTransparencyWarnCooldownRemaining
-                                + ", breached=" + reflectionTransparencyBreachedLastFrame + ")"
-                ));
-                if (reflectionTransparencyBreachedLastFrame) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_TRANSPARENCY_ENVELOPE_BREACH",
-                            "Transparency envelope breached (probeOnlyRatio=" + probeOnlyRatio
-                                    + ", probeOnlyRatioWarnMax=" + reflectionTransparencyProbeOnlyRatioWarnMax + ")"
-                    ));
-                }
-            } else {
-                reflectionTransparencyStageGateStatus = "not_required";
-                reflectionTransparencyFallbackPath = "none";
-                reflectionTransparencyHighStreak = 0;
-                reflectionTransparencyWarnCooldownRemaining = 0;
-                reflectionTransparencyBreachedLastFrame = false;
-                reflectionTransparencyAlphaTestedCandidateCount = 0;
-                reflectionTransparencyReactiveCandidateCount = 0;
-                reflectionTransparencyProbeOnlyCandidateCount = 0;
-            }
-            boolean rtTransparencyReady = reflectionTransparentCandidateCount <= 0
-                    || reflectionTransparencyStageGateStatus.startsWith("active_");
-            boolean rtPromotionDedicatedReady = reflectionRtDedicatedHardwarePipelineActive
-                    || (mockContext && reflectionRtLaneActive && reflectionRtDedicatedPipelineEnabled);
-            boolean rtPromotionCandidate = reflectionRtLaneActive
-                    && rtPromotionDedicatedReady
-                    && !reflectionRtRequireActiveUnmetLastFrame
-                    && !reflectionRtRequireMultiBounceUnmetLastFrame
-                    && !reflectionRtRequireDedicatedPipelineUnmetLastFrame
-                    && !reflectionRtPerfBreachedLastFrame
-                    && !reflectionRtHybridBreachedLastFrame
-                    && !reflectionRtDenoiseBreachedLastFrame
-                    && !reflectionRtAsBudgetBreachedLastFrame
-                    && rtTransparencyReady;
-            if (rtPromotionCandidate) {
-                reflectionRtPromotionReadyHighStreak++;
-            } else {
-                reflectionRtPromotionReadyHighStreak = 0;
-            }
-            reflectionRtPromotionReadyLastFrame = rtPromotionCandidate
-                    && reflectionRtPromotionReadyHighStreak >= reflectionRtPromotionReadyMinFrames;
-            warnings.add(new EngineWarning(
-                    "REFLECTION_RT_PROMOTION_STATUS",
-                    "RT promotion status (candidate=" + rtPromotionCandidate
-                            + ", ready=" + reflectionRtPromotionReadyLastFrame
-                            + ", highStreak=" + reflectionRtPromotionReadyHighStreak
-                            + ", minFrames=" + reflectionRtPromotionReadyMinFrames
-                            + ", dedicatedReady=" + rtPromotionDedicatedReady
-                            + ", perfBreach=" + reflectionRtPerfBreachedLastFrame
-                            + ", hybridBreach=" + reflectionRtHybridBreachedLastFrame
-                            + ", denoiseBreach=" + reflectionRtDenoiseBreachedLastFrame
-                            + ", asBudgetBreach=" + reflectionRtAsBudgetBreachedLastFrame
-                            + ", transparencyReady=" + rtTransparencyReady + ")"
-            ));
-            if (reflectionRtPromotionReadyLastFrame) {
-                warnings.add(new EngineWarning(
-                        "REFLECTION_RT_PROMOTION_READY",
-                        "RT reflection promotion-ready envelope satisfied (vulkan path)"
-                ));
-            }
+            VulkanReflectionRtTransparencyWarningEmitter.State rtTransparencyState = new VulkanReflectionRtTransparencyWarningEmitter.State();
+            rtTransparencyState.reflectionRtLaneActive = reflectionRtLaneActive;
+            rtTransparencyState.reflectionRtDedicatedHardwarePipelineActive = reflectionRtDedicatedHardwarePipelineActive;
+            rtTransparencyState.mockContext = mockContext;
+            rtTransparencyState.reflectionRtDedicatedPipelineEnabled = reflectionRtDedicatedPipelineEnabled;
+            rtTransparencyState.reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActiveUnmetLastFrame;
+            rtTransparencyState.reflectionRtRequireMultiBounceUnmetLastFrame = reflectionRtRequireMultiBounceUnmetLastFrame;
+            rtTransparencyState.reflectionRtRequireDedicatedPipelineUnmetLastFrame = reflectionRtRequireDedicatedPipelineUnmetLastFrame;
+            rtTransparencyState.reflectionRtPerfBreachedLastFrame = reflectionRtPerfBreachedLastFrame;
+            rtTransparencyState.reflectionRtHybridBreachedLastFrame = reflectionRtHybridBreachedLastFrame;
+            rtTransparencyState.reflectionRtDenoiseBreachedLastFrame = reflectionRtDenoiseBreachedLastFrame;
+            rtTransparencyState.reflectionRtAsBudgetBreachedLastFrame = reflectionRtAsBudgetBreachedLastFrame;
+            rtTransparencyState.reflectionRtPromotionReadyHighStreak = reflectionRtPromotionReadyHighStreak;
+            rtTransparencyState.reflectionRtPromotionReadyMinFrames = reflectionRtPromotionReadyMinFrames;
+            rtTransparencyState.reflectionRtPromotionReadyLastFrame = reflectionRtPromotionReadyLastFrame;
+            rtTransparencyState.reflectionTransparencyCandidateReactiveMin = reflectionTransparencyCandidateReactiveMin;
+            rtTransparencyState.reflectionTransparencyProbeOnlyRatioWarnMax = reflectionTransparencyProbeOnlyRatioWarnMax;
+            rtTransparencyState.reflectionTransparencyWarnMinFrames = reflectionTransparencyWarnMinFrames;
+            rtTransparencyState.reflectionTransparencyWarnCooldownFrames = reflectionTransparencyWarnCooldownFrames;
+            rtTransparencyState.reflectionTransparencyWarnCooldownRemaining = reflectionTransparencyWarnCooldownRemaining;
+            rtTransparencyState.reflectionTransparencyHighStreak = reflectionTransparencyHighStreak;
+            rtTransparencyState.reflectionTransparencyBreachedLastFrame = reflectionTransparencyBreachedLastFrame;
+            rtTransparencyState.reflectionTransparencyStageGateStatus = reflectionTransparencyStageGateStatus;
+            rtTransparencyState.reflectionTransparencyFallbackPath = reflectionTransparencyFallbackPath;
+            rtTransparencyState.reflectionTransparentCandidateCount = reflectionTransparentCandidateCount;
+            rtTransparencyState.reflectionTransparencyAlphaTestedCandidateCount = reflectionTransparencyAlphaTestedCandidateCount;
+            rtTransparencyState.reflectionTransparencyReactiveCandidateCount = reflectionTransparencyReactiveCandidateCount;
+            rtTransparencyState.reflectionTransparencyProbeOnlyCandidateCount = reflectionTransparencyProbeOnlyCandidateCount;
+            VulkanReflectionRtTransparencyWarningEmitter.emit(warnings, rtTransparencyState, transparencySummary);
+            reflectionRtPromotionReadyHighStreak = rtTransparencyState.reflectionRtPromotionReadyHighStreak;
+            reflectionRtPromotionReadyLastFrame = rtTransparencyState.reflectionRtPromotionReadyLastFrame;
+            reflectionTransparencyWarnCooldownRemaining = rtTransparencyState.reflectionTransparencyWarnCooldownRemaining;
+            reflectionTransparencyHighStreak = rtTransparencyState.reflectionTransparencyHighStreak;
+            reflectionTransparencyBreachedLastFrame = rtTransparencyState.reflectionTransparencyBreachedLastFrame;
+            reflectionTransparencyStageGateStatus = rtTransparencyState.reflectionTransparencyStageGateStatus;
+            reflectionTransparencyFallbackPath = rtTransparencyState.reflectionTransparencyFallbackPath;
+            reflectionTransparentCandidateCount = rtTransparencyState.reflectionTransparentCandidateCount;
+            reflectionTransparencyAlphaTestedCandidateCount = rtTransparencyState.reflectionTransparencyAlphaTestedCandidateCount;
+            reflectionTransparencyReactiveCandidateCount = rtTransparencyState.reflectionTransparencyReactiveCandidateCount;
+            reflectionTransparencyProbeOnlyCandidateCount = rtTransparencyState.reflectionTransparencyProbeOnlyCandidateCount;
             warnings.add(new EngineWarning(
                     "REFLECTION_TELEMETRY_PROFILE_ACTIVE",
                     "Reflection telemetry profile active (profile=" + reflectionProfile.name().toLowerCase()
