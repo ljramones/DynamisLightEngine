@@ -958,10 +958,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowAllocatorAssignedLights = sceneState.lighting().shadowAllocatorAssignedLights();
         shadowAllocatorReusedAssignments = sceneState.lighting().shadowAllocatorReusedAssignments();
         shadowAllocatorEvictions = sceneState.lighting().shadowAllocatorEvictions();
-        updateShadowSchedulerTicks(currentShadows.renderedShadowLightIdsCsv());
+        VulkanShadowRuntimeTuning.updateShadowSchedulerTicks(shadowSchedulerLastRenderedTicks, shadowSchedulerFrameTick, currentShadows.renderedShadowLightIdsCsv());
         VulkanRuntimeLifecycle.applySceneToContext(context, sceneState);
         if (!mockContext) {
-            currentShadows = withRuntimeMomentPipelineState(currentShadows);
+            currentShadows = VulkanShadowRuntimeTuning.withRuntimeMomentPipelineState(currentShadows, context);
             context.setShadowQualityModes(
                     currentShadows.runtimeFilterPath(),
                     currentShadows.contactShadowsRequested(),
@@ -977,9 +977,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowContactTemporalMinStability
             );
             context.setShadowRtTuning(
-                    effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode()),
-                    effectiveShadowRtRayLength(currentShadows.rtShadowMode()),
-                    effectiveShadowRtSampleCount(currentShadows.rtShadowMode())
+                    VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength),
+                    VulkanShadowRuntimeTuning.effectiveShadowRtRayLength(currentShadows.rtShadowMode(), shadowRtRayLength, shadowRtProductionRayLength, shadowRtDedicatedRayLength),
+                    VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount)
             );
         }
     }
@@ -1008,13 +1008,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowLayerAllocatorAssignments
             );
             currentShadows = refresh.shadows();
-            updateShadowSchedulerTicks(currentShadows.renderedShadowLightIdsCsv());
+            VulkanShadowRuntimeTuning.updateShadowSchedulerTicks(shadowSchedulerLastRenderedTicks, shadowSchedulerFrameTick, currentShadows.renderedShadowLightIdsCsv());
             shadowLayerAllocatorAssignments.clear();
             shadowLayerAllocatorAssignments.putAll(refresh.lighting().shadowLayerAssignments());
             shadowAllocatorAssignedLights = refresh.lighting().shadowAllocatorAssignedLights();
             shadowAllocatorReusedAssignments = refresh.lighting().shadowAllocatorReusedAssignments();
             shadowAllocatorEvictions = refresh.lighting().shadowAllocatorEvictions();
-            currentShadows = withRuntimeMomentPipelineState(currentShadows);
+            currentShadows = VulkanShadowRuntimeTuning.withRuntimeMomentPipelineState(currentShadows, context);
             context.setLightingParameters(
                     refresh.lighting().directionalDirection(),
                     refresh.lighting().directionalColor(),
@@ -1056,9 +1056,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowContactTemporalMinStability
             );
             context.setShadowRtTuning(
-                    effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode()),
-                    effectiveShadowRtRayLength(currentShadows.rtShadowMode()),
-                    effectiveShadowRtSampleCount(currentShadows.rtShadowMode())
+                    VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength),
+                    VulkanShadowRuntimeTuning.effectiveShadowRtRayLength(currentShadows.rtShadowMode(), shadowRtRayLength, shadowRtProductionRayLength, shadowRtDedicatedRayLength),
+                    VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount)
             );
             context.setShadowDirectionalTexelSnap(
                     shadowDirectionalTexelSnapEnabled,
@@ -1272,9 +1272,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowCapabilityDiagnostics().available(),
                 currentShadows.rtShadowMode(),
                 currentShadows.rtShadowActive(),
-                effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode()),
+                VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength),
                 shadowRtDenoiseWarnMin,
-                effectiveShadowRtSampleCount(currentShadows.rtShadowMode()),
+                VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount),
                 shadowRtSampleWarnMin,
                 shadowRtPerfGpuMsEstimateLastFrame,
                 shadowRtPerfGpuMsWarnMaxLastFrame,
@@ -3428,9 +3428,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " rtProductionDenoiseStrength=" + shadowRtProductionDenoiseStrength
                             + " rtProductionRayLength=" + shadowRtProductionRayLength
                             + " rtProductionSampleCount=" + shadowRtProductionSampleCount
-                            + " rtEffectiveDenoiseStrength=" + effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode())
-                            + " rtEffectiveRayLength=" + effectiveShadowRtRayLength(currentShadows.rtShadowMode())
-                            + " rtEffectiveSampleCount=" + effectiveShadowRtSampleCount(currentShadows.rtShadowMode())
+                            + " rtEffectiveDenoiseStrength=" + VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength)
+                            + " rtEffectiveRayLength=" + VulkanShadowRuntimeTuning.effectiveShadowRtRayLength(currentShadows.rtShadowMode(), shadowRtRayLength, shadowRtProductionRayLength, shadowRtDedicatedRayLength)
+                            + " rtEffectiveSampleCount=" + VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount)
                             + " normalBiasScale=" + currentShadows.normalBiasScale()
                             + " slopeBiasScale=" + currentShadows.slopeBiasScale()
             ));
@@ -3502,12 +3502,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 ));
             }
             if (!"off".equals(currentShadows.rtShadowMode())) {
-                float rtEffectiveDenoise = effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode());
-                int rtEffectiveSamples = effectiveShadowRtSampleCount(currentShadows.rtShadowMode());
-                float rtEffectiveRayLength = effectiveShadowRtRayLength(currentShadows.rtShadowMode());
+                float rtEffectiveDenoise = VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength);
+                int rtEffectiveSamples = VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount);
+                float rtEffectiveRayLength = VulkanShadowRuntimeTuning.effectiveShadowRtRayLength(currentShadows.rtShadowMode(), shadowRtRayLength, shadowRtProductionRayLength, shadowRtDedicatedRayLength);
                 double rtLaneWeight = 0.22 + 0.06 * Math.max(0, rtEffectiveSamples - 1) + 0.004 * Math.max(0.0f, rtEffectiveRayLength);
                 shadowRtPerfGpuMsEstimateLastFrame = Math.max(0.0, lastFrameGpuMs) * rtLaneWeight;
-                shadowRtPerfGpuMsWarnMaxLastFrame = shadowRtPerfCapForTier(qualityTier);
+                shadowRtPerfGpuMsWarnMaxLastFrame = VulkanShadowRuntimeTuning.shadowRtPerfCapForTier(qualityTier, shadowRtPerfMaxGpuMsLow, shadowRtPerfMaxGpuMsMedium, shadowRtPerfMaxGpuMsHigh, shadowRtPerfMaxGpuMsUltra);
                 boolean shadowRtEnvelopeNow = rtEffectiveDenoise < shadowRtDenoiseWarnMin
                         || rtEffectiveSamples < shadowRtSampleWarnMin
                         || shadowRtPerfGpuMsEstimateLastFrame > shadowRtPerfGpuMsWarnMaxLastFrame;
@@ -3557,9 +3557,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", denoiseStrength=" + shadowRtDenoiseStrength
                                 + ", rayLength=" + shadowRtRayLength
                                 + ", sampleCount=" + shadowRtSampleCount
-                                + ", effectiveDenoiseStrength=" + effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode())
-                                + ", effectiveRayLength=" + effectiveShadowRtRayLength(currentShadows.rtShadowMode())
-                                + ", effectiveSampleCount=" + effectiveShadowRtSampleCount(currentShadows.rtShadowMode())
+                                + ", effectiveDenoiseStrength=" + VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength)
+                                + ", effectiveRayLength=" + VulkanShadowRuntimeTuning.effectiveShadowRtRayLength(currentShadows.rtShadowMode(), shadowRtRayLength, shadowRtProductionRayLength, shadowRtDedicatedRayLength)
+                                + ", effectiveSampleCount=" + VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount)
                                 + ")"
                 ));
                 if (!currentShadows.rtShadowActive()) {
@@ -5094,112 +5094,6 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             return Math.max(min, Math.min(max, parsed));
         } catch (NumberFormatException ignored) {
             return fallback;
-        }
-    }
-
-    private ShadowRenderConfig withRuntimeMomentPipelineState(ShadowRenderConfig base) {
-        if (base == null || !base.momentPipelineRequested()) {
-            return base;
-        }
-        boolean resourcesActive = context.isShadowMomentPipelineActive();
-        boolean initialized = context.isShadowMomentInitialized();
-        boolean active = resourcesActive && initialized;
-        String runtimeFilterPath = active ? base.filterPath() : base.runtimeFilterPath();
-        boolean momentFilterEstimateOnly = base.momentFilterEstimateOnly() && !active;
-        if (base.momentPipelineActive() == active
-                && base.runtimeFilterPath().equals(runtimeFilterPath)
-                && base.momentFilterEstimateOnly() == momentFilterEstimateOnly) {
-            return base;
-        }
-        return new ShadowRenderConfig(
-                base.enabled(),
-                base.strength(),
-                base.bias(),
-                base.normalBiasScale(),
-                base.slopeBiasScale(),
-                base.pcfRadius(),
-                base.cascadeCount(),
-                base.mapResolution(),
-                base.maxShadowedLocalLights(),
-                base.selectedLocalShadowLights(),
-                base.primaryShadowType(),
-                base.primaryShadowLightId(),
-                base.atlasCapacityTiles(),
-                base.atlasAllocatedTiles(),
-                base.atlasUtilization(),
-                base.atlasEvictions(),
-                base.atlasMemoryBytesD16(),
-                base.atlasMemoryBytesD32(),
-                base.shadowUpdateBytesEstimate(),
-                base.shadowMomentAtlasBytesEstimate(),
-                base.renderedLocalShadowLights(),
-                base.renderedSpotShadowLights(),
-                base.renderedPointShadowCubemaps(),
-                base.renderedShadowLightIdsCsv(),
-                base.deferredShadowLightCount(),
-                base.deferredShadowLightIdsCsv(),
-                base.staleBypassShadowLightCount(),
-                base.filterPath(),
-                runtimeFilterPath,
-                momentFilterEstimateOnly,
-                base.momentPipelineRequested(),
-                active,
-                base.contactShadowsRequested(),
-                base.rtShadowMode(),
-                base.rtShadowActive(),
-                base.degraded()
-        );
-    }
-
-    private float effectiveShadowRtDenoiseStrength(String rtMode) {
-        if ("bvh_production".equals(rtMode) && shadowRtProductionDenoiseStrength >= 0.0f) {
-            return Math.max(0.0f, Math.min(1.0f, shadowRtProductionDenoiseStrength));
-        }
-        if (("bvh_dedicated".equals(rtMode) || "rt_native_denoised".equals(rtMode)) && shadowRtDedicatedDenoiseStrength >= 0.0f) {
-            return Math.max(0.0f, Math.min(1.0f, shadowRtDedicatedDenoiseStrength));
-        }
-        return shadowRtDenoiseStrength;
-    }
-
-    private float effectiveShadowRtRayLength(String rtMode) {
-        if ("bvh_production".equals(rtMode) && shadowRtProductionRayLength >= 0.0f) {
-            return Math.max(1.0f, Math.min(500.0f, shadowRtProductionRayLength));
-        }
-        if (("bvh_dedicated".equals(rtMode) || "rt_native_denoised".equals(rtMode)) && shadowRtDedicatedRayLength >= 0.0f) {
-            return Math.max(1.0f, Math.min(500.0f, shadowRtDedicatedRayLength));
-        }
-        return shadowRtRayLength;
-    }
-
-    private int effectiveShadowRtSampleCount(String rtMode) {
-        if ("bvh_production".equals(rtMode) && shadowRtProductionSampleCount > 0) {
-            return Math.max(1, Math.min(16, shadowRtProductionSampleCount));
-        }
-        if (("bvh_dedicated".equals(rtMode) || "rt_native_denoised".equals(rtMode)) && shadowRtDedicatedSampleCount > 0) {
-            return Math.max(1, Math.min(16, shadowRtDedicatedSampleCount));
-        }
-        return shadowRtSampleCount;
-    }
-
-    private double shadowRtPerfCapForTier(QualityTier tier) {
-        return switch (tier) {
-            case LOW -> shadowRtPerfMaxGpuMsLow;
-            case MEDIUM -> shadowRtPerfMaxGpuMsMedium;
-            case HIGH -> shadowRtPerfMaxGpuMsHigh;
-            case ULTRA -> shadowRtPerfMaxGpuMsUltra;
-        };
-    }
-
-    private void updateShadowSchedulerTicks(String renderedShadowLightIdsCsv) {
-        if (renderedShadowLightIdsCsv == null || renderedShadowLightIdsCsv.isBlank()) {
-            return;
-        }
-        String[] ids = renderedShadowLightIdsCsv.split(",");
-        for (String id : ids) {
-            String normalized = id == null ? "" : id.trim();
-            if (!normalized.isEmpty()) {
-                shadowSchedulerLastRenderedTicks.put(normalized, shadowSchedulerFrameTick);
-            }
         }
     }
 
