@@ -27,8 +27,11 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 ### 1) Per-light atlas + cadence scheduling
 
 - [x] Planner/runtime mode diagnostics use rendered topology signals (selected/deferred/spot/point), not only static config hints.
-- [ ] Add typed atlas/cadence diagnostics accessor (selected/deferred/stale-bypass/allocator reuse).
-- [ ] Add cadence envelope warning + cooldown gate (deferred ratio / starvation streak).
+- [x] Add typed atlas/cadence diagnostics accessor (selected/deferred/stale-bypass + envelope state) via `EngineRuntime.shadowCadenceDiagnostics()`.
+- [x] Add cadence envelope warning + cooldown gate (deferred ratio / streak/cooldown) with runtime options:
+  - `vulkan.shadow.cadenceWarnDeferredRatioMax`
+  - `vulkan.shadow.cadenceWarnMinFrames`
+  - `vulkan.shadow.cadenceWarnCooldownFrames`
 - [ ] Add CI assertions for cadence envelope stability on blessed tiers.
 
 ### 2) Point cubemap + face-budget

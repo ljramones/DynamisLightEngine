@@ -183,6 +183,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic shadow cadence diagnostics.
+     *
+     * Backends that do not expose shadow cadence diagnostics return
+     * {@link ShadowCadenceDiagnostics#unavailable()}.
+     *
+     * @return current shadow cadence diagnostics snapshot.
+     */
+    default ShadowCadenceDiagnostics shadowCadenceDiagnostics() {
+        return ShadowCadenceDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

@@ -18,6 +18,7 @@ import org.dynamislight.api.scene.EnvironmentDesc;
 import org.dynamislight.api.scene.FogDesc;
 import org.dynamislight.api.scene.FogMode;
 import org.dynamislight.api.scene.LightDesc;
+import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
@@ -105,6 +106,54 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals("unavailable", diagnostics.featureId());
             assertEquals("unavailable", diagnostics.mode());
             assertTrue(diagnostics.signals().isEmpty());
+            var cadence = runtime.shadowCadenceDiagnostics();
+            assertFalse(cadence.available());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsCadenceEnvelopeWarningAndTypedDiagnostics() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "true")
+            )), new NoopCallbacks());
+            runtime.loadScene(validThreeSpotShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_CADENCE_ENVELOPE".equals(w.code())));
+            var cadence = runtime.shadowCadenceDiagnostics();
+            assertTrue(cadence.available());
+            assertTrue(cadence.selectedLocalShadowLights() >= 0);
+            assertTrue(cadence.deferredShadowLightCount() >= 0);
+            assertTrue(cadence.deferredRatio() >= 0.0);
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void cadenceBreachGateTriggersWithLowThresholdAndNoCooldown() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "true"),
+                    Map.entry("vulkan.shadow.maxShadowedLocalLights", "2"),
+                    Map.entry("vulkan.shadow.maxLocalShadowLayers", "8"),
+                    Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "8"),
+                    Map.entry("vulkan.shadow.cadenceWarnDeferredRatioMax", "0.10"),
+                    Map.entry("vulkan.shadow.cadenceWarnMinFrames", "1"),
+                    Map.entry("vulkan.shadow.cadenceWarnCooldownFrames", "0")
+            )), new NoopCallbacks());
+            runtime.loadScene(validThreeSpotShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_CADENCE_ENVELOPE_BREACH".equals(w.code())));
+            var cadence = runtime.shadowCadenceDiagnostics();
+            assertTrue(cadence.envelopeBreachedLastFrame());
+            assertTrue(cadence.highStreak() >= 1);
         } finally {
             runtime.shutdown();
         }
@@ -181,6 +230,32 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                 List.of(mesh),
                 List.of(material),
                 List.of(light),
+                environment,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validThreeSpotShadowScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
+        MaterialDesc material = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        ShadowDesc shadow = new ShadowDesc(1024, 0.0015f, 1, 4);
+        LightDesc lightA = new LightDesc("spotA", new Vec3(1, 3, 2), new Vec3(1, 0.9f, 0.8f), 1.0f, 20f, true, shadow, LightType.SPOT);
+        LightDesc lightB = new LightDesc("spotB", new Vec3(-2, 3, 2), new Vec3(0.8f, 1, 0.9f), 1.0f, 20f, true, shadow, LightType.SPOT);
+        LightDesc lightC = new LightDesc("spotC", new Vec3(0, 3, -2), new Vec3(0.9f, 0.9f, 1), 1.0f, 20f, true, shadow, LightType.SPOT);
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "shadow-cadence-three-spot-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(material),
+                List.of(lightA, lightB, lightC),
                 environment,
                 fog,
                 List.<SmokeEmitterDesc>of()

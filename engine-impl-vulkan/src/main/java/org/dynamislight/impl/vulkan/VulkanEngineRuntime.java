@@ -18,6 +18,7 @@ import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.event.ReflectionAdaptiveTelemetryEvent;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
+import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
@@ -204,6 +205,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowSchedulerHeroPeriod = 1;
     private int shadowSchedulerMidPeriod = 2;
     private int shadowSchedulerDistantPeriod = 4;
+    private double shadowCadenceWarnDeferredRatioMax = 0.55;
+    private int shadowCadenceWarnMinFrames = 3;
+    private int shadowCadenceWarnCooldownFrames = 120;
     private boolean shadowDirectionalTexelSnapEnabled = true;
     private float shadowDirectionalTexelSnapScale = 1.0f;
     private long shadowSchedulerFrameTick;
@@ -213,6 +217,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowAllocatorAssignedLights;
     private int shadowAllocatorReusedAssignments;
     private int shadowAllocatorEvictions;
+    private int shadowCadenceSelectedLocalLightsLastFrame;
+    private int shadowCadenceDeferredLocalLightsLastFrame;
+    private int shadowCadenceStaleBypassCountLastFrame;
+    private double shadowCadenceDeferredRatioLastFrame;
+    private int shadowCadenceHighStreak;
+    private int shadowCadenceWarnCooldownRemaining;
+    private boolean shadowCadenceEnvelopeBreachedLastFrame;
     private boolean shadowRtTraversalSupported;
     private boolean shadowRtBvhSupported;
     private int lastActiveReflectionProbeCount = -1;
@@ -506,6 +517,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowSchedulerHeroPeriod = options.shadowSchedulerHeroPeriod();
         shadowSchedulerMidPeriod = options.shadowSchedulerMidPeriod();
         shadowSchedulerDistantPeriod = options.shadowSchedulerDistantPeriod();
+        shadowCadenceWarnDeferredRatioMax = options.shadowCadenceWarnDeferredRatioMax();
+        shadowCadenceWarnMinFrames = options.shadowCadenceWarnMinFrames();
+        shadowCadenceWarnCooldownFrames = options.shadowCadenceWarnCooldownFrames();
         shadowDirectionalTexelSnapEnabled = options.shadowDirectionalTexelSnapEnabled();
         shadowDirectionalTexelSnapScale = options.shadowDirectionalTexelSnapScale();
         reflectionProbeChurnWarnMinDelta = options.reflectionProbeChurnWarnMinDelta();
@@ -1009,6 +1023,23 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowCapabilityFeatureIdLastFrame,
                 shadowCapabilityModeLastFrame,
                 shadowCapabilitySignalsLastFrame
+        );
+    }
+
+    @Override
+    protected ShadowCadenceDiagnostics backendShadowCadenceDiagnostics() {
+        return new ShadowCadenceDiagnostics(
+                shadowCapabilityDiagnostics().available(),
+                shadowCadenceSelectedLocalLightsLastFrame,
+                shadowCadenceDeferredLocalLightsLastFrame,
+                shadowCadenceStaleBypassCountLastFrame,
+                shadowCadenceDeferredRatioLastFrame,
+                shadowCadenceWarnDeferredRatioMax,
+                shadowCadenceWarnMinFrames,
+                shadowCadenceWarnCooldownFrames,
+                shadowCadenceHighStreak,
+                shadowCadenceWarnCooldownRemaining,
+                shadowCadenceEnvelopeBreachedLastFrame
         );
     }
 
@@ -2261,6 +2292,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowCapabilityFeatureIdLastFrame = "unavailable";
         shadowCapabilityModeLastFrame = "unavailable";
         shadowCapabilitySignalsLastFrame = List.of();
+        shadowCadenceSelectedLocalLightsLastFrame = 0;
+        shadowCadenceDeferredLocalLightsLastFrame = 0;
+        shadowCadenceStaleBypassCountLastFrame = 0;
+        shadowCadenceDeferredRatioLastFrame = 0.0;
+        shadowCadenceEnvelopeBreachedLastFrame = false;
+        if (shadowCadenceWarnCooldownRemaining > 0) {
+            shadowCadenceWarnCooldownRemaining--;
+        }
+        if (!currentShadows.enabled()) {
+            shadowCadenceHighStreak = 0;
+            shadowCadenceWarnCooldownRemaining = 0;
+        }
         if (currentShadows.enabled()) {
             VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
                     new VulkanShadowCapabilityPlanner.PlanInput(
@@ -2286,6 +2329,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             shadowCapabilityFeatureIdLastFrame = shadowCapabilityPlan.capability().featureId();
             shadowCapabilityModeLastFrame = shadowCapabilityPlan.mode().id();
             shadowCapabilitySignalsLastFrame = shadowCapabilityPlan.signals();
+            shadowCadenceSelectedLocalLightsLastFrame = currentShadows.selectedLocalShadowLights();
+            shadowCadenceDeferredLocalLightsLastFrame = currentShadows.deferredShadowLightCount();
+            shadowCadenceStaleBypassCountLastFrame = currentShadows.staleBypassShadowLightCount();
+            shadowCadenceDeferredRatioLastFrame = shadowCadenceSelectedLocalLightsLastFrame <= 0
+                    ? 0.0
+                    : (double) shadowCadenceDeferredLocalLightsLastFrame / (double) shadowCadenceSelectedLocalLightsLastFrame;
+            boolean cadenceEnvelopeNow = shadowCadenceSelectedLocalLightsLastFrame >= 2
+                    && shadowCadenceDeferredRatioLastFrame > shadowCadenceWarnDeferredRatioMax;
+            if (cadenceEnvelopeNow) {
+                shadowCadenceHighStreak = Math.min(10_000, shadowCadenceHighStreak + 1);
+                shadowCadenceEnvelopeBreachedLastFrame = true;
+            } else {
+                shadowCadenceHighStreak = 0;
+            }
             warnings.add(new EngineWarning(
                     "SHADOW_CAPABILITY_MODE_ACTIVE",
                     "Shadow capability mode active: featureId="
@@ -2293,6 +2350,34 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " mode=" + shadowCapabilityPlan.mode().id()
                             + " signals=[" + String.join(", ", shadowCapabilityPlan.signals()) + "]"
             ));
+            warnings.add(new EngineWarning(
+                    "SHADOW_CADENCE_ENVELOPE",
+                    "Shadow cadence envelope (selectedLocal="
+                            + shadowCadenceSelectedLocalLightsLastFrame
+                            + ", deferredLocal=" + shadowCadenceDeferredLocalLightsLastFrame
+                            + ", staleBypass=" + shadowCadenceStaleBypassCountLastFrame
+                            + ", deferredRatio=" + shadowCadenceDeferredRatioLastFrame
+                            + ", deferredRatioWarnMax=" + shadowCadenceWarnDeferredRatioMax
+                            + ", highStreak=" + shadowCadenceHighStreak
+                            + ", warnMinFrames=" + shadowCadenceWarnMinFrames
+                            + ", cooldownRemaining=" + shadowCadenceWarnCooldownRemaining + ")"
+            ));
+            if (cadenceEnvelopeNow
+                    && shadowCadenceHighStreak >= shadowCadenceWarnMinFrames
+                    && shadowCadenceWarnCooldownRemaining == 0) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_CADENCE_ENVELOPE_BREACH",
+                        "Shadow cadence deferred-ratio envelope breached (selectedLocal="
+                                + shadowCadenceSelectedLocalLightsLastFrame
+                                + ", deferredLocal=" + shadowCadenceDeferredLocalLightsLastFrame
+                                + ", deferredRatio=" + shadowCadenceDeferredRatioLastFrame
+                                + ", deferredRatioWarnMax=" + shadowCadenceWarnDeferredRatioMax
+                                + ", highStreak=" + shadowCadenceHighStreak
+                                + ", warnMinFrames=" + shadowCadenceWarnMinFrames
+                                + ", cooldownFrames=" + shadowCadenceWarnCooldownFrames + ")"
+                ));
+                shadowCadenceWarnCooldownRemaining = shadowCadenceWarnCooldownFrames;
+            }
             String momentPhase = "pending";
             if (context.hasShadowMomentResources()) {
                 momentPhase = context.isShadowMomentInitialized() ? "active" : "initializing";
