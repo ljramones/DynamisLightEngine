@@ -17,6 +17,7 @@ import org.dynamislight.api.event.EngineEvent;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.event.ReflectionAdaptiveTelemetryEvent;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
@@ -429,6 +430,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionProbeStreamingWarnCooldownRemaining;
     private boolean reflectionProbeStreamingBreachedLastFrame;
     private ReflectionProbeQualityDiagnostics reflectionProbeQualityDiagnostics = ReflectionProbeQualityDiagnostics.zero();
+    private String shadowCapabilityFeatureIdLastFrame = "unavailable";
+    private String shadowCapabilityModeLastFrame = "unavailable";
+    private List<String> shadowCapabilitySignalsLastFrame = List.of();
     private List<ReflectionProbeDesc> currentReflectionProbes = List.of();
     private List<MaterialDesc> currentSceneMaterials = List.of();
     private int reflectionSsrTaaAdaptiveTrendWarnHighStreak;
@@ -993,6 +997,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 diagnostics.sloMeanSeverityMax(),
                 diagnostics.sloHighRatioMax(),
                 diagnostics.sloMinSamples()
+        );
+    }
+
+    @Override
+    protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
+        boolean available = !"unavailable".equals(shadowCapabilityFeatureIdLastFrame)
+                && !"unavailable".equals(shadowCapabilityModeLastFrame);
+        return new ShadowCapabilityDiagnostics(
+                available,
+                shadowCapabilityFeatureIdLastFrame,
+                shadowCapabilityModeLastFrame,
+                shadowCapabilitySignalsLastFrame
         );
     }
 
@@ -2242,6 +2258,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionTransparencyStageGateStatus = "not_required";
             reflectionTransparencyFallbackPath = "none";
         }
+        shadowCapabilityFeatureIdLastFrame = "unavailable";
+        shadowCapabilityModeLastFrame = "unavailable";
+        shadowCapabilitySignalsLastFrame = List.of();
         if (currentShadows.enabled()) {
             VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
                     new VulkanShadowCapabilityPlanner.PlanInput(
@@ -2260,6 +2279,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             false
                     )
             );
+            shadowCapabilityFeatureIdLastFrame = shadowCapabilityPlan.capability().featureId();
+            shadowCapabilityModeLastFrame = shadowCapabilityPlan.mode().id();
+            shadowCapabilitySignalsLastFrame = shadowCapabilityPlan.signals();
             warnings.add(new EngineWarning(
                     "SHADOW_CAPABILITY_MODE_ACTIVE",
                     "Shadow capability mode active: featureId="

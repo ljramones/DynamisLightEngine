@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -49,6 +51,11 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertNotNull(modeWarning);
             assertTrue(modeWarning.message().contains("mode=local_atlas_cadence"), modeWarning.message());
             assertTrue(modeWarning.message().contains("filterPath=vsm"), modeWarning.message());
+            var diagnostics = runtime.shadowCapabilityDiagnostics();
+            assertTrue(diagnostics.available());
+            assertEquals("vulkan.shadow", diagnostics.featureId());
+            assertEquals("local_atlas_cadence", diagnostics.mode());
+            assertTrue(diagnostics.signals().stream().anyMatch(s -> s.equals("filterPath=vsm")));
         } finally {
             runtime.shutdown();
         }
@@ -76,6 +83,28 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                     .orElse(null);
             assertNotNull(modeWarning);
             assertTrue(modeWarning.message().contains("mode=hybrid_cascade_contact_rt"), modeWarning.message());
+            var diagnostics = runtime.shadowCapabilityDiagnostics();
+            assertTrue(diagnostics.available());
+            assertEquals("vulkan.shadow", diagnostics.featureId());
+            assertEquals("hybrid_cascade_contact_rt", diagnostics.mode());
+            assertTrue(diagnostics.signals().stream().anyMatch(s -> s.equals("rtMode=bvh_dedicated")));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void shadowCapabilityDiagnosticsUnavailableWhenNoShadowCasterIsActive() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new NoopCallbacks());
+            runtime.loadScene(validSceneWithoutShadowCaster());
+            runtime.render();
+            var diagnostics = runtime.shadowCapabilityDiagnostics();
+            assertFalse(diagnostics.available());
+            assertEquals("unavailable", diagnostics.featureId());
+            assertEquals("unavailable", diagnostics.mode());
+            assertTrue(diagnostics.signals().isEmpty());
         } finally {
             runtime.shutdown();
         }
@@ -115,6 +144,37 @@ class VulkanShadowCapabilityWarningIntegrationTest {
 
         return new SceneDescriptor(
                 "shadow-capability-warning-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(material),
+                List.of(light),
+                environment,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validSceneWithoutShadowCaster() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
+        MaterialDesc material = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        LightDesc light = new LightDesc(
+                "light",
+                new Vec3(0, 2, 0),
+                new Vec3(1, 1, 1),
+                1.0f,
+                10f,
+                false,
+                null
+        );
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "shadow-capability-warning-scene-no-shadows",
                 List.of(camera),
                 "cam",
                 List.of(transform),
