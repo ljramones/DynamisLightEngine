@@ -172,6 +172,11 @@ Reflection notes:
 - Geometric AA (normal variance filtering for thin features) — `Not In Yet`
 - Alpha-to-coverage for vegetation/hair — `Not In Yet`
 
+AA notes:
+
+- Vulkan AA now has v2 capability descriptors for all runtime AA modes (`taa`, `tsr`, `tuua`, `msaa_selective`, `hybrid_tuua_msaa`, `dlaa`, `fxaa_low`) with explicit temporal-resource contracts and ordered post injection points.
+- AA v2 contracts are validated in composition with shadow/reflection/post descriptors through `RenderCapabilityContractV2Validator` and are covered by `scripts/aa_post_contract_v2_lockdown.sh`.
+
 ## Global Illumination
 
 - Static lightmaps (baked, UV2-based) — `Not In Yet`
@@ -224,6 +229,11 @@ Reflection notes:
 - Cloud shadows (projected noise, animated) — `Not In Yet`
 - Panini projection (wide FOV correction) — `Not In Yet`
 - Lens distortion — `Not In Yet`
+
+Post notes:
+
+- Vulkan post stack now has v2 capability descriptors for core modules (`tonemap`, `bloom`, `ssao`, `smaa`, `taa_resolve`, `fog_composite`) with explicit pass/read-write/resource declarations.
+- Post v2 contracts are validated in composition with AA + shadow + reflection and are enforced by the always-on CI lane `aa-post-contract-v2-lockdown`.
 
 ## PBR / Shading
 
