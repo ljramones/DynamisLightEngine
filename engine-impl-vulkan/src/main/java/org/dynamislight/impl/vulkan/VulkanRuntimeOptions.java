@@ -186,6 +186,10 @@ final class VulkanRuntimeOptions {
                 parseDoubleOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax", 0.20, 0.0, 1.0),
                 parseIntOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames", 3, 1, 600),
                 parseIntOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames", 120, 0, 10000),
+                parseBoolean(safe, "vulkan.shadow.areaApproxEnabled", false),
+                parseBoolean(safe, "vulkan.shadow.areaApproxRequireActive", false),
+                parseBoolean(safe, "vulkan.shadow.distanceFieldSoftEnabled", false),
+                parseBoolean(safe, "vulkan.shadow.distanceFieldRequireActive", false),
                 parseBoolean(safe, "vulkan.shadow.directionalTexelSnapEnabled", true),
                 (float) parseDoubleOption(safe, "vulkan.shadow.directionalTexelSnapScale", 1.0, 0.25, 4.0)
         );
@@ -435,6 +439,10 @@ final class VulkanRuntimeOptions {
             double shadowTransparentReceiverCandidateRatioWarnMax,
             int shadowTransparentReceiverWarnMinFrames,
             int shadowTransparentReceiverWarnCooldownFrames,
+            boolean shadowAreaApproxEnabled,
+            boolean shadowAreaApproxRequireActive,
+            boolean shadowDistanceFieldSoftEnabled,
+            boolean shadowDistanceFieldRequireActive,
             boolean shadowDirectionalTexelSnapEnabled,
             float shadowDirectionalTexelSnapScale
     ) {

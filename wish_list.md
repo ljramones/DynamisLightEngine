@@ -34,12 +34,12 @@ Status summary snapshot (2026-02-18):
 - Per-light atlas with cadence scheduling — `Partial`
 - Point light cubemap shadows with face-budget control — `Partial`
 - Spot light projected shadows — `Partial`
-- Area light shadows (approximate or sampled) — `Not In Yet`
+- Area light shadows (approximate or sampled) — `Partial`
 - RT shadows (hard, soft, denoised) — `Partial`
 - Hybrid combinations (cascade + contact + RT detail fill) — `Partial`
 - Transparent shadow receivers — `Not In Yet`
 - Shadow caching (static geometry cache, dynamic overlay) — `Partial`
-- Distance-field soft shadows (medium-range, no map needed) — `Not In Yet`
+- Distance-field soft shadows (medium-range, no map needed) — `Partial`
 
 Shadow notes:
 
@@ -57,6 +57,7 @@ Shadow notes:
 - Engine runtime API now exposes typed shadow RT diagnostics (`shadowRtDiagnostics()`), and Vulkan emits RT denoise/perf envelope warnings (`SHADOW_RT_DENOISE_ENVELOPE`, `SHADOW_RT_DENOISE_ENVELOPE_BREACH`) with tier-locked thresholds and override precedence.
 - Engine runtime API now exposes typed shadow hybrid diagnostics (`shadowHybridDiagnostics()`), and Vulkan emits hybrid composition-share telemetry/warnings (`SHADOW_HYBRID_COMPOSITION`, `SHADOW_HYBRID_COMPOSITION_BREACH`) with tier-locked share-envelope thresholds.
 - Engine runtime API now exposes typed transparent receiver diagnostics (`shadowTransparentReceiverDiagnostics()`), and Vulkan now emits transparent receiver policy/envelope warnings (`SHADOW_TRANSPARENT_RECEIVER_POLICY`, `SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH`) with explicit `fallback_opaque_only` policy when requested support is unavailable.
+- Engine runtime API now exposes typed extended shadow-mode diagnostics (`shadowExtendedModeDiagnostics()`), and Vulkan now emits policy/required-path breach warnings for area-approx and distance-field soft modes (`SHADOW_AREA_APPROX_POLICY`, `SHADOW_AREA_APPROX_REQUIRED_UNAVAILABLE_BREACH`, `SHADOW_DISTANCE_FIELD_SOFT_POLICY`, `SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH`).
 
 ## Reflections
 

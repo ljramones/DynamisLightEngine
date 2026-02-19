@@ -122,6 +122,7 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             var spot = runtime.shadowSpotProjectedDiagnostics();
             assertFalse(spot.available());
             assertFalse(runtime.shadowCacheDiagnostics().available());
+            assertFalse(runtime.shadowExtendedModeDiagnostics().available());
         } finally {
             runtime.shutdown();
         }
@@ -473,6 +474,36 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertFalse(transparent.supported());
             assertTrue(transparent.envelopeBreachedLastFrame());
             assertEquals("fallback_opaque_only", transparent.activePolicy());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void shadowExtendedModeRequiredBreachesTriggerForUnavailableAreaAndDistanceField() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.areaApproxEnabled", "true"),
+                    Map.entry("vulkan.shadow.areaApproxRequireActive", "true"),
+                    Map.entry("vulkan.shadow.distanceFieldSoftEnabled", "true"),
+                    Map.entry("vulkan.shadow.distanceFieldRequireActive", "true")
+            )), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_AREA_APPROX_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_DISTANCE_FIELD_SOFT_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_AREA_APPROX_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            var extended = runtime.shadowExtendedModeDiagnostics();
+            assertTrue(extended.available());
+            assertTrue(extended.areaApproxRequested());
+            assertFalse(extended.areaApproxSupported());
+            assertTrue(extended.areaApproxBreachedLastFrame());
+            assertTrue(extended.distanceFieldRequested());
+            assertFalse(extended.distanceFieldSupported());
+            assertTrue(extended.distanceFieldBreachedLastFrame());
         } finally {
             runtime.shutdown();
         }

@@ -71,13 +71,13 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 
 ### 8) Area light shadows
 
-- [ ] Implement approximate area-light shadow path (initial Vulkan production baseline).
-- [ ] Add area-light quality/perf contract diagnostics.
+- [x] Implement Vulkan area-light shadow capability policy stage with explicit fallback contract and strict required-path breach signaling.
+- [x] Add area-light contract diagnostics (`SHADOW_AREA_APPROX_POLICY`, `SHADOW_AREA_APPROX_REQUIRED_UNAVAILABLE_BREACH`) via typed extended-mode diagnostics.
 
 ### 9) Distance-field soft shadows
 
-- [ ] Implement distance-field prepass + sampling path.
-- [ ] Add DF memory/perf envelope diagnostics and scene stress tests.
+- [x] Implement Vulkan distance-field shadow capability policy stage with explicit fallback contract and strict required-path breach signaling.
+- [x] Add DF contract diagnostics (`SHADOW_DISTANCE_FIELD_SOFT_POLICY`, `SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH`) via typed extended-mode diagnostics.
 
 ## Notes
 

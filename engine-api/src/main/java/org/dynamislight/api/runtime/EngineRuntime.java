@@ -267,6 +267,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic diagnostics for optional shadow expansion modes.
+     *
+     * Backends that do not expose expansion-mode diagnostics return
+     * {@link ShadowExtendedModeDiagnostics#unavailable()}.
+     *
+     * @return current expansion-mode diagnostics snapshot.
+     */
+    default ShadowExtendedModeDiagnostics shadowExtendedModeDiagnostics() {
+        return ShadowExtendedModeDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

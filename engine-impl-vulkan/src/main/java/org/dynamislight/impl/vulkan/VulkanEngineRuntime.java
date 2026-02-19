@@ -26,6 +26,7 @@ import org.dynamislight.api.runtime.ShadowRtDiagnostics;
 import org.dynamislight.api.runtime.ShadowHybridDiagnostics;
 import org.dynamislight.api.runtime.ShadowSpotProjectedDiagnostics;
 import org.dynamislight.api.runtime.ShadowTransparentReceiverDiagnostics;
+import org.dynamislight.api.runtime.ShadowExtendedModeDiagnostics;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
@@ -239,6 +240,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double shadowTransparentReceiverCandidateRatioWarnMax = 0.20;
     private int shadowTransparentReceiverWarnMinFrames = 3;
     private int shadowTransparentReceiverWarnCooldownFrames = 120;
+    private boolean shadowAreaApproxRequested;
+    private boolean shadowAreaApproxRequireActive;
+    private final boolean shadowAreaApproxSupported = false;
+    private boolean shadowDistanceFieldRequested;
+    private boolean shadowDistanceFieldRequireActive;
+    private final boolean shadowDistanceFieldSupported = false;
     private boolean shadowDirectionalTexelSnapEnabled = true;
     private float shadowDirectionalTexelSnapScale = 1.0f;
     private long shadowSchedulerFrameTick;
@@ -288,6 +295,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowTransparentReceiverHighStreak;
     private int shadowTransparentReceiverWarnCooldownRemaining;
     private boolean shadowTransparentReceiverEnvelopeBreachedLastFrame;
+    private boolean shadowAreaApproxBreachedLastFrame;
+    private boolean shadowDistanceFieldBreachedLastFrame;
     private boolean shadowSpotProjectedRequestedLastFrame;
     private boolean shadowSpotProjectedActiveLastFrame;
     private int shadowSpotProjectedRenderedCountLastFrame;
@@ -612,6 +621,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowTransparentReceiverCandidateRatioWarnMax = options.shadowTransparentReceiverCandidateRatioWarnMax();
         shadowTransparentReceiverWarnMinFrames = options.shadowTransparentReceiverWarnMinFrames();
         shadowTransparentReceiverWarnCooldownFrames = options.shadowTransparentReceiverWarnCooldownFrames();
+        shadowAreaApproxRequested = options.shadowAreaApproxEnabled();
+        shadowAreaApproxRequireActive = options.shadowAreaApproxRequireActive();
+        shadowDistanceFieldRequested = options.shadowDistanceFieldSoftEnabled();
+        shadowDistanceFieldRequireActive = options.shadowDistanceFieldRequireActive();
         shadowDirectionalTexelSnapEnabled = options.shadowDirectionalTexelSnapEnabled();
         shadowDirectionalTexelSnapScale = options.shadowDirectionalTexelSnapScale();
         reflectionProbeChurnWarnMinDelta = options.reflectionProbeChurnWarnMinDelta();
@@ -1242,6 +1255,21 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowTransparentReceiverHighStreak,
                 shadowTransparentReceiverWarnCooldownRemaining,
                 shadowTransparentReceiverEnvelopeBreachedLastFrame
+        );
+    }
+
+    @Override
+    protected ShadowExtendedModeDiagnostics backendShadowExtendedModeDiagnostics() {
+        return new ShadowExtendedModeDiagnostics(
+                shadowCapabilityDiagnostics().available(),
+                shadowAreaApproxRequested,
+                shadowAreaApproxSupported,
+                shadowAreaApproxSupported ? "enabled" : "fallback_standard_shadow",
+                shadowAreaApproxBreachedLastFrame,
+                shadowDistanceFieldRequested,
+                shadowDistanceFieldSupported,
+                shadowDistanceFieldSupported ? "enabled" : "fallback_standard_shadow",
+                shadowDistanceFieldBreachedLastFrame
         );
     }
 
@@ -2522,6 +2550,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowTransparentReceiverCandidateRatioLastFrame = 0.0;
         shadowTransparentReceiverPolicyLastFrame = shadowTransparentReceiversSupported ? "enabled" : "fallback_opaque_only";
         shadowTransparentReceiverEnvelopeBreachedLastFrame = false;
+        shadowAreaApproxBreachedLastFrame = false;
+        shadowDistanceFieldBreachedLastFrame = false;
         shadowSpotProjectedRequestedLastFrame = false;
         shadowSpotProjectedActiveLastFrame = false;
         shadowSpotProjectedRenderedCountLastFrame = 0;
@@ -2650,6 +2680,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", transparentReceiverCandidateRatioWarnMax=" + shadowTransparentReceiverCandidateRatioWarnMax
                             + ", transparentReceiverWarnMinFrames=" + shadowTransparentReceiverWarnMinFrames
                             + ", transparentReceiverWarnCooldownFrames=" + shadowTransparentReceiverWarnCooldownFrames
+                            + ", areaApproxRequested=" + shadowAreaApproxRequested
+                            + ", areaApproxSupported=" + shadowAreaApproxSupported
+                            + ", areaApproxRequireActive=" + shadowAreaApproxRequireActive
+                            + ", distanceFieldRequested=" + shadowDistanceFieldRequested
+                            + ", distanceFieldSupported=" + shadowDistanceFieldSupported
+                            + ", distanceFieldRequireActive=" + shadowDistanceFieldRequireActive
                             + ")"
             ));
             warnings.add(new EngineWarning(
@@ -2898,6 +2934,38 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", cooldownFrames=" + shadowTransparentReceiverWarnCooldownFrames + ")"
                 ));
                 shadowTransparentReceiverWarnCooldownRemaining = shadowTransparentReceiverWarnCooldownFrames;
+            }
+            warnings.add(new EngineWarning(
+                    "SHADOW_AREA_APPROX_POLICY",
+                    "Shadow area-approx policy (requested=" + shadowAreaApproxRequested
+                            + ", supported=" + shadowAreaApproxSupported
+                            + ", activePolicy=" + (shadowAreaApproxSupported ? "enabled" : "fallback_standard_shadow")
+                            + ", requireActive=" + shadowAreaApproxRequireActive + ")"
+            ));
+            shadowAreaApproxBreachedLastFrame = shadowAreaApproxRequested
+                    && shadowAreaApproxRequireActive
+                    && !shadowAreaApproxSupported;
+            if (shadowAreaApproxBreachedLastFrame) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_AREA_APPROX_REQUIRED_UNAVAILABLE_BREACH",
+                        "Shadow area-approx required but unavailable (requested=true, supported=false)"
+                ));
+            }
+            warnings.add(new EngineWarning(
+                    "SHADOW_DISTANCE_FIELD_SOFT_POLICY",
+                    "Shadow distance-field policy (requested=" + shadowDistanceFieldRequested
+                            + ", supported=" + shadowDistanceFieldSupported
+                            + ", activePolicy=" + (shadowDistanceFieldSupported ? "enabled" : "fallback_standard_shadow")
+                            + ", requireActive=" + shadowDistanceFieldRequireActive + ")"
+            ));
+            shadowDistanceFieldBreachedLastFrame = shadowDistanceFieldRequested
+                    && shadowDistanceFieldRequireActive
+                    && !shadowDistanceFieldSupported;
+            if (shadowDistanceFieldBreachedLastFrame) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH",
+                        "Shadow distance-field soft shadows required but unavailable (requested=true, supported=false)"
+                ));
             }
             String momentPhase = "pending";
             if (context.hasShadowMomentResources()) {
