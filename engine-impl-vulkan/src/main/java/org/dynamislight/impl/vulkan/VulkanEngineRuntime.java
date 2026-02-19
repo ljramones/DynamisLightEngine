@@ -37,6 +37,7 @@ import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
 import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
+import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
 import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
@@ -2242,6 +2243,30 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionTransparencyFallbackPath = "none";
         }
         if (currentShadows.enabled()) {
+            VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
+                    new VulkanShadowCapabilityPlanner.PlanInput(
+                            qualityTier,
+                            currentShadows.filterPath(),
+                            currentShadows.contactShadowsRequested(),
+                            currentShadows.rtShadowMode(),
+                            shadowMaxShadowedLocalLights > 0 ? shadowMaxShadowedLocalLights : currentShadows.maxShadowedLocalLights(),
+                            shadowMaxLocalLayers,
+                            shadowMaxFacesPerFrame,
+                            shadowSchedulerEnabled,
+                            false,
+                            false,
+                            currentShadows.renderedSpotShadowLights() > 0,
+                            false,
+                            false
+                    )
+            );
+            warnings.add(new EngineWarning(
+                    "SHADOW_CAPABILITY_MODE_ACTIVE",
+                    "Shadow capability mode active: featureId="
+                            + shadowCapabilityPlan.capability().featureId()
+                            + " mode=" + shadowCapabilityPlan.mode().id()
+                            + " signals=[" + String.join(", ", shadowCapabilityPlan.signals()) + "]"
+            ));
             String momentPhase = "pending";
             if (context.hasShadowMomentResources()) {
                 momentPhase = context.isShadowMomentInitialized() ? "active" : "initializing";

@@ -45,6 +45,7 @@ Shadow notes:
 
 - Shadow v2 contract descriptor now enumerates backlog modes (`local_atlas_cadence`, `point_cubemap_budget`, `spot_projected`, `area_approx`, `rt_denoised`, `hybrid_cascade_contact_rt`, `transparent_receivers`, `cached_static_dynamic`, `distance_field_soft`) for validator/CI composition gating.
 - Contract-mode coverage and cross-capability validation checklist is tracked in `docs/shadow-contract-v2-backlog-checklist.md`.
+- Vulkan runtime now emits `SHADOW_CAPABILITY_MODE_ACTIVE` each frame when shadows are active, with planner-resolved mode and signal payload for parser-friendly CI/telemetry checks.
 
 ## Reflections
 
