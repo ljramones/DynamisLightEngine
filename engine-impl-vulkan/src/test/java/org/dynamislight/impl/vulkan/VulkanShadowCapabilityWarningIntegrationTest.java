@@ -223,6 +223,11 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("cacheMissWarnMax=1"), profileWarning);
             assertTrue(profileWarning.contains("cacheWarnMinFrames=2"), profileWarning);
             assertTrue(profileWarning.contains("cacheWarnCooldownFrames=60"), profileWarning);
+            assertTrue(profileWarning.contains("rtDenoiseWarnMin=0.34"), profileWarning);
+            assertTrue(profileWarning.contains("rtSampleWarnMin=2"), profileWarning);
+            assertTrue(profileWarning.contains("rtPerfMaxGpuMsUltra=4.8"), profileWarning);
+            assertTrue(profileWarning.contains("rtWarnMinFrames=2"), profileWarning);
+            assertTrue(profileWarning.contains("rtWarnCooldownFrames=60"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.35, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(2, cadence.warnMinFrames());
@@ -256,7 +261,15 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                     Map.entry("vulkan.shadow.cacheChurnWarnMax", "0.31"),
                     Map.entry("vulkan.shadow.cacheMissWarnMax", "9"),
                     Map.entry("vulkan.shadow.cacheWarnMinFrames", "4"),
-                    Map.entry("vulkan.shadow.cacheWarnCooldownFrames", "55")
+                    Map.entry("vulkan.shadow.cacheWarnCooldownFrames", "55"),
+                    Map.entry("vulkan.shadow.rtDenoiseWarnMin", "0.61"),
+                    Map.entry("vulkan.shadow.rtSampleWarnMin", "7"),
+                    Map.entry("vulkan.shadow.rtPerfMaxGpuMsLow", "0.8"),
+                    Map.entry("vulkan.shadow.rtPerfMaxGpuMsMedium", "0.9"),
+                    Map.entry("vulkan.shadow.rtPerfMaxGpuMsHigh", "1.0"),
+                    Map.entry("vulkan.shadow.rtPerfMaxGpuMsUltra", "1.1"),
+                    Map.entry("vulkan.shadow.rtWarnMinFrames", "5"),
+                    Map.entry("vulkan.shadow.rtWarnCooldownFrames", "44")
             ), QualityTier.ULTRA), new NoopCallbacks());
             runtime.loadScene(validThreeSpotShadowScene());
             var frame = runtime.render();
@@ -271,6 +284,14 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("cacheMissWarnMax=9"), profileWarning);
             assertTrue(profileWarning.contains("cacheWarnMinFrames=4"), profileWarning);
             assertTrue(profileWarning.contains("cacheWarnCooldownFrames=55"), profileWarning);
+            assertTrue(profileWarning.contains("rtDenoiseWarnMin=0.61"), profileWarning);
+            assertTrue(profileWarning.contains("rtSampleWarnMin=7"), profileWarning);
+            assertTrue(profileWarning.contains("rtPerfMaxGpuMsLow=0.8"), profileWarning);
+            assertTrue(profileWarning.contains("rtPerfMaxGpuMsMedium=0.9"), profileWarning);
+            assertTrue(profileWarning.contains("rtPerfMaxGpuMsHigh=1.0"), profileWarning);
+            assertTrue(profileWarning.contains("rtPerfMaxGpuMsUltra=1.1"), profileWarning);
+            assertTrue(profileWarning.contains("rtWarnMinFrames=5"), profileWarning);
+            assertTrue(profileWarning.contains("rtWarnCooldownFrames=44"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.22, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(7, cadence.warnMinFrames());
@@ -284,6 +305,15 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals(9, cache.missWarnMax());
             assertEquals(4, cache.warnMinFrames());
             assertEquals(55, cache.warnCooldownFrames());
+            var rt = runtime.shadowRtDiagnostics();
+            assertEquals(0.61, rt.denoiseWarnMin(), 1e-6);
+            assertEquals(7, rt.sampleWarnMin());
+            assertEquals(0.8, runtimeWarningRtCapByTier(profileWarning, "rtPerfMaxGpuMsLow"), 1e-6);
+            assertEquals(0.9, runtimeWarningRtCapByTier(profileWarning, "rtPerfMaxGpuMsMedium"), 1e-6);
+            assertEquals(1.0, runtimeWarningRtCapByTier(profileWarning, "rtPerfMaxGpuMsHigh"), 1e-6);
+            assertEquals(1.1, runtimeWarningRtCapByTier(profileWarning, "rtPerfMaxGpuMsUltra"), 1e-6);
+            assertEquals(5, rt.warnMinFrames());
+            assertEquals(44, rt.warnCooldownFrames());
         } finally {
             runtime.shutdown();
         }
@@ -312,6 +342,38 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(cache.available());
             assertTrue(cache.envelopeBreachedLastFrame());
             assertTrue(cache.cacheMissCount() > 0 || cache.cacheEvictionCount() > 0);
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void shadowRtDenoiseEnvelopeBreachGateTriggersWithAggressiveThresholds() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.rtMode", "optional"),
+                    Map.entry("vulkan.shadow.rtDenoiseStrength", "0.10"),
+                    Map.entry("vulkan.shadow.rtSampleCount", "1"),
+                    Map.entry("vulkan.shadow.rtDenoiseWarnMin", "0.90"),
+                    Map.entry("vulkan.shadow.rtSampleWarnMin", "2"),
+                    Map.entry("vulkan.shadow.rtPerfMaxGpuMsLow", "0.01"),
+                    Map.entry("vulkan.shadow.rtPerfMaxGpuMsMedium", "0.01"),
+                    Map.entry("vulkan.shadow.rtPerfMaxGpuMsHigh", "0.01"),
+                    Map.entry("vulkan.shadow.rtPerfMaxGpuMsUltra", "0.01"),
+                    Map.entry("vulkan.shadow.rtWarnMinFrames", "1"),
+                    Map.entry("vulkan.shadow.rtWarnCooldownFrames", "0")
+            )), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_RT_DENOISE_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_RT_DENOISE_ENVELOPE_BREACH".equals(w.code())));
+            var rt = runtime.shadowRtDiagnostics();
+            assertTrue(rt.available());
+            assertEquals("optional", rt.mode());
+            assertTrue(rt.envelopeBreachedLastFrame());
+            assertTrue(rt.denoiseStrength() < rt.denoiseWarnMin() || rt.sampleCount() < rt.sampleWarnMin() || rt.perfGpuMsEstimate() > rt.perfGpuMsWarnMax());
         } finally {
             runtime.shutdown();
         }
@@ -348,6 +410,30 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                 .map(EngineWarning::message)
                 .findFirst()
                 .orElse("");
+    }
+
+    private static double runtimeWarningRtCapByTier(String warning, String key) {
+        if (warning == null || warning.isBlank() || key == null || key.isBlank()) {
+            return Double.NaN;
+        }
+        String token = key + "=";
+        int index = warning.indexOf(token);
+        if (index < 0) {
+            return Double.NaN;
+        }
+        int start = index + token.length();
+        int end = warning.indexOf(',', start);
+        if (end < 0) {
+            end = warning.indexOf(')', start);
+        }
+        if (end < 0) {
+            end = warning.length();
+        }
+        try {
+            return Double.parseDouble(warning.substring(start, end).trim());
+        } catch (NumberFormatException ignored) {
+            return Double.NaN;
+        }
     }
 
     private static EngineConfig validConfig(Map<String, String> backendOptions) {

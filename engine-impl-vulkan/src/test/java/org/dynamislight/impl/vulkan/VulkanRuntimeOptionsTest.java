@@ -43,6 +43,14 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.cacheMissWarnMax", "4"),
                         Map.entry("vulkan.shadow.cacheWarnMinFrames", "6"),
                         Map.entry("vulkan.shadow.cacheWarnCooldownFrames", "99"),
+                        Map.entry("vulkan.shadow.rtDenoiseWarnMin", "0.52"),
+                        Map.entry("vulkan.shadow.rtSampleWarnMin", "5"),
+                        Map.entry("vulkan.shadow.rtPerfMaxGpuMsLow", "1.7"),
+                        Map.entry("vulkan.shadow.rtPerfMaxGpuMsMedium", "2.7"),
+                        Map.entry("vulkan.shadow.rtPerfMaxGpuMsHigh", "3.7"),
+                        Map.entry("vulkan.shadow.rtPerfMaxGpuMsUltra", "4.7"),
+                        Map.entry("vulkan.shadow.rtWarnMinFrames", "8"),
+                        Map.entry("vulkan.shadow.rtWarnCooldownFrames", "111"),
                         Map.entry("vulkan.shadow.directionalTexelSnapEnabled", "false"),
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "1.75"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "2"),
@@ -171,6 +179,14 @@ class VulkanRuntimeOptionsTest {
         assertEquals(4, parsed.shadowCacheMissWarnMax());
         assertEquals(6, parsed.shadowCacheWarnMinFrames());
         assertEquals(99, parsed.shadowCacheWarnCooldownFrames());
+        assertEquals(0.52, parsed.shadowRtDenoiseWarnMin());
+        assertEquals(5, parsed.shadowRtSampleWarnMin());
+        assertEquals(1.7, parsed.shadowRtPerfMaxGpuMsLow());
+        assertEquals(2.7, parsed.shadowRtPerfMaxGpuMsMedium());
+        assertEquals(3.7, parsed.shadowRtPerfMaxGpuMsHigh());
+        assertEquals(4.7, parsed.shadowRtPerfMaxGpuMsUltra());
+        assertEquals(8, parsed.shadowRtWarnMinFrames());
+        assertEquals(111, parsed.shadowRtWarnCooldownFrames());
         assertEquals(false, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(1.75f, parsed.shadowDirectionalTexelSnapScale());
         assertEquals(2, parsed.reflectionProbeChurnWarnMinDelta());
@@ -290,6 +306,14 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.cacheMissWarnMax", "-3"),
                         Map.entry("vulkan.shadow.cacheWarnMinFrames", "0"),
                         Map.entry("vulkan.shadow.cacheWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.shadow.rtDenoiseWarnMin", "9.0"),
+                        Map.entry("vulkan.shadow.rtSampleWarnMin", "0"),
+                        Map.entry("vulkan.shadow.rtPerfMaxGpuMsLow", "-1.0"),
+                        Map.entry("vulkan.shadow.rtPerfMaxGpuMsMedium", "20000.0"),
+                        Map.entry("vulkan.shadow.rtPerfMaxGpuMsHigh", "-1.0"),
+                        Map.entry("vulkan.shadow.rtPerfMaxGpuMsUltra", "20000.0"),
+                        Map.entry("vulkan.shadow.rtWarnMinFrames", "0"),
+                        Map.entry("vulkan.shadow.rtWarnCooldownFrames", "999999"),
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "10.0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "0"),
@@ -407,6 +431,14 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0, parsed.shadowCacheMissWarnMax());
         assertEquals(1, parsed.shadowCacheWarnMinFrames());
         assertEquals(10000, parsed.shadowCacheWarnCooldownFrames());
+        assertEquals(1.0, parsed.shadowRtDenoiseWarnMin());
+        assertEquals(1, parsed.shadowRtSampleWarnMin());
+        assertEquals(0.0, parsed.shadowRtPerfMaxGpuMsLow());
+        assertEquals(1000.0, parsed.shadowRtPerfMaxGpuMsMedium());
+        assertEquals(0.0, parsed.shadowRtPerfMaxGpuMsHigh());
+        assertEquals(1000.0, parsed.shadowRtPerfMaxGpuMsUltra());
+        assertEquals(1, parsed.shadowRtWarnMinFrames());
+        assertEquals(10000, parsed.shadowRtWarnCooldownFrames());
         assertEquals(true, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(4.0f, parsed.shadowDirectionalTexelSnapScale());
         assertEquals(1, parsed.reflectionProbeChurnWarnMinDelta());

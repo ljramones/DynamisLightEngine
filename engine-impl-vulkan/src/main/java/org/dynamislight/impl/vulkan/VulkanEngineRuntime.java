@@ -22,6 +22,7 @@ import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
 import org.dynamislight.api.runtime.ShadowPointBudgetDiagnostics;
+import org.dynamislight.api.runtime.ShadowRtDiagnostics;
 import org.dynamislight.api.runtime.ShadowSpotProjectedDiagnostics;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
@@ -219,6 +220,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowCacheMissWarnMax = 2;
     private int shadowCacheWarnMinFrames = 3;
     private int shadowCacheWarnCooldownFrames = 120;
+    private double shadowRtDenoiseWarnMin = 0.45;
+    private int shadowRtSampleWarnMin = 2;
+    private double shadowRtPerfMaxGpuMsLow = 1.2;
+    private double shadowRtPerfMaxGpuMsMedium = 2.0;
+    private double shadowRtPerfMaxGpuMsHigh = 2.8;
+    private double shadowRtPerfMaxGpuMsUltra = 3.6;
+    private int shadowRtWarnMinFrames = 3;
+    private int shadowRtWarnCooldownFrames = 120;
     private boolean shadowDirectionalTexelSnapEnabled = true;
     private float shadowDirectionalTexelSnapScale = 1.0f;
     private long shadowSchedulerFrameTick;
@@ -251,6 +260,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowCacheHighStreak;
     private int shadowCacheWarnCooldownRemaining;
     private boolean shadowCacheEnvelopeBreachedLastFrame;
+    private double shadowRtPerfGpuMsEstimateLastFrame;
+    private double shadowRtPerfGpuMsWarnMaxLastFrame;
+    private int shadowRtHighStreak;
+    private int shadowRtWarnCooldownRemaining;
+    private boolean shadowRtEnvelopeBreachedLastFrame;
     private boolean shadowSpotProjectedRequestedLastFrame;
     private boolean shadowSpotProjectedActiveLastFrame;
     private int shadowSpotProjectedRenderedCountLastFrame;
@@ -559,6 +573,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowCacheMissWarnMax = options.shadowCacheMissWarnMax();
         shadowCacheWarnMinFrames = options.shadowCacheWarnMinFrames();
         shadowCacheWarnCooldownFrames = options.shadowCacheWarnCooldownFrames();
+        shadowRtDenoiseWarnMin = options.shadowRtDenoiseWarnMin();
+        shadowRtSampleWarnMin = options.shadowRtSampleWarnMin();
+        shadowRtPerfMaxGpuMsLow = options.shadowRtPerfMaxGpuMsLow();
+        shadowRtPerfMaxGpuMsMedium = options.shadowRtPerfMaxGpuMsMedium();
+        shadowRtPerfMaxGpuMsHigh = options.shadowRtPerfMaxGpuMsHigh();
+        shadowRtPerfMaxGpuMsUltra = options.shadowRtPerfMaxGpuMsUltra();
+        shadowRtWarnMinFrames = options.shadowRtWarnMinFrames();
+        shadowRtWarnCooldownFrames = options.shadowRtWarnCooldownFrames();
         shadowDirectionalTexelSnapEnabled = options.shadowDirectionalTexelSnapEnabled();
         shadowDirectionalTexelSnapScale = options.shadowDirectionalTexelSnapScale();
         reflectionProbeChurnWarnMinDelta = options.reflectionProbeChurnWarnMinDelta();
@@ -1132,6 +1154,26 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowCacheHighStreak,
                 shadowCacheWarnCooldownRemaining,
                 shadowCacheEnvelopeBreachedLastFrame
+        );
+    }
+
+    @Override
+    protected ShadowRtDiagnostics backendShadowRtDiagnostics() {
+        return new ShadowRtDiagnostics(
+                shadowCapabilityDiagnostics().available(),
+                currentShadows.rtShadowMode(),
+                currentShadows.rtShadowActive(),
+                effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode()),
+                shadowRtDenoiseWarnMin,
+                effectiveShadowRtSampleCount(currentShadows.rtShadowMode()),
+                shadowRtSampleWarnMin,
+                shadowRtPerfGpuMsEstimateLastFrame,
+                shadowRtPerfGpuMsWarnMaxLastFrame,
+                shadowRtWarnMinFrames,
+                shadowRtWarnCooldownFrames,
+                shadowRtHighStreak,
+                shadowRtWarnCooldownRemaining,
+                shadowRtEnvelopeBreachedLastFrame
         );
     }
 
@@ -2401,6 +2443,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowCacheChurnRatioLastFrame = 0.0;
         shadowCacheInvalidationReasonLastFrame = "inactive";
         shadowCacheEnvelopeBreachedLastFrame = false;
+        shadowRtPerfGpuMsEstimateLastFrame = 0.0;
+        shadowRtPerfGpuMsWarnMaxLastFrame = 0.0;
+        shadowRtEnvelopeBreachedLastFrame = false;
         shadowSpotProjectedRequestedLastFrame = false;
         shadowSpotProjectedActiveLastFrame = false;
         shadowSpotProjectedRenderedCountLastFrame = 0;
@@ -2415,6 +2460,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (shadowCacheWarnCooldownRemaining > 0) {
             shadowCacheWarnCooldownRemaining--;
         }
+        if (shadowRtWarnCooldownRemaining > 0) {
+            shadowRtWarnCooldownRemaining--;
+        }
         if (!currentShadows.enabled()) {
             shadowCadenceHighStreak = 0;
             shadowCadenceWarnCooldownRemaining = 0;
@@ -2422,6 +2470,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             shadowPointBudgetWarnCooldownRemaining = 0;
             shadowCacheHighStreak = 0;
             shadowCacheWarnCooldownRemaining = 0;
+            shadowRtHighStreak = 0;
+            shadowRtWarnCooldownRemaining = 0;
         }
         if (currentShadows.enabled()) {
             VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
@@ -2497,6 +2547,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", cacheMissWarnMax=" + shadowCacheMissWarnMax
                             + ", cacheWarnMinFrames=" + shadowCacheWarnMinFrames
                             + ", cacheWarnCooldownFrames=" + shadowCacheWarnCooldownFrames
+                            + ", rtDenoiseWarnMin=" + shadowRtDenoiseWarnMin
+                            + ", rtSampleWarnMin=" + shadowRtSampleWarnMin
+                            + ", rtPerfMaxGpuMsLow=" + shadowRtPerfMaxGpuMsLow
+                            + ", rtPerfMaxGpuMsMedium=" + shadowRtPerfMaxGpuMsMedium
+                            + ", rtPerfMaxGpuMsHigh=" + shadowRtPerfMaxGpuMsHigh
+                            + ", rtPerfMaxGpuMsUltra=" + shadowRtPerfMaxGpuMsUltra
+                            + ", rtWarnMinFrames=" + shadowRtWarnMinFrames
+                            + ", rtWarnCooldownFrames=" + shadowRtWarnCooldownFrames
                             + ")"
             ));
             warnings.add(new EngineWarning(
@@ -2775,6 +2833,53 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 ));
             }
             if (!"off".equals(currentShadows.rtShadowMode())) {
+                float rtEffectiveDenoise = effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode());
+                int rtEffectiveSamples = effectiveShadowRtSampleCount(currentShadows.rtShadowMode());
+                float rtEffectiveRayLength = effectiveShadowRtRayLength(currentShadows.rtShadowMode());
+                double rtLaneWeight = 0.22 + 0.06 * Math.max(0, rtEffectiveSamples - 1) + 0.004 * Math.max(0.0f, rtEffectiveRayLength);
+                shadowRtPerfGpuMsEstimateLastFrame = Math.max(0.0, lastFrameGpuMs) * rtLaneWeight;
+                shadowRtPerfGpuMsWarnMaxLastFrame = shadowRtPerfCapForTier(qualityTier);
+                boolean shadowRtEnvelopeNow = rtEffectiveDenoise < shadowRtDenoiseWarnMin
+                        || rtEffectiveSamples < shadowRtSampleWarnMin
+                        || shadowRtPerfGpuMsEstimateLastFrame > shadowRtPerfGpuMsWarnMaxLastFrame;
+                if (shadowRtEnvelopeNow) {
+                    shadowRtHighStreak = Math.min(10_000, shadowRtHighStreak + 1);
+                    shadowRtEnvelopeBreachedLastFrame = true;
+                } else {
+                    shadowRtHighStreak = 0;
+                }
+                warnings.add(new EngineWarning(
+                        "SHADOW_RT_DENOISE_ENVELOPE",
+                        "Shadow RT denoise/perf envelope (mode=" + currentShadows.rtShadowMode()
+                                + ", active=" + currentShadows.rtShadowActive()
+                                + ", denoiseStrength=" + rtEffectiveDenoise
+                                + ", denoiseWarnMin=" + shadowRtDenoiseWarnMin
+                                + ", sampleCount=" + rtEffectiveSamples
+                                + ", sampleWarnMin=" + shadowRtSampleWarnMin
+                                + ", perfGpuMsEstimate=" + shadowRtPerfGpuMsEstimateLastFrame
+                                + ", perfGpuMsWarnMax=" + shadowRtPerfGpuMsWarnMaxLastFrame
+                                + ", highStreak=" + shadowRtHighStreak
+                                + ", warnMinFrames=" + shadowRtWarnMinFrames
+                                + ", cooldownRemaining=" + shadowRtWarnCooldownRemaining + ")"
+                ));
+                if (shadowRtEnvelopeNow
+                        && shadowRtHighStreak >= shadowRtWarnMinFrames
+                        && shadowRtWarnCooldownRemaining == 0) {
+                    warnings.add(new EngineWarning(
+                            "SHADOW_RT_DENOISE_ENVELOPE_BREACH",
+                            "Shadow RT denoise/perf envelope breached (mode=" + currentShadows.rtShadowMode()
+                                    + ", denoiseStrength=" + rtEffectiveDenoise
+                                    + ", denoiseWarnMin=" + shadowRtDenoiseWarnMin
+                                    + ", sampleCount=" + rtEffectiveSamples
+                                    + ", sampleWarnMin=" + shadowRtSampleWarnMin
+                                    + ", perfGpuMsEstimate=" + shadowRtPerfGpuMsEstimateLastFrame
+                                    + ", perfGpuMsWarnMax=" + shadowRtPerfGpuMsWarnMaxLastFrame
+                                    + ", highStreak=" + shadowRtHighStreak
+                                    + ", warnMinFrames=" + shadowRtWarnMinFrames
+                                    + ", cooldownFrames=" + shadowRtWarnCooldownFrames + ")"
+                    ));
+                    shadowRtWarnCooldownRemaining = shadowRtWarnCooldownFrames;
+                }
                 warnings.add(new EngineWarning(
                         "SHADOW_RT_PATH_REQUESTED",
                         "RT shadow mode requested: " + currentShadows.rtShadowMode()
@@ -4730,6 +4835,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 3;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnCooldownFrames")) shadowCacheWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtDenoiseWarnMin")) shadowRtDenoiseWarnMin = 0.55;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtSampleWarnMin")) shadowRtSampleWarnMin = 3;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsLow")) shadowRtPerfMaxGpuMsLow = 1.0;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsMedium")) shadowRtPerfMaxGpuMsMedium = 1.6;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsHigh")) shadowRtPerfMaxGpuMsHigh = 2.2;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsUltra")) shadowRtPerfMaxGpuMsUltra = 2.8;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtWarnMinFrames")) shadowRtWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtWarnCooldownFrames")) shadowRtWarnCooldownFrames = 180;
             }
             case MEDIUM -> {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.55;
@@ -4742,6 +4855,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 3;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnCooldownFrames")) shadowCacheWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtDenoiseWarnMin")) shadowRtDenoiseWarnMin = 0.45;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtSampleWarnMin")) shadowRtSampleWarnMin = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsLow")) shadowRtPerfMaxGpuMsLow = 1.2;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsMedium")) shadowRtPerfMaxGpuMsMedium = 2.0;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsHigh")) shadowRtPerfMaxGpuMsHigh = 2.8;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsUltra")) shadowRtPerfMaxGpuMsUltra = 3.6;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtWarnMinFrames")) shadowRtWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtWarnCooldownFrames")) shadowRtWarnCooldownFrames = 120;
             }
             case HIGH -> {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.45;
@@ -4754,6 +4875,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 1;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnCooldownFrames")) shadowCacheWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtDenoiseWarnMin")) shadowRtDenoiseWarnMin = 0.38;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtSampleWarnMin")) shadowRtSampleWarnMin = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsLow")) shadowRtPerfMaxGpuMsLow = 1.4;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsMedium")) shadowRtPerfMaxGpuMsMedium = 2.2;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsHigh")) shadowRtPerfMaxGpuMsHigh = 3.1;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsUltra")) shadowRtPerfMaxGpuMsUltra = 4.0;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtWarnMinFrames")) shadowRtWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtWarnCooldownFrames")) shadowRtWarnCooldownFrames = 90;
             }
             case ULTRA -> {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.35;
@@ -4766,6 +4895,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 1;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnCooldownFrames")) shadowCacheWarnCooldownFrames = 60;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtDenoiseWarnMin")) shadowRtDenoiseWarnMin = 0.34;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtSampleWarnMin")) shadowRtSampleWarnMin = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsLow")) shadowRtPerfMaxGpuMsLow = 1.8;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsMedium")) shadowRtPerfMaxGpuMsMedium = 2.6;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsHigh")) shadowRtPerfMaxGpuMsHigh = 3.6;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsUltra")) shadowRtPerfMaxGpuMsUltra = 4.8;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtWarnMinFrames")) shadowRtWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.rtWarnCooldownFrames")) shadowRtWarnCooldownFrames = 60;
             }
         }
     }
@@ -5083,6 +5220,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             return Math.max(1, Math.min(16, shadowRtDedicatedSampleCount));
         }
         return shadowRtSampleCount;
+    }
+
+    private double shadowRtPerfCapForTier(QualityTier tier) {
+        return switch (tier) {
+            case LOW -> shadowRtPerfMaxGpuMsLow;
+            case MEDIUM -> shadowRtPerfMaxGpuMsMedium;
+            case HIGH -> shadowRtPerfMaxGpuMsHigh;
+            case ULTRA -> shadowRtPerfMaxGpuMsUltra;
+        };
     }
 
     private void updateShadowSchedulerTicks(String renderedShadowLightIdsCsv) {

@@ -170,6 +170,14 @@ final class VulkanRuntimeOptions {
                 parseIntOption(safe, "vulkan.shadow.cacheMissWarnMax", 2, 0, 10000),
                 parseIntOption(safe, "vulkan.shadow.cacheWarnMinFrames", 3, 1, 600),
                 parseIntOption(safe, "vulkan.shadow.cacheWarnCooldownFrames", 120, 0, 10000),
+                parseDoubleOption(safe, "vulkan.shadow.rtDenoiseWarnMin", 0.45, 0.0, 1.0),
+                parseIntOption(safe, "vulkan.shadow.rtSampleWarnMin", 2, 1, 16),
+                parseDoubleOption(safe, "vulkan.shadow.rtPerfMaxGpuMsLow", 1.2, 0.0, 1000.0),
+                parseDoubleOption(safe, "vulkan.shadow.rtPerfMaxGpuMsMedium", 2.0, 0.0, 1000.0),
+                parseDoubleOption(safe, "vulkan.shadow.rtPerfMaxGpuMsHigh", 2.8, 0.0, 1000.0),
+                parseDoubleOption(safe, "vulkan.shadow.rtPerfMaxGpuMsUltra", 3.6, 0.0, 1000.0),
+                parseIntOption(safe, "vulkan.shadow.rtWarnMinFrames", 3, 1, 600),
+                parseIntOption(safe, "vulkan.shadow.rtWarnCooldownFrames", 120, 0, 10000),
                 parseBoolean(safe, "vulkan.shadow.directionalTexelSnapEnabled", true),
                 (float) parseDoubleOption(safe, "vulkan.shadow.directionalTexelSnapScale", 1.0, 0.25, 4.0)
         );
@@ -403,6 +411,14 @@ final class VulkanRuntimeOptions {
             int shadowCacheMissWarnMax,
             int shadowCacheWarnMinFrames,
             int shadowCacheWarnCooldownFrames,
+            double shadowRtDenoiseWarnMin,
+            int shadowRtSampleWarnMin,
+            double shadowRtPerfMaxGpuMsLow,
+            double shadowRtPerfMaxGpuMsMedium,
+            double shadowRtPerfMaxGpuMsHigh,
+            double shadowRtPerfMaxGpuMsUltra,
+            int shadowRtWarnMinFrames,
+            int shadowRtWarnCooldownFrames,
             boolean shadowDirectionalTexelSnapEnabled,
             float shadowDirectionalTexelSnapScale
     ) {

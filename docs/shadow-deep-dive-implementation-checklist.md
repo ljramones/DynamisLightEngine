@@ -56,8 +56,8 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 
 ### 5) RT shadows denoised
 
-- [ ] Activate strict denoise envelope gates and typed diagnostics parity.
-- [ ] Lock RT perf + denoise thresholds by profile.
+- [x] Activate strict denoise/perf envelope gates with typed runtime diagnostics parity (`shadowRtDiagnostics()`, `SHADOW_RT_DENOISE_ENVELOPE`, `SHADOW_RT_DENOISE_ENVELOPE_BREACH`).
+- [x] Lock RT perf + denoise thresholds by tier profile with explicit override precedence (`SHADOW_TELEMETRY_PROFILE_ACTIVE`).
 
 ### 6) Hybrid cascade + contact + RT
 
