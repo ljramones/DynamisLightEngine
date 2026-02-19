@@ -1,4 +1,6 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
+
+import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowDiagnosticsMapper;
 
@@ -22,8 +24,8 @@ import org.dynamislight.api.runtime.ShadowSpotProjectedDiagnostics;
 import org.dynamislight.api.runtime.ShadowTopologyDiagnostics;
 import org.dynamislight.api.runtime.ShadowTransparentReceiverDiagnostics;
 
-final class VulkanShadowBackendDiagnosticsBridge {
-    static final class State {
+public final class VulkanShadowBackendDiagnosticsBridge {
+    public static final class State {
         String shadowCapabilityFeatureIdLastFrame;
         String shadowCapabilityModeLastFrame;
         List<String> shadowCapabilitySignalsLastFrame;
@@ -148,7 +150,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         return state;
     }
 
-    static ShadowCapabilityDiagnostics capability(Object runtime) {
+    public static ShadowCapabilityDiagnostics capability(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.capability(
                 state.shadowCapabilityFeatureIdLastFrame,
@@ -157,7 +159,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowCadenceDiagnostics cadence(Object runtime) {
+    public static ShadowCadenceDiagnostics cadence(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.cadence(
                 capability(runtime).available(),
@@ -177,7 +179,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowPointBudgetDiagnostics pointBudget(Object runtime) {
+    public static ShadowPointBudgetDiagnostics pointBudget(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.pointBudget(
                 capability(runtime).available(),
@@ -198,7 +200,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowSpotProjectedDiagnostics spotProjected(Object runtime) {
+    public static ShadowSpotProjectedDiagnostics spotProjected(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.spotProjected(
                 capability(runtime).available(),
@@ -213,7 +215,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowCacheDiagnostics cache(Object runtime) {
+    public static ShadowCacheDiagnostics cache(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.cache(
                 capability(runtime).available(),
@@ -235,7 +237,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowRtDiagnostics rt(Object runtime) {
+    public static ShadowRtDiagnostics rt(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.rt(
                 capability(runtime).available(),
@@ -265,7 +267,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowHybridDiagnostics hybrid(Object runtime) {
+    public static ShadowHybridDiagnostics hybrid(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.hybrid(
                 capability(runtime).available(),
@@ -283,7 +285,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowTransparentReceiverDiagnostics transparentReceivers(Object runtime) {
+    public static ShadowTransparentReceiverDiagnostics transparentReceivers(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.transparentReceivers(
                 capability(runtime).available(),
@@ -301,7 +303,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowExtendedModeDiagnostics extendedModes(Object runtime) {
+    public static ShadowExtendedModeDiagnostics extendedModes(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.extendedModes(
                 capability(runtime).available(),
@@ -314,7 +316,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowTopologyDiagnostics topology(Object runtime) {
+    public static ShadowTopologyDiagnostics topology(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.topology(
                 capability(runtime).available(),
@@ -341,7 +343,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowPhaseAPromotionDiagnostics phaseA(Object runtime) {
+    public static ShadowPhaseAPromotionDiagnostics phaseA(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.phaseA(
                 capability(runtime).available(),
@@ -354,7 +356,7 @@ final class VulkanShadowBackendDiagnosticsBridge {
         );
     }
 
-    static ShadowPhaseDPromotionDiagnostics phaseD(Object runtime) {
+    public static ShadowPhaseDPromotionDiagnostics phaseD(Object runtime) {
         State state = stateFrom(runtime);
         return VulkanShadowDiagnosticsMapper.phaseD(
                 capability(runtime).available(),

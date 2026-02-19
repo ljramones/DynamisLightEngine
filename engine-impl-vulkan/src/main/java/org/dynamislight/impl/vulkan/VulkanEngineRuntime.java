@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.shadow.VulkanShadowBackendDiagnosticsBridge;
+
 import org.dynamislight.impl.vulkan.runtime.upscale.VulkanExternalUpscalerDecider;
 
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowRuntimeTuning;
