@@ -8,6 +8,7 @@ Review metadata:
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
 - Latest reflection update: 2026-02-19 12:14 ET — Reflections Vulkan closeout index added (`docs/reflections-vulkan-closeout.md`) with linked checklists, exit criteria, and promotion commit ledger.
+- Latest shadow contract update: 2026-02-19 13:05 ET — Shadow v2 backlog modes/checklist added (`docs/shadow-contract-v2-backlog-checklist.md`) to track remaining shadow items through contract validation.
 
 Status legend:
 
@@ -39,6 +40,11 @@ Status summary snapshot (2026-02-18):
 - Transparent shadow receivers — `Not In Yet`
 - Shadow caching (static geometry cache, dynamic overlay) — `Partial`
 - Distance-field soft shadows (medium-range, no map needed) — `Not In Yet`
+
+Shadow notes:
+
+- Shadow v2 contract descriptor now enumerates backlog modes (`local_atlas_cadence`, `point_cubemap_budget`, `spot_projected`, `area_approx`, `rt_denoised`, `hybrid_cascade_contact_rt`, `transparent_receivers`, `cached_static_dynamic`, `distance_field_soft`) for validator/CI composition gating.
+- Contract-mode coverage and cross-capability validation checklist is tracked in `docs/shadow-contract-v2-backlog-checklist.md`.
 
 ## Reflections
 

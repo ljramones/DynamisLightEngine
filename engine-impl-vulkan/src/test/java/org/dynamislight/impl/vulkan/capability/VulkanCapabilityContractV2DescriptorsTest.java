@@ -13,6 +13,7 @@ import org.dynamislight.spi.render.RenderCapabilityValidationIssue;
 import org.dynamislight.spi.render.RenderCapabilityContractV2;
 import org.dynamislight.spi.render.RenderDescriptorRequirement;
 import org.dynamislight.spi.render.RenderFeatureCapabilityV2;
+import org.dynamislight.spi.render.RenderFeatureMode;
 import org.junit.jupiter.api.Test;
 
 class VulkanCapabilityContractV2DescriptorsTest {
@@ -84,6 +85,29 @@ class VulkanCapabilityContractV2DescriptorsTest {
 
         assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),
                 "expected zero errors, got: " + issues);
+    }
+
+    @Test
+    void everyShadowModeProducesCompleteContractAndValidatesWithReflection() {
+        VulkanReflectionCapabilityDescriptorV2 reflection =
+                VulkanReflectionCapabilityDescriptorV2.withMode(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID);
+        for (RenderFeatureMode mode : VulkanShadowCapabilityDescriptorV2.withMode(null).supportedModes()) {
+            VulkanShadowCapabilityDescriptorV2 shadow = VulkanShadowCapabilityDescriptorV2.withMode(mode);
+            RenderCapabilityContractV2 contract = shadow.contractV2(QualityTier.ULTRA);
+            assertEqualsNonBlank(contract.featureId());
+            assertNotNull(contract.mode());
+            assertFalse(contract.passes().isEmpty(), "mode " + mode.id() + " must declare passes");
+            assertFalse(contract.shaderContributions().isEmpty(), "mode " + mode.id() + " must declare shader contributions");
+            assertFalse(contract.descriptorRequirements().isEmpty(), "mode " + mode.id() + " must declare descriptor requirements");
+            assertFalse(contract.ownedResources().isEmpty(), "mode " + mode.id() + " must declare owned resources");
+
+            List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
+                    List.of(shadow, reflection),
+                    QualityTier.ULTRA
+            );
+            assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),
+                    "expected zero errors for mode " + mode.id() + ", got: " + issues);
+        }
     }
 
     private static void assertEqualsNonBlank(String value) {
