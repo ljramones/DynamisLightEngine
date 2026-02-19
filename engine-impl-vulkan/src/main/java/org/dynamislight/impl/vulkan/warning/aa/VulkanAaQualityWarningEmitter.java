@@ -7,7 +7,7 @@ import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.impl.vulkan.runtime.config.AaMode;
 
 /**
- * Emits DLAA/specular-AA quality policy and promotion warnings.
+ * Emits DLAA/specular/geometric/A2C quality policy and promotion warnings.
  */
 public final class VulkanAaQualityWarningEmitter {
     private VulkanAaQualityWarningEmitter() {
@@ -105,6 +105,86 @@ public final class VulkanAaQualityWarningEmitter {
             ));
         }
 
+        boolean geometricPolicyActive = analysis.materialCount() > 0;
+        boolean geometricRisk = geometricPolicyActive
+                && analysis.thinFeatureMaterialRatio() < safe.geometricWarnMinThinFeatureRatio();
+        int geomHighStreak = geometricRisk ? safe.previousGeometricHighStreak() + 1 : 0;
+        int geomCooldown = safe.previousGeometricCooldownRemaining() <= 0 ? 0 : safe.previousGeometricCooldownRemaining() - 1;
+        boolean geomBreached = false;
+        if (geometricRisk && geomHighStreak >= safe.geometricWarnMinFrames() && geomCooldown <= 0) {
+            geomBreached = true;
+            geomCooldown = safe.geometricWarnCooldownFrames();
+            warnings.add(new EngineWarning(
+                    "AA_GEOMETRIC_ENVELOPE_BREACH",
+                    "AA geometric envelope breach (thinFeatureRatio=" + analysis.thinFeatureMaterialRatio()
+                            + ", warnMinThinFeatureRatio=" + safe.geometricWarnMinThinFeatureRatio() + ")"
+            ));
+        }
+        int geomStableStreak = geometricRisk ? 0 : (geometricPolicyActive ? safe.previousGeometricStableStreak() + 1 : 0);
+        boolean geomPromotionReady = geometricPolicyActive && geomStableStreak >= safe.geometricPromotionReadyMinFrames();
+        warnings.add(new EngineWarning(
+                "AA_GEOMETRIC_POLICY_ACTIVE",
+                "AA geometric policy active (active=" + geometricPolicyActive
+                        + ", thinFeatureCount=" + analysis.thinFeatureMaterialCount()
+                        + ", thinFeatureRatio=" + analysis.thinFeatureMaterialRatio() + ")"
+        ));
+        warnings.add(new EngineWarning(
+                "AA_GEOMETRIC_ENVELOPE",
+                "AA geometric envelope (risk=" + geometricRisk
+                        + ", thinFeatureRatio=" + analysis.thinFeatureMaterialRatio()
+                        + ", warnMinThinFeatureRatio=" + safe.geometricWarnMinThinFeatureRatio()
+                        + ", stableStreak=" + geomStableStreak
+                        + ", promotionReady=" + geomPromotionReady + ")"
+        ));
+        if (geomPromotionReady) {
+            warnings.add(new EngineWarning(
+                    "AA_GEOMETRIC_PROMOTION_READY",
+                    "AA geometric promotion-ready envelope satisfied"
+            ));
+        }
+
+        boolean a2cPolicyActive = (safe.aaMode() == AaMode.MSAA_SELECTIVE || safe.aaMode() == AaMode.HYBRID_TUUA_MSAA)
+                && analysis.materialCount() > 0;
+        boolean a2cRisk = a2cPolicyActive
+                && analysis.thinFeatureMaterialRatio() < safe.alphaToCoverageWarnMinThinFeatureRatio();
+        int a2cHighStreak = a2cRisk ? safe.previousAlphaToCoverageHighStreak() + 1 : 0;
+        int a2cCooldown = safe.previousAlphaToCoverageCooldownRemaining() <= 0
+                ? 0
+                : safe.previousAlphaToCoverageCooldownRemaining() - 1;
+        boolean a2cBreached = false;
+        if (a2cRisk && a2cHighStreak >= safe.alphaToCoverageWarnMinFrames() && a2cCooldown <= 0) {
+            a2cBreached = true;
+            a2cCooldown = safe.alphaToCoverageWarnCooldownFrames();
+            warnings.add(new EngineWarning(
+                    "AA_A2C_ENVELOPE_BREACH",
+                    "AA alpha-to-coverage envelope breach (thinFeatureRatio=" + analysis.thinFeatureMaterialRatio()
+                            + ", warnMinThinFeatureRatio=" + safe.alphaToCoverageWarnMinThinFeatureRatio() + ")"
+            ));
+        }
+        int a2cStableStreak = a2cRisk ? 0 : (a2cPolicyActive ? safe.previousAlphaToCoverageStableStreak() + 1 : 0);
+        boolean a2cPromotionReady = a2cPolicyActive && a2cStableStreak >= safe.alphaToCoveragePromotionReadyMinFrames();
+        warnings.add(new EngineWarning(
+                "AA_A2C_POLICY_ACTIVE",
+                "AA alpha-to-coverage policy active (active=" + a2cPolicyActive
+                        + ", thinFeatureCount=" + analysis.thinFeatureMaterialCount()
+                        + ", thinFeatureRatio=" + analysis.thinFeatureMaterialRatio()
+                        + ", mode=" + modeId + ")"
+        ));
+        warnings.add(new EngineWarning(
+                "AA_A2C_ENVELOPE",
+                "AA alpha-to-coverage envelope (risk=" + a2cRisk
+                        + ", thinFeatureRatio=" + analysis.thinFeatureMaterialRatio()
+                        + ", warnMinThinFeatureRatio=" + safe.alphaToCoverageWarnMinThinFeatureRatio()
+                        + ", stableStreak=" + a2cStableStreak
+                        + ", promotionReady=" + a2cPromotionReady + ")"
+        ));
+        if (a2cPromotionReady) {
+            warnings.add(new EngineWarning(
+                    "AA_A2C_PROMOTION_READY",
+                    "AA alpha-to-coverage promotion-ready envelope satisfied"
+            ));
+        }
+
         return new Result(
                 warnings,
                 modeId,
@@ -131,16 +211,35 @@ public final class VulkanAaQualityWarningEmitter {
                 dlaaHighStreak,
                 dlaaCooldown,
                 specHighStreak,
-                specCooldown
+                specCooldown,
+                geometricPolicyActive,
+                analysis.thinFeatureMaterialCount(),
+                analysis.thinFeatureMaterialRatio(),
+                safe.geometricWarnMinThinFeatureRatio(),
+                safe.geometricPromotionReadyMinFrames(),
+                geomStableStreak,
+                geomBreached,
+                geomPromotionReady,
+                geomHighStreak,
+                geomCooldown,
+                a2cPolicyActive,
+                safe.alphaToCoverageWarnMinThinFeatureRatio(),
+                safe.alphaToCoveragePromotionReadyMinFrames(),
+                a2cStableStreak,
+                a2cBreached,
+                a2cPromotionReady,
+                a2cHighStreak,
+                a2cCooldown
         );
     }
 
     private static Analysis analyze(List<MaterialDesc> materials) {
         if (materials == null || materials.isEmpty()) {
-            return new Analysis(0, 0, 0.0);
+            return new Analysis(0, 0, 0.0, 0, 0.0);
         }
         int count = 0;
         int normalMapped = 0;
+        int thinFeatures = 0;
         for (MaterialDesc material : materials) {
             if (material == null) {
                 continue;
@@ -149,11 +248,20 @@ public final class VulkanAaQualityWarningEmitter {
             if (material.normalTexturePath() != null && !material.normalTexturePath().isBlank()) {
                 normalMapped++;
             }
+            if (material.alphaTested() || material.foliage()) {
+                thinFeatures++;
+            }
         }
         if (count <= 0) {
-            return new Analysis(0, 0, 0.0);
+            return new Analysis(0, 0, 0.0, 0, 0.0);
         }
-        return new Analysis(count, normalMapped, (double) normalMapped / (double) count);
+        return new Analysis(
+                count,
+                normalMapped,
+                (double) normalMapped / (double) count,
+                thinFeatures,
+                (double) thinFeatures / (double) count
+        );
     }
 
     public record Input(
@@ -177,7 +285,21 @@ public final class VulkanAaQualityWarningEmitter {
             int specularPromotionReadyMinFrames,
             int previousSpecularStableStreak,
             int previousSpecularHighStreak,
-            int previousSpecularCooldownRemaining
+            int previousSpecularCooldownRemaining,
+            double geometricWarnMinThinFeatureRatio,
+            int geometricWarnMinFrames,
+            int geometricWarnCooldownFrames,
+            int geometricPromotionReadyMinFrames,
+            int previousGeometricStableStreak,
+            int previousGeometricHighStreak,
+            int previousGeometricCooldownRemaining,
+            double alphaToCoverageWarnMinThinFeatureRatio,
+            int alphaToCoverageWarnMinFrames,
+            int alphaToCoverageWarnCooldownFrames,
+            int alphaToCoveragePromotionReadyMinFrames,
+            int previousAlphaToCoverageStableStreak,
+            int previousAlphaToCoverageHighStreak,
+            int previousAlphaToCoverageCooldownRemaining
     ) {
         public Input {
             aaMode = aaMode == null ? AaMode.TAA : aaMode;
@@ -200,6 +322,20 @@ public final class VulkanAaQualityWarningEmitter {
             previousSpecularStableStreak = Math.max(0, previousSpecularStableStreak);
             previousSpecularHighStreak = Math.max(0, previousSpecularHighStreak);
             previousSpecularCooldownRemaining = Math.max(0, previousSpecularCooldownRemaining);
+            geometricWarnMinThinFeatureRatio = clamp01(geometricWarnMinThinFeatureRatio);
+            geometricWarnMinFrames = Math.max(1, geometricWarnMinFrames);
+            geometricWarnCooldownFrames = Math.max(0, geometricWarnCooldownFrames);
+            geometricPromotionReadyMinFrames = Math.max(1, geometricPromotionReadyMinFrames);
+            previousGeometricStableStreak = Math.max(0, previousGeometricStableStreak);
+            previousGeometricHighStreak = Math.max(0, previousGeometricHighStreak);
+            previousGeometricCooldownRemaining = Math.max(0, previousGeometricCooldownRemaining);
+            alphaToCoverageWarnMinThinFeatureRatio = clamp01(alphaToCoverageWarnMinThinFeatureRatio);
+            alphaToCoverageWarnMinFrames = Math.max(1, alphaToCoverageWarnMinFrames);
+            alphaToCoverageWarnCooldownFrames = Math.max(0, alphaToCoverageWarnCooldownFrames);
+            alphaToCoveragePromotionReadyMinFrames = Math.max(1, alphaToCoveragePromotionReadyMinFrames);
+            previousAlphaToCoverageStableStreak = Math.max(0, previousAlphaToCoverageStableStreak);
+            previousAlphaToCoverageHighStreak = Math.max(0, previousAlphaToCoverageHighStreak);
+            previousAlphaToCoverageCooldownRemaining = Math.max(0, previousAlphaToCoverageCooldownRemaining);
         }
 
         static Input defaults() {
@@ -219,6 +355,20 @@ public final class VulkanAaQualityWarningEmitter {
                     0,
                     0,
                     1.1,
+                    3,
+                    120,
+                    6,
+                    0,
+                    0,
+                    0,
+                    0.05,
+                    3,
+                    120,
+                    6,
+                    0,
+                    0,
+                    0,
+                    0.05,
                     3,
                     120,
                     6,
@@ -255,7 +405,25 @@ public final class VulkanAaQualityWarningEmitter {
             int nextDlaaHighStreak,
             int nextDlaaCooldownRemaining,
             int nextSpecularHighStreak,
-            int nextSpecularCooldownRemaining
+            int nextSpecularCooldownRemaining,
+            boolean geometricPolicyActive,
+            int thinFeatureMaterialCount,
+            double thinFeatureMaterialRatio,
+            double geometricWarnMinThinFeatureRatio,
+            int geometricPromotionReadyMinFrames,
+            int geometricStableStreak,
+            boolean geometricEnvelopeBreachedLastFrame,
+            boolean geometricPromotionReadyLastFrame,
+            int nextGeometricHighStreak,
+            int nextGeometricCooldownRemaining,
+            boolean alphaToCoveragePolicyActive,
+            double alphaToCoverageWarnMinThinFeatureRatio,
+            int alphaToCoveragePromotionReadyMinFrames,
+            int alphaToCoverageStableStreak,
+            boolean alphaToCoverageEnvelopeBreachedLastFrame,
+            boolean alphaToCoveragePromotionReadyLastFrame,
+            int nextAlphaToCoverageHighStreak,
+            int nextAlphaToCoverageCooldownRemaining
     ) {
         public Result {
             warnings = warnings == null ? List.of() : List.copyOf(warnings);
@@ -267,10 +435,28 @@ public final class VulkanAaQualityWarningEmitter {
             nextDlaaCooldownRemaining = Math.max(0, nextDlaaCooldownRemaining);
             nextSpecularHighStreak = Math.max(0, nextSpecularHighStreak);
             nextSpecularCooldownRemaining = Math.max(0, nextSpecularCooldownRemaining);
+            thinFeatureMaterialCount = Math.max(0, thinFeatureMaterialCount);
+            thinFeatureMaterialRatio = clamp01(thinFeatureMaterialRatio);
+            geometricWarnMinThinFeatureRatio = clamp01(geometricWarnMinThinFeatureRatio);
+            geometricPromotionReadyMinFrames = Math.max(1, geometricPromotionReadyMinFrames);
+            geometricStableStreak = Math.max(0, geometricStableStreak);
+            nextGeometricHighStreak = Math.max(0, nextGeometricHighStreak);
+            nextGeometricCooldownRemaining = Math.max(0, nextGeometricCooldownRemaining);
+            alphaToCoverageWarnMinThinFeatureRatio = clamp01(alphaToCoverageWarnMinThinFeatureRatio);
+            alphaToCoveragePromotionReadyMinFrames = Math.max(1, alphaToCoveragePromotionReadyMinFrames);
+            alphaToCoverageStableStreak = Math.max(0, alphaToCoverageStableStreak);
+            nextAlphaToCoverageHighStreak = Math.max(0, nextAlphaToCoverageHighStreak);
+            nextAlphaToCoverageCooldownRemaining = Math.max(0, nextAlphaToCoverageCooldownRemaining);
         }
     }
 
-    private record Analysis(int materialCount, int normalMappedMaterialCount, double normalMappedMaterialRatio) {
+    private record Analysis(
+            int materialCount,
+            int normalMappedMaterialCount,
+            double normalMappedMaterialRatio,
+            int thinFeatureMaterialCount,
+            double thinFeatureMaterialRatio
+    ) {
     }
 
     private static double clamp01(double value) {

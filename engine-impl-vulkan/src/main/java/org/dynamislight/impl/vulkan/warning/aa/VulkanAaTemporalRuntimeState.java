@@ -115,6 +115,28 @@ public final class VulkanAaTemporalRuntimeState {
     public int specularWarnCooldownRemaining;
     public boolean specularEnvelopeBreachedLastFrame;
     public boolean specularPromotionReadyLastFrame;
+    public boolean geometricPolicyActiveLastFrame;
+    public int geometricThinFeatureCountLastFrame;
+    public double geometricThinFeatureRatioLastFrame;
+    public double geometricWarnMinThinFeatureRatio = 0.05;
+    public int geometricWarnMinFrames = 3;
+    public int geometricWarnCooldownFrames = 120;
+    public int geometricPromotionReadyMinFrames = 6;
+    public int geometricStableStreak;
+    public int geometricHighStreak;
+    public int geometricWarnCooldownRemaining;
+    public boolean geometricEnvelopeBreachedLastFrame;
+    public boolean geometricPromotionReadyLastFrame;
+    public boolean alphaToCoveragePolicyActiveLastFrame;
+    public double alphaToCoverageWarnMinThinFeatureRatio = 0.05;
+    public int alphaToCoverageWarnMinFrames = 3;
+    public int alphaToCoverageWarnCooldownFrames = 120;
+    public int alphaToCoveragePromotionReadyMinFrames = 6;
+    public int alphaToCoverageStableStreak;
+    public int alphaToCoverageHighStreak;
+    public int alphaToCoverageWarnCooldownRemaining;
+    public boolean alphaToCoverageEnvelopeBreachedLastFrame;
+    public boolean alphaToCoveragePromotionReadyLastFrame;
 
     public void resetFrameState() {
         temporalPathRequestedLastFrame = false;
@@ -185,6 +207,20 @@ public final class VulkanAaTemporalRuntimeState {
         specularWarnCooldownRemaining = 0;
         specularEnvelopeBreachedLastFrame = false;
         specularPromotionReadyLastFrame = false;
+        geometricPolicyActiveLastFrame = false;
+        geometricThinFeatureCountLastFrame = 0;
+        geometricThinFeatureRatioLastFrame = 0.0;
+        geometricStableStreak = 0;
+        geometricHighStreak = 0;
+        geometricWarnCooldownRemaining = 0;
+        geometricEnvelopeBreachedLastFrame = false;
+        geometricPromotionReadyLastFrame = false;
+        alphaToCoveragePolicyActiveLastFrame = false;
+        alphaToCoverageStableStreak = 0;
+        alphaToCoverageHighStreak = 0;
+        alphaToCoverageWarnCooldownRemaining = 0;
+        alphaToCoverageEnvelopeBreachedLastFrame = false;
+        alphaToCoveragePromotionReadyLastFrame = false;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -254,6 +290,22 @@ public final class VulkanAaTemporalRuntimeState {
                 backendOptions, "vulkan.aa.specularWarnCooldownFrames", specularWarnCooldownFrames, 0, 10_000);
         specularPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
                 backendOptions, "vulkan.aa.specularPromotionReadyMinFrames", specularPromotionReadyMinFrames, 1, 10_000);
+        geometricWarnMinThinFeatureRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                backendOptions, "vulkan.aa.geometricWarnMinThinFeatureRatio", geometricWarnMinThinFeatureRatio, 0.0, 1.0);
+        geometricWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.geometricWarnMinFrames", geometricWarnMinFrames, 1, 10_000);
+        geometricWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.geometricWarnCooldownFrames", geometricWarnCooldownFrames, 0, 10_000);
+        geometricPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.geometricPromotionReadyMinFrames", geometricPromotionReadyMinFrames, 1, 10_000);
+        alphaToCoverageWarnMinThinFeatureRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                backendOptions, "vulkan.aa.a2cWarnMinThinFeatureRatio", alphaToCoverageWarnMinThinFeatureRatio, 0.0, 1.0);
+        alphaToCoverageWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.a2cWarnMinFrames", alphaToCoverageWarnMinFrames, 1, 10_000);
+        alphaToCoverageWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.a2cWarnCooldownFrames", alphaToCoverageWarnCooldownFrames, 0, 10_000);
+        alphaToCoveragePromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.a2cPromotionReadyMinFrames", alphaToCoveragePromotionReadyMinFrames, 1, 10_000);
     }
 
     public void applyTemporalEmission(VulkanAaTemporalWarningEmitter.Result emission) {
@@ -493,7 +545,21 @@ public final class VulkanAaTemporalRuntimeState {
                 specularPromotionReadyMinFrames,
                 specularStableStreak,
                 specularHighStreak,
-                specularWarnCooldownRemaining
+                specularWarnCooldownRemaining,
+                geometricWarnMinThinFeatureRatio,
+                geometricWarnMinFrames,
+                geometricWarnCooldownFrames,
+                geometricPromotionReadyMinFrames,
+                geometricStableStreak,
+                geometricHighStreak,
+                geometricWarnCooldownRemaining,
+                alphaToCoverageWarnMinThinFeatureRatio,
+                alphaToCoverageWarnMinFrames,
+                alphaToCoverageWarnCooldownFrames,
+                alphaToCoveragePromotionReadyMinFrames,
+                alphaToCoverageStableStreak,
+                alphaToCoverageHighStreak,
+                alphaToCoverageWarnCooldownRemaining
         ));
     }
 
@@ -521,6 +587,22 @@ public final class VulkanAaTemporalRuntimeState {
         specularWarnCooldownRemaining = emission.nextSpecularCooldownRemaining();
         specularEnvelopeBreachedLastFrame = emission.specularEnvelopeBreachedLastFrame();
         specularPromotionReadyLastFrame = emission.specularPromotionReadyLastFrame();
+        geometricPolicyActiveLastFrame = emission.geometricPolicyActive();
+        geometricThinFeatureCountLastFrame = emission.thinFeatureMaterialCount();
+        geometricThinFeatureRatioLastFrame = emission.thinFeatureMaterialRatio();
+        geometricWarnMinThinFeatureRatio = emission.geometricWarnMinThinFeatureRatio();
+        geometricStableStreak = emission.geometricStableStreak();
+        geometricHighStreak = emission.nextGeometricHighStreak();
+        geometricWarnCooldownRemaining = emission.nextGeometricCooldownRemaining();
+        geometricEnvelopeBreachedLastFrame = emission.geometricEnvelopeBreachedLastFrame();
+        geometricPromotionReadyLastFrame = emission.geometricPromotionReadyLastFrame();
+        alphaToCoveragePolicyActiveLastFrame = emission.alphaToCoveragePolicyActive();
+        alphaToCoverageWarnMinThinFeatureRatio = emission.alphaToCoverageWarnMinThinFeatureRatio();
+        alphaToCoverageStableStreak = emission.alphaToCoverageStableStreak();
+        alphaToCoverageHighStreak = emission.nextAlphaToCoverageHighStreak();
+        alphaToCoverageWarnCooldownRemaining = emission.nextAlphaToCoverageCooldownRemaining();
+        alphaToCoverageEnvelopeBreachedLastFrame = emission.alphaToCoverageEnvelopeBreachedLastFrame();
+        alphaToCoveragePromotionReadyLastFrame = emission.alphaToCoveragePromotionReadyLastFrame();
     }
 
     public AaQualityPromotionDiagnostics qualityDiagnostics() {
@@ -546,7 +628,21 @@ public final class VulkanAaTemporalRuntimeState {
                 specularPromotionReadyMinFrames,
                 specularStableStreak,
                 specularEnvelopeBreachedLastFrame,
-                specularPromotionReadyLastFrame
+                specularPromotionReadyLastFrame,
+                geometricPolicyActiveLastFrame,
+                geometricThinFeatureCountLastFrame,
+                geometricThinFeatureRatioLastFrame,
+                geometricWarnMinThinFeatureRatio,
+                geometricPromotionReadyMinFrames,
+                geometricStableStreak,
+                geometricEnvelopeBreachedLastFrame,
+                geometricPromotionReadyLastFrame,
+                alphaToCoveragePolicyActiveLastFrame,
+                alphaToCoverageWarnMinThinFeatureRatio,
+                alphaToCoveragePromotionReadyMinFrames,
+                alphaToCoverageStableStreak,
+                alphaToCoverageEnvelopeBreachedLastFrame,
+                alphaToCoveragePromotionReadyLastFrame
         );
     }
 }

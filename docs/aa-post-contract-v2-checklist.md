@@ -19,6 +19,7 @@ Scope: harden Vulkan AA + post capability declarations against the extracted v2 
 - [x] Add TUUA/TSR upscale envelope + promotion warnings (`AA_UPSCALE_POLICY_ACTIVE`, `AA_UPSCALE_ENVELOPE`, `AA_UPSCALE_ENVELOPE_BREACH`, `AA_UPSCALE_PROMOTION_READY`) with typed diagnostics (`aaUpscalePromotionDiagnostics()`).
 - [x] Add MSAA-selective/hybrid envelope + promotion warnings (`AA_MSAA_POLICY_ACTIVE`, `AA_MSAA_ENVELOPE`, `AA_MSAA_ENVELOPE_BREACH`, `AA_MSAA_PROMOTION_READY`) with typed diagnostics (`aaMsaaPromotionDiagnostics()`).
 - [x] Add DLAA/specular-AA quality envelope + promotion warnings (`AA_DLAA_*`, `AA_SPECULAR_*`) with typed diagnostics (`aaQualityPromotionDiagnostics()`).
+- [x] Add geometric AA + alpha-to-coverage envelope + promotion warnings (`AA_GEOMETRIC_*`, `AA_A2C_*`) under quality diagnostics (`aaQualityPromotionDiagnostics()`).
 
 ## Verification
 

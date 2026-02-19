@@ -25,7 +25,21 @@ public record AaQualityPromotionDiagnostics(
         int specularPromotionReadyMinFrames,
         int specularStableStreak,
         boolean specularEnvelopeBreachedLastFrame,
-        boolean specularPromotionReadyLastFrame
+        boolean specularPromotionReadyLastFrame,
+        boolean geometricPolicyActive,
+        int thinFeatureMaterialCount,
+        double thinFeatureMaterialRatio,
+        double geometricWarnMinThinFeatureRatio,
+        int geometricPromotionReadyMinFrames,
+        int geometricStableStreak,
+        boolean geometricEnvelopeBreachedLastFrame,
+        boolean geometricPromotionReadyLastFrame,
+        boolean alphaToCoveragePolicyActive,
+        double alphaToCoverageWarnMinThinFeatureRatio,
+        int alphaToCoveragePromotionReadyMinFrames,
+        int alphaToCoverageStableStreak,
+        boolean alphaToCoverageEnvelopeBreachedLastFrame,
+        boolean alphaToCoveragePromotionReadyLastFrame
 ) {
     public AaQualityPromotionDiagnostics {
         aaMode = aaMode == null ? "" : aaMode;
@@ -42,6 +56,14 @@ public record AaQualityPromotionDiagnostics(
         specularWarnMaxClipScale = clamp(specularWarnMaxClipScale, 0.1, 2.0);
         specularPromotionReadyMinFrames = Math.max(1, specularPromotionReadyMinFrames);
         specularStableStreak = Math.max(0, specularStableStreak);
+        thinFeatureMaterialCount = Math.max(0, thinFeatureMaterialCount);
+        thinFeatureMaterialRatio = clamp01(thinFeatureMaterialRatio);
+        geometricWarnMinThinFeatureRatio = clamp01(geometricWarnMinThinFeatureRatio);
+        geometricPromotionReadyMinFrames = Math.max(1, geometricPromotionReadyMinFrames);
+        geometricStableStreak = Math.max(0, geometricStableStreak);
+        alphaToCoverageWarnMinThinFeatureRatio = clamp01(alphaToCoverageWarnMinThinFeatureRatio);
+        alphaToCoveragePromotionReadyMinFrames = Math.max(1, alphaToCoveragePromotionReadyMinFrames);
+        alphaToCoverageStableStreak = Math.max(0, alphaToCoverageStableStreak);
     }
 
     public static AaQualityPromotionDiagnostics unavailable() {
@@ -64,6 +86,20 @@ public record AaQualityPromotionDiagnostics(
                 0.0,
                 1.0,
                 1.1,
+                1,
+                0,
+                false,
+                false,
+                false,
+                0,
+                0.0,
+                0.05,
+                1,
+                0,
+                false,
+                false,
+                false,
+                0.05,
                 1,
                 0,
                 false,

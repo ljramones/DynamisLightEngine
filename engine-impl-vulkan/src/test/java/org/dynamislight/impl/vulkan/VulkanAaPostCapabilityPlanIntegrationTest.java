@@ -36,7 +36,7 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.mockContext", "true"),
                     Map.entry("vulkan.aaMode", "taa")
             ), QualityTier.HIGH), new NoopCallbacks());
-            runtime.loadScene(validScene(true, false));
+            runtime.loadScene(validScene(true, false, false));
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_POST_CAPABILITY_PLAN_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_TEMPORAL_POLICY_ACTIVE".equals(w.code())));
@@ -72,7 +72,7 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.aaMode", "fxaa_low"),
                     Map.entry("vulkan.post.ssao", "true")
             ), QualityTier.LOW), new NoopCallbacks());
-            runtime.loadScene(validScene(false, false));
+            runtime.loadScene(validScene(false, false, false));
             runtime.render();
             var diagnostics = runtime.aaPostCapabilityDiagnostics();
             assertTrue(diagnostics.available());
@@ -111,7 +111,7 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.aa.historyClampWarnMinFrames", "1"),
                     Map.entry("vulkan.aa.historyClampWarnCooldownFrames", "0")
             ), QualityTier.HIGH), new NoopCallbacks());
-            runtime.loadScene(validScene(true, false));
+            runtime.loadScene(validScene(true, false, false));
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_TEMPORAL_ENVELOPE_BREACH".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_REACTIVE_MASK_ENVELOPE_BREACH".equals(w.code())));
@@ -139,7 +139,7 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.aa.upscaleWarnCooldownFrames", "0"),
                     Map.entry("vulkan.aa.upscalePromotionReadyMinFrames", "1")
             ), QualityTier.HIGH), new NoopCallbacks());
-            runtime.loadScene(validScene(true, false));
+            runtime.loadScene(validScene(true, false, false));
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_UPSCALE_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_UPSCALE_ENVELOPE".equals(w.code())));
@@ -167,7 +167,7 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.aa.msaaWarnCooldownFrames", "0"),
                     Map.entry("vulkan.aa.msaaPromotionReadyMinFrames", "1")
             ), QualityTier.HIGH), new NoopCallbacks());
-            runtime.loadScene(validScene(false, false));
+            runtime.loadScene(validScene(false, false, false));
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_MSAA_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_MSAA_ENVELOPE".equals(w.code())));
@@ -212,29 +212,79 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.aa.specularWarnMaxClipScale", "0.1"),
                     Map.entry("vulkan.aa.specularWarnMinFrames", "1"),
                     Map.entry("vulkan.aa.specularWarnCooldownFrames", "0"),
-                    Map.entry("vulkan.aa.specularPromotionReadyMinFrames", "1")
+                    Map.entry("vulkan.aa.specularPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.aa.geometricWarnMinThinFeatureRatio", "0.95"),
+                    Map.entry("vulkan.aa.geometricWarnMinFrames", "1"),
+                    Map.entry("vulkan.aa.geometricWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.aa.geometricPromotionReadyMinFrames", "1")
             ), QualityTier.HIGH), new NoopCallbacks());
-            runtime.loadScene(validScene(true, true));
+            runtime.loadScene(validScene(true, true, false));
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_DLAA_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_DLAA_ENVELOPE_BREACH".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_SPECULAR_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_SPECULAR_ENVELOPE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_GEOMETRIC_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_GEOMETRIC_ENVELOPE".equals(w.code())));
             var qualityDiagnostics = runtime.aaQualityPromotionDiagnostics();
             assertTrue(qualityDiagnostics.available());
             assertTrue(qualityDiagnostics.dlaaModeActive());
             assertTrue(qualityDiagnostics.dlaaEnvelopeBreachedLastFrame());
             assertTrue(qualityDiagnostics.specularEnvelopeBreachedLastFrame());
+            assertTrue(qualityDiagnostics.geometricPolicyActive());
+            assertTrue(qualityDiagnostics.geometricEnvelopeBreachedLastFrame());
         } finally {
             runtime.shutdown();
         }
     }
 
-    private static SceneDescriptor validScene(boolean taaEnabled, boolean normalMapped) {
+    @Test
+    void alphaToCoverageEnvelopeCanBeForcedForCiGateValidation() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.aaMode", "msaa_selective"),
+                    Map.entry("vulkan.aa.a2cWarnMinThinFeatureRatio", "0.99"),
+                    Map.entry("vulkan.aa.a2cWarnMinFrames", "1"),
+                    Map.entry("vulkan.aa.a2cWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.aa.a2cPromotionReadyMinFrames", "1")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene(false, false, false));
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_A2C_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_A2C_ENVELOPE_BREACH".equals(w.code())));
+            var qualityDiagnostics = runtime.aaQualityPromotionDiagnostics();
+            assertTrue(qualityDiagnostics.available());
+            assertTrue(qualityDiagnostics.alphaToCoveragePolicyActive());
+            assertTrue(qualityDiagnostics.alphaToCoverageEnvelopeBreachedLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    private static SceneDescriptor validScene(boolean taaEnabled, boolean normalMapped, boolean thinFeature) {
         CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
         TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
         MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
-        MaterialDesc material = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, normalMapped ? "normal.png" : null);
+        MaterialDesc material = new MaterialDesc(
+                "mat",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                normalMapped ? "normal.png" : null,
+                null,
+                null,
+                0f,
+                thinFeature,
+                thinFeature,
+                1.0f,
+                1.0f,
+                1.0f,
+                org.dynamislight.api.scene.ReactivePreset.AUTO,
+                org.dynamislight.api.scene.ReflectionOverrideMode.AUTO
+        );
         LightDesc light = new LightDesc(
                 "light",
                 new Vec3(0, 2, 0),

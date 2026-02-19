@@ -213,7 +213,15 @@ public final class VulkanAaCapabilityDescriptorV2 implements RenderFeatureCapabi
                         "AA_SPECULAR_POLICY_ACTIVE",
                         "AA_SPECULAR_ENVELOPE",
                         "AA_SPECULAR_ENVELOPE_BREACH",
-                        "AA_SPECULAR_PROMOTION_READY"
+                        "AA_SPECULAR_PROMOTION_READY",
+                        "AA_GEOMETRIC_POLICY_ACTIVE",
+                        "AA_GEOMETRIC_ENVELOPE",
+                        "AA_GEOMETRIC_ENVELOPE_BREACH",
+                        "AA_GEOMETRIC_PROMOTION_READY",
+                        "AA_A2C_POLICY_ACTIVE",
+                        "AA_A2C_ENVELOPE",
+                        "AA_A2C_ENVELOPE_BREACH",
+                        "AA_A2C_PROMOTION_READY"
                 ),
                 List.of(
                         "aaPolicyDiagnostics",
