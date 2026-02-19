@@ -41,6 +41,7 @@ public final class VulkanAaTemporalWarningEmitter {
                     0,
                     false,
                     false,
+                    false,
                     0
             );
         }
@@ -104,6 +105,7 @@ public final class VulkanAaTemporalWarningEmitter {
                 safe.dropWarnMin(),
                 safe.promotionReadyMinFrames(),
                 stableStreak,
+                envelopeRisk,
                 breached,
                 promotionReady,
                 highStreak,
@@ -183,6 +185,7 @@ public final class VulkanAaTemporalWarningEmitter {
             long dropWarnMin,
             int promotionReadyMinFrames,
             int stableStreak,
+            boolean envelopeRiskLastFrame,
             boolean envelopeBreachedLastFrame,
             boolean promotionReadyLastFrame,
             int nextHighStreak,
@@ -201,6 +204,7 @@ public final class VulkanAaTemporalWarningEmitter {
                 long dropWarnMin,
                 int promotionReadyMinFrames,
                 int stableStreak,
+                boolean envelopeRiskLastFrame,
                 boolean envelopeBreachedLastFrame,
                 boolean promotionReadyLastFrame,
                 int nextHighStreak
@@ -218,6 +222,7 @@ public final class VulkanAaTemporalWarningEmitter {
                     dropWarnMin,
                     promotionReadyMinFrames,
                     stableStreak,
+                    envelopeRiskLastFrame,
                     envelopeBreachedLastFrame,
                     promotionReadyLastFrame,
                     nextHighStreak,

@@ -10,7 +10,7 @@ Review metadata:
 - Latest reflection update: 2026-02-19 12:14 ET — Reflections Vulkan closeout index added (`docs/reflections-vulkan-closeout.md`) with linked checklists, exit criteria, and promotion commit ledger.
 - Latest shadow contract update: 2026-02-19 13:05 ET — Shadow v2 backlog modes/checklist added (`docs/shadow-contract-v2-backlog-checklist.md`) to track remaining shadow items through contract validation.
 - Latest structure guardrails update: 2026-02-19 16:52 ET — Class-size and package hygiene guardrails now enforced in CI (`.github/workflows/ci.yml` job `structure-guardrails`) via `scripts/java_structure_guardrails.sh`.
-- Latest AA/GI contract update: 2026-02-19 17:30 ET — Post execution contracts + AA temporal promotion diagnostics + GI Phase 1 v2 scaffold/checklist/lockdown added.
+- Latest AA temporal hardening update: 2026-02-19 17:48 ET — AA temporal material policy gates/warnings + typed diagnostics were added (`AA_REACTIVE_MASK_POLICY`, `AA_REACTIVE_MASK_ENVELOPE_BREACH`, `AA_HISTORY_CLAMP_POLICY`, `AA_HISTORY_CLAMP_ENVELOPE_BREACH`, `AA_TEMPORAL_CORE_PROMOTION_READY`) with lockdown coverage.
 
 Status legend:
 
@@ -18,13 +18,13 @@ Status legend:
 - `Partial`: present in some form, limited, experimental, or backend-specific.
 - `Not In Yet`: wishlist/target only.
 
-Status summary snapshot (2026-02-18):
+Status summary snapshot (2026-02-19):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 25 |
-| `Partial` | 56 |
-| `Not In Yet` | 110 |
+| `In` | 44 |
+| `Partial` | 41 |
+| `Not In Yet` | 107 |
 
 ## Shadows
 
@@ -162,14 +162,14 @@ Reflection notes:
 - FXAA (low-cost post-process) — `In`
 - SMAA (edge detection + blend weights + resolve) — `In`
 - TAA (full temporal with velocity reprojection) — `In`
-- TAA with confidence buffer (decay/recovery on disocclusion) — `Partial`
+- TAA with confidence buffer (decay/recovery on disocclusion) — `In`
 - MSAA (selective, per-material opt-in) — `Partial`
 - Hybrid MSAA + temporal (MSAA edges, temporal fill) — `Partial`
 - TUUA (temporal upscaling with AA) — `Partial`
 - TSR (temporal super resolution, internal render scale) — `Partial`
 - DLAA (deep learning AA — native res, neural filter) — `Partial`
-- Per-material reactive masks (alpha, emissive, specular boost) — `Partial`
-- Per-material history clamp control — `Partial`
+- Per-material reactive masks (alpha, emissive, specular boost) — `In`
+- Per-material history clamp control — `In`
 - Specular AA (Toksvig roughness filtering) — `Partial`
 - Geometric AA (normal variance filtering for thin features) — `Not In Yet`
 - Alpha-to-coverage for vegetation/hair — `Not In Yet`

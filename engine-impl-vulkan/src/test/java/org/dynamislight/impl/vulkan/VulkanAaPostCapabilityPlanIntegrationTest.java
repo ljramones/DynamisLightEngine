@@ -40,6 +40,8 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_POST_CAPABILITY_PLAN_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_TEMPORAL_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_REACTIVE_MASK_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_HISTORY_CLAMP_POLICY".equals(w.code())));
             var diagnostics = runtime.aaPostCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertTrue(diagnostics.aaEnabled());
@@ -49,6 +51,7 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             assertTrue(temporalDiagnostics.available());
             assertTrue(temporalDiagnostics.temporalPathRequested());
             assertTrue(temporalDiagnostics.temporalPathActive());
+            assertTrue(temporalDiagnostics.materialCount() > 0);
         } finally {
             runtime.shutdown();
         }
@@ -75,6 +78,8 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             assertTrue(temporalDiagnostics.available());
             assertFalse(temporalDiagnostics.temporalPathRequested());
             assertFalse(temporalDiagnostics.temporalPathActive());
+            assertFalse(temporalDiagnostics.reactiveMaskBreachedLastFrame());
+            assertFalse(temporalDiagnostics.historyClampBreachedLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -92,14 +97,24 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.aa.temporalDropWarnMin", "0"),
                     Map.entry("vulkan.aa.temporalWarnMinFrames", "1"),
                     Map.entry("vulkan.aa.temporalWarnCooldownFrames", "0"),
-                    Map.entry("vulkan.aa.temporalPromotionReadyMinFrames", "1")
+                    Map.entry("vulkan.aa.temporalPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.aa.reactiveMaskWarnMinCoverage", "0.95"),
+                    Map.entry("vulkan.aa.reactiveMaskWarnMinFrames", "1"),
+                    Map.entry("vulkan.aa.reactiveMaskWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.aa.historyClampWarnMinCustomizedRatio", "0.95"),
+                    Map.entry("vulkan.aa.historyClampWarnMinFrames", "1"),
+                    Map.entry("vulkan.aa.historyClampWarnCooldownFrames", "0")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene(true));
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "AA_TEMPORAL_ENVELOPE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_REACTIVE_MASK_ENVELOPE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_HISTORY_CLAMP_ENVELOPE_BREACH".equals(w.code())));
             var temporalDiagnostics = runtime.aaTemporalPromotionDiagnostics();
             assertTrue(temporalDiagnostics.envelopeBreachedLastFrame());
             assertFalse(temporalDiagnostics.promotionReadyLastFrame());
+            assertTrue(temporalDiagnostics.reactiveMaskBreachedLastFrame());
+            assertTrue(temporalDiagnostics.historyClampBreachedLastFrame());
         } finally {
             runtime.shutdown();
         }

@@ -13,7 +13,7 @@ echo "  - cross-capability validation with shadow + reflection"
 echo "  - contract validator/ci-gate regression checks"
 
 mvn -q -pl engine-spi,engine-impl-vulkan -am test \
-  -Dtest=RenderCapabilityContractV2ValidatorTest,RenderCapabilityContractV2CiGateTest,VulkanCapabilityContractV2DescriptorsTest,VulkanAaPostCapabilityPlanIntegrationTest,VulkanAaTemporalWarningEmitterTest,VulkanPostCompositePassRecorderTest \
+  -Dtest=RenderCapabilityContractV2ValidatorTest,RenderCapabilityContractV2CiGateTest,VulkanCapabilityContractV2DescriptorsTest,VulkanAaPostCapabilityPlanIntegrationTest,VulkanAaTemporalWarningEmitterTest,VulkanAaTemporalMaterialWarningEmitterTest,VulkanPostCompositePassRecorderTest \
   -Dsurefire.failIfNoSpecifiedTests=false
 
 echo "AA/Post contract v2 lockdown complete."

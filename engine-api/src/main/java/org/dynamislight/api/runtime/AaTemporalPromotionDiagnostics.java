@@ -17,7 +17,20 @@ public record AaTemporalPromotionDiagnostics(
         int promotionReadyMinFrames,
         int stableStreak,
         boolean envelopeBreachedLastFrame,
-        boolean promotionReadyLastFrame
+        boolean promotionReadyLastFrame,
+        int materialCount,
+        int reactiveAuthoredCount,
+        double reactiveCoverage,
+        double reactiveCoverageWarnMin,
+        int historyClampCustomizedCount,
+        double historyClampCustomizedRatio,
+        double historyClampCustomizedWarnMin,
+        double historyClampMean,
+        boolean reactiveMaskBreachedLastFrame,
+        boolean historyClampBreachedLastFrame,
+        int temporalCorePromotionReadyMinFrames,
+        int temporalCoreStableStreak,
+        boolean temporalCorePromotionReadyLastFrame
 ) {
     public AaTemporalPromotionDiagnostics {
         aaMode = aaMode == null ? "" : aaMode;
@@ -29,6 +42,16 @@ public record AaTemporalPromotionDiagnostics(
         dropWarnMin = Math.max(0L, dropWarnMin);
         promotionReadyMinFrames = Math.max(1, promotionReadyMinFrames);
         stableStreak = Math.max(0, stableStreak);
+        materialCount = Math.max(0, materialCount);
+        reactiveAuthoredCount = Math.max(0, reactiveAuthoredCount);
+        reactiveCoverage = clamp01(reactiveCoverage);
+        reactiveCoverageWarnMin = clampPositive(reactiveCoverageWarnMin);
+        historyClampCustomizedCount = Math.max(0, historyClampCustomizedCount);
+        historyClampCustomizedRatio = clamp01(historyClampCustomizedRatio);
+        historyClampCustomizedWarnMin = clampPositive(historyClampCustomizedWarnMin);
+        historyClampMean = clamp01(historyClampMean);
+        temporalCorePromotionReadyMinFrames = Math.max(1, temporalCorePromotionReadyMinFrames);
+        temporalCoreStableStreak = Math.max(0, temporalCoreStableStreak);
     }
 
     public static AaTemporalPromotionDiagnostics unavailable() {
@@ -46,6 +69,19 @@ public record AaTemporalPromotionDiagnostics(
                 1,
                 0,
                 false,
+                false,
+                0,
+                0,
+                0.0,
+                0.0,
+                0,
+                0.0,
+                0.0,
+                1.0,
+                false,
+                false,
+                1,
+                0,
                 false
         );
     }

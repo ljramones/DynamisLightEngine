@@ -75,6 +75,8 @@ import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityMode;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaPostWarningEmitter;
+import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalMaterialWarningEmitter;
+import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalRuntimeState;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalWarningEmitter;
 import org.dynamislight.impl.vulkan.warning.gi.VulkanGiWarningEmitter;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
@@ -160,22 +162,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean aaPostTemporalHistoryActiveLastFrame = true;
     private List<String> aaPostActiveCapabilitiesLastFrame = List.of();
     private List<String> aaPostPrunedCapabilitiesLastFrame = List.of();
-    private boolean aaTemporalPathRequestedLastFrame;
-    private boolean aaTemporalPathActiveLastFrame;
-    private double aaTemporalRejectRateLastFrame;
-    private double aaTemporalConfidenceMeanLastFrame = 1.0;
-    private long aaTemporalConfidenceDropsLastFrame;
-    private boolean aaTemporalEnvelopeBreachedLastFrame;
-    private int aaTemporalStableStreak;
-    private int aaTemporalHighStreak;
-    private int aaTemporalWarnCooldownRemaining;
-    private int aaTemporalPromotionReadyMinFrames = 6;
-    private boolean aaTemporalPromotionReadyLastFrame;
-    private double aaTemporalRejectWarnMax = 0.24;
-    private double aaTemporalConfidenceWarnMin = 0.72;
-    private long aaTemporalDropWarnMin = 2L;
-    private int aaTemporalWarnMinFrames = 3;
-    private int aaTemporalWarnCooldownFrames = 120;
+    private final VulkanAaTemporalRuntimeState aaTemporalState = new VulkanAaTemporalRuntimeState();
     private GiMode giMode = GiMode.SSGI;
     private boolean giEnabled;
     private String giModeLastFrame = "ssgi";
@@ -668,16 +655,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionTransparencyHighStreak = 0;
         reflectionTransparencyWarnCooldownRemaining = 0;
         reflectionTransparencyBreachedLastFrame = false;
-        aaTemporalPathRequestedLastFrame = false;
-        aaTemporalPathActiveLastFrame = false;
-        aaTemporalRejectRateLastFrame = 0.0;
-        aaTemporalConfidenceMeanLastFrame = 1.0;
-        aaTemporalConfidenceDropsLastFrame = 0L;
-        aaTemporalEnvelopeBreachedLastFrame = false;
-        aaTemporalStableStreak = 0;
-        aaTemporalHighStreak = 0;
-        aaTemporalWarnCooldownRemaining = 0;
-        aaTemporalPromotionReadyLastFrame = false;
+        aaTemporalState.resetFrameState();
         giModeLastFrame = giMode.name().toLowerCase(java.util.Locale.ROOT);
         giRtAvailableLastFrame = false;
         giActiveCapabilitiesLastFrame = List.of();
@@ -696,48 +674,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         aaMode = VulkanRuntimeOptionParsing.parseAaMode(safeBackendOptions.get("vulkan.aaMode"));
         giMode = VulkanRuntimeOptionParsing.parseGiMode(safeBackendOptions.get("vulkan.gi.mode"));
         giEnabled = Boolean.parseBoolean(safeBackendOptions.getOrDefault("vulkan.gi.enabled", "false"));
-        aaTemporalRejectWarnMax = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
-                safeBackendOptions,
-                "vulkan.aa.temporalRejectWarnMax",
-                aaTemporalRejectWarnMax,
-                0.0,
-                1.0
-        );
-        aaTemporalConfidenceWarnMin = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
-                safeBackendOptions,
-                "vulkan.aa.temporalConfidenceWarnMin",
-                aaTemporalConfidenceWarnMin,
-                0.0,
-                1.0
-        );
-        aaTemporalDropWarnMin = VulkanRuntimeOptionParsing.parseBackendIntOption(
-                safeBackendOptions,
-                "vulkan.aa.temporalDropWarnMin",
-                (int) aaTemporalDropWarnMin,
-                0,
-                Integer.MAX_VALUE
-        );
-        aaTemporalWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
-                safeBackendOptions,
-                "vulkan.aa.temporalWarnMinFrames",
-                aaTemporalWarnMinFrames,
-                1,
-                10_000
-        );
-        aaTemporalWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
-                safeBackendOptions,
-                "vulkan.aa.temporalWarnCooldownFrames",
-                aaTemporalWarnCooldownFrames,
-                0,
-                10_000
-        );
-        aaTemporalPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
-                safeBackendOptions,
-                "vulkan.aa.temporalPromotionReadyMinFrames",
-                aaTemporalPromotionReadyMinFrames,
-                1,
-                10_000
-        );
+        aaTemporalState.applyBackendOptions(safeBackendOptions);
         upscalerMode = VulkanRuntimeOptionParsing.parseUpscalerMode(safeBackendOptions.get("vulkan.upscalerMode"));
         upscalerQuality = VulkanRuntimeOptionParsing.parseUpscalerQuality(safeBackendOptions.get("vulkan.upscalerQuality"));
         reflectionProfile = VulkanRuntimeOptionParsing.parseReflectionProfile(safeBackendOptions.get("vulkan.reflectionsProfile"));
@@ -1116,22 +1053,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected AaTemporalPromotionDiagnostics backendAaTemporalPromotionDiagnostics() {
-        return new AaTemporalPromotionDiagnostics(
-                !aaPostAaModeLastFrame.isBlank(),
-                aaPostAaModeLastFrame,
-                aaTemporalPathRequestedLastFrame,
-                aaTemporalPathActiveLastFrame,
-                aaTemporalRejectRateLastFrame,
-                aaTemporalConfidenceMeanLastFrame,
-                aaTemporalConfidenceDropsLastFrame,
-                aaTemporalRejectWarnMax,
-                aaTemporalConfidenceWarnMin,
-                aaTemporalDropWarnMin,
-                aaTemporalPromotionReadyMinFrames,
-                aaTemporalStableStreak,
-                aaTemporalEnvelopeBreachedLastFrame,
-                aaTemporalPromotionReadyLastFrame
-        );
+        return aaTemporalState.diagnostics(aaPostAaModeLastFrame);
     }
 
     @Override
@@ -1271,28 +1193,38 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         context.taaHistoryRejectRate(),
                         context.taaConfidenceMean(),
                         context.taaConfidenceDropEvents(),
-                        aaTemporalRejectWarnMax,
-                        aaTemporalConfidenceWarnMin,
-                        aaTemporalDropWarnMin,
-                        aaTemporalWarnMinFrames,
-                        aaTemporalWarnCooldownFrames,
-                        aaTemporalPromotionReadyMinFrames,
-                        aaTemporalStableStreak,
-                        aaTemporalHighStreak,
-                        aaTemporalWarnCooldownRemaining
+                        aaTemporalState.temporalRejectWarnMax,
+                        aaTemporalState.temporalConfidenceWarnMin,
+                        aaTemporalState.temporalDropWarnMin,
+                        aaTemporalState.temporalWarnMinFrames,
+                        aaTemporalState.temporalWarnCooldownFrames,
+                        aaTemporalState.temporalPromotionReadyMinFrames,
+                        aaTemporalState.temporalStableStreak,
+                        aaTemporalState.temporalHighStreak,
+                        aaTemporalState.temporalWarnCooldownRemaining
                 )
         );
         warnings.addAll(aaTemporalEmission.warnings());
-        aaTemporalPathRequestedLastFrame = aaTemporalEmission.temporalPathRequested();
-        aaTemporalPathActiveLastFrame = aaTemporalEmission.temporalPathActive();
-        aaTemporalRejectRateLastFrame = aaTemporalEmission.rejectRate();
-        aaTemporalConfidenceMeanLastFrame = aaTemporalEmission.confidenceMean();
-        aaTemporalConfidenceDropsLastFrame = aaTemporalEmission.confidenceDropEvents();
-        aaTemporalStableStreak = aaTemporalEmission.stableStreak();
-        aaTemporalHighStreak = aaTemporalEmission.nextHighStreak();
-        aaTemporalWarnCooldownRemaining = aaTemporalEmission.nextCooldownRemaining();
-        aaTemporalEnvelopeBreachedLastFrame = aaTemporalEmission.envelopeBreachedLastFrame();
-        aaTemporalPromotionReadyLastFrame = aaTemporalEmission.promotionReadyLastFrame();
+        aaTemporalState.applyTemporalEmission(aaTemporalEmission);
+        VulkanAaTemporalMaterialWarningEmitter.Result aaMaterialEmission = VulkanAaTemporalMaterialWarningEmitter.emit(
+                new VulkanAaTemporalMaterialWarningEmitter.Input(
+                        currentSceneMaterials,
+                        aaTemporalEmission.temporalPathActive(),
+                        aaTemporalState.reactiveMaskWarnMinCoverage,
+                        aaTemporalState.reactiveMaskWarnMinFrames,
+                        aaTemporalState.reactiveMaskWarnCooldownFrames,
+                        aaTemporalState.historyClampWarnMinCustomizedRatio,
+                        aaTemporalState.historyClampWarnMinFrames,
+                        aaTemporalState.historyClampWarnCooldownFrames,
+                        aaTemporalState.reactiveMaskHighStreak,
+                        aaTemporalState.reactiveMaskWarnCooldownRemaining,
+                        aaTemporalState.historyClampHighStreak,
+                        aaTemporalState.historyClampWarnCooldownRemaining
+                )
+        );
+        warnings.addAll(aaMaterialEmission.warnings());
+        aaTemporalState.applyMaterialEmission(aaMaterialEmission);
+        aaTemporalState.updateCorePromotion(aaTemporalEmission, aaMaterialEmission, warnings, aaPostAaModeLastFrame);
         VulkanGiWarningEmitter.Result giEmission = VulkanGiWarningEmitter.emit(
                 qualityTier,
                 giMode,
