@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.Locale;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
@@ -51,7 +50,6 @@ import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.common.AbstractEngineRuntime;
 import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
-import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityMode;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaPostWarningEmitter;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
@@ -60,7 +58,6 @@ import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
 import org.dynamislight.impl.vulkan.profile.SceneReuseStats;
 import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
-import org.dynamislight.impl.common.upscale.ExternalUpscalerBridge;
 import org.dynamislight.impl.common.upscale.ExternalUpscalerIntegration;
 
 public final class VulkanEngineRuntime extends AbstractEngineRuntime {
@@ -1176,218 +1173,62 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.capability(
-                shadowCapabilityFeatureIdLastFrame,
-                shadowCapabilityModeLastFrame,
-                shadowCapabilitySignalsLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.capability(this);
     }
 
     @Override
     protected ShadowCadenceDiagnostics backendShadowCadenceDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.cadence(
-                shadowCapabilityDiagnostics().available(),
-                shadowCadenceSelectedLocalLightsLastFrame,
-                shadowCadenceDeferredLocalLightsLastFrame,
-                shadowCadenceStaleBypassCountLastFrame,
-                shadowCadenceDeferredRatioLastFrame,
-                shadowCadenceWarnDeferredRatioMax,
-                shadowCadenceWarnMinFrames,
-                shadowCadenceWarnCooldownFrames,
-                shadowCadenceHighStreak,
-                shadowCadenceWarnCooldownRemaining,
-                shadowCadenceStableStreak,
-                shadowCadencePromotionReadyMinFrames,
-                shadowCadencePromotionReadyLastFrame,
-                shadowCadenceEnvelopeBreachedLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.cadence(this);
     }
 
     @Override
     protected ShadowPointBudgetDiagnostics backendShadowPointBudgetDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.pointBudget(
-                shadowCapabilityDiagnostics().available(),
-                shadowMaxFacesPerFrame,
-                shadowPointBudgetRenderedCubemapsLastFrame,
-                shadowPointBudgetRenderedFacesLastFrame,
-                shadowPointBudgetDeferredCountLastFrame,
-                shadowPointBudgetSaturationRatioLastFrame,
-                shadowPointFaceBudgetWarnSaturationMin,
-                shadowPointFaceBudgetWarnMinFrames,
-                shadowPointFaceBudgetWarnCooldownFrames,
-                shadowPointBudgetHighStreak,
-                shadowPointBudgetWarnCooldownRemaining,
-                shadowPointBudgetStableStreak,
-                shadowPointFaceBudgetPromotionReadyMinFrames,
-                shadowPointBudgetPromotionReadyLastFrame,
-                shadowPointBudgetEnvelopeBreachedLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.pointBudget(this);
     }
 
     @Override
     protected ShadowSpotProjectedDiagnostics backendShadowSpotProjectedDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.spotProjected(
-                shadowCapabilityDiagnostics().available(),
-                shadowSpotProjectedRequestedLastFrame,
-                shadowSpotProjectedActiveLastFrame,
-                shadowSpotProjectedRenderedCountLastFrame,
-                shadowSpotProjectedContractStatusLastFrame,
-                shadowSpotProjectedContractBreachedLastFrame,
-                shadowSpotProjectedStableStreak,
-                shadowSpotProjectedPromotionReadyMinFrames,
-                shadowSpotProjectedPromotionReadyLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.spotProjected(this);
     }
 
     @Override
     protected ShadowCacheDiagnostics backendShadowCacheDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.cache(
-                shadowCapabilityDiagnostics().available(),
-                shadowCapabilityModeLastFrame,
-                shadowCacheMissCountLastFrame,
-                shadowCadenceDeferredLocalLightsLastFrame,
-                shadowCacheHitCountLastFrame,
-                shadowCacheEvictionCountLastFrame,
-                shadowCacheHitRatioLastFrame,
-                shadowCacheChurnRatioLastFrame,
-                shadowCacheInvalidationReasonLastFrame,
-                shadowCacheChurnWarnMax,
-                shadowCacheMissWarnMax,
-                shadowCacheWarnMinFrames,
-                shadowCacheWarnCooldownFrames,
-                shadowCacheHighStreak,
-                shadowCacheWarnCooldownRemaining,
-                shadowCacheEnvelopeBreachedLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.cache(this);
     }
 
     @Override
     protected ShadowRtDiagnostics backendShadowRtDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.rt(
-                shadowCapabilityDiagnostics().available(),
-                currentShadows.rtShadowMode(),
-                currentShadows.rtShadowActive(),
-                VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength),
-                shadowRtDenoiseWarnMin,
-                VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount),
-                shadowRtSampleWarnMin,
-                shadowRtPerfGpuMsEstimateLastFrame,
-                shadowRtPerfGpuMsWarnMaxLastFrame,
-                shadowRtWarnMinFrames,
-                shadowRtWarnCooldownFrames,
-                shadowRtHighStreak,
-                shadowRtWarnCooldownRemaining,
-                shadowRtEnvelopeBreachedLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.rt(this);
     }
 
     @Override
     protected ShadowHybridDiagnostics backendShadowHybridDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.hybrid(
-                shadowCapabilityDiagnostics().available(),
-                shadowCapabilityModeLastFrame,
-                shadowHybridCascadeShareLastFrame,
-                shadowHybridContactShareLastFrame,
-                shadowHybridRtShareLastFrame,
-                shadowHybridRtShareWarnMin,
-                shadowHybridContactShareWarnMin,
-                shadowHybridWarnMinFrames,
-                shadowHybridWarnCooldownFrames,
-                shadowHybridHighStreak,
-                shadowHybridWarnCooldownRemaining,
-                shadowHybridEnvelopeBreachedLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.hybrid(this);
     }
 
     @Override
     protected ShadowTransparentReceiverDiagnostics backendShadowTransparentReceiverDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.transparentReceivers(
-                shadowCapabilityDiagnostics().available(),
-                shadowTransparentReceiversRequested,
-                shadowTransparentReceiversSupported,
-                shadowTransparentReceiverPolicyLastFrame,
-                shadowTransparentReceiverCandidateCountLastFrame,
-                shadowTransparentReceiverCandidateRatioLastFrame,
-                shadowTransparentReceiverCandidateRatioWarnMax,
-                shadowTransparentReceiverWarnMinFrames,
-                shadowTransparentReceiverWarnCooldownFrames,
-                shadowTransparentReceiverHighStreak,
-                shadowTransparentReceiverWarnCooldownRemaining,
-                shadowTransparentReceiverEnvelopeBreachedLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.transparentReceivers(this);
     }
 
     @Override
     protected ShadowExtendedModeDiagnostics backendShadowExtendedModeDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.extendedModes(
-                shadowCapabilityDiagnostics().available(),
-                shadowAreaApproxRequested,
-                shadowAreaApproxSupported,
-                shadowAreaApproxBreachedLastFrame,
-                shadowDistanceFieldRequested,
-                shadowDistanceFieldSupported,
-                shadowDistanceFieldBreachedLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.extendedModes(this);
     }
 
     @Override
     protected ShadowTopologyDiagnostics backendShadowTopologyDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.topology(
-                shadowCapabilityDiagnostics().available(),
-                shadowCadenceSelectedLocalLightsLastFrame,
-                currentShadows.renderedLocalShadowLights(),
-                shadowTopologyCandidateSpotLightsLastFrame,
-                shadowSpotProjectedRenderedCountLastFrame,
-                shadowTopologyCandidatePointLightsLastFrame,
-                shadowPointBudgetRenderedCubemapsLastFrame,
-                shadowTopologyLocalCoverageLastFrame,
-                shadowTopologySpotCoverageLastFrame,
-                shadowTopologyPointCoverageLastFrame,
-                shadowTopologyLocalCoverageWarnMin,
-                shadowTopologySpotCoverageWarnMin,
-                shadowTopologyPointCoverageWarnMin,
-                shadowTopologyWarnMinFrames,
-                shadowTopologyWarnCooldownFrames,
-                shadowTopologyHighStreak,
-                shadowTopologyWarnCooldownRemaining,
-                shadowTopologyStableStreak,
-                shadowTopologyPromotionReadyMinFrames,
-                shadowTopologyPromotionReadyLastFrame,
-                shadowTopologyEnvelopeBreachedLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.topology(this);
     }
 
     @Override
     protected ShadowPhaseAPromotionDiagnostics backendShadowPhaseAPromotionDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.phaseA(
-                shadowCapabilityDiagnostics().available(),
-                shadowCadencePromotionReadyLastFrame,
-                shadowPointBudgetPromotionReadyLastFrame,
-                shadowSpotProjectedPromotionReadyLastFrame,
-                shadowPhaseAPromotionReadyMinFrames,
-                shadowPhaseAPromotionStableStreak,
-                shadowPhaseAPromotionReadyLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.phaseA(this);
     }
 
     @Override
     protected ShadowPhaseDPromotionDiagnostics backendShadowPhaseDPromotionDiagnostics() {
-        return VulkanShadowDiagnosticsMapper.phaseD(
-                shadowCapabilityDiagnostics().available(),
-                shadowCacheEnvelopeBreachedLastFrame,
-                shadowCacheWarnCooldownRemaining,
-                shadowRtEnvelopeBreachedLastFrame,
-                shadowRtWarnCooldownRemaining,
-                shadowHybridEnvelopeBreachedLastFrame,
-                shadowHybridWarnCooldownRemaining,
-                shadowTransparentReceiverEnvelopeBreachedLastFrame,
-                shadowTransparentReceiverWarnCooldownRemaining,
-                shadowAreaApproxBreachedLastFrame,
-                shadowDistanceFieldBreachedLastFrame,
-                shadowPhaseDPromotionReadyMinFrames,
-                shadowPhaseDPromotionStableStreak,
-                shadowPhaseDPromotionReadyLastFrame
-        );
+        return VulkanShadowBackendDiagnosticsBridge.phaseD(this);
     }
 
     @Override
@@ -1477,143 +1318,31 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", probeChurnEvents=" + churnDiagnostics.churnEvents()
                             + ")"
             ));
-            VulkanReflectionCoreWarningEmitter.State coreState = new VulkanReflectionCoreWarningEmitter.State();
-            VulkanTelemetryStateBinder.copyMatchingFields(this, coreState);
-            coreState.reflectionBaseMode = reflectionBaseMode;
-            coreState.reflectionProbeQualityDiagnostics = reflectionProbeQualityDiagnostics;
-            coreState.reflectionsSsrMaxRoughness = currentPost.reflectionsSsrMaxRoughness();
-            coreState.reflectionsSsrStrength = currentPost.reflectionsSsrStrength();
-            VulkanReflectionCoreWarningEmitter.emit(
-                    warnings,
-                    coreState,
-                    overrideSummary,
-                    churnDiagnostics,
-                    probeDiagnostics
-            );
-            reflectionContactHardeningActiveLastFrame = coreState.reflectionContactHardeningActiveLastFrame;
-            reflectionContactHardeningEstimatedStrengthLastFrame = coreState.reflectionContactHardeningEstimatedStrengthLastFrame;
-            reflectionContactHardeningHighStreak = coreState.reflectionContactHardeningHighStreak;
-            reflectionContactHardeningWarnCooldownRemaining = coreState.reflectionContactHardeningWarnCooldownRemaining;
-            reflectionContactHardeningBreachedLastFrame = coreState.reflectionContactHardeningBreachedLastFrame;
-            reflectionOverrideHighStreak = coreState.reflectionOverrideHighStreak;
-            reflectionOverrideWarnCooldownRemaining = coreState.reflectionOverrideWarnCooldownRemaining;
-            reflectionOverrideBreachedLastFrame = coreState.reflectionOverrideBreachedLastFrame;
-            reflectionProbeStreamingHighStreak = coreState.reflectionProbeStreamingHighStreak;
-            reflectionProbeStreamingWarnCooldownRemaining = coreState.reflectionProbeStreamingWarnCooldownRemaining;
-            reflectionProbeStreamingBreachedLastFrame = coreState.reflectionProbeStreamingBreachedLastFrame;
             int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
             int planarExcluded = planarScopeExclusionCountFromOverrideSummary(overrideSummary);
-            VulkanReflectionPlanarWarningEmitter.State planarState = new VulkanReflectionPlanarWarningEmitter.State();
-            VulkanTelemetryStateBinder.copyMatchingFields(this, planarState);
-            planarState.reflectionBaseMode = reflectionBaseMode;
-            planarState.lastFramePlanarCaptureGpuMs = lastFramePlanarCaptureGpuMs;
-            planarState.lastFrameGpuMs = lastFrameGpuMs;
-            planarState.lastFrameGpuTimingSource = lastFrameGpuTimingSource;
-            planarState.viewportWidth = viewportWidth;
-            planarState.viewportHeight = viewportHeight;
-            VulkanReflectionPlanarWarningEmitter.emit(
+            refreshReflectionRtPathState(reflectionBaseMode);
+            VulkanReflectionWarningCoreFlow.process(
+                    this,
+                    context,
+                    qualityTier,
                     warnings,
-                    planarState,
+                    reflectionBaseMode,
+                    overrideSummary,
+                    probeDiagnostics,
+                    churnDiagnostics,
+                    reflectionRtLaneRequested,
                     planarEligible,
                     planarExcluded,
-                    currentPost.reflectionsPlanarPlaneHeight(),
-                    planarPerfGpuMsCapForTier(qualityTier)
-            );
-            reflectionPlanarScopedMeshEligibleCount = planarState.reflectionPlanarScopedMeshEligibleCount;
-            reflectionPlanarScopedMeshExcludedCount = planarState.reflectionPlanarScopedMeshExcludedCount;
-            reflectionPlanarPassOrderContractStatus = planarState.reflectionPlanarPassOrderContractStatus;
-            reflectionPlanarMirrorCameraActive = planarState.reflectionPlanarMirrorCameraActive;
-            reflectionPlanarDedicatedCaptureLaneActive = planarState.reflectionPlanarDedicatedCaptureLaneActive;
-            reflectionPlanarLatestCoverageRatio = planarState.reflectionPlanarLatestCoverageRatio;
-            reflectionPlanarPrevPlaneHeight = planarState.reflectionPlanarPrevPlaneHeight;
-            reflectionPlanarLatestPlaneDelta = planarState.reflectionPlanarLatestPlaneDelta;
-            reflectionPlanarEnvelopeHighStreak = planarState.reflectionPlanarEnvelopeHighStreak;
-            reflectionPlanarEnvelopeWarnCooldownRemaining = planarState.reflectionPlanarEnvelopeWarnCooldownRemaining;
-            reflectionPlanarEnvelopeBreachedLastFrame = planarState.reflectionPlanarEnvelopeBreachedLastFrame;
-            reflectionPlanarPerfHighStreak = planarState.reflectionPlanarPerfHighStreak;
-            reflectionPlanarPerfWarnCooldownRemaining = planarState.reflectionPlanarPerfWarnCooldownRemaining;
-            reflectionPlanarPerfBreachedLastFrame = planarState.reflectionPlanarPerfBreachedLastFrame;
-            reflectionPlanarPerfLastGpuMsEstimate = planarState.reflectionPlanarPerfLastGpuMsEstimate;
-            reflectionPlanarPerfLastGpuMsCap = planarState.reflectionPlanarPerfLastGpuMsCap;
-            reflectionPlanarPerfLastDrawInflation = planarState.reflectionPlanarPerfLastDrawInflation;
-            reflectionPlanarPerfLastMemoryBytes = planarState.reflectionPlanarPerfLastMemoryBytes;
-            reflectionPlanarPerfLastMemoryBudgetBytes = planarState.reflectionPlanarPerfLastMemoryBudgetBytes;
-            reflectionPlanarPerfLastTimingSource = planarState.reflectionPlanarPerfLastTimingSource;
-            reflectionPlanarPerfLastTimestampAvailable = planarState.reflectionPlanarPerfLastTimestampAvailable;
-            reflectionPlanarPerfLastTimestampRequirementUnmet = planarState.reflectionPlanarPerfLastTimestampRequirementUnmet;
-            refreshReflectionRtPathState(reflectionBaseMode);
-            VulkanReflectionRtWarningEmitter.State rtWarningState = new VulkanReflectionRtWarningEmitter.State();
-            VulkanTelemetryStateBinder.copyMatchingFields(this, rtWarningState);
-            rtWarningState.mockContext = mockContext;
-            VulkanReflectionRtWarningEmitter.emit(
-                    warnings,
-                    rtWarningState,
-                    reflectionRtLaneRequested,
-                    reflectionBaseMode,
+                    currentPost,
                     lastFrameGpuMs,
                     plannedVisibleObjects,
-                    currentPost.reflectionsSsrStrength(),
-                    currentPost.reflectionsSsrMaxRoughness(),
-                    currentPost.reflectionsTemporalWeight(),
+                    reflectionProfile,
+                    mockContext,
+                    currentSceneMaterials,
+                    reflectionTransparencyCandidateReactiveMin,
+                    planarPerfGpuMsCapForTier(qualityTier),
                     rtPerfGpuMsCapForTier(qualityTier)
             );
-            reflectionRtFallbackChainActive = rtWarningState.reflectionRtFallbackChainActive;
-            reflectionRtRequireActiveUnmetLastFrame = rtWarningState.reflectionRtRequireActiveUnmetLastFrame;
-            reflectionRtRequireMultiBounceUnmetLastFrame = rtWarningState.reflectionRtRequireMultiBounceUnmetLastFrame;
-            reflectionRtRequireDedicatedPipelineUnmetLastFrame = rtWarningState.reflectionRtRequireDedicatedPipelineUnmetLastFrame;
-            reflectionRtTraversalSupported = rtWarningState.reflectionRtTraversalSupported;
-            reflectionRtDedicatedCapabilitySupported = rtWarningState.reflectionRtDedicatedCapabilitySupported;
-            reflectionRtDedicatedHardwarePipelineActive = rtWarningState.reflectionRtDedicatedHardwarePipelineActive;
-            reflectionRtBlasLifecycleState = rtWarningState.reflectionRtBlasLifecycleState;
-            reflectionRtTlasLifecycleState = rtWarningState.reflectionRtTlasLifecycleState;
-            reflectionRtSbtLifecycleState = rtWarningState.reflectionRtSbtLifecycleState;
-            reflectionRtBlasObjectCount = rtWarningState.reflectionRtBlasObjectCount;
-            reflectionRtTlasInstanceCount = rtWarningState.reflectionRtTlasInstanceCount;
-            reflectionRtSbtRecordCount = rtWarningState.reflectionRtSbtRecordCount;
-            reflectionRtPerfHighStreak = rtWarningState.reflectionRtPerfHighStreak;
-            reflectionRtPerfWarnCooldownRemaining = rtWarningState.reflectionRtPerfWarnCooldownRemaining;
-            reflectionRtPerfBreachedLastFrame = rtWarningState.reflectionRtPerfBreachedLastFrame;
-            reflectionRtPerfLastGpuMsEstimate = rtWarningState.reflectionRtPerfLastGpuMsEstimate;
-            reflectionRtPerfLastGpuMsCap = rtWarningState.reflectionRtPerfLastGpuMsCap;
-            reflectionRtHybridRtShare = rtWarningState.reflectionRtHybridRtShare;
-            reflectionRtHybridSsrShare = rtWarningState.reflectionRtHybridSsrShare;
-            reflectionRtHybridProbeShare = rtWarningState.reflectionRtHybridProbeShare;
-            reflectionRtHybridHighStreak = rtWarningState.reflectionRtHybridHighStreak;
-            reflectionRtHybridWarnCooldownRemaining = rtWarningState.reflectionRtHybridWarnCooldownRemaining;
-            reflectionRtHybridBreachedLastFrame = rtWarningState.reflectionRtHybridBreachedLastFrame;
-            reflectionRtDenoiseSpatialVariance = rtWarningState.reflectionRtDenoiseSpatialVariance;
-            reflectionRtDenoiseTemporalLag = rtWarningState.reflectionRtDenoiseTemporalLag;
-            reflectionRtDenoiseHighStreak = rtWarningState.reflectionRtDenoiseHighStreak;
-            reflectionRtDenoiseWarnCooldownRemaining = rtWarningState.reflectionRtDenoiseWarnCooldownRemaining;
-            reflectionRtDenoiseBreachedLastFrame = rtWarningState.reflectionRtDenoiseBreachedLastFrame;
-            reflectionRtAsBuildGpuMsEstimate = rtWarningState.reflectionRtAsBuildGpuMsEstimate;
-            reflectionRtAsMemoryMbEstimate = rtWarningState.reflectionRtAsMemoryMbEstimate;
-            reflectionRtAsBudgetHighStreak = rtWarningState.reflectionRtAsBudgetHighStreak;
-            reflectionRtAsBudgetWarnCooldownRemaining = rtWarningState.reflectionRtAsBudgetWarnCooldownRemaining;
-            reflectionRtAsBudgetBreachedLastFrame = rtWarningState.reflectionRtAsBudgetBreachedLastFrame;
-            reflectionRtPromotionReadyLastFrame = rtWarningState.reflectionRtPromotionReadyLastFrame;
-            reflectionRtPromotionReadyHighStreak = rtWarningState.reflectionRtPromotionReadyHighStreak;
-            TransparencyCandidateSummary transparencySummary =
-                    VulkanReflectionAnalysis.summarizeReflectionTransparencyCandidates(currentSceneMaterials, reflectionTransparencyCandidateReactiveMin);
-            VulkanReflectionRtTransparencyWarningEmitter.State rtTransparencyState = new VulkanReflectionRtTransparencyWarningEmitter.State();
-            VulkanTelemetryStateBinder.copyMatchingFields(this, rtTransparencyState);
-            rtTransparencyState.mockContext = mockContext;
-            VulkanReflectionRtTransparencyWarningEmitter.emit(warnings, rtTransparencyState, transparencySummary);
-            reflectionRtPromotionReadyHighStreak = rtTransparencyState.reflectionRtPromotionReadyHighStreak;
-            reflectionRtPromotionReadyLastFrame = rtTransparencyState.reflectionRtPromotionReadyLastFrame;
-            reflectionTransparencyWarnCooldownRemaining = rtTransparencyState.reflectionTransparencyWarnCooldownRemaining;
-            reflectionTransparencyHighStreak = rtTransparencyState.reflectionTransparencyHighStreak;
-            reflectionTransparencyBreachedLastFrame = rtTransparencyState.reflectionTransparencyBreachedLastFrame;
-            reflectionTransparencyStageGateStatus = rtTransparencyState.reflectionTransparencyStageGateStatus;
-            reflectionTransparencyFallbackPath = rtTransparencyState.reflectionTransparencyFallbackPath;
-            reflectionTransparentCandidateCount = rtTransparencyState.reflectionTransparentCandidateCount;
-            reflectionTransparencyAlphaTestedCandidateCount = rtTransparencyState.reflectionTransparencyAlphaTestedCandidateCount;
-            reflectionTransparencyReactiveCandidateCount = rtTransparencyState.reflectionTransparencyReactiveCandidateCount;
-            reflectionTransparencyProbeOnlyCandidateCount = rtTransparencyState.reflectionTransparencyProbeOnlyCandidateCount;
-            VulkanReflectionTelemetryProfileWarning.State telemetryProfileState = new VulkanReflectionTelemetryProfileWarning.State();
-            VulkanTelemetryStateBinder.copyMatchingFields(this, telemetryProfileState);
-            telemetryProfileState.reflectionProfile = reflectionProfile;
-            warnings.add(VulkanReflectionTelemetryProfileWarning.warning(telemetryProfileState));
             boolean ssrPathActive = reflectionBaseMode == 1 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
             if (ssrPathActive && currentPost.taaEnabled()) {
                 double taaReject = context.taaHistoryRejectRate();
@@ -1673,435 +1402,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         } else {
             resetReflectionWarningStateWhenDisabled();
         }
-        resetShadowCapabilityFrameStateDefaults();
-        if (shadowCadenceWarnCooldownRemaining > 0) {
-            shadowCadenceWarnCooldownRemaining--;
-        }
-        if (shadowPointBudgetWarnCooldownRemaining > 0) {
-            shadowPointBudgetWarnCooldownRemaining--;
-        }
-        if (shadowCacheWarnCooldownRemaining > 0) {
-            shadowCacheWarnCooldownRemaining--;
-        }
-        if (shadowRtWarnCooldownRemaining > 0) {
-            shadowRtWarnCooldownRemaining--;
-        }
-        if (shadowHybridWarnCooldownRemaining > 0) {
-            shadowHybridWarnCooldownRemaining--;
-        }
-        if (shadowTransparentReceiverWarnCooldownRemaining > 0) {
-            shadowTransparentReceiverWarnCooldownRemaining--;
-        }
-        if (shadowTopologyWarnCooldownRemaining > 0) {
-            shadowTopologyWarnCooldownRemaining--;
-        }
-        if (!currentShadows.enabled()) {
-            shadowCadenceHighStreak = 0;
-            shadowCadenceWarnCooldownRemaining = 0;
-            shadowCadenceStableStreak = 0;
-            shadowCadencePromotionReadyLastFrame = false;
-            shadowPointBudgetHighStreak = 0;
-            shadowPointBudgetWarnCooldownRemaining = 0;
-            shadowPointBudgetStableStreak = 0;
-            shadowPointBudgetPromotionReadyLastFrame = false;
-            shadowCacheHighStreak = 0;
-            shadowCacheWarnCooldownRemaining = 0;
-            shadowRtHighStreak = 0;
-            shadowRtWarnCooldownRemaining = 0;
-            shadowHybridHighStreak = 0;
-            shadowHybridWarnCooldownRemaining = 0;
-            shadowTransparentReceiverHighStreak = 0;
-            shadowTransparentReceiverWarnCooldownRemaining = 0;
-            shadowTopologyHighStreak = 0;
-            shadowTopologyWarnCooldownRemaining = 0;
-            shadowTopologyStableStreak = 0;
-            shadowTopologyPromotionReadyLastFrame = false;
-            shadowSpotProjectedStableStreak = 0;
-            shadowSpotProjectedPromotionReadyLastFrame = false;
-            shadowPhaseAPromotionStableStreak = 0;
-            shadowPhaseAPromotionReadyLastFrame = false;
-            shadowPhaseDPromotionStableStreak = 0;
-            shadowPhaseDPromotionReadyLastFrame = false;
-        }
-        if (currentShadows.enabled()) {
-            VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
-                    new VulkanShadowCapabilityPlanner.PlanInput(
-                            qualityTier,
-                            currentShadows.filterPath(),
-                            currentShadows.contactShadowsRequested(),
-                            currentShadows.rtShadowMode(),
-                            shadowMaxShadowedLocalLights > 0 ? shadowMaxShadowedLocalLights : currentShadows.maxShadowedLocalLights(),
-                            shadowMaxLocalLayers,
-                            shadowMaxFacesPerFrame,
-                            currentShadows.selectedLocalShadowLights(),
-                            currentShadows.deferredShadowLightCount(),
-                            currentShadows.renderedSpotShadowLights(),
-                            currentShadows.renderedPointShadowCubemaps(),
-                            shadowSchedulerEnabled,
-                            false,
-                            false,
-                            currentShadows.renderedSpotShadowLights() > 0,
-                            false,
-                            false
-                    )
-            );
-            shadowCapabilityFeatureIdLastFrame = shadowCapabilityPlan.capability().featureId();
-            shadowCapabilityModeLastFrame = shadowCapabilityPlan.mode().id();
-            shadowCapabilitySignalsLastFrame = shadowCapabilityPlan.signals();
-            shadowSpotProjectedRenderedCountLastFrame = currentShadows.renderedSpotShadowLights();
-            shadowSpotProjectedRequestedLastFrame = "spot_projected".equals(shadowCapabilityModeLastFrame)
-                    || shadowCapabilitySignalsLastFrame.stream().anyMatch(s -> "spotProjected=true".equals(s));
-            shadowSpotProjectedActiveLastFrame = shadowSpotProjectedRenderedCountLastFrame > 0;
-            if (shadowSpotProjectedRequestedLastFrame && shadowSpotProjectedActiveLastFrame) {
-                shadowSpotProjectedContractStatusLastFrame = "active";
-            } else if (shadowSpotProjectedRequestedLastFrame) {
-                shadowSpotProjectedContractStatusLastFrame = "requested_unavailable";
-            } else if (shadowSpotProjectedActiveLastFrame) {
-                shadowSpotProjectedContractStatusLastFrame = "active_not_selected";
-            } else {
-                shadowSpotProjectedContractStatusLastFrame = "inactive";
-            }
-            shadowSpotProjectedContractBreachedLastFrame =
-                    shadowSpotProjectedRequestedLastFrame && !shadowSpotProjectedActiveLastFrame;
-            if (shadowSpotProjectedContractBreachedLastFrame) {
-                shadowSpotProjectedStableStreak = 0;
-                shadowSpotProjectedPromotionReadyLastFrame = false;
-            } else {
-                shadowSpotProjectedStableStreak = Math.min(10_000, shadowSpotProjectedStableStreak + 1);
-                shadowSpotProjectedPromotionReadyLastFrame =
-                        shadowSpotProjectedRequestedLastFrame
-                                && shadowSpotProjectedActiveLastFrame
-                                && shadowSpotProjectedStableStreak >= shadowSpotProjectedPromotionReadyMinFrames;
-            }
-            shadowCadenceSelectedLocalLightsLastFrame = currentShadows.selectedLocalShadowLights();
-            shadowCadenceDeferredLocalLightsLastFrame = currentShadows.deferredShadowLightCount();
-            shadowCadenceStaleBypassCountLastFrame = currentShadows.staleBypassShadowLightCount();
-            shadowCadenceDeferredRatioLastFrame = shadowCadenceSelectedLocalLightsLastFrame <= 0
-                    ? 0.0
-                    : (double) shadowCadenceDeferredLocalLightsLastFrame / (double) shadowCadenceSelectedLocalLightsLastFrame;
-            boolean cadenceEnvelopeNow = shadowCadenceSelectedLocalLightsLastFrame >= 2
-                    && shadowCadenceDeferredRatioLastFrame > shadowCadenceWarnDeferredRatioMax;
-            if (cadenceEnvelopeNow) {
-                shadowCadenceHighStreak = Math.min(10_000, shadowCadenceHighStreak + 1);
-                shadowCadenceStableStreak = 0;
-                shadowCadencePromotionReadyLastFrame = false;
-                shadowCadenceEnvelopeBreachedLastFrame = true;
-            } else {
-                shadowCadenceHighStreak = 0;
-                shadowCadenceStableStreak = Math.min(10_000, shadowCadenceStableStreak + 1);
-                shadowCadencePromotionReadyLastFrame =
-                        shadowCadenceStableStreak >= shadowCadencePromotionReadyMinFrames;
-            }
-            warnings.add(new EngineWarning(
-                    "SHADOW_CAPABILITY_MODE_ACTIVE",
-                    "Shadow capability mode active: featureId="
-                            + shadowCapabilityPlan.capability().featureId()
-                            + " mode=" + shadowCapabilityPlan.mode().id()
-                            + " signals=[" + String.join(", ", shadowCapabilityPlan.signals()) + "]"
-            ));
-            warnings.add(new EngineWarning(
-                    "SHADOW_TELEMETRY_PROFILE_ACTIVE",
-                    "Shadow telemetry profile active (tier=" + qualityTier.name().toLowerCase(Locale.ROOT)
-                            + ", cadenceDeferredRatioWarnMax=" + shadowCadenceWarnDeferredRatioMax
-                            + ", cadenceWarnMinFrames=" + shadowCadenceWarnMinFrames
-                            + ", cadenceWarnCooldownFrames=" + shadowCadenceWarnCooldownFrames
-                            + ", cadencePromotionReadyMinFrames=" + shadowCadencePromotionReadyMinFrames
-                            + ", pointFaceBudgetSaturationWarnMin=" + shadowPointFaceBudgetWarnSaturationMin
-                            + ", pointFaceBudgetWarnMinFrames=" + shadowPointFaceBudgetWarnMinFrames
-                            + ", pointFaceBudgetWarnCooldownFrames=" + shadowPointFaceBudgetWarnCooldownFrames
-                            + ", pointFaceBudgetPromotionReadyMinFrames=" + shadowPointFaceBudgetPromotionReadyMinFrames
-                            + ", cacheChurnWarnMax=" + shadowCacheChurnWarnMax
-                            + ", cacheMissWarnMax=" + shadowCacheMissWarnMax
-                            + ", cacheWarnMinFrames=" + shadowCacheWarnMinFrames
-                            + ", cacheWarnCooldownFrames=" + shadowCacheWarnCooldownFrames
-                            + ", rtDenoiseWarnMin=" + shadowRtDenoiseWarnMin
-                            + ", rtSampleWarnMin=" + shadowRtSampleWarnMin
-                            + ", rtPerfMaxGpuMsLow=" + shadowRtPerfMaxGpuMsLow
-                            + ", rtPerfMaxGpuMsMedium=" + shadowRtPerfMaxGpuMsMedium
-                            + ", rtPerfMaxGpuMsHigh=" + shadowRtPerfMaxGpuMsHigh
-                            + ", rtPerfMaxGpuMsUltra=" + shadowRtPerfMaxGpuMsUltra
-                            + ", rtWarnMinFrames=" + shadowRtWarnMinFrames
-                            + ", rtWarnCooldownFrames=" + shadowRtWarnCooldownFrames
-                            + ", hybridRtShareWarnMin=" + shadowHybridRtShareWarnMin
-                            + ", hybridContactShareWarnMin=" + shadowHybridContactShareWarnMin
-                            + ", hybridWarnMinFrames=" + shadowHybridWarnMinFrames
-                            + ", hybridWarnCooldownFrames=" + shadowHybridWarnCooldownFrames
-                            + ", transparentReceiversRequested=" + shadowTransparentReceiversRequested
-                            + ", transparentReceiversSupported=" + shadowTransparentReceiversSupported
-                            + ", transparentReceiverCandidateRatioWarnMax=" + shadowTransparentReceiverCandidateRatioWarnMax
-                            + ", transparentReceiverWarnMinFrames=" + shadowTransparentReceiverWarnMinFrames
-                            + ", transparentReceiverWarnCooldownFrames=" + shadowTransparentReceiverWarnCooldownFrames
-                            + ", areaApproxRequested=" + shadowAreaApproxRequested
-                            + ", areaApproxSupported=" + shadowAreaApproxSupported
-                            + ", areaApproxRequireActive=" + shadowAreaApproxRequireActive
-                            + ", distanceFieldRequested=" + shadowDistanceFieldRequested
-                            + ", distanceFieldSupported=" + shadowDistanceFieldSupported
-                            + ", distanceFieldRequireActive=" + shadowDistanceFieldRequireActive
-                            + ", spotProjectedPromotionReadyMinFrames=" + shadowSpotProjectedPromotionReadyMinFrames
-                            + ", topologyLocalCoverageWarnMin=" + shadowTopologyLocalCoverageWarnMin
-                            + ", topologySpotCoverageWarnMin=" + shadowTopologySpotCoverageWarnMin
-                            + ", topologyPointCoverageWarnMin=" + shadowTopologyPointCoverageWarnMin
-                            + ", topologyWarnMinFrames=" + shadowTopologyWarnMinFrames
-                            + ", topologyWarnCooldownFrames=" + shadowTopologyWarnCooldownFrames
-                            + ", topologyPromotionReadyMinFrames=" + shadowTopologyPromotionReadyMinFrames
-                            + ", phaseAPromotionReadyMinFrames=" + shadowPhaseAPromotionReadyMinFrames
-                            + ", phaseDPromotionReadyMinFrames=" + shadowPhaseDPromotionReadyMinFrames
-                            + ")"
-            ));
-            VulkanShadowCadencePointWarningEmitter.State shadowCadencePointState = new VulkanShadowCadencePointWarningEmitter.State();
-            shadowCadencePointState.currentShadows = currentShadows;
-            shadowCadencePointState.shadowSpotProjectedRequestedLastFrame = shadowSpotProjectedRequestedLastFrame;
-            shadowCadencePointState.shadowSpotProjectedActiveLastFrame = shadowSpotProjectedActiveLastFrame;
-            shadowCadencePointState.shadowSpotProjectedRenderedCountLastFrame = shadowSpotProjectedRenderedCountLastFrame;
-            shadowCadencePointState.shadowSpotProjectedContractStatusLastFrame = shadowSpotProjectedContractStatusLastFrame;
-            shadowCadencePointState.shadowSpotProjectedContractBreachedLastFrame = shadowSpotProjectedContractBreachedLastFrame;
-            shadowCadencePointState.shadowSpotProjectedStableStreak = shadowSpotProjectedStableStreak;
-            shadowCadencePointState.shadowSpotProjectedPromotionReadyLastFrame = shadowSpotProjectedPromotionReadyLastFrame;
-            shadowCadencePointState.shadowSpotProjectedPromotionReadyMinFrames = shadowSpotProjectedPromotionReadyMinFrames;
-            shadowCadencePointState.shadowCadenceSelectedLocalLightsLastFrame = shadowCadenceSelectedLocalLightsLastFrame;
-            shadowCadencePointState.shadowCadenceDeferredLocalLightsLastFrame = shadowCadenceDeferredLocalLightsLastFrame;
-            shadowCadencePointState.shadowCadenceStaleBypassCountLastFrame = shadowCadenceStaleBypassCountLastFrame;
-            shadowCadencePointState.shadowCadenceDeferredRatioLastFrame = shadowCadenceDeferredRatioLastFrame;
-            shadowCadencePointState.shadowCadenceWarnDeferredRatioMax = shadowCadenceWarnDeferredRatioMax;
-            shadowCadencePointState.shadowCadenceHighStreak = shadowCadenceHighStreak;
-            shadowCadencePointState.shadowCadenceWarnMinFrames = shadowCadenceWarnMinFrames;
-            shadowCadencePointState.shadowCadenceWarnCooldownFrames = shadowCadenceWarnCooldownFrames;
-            shadowCadencePointState.shadowCadenceWarnCooldownRemaining = shadowCadenceWarnCooldownRemaining;
-            shadowCadencePointState.shadowCadenceStableStreak = shadowCadenceStableStreak;
-            shadowCadencePointState.shadowCadencePromotionReadyMinFrames = shadowCadencePromotionReadyMinFrames;
-            shadowCadencePointState.shadowCadencePromotionReadyLastFrame = shadowCadencePromotionReadyLastFrame;
-            shadowCadencePointState.cadenceEnvelopeNow = cadenceEnvelopeNow;
-            shadowCadencePointState.shadowPointBudgetRenderedCubemapsLastFrame = shadowPointBudgetRenderedCubemapsLastFrame;
-            shadowCadencePointState.shadowPointBudgetRenderedFacesLastFrame = shadowPointBudgetRenderedFacesLastFrame;
-            shadowCadencePointState.shadowPointBudgetDeferredCountLastFrame = shadowPointBudgetDeferredCountLastFrame;
-            shadowCadencePointState.shadowPointBudgetSaturationRatioLastFrame = shadowPointBudgetSaturationRatioLastFrame;
-            shadowCadencePointState.shadowPointFaceBudgetWarnSaturationMin = shadowPointFaceBudgetWarnSaturationMin;
-            shadowCadencePointState.shadowPointBudgetHighStreak = shadowPointBudgetHighStreak;
-            shadowCadencePointState.shadowPointBudgetWarnCooldownRemaining = shadowPointBudgetWarnCooldownRemaining;
-            shadowCadencePointState.shadowPointFaceBudgetWarnMinFrames = shadowPointFaceBudgetWarnMinFrames;
-            shadowCadencePointState.shadowPointFaceBudgetWarnCooldownFrames = shadowPointFaceBudgetWarnCooldownFrames;
-            shadowCadencePointState.shadowPointBudgetStableStreak = shadowPointBudgetStableStreak;
-            shadowCadencePointState.shadowPointFaceBudgetPromotionReadyMinFrames = shadowPointFaceBudgetPromotionReadyMinFrames;
-            shadowCadencePointState.shadowPointBudgetPromotionReadyLastFrame = shadowPointBudgetPromotionReadyLastFrame;
-            shadowCadencePointState.shadowPointBudgetEnvelopeBreachedLastFrame = shadowPointBudgetEnvelopeBreachedLastFrame;
-            shadowCadencePointState.shadowMaxFacesPerFrame = shadowMaxFacesPerFrame;
-            shadowCadencePointState.shadowPhaseAPromotionStableStreak = shadowPhaseAPromotionStableStreak;
-            shadowCadencePointState.shadowPhaseAPromotionReadyLastFrame = shadowPhaseAPromotionReadyLastFrame;
-            shadowCadencePointState.shadowPhaseAPromotionReadyMinFrames = shadowPhaseAPromotionReadyMinFrames;
-            VulkanShadowCadencePointWarningEmitter.emit(warnings, shadowCadencePointState);
-            shadowCadenceWarnCooldownRemaining = shadowCadencePointState.shadowCadenceWarnCooldownRemaining;
-            shadowPointBudgetRenderedCubemapsLastFrame = shadowCadencePointState.shadowPointBudgetRenderedCubemapsLastFrame;
-            shadowPointBudgetRenderedFacesLastFrame = shadowCadencePointState.shadowPointBudgetRenderedFacesLastFrame;
-            shadowPointBudgetDeferredCountLastFrame = shadowCadencePointState.shadowPointBudgetDeferredCountLastFrame;
-            shadowPointBudgetSaturationRatioLastFrame = shadowCadencePointState.shadowPointBudgetSaturationRatioLastFrame;
-            shadowPointBudgetHighStreak = shadowCadencePointState.shadowPointBudgetHighStreak;
-            shadowPointBudgetWarnCooldownRemaining = shadowCadencePointState.shadowPointBudgetWarnCooldownRemaining;
-            shadowPointBudgetStableStreak = shadowCadencePointState.shadowPointBudgetStableStreak;
-            shadowPointBudgetPromotionReadyLastFrame = shadowCadencePointState.shadowPointBudgetPromotionReadyLastFrame;
-            shadowPointBudgetEnvelopeBreachedLastFrame = shadowCadencePointState.shadowPointBudgetEnvelopeBreachedLastFrame;
-            shadowPhaseAPromotionStableStreak = shadowCadencePointState.shadowPhaseAPromotionStableStreak;
-            shadowPhaseAPromotionReadyLastFrame = shadowCadencePointState.shadowPhaseAPromotionReadyLastFrame;
-            VulkanShadowTopologyWarningEmitter.State shadowTopologyState = new VulkanShadowTopologyWarningEmitter.State();
-            shadowTopologyState.currentSceneLights = currentSceneLights;
-            shadowTopologyState.shadowCadenceSelectedLocalLightsLastFrame = shadowCadenceSelectedLocalLightsLastFrame;
-            shadowTopologyState.shadowSpotProjectedRenderedCountLastFrame = shadowSpotProjectedRenderedCountLastFrame;
-            shadowTopologyState.shadowPointBudgetRenderedCubemapsLastFrame = shadowPointBudgetRenderedCubemapsLastFrame;
-            shadowTopologyState.shadowTopologyCandidateSpotLightsLastFrame = shadowTopologyCandidateSpotLightsLastFrame;
-            shadowTopologyState.shadowTopologyCandidatePointLightsLastFrame = shadowTopologyCandidatePointLightsLastFrame;
-            shadowTopologyState.shadowTopologyLocalCoverageLastFrame = shadowTopologyLocalCoverageLastFrame;
-            shadowTopologyState.shadowTopologySpotCoverageLastFrame = shadowTopologySpotCoverageLastFrame;
-            shadowTopologyState.shadowTopologyPointCoverageLastFrame = shadowTopologyPointCoverageLastFrame;
-            shadowTopologyState.shadowTopologyLocalCoverageWarnMin = shadowTopologyLocalCoverageWarnMin;
-            shadowTopologyState.shadowTopologySpotCoverageWarnMin = shadowTopologySpotCoverageWarnMin;
-            shadowTopologyState.shadowTopologyPointCoverageWarnMin = shadowTopologyPointCoverageWarnMin;
-            shadowTopologyState.shadowTopologyWarnMinFrames = shadowTopologyWarnMinFrames;
-            shadowTopologyState.shadowTopologyWarnCooldownFrames = shadowTopologyWarnCooldownFrames;
-            shadowTopologyState.shadowTopologyWarnCooldownRemaining = shadowTopologyWarnCooldownRemaining;
-            shadowTopologyState.shadowTopologyHighStreak = shadowTopologyHighStreak;
-            shadowTopologyState.shadowTopologyStableStreak = shadowTopologyStableStreak;
-            shadowTopologyState.shadowTopologyPromotionReadyMinFrames = shadowTopologyPromotionReadyMinFrames;
-            shadowTopologyState.shadowTopologyPromotionReadyLastFrame = shadowTopologyPromotionReadyLastFrame;
-            shadowTopologyState.shadowTopologyEnvelopeBreachedLastFrame = shadowTopologyEnvelopeBreachedLastFrame;
-            shadowTopologyState.currentShadows = currentShadows;
-            VulkanShadowTopologyWarningEmitter.emit(warnings, shadowTopologyState);
-            shadowTopologyCandidateSpotLightsLastFrame = shadowTopologyState.shadowTopologyCandidateSpotLightsLastFrame;
-            shadowTopologyCandidatePointLightsLastFrame = shadowTopologyState.shadowTopologyCandidatePointLightsLastFrame;
-            shadowTopologyLocalCoverageLastFrame = shadowTopologyState.shadowTopologyLocalCoverageLastFrame;
-            shadowTopologySpotCoverageLastFrame = shadowTopologyState.shadowTopologySpotCoverageLastFrame;
-            shadowTopologyPointCoverageLastFrame = shadowTopologyState.shadowTopologyPointCoverageLastFrame;
-            shadowTopologyWarnCooldownRemaining = shadowTopologyState.shadowTopologyWarnCooldownRemaining;
-            shadowTopologyHighStreak = shadowTopologyState.shadowTopologyHighStreak;
-            shadowTopologyStableStreak = shadowTopologyState.shadowTopologyStableStreak;
-            shadowTopologyPromotionReadyLastFrame = shadowTopologyState.shadowTopologyPromotionReadyLastFrame;
-            shadowTopologyEnvelopeBreachedLastFrame = shadowTopologyState.shadowTopologyEnvelopeBreachedLastFrame;
-            VulkanShadowCacheHybridExtendedWarningEmitter.State shadowCacheHybridExtendedState = new VulkanShadowCacheHybridExtendedWarningEmitter.State();
-            shadowCacheHybridExtendedState.shadowCapabilityModeLastFrame = shadowCapabilityModeLastFrame;
-            shadowCacheHybridExtendedState.shadowAllocatorReusedAssignments = shadowAllocatorReusedAssignments;
-            shadowCacheHybridExtendedState.shadowAllocatorEvictions = shadowAllocatorEvictions;
-            shadowCacheHybridExtendedState.shadowCadenceSelectedLocalLightsLastFrame = shadowCadenceSelectedLocalLightsLastFrame;
-            shadowCacheHybridExtendedState.shadowCadenceDeferredLocalLightsLastFrame = shadowCadenceDeferredLocalLightsLastFrame;
-            shadowCacheHybridExtendedState.shadowCacheChurnWarnMax = shadowCacheChurnWarnMax;
-            shadowCacheHybridExtendedState.shadowCacheMissWarnMax = shadowCacheMissWarnMax;
-            shadowCacheHybridExtendedState.shadowCacheWarnMinFrames = shadowCacheWarnMinFrames;
-            shadowCacheHybridExtendedState.shadowCacheWarnCooldownFrames = shadowCacheWarnCooldownFrames;
-            shadowCacheHybridExtendedState.shadowCacheWarnCooldownRemaining = shadowCacheWarnCooldownRemaining;
-            shadowCacheHybridExtendedState.shadowCacheHighStreak = shadowCacheHighStreak;
-            shadowCacheHybridExtendedState.shadowCacheEnvelopeBreachedLastFrame = shadowCacheEnvelopeBreachedLastFrame;
-            shadowCacheHybridExtendedState.shadowCacheHitCountLastFrame = shadowCacheHitCountLastFrame;
-            shadowCacheHybridExtendedState.shadowCacheMissCountLastFrame = shadowCacheMissCountLastFrame;
-            shadowCacheHybridExtendedState.shadowCacheEvictionCountLastFrame = shadowCacheEvictionCountLastFrame;
-            shadowCacheHybridExtendedState.shadowCacheHitRatioLastFrame = shadowCacheHitRatioLastFrame;
-            shadowCacheHybridExtendedState.shadowCacheChurnRatioLastFrame = shadowCacheChurnRatioLastFrame;
-            shadowCacheHybridExtendedState.shadowCacheInvalidationReasonLastFrame = shadowCacheInvalidationReasonLastFrame;
-            shadowCacheHybridExtendedState.currentShadows = currentShadows;
-            shadowCacheHybridExtendedState.shadowHybridRtShareWarnMin = shadowHybridRtShareWarnMin;
-            shadowCacheHybridExtendedState.shadowHybridContactShareWarnMin = shadowHybridContactShareWarnMin;
-            shadowCacheHybridExtendedState.shadowHybridWarnMinFrames = shadowHybridWarnMinFrames;
-            shadowCacheHybridExtendedState.shadowHybridWarnCooldownFrames = shadowHybridWarnCooldownFrames;
-            shadowCacheHybridExtendedState.shadowHybridWarnCooldownRemaining = shadowHybridWarnCooldownRemaining;
-            shadowCacheHybridExtendedState.shadowHybridHighStreak = shadowHybridHighStreak;
-            shadowCacheHybridExtendedState.shadowHybridEnvelopeBreachedLastFrame = shadowHybridEnvelopeBreachedLastFrame;
-            shadowCacheHybridExtendedState.shadowHybridCascadeShareLastFrame = shadowHybridCascadeShareLastFrame;
-            shadowCacheHybridExtendedState.shadowHybridContactShareLastFrame = shadowHybridContactShareLastFrame;
-            shadowCacheHybridExtendedState.shadowHybridRtShareLastFrame = shadowHybridRtShareLastFrame;
-            shadowCacheHybridExtendedState.currentSceneMaterials = currentSceneMaterials;
-            shadowCacheHybridExtendedState.shadowTransparentReceiversRequested = shadowTransparentReceiversRequested;
-            shadowCacheHybridExtendedState.shadowTransparentReceiversSupported = shadowTransparentReceiversSupported;
-            shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateRatioWarnMax = shadowTransparentReceiverCandidateRatioWarnMax;
-            shadowCacheHybridExtendedState.shadowTransparentReceiverWarnMinFrames = shadowTransparentReceiverWarnMinFrames;
-            shadowCacheHybridExtendedState.shadowTransparentReceiverWarnCooldownFrames = shadowTransparentReceiverWarnCooldownFrames;
-            shadowCacheHybridExtendedState.shadowTransparentReceiverWarnCooldownRemaining = shadowTransparentReceiverWarnCooldownRemaining;
-            shadowCacheHybridExtendedState.shadowTransparentReceiverHighStreak = shadowTransparentReceiverHighStreak;
-            shadowCacheHybridExtendedState.shadowTransparentReceiverEnvelopeBreachedLastFrame = shadowTransparentReceiverEnvelopeBreachedLastFrame;
-            shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateCountLastFrame = shadowTransparentReceiverCandidateCountLastFrame;
-            shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateRatioLastFrame = shadowTransparentReceiverCandidateRatioLastFrame;
-            shadowCacheHybridExtendedState.shadowTransparentReceiverPolicyLastFrame = shadowTransparentReceiverPolicyLastFrame;
-            shadowCacheHybridExtendedState.shadowAreaApproxRequested = shadowAreaApproxRequested;
-            shadowCacheHybridExtendedState.shadowAreaApproxSupported = shadowAreaApproxSupported;
-            shadowCacheHybridExtendedState.shadowAreaApproxRequireActive = shadowAreaApproxRequireActive;
-            shadowCacheHybridExtendedState.shadowAreaApproxBreachedLastFrame = shadowAreaApproxBreachedLastFrame;
-            shadowCacheHybridExtendedState.shadowDistanceFieldRequested = shadowDistanceFieldRequested;
-            shadowCacheHybridExtendedState.shadowDistanceFieldSupported = shadowDistanceFieldSupported;
-            shadowCacheHybridExtendedState.shadowDistanceFieldRequireActive = shadowDistanceFieldRequireActive;
-            shadowCacheHybridExtendedState.shadowDistanceFieldBreachedLastFrame = shadowDistanceFieldBreachedLastFrame;
-            shadowCacheHybridExtendedState.shadowRtEnvelopeBreachedLastFrame = shadowRtEnvelopeBreachedLastFrame;
-            shadowCacheHybridExtendedState.shadowRtWarnCooldownRemaining = shadowRtWarnCooldownRemaining;
-            shadowCacheHybridExtendedState.shadowPhaseDPromotionStableStreak = shadowPhaseDPromotionStableStreak;
-            shadowCacheHybridExtendedState.shadowPhaseDPromotionReadyLastFrame = shadowPhaseDPromotionReadyLastFrame;
-            shadowCacheHybridExtendedState.shadowPhaseDPromotionReadyMinFrames = shadowPhaseDPromotionReadyMinFrames;
-            VulkanShadowCacheHybridExtendedWarningEmitter.emit(warnings, shadowCacheHybridExtendedState);
-            shadowCacheWarnCooldownRemaining = shadowCacheHybridExtendedState.shadowCacheWarnCooldownRemaining;
-            shadowCacheHighStreak = shadowCacheHybridExtendedState.shadowCacheHighStreak;
-            shadowCacheEnvelopeBreachedLastFrame = shadowCacheHybridExtendedState.shadowCacheEnvelopeBreachedLastFrame;
-            shadowCacheHitCountLastFrame = shadowCacheHybridExtendedState.shadowCacheHitCountLastFrame;
-            shadowCacheMissCountLastFrame = shadowCacheHybridExtendedState.shadowCacheMissCountLastFrame;
-            shadowCacheEvictionCountLastFrame = shadowCacheHybridExtendedState.shadowCacheEvictionCountLastFrame;
-            shadowCacheHitRatioLastFrame = shadowCacheHybridExtendedState.shadowCacheHitRatioLastFrame;
-            shadowCacheChurnRatioLastFrame = shadowCacheHybridExtendedState.shadowCacheChurnRatioLastFrame;
-            shadowCacheInvalidationReasonLastFrame = shadowCacheHybridExtendedState.shadowCacheInvalidationReasonLastFrame;
-            shadowHybridWarnCooldownRemaining = shadowCacheHybridExtendedState.shadowHybridWarnCooldownRemaining;
-            shadowHybridHighStreak = shadowCacheHybridExtendedState.shadowHybridHighStreak;
-            shadowHybridEnvelopeBreachedLastFrame = shadowCacheHybridExtendedState.shadowHybridEnvelopeBreachedLastFrame;
-            shadowHybridCascadeShareLastFrame = shadowCacheHybridExtendedState.shadowHybridCascadeShareLastFrame;
-            shadowHybridContactShareLastFrame = shadowCacheHybridExtendedState.shadowHybridContactShareLastFrame;
-            shadowHybridRtShareLastFrame = shadowCacheHybridExtendedState.shadowHybridRtShareLastFrame;
-            shadowTransparentReceiverWarnCooldownRemaining = shadowCacheHybridExtendedState.shadowTransparentReceiverWarnCooldownRemaining;
-            shadowTransparentReceiverHighStreak = shadowCacheHybridExtendedState.shadowTransparentReceiverHighStreak;
-            shadowTransparentReceiverEnvelopeBreachedLastFrame = shadowCacheHybridExtendedState.shadowTransparentReceiverEnvelopeBreachedLastFrame;
-            shadowTransparentReceiverCandidateCountLastFrame = shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateCountLastFrame;
-            shadowTransparentReceiverCandidateRatioLastFrame = shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateRatioLastFrame;
-            shadowTransparentReceiverPolicyLastFrame = shadowCacheHybridExtendedState.shadowTransparentReceiverPolicyLastFrame;
-            shadowAreaApproxBreachedLastFrame = shadowCacheHybridExtendedState.shadowAreaApproxBreachedLastFrame;
-            shadowDistanceFieldBreachedLastFrame = shadowCacheHybridExtendedState.shadowDistanceFieldBreachedLastFrame;
-            shadowPhaseDPromotionStableStreak = shadowCacheHybridExtendedState.shadowPhaseDPromotionStableStreak;
-            shadowPhaseDPromotionReadyLastFrame = shadowCacheHybridExtendedState.shadowPhaseDPromotionReadyLastFrame;
-            String momentPhase = "pending";
-            if (context.hasShadowMomentResources()) {
-                momentPhase = context.isShadowMomentInitialized() ? "active" : "initializing";
-            }
-            VulkanShadowPolicyWarningEmitter.State shadowPolicyState = new VulkanShadowPolicyWarningEmitter.State();
-            shadowPolicyState.currentShadows = currentShadows;
-            shadowPolicyState.shadowDepthFormatTag = context.shadowDepthFormatTag();
-            shadowPolicyState.shadowMaxShadowedLocalLights = shadowMaxShadowedLocalLights;
-            shadowPolicyState.shadowMaxLocalLayers = shadowMaxLocalLayers;
-            shadowPolicyState.shadowMaxFacesPerFrame = shadowMaxFacesPerFrame;
-            shadowPolicyState.shadowSchedulerEnabled = shadowSchedulerEnabled;
-            shadowPolicyState.shadowSchedulerHeroPeriod = shadowSchedulerHeroPeriod;
-            shadowPolicyState.shadowSchedulerMidPeriod = shadowSchedulerMidPeriod;
-            shadowPolicyState.shadowSchedulerDistantPeriod = shadowSchedulerDistantPeriod;
-            shadowPolicyState.shadowDirectionalTexelSnapEnabled = shadowDirectionalTexelSnapEnabled;
-            shadowPolicyState.shadowDirectionalTexelSnapScale = shadowDirectionalTexelSnapScale;
-            shadowPolicyState.shadowSchedulerFrameTick = shadowSchedulerFrameTick;
-            shadowPolicyState.shadowAllocatorAssignedLights = shadowAllocatorAssignedLights;
-            shadowPolicyState.shadowAllocatorReusedAssignments = shadowAllocatorReusedAssignments;
-            shadowPolicyState.shadowAllocatorEvictions = shadowAllocatorEvictions;
-            shadowPolicyState.shadowPcssSoftness = shadowPcssSoftness;
-            shadowPolicyState.shadowMomentBlend = shadowMomentBlend;
-            shadowPolicyState.shadowMomentBleedReduction = shadowMomentBleedReduction;
-            shadowPolicyState.shadowContactStrength = shadowContactStrength;
-            shadowPolicyState.shadowContactTemporalMotionScale = shadowContactTemporalMotionScale;
-            shadowPolicyState.shadowContactTemporalMinStability = shadowContactTemporalMinStability;
-            shadowPolicyState.shadowMomentResourcesAllocated = context.hasShadowMomentResources();
-            shadowPolicyState.shadowMomentFormatTag = context.shadowMomentFormatTag();
-            shadowPolicyState.shadowMomentInitialized = context.isShadowMomentInitialized();
-            shadowPolicyState.momentPhase = momentPhase;
-            shadowPolicyState.shadowRtTraversalSupported = shadowRtTraversalSupported;
-            shadowPolicyState.shadowRtBvhSupported = shadowRtBvhSupported;
-            shadowPolicyState.shadowRtBvhStrict = shadowRtBvhStrict;
-            shadowPolicyState.shadowRtDenoiseStrength = shadowRtDenoiseStrength;
-            shadowPolicyState.shadowRtRayLength = shadowRtRayLength;
-            shadowPolicyState.shadowRtSampleCount = shadowRtSampleCount;
-            shadowPolicyState.shadowRtDedicatedDenoiseStrength = shadowRtDedicatedDenoiseStrength;
-            shadowPolicyState.shadowRtDedicatedRayLength = shadowRtDedicatedRayLength;
-            shadowPolicyState.shadowRtDedicatedSampleCount = shadowRtDedicatedSampleCount;
-            shadowPolicyState.shadowRtProductionDenoiseStrength = shadowRtProductionDenoiseStrength;
-            shadowPolicyState.shadowRtProductionRayLength = shadowRtProductionRayLength;
-            shadowPolicyState.shadowRtProductionSampleCount = shadowRtProductionSampleCount;
-            warnings.add(VulkanShadowPolicyWarningEmitter.warning(shadowPolicyState));
-            VulkanShadowCoverageMomentWarningEmitter.State shadowCoverageMomentState = new VulkanShadowCoverageMomentWarningEmitter.State();
-            shadowCoverageMomentState.currentShadows = currentShadows;
-            shadowCoverageMomentState.shadowSchedulerEnabled = shadowSchedulerEnabled;
-            shadowCoverageMomentState.shadowMaxFacesPerFrame = shadowMaxFacesPerFrame;
-            shadowCoverageMomentState.shadowPointBudgetRenderedFacesLastFrame = shadowPointBudgetRenderedFacesLastFrame;
-            shadowCoverageMomentState.shadowMaxLocalLayers = shadowMaxLocalLayers;
-            shadowCoverageMomentState.shadowMomentResourcesAvailable = context.hasShadowMomentResources();
-            shadowCoverageMomentState.shadowMomentInitialized = context.isShadowMomentInitialized();
-            VulkanShadowCoverageMomentWarningEmitter.emit(warnings, shadowCoverageMomentState);
-            VulkanShadowRtWarningEmitter.State shadowRtState = new VulkanShadowRtWarningEmitter.State();
-            shadowRtState.currentShadows = currentShadows;
-            shadowRtState.qualityTier = qualityTier;
-            shadowRtState.lastFrameGpuMs = lastFrameGpuMs;
-            shadowRtState.shadowRtBvhSupported = shadowRtBvhSupported;
-            shadowRtState.shadowRtTraversalSupported = shadowRtTraversalSupported;
-            shadowRtState.shadowRtDenoiseStrength = shadowRtDenoiseStrength;
-            shadowRtState.shadowRtProductionDenoiseStrength = shadowRtProductionDenoiseStrength;
-            shadowRtState.shadowRtDedicatedDenoiseStrength = shadowRtDedicatedDenoiseStrength;
-            shadowRtState.shadowRtSampleCount = shadowRtSampleCount;
-            shadowRtState.shadowRtProductionSampleCount = shadowRtProductionSampleCount;
-            shadowRtState.shadowRtDedicatedSampleCount = shadowRtDedicatedSampleCount;
-            shadowRtState.shadowRtRayLength = shadowRtRayLength;
-            shadowRtState.shadowRtProductionRayLength = shadowRtProductionRayLength;
-            shadowRtState.shadowRtDedicatedRayLength = shadowRtDedicatedRayLength;
-            shadowRtState.shadowRtDenoiseWarnMin = shadowRtDenoiseWarnMin;
-            shadowRtState.shadowRtSampleWarnMin = shadowRtSampleWarnMin;
-            shadowRtState.shadowRtPerfMaxGpuMsLow = shadowRtPerfMaxGpuMsLow;
-            shadowRtState.shadowRtPerfMaxGpuMsMedium = shadowRtPerfMaxGpuMsMedium;
-            shadowRtState.shadowRtPerfMaxGpuMsHigh = shadowRtPerfMaxGpuMsHigh;
-            shadowRtState.shadowRtPerfMaxGpuMsUltra = shadowRtPerfMaxGpuMsUltra;
-            shadowRtState.shadowRtWarnMinFrames = shadowRtWarnMinFrames;
-            shadowRtState.shadowRtWarnCooldownFrames = shadowRtWarnCooldownFrames;
-            shadowRtState.shadowRtWarnCooldownRemaining = shadowRtWarnCooldownRemaining;
-            shadowRtState.shadowRtHighStreak = shadowRtHighStreak;
-            shadowRtState.shadowRtEnvelopeBreachedLastFrame = shadowRtEnvelopeBreachedLastFrame;
-            shadowRtState.shadowRtPerfGpuMsEstimateLastFrame = shadowRtPerfGpuMsEstimateLastFrame;
-            shadowRtState.shadowRtPerfGpuMsWarnMaxLastFrame = shadowRtPerfGpuMsWarnMaxLastFrame;
-            VulkanShadowRtWarningEmitter.emit(warnings, shadowRtState);
-            shadowRtWarnCooldownRemaining = shadowRtState.shadowRtWarnCooldownRemaining;
-            shadowRtHighStreak = shadowRtState.shadowRtHighStreak;
-            shadowRtEnvelopeBreachedLastFrame = shadowRtState.shadowRtEnvelopeBreachedLastFrame;
-            shadowRtPerfGpuMsEstimateLastFrame = shadowRtState.shadowRtPerfGpuMsEstimateLastFrame;
-            shadowRtPerfGpuMsWarnMaxLastFrame = shadowRtState.shadowRtPerfGpuMsWarnMaxLastFrame;
-        }
+        VulkanShadowFrameWarningFlow.process(this, context, qualityTier, warnings);
         return warnings;
     }
 
@@ -2110,96 +1411,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         resetReflectionSsrTaaRiskDiagnostics();
         resetReflectionAdaptiveState();
         resetReflectionAdaptiveTelemetryMetrics();
-        reflectionPlanarPassOrderContractStatus = "inactive";
-        reflectionPlanarScopedMeshEligibleCount = 0;
-        reflectionPlanarScopedMeshExcludedCount = 0;
-        reflectionPlanarMirrorCameraActive = false;
-        reflectionPlanarDedicatedCaptureLaneActive = false;
-        reflectionRtLaneRequested = false;
-        reflectionRtLaneActive = false;
-        reflectionRtRequireActiveUnmetLastFrame = false;
-        reflectionRtRequireMultiBounceUnmetLastFrame = false;
-        reflectionRtRequireDedicatedPipelineUnmetLastFrame = false;
-        reflectionRtFallbackChainActive = "probe";
-        reflectionRtTraversalSupported = false;
-        reflectionRtDedicatedCapabilitySupported = false;
-        reflectionRtDedicatedHardwarePipelineActive = false;
-        reflectionRtBlasLifecycleState = "disabled";
-        reflectionRtTlasLifecycleState = "disabled";
-        reflectionRtSbtLifecycleState = "disabled";
-        reflectionRtBlasObjectCount = 0;
-        reflectionRtTlasInstanceCount = 0;
-        reflectionRtSbtRecordCount = 0;
-        reflectionRtHybridRtShare = 0.0;
-        reflectionRtHybridSsrShare = 0.0;
-        reflectionRtHybridProbeShare = 1.0;
-        reflectionRtHybridBreachedLastFrame = false;
-        reflectionRtPerfHighStreak = 0;
-        reflectionRtPerfWarnCooldownRemaining = 0;
-        reflectionRtPerfLastGpuMsEstimate = 0.0;
-        reflectionRtPerfLastGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
-        reflectionRtPerfBreachedLastFrame = false;
-        reflectionRtPromotionReadyLastFrame = false;
-        reflectionRtPromotionReadyHighStreak = 0;
-        reflectionProbeStreamingHighStreak = 0;
-        reflectionProbeStreamingWarnCooldownRemaining = 0;
-        reflectionProbeStreamingBreachedLastFrame = false;
-        reflectionTransparentCandidateCount = 0;
-        reflectionTransparencyStageGateStatus = "not_required";
-        reflectionTransparencyFallbackPath = "none";
-    }
-
-    private void resetShadowCapabilityFrameStateDefaults() {
-        shadowCapabilityFeatureIdLastFrame = "unavailable";
-        shadowCapabilityModeLastFrame = "unavailable";
-        shadowCapabilitySignalsLastFrame = List.of();
-        shadowCadenceSelectedLocalLightsLastFrame = 0;
-        shadowCadenceDeferredLocalLightsLastFrame = 0;
-        shadowCadenceStaleBypassCountLastFrame = 0;
-        shadowCadenceDeferredRatioLastFrame = 0.0;
-        shadowCadencePromotionReadyLastFrame = false;
-        shadowCadenceEnvelopeBreachedLastFrame = false;
-        shadowPointBudgetRenderedCubemapsLastFrame = 0;
-        shadowPointBudgetRenderedFacesLastFrame = 0;
-        shadowPointBudgetDeferredCountLastFrame = 0;
-        shadowPointBudgetSaturationRatioLastFrame = 0.0;
-        shadowPointBudgetPromotionReadyLastFrame = false;
-        shadowPointBudgetEnvelopeBreachedLastFrame = false;
-        shadowCacheHitCountLastFrame = 0;
-        shadowCacheMissCountLastFrame = 0;
-        shadowCacheEvictionCountLastFrame = 0;
-        shadowCacheHitRatioLastFrame = 0.0;
-        shadowCacheChurnRatioLastFrame = 0.0;
-        shadowCacheInvalidationReasonLastFrame = "inactive";
-        shadowCacheEnvelopeBreachedLastFrame = false;
-        shadowRtPerfGpuMsEstimateLastFrame = 0.0;
-        shadowRtPerfGpuMsWarnMaxLastFrame = 0.0;
-        shadowRtEnvelopeBreachedLastFrame = false;
-        shadowHybridCascadeShareLastFrame = 1.0;
-        shadowHybridContactShareLastFrame = 0.0;
-        shadowHybridRtShareLastFrame = 0.0;
-        shadowHybridEnvelopeBreachedLastFrame = false;
-        shadowTransparentReceiverCandidateCountLastFrame = 0;
-        shadowTransparentReceiverCandidateRatioLastFrame = 0.0;
-        shadowTransparentReceiverPolicyLastFrame = shadowTransparentReceiversSupported ? "enabled" : "fallback_opaque_only";
-        shadowTransparentReceiverEnvelopeBreachedLastFrame = false;
-        shadowAreaApproxBreachedLastFrame = false;
-        shadowDistanceFieldBreachedLastFrame = false;
-        shadowTopologyCandidateSpotLightsLastFrame = 0;
-        shadowTopologyCandidatePointLightsLastFrame = 0;
-        shadowTopologyLocalCoverageLastFrame = 0.0;
-        shadowTopologySpotCoverageLastFrame = 0.0;
-        shadowTopologyPointCoverageLastFrame = 0.0;
-        shadowTopologyPromotionReadyLastFrame = false;
-        shadowTopologyEnvelopeBreachedLastFrame = false;
-        shadowSpotProjectedRequestedLastFrame = false;
-        shadowSpotProjectedActiveLastFrame = false;
-        shadowSpotProjectedRenderedCountLastFrame = 0;
-        shadowSpotProjectedContractStatusLastFrame = "unavailable";
-        shadowSpotProjectedContractBreachedLastFrame = false;
-        shadowSpotProjectedPromotionReadyLastFrame = false;
-        shadowPhaseAPromotionReadyLastFrame = false;
-        shadowPhaseDPromotionReadyLastFrame = false;
+        VulkanRuntimeWarningResets.resetReflectionWhenDisabled(this, rtPerfGpuMsCapForTier(qualityTier));
     }
 
     private int countPlanarEligibleFromOverrideSummary(ReflectionOverrideSummary summary) {
@@ -2256,23 +1468,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private ReflectionProbeChurnDiagnostics updateReflectionProbeChurnDiagnostics(VulkanContext.ReflectionProbeDiagnostics diagnostics) {
         VulkanReflectionAdaptiveDiagnostics.ProbeChurnState state = new VulkanReflectionAdaptiveDiagnostics.ProbeChurnState();
-        state.lastActiveReflectionProbeCount = lastActiveReflectionProbeCount;
-        state.reflectionProbeLastDelta = reflectionProbeLastDelta;
-        state.reflectionProbeActiveChurnEvents = reflectionProbeActiveChurnEvents;
-        state.reflectionProbeActiveDeltaAccum = reflectionProbeActiveDeltaAccum;
-        state.reflectionProbeChurnHighStreak = reflectionProbeChurnHighStreak;
-        state.reflectionProbeChurnWarnCooldownRemaining = reflectionProbeChurnWarnCooldownRemaining;
-        state.reflectionProbeChurnWarnMinDelta = reflectionProbeChurnWarnMinDelta;
-        state.reflectionProbeChurnWarnMinStreak = reflectionProbeChurnWarnMinStreak;
-        state.reflectionProbeChurnWarnCooldownFrames = reflectionProbeChurnWarnCooldownFrames;
+        VulkanTelemetryStateBinder.copyMatchingFields(this, state);
         VulkanReflectionAdaptiveDiagnostics.ProbeChurnUpdateResult result =
                 VulkanReflectionAdaptiveDiagnostics.updateProbeChurn(state, diagnostics.activeProbeCount());
-        lastActiveReflectionProbeCount = result.state.lastActiveReflectionProbeCount;
-        reflectionProbeLastDelta = result.state.reflectionProbeLastDelta;
-        reflectionProbeActiveChurnEvents = result.state.reflectionProbeActiveChurnEvents;
-        reflectionProbeActiveDeltaAccum = result.state.reflectionProbeActiveDeltaAccum;
-        reflectionProbeChurnHighStreak = result.state.reflectionProbeChurnHighStreak;
-        reflectionProbeChurnWarnCooldownRemaining = result.state.reflectionProbeChurnWarnCooldownRemaining;
+        VulkanTelemetryStateBinder.copyMatchingFields(result.state, this);
         return result.diagnostics;
     }
 
@@ -2294,12 +1493,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private void resetReflectionProbeChurnDiagnostics() {
         VulkanReflectionAdaptiveDiagnostics.ProbeChurnState state = new VulkanReflectionAdaptiveDiagnostics.ProbeChurnState();
         VulkanReflectionAdaptiveDiagnostics.resetProbeChurn(state);
-        lastActiveReflectionProbeCount = state.lastActiveReflectionProbeCount;
-        reflectionProbeLastDelta = state.reflectionProbeLastDelta;
-        reflectionProbeActiveChurnEvents = state.reflectionProbeActiveChurnEvents;
-        reflectionProbeActiveDeltaAccum = state.reflectionProbeActiveDeltaAccum;
-        reflectionProbeChurnHighStreak = state.reflectionProbeChurnHighStreak;
-        reflectionProbeChurnWarnCooldownRemaining = state.reflectionProbeChurnWarnCooldownRemaining;
+        VulkanTelemetryStateBinder.copyMatchingFields(state, this);
     }
 
     private ReflectionSsrTaaRiskDiagnostics updateReflectionSsrTaaRiskDiagnostics(
@@ -2308,41 +1502,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             long taaDrops
     ) {
         VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState state = new VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState();
-        state.reflectionSsrTaaRiskHighStreak = reflectionSsrTaaRiskHighStreak;
-        state.reflectionSsrTaaRiskWarnCooldownRemaining = reflectionSsrTaaRiskWarnCooldownRemaining;
-        state.reflectionSsrTaaEmaReject = reflectionSsrTaaEmaReject;
-        state.reflectionSsrTaaEmaConfidence = reflectionSsrTaaEmaConfidence;
-        state.reflectionSsrTaaLatestRejectRate = reflectionSsrTaaLatestRejectRate;
-        state.reflectionSsrTaaLatestConfidenceMean = reflectionSsrTaaLatestConfidenceMean;
-        state.reflectionSsrTaaLatestDropEvents = reflectionSsrTaaLatestDropEvents;
-        state.reflectionSsrTaaInstabilityRejectMin = reflectionSsrTaaInstabilityRejectMin;
-        state.reflectionSsrTaaInstabilityConfidenceMax = reflectionSsrTaaInstabilityConfidenceMax;
-        state.reflectionSsrTaaInstabilityDropEventsMin = reflectionSsrTaaInstabilityDropEventsMin;
-        state.reflectionSsrTaaInstabilityWarnMinFrames = reflectionSsrTaaInstabilityWarnMinFrames;
-        state.reflectionSsrTaaInstabilityWarnCooldownFrames = reflectionSsrTaaInstabilityWarnCooldownFrames;
-        state.reflectionSsrTaaRiskEmaAlpha = reflectionSsrTaaRiskEmaAlpha;
+        VulkanTelemetryStateBinder.copyMatchingFields(this, state);
         VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskUpdateResult result =
                 VulkanReflectionAdaptiveDiagnostics.updateSsrTaaRisk(state, taaReject, taaConfidence, taaDrops);
-        reflectionSsrTaaRiskHighStreak = result.state.reflectionSsrTaaRiskHighStreak;
-        reflectionSsrTaaRiskWarnCooldownRemaining = result.state.reflectionSsrTaaRiskWarnCooldownRemaining;
-        reflectionSsrTaaEmaReject = result.state.reflectionSsrTaaEmaReject;
-        reflectionSsrTaaEmaConfidence = result.state.reflectionSsrTaaEmaConfidence;
-        reflectionSsrTaaLatestRejectRate = result.state.reflectionSsrTaaLatestRejectRate;
-        reflectionSsrTaaLatestConfidenceMean = result.state.reflectionSsrTaaLatestConfidenceMean;
-        reflectionSsrTaaLatestDropEvents = result.state.reflectionSsrTaaLatestDropEvents;
+        VulkanTelemetryStateBinder.copyMatchingFields(result.state, this);
         return result.diagnostics;
     }
 
     private void resetReflectionSsrTaaRiskDiagnostics() {
         VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState state = new VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState();
         VulkanReflectionAdaptiveDiagnostics.resetSsrTaaRisk(state);
-        reflectionSsrTaaRiskHighStreak = state.reflectionSsrTaaRiskHighStreak;
-        reflectionSsrTaaRiskWarnCooldownRemaining = state.reflectionSsrTaaRiskWarnCooldownRemaining;
-        reflectionSsrTaaEmaReject = state.reflectionSsrTaaEmaReject;
-        reflectionSsrTaaEmaConfidence = state.reflectionSsrTaaEmaConfidence;
-        reflectionSsrTaaLatestRejectRate = state.reflectionSsrTaaLatestRejectRate;
-        reflectionSsrTaaLatestConfidenceMean = state.reflectionSsrTaaLatestConfidenceMean;
-        reflectionSsrTaaLatestDropEvents = state.reflectionSsrTaaLatestDropEvents;
+        VulkanTelemetryStateBinder.copyMatchingFields(state, this);
     }
 
     private void applyAdaptiveReflectionPostParameters() {
@@ -2455,54 +1625,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     private void refreshReflectionRtPathState(int reflectionBaseMode) {
         VulkanReflectionRtStateMachine.State state = new VulkanReflectionRtStateMachine.State();
-        state.currentPost = currentPost;
-        state.mockContext = mockContext;
-        state.reflectionRtSingleBounceEnabled = reflectionRtSingleBounceEnabled;
-        state.reflectionRtMultiBounceEnabled = reflectionRtMultiBounceEnabled;
-        state.reflectionRtDedicatedPipelineEnabled = reflectionRtDedicatedPipelineEnabled;
-        state.reflectionRtDedicatedDenoisePipelineEnabled = reflectionRtDedicatedDenoisePipelineEnabled;
-        state.reflectionRtPromotionReadyLastFrame = reflectionRtPromotionReadyLastFrame;
-        state.reflectionPlanarScopeIncludeAuto = reflectionPlanarScopeIncludeAuto;
-        state.reflectionPlanarScopeIncludeProbeOnly = reflectionPlanarScopeIncludeProbeOnly;
-        state.reflectionPlanarScopeIncludeSsrOnly = reflectionPlanarScopeIncludeSsrOnly;
-        state.reflectionPlanarScopeIncludeOther = reflectionPlanarScopeIncludeOther;
-        state.reflectionSsrTaaReprojectionPolicyActive = reflectionSsrTaaReprojectionPolicyActive;
-        state.reflectionSsrTaaHistoryPolicyActive = reflectionSsrTaaHistoryPolicyActive;
-        state.plannedVisibleObjects = plannedVisibleObjects;
-        state.reflectionRtLaneRequested = reflectionRtLaneRequested;
-        state.reflectionRtTraversalSupported = reflectionRtTraversalSupported;
-        state.reflectionRtDedicatedCapabilitySupported = reflectionRtDedicatedCapabilitySupported;
-        state.reflectionRtLaneActive = reflectionRtLaneActive;
-        state.reflectionRtDedicatedHardwarePipelineActive = reflectionRtDedicatedHardwarePipelineActive;
-        state.reflectionRtFallbackChainActive = reflectionRtFallbackChainActive;
-        state.reflectionRtRequireActive = reflectionRtRequireActive;
-        state.reflectionRtRequireMultiBounce = reflectionRtRequireMultiBounce;
-        state.reflectionRtRequireDedicatedPipeline = reflectionRtRequireDedicatedPipeline;
-        state.reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActiveUnmetLastFrame;
-        state.reflectionRtRequireMultiBounceUnmetLastFrame = reflectionRtRequireMultiBounceUnmetLastFrame;
-        state.reflectionRtRequireDedicatedPipelineUnmetLastFrame = reflectionRtRequireDedicatedPipelineUnmetLastFrame;
-        state.reflectionRtBlasLifecycleState = reflectionRtBlasLifecycleState;
-        state.reflectionRtTlasLifecycleState = reflectionRtTlasLifecycleState;
-        state.reflectionRtSbtLifecycleState = reflectionRtSbtLifecycleState;
-        state.reflectionRtBlasObjectCount = reflectionRtBlasObjectCount;
-        state.reflectionRtTlasInstanceCount = reflectionRtTlasInstanceCount;
-        state.reflectionRtSbtRecordCount = reflectionRtSbtRecordCount;
+        VulkanTelemetryStateBinder.copyMatchingFields(this, state);
         VulkanReflectionRtStateMachine.refreshRtPathState(state, reflectionBaseMode, context);
-        reflectionRtLaneRequested = state.reflectionRtLaneRequested;
-        reflectionRtTraversalSupported = state.reflectionRtTraversalSupported;
-        reflectionRtDedicatedCapabilitySupported = state.reflectionRtDedicatedCapabilitySupported;
-        reflectionRtLaneActive = state.reflectionRtLaneActive;
-        reflectionRtDedicatedHardwarePipelineActive = state.reflectionRtDedicatedHardwarePipelineActive;
-        reflectionRtFallbackChainActive = state.reflectionRtFallbackChainActive;
-        reflectionRtRequireActiveUnmetLastFrame = state.reflectionRtRequireActiveUnmetLastFrame;
-        reflectionRtRequireMultiBounceUnmetLastFrame = state.reflectionRtRequireMultiBounceUnmetLastFrame;
-        reflectionRtRequireDedicatedPipelineUnmetLastFrame = state.reflectionRtRequireDedicatedPipelineUnmetLastFrame;
-        reflectionRtBlasLifecycleState = state.reflectionRtBlasLifecycleState;
-        reflectionRtTlasLifecycleState = state.reflectionRtTlasLifecycleState;
-        reflectionRtSbtLifecycleState = state.reflectionRtSbtLifecycleState;
-        reflectionRtBlasObjectCount = state.reflectionRtBlasObjectCount;
-        reflectionRtTlasInstanceCount = state.reflectionRtTlasInstanceCount;
-        reflectionRtSbtRecordCount = state.reflectionRtSbtRecordCount;
+        VulkanTelemetryStateBinder.copyMatchingFields(state, this);
     }
 
     private int composeReflectionExecutionMode(
@@ -2512,20 +1637,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean transparencyCandidatesPresent
     ) {
         VulkanReflectionRtStateMachine.State state = new VulkanReflectionRtStateMachine.State();
-        state.currentPost = currentPost;
-        state.mockContext = mockContext;
-        state.reflectionRtSingleBounceEnabled = reflectionRtSingleBounceEnabled;
-        state.reflectionRtMultiBounceEnabled = reflectionRtMultiBounceEnabled;
-        state.reflectionRtDedicatedPipelineEnabled = reflectionRtDedicatedPipelineEnabled;
-        state.reflectionRtDedicatedDenoisePipelineEnabled = reflectionRtDedicatedDenoisePipelineEnabled;
-        state.reflectionRtPromotionReadyLastFrame = reflectionRtPromotionReadyLastFrame;
-        state.reflectionPlanarScopeIncludeAuto = reflectionPlanarScopeIncludeAuto;
-        state.reflectionPlanarScopeIncludeProbeOnly = reflectionPlanarScopeIncludeProbeOnly;
-        state.reflectionPlanarScopeIncludeSsrOnly = reflectionPlanarScopeIncludeSsrOnly;
-        state.reflectionPlanarScopeIncludeOther = reflectionPlanarScopeIncludeOther;
-        state.reflectionSsrTaaReprojectionPolicyActive = reflectionSsrTaaReprojectionPolicyActive;
-        state.reflectionSsrTaaHistoryPolicyActive = reflectionSsrTaaHistoryPolicyActive;
-        state.reflectionRtDedicatedHardwarePipelineActive = reflectionRtDedicatedHardwarePipelineActive;
+        VulkanTelemetryStateBinder.copyMatchingFields(this, state);
         return VulkanReflectionRtStateMachine.composeExecutionMode(
                 state,
                 configuredMode,
@@ -2697,42 +1809,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     ReflectionProbeStreamingDiagnostics debugReflectionProbeStreamingDiagnostics() {
-        VulkanContext.ReflectionProbeDiagnostics diagnostics = context.debugReflectionProbeDiagnostics();
-        int effectiveStreamingBudget = Math.max(1, Math.min(reflectionProbeMaxVisible, diagnostics.metadataCapacity()));
-        boolean budgetPressure = diagnostics.configuredProbeCount() > diagnostics.activeProbeCount()
-                && (diagnostics.activeProbeCount() >= effectiveStreamingBudget || diagnostics.activeProbeCount() == 0);
-        double missingSlotRatio = diagnostics.visibleUniquePathCount() <= 0
-                ? 0.0
-                : (double) diagnostics.missingSlotPathCount() / (double) diagnostics.visibleUniquePathCount();
-        double deferredRatio = diagnostics.frustumVisibleCount() <= 0
-                ? 0.0
-                : (double) diagnostics.deferredProbeCount() / (double) diagnostics.frustumVisibleCount();
-        int active = Math.max(1, diagnostics.activeProbeCount());
-        double lodSkewRatio = (double) diagnostics.lodTier3Count() / (double) active;
-        double memoryEstimateMb = diagnostics.activeProbeCount() * 1.5;
-        return new ReflectionProbeStreamingDiagnostics(
-                diagnostics.configuredProbeCount(),
-                diagnostics.activeProbeCount(),
-                reflectionProbeMaxVisible,
-                effectiveStreamingBudget,
-                reflectionProbeUpdateCadenceFrames,
-                reflectionProbeLodDepthScale,
-                diagnostics.frustumVisibleCount(),
-                diagnostics.deferredProbeCount(),
-                diagnostics.visibleUniquePathCount(),
-                diagnostics.missingSlotPathCount(),
-                missingSlotRatio,
-                deferredRatio,
-                lodSkewRatio,
-                reflectionProbeStreamingMemoryBudgetMb,
-                memoryEstimateMb,
-                reflectionProbeStreamingHighStreak,
-                reflectionProbeStreamingWarnMinFrames,
-                reflectionProbeStreamingWarnCooldownFrames,
-                reflectionProbeStreamingWarnCooldownRemaining,
-                budgetPressure,
-                reflectionProbeStreamingBreachedLastFrame
-        );
+        return VulkanReflectionDiagnosticsBuilders.probeStreaming(this, context);
     }
 
     ReflectionProbeChurnDiagnostics debugReflectionProbeChurnDiagnostics() {
@@ -2740,253 +1817,71 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     ReflectionProbeQualityDiagnostics debugReflectionProbeQualityDiagnostics() {
-        return reflectionProbeQualityDiagnostics;
+        return VulkanReflectionDiagnosticsBuilders.probeQuality(this);
     }
 
     ReflectionSsrTaaRiskDiagnostics debugReflectionSsrTaaRiskDiagnostics() {
-        return new ReflectionSsrTaaRiskDiagnostics(
-                false,
-                reflectionSsrTaaRiskHighStreak,
-                reflectionSsrTaaRiskWarnCooldownRemaining,
-                reflectionSsrTaaEmaReject < 0.0 ? 0.0 : reflectionSsrTaaEmaReject,
-                reflectionSsrTaaEmaConfidence < 0.0 ? 1.0 : reflectionSsrTaaEmaConfidence,
-                false
-        );
+        return VulkanReflectionDiagnosticsBuilders.ssrTaaRisk(this);
     }
 
     ReflectionPlanarContractDiagnostics debugReflectionPlanarContractDiagnostics() {
-        return new ReflectionPlanarContractDiagnostics(
-                reflectionPlanarPassOrderContractStatus,
-                reflectionPlanarScopedMeshEligibleCount,
-                reflectionPlanarScopedMeshExcludedCount,
-                reflectionPlanarMirrorCameraActive,
-                reflectionPlanarDedicatedCaptureLaneActive
-        );
+        return VulkanReflectionDiagnosticsBuilders.planarContract(this);
     }
 
     ReflectionPlanarStabilityDiagnostics debugReflectionPlanarStabilityDiagnostics() {
-        return new ReflectionPlanarStabilityDiagnostics(
-                reflectionPlanarLatestPlaneDelta,
-                reflectionPlanarLatestCoverageRatio,
-                reflectionPlanarEnvelopePlaneDeltaWarnMax,
-                reflectionPlanarEnvelopeCoverageRatioWarnMin,
-                reflectionPlanarEnvelopeHighStreak,
-                reflectionPlanarEnvelopeWarnMinFrames,
-                reflectionPlanarEnvelopeWarnCooldownFrames,
-                reflectionPlanarEnvelopeWarnCooldownRemaining,
-                reflectionPlanarEnvelopeBreachedLastFrame
-        );
+        return VulkanReflectionDiagnosticsBuilders.planarStability(this);
     }
 
     ReflectionPlanarPerfDiagnostics debugReflectionPlanarPerfDiagnostics() {
-        return new ReflectionPlanarPerfDiagnostics(
-                reflectionPlanarPerfLastGpuMsEstimate,
-                reflectionPlanarPerfLastGpuMsCap,
-                reflectionPlanarPerfLastTimingSource,
-                reflectionPlanarPerfLastTimestampAvailable,
-                reflectionPlanarPerfRequireGpuTimestamp,
-                reflectionPlanarPerfLastTimestampRequirementUnmet,
-                reflectionPlanarPerfLastDrawInflation,
-                reflectionPlanarPerfDrawInflationWarnMax,
-                reflectionPlanarPerfLastMemoryBytes,
-                reflectionPlanarPerfLastMemoryBudgetBytes,
-                reflectionPlanarPerfHighStreak,
-                reflectionPlanarPerfWarnMinFrames,
-                reflectionPlanarPerfWarnCooldownFrames,
-                reflectionPlanarPerfWarnCooldownRemaining,
-                reflectionPlanarPerfBreachedLastFrame
-        );
+        return VulkanReflectionDiagnosticsBuilders.planarPerf(this);
     }
 
     ReflectionOverridePolicyDiagnostics debugReflectionOverridePolicyDiagnostics() {
-        ReflectionOverrideSummary summary = VulkanReflectionAnalysis.summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
-        int total = Math.max(1, summary.totalCount());
-        return new ReflectionOverridePolicyDiagnostics(
-                summary.autoCount(),
-                summary.probeOnlyCount(),
-                summary.ssrOnlyCount(),
-                summary.otherCount(),
-                (double) summary.probeOnlyCount() / (double) total,
-                (double) summary.ssrOnlyCount() / (double) total,
-                reflectionOverrideProbeOnlyRatioWarnMax,
-                reflectionOverrideSsrOnlyRatioWarnMax,
-                reflectionOverrideOtherWarnMax,
-                reflectionOverrideHighStreak,
-                reflectionOverrideWarnMinFrames,
-                reflectionOverrideWarnCooldownFrames,
-                reflectionOverrideWarnCooldownRemaining,
-                reflectionOverrideBreachedLastFrame,
-                "probe_only|ssr_only"
-        );
+        return VulkanReflectionDiagnosticsBuilders.overridePolicy(this, context);
     }
 
     ReflectionContactHardeningDiagnostics debugReflectionContactHardeningDiagnostics() {
-        return new ReflectionContactHardeningDiagnostics(
-                reflectionContactHardeningActiveLastFrame,
-                reflectionContactHardeningEstimatedStrengthLastFrame,
-                reflectionContactHardeningMinSsrStrength,
-                reflectionContactHardeningMinSsrMaxRoughness,
-                reflectionContactHardeningHighStreak,
-                reflectionContactHardeningWarnMinFrames,
-                reflectionContactHardeningWarnCooldownFrames,
-                reflectionContactHardeningWarnCooldownRemaining,
-                reflectionContactHardeningBreachedLastFrame
-        );
+        return VulkanReflectionDiagnosticsBuilders.contactHardening(this);
     }
 
     ReflectionRtPathDiagnostics debugReflectionRtPathDiagnostics() {
-        return new ReflectionRtPathDiagnostics(
-                reflectionRtLaneRequested,
-                reflectionRtLaneActive,
-                reflectionRtSingleBounceEnabled,
-                reflectionRtMultiBounceEnabled,
-                reflectionRtRequireActive,
-                reflectionRtRequireActiveUnmetLastFrame,
-                reflectionRtRequireMultiBounce,
-                reflectionRtRequireMultiBounceUnmetLastFrame,
-                reflectionRtRequireDedicatedPipeline,
-                reflectionRtRequireDedicatedPipelineUnmetLastFrame,
-                reflectionRtDedicatedPipelineEnabled,
-                reflectionRtTraversalSupported,
-                reflectionRtDedicatedCapabilitySupported,
-                reflectionRtDedicatedHardwarePipelineActive,
-                reflectionRtDedicatedDenoisePipelineEnabled,
-                reflectionRtDenoiseStrength,
-                reflectionRtFallbackChainActive
-        );
+        return VulkanReflectionDiagnosticsBuilders.rtPath(this);
     }
 
     ReflectionRtPerfDiagnostics debugReflectionRtPerfDiagnostics() {
-        return new ReflectionRtPerfDiagnostics(
-                reflectionRtPerfLastGpuMsEstimate,
-                reflectionRtPerfLastGpuMsCap,
-                reflectionRtPerfHighStreak,
-                reflectionRtPerfWarnMinFrames,
-                reflectionRtPerfWarnCooldownFrames,
-                reflectionRtPerfWarnCooldownRemaining,
-                reflectionRtPerfBreachedLastFrame
-        );
+        return VulkanReflectionDiagnosticsBuilders.rtPerf(this);
     }
 
     ReflectionRtPipelineDiagnostics debugReflectionRtPipelineDiagnostics() {
-        return new ReflectionRtPipelineDiagnostics(
-                reflectionRtBlasLifecycleState,
-                reflectionRtTlasLifecycleState,
-                reflectionRtSbtLifecycleState,
-                reflectionRtBlasObjectCount,
-                reflectionRtTlasInstanceCount,
-                reflectionRtSbtRecordCount
-        );
+        return VulkanReflectionDiagnosticsBuilders.rtPipeline(this);
     }
 
     ReflectionRtHybridDiagnostics debugReflectionRtHybridDiagnostics() {
-        return new ReflectionRtHybridDiagnostics(
-                reflectionRtHybridRtShare,
-                reflectionRtHybridSsrShare,
-                reflectionRtHybridProbeShare,
-                reflectionRtHybridProbeShareWarnMax,
-                reflectionRtHybridHighStreak,
-                reflectionRtHybridWarnMinFrames,
-                reflectionRtHybridWarnCooldownFrames,
-                reflectionRtHybridWarnCooldownRemaining,
-                reflectionRtHybridBreachedLastFrame
-        );
+        return VulkanReflectionDiagnosticsBuilders.rtHybrid(this);
     }
 
     ReflectionRtDenoiseDiagnostics debugReflectionRtDenoiseDiagnostics() {
-        return new ReflectionRtDenoiseDiagnostics(
-                reflectionRtDenoiseSpatialVariance,
-                reflectionRtDenoiseSpatialVarianceWarnMax,
-                reflectionRtDenoiseTemporalLag,
-                reflectionRtDenoiseTemporalLagWarnMax,
-                reflectionRtDenoiseHighStreak,
-                reflectionRtDenoiseWarnMinFrames,
-                reflectionRtDenoiseWarnCooldownFrames,
-                reflectionRtDenoiseWarnCooldownRemaining,
-                reflectionRtDenoiseBreachedLastFrame
-        );
+        return VulkanReflectionDiagnosticsBuilders.rtDenoise(this);
     }
 
     ReflectionRtAsBudgetDiagnostics debugReflectionRtAsBudgetDiagnostics() {
-        return new ReflectionRtAsBudgetDiagnostics(
-                reflectionRtAsBuildGpuMsEstimate,
-                reflectionRtAsBuildGpuMsWarnMax,
-                reflectionRtAsMemoryMbEstimate,
-                reflectionRtAsMemoryBudgetMb,
-                reflectionRtAsBudgetHighStreak,
-                reflectionRtPerfWarnMinFrames,
-                reflectionRtPerfWarnCooldownFrames,
-                reflectionRtAsBudgetWarnCooldownRemaining,
-                reflectionRtAsBudgetBreachedLastFrame
-        );
+        return VulkanReflectionDiagnosticsBuilders.rtAsBudget(this);
     }
 
     ReflectionRtPromotionDiagnostics debugReflectionRtPromotionDiagnostics() {
-        return new ReflectionRtPromotionDiagnostics(
-                reflectionRtPromotionReadyLastFrame,
-                reflectionRtPromotionReadyHighStreak,
-                reflectionRtPromotionReadyMinFrames,
-                reflectionRtDedicatedHardwarePipelineActive,
-                reflectionRtPerfBreachedLastFrame,
-                reflectionRtHybridBreachedLastFrame,
-                reflectionRtDenoiseBreachedLastFrame,
-                reflectionRtAsBudgetBreachedLastFrame,
-                reflectionTransparencyStageGateStatus
-        );
+        return VulkanReflectionDiagnosticsBuilders.rtPromotion(this);
     }
 
     ReflectionTransparencyDiagnostics debugReflectionTransparencyDiagnostics() {
-        return new ReflectionTransparencyDiagnostics(
-                reflectionTransparentCandidateCount,
-                reflectionTransparencyAlphaTestedCandidateCount,
-                reflectionTransparencyReactiveCandidateCount,
-                reflectionTransparencyProbeOnlyCandidateCount,
-                reflectionTransparencyStageGateStatus,
-                reflectionTransparencyFallbackPath,
-                reflectionRtLaneActive,
-                reflectionTransparencyCandidateReactiveMin,
-                reflectionTransparencyProbeOnlyRatioWarnMax,
-                reflectionTransparencyHighStreak,
-                reflectionTransparencyWarnMinFrames,
-                reflectionTransparencyWarnCooldownFrames,
-                reflectionTransparencyWarnCooldownRemaining,
-                reflectionTransparencyBreachedLastFrame
-        );
+        return VulkanReflectionDiagnosticsBuilders.transparency(this);
     }
 
     ReflectionAdaptivePolicyDiagnostics debugReflectionAdaptivePolicyDiagnostics() {
-        return new ReflectionAdaptivePolicyDiagnostics(
-                reflectionSsrTaaAdaptiveEnabled,
-                currentPost.reflectionsTemporalWeight(),
-                reflectionAdaptiveTemporalWeightActive,
-                currentPost.reflectionsSsrStrength(),
-                reflectionAdaptiveSsrStrengthActive,
-                currentPost.reflectionsSsrStepScale(),
-                reflectionAdaptiveSsrStepScaleActive,
-                reflectionSsrTaaAdaptiveTemporalBoostMax,
-                reflectionSsrTaaAdaptiveSsrStrengthScaleMin,
-                reflectionSsrTaaAdaptiveStepScaleBoostMax
-        );
+        return VulkanReflectionDiagnosticsBuilders.adaptivePolicy(this);
     }
 
     ReflectionSsrTaaHistoryPolicyDiagnostics debugReflectionSsrTaaHistoryPolicyDiagnostics() {
-        return new ReflectionSsrTaaHistoryPolicyDiagnostics(
-                reflectionSsrTaaHistoryPolicyActive,
-                reflectionSsrTaaReprojectionPolicyActive,
-                reflectionAdaptiveSeverityInstant,
-                reflectionSsrTaaRiskHighStreak,
-                reflectionSsrTaaLatestRejectRate,
-                reflectionSsrTaaLatestConfidenceMean,
-                reflectionSsrTaaLatestDropEvents,
-                reflectionSsrTaaHistoryRejectBiasActive,
-                reflectionSsrTaaHistoryConfidenceDecayActive,
-                reflectionSsrTaaHistoryRejectSeverityMin,
-                reflectionSsrTaaHistoryConfidenceDecaySeverityMin,
-                reflectionSsrTaaHistoryRejectRiskStreakMin,
-                reflectionSsrTaaDisocclusionRejectDropEventsMin,
-                reflectionSsrTaaDisocclusionRejectConfidenceMax,
-                reflectionSsrTaaAdaptiveEnabled
-        );
+        return VulkanReflectionDiagnosticsBuilders.historyPolicy(this);
     }
 
     ReflectionAdaptiveTrendDiagnostics debugReflectionAdaptiveTrendDiagnostics() {
@@ -3019,79 +1914,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private PostProcessRenderConfig applyExternalUpscalerDecision(PostProcessRenderConfig base) {
-        if (base == null) {
-            nativeUpscalerActive = false;
-            nativeUpscalerProvider = externalUpscaler.providerId();
-            nativeUpscalerDetail = "no post-process config";
-            return null;
-        }
-        nativeUpscalerProvider = externalUpscaler.providerId();
-        if (!base.taaEnabled() || upscalerMode == UpscalerMode.NONE || (aaMode != AaMode.TSR && aaMode != AaMode.TUUA)) {
-            nativeUpscalerActive = false;
-            nativeUpscalerDetail = "inactive for current aaMode/upscaler selection";
-            return base;
-        }
-        ExternalUpscalerBridge.Decision decision = externalUpscaler.evaluate(new ExternalUpscalerBridge.DecisionInput(
-                "vulkan",
-                aaMode.name().toLowerCase(),
-                upscalerMode.name().toLowerCase(),
-                upscalerQuality.name().toLowerCase(),
-                qualityTier.name().toLowerCase(),
-                base.taaBlend(),
-                base.taaClipScale(),
-                base.taaSharpenStrength(),
-                base.taaRenderScale(),
-                base.taaLumaClipEnabled(),
-                tsrControls.historyWeight(),
-                tsrControls.responsiveMask(),
-                tsrControls.neighborhoodClamp(),
-                tsrControls.reprojectionConfidence(),
-                tsrControls.sharpen(),
-                tsrControls.antiRinging()
-        ));
-        if (decision == null || !decision.nativeActive()) {
-            nativeUpscalerActive = false;
-            nativeUpscalerDetail = decision == null ? "null external decision" : decision.detail();
-            return base;
-        }
-        nativeUpscalerActive = true;
-        nativeUpscalerDetail = decision.detail() == null || decision.detail().isBlank()
-                ? "native overrides applied"
-                : decision.detail();
-        float taaBlend = decision.taaBlendOverride() == null ? base.taaBlend() : clamp(decision.taaBlendOverride(), 0f, 0.95f);
-        float taaClipScale = decision.taaClipScaleOverride() == null ? base.taaClipScale() : clamp(decision.taaClipScaleOverride(), 0.5f, 1.6f);
-        float taaSharpen = decision.taaSharpenStrengthOverride() == null ? base.taaSharpenStrength() : clamp(decision.taaSharpenStrengthOverride(), 0f, 0.35f);
-        float taaRenderScale = decision.taaRenderScaleOverride() == null ? base.taaRenderScale() : clamp(decision.taaRenderScaleOverride(), 0.5f, 1.0f);
-        boolean taaLumaClip = decision.taaLumaClipEnabledOverride() == null ? base.taaLumaClipEnabled() : decision.taaLumaClipEnabledOverride();
-        return new PostProcessRenderConfig(
-                base.tonemapEnabled(),
-                base.exposure(),
-                base.gamma(),
-                base.bloomEnabled(),
-                base.bloomThreshold(),
-                base.bloomStrength(),
-                base.ssaoEnabled(),
-                base.ssaoStrength(),
-                base.ssaoRadius(),
-                base.ssaoBias(),
-                base.ssaoPower(),
-                base.smaaEnabled(),
-                base.smaaStrength(),
-                base.taaEnabled(),
-                taaBlend,
-                taaClipScale,
-                taaLumaClip,
-                taaSharpen,
-                taaRenderScale,
-                base.reflectionsEnabled(),
-                base.reflectionsMode(),
-                base.reflectionsSsrStrength(),
-                base.reflectionsSsrMaxRoughness(),
-                base.reflectionsSsrStepScale(),
-                base.reflectionsTemporalWeight(),
-                base.reflectionsPlanarStrength(),
-                base.reflectionsPlanarPlaneHeight()
+        VulkanExternalUpscalerDecider.Result result = VulkanExternalUpscalerDecider.decide(
+                base,
+                externalUpscaler,
+                aaMode,
+                upscalerMode,
+                upscalerQuality,
+                qualityTier,
+                tsrControls
         );
+        nativeUpscalerActive = result.nativeUpscalerActive;
+        nativeUpscalerProvider = result.nativeUpscalerProvider;
+        nativeUpscalerDetail = result.nativeUpscalerDetail;
+        return result.config;
     }
 
     private static float clamp(float value, float min, float max) {
