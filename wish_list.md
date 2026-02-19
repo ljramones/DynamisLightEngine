@@ -9,6 +9,7 @@ Review metadata:
 - Next review trigger: any feature milestone closeout or tier-profile change
 - Latest reflection update: 2026-02-19 12:14 ET — Reflections Vulkan closeout index added (`docs/reflections-vulkan-closeout.md`) with linked checklists, exit criteria, and promotion commit ledger.
 - Latest shadow contract update: 2026-02-19 13:05 ET — Shadow v2 backlog modes/checklist added (`docs/shadow-contract-v2-backlog-checklist.md`) to track remaining shadow items through contract validation.
+- Latest structure guardrails update: 2026-02-19 16:40 ET — Class-size and package hygiene guardrails added (`scripts/java_structure_guardrails.sh`, `docs/structure-guardrails-phase1-checklist.md`).
 
 Status legend:
 
@@ -369,6 +370,7 @@ Post notes:
 - Hot-reload of individual capability modules (dev workflow) — `Not In Yet`
 - Telemetry per-feature (budget, timing, quality metrics) — `Partial`
 - Compare harness per-feature and per-profile (regression gates) — `In`
+- Structural guardrails (class line-limit + package hygiene checks) — `In`
 
 ---
 
@@ -378,6 +380,7 @@ Notes:
 - For pipeline and migration policy context, see:
   - `docs/adr/0002-feature-composition-and-pipeline-migration-policy.md`
   - `docs/architecture/vulkan-render-pipeline-current.md`
+- Structure guardrails now run via `scripts/java_structure_guardrails.sh` (Vulkan-scoped by default; optional full-tree scan with `SCOPE=all`).
 
 ## Status Update Checklist
 

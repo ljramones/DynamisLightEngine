@@ -9,6 +9,9 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 - Phase D (planned): platform/tooling expansion.
 
 ## Latest Completed Batch (February 2026)
+- Added enforceable Java structure guardrails:
+  - class hard limit + hotspot reporting + Vulkan root-package class-count cap via `scripts/java_structure_guardrails.sh`
+  - phase checklist and verification commands tracked in `docs/structure-guardrails-phase1-checklist.md`
 - Phase A TAA baseline started:
   - added `taaEnabled` + `taaBlend` controls to `PostProcessDesc` with backward-compatible overloads
   - OpenGL and Vulkan post-pass paths perform temporal blend against a history texture (with resize/reset-safe lifecycle)
