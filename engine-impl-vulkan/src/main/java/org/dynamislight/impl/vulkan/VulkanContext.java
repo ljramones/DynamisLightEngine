@@ -11,8 +11,6 @@ import org.dynamislight.impl.vulkan.command.VulkanFrameCommandInputAssembler;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
 import org.dynamislight.impl.vulkan.command.VulkanFrameSubmitCoordinator;
 import org.dynamislight.impl.vulkan.command.VulkanCommandInputCoordinator;
-import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorResources;
-import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorLifecycleCoordinator;
 import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorSetCoordinator;
 import org.dynamislight.impl.vulkan.lifecycle.VulkanLifecycleOrchestrator;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
@@ -1029,125 +1027,29 @@ public final class VulkanContext {
     }
 
     private void createDescriptorResources(MemoryStack stack) throws EngineException {
-        VulkanDescriptorResources.Allocation allocation = VulkanDescriptorResources.create(
-                backendResources.device,
-                backendResources.physicalDevice,
+        estimatedGpuMemoryBytes = VulkanContextDescriptorRuntimeHelper.createDescriptorResources(
                 stack,
+                backendResources,
+                descriptorResources,
                 framesInFlight,
                 maxDynamicSceneObjects,
                 DEFAULT_MAX_REFLECTION_PROBES,
                 OBJECT_UNIFORM_BYTES,
                 GLOBAL_SCENE_UNIFORM_BYTES
         );
-        descriptorResources.descriptorSetLayout = allocation.descriptorSetLayout();
-        descriptorResources.textureDescriptorSetLayout = allocation.textureDescriptorSetLayout();
-        descriptorResources.descriptorPool = allocation.descriptorPool();
-        descriptorResources.frameDescriptorSets = allocation.frameDescriptorSets();
-        descriptorResources.descriptorSet = descriptorResources.frameDescriptorSets[0];
-        descriptorResources.objectUniformBuffer = allocation.objectUniformBuffer();
-        descriptorResources.objectUniformMemory = allocation.objectUniformMemory();
-        descriptorResources.objectUniformStagingBuffer = allocation.objectUniformStagingBuffer();
-        descriptorResources.objectUniformStagingMemory = allocation.objectUniformStagingMemory();
-        descriptorResources.objectUniformStagingMappedAddress = allocation.objectUniformStagingMappedAddress();
-        descriptorResources.sceneGlobalUniformBuffer = allocation.sceneGlobalUniformBuffer();
-        descriptorResources.sceneGlobalUniformMemory = allocation.sceneGlobalUniformMemory();
-        descriptorResources.sceneGlobalUniformStagingBuffer = allocation.sceneGlobalUniformStagingBuffer();
-        descriptorResources.sceneGlobalUniformStagingMemory = allocation.sceneGlobalUniformStagingMemory();
-        descriptorResources.sceneGlobalUniformStagingMappedAddress = allocation.sceneGlobalUniformStagingMappedAddress();
-        descriptorResources.reflectionProbeMetadataBuffer = allocation.reflectionProbeMetadataBuffer();
-        descriptorResources.reflectionProbeMetadataMemory = allocation.reflectionProbeMetadataMemory();
-        descriptorResources.reflectionProbeMetadataMappedAddress = allocation.reflectionProbeMetadataMappedAddress();
-        descriptorResources.reflectionProbeMetadataMaxCount = allocation.reflectionProbeMetadataMaxCount();
-        descriptorResources.reflectionProbeMetadataStrideBytes = allocation.reflectionProbeMetadataStrideBytes();
-        descriptorResources.reflectionProbeMetadataBufferBytes = allocation.reflectionProbeMetadataBufferBytes();
-        descriptorResources.reflectionProbeMetadataActiveCount = 0;
-        descriptorResources.uniformStrideBytes = allocation.uniformStrideBytes();
-        descriptorResources.uniformFrameSpanBytes = allocation.uniformFrameSpanBytes();
-        descriptorResources.globalUniformFrameSpanBytes = allocation.globalUniformFrameSpanBytes();
-        estimatedGpuMemoryBytes = allocation.estimatedGpuMemoryBytes();
     }
 
     private void destroyDescriptorResources() {
-        if (backendResources.device == null) {
-            return;
-        }
-        VulkanDescriptorLifecycleCoordinator.ResetState state = VulkanDescriptorLifecycleCoordinator.destroyAndReset(
-                new VulkanDescriptorLifecycleCoordinator.DestroyRequest(
-                        backendResources.device,
-                        new VulkanDescriptorResources.Allocation(
-                                descriptorResources.descriptorSetLayout,
-                                descriptorResources.textureDescriptorSetLayout,
-                                descriptorResources.descriptorPool,
-                                descriptorResources.frameDescriptorSets,
-                                descriptorResources.objectUniformBuffer,
-                                descriptorResources.objectUniformMemory,
-                                descriptorResources.objectUniformStagingBuffer,
-                                descriptorResources.objectUniformStagingMemory,
-                                descriptorResources.objectUniformStagingMappedAddress,
-                                descriptorResources.sceneGlobalUniformBuffer,
-                                descriptorResources.sceneGlobalUniformMemory,
-                                descriptorResources.sceneGlobalUniformStagingBuffer,
-                                descriptorResources.sceneGlobalUniformStagingMemory,
-                                descriptorResources.sceneGlobalUniformStagingMappedAddress,
-                                descriptorResources.reflectionProbeMetadataBuffer,
-                                descriptorResources.reflectionProbeMetadataMemory,
-                                descriptorResources.reflectionProbeMetadataMappedAddress,
-                                descriptorResources.reflectionProbeMetadataMaxCount,
-                                descriptorResources.reflectionProbeMetadataStrideBytes,
-                                descriptorResources.reflectionProbeMetadataBufferBytes,
-                                descriptorResources.uniformStrideBytes,
-                                descriptorResources.uniformFrameSpanBytes,
-                                descriptorResources.globalUniformFrameSpanBytes,
-                                estimatedGpuMemoryBytes
-                        ),
-                        OBJECT_UNIFORM_BYTES,
-                        GLOBAL_SCENE_UNIFORM_BYTES
-                )
+        estimatedGpuMemoryBytes = VulkanContextDescriptorRuntimeHelper.destroyDescriptorResources(
+                backendResources,
+                descriptorResources,
+                descriptorRingStats,
+                frameUploadStats,
+                uploadState,
+                estimatedGpuMemoryBytes,
+                OBJECT_UNIFORM_BYTES,
+                GLOBAL_SCENE_UNIFORM_BYTES
         );
-        descriptorResources.objectUniformBuffer = state.objectUniformBuffer();
-        descriptorResources.objectUniformMemory = state.objectUniformMemory();
-        descriptorResources.objectUniformStagingBuffer = state.objectUniformStagingBuffer();
-        descriptorResources.objectUniformStagingMemory = state.objectUniformStagingMemory();
-        descriptorResources.objectUniformStagingMappedAddress = state.objectUniformStagingMappedAddress();
-        descriptorResources.sceneGlobalUniformBuffer = state.sceneGlobalUniformBuffer();
-        descriptorResources.sceneGlobalUniformMemory = state.sceneGlobalUniformMemory();
-        descriptorResources.sceneGlobalUniformStagingBuffer = state.sceneGlobalUniformStagingBuffer();
-        descriptorResources.sceneGlobalUniformStagingMemory = state.sceneGlobalUniformStagingMemory();
-        descriptorResources.sceneGlobalUniformStagingMappedAddress = state.sceneGlobalUniformStagingMappedAddress();
-        descriptorResources.reflectionProbeMetadataBuffer = state.reflectionProbeMetadataBuffer();
-        descriptorResources.reflectionProbeMetadataMemory = state.reflectionProbeMetadataMemory();
-        descriptorResources.reflectionProbeMetadataMappedAddress = state.reflectionProbeMetadataMappedAddress();
-        descriptorResources.reflectionProbeMetadataMaxCount = state.reflectionProbeMetadataMaxCount();
-        descriptorResources.reflectionProbeMetadataStrideBytes = state.reflectionProbeMetadataStrideBytes();
-        descriptorResources.reflectionProbeMetadataBufferBytes = state.reflectionProbeMetadataBufferBytes();
-        descriptorResources.reflectionProbeMetadataActiveCount = state.reflectionProbeMetadataActiveCount();
-        descriptorResources.uniformStrideBytes = state.uniformStrideBytes();
-        descriptorResources.uniformFrameSpanBytes = state.uniformFrameSpanBytes();
-        descriptorResources.globalUniformFrameSpanBytes = state.globalUniformFrameSpanBytes();
-        estimatedGpuMemoryBytes = state.estimatedGpuMemoryBytes();
-        descriptorResources.frameDescriptorSets = state.frameDescriptorSets();
-        descriptorResources.descriptorSet = state.descriptorSet();
-        descriptorRingStats.descriptorRingSetCapacity = state.descriptorRingSetCapacity();
-        descriptorRingStats.descriptorRingPeakSetCapacity = state.descriptorRingPeakSetCapacity();
-        descriptorRingStats.descriptorRingActiveSetCount = state.descriptorRingActiveSetCount();
-        descriptorRingStats.descriptorRingWasteSetCount = state.descriptorRingWasteSetCount();
-        descriptorRingStats.descriptorRingPeakWasteSetCount = state.descriptorRingPeakWasteSetCount();
-        descriptorRingStats.descriptorRingCapBypassCount = state.descriptorRingCapBypassCount();
-        descriptorRingStats.descriptorRingPoolReuseCount = state.descriptorRingPoolReuseCount();
-        descriptorRingStats.descriptorRingPoolResetFailureCount = state.descriptorRingPoolResetFailureCount();
-        descriptorResources.descriptorPool = state.descriptorPool();
-        descriptorResources.descriptorSetLayout = state.descriptorSetLayout();
-        descriptorResources.textureDescriptorSetLayout = state.textureDescriptorSetLayout();
-        frameUploadStats.lastUniformUploadBytes = state.lastFrameUniformUploadBytes();
-        frameUploadStats.maxUniformUploadBytes = state.maxFrameUniformUploadBytes();
-        frameUploadStats.lastGlobalUploadBytes = state.lastFrameGlobalUploadBytes();
-        frameUploadStats.maxGlobalUploadBytes = state.maxFrameGlobalUploadBytes();
-        frameUploadStats.lastUniformObjectCount = state.lastFrameUniformObjectCount();
-        frameUploadStats.maxUniformObjectCount = state.maxFrameUniformObjectCount();
-        frameUploadStats.lastUniformUploadRanges = state.lastFrameUniformUploadRanges();
-        frameUploadStats.maxUniformUploadRanges = state.maxFrameUniformUploadRanges();
-        frameUploadStats.lastUniformUploadStartObject = state.lastFrameUniformUploadStartObject();
-        uploadState.reset();
     }
 
     private void createSwapchainResources(MemoryStack stack, int requestedWidth, int requestedHeight) throws EngineException {
