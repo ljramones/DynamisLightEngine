@@ -15,16 +15,16 @@ final class VulkanEngineRuntimeIblMapper {
     private VulkanEngineRuntimeIblMapper() {
     }
 
-    static VulkanEngineRuntime.IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
+    static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
         if (environment == null) {
-            return new VulkanEngineRuntime.IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
         }
         boolean enabled = !isBlank(environment.iblIrradiancePath())
                 || !isBlank(environment.iblRadiancePath())
                 || !isBlank(environment.iblBrdfLutPath())
                 || !isBlank(environment.skyboxAssetPath());
         if (!enabled) {
-            return new VulkanEngineRuntime.IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
+            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
         }
         float tierScale = switch (qualityTier) {
             case LOW -> 0.62f;
@@ -101,7 +101,7 @@ final class VulkanEngineRuntimeIblMapper {
             textureDriven = true;
         }
 
-        return new VulkanEngineRuntime.IblRenderConfig(
+        return new IblRenderConfig(
                 true,
                 Math.max(0f, Math.min(2.0f, diffuse)),
                 Math.max(0f, Math.min(2.0f, specular)),

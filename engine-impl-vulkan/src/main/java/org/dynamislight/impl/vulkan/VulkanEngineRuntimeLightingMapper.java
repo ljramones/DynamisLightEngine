@@ -24,7 +24,7 @@ final class VulkanEngineRuntimeLightingMapper {
     private VulkanEngineRuntimeLightingMapper() {
     }
 
-    static VulkanEngineRuntime.PostProcessRenderConfig mapPostProcess(
+    static PostProcessRenderConfig mapPostProcess(
             PostProcessDesc desc,
             QualityTier qualityTier,
             boolean taaLumaClipEnabledDefault,
@@ -36,7 +36,7 @@ final class VulkanEngineRuntimeLightingMapper {
             ReflectionProfile reflectionProfile
     ) {
         if (desc == null || !desc.enabled()) {
-            return new VulkanEngineRuntime.PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f, 0.0f);
+            return new PostProcessRenderConfig(false, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.12f, 1.0f, false, 0, 0.6f, 0.78f, 1.0f, 0.80f, 0.35f, 0.0f);
         }
         float tierExposureScale = switch (qualityTier) {
             case LOW -> 0.9f;
@@ -282,7 +282,7 @@ final class VulkanEngineRuntimeLightingMapper {
                 }
             }
         }
-        return new VulkanEngineRuntime.PostProcessRenderConfig(
+        return new PostProcessRenderConfig(
                 desc.tonemapEnabled(),
                 exposure,
                 gamma,
@@ -355,7 +355,7 @@ final class VulkanEngineRuntimeLightingMapper {
         return packed;
     }
 
-    static VulkanEngineRuntime.LightingConfig mapLighting(
+    static LightingConfig mapLighting(
             List<LightDesc> lights,
             QualityTier qualityTier,
             int shadowMaxLocalLayers
@@ -363,7 +363,7 @@ final class VulkanEngineRuntimeLightingMapper {
         return mapLighting(lights, qualityTier, 0, shadowMaxLocalLayers, 0, false, 1, 2, 4, 0L, Map.of(), Map.of());
     }
 
-    static VulkanEngineRuntime.LightingConfig mapLighting(
+    static LightingConfig mapLighting(
             List<LightDesc> lights,
             QualityTier qualityTier,
             int shadowMaxShadowedLocalLights,
@@ -392,7 +392,7 @@ final class VulkanEngineRuntimeLightingMapper {
         float[] localLightDirInner = new float[VulkanContext.MAX_LOCAL_LIGHTS * 4];
         float[] localLightOuterTypeShadow = new float[VulkanContext.MAX_LOCAL_LIGHTS * 4];
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.LightingConfig(
+            return new LightingConfig(
                     dir, dirColor, dirIntensity,
                     shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
                     localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow,
@@ -603,14 +603,14 @@ final class VulkanEngineRuntimeLightingMapper {
                 float outerCos = VulkanEngineRuntimeCameraMath.cosFromDegrees(shadowLight.outerConeDegrees());
                 shadowPointOuterCos = Math.min(innerCos, outerCos);
             }
-            return new VulkanEngineRuntime.LightingConfig(
+            return new LightingConfig(
                     dir, dirColor, dirIntensity,
                     shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
                     localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow,
                     java.util.Map.copyOf(newAssignments), assignedShadowLights, allocatorReused, allocatorEvictions
             );
         }
-        return new VulkanEngineRuntime.LightingConfig(
+        return new LightingConfig(
                 dir, dirColor, dirIntensity,
                 shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
                 localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow,
@@ -645,7 +645,7 @@ final class VulkanEngineRuntimeLightingMapper {
         return intensity * (1.0f + (range * 0.08f)) * shadowBoost * spotBoost;
     }
 
-    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(
+    static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -667,7 +667,7 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(
+    static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -690,7 +690,7 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(
+    static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -721,7 +721,7 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(
+    static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -749,7 +749,7 @@ final class VulkanEngineRuntimeLightingMapper {
         };
         String rtMode = shadowRtMode == null || shadowRtMode.isBlank() ? "off" : shadowRtMode.trim().toLowerCase(java.util.Locale.ROOT);
         if (lights == null || lights.isEmpty()) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", 0, filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
+            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", 0, filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
         }
         int tierMaxShadowedLocalLights = switch (qualityTier) {
             case LOW -> 1;
@@ -824,7 +824,7 @@ final class VulkanEngineRuntimeLightingMapper {
         }
         LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
         if (primary == null) {
-            return new VulkanEngineRuntime.ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", 0, filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
+            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, 0L, 0, 0, 0, "", 0, "", 0, filterPath, runtimeFilterPath, momentFilterEstimateOnly, momentPipelineRequested, momentPipelineActive, shadowContactShadows, rtMode, false, false);
         }
         LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
         ShadowDesc shadow = primary.shadow();
@@ -968,7 +968,7 @@ final class VulkanEngineRuntimeLightingMapper {
         }
         boolean degraded = kernelClamped != kernel || cascadesClamped != cascades || resolution != requestedResolution
                 || qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
-        return new VulkanEngineRuntime.ShadowRenderConfig(
+        return new ShadowRenderConfig(
                 true,
                 Math.max(0.2f, Math.min(0.9f, base * tierScale)),
                 bias,
@@ -1293,9 +1293,9 @@ final class VulkanEngineRuntimeLightingMapper {
         return base * ageBoost;
     }
 
-    static VulkanEngineRuntime.FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
+    static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
         if (fogDesc == null || !fogDesc.enabled() || fogDesc.mode() == FogMode.NONE) {
-            return new VulkanEngineRuntime.FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
+            return new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
         }
         float tierDensityScale = switch (qualityTier) {
             case LOW -> 0.55f;
@@ -1310,7 +1310,7 @@ final class VulkanEngineRuntimeLightingMapper {
             case ULTRA -> 0;
         };
         float density = Math.max(0f, fogDesc.density() * tierDensityScale);
-        return new VulkanEngineRuntime.FogRenderConfig(
+        return new FogRenderConfig(
                 true,
                 fogDesc.color() == null ? 0.5f : fogDesc.color().x(),
                 fogDesc.color() == null ? 0.5f : fogDesc.color().y(),
@@ -1321,9 +1321,9 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    static VulkanEngineRuntime.SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
+    static SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
         if (emitters == null || emitters.isEmpty()) {
-            return new VulkanEngineRuntime.SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
+            return new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
         }
         int enabledCount = 0;
         float densityAccum = 0f;
@@ -1341,7 +1341,7 @@ final class VulkanEngineRuntimeLightingMapper {
             b += emitter.albedo() == null ? 0.6f : emitter.albedo().z();
         }
         if (enabledCount == 0) {
-            return new VulkanEngineRuntime.SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
+            return new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
         }
         float avgR = r / enabledCount;
         float avgG = g / enabledCount;
@@ -1353,7 +1353,7 @@ final class VulkanEngineRuntimeLightingMapper {
             case HIGH -> 0.9f;
             case ULTRA -> 1.0f;
         };
-        return new VulkanEngineRuntime.SmokeRenderConfig(
+        return new SmokeRenderConfig(
                 true,
                 avgR,
                 avgG,

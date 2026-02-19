@@ -24,7 +24,7 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("spotB", new Vec3(4f, 3f, 2f), new Vec3(0.1f, 0.9f, 0.1f), 2.0f, 18f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(lights, org.dynamislight.api.config.QualityTier.HIGH, 0);
+        LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(lights, org.dynamislight.api.config.QualityTier.HIGH, 0);
 
         assertEquals(2, config.localLightCount());
         assertEquals(32, config.localLightPosRange().length);
@@ -57,7 +57,7 @@ class VulkanEngineRuntimeLightingMapperTest {
             ));
         }
 
-        VulkanEngineRuntime.LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(lights, org.dynamislight.api.config.QualityTier.HIGH, 0);
+        LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(lights, org.dynamislight.api.config.QualityTier.HIGH, 0);
 
         assertEquals(VulkanContext.MAX_LOCAL_LIGHTS, config.localLightCount());
         for (int i = config.localLightCount(); i < VulkanContext.MAX_LOCAL_LIGHTS; i++) {
@@ -75,8 +75,8 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("spotB", new Vec3(-2f, 3f, 2f), new Vec3(0.7f, 0.9f, 1f), 2.4f, 18f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 18f, 32f)
         );
 
-        VulkanEngineRuntime.ShadowRenderConfig low = VulkanEngineRuntimeLightingMapper.mapShadows(lights, org.dynamislight.api.config.QualityTier.LOW, "pcf", false, "off", 0, 0);
-        VulkanEngineRuntime.ShadowRenderConfig ultra = VulkanEngineRuntimeLightingMapper.mapShadows(lights, org.dynamislight.api.config.QualityTier.ULTRA, "evsm", true, "optional", 0, 0);
+        ShadowRenderConfig low = VulkanEngineRuntimeLightingMapper.mapShadows(lights, org.dynamislight.api.config.QualityTier.LOW, "pcf", false, "off", 0, 0);
+        ShadowRenderConfig ultra = VulkanEngineRuntimeLightingMapper.mapShadows(lights, org.dynamislight.api.config.QualityTier.ULTRA, "evsm", true, "optional", 0, 0);
 
         assertTrue(low.enabled());
         assertEquals("sun", low.primaryShadowLightId());
@@ -103,7 +103,7 @@ class VulkanEngineRuntimeLightingMapperTest {
         assertEquals("optional", ultra.rtShadowMode());
         assertTrue(ultra.shadowMomentAtlasBytesEstimate() > 0L);
 
-        VulkanEngineRuntime.ShadowRenderConfig pcss = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig pcss = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", false, "off", 0, 0
         );
         assertEquals("pcss", pcss.filterPath());
@@ -118,22 +118,22 @@ class VulkanEngineRuntimeLightingMapperTest {
         List<LightDesc> lights = List.of(
                 new LightDesc("spotA", new Vec3(0f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
-        VulkanEngineRuntime.ShadowRenderConfig unsupported = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig unsupported = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "optional", 0, 0, 0, false
         );
-        VulkanEngineRuntime.ShadowRenderConfig supported = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig supported = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "optional", 0, 0, 0, true
         );
         assertFalse(unsupported.rtShadowActive());
         assertTrue(supported.rtShadowActive());
 
-        VulkanEngineRuntime.ShadowRenderConfig nativeUnsupported = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig nativeUnsupported = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "rt_native", 0, 0, 0, false
         );
-        VulkanEngineRuntime.ShadowRenderConfig nativeSupported = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig nativeSupported = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "rt_native", 0, 0, 0, true
         );
-        VulkanEngineRuntime.ShadowRenderConfig nativeDenoisedSupported = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig nativeDenoisedSupported = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "rt_native_denoised", 0, 0, 0, true
         );
         assertFalse(nativeUnsupported.rtShadowActive());
@@ -146,22 +146,22 @@ class VulkanEngineRuntimeLightingMapperTest {
         List<LightDesc> lights = List.of(
                 new LightDesc("spotA", new Vec3(0f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
-        VulkanEngineRuntime.ShadowRenderConfig unsupported = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig unsupported = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "bvh",
                 0, 0, 0, true, false, false, 1, 2, 4, 1L, java.util.Map.of()
         );
-        VulkanEngineRuntime.ShadowRenderConfig supported = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig supported = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "bvh",
                 0, 0, 0, true, true, false, 1, 2, 4, 1L, java.util.Map.of()
         );
         assertFalse(unsupported.rtShadowActive());
         assertTrue(supported.rtShadowActive());
 
-        VulkanEngineRuntime.ShadowRenderConfig unsupportedProduction = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig unsupportedProduction = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "bvh_production",
                 0, 0, 0, true, false, false, 1, 2, 4, 1L, java.util.Map.of()
         );
-        VulkanEngineRuntime.ShadowRenderConfig supportedProduction = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig supportedProduction = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "bvh_production",
                 0, 0, 0, true, true, false, 1, 2, 4, 1L, java.util.Map.of()
         );
@@ -174,7 +174,7 @@ class VulkanEngineRuntimeLightingMapperTest {
         List<LightDesc> lights = List.of(
                 new LightDesc("spotA", new Vec3(0f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
-        VulkanEngineRuntime.ShadowRenderConfig config = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig config = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcss", true, "bvh_dedicated",
                 0, 0, 0, true, true, false, 1, 2, 4, 1L, java.util.Map.of()
         );
@@ -189,10 +189,10 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("pointC", new Vec3(3f, 1f, 1f), new Vec3(0.9f, 0.8f, 1f), 2.2f, 16f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.ShadowRenderConfig high = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig high = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcf", false, "off", 0, 0
         );
-        VulkanEngineRuntime.ShadowRenderConfig ultra = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig ultra = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off", 0, 0
         );
 
@@ -210,13 +210,13 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("pointB", new Vec3(2f, 1f, 1f), new Vec3(0.8f, 0.9f, 1f), 2.5f, 18f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.ShadowRenderConfig highDefault = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig highDefault = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcf", false, "off", 0, 0
         );
-        VulkanEngineRuntime.ShadowRenderConfig highOverridden = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig highOverridden = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcf", false, "off", 12, 12
         );
-        VulkanEngineRuntime.ShadowRenderConfig highFacesCapped = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig highFacesCapped = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcf", false, "off", 12, 6
         );
 
@@ -236,11 +236,11 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("spotC", new Vec3(3f, 2f, 1f), new Vec3(0.9f, 0.8f, 1f), 2.2f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.ShadowRenderConfig cadenceOff = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig cadenceOff = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
                 0, 12, 12, false, false, false, 1, 2, 4, 1L, java.util.Map.of()
         );
-        VulkanEngineRuntime.ShadowRenderConfig cadenceOn = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig cadenceOn = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
                 0, 12, 12, false, false, true, 4, 4, 8, 1L, java.util.Map.of()
         );
@@ -261,10 +261,10 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("spot6", new Vec3(5f, 2f, 0f), new Vec3(1f, 1f, 1f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.ShadowRenderConfig highDefault = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig highDefault = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcf", false, "off", 0, 0, 0
         );
-        VulkanEngineRuntime.ShadowRenderConfig highOverride = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig highOverride = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.HIGH, "pcf", false, "off", 6, 24, 24
         );
 
@@ -281,11 +281,11 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("spotC", new Vec3(2f, 2f, 0f), new Vec3(0.9f, 1f, 0.8f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.LightingConfig first = VulkanEngineRuntimeLightingMapper.mapLighting(
+        LightingConfig first = VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA,
                 4, 12, 0, false, 1, 2, 4, 1L, Map.of(), Map.of()
         );
-        VulkanEngineRuntime.LightingConfig second = VulkanEngineRuntimeLightingMapper.mapLighting(
+        LightingConfig second = VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA,
                 4, 12, 0, false, 1, 2, 4, 2L, Map.of(), first.shadowLayerAssignments()
         );
@@ -301,7 +301,7 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("spotA", new Vec3(0f, 2f, 0f), new Vec3(1f, 0.9f, 0.8f), 2.0f, 16f, true, null, LightType.SPOT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(
+        LightingConfig config = VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights, org.dynamislight.api.config.QualityTier.HIGH,
                 1, 4, 0, false, 1, 2, 4, 1L, Map.of(), Map.of("spotA", 8)
         );
@@ -320,11 +320,11 @@ class VulkanEngineRuntimeLightingMapperTest {
         );
         List<LightDesc> reordered = List.of(ordered.get(1), ordered.get(0));
 
-        VulkanEngineRuntime.LightingConfig first = VulkanEngineRuntimeLightingMapper.mapLighting(
+        LightingConfig first = VulkanEngineRuntimeLightingMapper.mapLighting(
                 ordered, org.dynamislight.api.config.QualityTier.HIGH,
                 3, 8, 0, false, 1, 2, 4, 1L, Map.of(), Map.of()
         );
-        VulkanEngineRuntime.LightingConfig second = VulkanEngineRuntimeLightingMapper.mapLighting(
+        LightingConfig second = VulkanEngineRuntimeLightingMapper.mapLighting(
                 reordered, org.dynamislight.api.config.QualityTier.HIGH,
                 3, 8, 0, false, 1, 2, 4, 2L, Map.of(), first.shadowLayerAssignments()
         );
@@ -341,7 +341,7 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("pointB", new Vec3(1f, 2f, 0f), new Vec3(0.8f, 0.9f, 1f), 2.0f, 16f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.LightingConfig capped = VulkanEngineRuntimeLightingMapper.mapLighting(
+        LightingConfig capped = VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA,
                 4, 12, 6, false, 1, 2, 4, 1L, Map.of(), Map.of()
         );
@@ -365,7 +365,7 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("pointB", new Vec3(1f, 2f, 0f), new Vec3(0.8f, 0.9f, 1f), 2.0f, 16f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.LightingConfig mixed = VulkanEngineRuntimeLightingMapper.mapLighting(
+        LightingConfig mixed = VulkanEngineRuntimeLightingMapper.mapLighting(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA,
                 2, 7, 7, false, 1, 2, 4, 1L, Map.of(), Map.of()
         );
@@ -395,7 +395,7 @@ class VulkanEngineRuntimeLightingMapperTest {
         Set<String> renderedSets = new HashSet<>();
         Set<String> deferredSets = new HashSet<>();
         for (long tick = 1; tick <= 8; tick++) {
-            VulkanEngineRuntime.ShadowRenderConfig cfg = VulkanEngineRuntimeLightingMapper.mapShadows(
+            ShadowRenderConfig cfg = VulkanEngineRuntimeLightingMapper.mapShadows(
                     lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
                     3, 8, 8, false, false, true, 1, 2, 4, tick, lastRenderedTicks
             );
@@ -428,7 +428,7 @@ class VulkanEngineRuntimeLightingMapperTest {
         lastRenderedTicks.put("spotMid", 0L);
         lastRenderedTicks.put("spotStale", -20L);
 
-        VulkanEngineRuntime.ShadowRenderConfig cfg = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig cfg = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
                 3, 8, 8, false, false, true, 8, 8, 8, 1L, lastRenderedTicks
         );
@@ -445,7 +445,7 @@ class VulkanEngineRuntimeLightingMapperTest {
                 new LightDesc("pointParity", new Vec3(2f, 2f, 0f), new Vec3(0.9f, 1f, 1f), 1.0f, 16f, true, null, LightType.POINT, new Vec3(0f, -1f, 0f), 15f, 30f)
         );
 
-        VulkanEngineRuntime.ShadowRenderConfig cfg = VulkanEngineRuntimeLightingMapper.mapShadows(
+        ShadowRenderConfig cfg = VulkanEngineRuntimeLightingMapper.mapShadows(
                 lights, org.dynamislight.api.config.QualityTier.ULTRA, "pcf", false, "off",
                 2, 7, 7, false, false, false, 1, 2, 4, 2L, Map.of()
         );

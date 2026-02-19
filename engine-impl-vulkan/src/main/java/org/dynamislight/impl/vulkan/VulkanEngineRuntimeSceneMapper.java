@@ -24,7 +24,7 @@ final class VulkanEngineRuntimeSceneMapper {
         return VulkanEngineRuntimeSceneAssembly.buildSceneMeshes(scene, meshLoader, assetRoot);
     }
 
-    static VulkanEngineRuntime.PostProcessRenderConfig mapPostProcess(
+    static PostProcessRenderConfig mapPostProcess(
             PostProcessDesc desc,
             QualityTier qualityTier,
             boolean taaLumaClipEnabledDefault,
@@ -48,11 +48,11 @@ final class VulkanEngineRuntimeSceneMapper {
         );
     }
 
-    static VulkanEngineRuntime.IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
+    static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
         return VulkanEngineRuntimeIblMapper.mapIbl(environment, qualityTier, assetRoot);
     }
 
-    static VulkanEngineRuntime.CameraMatrices cameraMatricesFor(CameraDesc camera, float aspectRatio) {
+    static CameraMatrices cameraMatricesFor(CameraDesc camera, float aspectRatio) {
         return VulkanEngineRuntimeCameraMath.cameraMatricesFor(camera, aspectRatio);
     }
 
@@ -60,7 +60,7 @@ final class VulkanEngineRuntimeSceneMapper {
         return VulkanEngineRuntimeCameraMath.selectActiveCamera(scene);
     }
 
-    static VulkanEngineRuntime.LightingConfig mapLighting(
+    static LightingConfig mapLighting(
             List<LightDesc> lights,
             QualityTier qualityTier,
             int shadowMaxShadowedLocalLights,
@@ -94,7 +94,7 @@ final class VulkanEngineRuntimeSceneMapper {
         return VulkanEngineRuntimeLightingMapper.hasNonDirectionalShadowRequest(lights);
     }
 
-    static VulkanEngineRuntime.ShadowRenderConfig mapShadows(
+    static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -132,11 +132,11 @@ final class VulkanEngineRuntimeSceneMapper {
         );
     }
 
-    static VulkanEngineRuntime.FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
+    static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
         return VulkanEngineRuntimeLightingMapper.mapFog(fogDesc, qualityTier);
     }
 
-    static VulkanEngineRuntime.SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
+    static SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
         return VulkanEngineRuntimeLightingMapper.mapSmoke(emitters, qualityTier);
     }
 

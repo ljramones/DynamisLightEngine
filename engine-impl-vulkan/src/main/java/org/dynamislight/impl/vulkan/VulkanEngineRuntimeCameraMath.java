@@ -9,7 +9,7 @@ final class VulkanEngineRuntimeCameraMath {
     private VulkanEngineRuntimeCameraMath() {
     }
 
-    static VulkanEngineRuntime.CameraMatrices cameraMatricesFor(CameraDesc camera, float aspectRatio) {
+    static CameraMatrices cameraMatricesFor(CameraDesc camera, float aspectRatio) {
         CameraDesc effective = camera == null
                 ? new CameraDesc("default", new Vec3(0f, 0f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 100f)
                 : camera;
@@ -34,7 +34,7 @@ final class VulkanEngineRuntimeCameraMath {
         float fov = effective.fovDegrees() > 1f ? effective.fovDegrees() : 60f;
         float aspect = aspectRatio > 0.01f ? aspectRatio : (16f / 9f);
         float[] proj = perspective(radians(fov), aspect, near, far);
-        return new VulkanEngineRuntime.CameraMatrices(view, proj);
+        return new CameraMatrices(view, proj);
     }
 
     static CameraDesc selectActiveCamera(SceneDescriptor scene) {

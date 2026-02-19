@@ -301,7 +301,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 Map.entry("vulkan.meshGeometryCacheEntries", "512")
         )), new RecordingCallbacks());
 
-        VulkanEngineRuntime.FrameResourceConfig config = runtime.debugFrameResourceConfig();
+        FrameResourceConfig config = runtime.debugFrameResourceConfig();
         var profile = runtime.debugFrameResourceProfile();
         assertEquals(4, config.framesInFlight());
         assertEquals(4096, config.maxDynamicSceneObjects());
@@ -331,7 +331,7 @@ class VulkanEngineRuntimeIntegrationTest {
                 Map.entry("vulkan.meshGeometryCacheEntries", "nope")
         )), new RecordingCallbacks());
 
-        VulkanEngineRuntime.FrameResourceConfig config = runtime.debugFrameResourceConfig();
+        FrameResourceConfig config = runtime.debugFrameResourceConfig();
         var profile = runtime.debugFrameResourceProfile();
         assertEquals(6, config.framesInFlight());
         assertEquals(256, config.maxDynamicSceneObjects());

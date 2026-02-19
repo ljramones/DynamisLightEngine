@@ -316,11 +316,11 @@ final class VulkanRuntimeWarningPolicy {
 
     record Inputs(
             QualityTier qualityTier,
-            VulkanEngineRuntime.FogRenderConfig currentFog,
-            VulkanEngineRuntime.SmokeRenderConfig currentSmoke,
-            VulkanEngineRuntime.ShadowRenderConfig currentShadows,
-            VulkanEngineRuntime.PostProcessRenderConfig currentPost,
-            VulkanEngineRuntime.IblRenderConfig currentIbl,
+            FogRenderConfig currentFog,
+            SmokeRenderConfig currentSmoke,
+            ShadowRenderConfig currentShadows,
+            PostProcessRenderConfig currentPost,
+            IblRenderConfig currentIbl,
             UpscalerMode upscalerMode,
             UpscalerQuality upscalerQuality,
             boolean nativeUpscalerActive,

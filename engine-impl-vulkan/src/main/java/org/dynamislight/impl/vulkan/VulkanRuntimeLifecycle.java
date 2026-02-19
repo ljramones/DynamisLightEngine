@@ -326,13 +326,13 @@ final class VulkanRuntimeLifecycle {
     }
 
     record SceneLoadState(
-            VulkanEngineRuntime.CameraMatrices cameraMatrices,
-            VulkanEngineRuntime.LightingConfig lighting,
-            VulkanEngineRuntime.FogRenderConfig fog,
-            VulkanEngineRuntime.SmokeRenderConfig smoke,
-            VulkanEngineRuntime.ShadowRenderConfig shadows,
-            VulkanEngineRuntime.PostProcessRenderConfig post,
-            VulkanEngineRuntime.IblRenderConfig ibl,
+            CameraMatrices cameraMatrices,
+            LightingConfig lighting,
+            FogRenderConfig fog,
+            SmokeRenderConfig smoke,
+            ShadowRenderConfig shadows,
+            PostProcessRenderConfig post,
+            IblRenderConfig ibl,
             List<ReflectionProbeDesc> reflectionProbes,
             boolean nonDirectionalShadowRequested,
             List<VulkanSceneMeshData> sceneMeshes,
@@ -357,8 +357,8 @@ final class VulkanRuntimeLifecycle {
     }
 
     record ShadowRefreshState(
-            VulkanEngineRuntime.LightingConfig lighting,
-            VulkanEngineRuntime.ShadowRenderConfig shadows
+            LightingConfig lighting,
+            ShadowRenderConfig shadows
     ) {
     }
 }
