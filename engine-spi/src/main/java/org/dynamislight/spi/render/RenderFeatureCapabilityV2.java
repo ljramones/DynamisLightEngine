@@ -6,7 +6,7 @@ import org.dynamislight.api.config.QualityTier;
 /**
  * v2 capability contract surface extracted from mature feature domains.
  */
-public interface RenderFeatureCapabilityV2 extends RenderPassContributor, RenderShaderContributor {
+public interface RenderFeatureCapabilityV2 extends RenderPassContributor, RenderShaderContributor, RenderShaderModuleContributor {
     String featureId();
 
     List<RenderFeatureMode> supportedModes();
