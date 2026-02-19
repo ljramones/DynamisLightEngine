@@ -1,12 +1,8 @@
 package org.dynamislight.impl.vulkan;
 
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -30,7 +26,7 @@ import org.dynamislight.impl.vulkan.profile.VulkanContextProfileCoordinator;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneRuntimeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshCoordinator;
-import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeCoordinator;
+import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeRuntimeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeTextureCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneSetPlanner;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneTextureCoordinator;
@@ -1695,35 +1691,33 @@ public final class VulkanContext {
     }
 
     private void updateReflectionProbeMetadataBuffer() {
-        if (descriptorResources.reflectionProbeMetadataMappedAddress == 0L
-                || descriptorResources.reflectionProbeMetadataBufferBytes <= 0) {
-            descriptorResources.reflectionProbeMetadataActiveCount = 0;
-            return;
-        }
-        float[] viewProj = mul(projMatrix, viewMatrix);
-        VulkanReflectionProbeCoordinator.UploadStats stats = VulkanReflectionProbeCoordinator.uploadVisibleProbes(
-                reflectionProbes,
-                viewProj,
-                descriptorResources.reflectionProbeMetadataMaxCount,
-                descriptorResources.reflectionProbeMetadataStrideBytes,
-                reflectionProbeCubemapSlots,
-                reflectionProbeCubemapSlotCount,
-                descriptorResources.reflectionProbeMetadataMappedAddress,
-                descriptorResources.reflectionProbeMetadataBufferBytes,
-                reflectionProbeFrameTick++,
-                reflectionProbeUpdateCadenceFrames,
-                reflectionProbeMaxVisible,
-                reflectionProbeLodDepthScale
+        var result = VulkanReflectionProbeRuntimeCoordinator.updateMetadataBuffer(
+                new VulkanReflectionProbeRuntimeCoordinator.MetadataUploadRequest(
+                        descriptorResources.reflectionProbeMetadataMappedAddress,
+                        descriptorResources.reflectionProbeMetadataBufferBytes,
+                        descriptorResources.reflectionProbeMetadataMaxCount,
+                        descriptorResources.reflectionProbeMetadataStrideBytes,
+                        projMatrix,
+                        viewMatrix,
+                        reflectionProbes,
+                        reflectionProbeCubemapSlots,
+                        reflectionProbeCubemapSlotCount,
+                        reflectionProbeFrameTick,
+                        reflectionProbeUpdateCadenceFrames,
+                        reflectionProbeMaxVisible,
+                        reflectionProbeLodDepthScale
+                )
         );
-        descriptorResources.reflectionProbeMetadataActiveCount = stats.activeProbeCount();
-        reflectionProbeFrustumVisibleCount = stats.frustumVisibleCount();
-        reflectionProbeDeferredCount = stats.deferredProbeCount();
-        reflectionProbeVisibleUniquePathCount = stats.visibleUniquePaths();
-        reflectionProbeMissingSlotPathCount = stats.missingSlotPaths();
-        reflectionProbeLodTier0Count = stats.lodTier0Count();
-        reflectionProbeLodTier1Count = stats.lodTier1Count();
-        reflectionProbeLodTier2Count = stats.lodTier2Count();
-        reflectionProbeLodTier3Count = stats.lodTier3Count();
+        descriptorResources.reflectionProbeMetadataActiveCount = result.activeProbeCount();
+        reflectionProbeFrustumVisibleCount = result.frustumVisibleCount();
+        reflectionProbeDeferredCount = result.deferredProbeCount();
+        reflectionProbeVisibleUniquePathCount = result.visibleUniquePathCount();
+        reflectionProbeMissingSlotPathCount = result.missingSlotPathCount();
+        reflectionProbeLodTier0Count = result.lodTier0Count();
+        reflectionProbeLodTier1Count = result.lodTier1Count();
+        reflectionProbeLodTier2Count = result.lodTier2Count();
+        reflectionProbeLodTier3Count = result.lodTier3Count();
+        reflectionProbeFrameTick = result.nextFrameTick();
     }
 
     private static float[] planarReflectionMatrix(float planeHeight) {
@@ -1739,28 +1733,10 @@ public final class VulkanContext {
         int maxSlots = Math.max(1, descriptorResources.reflectionProbeMetadataMaxCount > 0
                 ? descriptorResources.reflectionProbeMetadataMaxCount
                 : DEFAULT_MAX_REFLECTION_PROBES);
-        TreeSet<String> uniquePaths = new TreeSet<>();
-        for (ReflectionProbeDesc probe : reflectionProbes) {
-            if (probe == null) {
-                continue;
-            }
-            String path = probe.cubemapAssetPath();
-            if (path == null || path.isBlank()) {
-                continue;
-            }
-            uniquePaths.add(path);
-        }
-        Map<String, Integer> slots = new HashMap<>();
-        int nextSlot = 0;
-        for (String path : uniquePaths) {
-            if (nextSlot >= maxSlots) {
-                break;
-            }
-            slots.put(path, nextSlot);
-            nextSlot++;
-        }
-        reflectionProbeCubemapSlots = Map.copyOf(slots);
-        reflectionProbeCubemapSlotCount = slots.size();
+        var slotAssignment = VulkanReflectionProbeRuntimeCoordinator.assignCubemapSlots(reflectionProbes, maxSlots);
+        Map<String, Integer> slots = slotAssignment.slots();
+        reflectionProbeCubemapSlots = slots;
+        reflectionProbeCubemapSlotCount = slotAssignment.slotCount();
         VulkanGpuTexture newProbeTexture = VulkanReflectionProbeTextureCoordinator.buildProbeRadianceAtlasTexture(
                 new VulkanReflectionProbeTextureCoordinator.BuildRequest(
                         backendResources.device,
