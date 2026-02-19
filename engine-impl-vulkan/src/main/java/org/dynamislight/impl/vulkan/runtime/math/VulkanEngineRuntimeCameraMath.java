@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.math;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
@@ -7,11 +7,11 @@ import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
 
-final class VulkanEngineRuntimeCameraMath {
+public final class VulkanEngineRuntimeCameraMath {
     private VulkanEngineRuntimeCameraMath() {
     }
 
-    static CameraMatrices cameraMatricesFor(CameraDesc camera, float aspectRatio) {
+    public static CameraMatrices cameraMatricesFor(CameraDesc camera, float aspectRatio) {
         CameraDesc effective = camera == null
                 ? new CameraDesc("default", new Vec3(0f, 0f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 100f)
                 : camera;
@@ -39,7 +39,7 @@ final class VulkanEngineRuntimeCameraMath {
         return new CameraMatrices(view, proj);
     }
 
-    static CameraDesc selectActiveCamera(SceneDescriptor scene) {
+    public static CameraDesc selectActiveCamera(SceneDescriptor scene) {
         if (scene == null || scene.cameras() == null || scene.cameras().isEmpty()) {
             return new CameraDesc("default", new Vec3(0f, 0f, 5f), new Vec3(0f, 0f, 0f), 60f, 0.1f, 100f);
         }
@@ -53,14 +53,14 @@ final class VulkanEngineRuntimeCameraMath {
         return scene.cameras().getFirst();
     }
 
-    static float safeAspect(int width, int height) {
+    public static float safeAspect(int width, int height) {
         if (height <= 0) {
             return 16f / 9f;
         }
         return Math.max(0.1f, (float) width / (float) height);
     }
 
-    static float[] modelMatrixOf(TransformDesc transform, int meshIndex) {
+    public static float[] modelMatrixOf(TransformDesc transform, int meshIndex) {
         if (transform == null) {
             float[] model = identityMatrix();
             model[12] = (meshIndex - 1) * 0.35f;
@@ -76,7 +76,7 @@ final class VulkanEngineRuntimeCameraMath {
         return mul(translation, mul(rotation, scale));
     }
 
-    static float[] normalize3(float[] v) {
+    public static float[] normalize3(float[] v) {
         if (v == null || v.length != 3) {
             return new float[]{0f, -1f, 0f};
         }
@@ -87,7 +87,7 @@ final class VulkanEngineRuntimeCameraMath {
         return new float[]{v[0] / len, v[1] / len, v[2] / len};
     }
 
-    static float cosFromDegrees(float degrees) {
+    public static float cosFromDegrees(float degrees) {
         float clamped = Math.max(0f, Math.min(89.9f, degrees));
         return (float) Math.cos(Math.toRadians(clamped));
     }

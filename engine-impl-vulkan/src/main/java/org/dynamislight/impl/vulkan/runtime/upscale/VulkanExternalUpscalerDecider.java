@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.upscale;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
@@ -8,27 +8,16 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.impl.common.upscale.ExternalUpscalerBridge;
 import org.dynamislight.impl.common.upscale.ExternalUpscalerIntegration;
 
-final class VulkanExternalUpscalerDecider {
-    static final class Result {
-        final PostProcessRenderConfig config;
-        final boolean nativeUpscalerActive;
-        final String nativeUpscalerProvider;
-        final String nativeUpscalerDetail;
-
-        Result(
-                PostProcessRenderConfig config,
-                boolean nativeUpscalerActive,
-                String nativeUpscalerProvider,
-                String nativeUpscalerDetail
-        ) {
-            this.config = config;
-            this.nativeUpscalerActive = nativeUpscalerActive;
-            this.nativeUpscalerProvider = nativeUpscalerProvider;
-            this.nativeUpscalerDetail = nativeUpscalerDetail;
-        }
+public final class VulkanExternalUpscalerDecider {
+    public record Result(
+            PostProcessRenderConfig config,
+            boolean nativeUpscalerActive,
+            String nativeUpscalerProvider,
+            String nativeUpscalerDetail
+    ) {
     }
 
-    static Result decide(
+    public static Result decide(
             PostProcessRenderConfig base,
             ExternalUpscalerIntegration externalUpscaler,
             AaMode aaMode,

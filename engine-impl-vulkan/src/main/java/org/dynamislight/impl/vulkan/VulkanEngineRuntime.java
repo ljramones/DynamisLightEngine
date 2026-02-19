@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.runtime.upscale.VulkanExternalUpscalerDecider;
+
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowRuntimeTuning;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
@@ -1312,10 +1314,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 qualityTier,
                 tsrControls
         );
-        nativeUpscalerActive = result.nativeUpscalerActive;
-        nativeUpscalerProvider = result.nativeUpscalerProvider;
-        nativeUpscalerDetail = result.nativeUpscalerDetail;
-        return result.config;
+        nativeUpscalerActive = result.nativeUpscalerActive();
+        nativeUpscalerProvider = result.nativeUpscalerProvider();
+        nativeUpscalerDetail = result.nativeUpscalerDetail();
+        return result.config();
     }
 
     private void applyReflectionProfileTelemetryDefaults(Map<String, String> backendOptions) {

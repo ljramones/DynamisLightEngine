@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.mapper;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
@@ -13,11 +13,11 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.scene.EnvironmentDesc;
 import org.dynamislight.impl.common.texture.KtxDecodeUtil;
 
-final class VulkanEngineRuntimeIblMapper {
+public final class VulkanEngineRuntimeIblMapper {
     private VulkanEngineRuntimeIblMapper() {
     }
 
-    static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
+    public static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
         if (environment == null) {
             return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
         }
