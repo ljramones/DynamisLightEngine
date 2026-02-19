@@ -20,6 +20,7 @@ class VulkanAaPostRenderGraphPlannerTest {
 
         assertFalse(compilation.graphPlan().hasErrors());
         assertFalse(compilation.graphPlan().orderedNodes().isEmpty());
+        assertFalse(compilation.barrierPlan().barriers().isEmpty());
         assertTrue(compilation.externalInputs().contains("scene_color"));
         assertTrue(compilation.externalInputs().contains("velocity"));
         assertTrue(compilation.importedResources().stream().anyMatch(r ->

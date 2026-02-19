@@ -5,12 +5,14 @@ import java.util.List;
 import java.util.function.IntUnaryOperator;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
+import org.lwjgl.vulkan.VkBufferMemoryBarrier;
 import org.lwjgl.vulkan.VkClearValue;
 import org.lwjgl.vulkan.VkClearColorValue;
 import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkImageBlit;
 import org.lwjgl.vulkan.VkImageCopy;
 import org.lwjgl.vulkan.VkImageMemoryBarrier;
+import org.lwjgl.vulkan.VkMemoryBarrier;
 import org.lwjgl.vulkan.VkImageSubresourceRange;
 import org.lwjgl.vulkan.VkRect2D;
 import org.lwjgl.vulkan.VkRenderPassBeginInfo;
@@ -65,8 +67,25 @@ public final class VulkanRenderCommandRecorder {
     private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_SSR_ONLY_BIT = 1 << 23;
     private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_OTHER_BIT = 1 << 24;
     private static final int REFLECTION_MODE_PLANAR_CLIP_BIT = 1 << 7;
+    private static final ThreadLocal<VulkanRuntimeBarrierTrace> ACTIVE_BARRIER_TRACE = new ThreadLocal<>();
 
     private VulkanRenderCommandRecorder() {
+    }
+
+    public static void installBarrierTrace(VulkanRuntimeBarrierTrace trace) {
+        if (trace == null) {
+            ACTIVE_BARRIER_TRACE.remove();
+        } else {
+            ACTIVE_BARRIER_TRACE.set(trace);
+        }
+    }
+
+    public static void clearBarrierTrace() {
+        ACTIVE_BARRIER_TRACE.remove();
+    }
+
+    static boolean barrierTraceInstalled() {
+        return ACTIVE_BARRIER_TRACE.get() != null;
     }
 
     public static int beginOneShot(VkCommandBuffer commandBuffer, MemoryStack stack) {
@@ -631,6 +650,42 @@ public final class VulkanRenderCommandRecorder {
                 null,
                 captureSrcToColor
         );
+    }
+
+    private static void vkCmdPipelineBarrier(
+            VkCommandBuffer commandBuffer,
+            int srcStageMask,
+            int dstStageMask,
+            int dependencyFlags,
+            VkMemoryBarrier.Buffer memoryBarriers,
+            VkBufferMemoryBarrier.Buffer bufferBarriers,
+            VkImageMemoryBarrier.Buffer imageBarriers
+    ) {
+        VK10.vkCmdPipelineBarrier(
+                commandBuffer,
+                srcStageMask,
+                dstStageMask,
+                dependencyFlags,
+                memoryBarriers,
+                bufferBarriers,
+                imageBarriers
+        );
+        VulkanRuntimeBarrierTrace trace = ACTIVE_BARRIER_TRACE.get();
+        if (trace == null || imageBarriers == null) {
+            return;
+        }
+        for (int i = 0; i < imageBarriers.remaining(); i++) {
+            VkImageMemoryBarrier barrier = imageBarriers.get(i);
+            trace.recordImageBarrier(new VulkanRuntimeBarrierTrace.ImageBarrierEvent(
+                    srcStageMask,
+                    dstStageMask,
+                    barrier.srcAccessMask(),
+                    barrier.dstAccessMask(),
+                    barrier.oldLayout(),
+                    barrier.newLayout(),
+                    barrier.image()
+            ));
+        }
     }
 
     static int shadowPassCount(RenderPassInputs in) {

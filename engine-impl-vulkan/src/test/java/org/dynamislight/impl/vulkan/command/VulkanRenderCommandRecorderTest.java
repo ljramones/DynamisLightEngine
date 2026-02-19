@@ -6,6 +6,15 @@ import org.junit.jupiter.api.Test;
 
 class VulkanRenderCommandRecorderTest {
     @Test
+    void barrierTraceHookInstallsAndClears() {
+        VulkanRuntimeBarrierTrace trace = new VulkanRuntimeBarrierTrace();
+        VulkanRenderCommandRecorder.installBarrierTrace(trace);
+        assertEquals(true, VulkanRenderCommandRecorder.barrierTraceInstalled());
+        VulkanRenderCommandRecorder.clearBarrierTrace();
+        assertEquals(false, VulkanRenderCommandRecorder.barrierTraceInstalled());
+    }
+
+    @Test
     void shadowPassCountUsesConfiguredCascadeCountForLocalLayeredPath() {
         VulkanRenderCommandRecorder.RenderPassInputs inputs = new VulkanRenderCommandRecorder.RenderPassInputs(
                 1,

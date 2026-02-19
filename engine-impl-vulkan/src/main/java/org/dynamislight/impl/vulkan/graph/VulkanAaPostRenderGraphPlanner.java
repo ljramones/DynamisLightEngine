@@ -46,13 +46,19 @@ public final class VulkanAaPostRenderGraphPlanner {
     );
 
     private final VulkanRenderGraphCompiler compiler;
+    private final VulkanRenderGraphBarrierPlanner barrierPlanner;
 
     public VulkanAaPostRenderGraphPlanner() {
-        this(new VulkanRenderGraphCompiler());
+        this(new VulkanRenderGraphCompiler(), new VulkanRenderGraphBarrierPlanner());
     }
 
     VulkanAaPostRenderGraphPlanner(VulkanRenderGraphCompiler compiler) {
+        this(compiler, new VulkanRenderGraphBarrierPlanner());
+    }
+
+    VulkanAaPostRenderGraphPlanner(VulkanRenderGraphCompiler compiler, VulkanRenderGraphBarrierPlanner barrierPlanner) {
         this.compiler = compiler == null ? new VulkanRenderGraphCompiler() : compiler;
+        this.barrierPlanner = barrierPlanner == null ? new VulkanRenderGraphBarrierPlanner() : barrierPlanner;
     }
 
     public VulkanAaPostRenderGraphCompilation compile(VulkanAaPostCapabilityPlanner.PlanInput input) {
@@ -83,7 +89,8 @@ public final class VulkanAaPostRenderGraphPlanner {
         VulkanAaPostCapabilityPlan capabilityPlan = VulkanAaPostCapabilityPlanner.plan(input);
         List<VulkanImportedResource> imports = importedResources == null ? DEFAULT_IMPORTS : List.copyOf(importedResources);
         VulkanRenderGraphPlan graphPlan = compiler.compile(capabilityPlan.activeCapabilities(), imports);
-        return new VulkanAaPostRenderGraphCompilation(capabilityPlan, graphPlan, imports);
+        VulkanRenderGraphBarrierPlan barrierPlan = barrierPlanner.plan(graphPlan);
+        return new VulkanAaPostRenderGraphCompilation(capabilityPlan, graphPlan, barrierPlan, imports);
     }
 
     public static List<VulkanImportedResource> defaultImportedResources() {
@@ -97,9 +104,11 @@ public final class VulkanAaPostRenderGraphPlanner {
     public record VulkanAaPostRenderGraphCompilation(
             VulkanAaPostCapabilityPlan capabilityPlan,
             VulkanRenderGraphPlan graphPlan,
+            VulkanRenderGraphBarrierPlan barrierPlan,
             List<VulkanImportedResource> importedResources
     ) {
         public VulkanAaPostRenderGraphCompilation {
+            barrierPlan = barrierPlan == null ? new VulkanRenderGraphBarrierPlan(List.of()) : barrierPlan;
             importedResources = importedResources == null ? List.of() : List.copyOf(importedResources);
         }
 

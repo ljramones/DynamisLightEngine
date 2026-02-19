@@ -45,8 +45,21 @@ Goal: add render graph compile/validation/resource lifetime orchestration (no ru
 - Add Phase B checklist and summary.
 - Link Phase B artifacts from contract plan doc.
 
+7. Barrier planning (B.2)
+- Derive barrier plan from compiled graph access events.
+- Classify hazards:
+  - import-to-read / import-to-write
+  - read-after-write
+  - write-after-read (execution dependency only)
+  - write-after-write
+- Map image resources to layout transitions.
+- Keep buffer resources without layout transitions.
+- Add runtime barrier tracing hook in recorder path.
+- Add semantic equivalence helper between planned and runtime traces.
+
 ## Exit criteria
 
 - Graph compiler produces deterministic plan from capability metadata.
 - Validation and lifetime tests pass.
+- Barrier planning and equivalence tests pass.
 - No render-path behavior changes in runtime execution.

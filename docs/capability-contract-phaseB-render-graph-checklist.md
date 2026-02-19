@@ -46,3 +46,15 @@ Scope target: compile/validation/lifetime metadata (no runtime rewiring yet)
 - [x] Add Phase B summary doc.
 - [x] Add Phase B checklist.
 - [x] Link Phase B artifacts from contract plan doc.
+
+## 7. B.2 barrier planning
+
+- [x] Add barrier plan model with hazard classification.
+- [x] Derive barriers from resource access order.
+- [x] Model execution-only WAR hazards.
+- [x] Model image layout transitions for image resources.
+- [x] Keep buffer resources layout-less.
+- [x] Add barrier debug dump output.
+- [x] Add runtime barrier trace hook in command recorder.
+- [x] Add semantic equivalence helper (planned vs runtime trace).
+- [x] Add barrier planner + equivalence tests.

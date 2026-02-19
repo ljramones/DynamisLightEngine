@@ -1,7 +1,7 @@
 # Capability Migration Phase B: Render Graph Compile/Validation/Lifetime
 
 Date: 2026-02-19  
-Status: Completed (metadata compile slice)
+Status: Completed (B.1 compiler + B.2 barrier planning slice)
 
 ## Goal
 
@@ -39,6 +39,26 @@ Introduce deterministic render-graph metadata compilation from capability declar
 - No Vulkan pass execution rewiring in this slice.
 - Phase B output remains metadata consumed by migration phases.
 
+## B.2 delivered
+
+- `VulkanRenderGraphBarrierPlanner`:
+  - derives barriers from resource access order
+  - classifies hazards (`IMPORT_TO_READ`, `IMPORT_TO_WRITE`, `RAW`, `WAR`, `WAW`)
+  - emits execution-only barriers for `WAR`
+  - emits image layout transitions for image resources
+  - skips layout transitions for buffer resources
+- `VulkanRenderGraphBarrierPlan`:
+  - stores derived barriers
+  - provides human-readable `debugDump()`
+- runtime trace hook:
+  - `VulkanRuntimeBarrierTrace`
+  - `VulkanRenderCommandRecorder.installBarrierTrace(...)` / `clearBarrierTrace()`
+  - automatic capture of image barrier calls from `vkCmdPipelineBarrier` wrapper in recorder
+- semantic equivalence helper:
+  - `VulkanRenderGraphBarrierEquivalence`
+  - compares planned barrier signatures with runtime barrier traces
+
 ## Next
 
-Phase C: shader + descriptor composition wiring on top of capability and graph metadata.
+- Stop point reached at end of B.2.
+- B.3 (graph-driven execution cutover) is intentionally not started.
