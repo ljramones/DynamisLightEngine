@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.runtime.model.*;
+
 final class VulkanReflectionRtStateMachine {
     static final class State {
         PostProcessRenderConfig currentPost;

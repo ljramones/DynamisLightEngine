@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.runtime.model.*;
+
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
 import org.dynamislight.impl.vulkan.reflection.VulkanReflectionTelemetryProfileWarning;
 

@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.runtime.model.*;
+
 import java.util.List;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.scene.LightDesc;
