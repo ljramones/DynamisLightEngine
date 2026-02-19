@@ -2134,159 +2134,59 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", phaseDPromotionReadyMinFrames=" + shadowPhaseDPromotionReadyMinFrames
                             + ")"
             ));
-            warnings.add(new EngineWarning(
-                    "SHADOW_SPOT_PROJECTED_CONTRACT",
-                    "Shadow spot projected contract (requested="
-                            + shadowSpotProjectedRequestedLastFrame
-                            + ", active=" + shadowSpotProjectedActiveLastFrame
-                            + ", renderedSpotShadows=" + shadowSpotProjectedRenderedCountLastFrame
-                            + ", status=" + shadowSpotProjectedContractStatusLastFrame + ")"
-            ));
-            if (shadowSpotProjectedContractBreachedLastFrame) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_SPOT_PROJECTED_CONTRACT_BREACH",
-                        "Shadow spot projected contract breached (requested=true, renderedSpotShadows="
-                                + shadowSpotProjectedRenderedCountLastFrame
-                                + ", status=" + shadowSpotProjectedContractStatusLastFrame + ")"
-                ));
-            }
-            if (shadowSpotProjectedPromotionReadyLastFrame) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_SPOT_PROJECTED_PROMOTION_READY",
-                        "Shadow spot projected promotion-ready (status=" + shadowSpotProjectedContractStatusLastFrame
-                                + ", renderedSpotShadows=" + shadowSpotProjectedRenderedCountLastFrame
-                                + ", stableStreak=" + shadowSpotProjectedStableStreak
-                                + ", promotionReadyMinFrames=" + shadowSpotProjectedPromotionReadyMinFrames + ")"
-                ));
-            }
-            warnings.add(new EngineWarning(
-                    "SHADOW_CADENCE_ENVELOPE",
-                    "Shadow cadence envelope (selectedLocal="
-                            + shadowCadenceSelectedLocalLightsLastFrame
-                            + ", deferredLocal=" + shadowCadenceDeferredLocalLightsLastFrame
-                            + ", staleBypass=" + shadowCadenceStaleBypassCountLastFrame
-                            + ", deferredRatio=" + shadowCadenceDeferredRatioLastFrame
-                            + ", deferredRatioWarnMax=" + shadowCadenceWarnDeferredRatioMax
-                            + ", highStreak=" + shadowCadenceHighStreak
-                            + ", warnMinFrames=" + shadowCadenceWarnMinFrames
-                            + ", cooldownRemaining=" + shadowCadenceWarnCooldownRemaining
-                            + ", stableStreak=" + shadowCadenceStableStreak
-                            + ", promotionReadyMinFrames=" + shadowCadencePromotionReadyMinFrames
-                            + ", promotionReady=" + shadowCadencePromotionReadyLastFrame + ")"
-            ));
-            if (cadenceEnvelopeNow
-                    && shadowCadenceHighStreak >= shadowCadenceWarnMinFrames
-                    && shadowCadenceWarnCooldownRemaining == 0) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_CADENCE_ENVELOPE_BREACH",
-                        "Shadow cadence deferred-ratio envelope breached (selectedLocal="
-                                + shadowCadenceSelectedLocalLightsLastFrame
-                                + ", deferredLocal=" + shadowCadenceDeferredLocalLightsLastFrame
-                                + ", deferredRatio=" + shadowCadenceDeferredRatioLastFrame
-                                + ", deferredRatioWarnMax=" + shadowCadenceWarnDeferredRatioMax
-                                + ", highStreak=" + shadowCadenceHighStreak
-                                + ", warnMinFrames=" + shadowCadenceWarnMinFrames
-                                + ", cooldownFrames=" + shadowCadenceWarnCooldownFrames + ")"
-                ));
-                shadowCadenceWarnCooldownRemaining = shadowCadenceWarnCooldownFrames;
-            }
-            if (shadowCadencePromotionReadyLastFrame) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_CADENCE_PROMOTION_READY",
-                        "Shadow cadence promotion-ready (selectedLocal=" + shadowCadenceSelectedLocalLightsLastFrame
-                                + ", deferredLocal=" + shadowCadenceDeferredLocalLightsLastFrame
-                                + ", deferredRatio=" + shadowCadenceDeferredRatioLastFrame
-                                + ", stableStreak=" + shadowCadenceStableStreak
-                                + ", promotionReadyMinFrames=" + shadowCadencePromotionReadyMinFrames + ")"
-                ));
-            }
-            shadowPointBudgetRenderedCubemapsLastFrame = currentShadows.renderedPointShadowCubemaps();
-            shadowPointBudgetRenderedFacesLastFrame = shadowPointBudgetRenderedCubemapsLastFrame * 6;
-            shadowPointBudgetDeferredCountLastFrame = currentShadows.deferredShadowLightCount();
-            int pointFaceBudgetConfigured = Math.max(0, shadowMaxFacesPerFrame);
-            shadowPointBudgetSaturationRatioLastFrame = pointFaceBudgetConfigured <= 0
-                    ? 0.0
-                    : Math.min(1.0, (double) shadowPointBudgetRenderedFacesLastFrame / (double) pointFaceBudgetConfigured);
-            boolean pointBudgetEnvelopeNow = pointFaceBudgetConfigured > 0
-                    && shadowPointBudgetRenderedFacesLastFrame > 0
-                    && shadowPointBudgetSaturationRatioLastFrame >= shadowPointFaceBudgetWarnSaturationMin
-                    && shadowPointBudgetDeferredCountLastFrame > 0;
-            if (pointBudgetEnvelopeNow) {
-                shadowPointBudgetHighStreak = Math.min(10_000, shadowPointBudgetHighStreak + 1);
-                shadowPointBudgetStableStreak = 0;
-                shadowPointBudgetPromotionReadyLastFrame = false;
-                shadowPointBudgetEnvelopeBreachedLastFrame = true;
-            } else {
-                shadowPointBudgetHighStreak = 0;
-                shadowPointBudgetStableStreak = Math.min(10_000, shadowPointBudgetStableStreak + 1);
-                shadowPointBudgetPromotionReadyLastFrame =
-                        shadowPointBudgetStableStreak >= shadowPointFaceBudgetPromotionReadyMinFrames;
-            }
-            warnings.add(new EngineWarning(
-                    "SHADOW_POINT_FACE_BUDGET_ENVELOPE",
-                    "Shadow point face-budget envelope (configuredMaxFacesPerFrame="
-                            + pointFaceBudgetConfigured
-                            + ", renderedPointCubemaps=" + shadowPointBudgetRenderedCubemapsLastFrame
-                            + ", renderedPointFaces=" + shadowPointBudgetRenderedFacesLastFrame
-                            + ", deferredShadowLightCount=" + shadowPointBudgetDeferredCountLastFrame
-                            + ", saturationRatio=" + shadowPointBudgetSaturationRatioLastFrame
-                            + ", saturationWarnMin=" + shadowPointFaceBudgetWarnSaturationMin
-                            + ", highStreak=" + shadowPointBudgetHighStreak
-                            + ", warnMinFrames=" + shadowPointFaceBudgetWarnMinFrames
-                            + ", cooldownRemaining=" + shadowPointBudgetWarnCooldownRemaining
-                            + ", stableStreak=" + shadowPointBudgetStableStreak
-                            + ", promotionReadyMinFrames=" + shadowPointFaceBudgetPromotionReadyMinFrames
-                            + ", promotionReady=" + shadowPointBudgetPromotionReadyLastFrame + ")"
-            ));
-            if (pointBudgetEnvelopeNow
-                    && shadowPointBudgetHighStreak >= shadowPointFaceBudgetWarnMinFrames
-                    && shadowPointBudgetWarnCooldownRemaining == 0) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH",
-                        "Shadow point face-budget envelope breached (configuredMaxFacesPerFrame="
-                                + pointFaceBudgetConfigured
-                                + ", renderedPointFaces=" + shadowPointBudgetRenderedFacesLastFrame
-                                + ", saturationRatio=" + shadowPointBudgetSaturationRatioLastFrame
-                                + ", saturationWarnMin=" + shadowPointFaceBudgetWarnSaturationMin
-                                + ", deferredShadowLightCount=" + shadowPointBudgetDeferredCountLastFrame
-                                + ", highStreak=" + shadowPointBudgetHighStreak
-                                + ", warnMinFrames=" + shadowPointFaceBudgetWarnMinFrames
-                                + ", cooldownFrames=" + shadowPointFaceBudgetWarnCooldownFrames + ")"
-                ));
-                shadowPointBudgetWarnCooldownRemaining = shadowPointFaceBudgetWarnCooldownFrames;
-            }
-            if (shadowPointBudgetPromotionReadyLastFrame) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_POINT_FACE_BUDGET_PROMOTION_READY",
-                        "Shadow point face-budget promotion-ready (configuredMaxFacesPerFrame="
-                                + pointFaceBudgetConfigured
-                                + ", renderedPointFaces=" + shadowPointBudgetRenderedFacesLastFrame
-                                + ", deferredShadowLightCount=" + shadowPointBudgetDeferredCountLastFrame
-                                + ", stableStreak=" + shadowPointBudgetStableStreak
-                                + ", promotionReadyMinFrames=" + shadowPointFaceBudgetPromotionReadyMinFrames + ")"
-                ));
-            }
-            boolean phaseAPromotionNow = shadowCadencePromotionReadyLastFrame
-                    && shadowPointBudgetPromotionReadyLastFrame
-                    && shadowSpotProjectedPromotionReadyLastFrame;
-            if (phaseAPromotionNow) {
-                shadowPhaseAPromotionStableStreak = Math.min(10_000, shadowPhaseAPromotionStableStreak + 1);
-                shadowPhaseAPromotionReadyLastFrame =
-                        shadowPhaseAPromotionStableStreak >= shadowPhaseAPromotionReadyMinFrames;
-            } else {
-                shadowPhaseAPromotionStableStreak = 0;
-                shadowPhaseAPromotionReadyLastFrame = false;
-            }
-            if (shadowPhaseAPromotionReadyLastFrame) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_PHASEA_PROMOTION_READY",
-                        "Shadow Phase A promotion-ready (cadenceReady=" + shadowCadencePromotionReadyLastFrame
-                                + ", pointBudgetReady=" + shadowPointBudgetPromotionReadyLastFrame
-                                + ", spotProjectedReady=" + shadowSpotProjectedPromotionReadyLastFrame
-                                + ", stableStreak=" + shadowPhaseAPromotionStableStreak
-                                + ", promotionReadyMinFrames=" + shadowPhaseAPromotionReadyMinFrames + ")"
-                ));
-            }
+            VulkanShadowCadencePointWarningEmitter.State shadowCadencePointState = new VulkanShadowCadencePointWarningEmitter.State();
+            shadowCadencePointState.currentShadows = currentShadows;
+            shadowCadencePointState.shadowSpotProjectedRequestedLastFrame = shadowSpotProjectedRequestedLastFrame;
+            shadowCadencePointState.shadowSpotProjectedActiveLastFrame = shadowSpotProjectedActiveLastFrame;
+            shadowCadencePointState.shadowSpotProjectedRenderedCountLastFrame = shadowSpotProjectedRenderedCountLastFrame;
+            shadowCadencePointState.shadowSpotProjectedContractStatusLastFrame = shadowSpotProjectedContractStatusLastFrame;
+            shadowCadencePointState.shadowSpotProjectedContractBreachedLastFrame = shadowSpotProjectedContractBreachedLastFrame;
+            shadowCadencePointState.shadowSpotProjectedStableStreak = shadowSpotProjectedStableStreak;
+            shadowCadencePointState.shadowSpotProjectedPromotionReadyLastFrame = shadowSpotProjectedPromotionReadyLastFrame;
+            shadowCadencePointState.shadowSpotProjectedPromotionReadyMinFrames = shadowSpotProjectedPromotionReadyMinFrames;
+            shadowCadencePointState.shadowCadenceSelectedLocalLightsLastFrame = shadowCadenceSelectedLocalLightsLastFrame;
+            shadowCadencePointState.shadowCadenceDeferredLocalLightsLastFrame = shadowCadenceDeferredLocalLightsLastFrame;
+            shadowCadencePointState.shadowCadenceStaleBypassCountLastFrame = shadowCadenceStaleBypassCountLastFrame;
+            shadowCadencePointState.shadowCadenceDeferredRatioLastFrame = shadowCadenceDeferredRatioLastFrame;
+            shadowCadencePointState.shadowCadenceWarnDeferredRatioMax = shadowCadenceWarnDeferredRatioMax;
+            shadowCadencePointState.shadowCadenceHighStreak = shadowCadenceHighStreak;
+            shadowCadencePointState.shadowCadenceWarnMinFrames = shadowCadenceWarnMinFrames;
+            shadowCadencePointState.shadowCadenceWarnCooldownFrames = shadowCadenceWarnCooldownFrames;
+            shadowCadencePointState.shadowCadenceWarnCooldownRemaining = shadowCadenceWarnCooldownRemaining;
+            shadowCadencePointState.shadowCadenceStableStreak = shadowCadenceStableStreak;
+            shadowCadencePointState.shadowCadencePromotionReadyMinFrames = shadowCadencePromotionReadyMinFrames;
+            shadowCadencePointState.shadowCadencePromotionReadyLastFrame = shadowCadencePromotionReadyLastFrame;
+            shadowCadencePointState.cadenceEnvelopeNow = cadenceEnvelopeNow;
+            shadowCadencePointState.shadowPointBudgetRenderedCubemapsLastFrame = shadowPointBudgetRenderedCubemapsLastFrame;
+            shadowCadencePointState.shadowPointBudgetRenderedFacesLastFrame = shadowPointBudgetRenderedFacesLastFrame;
+            shadowCadencePointState.shadowPointBudgetDeferredCountLastFrame = shadowPointBudgetDeferredCountLastFrame;
+            shadowCadencePointState.shadowPointBudgetSaturationRatioLastFrame = shadowPointBudgetSaturationRatioLastFrame;
+            shadowCadencePointState.shadowPointFaceBudgetWarnSaturationMin = shadowPointFaceBudgetWarnSaturationMin;
+            shadowCadencePointState.shadowPointBudgetHighStreak = shadowPointBudgetHighStreak;
+            shadowCadencePointState.shadowPointBudgetWarnCooldownRemaining = shadowPointBudgetWarnCooldownRemaining;
+            shadowCadencePointState.shadowPointFaceBudgetWarnMinFrames = shadowPointFaceBudgetWarnMinFrames;
+            shadowCadencePointState.shadowPointFaceBudgetWarnCooldownFrames = shadowPointFaceBudgetWarnCooldownFrames;
+            shadowCadencePointState.shadowPointBudgetStableStreak = shadowPointBudgetStableStreak;
+            shadowCadencePointState.shadowPointFaceBudgetPromotionReadyMinFrames = shadowPointFaceBudgetPromotionReadyMinFrames;
+            shadowCadencePointState.shadowPointBudgetPromotionReadyLastFrame = shadowPointBudgetPromotionReadyLastFrame;
+            shadowCadencePointState.shadowPointBudgetEnvelopeBreachedLastFrame = shadowPointBudgetEnvelopeBreachedLastFrame;
+            shadowCadencePointState.shadowMaxFacesPerFrame = shadowMaxFacesPerFrame;
+            shadowCadencePointState.shadowPhaseAPromotionStableStreak = shadowPhaseAPromotionStableStreak;
+            shadowCadencePointState.shadowPhaseAPromotionReadyLastFrame = shadowPhaseAPromotionReadyLastFrame;
+            shadowCadencePointState.shadowPhaseAPromotionReadyMinFrames = shadowPhaseAPromotionReadyMinFrames;
+            VulkanShadowCadencePointWarningEmitter.emit(warnings, shadowCadencePointState);
+            shadowCadenceWarnCooldownRemaining = shadowCadencePointState.shadowCadenceWarnCooldownRemaining;
+            shadowPointBudgetRenderedCubemapsLastFrame = shadowCadencePointState.shadowPointBudgetRenderedCubemapsLastFrame;
+            shadowPointBudgetRenderedFacesLastFrame = shadowCadencePointState.shadowPointBudgetRenderedFacesLastFrame;
+            shadowPointBudgetDeferredCountLastFrame = shadowCadencePointState.shadowPointBudgetDeferredCountLastFrame;
+            shadowPointBudgetSaturationRatioLastFrame = shadowCadencePointState.shadowPointBudgetSaturationRatioLastFrame;
+            shadowPointBudgetHighStreak = shadowCadencePointState.shadowPointBudgetHighStreak;
+            shadowPointBudgetWarnCooldownRemaining = shadowCadencePointState.shadowPointBudgetWarnCooldownRemaining;
+            shadowPointBudgetStableStreak = shadowCadencePointState.shadowPointBudgetStableStreak;
+            shadowPointBudgetPromotionReadyLastFrame = shadowCadencePointState.shadowPointBudgetPromotionReadyLastFrame;
+            shadowPointBudgetEnvelopeBreachedLastFrame = shadowCadencePointState.shadowPointBudgetEnvelopeBreachedLastFrame;
+            shadowPhaseAPromotionStableStreak = shadowCadencePointState.shadowPhaseAPromotionStableStreak;
+            shadowPhaseAPromotionReadyLastFrame = shadowCadencePointState.shadowPhaseAPromotionReadyLastFrame;
             int candidateSpotLights = 0;
             int candidatePointLights = 0;
             if (currentSceneLights != null) {
