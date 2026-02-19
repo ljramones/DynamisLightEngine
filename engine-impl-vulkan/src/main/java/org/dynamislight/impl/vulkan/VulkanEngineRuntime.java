@@ -3871,18 +3871,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private double computeReflectionAdaptiveSeverity() {
-        if (reflectionSsrTaaEmaReject < 0.0 || reflectionSsrTaaEmaConfidence < 0.0) {
-            return 0.0;
-        }
-        double rejectRange = Math.max(1e-6, 1.0 - reflectionSsrTaaInstabilityRejectMin);
-        double rejectSeverity = Math.max(0.0, Math.min(1.0,
-                (reflectionSsrTaaEmaReject - reflectionSsrTaaInstabilityRejectMin) / rejectRange));
-        double confidenceRange = Math.max(1e-6, reflectionSsrTaaInstabilityConfidenceMax);
-        double confidenceSeverity = Math.max(0.0, Math.min(1.0,
-                (reflectionSsrTaaInstabilityConfidenceMax - reflectionSsrTaaEmaConfidence) / confidenceRange));
-        double streakDenominator = Math.max(1, reflectionSsrTaaInstabilityWarnMinFrames);
-        double streakSeverity = Math.max(0.0, Math.min(1.0, reflectionSsrTaaRiskHighStreak / streakDenominator));
-        return Math.max(streakSeverity, Math.max(rejectSeverity, confidenceSeverity));
+        return VulkanReflectionAdaptiveMath.computeAdaptiveSeverity(
+                reflectionSsrTaaEmaReject,
+                reflectionSsrTaaEmaConfidence,
+                reflectionSsrTaaInstabilityRejectMin,
+                reflectionSsrTaaInstabilityConfidenceMax,
+                reflectionSsrTaaRiskHighStreak,
+                reflectionSsrTaaInstabilityWarnMinFrames
+        );
     }
 
     private static boolean isReflectionSsrPathActive(int reflectionsMode) {
@@ -4026,44 +4022,26 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             double taaConfidence,
             long taaDrops
     ) {
-        if (!(reflectionsEnabled && taaEnabled && ssrPathActive)) {
-            reflectionSsrTaaHistoryPolicyActive = "inactive";
-            reflectionSsrTaaReprojectionPolicyActive = "surface_motion_vectors";
-            reflectionSsrTaaHistoryRejectBiasActive = 0.0;
-            reflectionSsrTaaHistoryConfidenceDecayActive = 0.0;
-            return;
-        }
-        double clampedSeverity = Math.max(0.0, Math.min(1.0, severity));
-        boolean disocclusionReject = taaDrops >= reflectionSsrTaaDisocclusionRejectDropEventsMin
-                && taaConfidence <= reflectionSsrTaaDisocclusionRejectConfidenceMax;
-        boolean rejectMode = clampedSeverity >= reflectionSsrTaaHistoryRejectSeverityMin
-                || reflectionSsrTaaRiskHighStreak >= reflectionSsrTaaHistoryRejectRiskStreakMin;
-        boolean decayMode = clampedSeverity >= reflectionSsrTaaHistoryConfidenceDecaySeverityMin;
-        if (disocclusionReject) {
-            reflectionSsrTaaHistoryPolicyActive = "reflection_disocclusion_reject";
-            reflectionSsrTaaReprojectionPolicyActive = "reflection_space_reject";
-            reflectionSsrTaaHistoryRejectBiasActive = Math.max(0.0, Math.min(1.0, 0.50 + clampedSeverity * 0.50));
-            reflectionSsrTaaHistoryConfidenceDecayActive = Math.max(0.0, Math.min(1.0, 0.60 + clampedSeverity * 0.40));
-            return;
-        }
-        if (rejectMode) {
-            reflectionSsrTaaHistoryPolicyActive = "reflection_region_reject";
-            reflectionSsrTaaReprojectionPolicyActive = "reflection_space_reject";
-            reflectionSsrTaaHistoryRejectBiasActive = Math.max(0.0, Math.min(1.0, 0.35 + clampedSeverity * 0.65));
-            reflectionSsrTaaHistoryConfidenceDecayActive = Math.max(0.0, Math.min(1.0, 0.45 + clampedSeverity * 0.55));
-            return;
-        }
-        if (decayMode) {
-            reflectionSsrTaaHistoryPolicyActive = "reflection_region_decay";
-            reflectionSsrTaaReprojectionPolicyActive = taaReject >= 0.25 ? "reflection_space_bias" : "surface_motion_vectors";
-            reflectionSsrTaaHistoryRejectBiasActive = Math.max(0.0, Math.min(1.0, 0.15 + clampedSeverity * 0.45));
-            reflectionSsrTaaHistoryConfidenceDecayActive = Math.max(0.0, Math.min(1.0, 0.25 + clampedSeverity * 0.50));
-            return;
-        }
-        reflectionSsrTaaHistoryPolicyActive = "surface_motion_vectors";
-        reflectionSsrTaaReprojectionPolicyActive = "surface_motion_vectors";
-        reflectionSsrTaaHistoryRejectBiasActive = Math.max(0.0, Math.min(1.0, clampedSeverity * 0.20));
-        reflectionSsrTaaHistoryConfidenceDecayActive = Math.max(0.0, Math.min(1.0, clampedSeverity * 0.30));
+        VulkanReflectionAdaptiveMath.ReflectionSsrTaaHistoryPolicy policy =
+                VulkanReflectionAdaptiveMath.computeHistoryPolicy(
+                        reflectionsEnabled,
+                        taaEnabled,
+                        ssrPathActive,
+                        severity,
+                        taaReject,
+                        taaConfidence,
+                        taaDrops,
+                        reflectionSsrTaaDisocclusionRejectDropEventsMin,
+                        reflectionSsrTaaDisocclusionRejectConfidenceMax,
+                        reflectionSsrTaaHistoryRejectSeverityMin,
+                        reflectionSsrTaaHistoryRejectRiskStreakMin,
+                        reflectionSsrTaaRiskHighStreak,
+                        reflectionSsrTaaHistoryConfidenceDecaySeverityMin
+                );
+        reflectionSsrTaaHistoryPolicyActive = policy.historyPolicy();
+        reflectionSsrTaaReprojectionPolicyActive = policy.reprojectionPolicy();
+        reflectionSsrTaaHistoryRejectBiasActive = policy.historyRejectBias();
+        reflectionSsrTaaHistoryConfidenceDecayActive = policy.historyConfidenceDecay();
     }
 
     private void recordReflectionAdaptiveTelemetrySample(
@@ -4108,67 +4086,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private ReflectionAdaptiveTrendDiagnostics snapshotReflectionAdaptiveTrendDiagnostics(boolean warningTriggered) {
-        int windowSamples = reflectionAdaptiveTrendSamples.size();
-        if (windowSamples <= 0) {
-            return new ReflectionAdaptiveTrendDiagnostics(
-                    0,
-                    0.0,
-                    0.0,
-                    0,
-                    0,
-                    0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    reflectionSsrTaaAdaptiveTrendHighRatioWarnMin,
-                    reflectionSsrTaaAdaptiveTrendWarnMinFrames,
-                    reflectionSsrTaaAdaptiveTrendWarnCooldownFrames,
-                    reflectionSsrTaaAdaptiveTrendWarnMinSamples,
-                    reflectionSsrTaaAdaptiveTrendWarnHighStreak,
-                    reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining,
-                    warningTriggered
-            );
-        }
-        double severityAccum = 0.0;
-        double severityPeak = 0.0;
-        double temporalDeltaAccum = 0.0;
-        double ssrStrengthDeltaAccum = 0.0;
-        double ssrStepScaleDeltaAccum = 0.0;
-        int lowCount = 0;
-        int mediumCount = 0;
-        int highCount = 0;
-        for (ReflectionAdaptiveWindowSample sample : reflectionAdaptiveTrendSamples) {
-            double severity = sample.severity();
-            severityAccum += severity;
-            severityPeak = Math.max(severityPeak, severity);
-            temporalDeltaAccum += sample.temporalDelta();
-            ssrStrengthDeltaAccum += sample.ssrStrengthDelta();
-            ssrStepScaleDeltaAccum += sample.ssrStepScaleDelta();
-            if (severity < 0.25) {
-                lowCount++;
-            } else if (severity < 0.60) {
-                mediumCount++;
-            } else {
-                highCount++;
-            }
-        }
-        double denom = (double) windowSamples;
-        return new ReflectionAdaptiveTrendDiagnostics(
-                windowSamples,
-                severityAccum / denom,
-                severityPeak,
-                lowCount,
-                mediumCount,
-                highCount,
-                lowCount / denom,
-                mediumCount / denom,
-                highCount / denom,
-                temporalDeltaAccum / denom,
-                ssrStrengthDeltaAccum / denom,
-                ssrStepScaleDeltaAccum / denom,
+        return VulkanReflectionAdaptiveMath.snapshotTrendDiagnostics(
+                reflectionAdaptiveTrendSamples,
                 reflectionSsrTaaAdaptiveTrendHighRatioWarnMin,
                 reflectionSsrTaaAdaptiveTrendWarnMinFrames,
                 reflectionSsrTaaAdaptiveTrendWarnCooldownFrames,
@@ -4665,412 +4584,245 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private void applyReflectionProfileTelemetryDefaults(Map<String, String> backendOptions) {
-        if (reflectionProfile == ReflectionProfile.BALANCED) {
-            return;
-        }
-        Map<String, String> safe = backendOptions == null ? Map.of() : backendOptions;
-        switch (reflectionProfile) {
-            case PERFORMANCE -> {
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinStreak")) reflectionProbeChurnWarnMinStreak = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeChurnWarnCooldownFrames")) reflectionProbeChurnWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapWarnMaxPairs")) reflectionProbeQualityOverlapWarnMaxPairs = 6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityBleedRiskWarnMaxPairs")) reflectionProbeQualityBleedRiskWarnMaxPairs = 0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple")) reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideProbeOnlyRatioWarnMax")) reflectionOverrideProbeOnlyRatioWarnMax = 0.55;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideSsrOnlyRatioWarnMax")) reflectionOverrideSsrOnlyRatioWarnMax = 0.55;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideOtherWarnMax")) reflectionOverrideOtherWarnMax = 0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideWarnMinFrames")) reflectionOverrideWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideWarnCooldownFrames")) reflectionOverrideWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrStrength")) reflectionContactHardeningMinSsrStrength = 0.30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrMaxRoughness")) reflectionContactHardeningMinSsrMaxRoughness = 0.50;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnMinFrames")) reflectionContactHardeningWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnCooldownFrames")) reflectionContactHardeningWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityBoxProjectionMinRatio")) reflectionProbeQualityBoxProjectionMinRatio = 0.75;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax")) reflectionProbeQualityInvalidBlendDistanceWarnMax = 0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapCoverageWarnMin")) reflectionProbeQualityOverlapCoverageWarnMin = 0.20;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnMinFrames")) reflectionProbeStreamingWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnCooldownFrames")) reflectionProbeStreamingWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingMissRatioWarnMax")) reflectionProbeStreamingMissRatioWarnMax = 0.20;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingDeferredRatioWarnMax")) reflectionProbeStreamingDeferredRatioWarnMax = 0.35;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingLodSkewWarnMax")) reflectionProbeStreamingLodSkewWarnMax = 0.55;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingMemoryBudgetMb")) reflectionProbeStreamingMemoryBudgetMb = 28.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityRejectMin")) reflectionSsrTaaInstabilityRejectMin = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityConfidenceMax")) reflectionSsrTaaInstabilityConfidenceMax = 0.60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityDropEventsMin")) reflectionSsrTaaInstabilityDropEventsMin = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnMinFrames")) reflectionSsrTaaInstabilityWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames")) reflectionSsrTaaInstabilityWarnCooldownFrames = 240;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaRiskEmaAlpha")) reflectionSsrTaaRiskEmaAlpha = 0.20;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveEnabled")) reflectionSsrTaaAdaptiveEnabled = false;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax")) reflectionSsrTaaAdaptiveTemporalBoostMax = 0.08;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin")) reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.80;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax")) reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.10;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames")) reflectionSsrTaaAdaptiveTrendWindowFrames = 150;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin")) reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = 0.55;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames")) reflectionSsrTaaAdaptiveTrendWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames")) reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = 240;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples")) reflectionSsrTaaAdaptiveTrendWarnMinSamples = 30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloMeanSeverityMax")) reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = 0.25;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloHighRatioMax")) reflectionSsrTaaAdaptiveTrendSloHighRatioMax = 0.20;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples")) reflectionSsrTaaAdaptiveTrendSloMinSamples = 30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectDropEventsMin")) reflectionSsrTaaDisocclusionRejectDropEventsMin = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectConfidenceMax")) reflectionSsrTaaDisocclusionRejectConfidenceMax = 0.58;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopePlaneDeltaWarnMax")) reflectionPlanarEnvelopePlaneDeltaWarnMax = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopeCoverageRatioWarnMin")) reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnMinFrames")) reflectionPlanarEnvelopeWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnCooldownFrames")) reflectionPlanarEnvelopeWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsLow")) reflectionPlanarPerfMaxGpuMsLow = 1.2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsMedium")) reflectionPlanarPerfMaxGpuMsMedium = 1.9;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsHigh")) reflectionPlanarPerfMaxGpuMsHigh = 2.6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsUltra")) reflectionPlanarPerfMaxGpuMsUltra = 3.2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfDrawInflationWarnMax")) reflectionPlanarPerfDrawInflationWarnMax = 1.7;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMemoryBudgetMb")) reflectionPlanarPerfMemoryBudgetMb = 20.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfWarnMinFrames")) reflectionPlanarPerfWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfWarnCooldownFrames")) reflectionPlanarPerfWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = false;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.58;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsLow")) reflectionRtPerfMaxGpuMsLow = 1.4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsMedium")) reflectionRtPerfMaxGpuMsMedium = 2.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsHigh")) reflectionRtPerfMaxGpuMsHigh = 2.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsUltra")) reflectionRtPerfMaxGpuMsUltra = 3.6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfWarnMinFrames")) reflectionRtPerfWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfWarnCooldownFrames")) reflectionRtPerfWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtHybridProbeShareWarnMax")) reflectionRtHybridProbeShareWarnMax = 0.58;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtHybridWarnMinFrames")) reflectionRtHybridWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtHybridWarnCooldownFrames")) reflectionRtHybridWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseSpatialVarianceWarnMax")) reflectionRtDenoiseSpatialVarianceWarnMax = 0.34;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseTemporalLagWarnMax")) reflectionRtDenoiseTemporalLagWarnMax = 0.30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnMinFrames")) reflectionRtDenoiseWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnCooldownFrames")) reflectionRtDenoiseWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtAsBuildGpuMsWarnMax")) reflectionRtAsBuildGpuMsWarnMax = 1.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtAsMemoryBudgetMb")) reflectionRtAsMemoryBudgetMb = 48.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyCandidateReactiveMin")) reflectionTransparencyCandidateReactiveMin = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyProbeOnlyRatioWarnMax")) reflectionTransparencyProbeOnlyRatioWarnMax = 0.50;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyWarnMinFrames")) reflectionTransparencyWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyWarnCooldownFrames")) reflectionTransparencyWarnCooldownFrames = 180;
-            }
-            case QUALITY -> {
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinStreak")) reflectionProbeChurnWarnMinStreak = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeChurnWarnCooldownFrames")) reflectionProbeChurnWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapWarnMaxPairs")) reflectionProbeQualityOverlapWarnMaxPairs = 10;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityBleedRiskWarnMaxPairs")) reflectionProbeQualityBleedRiskWarnMaxPairs = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple")) reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideProbeOnlyRatioWarnMax")) reflectionOverrideProbeOnlyRatioWarnMax = 0.75;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideSsrOnlyRatioWarnMax")) reflectionOverrideSsrOnlyRatioWarnMax = 0.75;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideOtherWarnMax")) reflectionOverrideOtherWarnMax = 0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideWarnMinFrames")) reflectionOverrideWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideWarnCooldownFrames")) reflectionOverrideWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrStrength")) reflectionContactHardeningMinSsrStrength = 0.35;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrMaxRoughness")) reflectionContactHardeningMinSsrMaxRoughness = 0.55;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnMinFrames")) reflectionContactHardeningWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnCooldownFrames")) reflectionContactHardeningWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityBoxProjectionMinRatio")) reflectionProbeQualityBoxProjectionMinRatio = 0.60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax")) reflectionProbeQualityInvalidBlendDistanceWarnMax = 0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapCoverageWarnMin")) reflectionProbeQualityOverlapCoverageWarnMin = 0.12;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnMinFrames")) reflectionProbeStreamingWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnCooldownFrames")) reflectionProbeStreamingWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingMissRatioWarnMax")) reflectionProbeStreamingMissRatioWarnMax = 0.35;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingDeferredRatioWarnMax")) reflectionProbeStreamingDeferredRatioWarnMax = 0.55;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingLodSkewWarnMax")) reflectionProbeStreamingLodSkewWarnMax = 0.70;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingMemoryBudgetMb")) reflectionProbeStreamingMemoryBudgetMb = 52.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityRejectMin")) reflectionSsrTaaInstabilityRejectMin = 0.32;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityConfidenceMax")) reflectionSsrTaaInstabilityConfidenceMax = 0.74;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityDropEventsMin")) reflectionSsrTaaInstabilityDropEventsMin = 0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnMinFrames")) reflectionSsrTaaInstabilityWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames")) reflectionSsrTaaInstabilityWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaRiskEmaAlpha")) reflectionSsrTaaRiskEmaAlpha = 0.30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveEnabled")) reflectionSsrTaaAdaptiveEnabled = false;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax")) reflectionSsrTaaAdaptiveTemporalBoostMax = 0.12;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin")) reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.70;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax")) reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.15;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames")) reflectionSsrTaaAdaptiveTrendWindowFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin")) reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames")) reflectionSsrTaaAdaptiveTrendWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames")) reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples")) reflectionSsrTaaAdaptiveTrendWarnMinSamples = 24;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloMeanSeverityMax")) reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = 0.40;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloHighRatioMax")) reflectionSsrTaaAdaptiveTrendSloHighRatioMax = 0.30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples")) reflectionSsrTaaAdaptiveTrendSloMinSamples = 24;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectDropEventsMin")) reflectionSsrTaaDisocclusionRejectDropEventsMin = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectConfidenceMax")) reflectionSsrTaaDisocclusionRejectConfidenceMax = 0.62;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopePlaneDeltaWarnMax")) reflectionPlanarEnvelopePlaneDeltaWarnMax = 0.30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopeCoverageRatioWarnMin")) reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.20;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnMinFrames")) reflectionPlanarEnvelopeWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnCooldownFrames")) reflectionPlanarEnvelopeWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsLow")) reflectionPlanarPerfMaxGpuMsLow = 1.5;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsMedium")) reflectionPlanarPerfMaxGpuMsMedium = 2.4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsHigh")) reflectionPlanarPerfMaxGpuMsHigh = 3.3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsUltra")) reflectionPlanarPerfMaxGpuMsUltra = 4.5;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfDrawInflationWarnMax")) reflectionPlanarPerfDrawInflationWarnMax = 2.1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMemoryBudgetMb")) reflectionPlanarPerfMemoryBudgetMb = 36.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfWarnMinFrames")) reflectionPlanarPerfWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfWarnCooldownFrames")) reflectionPlanarPerfWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = true;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.72;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsLow")) reflectionRtPerfMaxGpuMsLow = 1.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsMedium")) reflectionRtPerfMaxGpuMsMedium = 2.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsHigh")) reflectionRtPerfMaxGpuMsHigh = 3.9;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsUltra")) reflectionRtPerfMaxGpuMsUltra = 5.2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfWarnMinFrames")) reflectionRtPerfWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfWarnCooldownFrames")) reflectionRtPerfWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtHybridProbeShareWarnMax")) reflectionRtHybridProbeShareWarnMax = 0.72;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtHybridWarnMinFrames")) reflectionRtHybridWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtHybridWarnCooldownFrames")) reflectionRtHybridWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseSpatialVarianceWarnMax")) reflectionRtDenoiseSpatialVarianceWarnMax = 0.48;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseTemporalLagWarnMax")) reflectionRtDenoiseTemporalLagWarnMax = 0.38;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnMinFrames")) reflectionRtDenoiseWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnCooldownFrames")) reflectionRtDenoiseWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtAsBuildGpuMsWarnMax")) reflectionRtAsBuildGpuMsWarnMax = 1.4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtAsMemoryBudgetMb")) reflectionRtAsMemoryBudgetMb = 80.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyCandidateReactiveMin")) reflectionTransparencyCandidateReactiveMin = 0.35;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyProbeOnlyRatioWarnMax")) reflectionTransparencyProbeOnlyRatioWarnMax = 0.65;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyWarnMinFrames")) reflectionTransparencyWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyWarnCooldownFrames")) reflectionTransparencyWarnCooldownFrames = 120;
-            }
-            case STABILITY -> {
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinStreak")) reflectionProbeChurnWarnMinStreak = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeChurnWarnCooldownFrames")) reflectionProbeChurnWarnCooldownFrames = 60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapWarnMaxPairs")) reflectionProbeQualityOverlapWarnMaxPairs = 12;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityBleedRiskWarnMaxPairs")) reflectionProbeQualityBleedRiskWarnMaxPairs = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple")) reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideProbeOnlyRatioWarnMax")) reflectionOverrideProbeOnlyRatioWarnMax = 0.85;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideSsrOnlyRatioWarnMax")) reflectionOverrideSsrOnlyRatioWarnMax = 0.85;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideOtherWarnMax")) reflectionOverrideOtherWarnMax = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideWarnMinFrames")) reflectionOverrideWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.overrideWarnCooldownFrames")) reflectionOverrideWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrStrength")) reflectionContactHardeningMinSsrStrength = 0.25;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrMaxRoughness")) reflectionContactHardeningMinSsrMaxRoughness = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnMinFrames")) reflectionContactHardeningWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnCooldownFrames")) reflectionContactHardeningWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityBoxProjectionMinRatio")) reflectionProbeQualityBoxProjectionMinRatio = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax")) reflectionProbeQualityInvalidBlendDistanceWarnMax = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapCoverageWarnMin")) reflectionProbeQualityOverlapCoverageWarnMin = 0.08;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnMinFrames")) reflectionProbeStreamingWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnCooldownFrames")) reflectionProbeStreamingWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingMissRatioWarnMax")) reflectionProbeStreamingMissRatioWarnMax = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingDeferredRatioWarnMax")) reflectionProbeStreamingDeferredRatioWarnMax = 0.70;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingLodSkewWarnMax")) reflectionProbeStreamingLodSkewWarnMax = 0.80;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.probeStreamingMemoryBudgetMb")) reflectionProbeStreamingMemoryBudgetMb = 72.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityRejectMin")) reflectionSsrTaaInstabilityRejectMin = 0.28;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityConfidenceMax")) reflectionSsrTaaInstabilityConfidenceMax = 0.78;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityDropEventsMin")) reflectionSsrTaaInstabilityDropEventsMin = 0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnMinFrames")) reflectionSsrTaaInstabilityWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityWarnCooldownFrames")) reflectionSsrTaaInstabilityWarnCooldownFrames = 60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaRiskEmaAlpha")) reflectionSsrTaaRiskEmaAlpha = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveEnabled")) reflectionSsrTaaAdaptiveEnabled = true;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTemporalBoostMax")) reflectionSsrTaaAdaptiveTemporalBoostMax = 0.18;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveSsrStrengthScaleMin")) reflectionSsrTaaAdaptiveSsrStrengthScaleMin = 0.60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveStepScaleBoostMax")) reflectionSsrTaaAdaptiveStepScaleBoostMax = 0.25;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWindowFrames")) reflectionSsrTaaAdaptiveTrendWindowFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendHighRatioWarnMin")) reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = 0.30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinFrames")) reflectionSsrTaaAdaptiveTrendWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnCooldownFrames")) reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendWarnMinSamples")) reflectionSsrTaaAdaptiveTrendWarnMinSamples = 16;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloMeanSeverityMax")) reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = 0.65;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloHighRatioMax")) reflectionSsrTaaAdaptiveTrendSloHighRatioMax = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaAdaptiveTrendSloMinSamples")) reflectionSsrTaaAdaptiveTrendSloMinSamples = 16;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectDropEventsMin")) reflectionSsrTaaDisocclusionRejectDropEventsMin = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.ssrTaaDisocclusionRejectConfidenceMax")) reflectionSsrTaaDisocclusionRejectConfidenceMax = 0.70;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopePlaneDeltaWarnMax")) reflectionPlanarEnvelopePlaneDeltaWarnMax = 0.22;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopeCoverageRatioWarnMin")) reflectionPlanarEnvelopeCoverageRatioWarnMin = 0.15;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnMinFrames")) reflectionPlanarEnvelopeWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarEnvelopeWarnCooldownFrames")) reflectionPlanarEnvelopeWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsLow")) reflectionPlanarPerfMaxGpuMsLow = 1.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsMedium")) reflectionPlanarPerfMaxGpuMsMedium = 2.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsHigh")) reflectionPlanarPerfMaxGpuMsHigh = 3.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMaxGpuMsUltra")) reflectionPlanarPerfMaxGpuMsUltra = 5.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfDrawInflationWarnMax")) reflectionPlanarPerfDrawInflationWarnMax = 2.4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfMemoryBudgetMb")) reflectionPlanarPerfMemoryBudgetMb = 48.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfWarnMinFrames")) reflectionPlanarPerfWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.planarPerfWarnCooldownFrames")) reflectionPlanarPerfWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtSingleBounceEnabled")) reflectionRtSingleBounceEnabled = true;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtMultiBounceEnabled")) reflectionRtMultiBounceEnabled = false;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseStrength")) reflectionRtDenoiseStrength = 0.80;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsLow")) reflectionRtPerfMaxGpuMsLow = 2.2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsMedium")) reflectionRtPerfMaxGpuMsMedium = 3.2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsHigh")) reflectionRtPerfMaxGpuMsHigh = 4.4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfMaxGpuMsUltra")) reflectionRtPerfMaxGpuMsUltra = 5.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfWarnMinFrames")) reflectionRtPerfWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtPerfWarnCooldownFrames")) reflectionRtPerfWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtHybridProbeShareWarnMax")) reflectionRtHybridProbeShareWarnMax = 0.76;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtHybridWarnMinFrames")) reflectionRtHybridWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtHybridWarnCooldownFrames")) reflectionRtHybridWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseSpatialVarianceWarnMax")) reflectionRtDenoiseSpatialVarianceWarnMax = 0.54;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseTemporalLagWarnMax")) reflectionRtDenoiseTemporalLagWarnMax = 0.42;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnMinFrames")) reflectionRtDenoiseWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnCooldownFrames")) reflectionRtDenoiseWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtAsBuildGpuMsWarnMax")) reflectionRtAsBuildGpuMsWarnMax = 1.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.rtAsMemoryBudgetMb")) reflectionRtAsMemoryBudgetMb = 96.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyCandidateReactiveMin")) reflectionTransparencyCandidateReactiveMin = 0.25;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyProbeOnlyRatioWarnMax")) reflectionTransparencyProbeOnlyRatioWarnMax = 0.75;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyWarnMinFrames")) reflectionTransparencyWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.reflections.transparencyWarnCooldownFrames")) reflectionTransparencyWarnCooldownFrames = 90;
-            }
-            default -> {
-            }
-        }
+        VulkanReflectionTelemetryDefaults.State state = new VulkanReflectionTelemetryDefaults.State();
+        state.reflectionContactHardeningMinSsrMaxRoughness = reflectionContactHardeningMinSsrMaxRoughness;
+        state.reflectionContactHardeningMinSsrStrength = reflectionContactHardeningMinSsrStrength;
+        state.reflectionContactHardeningWarnCooldownFrames = reflectionContactHardeningWarnCooldownFrames;
+        state.reflectionContactHardeningWarnMinFrames = reflectionContactHardeningWarnMinFrames;
+        state.reflectionOverrideOtherWarnMax = reflectionOverrideOtherWarnMax;
+        state.reflectionOverrideProbeOnlyRatioWarnMax = reflectionOverrideProbeOnlyRatioWarnMax;
+        state.reflectionOverrideSsrOnlyRatioWarnMax = reflectionOverrideSsrOnlyRatioWarnMax;
+        state.reflectionOverrideWarnCooldownFrames = reflectionOverrideWarnCooldownFrames;
+        state.reflectionOverrideWarnMinFrames = reflectionOverrideWarnMinFrames;
+        state.reflectionPlanarEnvelopeCoverageRatioWarnMin = reflectionPlanarEnvelopeCoverageRatioWarnMin;
+        state.reflectionPlanarEnvelopePlaneDeltaWarnMax = reflectionPlanarEnvelopePlaneDeltaWarnMax;
+        state.reflectionPlanarEnvelopeWarnCooldownFrames = reflectionPlanarEnvelopeWarnCooldownFrames;
+        state.reflectionPlanarEnvelopeWarnMinFrames = reflectionPlanarEnvelopeWarnMinFrames;
+        state.reflectionPlanarPerfDrawInflationWarnMax = reflectionPlanarPerfDrawInflationWarnMax;
+        state.reflectionPlanarPerfMaxGpuMsHigh = reflectionPlanarPerfMaxGpuMsHigh;
+        state.reflectionPlanarPerfMaxGpuMsLow = reflectionPlanarPerfMaxGpuMsLow;
+        state.reflectionPlanarPerfMaxGpuMsMedium = reflectionPlanarPerfMaxGpuMsMedium;
+        state.reflectionPlanarPerfMaxGpuMsUltra = reflectionPlanarPerfMaxGpuMsUltra;
+        state.reflectionPlanarPerfMemoryBudgetMb = reflectionPlanarPerfMemoryBudgetMb;
+        state.reflectionPlanarPerfWarnCooldownFrames = reflectionPlanarPerfWarnCooldownFrames;
+        state.reflectionPlanarPerfWarnMinFrames = reflectionPlanarPerfWarnMinFrames;
+        state.reflectionProbeChurnWarnCooldownFrames = reflectionProbeChurnWarnCooldownFrames;
+        state.reflectionProbeChurnWarnMinDelta = reflectionProbeChurnWarnMinDelta;
+        state.reflectionProbeChurnWarnMinStreak = reflectionProbeChurnWarnMinStreak;
+        state.reflectionProbeQualityBleedRiskWarnMaxPairs = reflectionProbeQualityBleedRiskWarnMaxPairs;
+        state.reflectionProbeQualityBoxProjectionMinRatio = reflectionProbeQualityBoxProjectionMinRatio;
+        state.reflectionProbeQualityInvalidBlendDistanceWarnMax = reflectionProbeQualityInvalidBlendDistanceWarnMax;
+        state.reflectionProbeQualityMinOverlapPairsWhenMultiple = reflectionProbeQualityMinOverlapPairsWhenMultiple;
+        state.reflectionProbeQualityOverlapCoverageWarnMin = reflectionProbeQualityOverlapCoverageWarnMin;
+        state.reflectionProbeQualityOverlapWarnMaxPairs = reflectionProbeQualityOverlapWarnMaxPairs;
+        state.reflectionProbeStreamingDeferredRatioWarnMax = reflectionProbeStreamingDeferredRatioWarnMax;
+        state.reflectionProbeStreamingLodSkewWarnMax = reflectionProbeStreamingLodSkewWarnMax;
+        state.reflectionProbeStreamingMemoryBudgetMb = reflectionProbeStreamingMemoryBudgetMb;
+        state.reflectionProbeStreamingMissRatioWarnMax = reflectionProbeStreamingMissRatioWarnMax;
+        state.reflectionProbeStreamingWarnCooldownFrames = reflectionProbeStreamingWarnCooldownFrames;
+        state.reflectionProbeStreamingWarnMinFrames = reflectionProbeStreamingWarnMinFrames;
+        state.reflectionRtAsBuildGpuMsWarnMax = reflectionRtAsBuildGpuMsWarnMax;
+        state.reflectionRtAsMemoryBudgetMb = reflectionRtAsMemoryBudgetMb;
+        state.reflectionRtDenoiseSpatialVarianceWarnMax = reflectionRtDenoiseSpatialVarianceWarnMax;
+        state.reflectionRtDenoiseStrength = reflectionRtDenoiseStrength;
+        state.reflectionRtDenoiseTemporalLagWarnMax = reflectionRtDenoiseTemporalLagWarnMax;
+        state.reflectionRtDenoiseWarnCooldownFrames = reflectionRtDenoiseWarnCooldownFrames;
+        state.reflectionRtDenoiseWarnMinFrames = reflectionRtDenoiseWarnMinFrames;
+        state.reflectionRtHybridProbeShareWarnMax = reflectionRtHybridProbeShareWarnMax;
+        state.reflectionRtHybridWarnCooldownFrames = reflectionRtHybridWarnCooldownFrames;
+        state.reflectionRtHybridWarnMinFrames = reflectionRtHybridWarnMinFrames;
+        state.reflectionRtMultiBounceEnabled = reflectionRtMultiBounceEnabled;
+        state.reflectionRtPerfMaxGpuMsHigh = reflectionRtPerfMaxGpuMsHigh;
+        state.reflectionRtPerfMaxGpuMsLow = reflectionRtPerfMaxGpuMsLow;
+        state.reflectionRtPerfMaxGpuMsMedium = reflectionRtPerfMaxGpuMsMedium;
+        state.reflectionRtPerfMaxGpuMsUltra = reflectionRtPerfMaxGpuMsUltra;
+        state.reflectionRtPerfWarnCooldownFrames = reflectionRtPerfWarnCooldownFrames;
+        state.reflectionRtPerfWarnMinFrames = reflectionRtPerfWarnMinFrames;
+        state.reflectionRtSingleBounceEnabled = reflectionRtSingleBounceEnabled;
+        state.reflectionSsrTaaAdaptiveEnabled = reflectionSsrTaaAdaptiveEnabled;
+        state.reflectionSsrTaaAdaptiveSsrStrengthScaleMin = reflectionSsrTaaAdaptiveSsrStrengthScaleMin;
+        state.reflectionSsrTaaAdaptiveStepScaleBoostMax = reflectionSsrTaaAdaptiveStepScaleBoostMax;
+        state.reflectionSsrTaaAdaptiveTemporalBoostMax = reflectionSsrTaaAdaptiveTemporalBoostMax;
+        state.reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = reflectionSsrTaaAdaptiveTrendHighRatioWarnMin;
+        state.reflectionSsrTaaAdaptiveTrendSloHighRatioMax = reflectionSsrTaaAdaptiveTrendSloHighRatioMax;
+        state.reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax;
+        state.reflectionSsrTaaAdaptiveTrendSloMinSamples = reflectionSsrTaaAdaptiveTrendSloMinSamples;
+        state.reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = reflectionSsrTaaAdaptiveTrendWarnCooldownFrames;
+        state.reflectionSsrTaaAdaptiveTrendWarnMinFrames = reflectionSsrTaaAdaptiveTrendWarnMinFrames;
+        state.reflectionSsrTaaAdaptiveTrendWarnMinSamples = reflectionSsrTaaAdaptiveTrendWarnMinSamples;
+        state.reflectionSsrTaaAdaptiveTrendWindowFrames = reflectionSsrTaaAdaptiveTrendWindowFrames;
+        state.reflectionSsrTaaDisocclusionRejectConfidenceMax = reflectionSsrTaaDisocclusionRejectConfidenceMax;
+        state.reflectionSsrTaaDisocclusionRejectDropEventsMin = reflectionSsrTaaDisocclusionRejectDropEventsMin;
+        state.reflectionSsrTaaInstabilityConfidenceMax = reflectionSsrTaaInstabilityConfidenceMax;
+        state.reflectionSsrTaaInstabilityDropEventsMin = reflectionSsrTaaInstabilityDropEventsMin;
+        state.reflectionSsrTaaInstabilityRejectMin = reflectionSsrTaaInstabilityRejectMin;
+        state.reflectionSsrTaaInstabilityWarnCooldownFrames = reflectionSsrTaaInstabilityWarnCooldownFrames;
+        state.reflectionSsrTaaInstabilityWarnMinFrames = reflectionSsrTaaInstabilityWarnMinFrames;
+        state.reflectionSsrTaaRiskEmaAlpha = reflectionSsrTaaRiskEmaAlpha;
+        state.reflectionTransparencyCandidateReactiveMin = reflectionTransparencyCandidateReactiveMin;
+        state.reflectionTransparencyProbeOnlyRatioWarnMax = reflectionTransparencyProbeOnlyRatioWarnMax;
+        state.reflectionTransparencyWarnCooldownFrames = reflectionTransparencyWarnCooldownFrames;
+        state.reflectionTransparencyWarnMinFrames = reflectionTransparencyWarnMinFrames;
+
+        VulkanReflectionTelemetryDefaults.apply(state, reflectionProfile, backendOptions);
+
+        reflectionContactHardeningMinSsrMaxRoughness = state.reflectionContactHardeningMinSsrMaxRoughness;
+        reflectionContactHardeningMinSsrStrength = state.reflectionContactHardeningMinSsrStrength;
+        reflectionContactHardeningWarnCooldownFrames = state.reflectionContactHardeningWarnCooldownFrames;
+        reflectionContactHardeningWarnMinFrames = state.reflectionContactHardeningWarnMinFrames;
+        reflectionOverrideOtherWarnMax = state.reflectionOverrideOtherWarnMax;
+        reflectionOverrideProbeOnlyRatioWarnMax = state.reflectionOverrideProbeOnlyRatioWarnMax;
+        reflectionOverrideSsrOnlyRatioWarnMax = state.reflectionOverrideSsrOnlyRatioWarnMax;
+        reflectionOverrideWarnCooldownFrames = state.reflectionOverrideWarnCooldownFrames;
+        reflectionOverrideWarnMinFrames = state.reflectionOverrideWarnMinFrames;
+        reflectionPlanarEnvelopeCoverageRatioWarnMin = state.reflectionPlanarEnvelopeCoverageRatioWarnMin;
+        reflectionPlanarEnvelopePlaneDeltaWarnMax = state.reflectionPlanarEnvelopePlaneDeltaWarnMax;
+        reflectionPlanarEnvelopeWarnCooldownFrames = state.reflectionPlanarEnvelopeWarnCooldownFrames;
+        reflectionPlanarEnvelopeWarnMinFrames = state.reflectionPlanarEnvelopeWarnMinFrames;
+        reflectionPlanarPerfDrawInflationWarnMax = state.reflectionPlanarPerfDrawInflationWarnMax;
+        reflectionPlanarPerfMaxGpuMsHigh = state.reflectionPlanarPerfMaxGpuMsHigh;
+        reflectionPlanarPerfMaxGpuMsLow = state.reflectionPlanarPerfMaxGpuMsLow;
+        reflectionPlanarPerfMaxGpuMsMedium = state.reflectionPlanarPerfMaxGpuMsMedium;
+        reflectionPlanarPerfMaxGpuMsUltra = state.reflectionPlanarPerfMaxGpuMsUltra;
+        reflectionPlanarPerfMemoryBudgetMb = state.reflectionPlanarPerfMemoryBudgetMb;
+        reflectionPlanarPerfWarnCooldownFrames = state.reflectionPlanarPerfWarnCooldownFrames;
+        reflectionPlanarPerfWarnMinFrames = state.reflectionPlanarPerfWarnMinFrames;
+        reflectionProbeChurnWarnCooldownFrames = state.reflectionProbeChurnWarnCooldownFrames;
+        reflectionProbeChurnWarnMinDelta = state.reflectionProbeChurnWarnMinDelta;
+        reflectionProbeChurnWarnMinStreak = state.reflectionProbeChurnWarnMinStreak;
+        reflectionProbeQualityBleedRiskWarnMaxPairs = state.reflectionProbeQualityBleedRiskWarnMaxPairs;
+        reflectionProbeQualityBoxProjectionMinRatio = state.reflectionProbeQualityBoxProjectionMinRatio;
+        reflectionProbeQualityInvalidBlendDistanceWarnMax = state.reflectionProbeQualityInvalidBlendDistanceWarnMax;
+        reflectionProbeQualityMinOverlapPairsWhenMultiple = state.reflectionProbeQualityMinOverlapPairsWhenMultiple;
+        reflectionProbeQualityOverlapCoverageWarnMin = state.reflectionProbeQualityOverlapCoverageWarnMin;
+        reflectionProbeQualityOverlapWarnMaxPairs = state.reflectionProbeQualityOverlapWarnMaxPairs;
+        reflectionProbeStreamingDeferredRatioWarnMax = state.reflectionProbeStreamingDeferredRatioWarnMax;
+        reflectionProbeStreamingLodSkewWarnMax = state.reflectionProbeStreamingLodSkewWarnMax;
+        reflectionProbeStreamingMemoryBudgetMb = state.reflectionProbeStreamingMemoryBudgetMb;
+        reflectionProbeStreamingMissRatioWarnMax = state.reflectionProbeStreamingMissRatioWarnMax;
+        reflectionProbeStreamingWarnCooldownFrames = state.reflectionProbeStreamingWarnCooldownFrames;
+        reflectionProbeStreamingWarnMinFrames = state.reflectionProbeStreamingWarnMinFrames;
+        reflectionRtAsBuildGpuMsWarnMax = state.reflectionRtAsBuildGpuMsWarnMax;
+        reflectionRtAsMemoryBudgetMb = state.reflectionRtAsMemoryBudgetMb;
+        reflectionRtDenoiseSpatialVarianceWarnMax = state.reflectionRtDenoiseSpatialVarianceWarnMax;
+        reflectionRtDenoiseStrength = state.reflectionRtDenoiseStrength;
+        reflectionRtDenoiseTemporalLagWarnMax = state.reflectionRtDenoiseTemporalLagWarnMax;
+        reflectionRtDenoiseWarnCooldownFrames = state.reflectionRtDenoiseWarnCooldownFrames;
+        reflectionRtDenoiseWarnMinFrames = state.reflectionRtDenoiseWarnMinFrames;
+        reflectionRtHybridProbeShareWarnMax = state.reflectionRtHybridProbeShareWarnMax;
+        reflectionRtHybridWarnCooldownFrames = state.reflectionRtHybridWarnCooldownFrames;
+        reflectionRtHybridWarnMinFrames = state.reflectionRtHybridWarnMinFrames;
+        reflectionRtMultiBounceEnabled = state.reflectionRtMultiBounceEnabled;
+        reflectionRtPerfMaxGpuMsHigh = state.reflectionRtPerfMaxGpuMsHigh;
+        reflectionRtPerfMaxGpuMsLow = state.reflectionRtPerfMaxGpuMsLow;
+        reflectionRtPerfMaxGpuMsMedium = state.reflectionRtPerfMaxGpuMsMedium;
+        reflectionRtPerfMaxGpuMsUltra = state.reflectionRtPerfMaxGpuMsUltra;
+        reflectionRtPerfWarnCooldownFrames = state.reflectionRtPerfWarnCooldownFrames;
+        reflectionRtPerfWarnMinFrames = state.reflectionRtPerfWarnMinFrames;
+        reflectionRtSingleBounceEnabled = state.reflectionRtSingleBounceEnabled;
+        reflectionSsrTaaAdaptiveEnabled = state.reflectionSsrTaaAdaptiveEnabled;
+        reflectionSsrTaaAdaptiveSsrStrengthScaleMin = state.reflectionSsrTaaAdaptiveSsrStrengthScaleMin;
+        reflectionSsrTaaAdaptiveStepScaleBoostMax = state.reflectionSsrTaaAdaptiveStepScaleBoostMax;
+        reflectionSsrTaaAdaptiveTemporalBoostMax = state.reflectionSsrTaaAdaptiveTemporalBoostMax;
+        reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = state.reflectionSsrTaaAdaptiveTrendHighRatioWarnMin;
+        reflectionSsrTaaAdaptiveTrendSloHighRatioMax = state.reflectionSsrTaaAdaptiveTrendSloHighRatioMax;
+        reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = state.reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax;
+        reflectionSsrTaaAdaptiveTrendSloMinSamples = state.reflectionSsrTaaAdaptiveTrendSloMinSamples;
+        reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = state.reflectionSsrTaaAdaptiveTrendWarnCooldownFrames;
+        reflectionSsrTaaAdaptiveTrendWarnMinFrames = state.reflectionSsrTaaAdaptiveTrendWarnMinFrames;
+        reflectionSsrTaaAdaptiveTrendWarnMinSamples = state.reflectionSsrTaaAdaptiveTrendWarnMinSamples;
+        reflectionSsrTaaAdaptiveTrendWindowFrames = state.reflectionSsrTaaAdaptiveTrendWindowFrames;
+        reflectionSsrTaaDisocclusionRejectConfidenceMax = state.reflectionSsrTaaDisocclusionRejectConfidenceMax;
+        reflectionSsrTaaDisocclusionRejectDropEventsMin = state.reflectionSsrTaaDisocclusionRejectDropEventsMin;
+        reflectionSsrTaaInstabilityConfidenceMax = state.reflectionSsrTaaInstabilityConfidenceMax;
+        reflectionSsrTaaInstabilityDropEventsMin = state.reflectionSsrTaaInstabilityDropEventsMin;
+        reflectionSsrTaaInstabilityRejectMin = state.reflectionSsrTaaInstabilityRejectMin;
+        reflectionSsrTaaInstabilityWarnCooldownFrames = state.reflectionSsrTaaInstabilityWarnCooldownFrames;
+        reflectionSsrTaaInstabilityWarnMinFrames = state.reflectionSsrTaaInstabilityWarnMinFrames;
+        reflectionSsrTaaRiskEmaAlpha = state.reflectionSsrTaaRiskEmaAlpha;
+        reflectionTransparencyCandidateReactiveMin = state.reflectionTransparencyCandidateReactiveMin;
+        reflectionTransparencyProbeOnlyRatioWarnMax = state.reflectionTransparencyProbeOnlyRatioWarnMax;
+        reflectionTransparencyWarnCooldownFrames = state.reflectionTransparencyWarnCooldownFrames;
+        reflectionTransparencyWarnMinFrames = state.reflectionTransparencyWarnMinFrames;
     }
 
     private void applyShadowTelemetryProfileDefaults(Map<String, String> backendOptions, QualityTier tier) {
-        Map<String, String> safe = backendOptions == null ? Map.of() : backendOptions;
-        switch (tier) {
-            case LOW -> {
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.75;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadencePromotionReadyMinFrames")) shadowCadencePromotionReadyMinFrames = 8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 1.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames")) shadowPointFaceBudgetPromotionReadyMinFrames = 8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheChurnWarnMax")) shadowCacheChurnWarnMax = 0.55;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheWarnCooldownFrames")) shadowCacheWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtDenoiseWarnMin")) shadowRtDenoiseWarnMin = 0.55;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtSampleWarnMin")) shadowRtSampleWarnMin = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsLow")) shadowRtPerfMaxGpuMsLow = 1.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsMedium")) shadowRtPerfMaxGpuMsMedium = 1.6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsHigh")) shadowRtPerfMaxGpuMsHigh = 2.2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsUltra")) shadowRtPerfMaxGpuMsUltra = 2.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtWarnMinFrames")) shadowRtWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtWarnCooldownFrames")) shadowRtWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridRtShareWarnMin")) shadowHybridRtShareWarnMin = 0.30;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridContactShareWarnMin")) shadowHybridContactShareWarnMin = 0.18;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridWarnMinFrames")) shadowHybridWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridWarnCooldownFrames")) shadowHybridWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.10;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.spotProjectedPromotionReadyMinFrames")) shadowSpotProjectedPromotionReadyMinFrames = 8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.72;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.70;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.58;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyWarnMinFrames")) shadowTopologyWarnMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyWarnCooldownFrames")) shadowTopologyWarnCooldownFrames = 180;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyPromotionReadyMinFrames")) shadowTopologyPromotionReadyMinFrames = 8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.phaseAPromotionReadyMinFrames")) shadowPhaseAPromotionReadyMinFrames = 6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.phaseDPromotionReadyMinFrames")) shadowPhaseDPromotionReadyMinFrames = 8;
-            }
-            case MEDIUM -> {
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.55;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadencePromotionReadyMinFrames")) shadowCadencePromotionReadyMinFrames = 6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 1.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames")) shadowPointFaceBudgetPromotionReadyMinFrames = 6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheChurnWarnMax")) shadowCacheChurnWarnMax = 0.35;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheWarnCooldownFrames")) shadowCacheWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtDenoiseWarnMin")) shadowRtDenoiseWarnMin = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtSampleWarnMin")) shadowRtSampleWarnMin = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsLow")) shadowRtPerfMaxGpuMsLow = 1.2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsMedium")) shadowRtPerfMaxGpuMsMedium = 2.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsHigh")) shadowRtPerfMaxGpuMsHigh = 2.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsUltra")) shadowRtPerfMaxGpuMsUltra = 3.6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtWarnMinFrames")) shadowRtWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtWarnCooldownFrames")) shadowRtWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridRtShareWarnMin")) shadowHybridRtShareWarnMin = 0.20;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridContactShareWarnMin")) shadowHybridContactShareWarnMin = 0.10;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridWarnMinFrames")) shadowHybridWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridWarnCooldownFrames")) shadowHybridWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.20;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.spotProjectedPromotionReadyMinFrames")) shadowSpotProjectedPromotionReadyMinFrames = 6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.50;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyWarnMinFrames")) shadowTopologyWarnMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyWarnCooldownFrames")) shadowTopologyWarnCooldownFrames = 120;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyPromotionReadyMinFrames")) shadowTopologyPromotionReadyMinFrames = 6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.phaseAPromotionReadyMinFrames")) shadowPhaseAPromotionReadyMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.phaseDPromotionReadyMinFrames")) shadowPhaseDPromotionReadyMinFrames = 6;
-            }
-            case HIGH -> {
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadencePromotionReadyMinFrames")) shadowCadencePromotionReadyMinFrames = 5;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 0.95;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames")) shadowPointFaceBudgetPromotionReadyMinFrames = 5;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheChurnWarnMax")) shadowCacheChurnWarnMax = 0.28;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheWarnCooldownFrames")) shadowCacheWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtDenoiseWarnMin")) shadowRtDenoiseWarnMin = 0.38;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtSampleWarnMin")) shadowRtSampleWarnMin = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsLow")) shadowRtPerfMaxGpuMsLow = 1.4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsMedium")) shadowRtPerfMaxGpuMsMedium = 2.2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsHigh")) shadowRtPerfMaxGpuMsHigh = 3.1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsUltra")) shadowRtPerfMaxGpuMsUltra = 4.0;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtWarnMinFrames")) shadowRtWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtWarnCooldownFrames")) shadowRtWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridRtShareWarnMin")) shadowHybridRtShareWarnMin = 0.16;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridContactShareWarnMin")) shadowHybridContactShareWarnMin = 0.08;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridWarnMinFrames")) shadowHybridWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridWarnCooldownFrames")) shadowHybridWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.28;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.spotProjectedPromotionReadyMinFrames")) shadowSpotProjectedPromotionReadyMinFrames = 5;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.52;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.50;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.42;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyWarnMinFrames")) shadowTopologyWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyWarnCooldownFrames")) shadowTopologyWarnCooldownFrames = 90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyPromotionReadyMinFrames")) shadowTopologyPromotionReadyMinFrames = 5;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.phaseAPromotionReadyMinFrames")) shadowPhaseAPromotionReadyMinFrames = 3;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.phaseDPromotionReadyMinFrames")) shadowPhaseDPromotionReadyMinFrames = 5;
-            }
-            case ULTRA -> {
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.35;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadencePromotionReadyMinFrames")) shadowCadencePromotionReadyMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 0.90;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames")) shadowPointFaceBudgetPromotionReadyMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheChurnWarnMax")) shadowCacheChurnWarnMax = 0.22;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 1;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cacheWarnCooldownFrames")) shadowCacheWarnCooldownFrames = 60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtDenoiseWarnMin")) shadowRtDenoiseWarnMin = 0.34;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtSampleWarnMin")) shadowRtSampleWarnMin = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsLow")) shadowRtPerfMaxGpuMsLow = 1.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsMedium")) shadowRtPerfMaxGpuMsMedium = 2.6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsHigh")) shadowRtPerfMaxGpuMsHigh = 3.6;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtPerfMaxGpuMsUltra")) shadowRtPerfMaxGpuMsUltra = 4.8;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtWarnMinFrames")) shadowRtWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.rtWarnCooldownFrames")) shadowRtWarnCooldownFrames = 60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridRtShareWarnMin")) shadowHybridRtShareWarnMin = 0.12;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridContactShareWarnMin")) shadowHybridContactShareWarnMin = 0.06;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridWarnMinFrames")) shadowHybridWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.hybridWarnCooldownFrames")) shadowHybridWarnCooldownFrames = 60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.35;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.spotProjectedPromotionReadyMinFrames")) shadowSpotProjectedPromotionReadyMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.45;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.42;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.35;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyWarnMinFrames")) shadowTopologyWarnMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyWarnCooldownFrames")) shadowTopologyWarnCooldownFrames = 60;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.topologyPromotionReadyMinFrames")) shadowTopologyPromotionReadyMinFrames = 4;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.phaseAPromotionReadyMinFrames")) shadowPhaseAPromotionReadyMinFrames = 2;
-                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.phaseDPromotionReadyMinFrames")) shadowPhaseDPromotionReadyMinFrames = 4;
-            }
-        }
+        VulkanShadowTelemetryDefaults.State state = new VulkanShadowTelemetryDefaults.State();
+        state.shadowCadenceWarnDeferredRatioMax = shadowCadenceWarnDeferredRatioMax;
+        state.shadowCadenceWarnMinFrames = shadowCadenceWarnMinFrames;
+        state.shadowCadenceWarnCooldownFrames = shadowCadenceWarnCooldownFrames;
+        state.shadowCadencePromotionReadyMinFrames = shadowCadencePromotionReadyMinFrames;
+        state.shadowPointFaceBudgetWarnSaturationMin = shadowPointFaceBudgetWarnSaturationMin;
+        state.shadowPointFaceBudgetWarnMinFrames = shadowPointFaceBudgetWarnMinFrames;
+        state.shadowPointFaceBudgetWarnCooldownFrames = shadowPointFaceBudgetWarnCooldownFrames;
+        state.shadowPointFaceBudgetPromotionReadyMinFrames = shadowPointFaceBudgetPromotionReadyMinFrames;
+        state.shadowCacheChurnWarnMax = shadowCacheChurnWarnMax;
+        state.shadowCacheMissWarnMax = shadowCacheMissWarnMax;
+        state.shadowCacheWarnMinFrames = shadowCacheWarnMinFrames;
+        state.shadowCacheWarnCooldownFrames = shadowCacheWarnCooldownFrames;
+        state.shadowRtDenoiseWarnMin = shadowRtDenoiseWarnMin;
+        state.shadowRtSampleWarnMin = shadowRtSampleWarnMin;
+        state.shadowRtPerfMaxGpuMsLow = shadowRtPerfMaxGpuMsLow;
+        state.shadowRtPerfMaxGpuMsMedium = shadowRtPerfMaxGpuMsMedium;
+        state.shadowRtPerfMaxGpuMsHigh = shadowRtPerfMaxGpuMsHigh;
+        state.shadowRtPerfMaxGpuMsUltra = shadowRtPerfMaxGpuMsUltra;
+        state.shadowRtWarnMinFrames = shadowRtWarnMinFrames;
+        state.shadowRtWarnCooldownFrames = shadowRtWarnCooldownFrames;
+        state.shadowHybridRtShareWarnMin = shadowHybridRtShareWarnMin;
+        state.shadowHybridContactShareWarnMin = shadowHybridContactShareWarnMin;
+        state.shadowHybridWarnMinFrames = shadowHybridWarnMinFrames;
+        state.shadowHybridWarnCooldownFrames = shadowHybridWarnCooldownFrames;
+        state.shadowTransparentReceiverCandidateRatioWarnMax = shadowTransparentReceiverCandidateRatioWarnMax;
+        state.shadowTransparentReceiverWarnMinFrames = shadowTransparentReceiverWarnMinFrames;
+        state.shadowTransparentReceiverWarnCooldownFrames = shadowTransparentReceiverWarnCooldownFrames;
+        state.shadowSpotProjectedPromotionReadyMinFrames = shadowSpotProjectedPromotionReadyMinFrames;
+        state.shadowTopologyLocalCoverageWarnMin = shadowTopologyLocalCoverageWarnMin;
+        state.shadowTopologySpotCoverageWarnMin = shadowTopologySpotCoverageWarnMin;
+        state.shadowTopologyPointCoverageWarnMin = shadowTopologyPointCoverageWarnMin;
+        state.shadowTopologyWarnMinFrames = shadowTopologyWarnMinFrames;
+        state.shadowTopologyWarnCooldownFrames = shadowTopologyWarnCooldownFrames;
+        state.shadowTopologyPromotionReadyMinFrames = shadowTopologyPromotionReadyMinFrames;
+        state.shadowPhaseAPromotionReadyMinFrames = shadowPhaseAPromotionReadyMinFrames;
+        state.shadowPhaseDPromotionReadyMinFrames = shadowPhaseDPromotionReadyMinFrames;
+
+        VulkanShadowTelemetryDefaults.apply(state, backendOptions, tier);
+
+        shadowCadenceWarnDeferredRatioMax = state.shadowCadenceWarnDeferredRatioMax;
+        shadowCadenceWarnMinFrames = state.shadowCadenceWarnMinFrames;
+        shadowCadenceWarnCooldownFrames = state.shadowCadenceWarnCooldownFrames;
+        shadowCadencePromotionReadyMinFrames = state.shadowCadencePromotionReadyMinFrames;
+        shadowPointFaceBudgetWarnSaturationMin = state.shadowPointFaceBudgetWarnSaturationMin;
+        shadowPointFaceBudgetWarnMinFrames = state.shadowPointFaceBudgetWarnMinFrames;
+        shadowPointFaceBudgetWarnCooldownFrames = state.shadowPointFaceBudgetWarnCooldownFrames;
+        shadowPointFaceBudgetPromotionReadyMinFrames = state.shadowPointFaceBudgetPromotionReadyMinFrames;
+        shadowCacheChurnWarnMax = state.shadowCacheChurnWarnMax;
+        shadowCacheMissWarnMax = state.shadowCacheMissWarnMax;
+        shadowCacheWarnMinFrames = state.shadowCacheWarnMinFrames;
+        shadowCacheWarnCooldownFrames = state.shadowCacheWarnCooldownFrames;
+        shadowRtDenoiseWarnMin = state.shadowRtDenoiseWarnMin;
+        shadowRtSampleWarnMin = state.shadowRtSampleWarnMin;
+        shadowRtPerfMaxGpuMsLow = state.shadowRtPerfMaxGpuMsLow;
+        shadowRtPerfMaxGpuMsMedium = state.shadowRtPerfMaxGpuMsMedium;
+        shadowRtPerfMaxGpuMsHigh = state.shadowRtPerfMaxGpuMsHigh;
+        shadowRtPerfMaxGpuMsUltra = state.shadowRtPerfMaxGpuMsUltra;
+        shadowRtWarnMinFrames = state.shadowRtWarnMinFrames;
+        shadowRtWarnCooldownFrames = state.shadowRtWarnCooldownFrames;
+        shadowHybridRtShareWarnMin = state.shadowHybridRtShareWarnMin;
+        shadowHybridContactShareWarnMin = state.shadowHybridContactShareWarnMin;
+        shadowHybridWarnMinFrames = state.shadowHybridWarnMinFrames;
+        shadowHybridWarnCooldownFrames = state.shadowHybridWarnCooldownFrames;
+        shadowTransparentReceiverCandidateRatioWarnMax = state.shadowTransparentReceiverCandidateRatioWarnMax;
+        shadowTransparentReceiverWarnMinFrames = state.shadowTransparentReceiverWarnMinFrames;
+        shadowTransparentReceiverWarnCooldownFrames = state.shadowTransparentReceiverWarnCooldownFrames;
+        shadowSpotProjectedPromotionReadyMinFrames = state.shadowSpotProjectedPromotionReadyMinFrames;
+        shadowTopologyLocalCoverageWarnMin = state.shadowTopologyLocalCoverageWarnMin;
+        shadowTopologySpotCoverageWarnMin = state.shadowTopologySpotCoverageWarnMin;
+        shadowTopologyPointCoverageWarnMin = state.shadowTopologyPointCoverageWarnMin;
+        shadowTopologyWarnMinFrames = state.shadowTopologyWarnMinFrames;
+        shadowTopologyWarnCooldownFrames = state.shadowTopologyWarnCooldownFrames;
+        shadowTopologyPromotionReadyMinFrames = state.shadowTopologyPromotionReadyMinFrames;
+        shadowPhaseAPromotionReadyMinFrames = state.shadowPhaseAPromotionReadyMinFrames;
+        shadowPhaseDPromotionReadyMinFrames = state.shadowPhaseDPromotionReadyMinFrames;
     }
 
 }
