@@ -1,16 +1,15 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
 
-import org.dynamislight.impl.vulkan.shadow.VulkanShadowRuntimeTuning;
-
-import org.dynamislight.impl.vulkan.runtime.model.*;
+import org.dynamislight.impl.vulkan.VulkanContext;
+import org.dynamislight.impl.vulkan.runtime.model.ShadowRenderConfig;
 
 import org.dynamislight.api.error.EngineException;
 
-final class VulkanShadowContextBindings {
+public final class VulkanShadowContextBindings {
     private VulkanShadowContextBindings() {
     }
 
-    static ShadowRenderConfig applySceneLoadShadowBindings(
+    public static ShadowRenderConfig applySceneLoadShadowBindings(
             boolean mockContext,
             VulkanContext context,
             ShadowRenderConfig shadows,

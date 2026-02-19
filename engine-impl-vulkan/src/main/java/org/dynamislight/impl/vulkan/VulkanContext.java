@@ -600,7 +600,7 @@ public final class VulkanContext {
         }
     }
 
-    void setShadowQualityModes(String filterPath, boolean contactShadows, String rtMode, String requestedFilterPath)
+    public void setShadowQualityModes(String filterPath, boolean contactShadows, String rtMode, String requestedFilterPath)
             throws EngineException {
         int filterMode = switch (filterPath == null ? "pcf" : filterPath.trim().toLowerCase()) {
             case "pcss" -> 1;
@@ -659,7 +659,7 @@ public final class VulkanContext {
         }
     }
 
-    void setShadowQualityTuning(
+    public void setShadowQualityTuning(
             float pcssSoftness,
             float momentBlend,
             float momentBleedReduction,
@@ -703,7 +703,7 @@ public final class VulkanContext {
         }
     }
 
-    void setShadowRtTuning(float denoiseStrength, float rayLength, int sampleCount) {
+    public void setShadowRtTuning(float denoiseStrength, float rayLength, int sampleCount) {
         boolean changed = false;
         float clampedDenoise = Math.max(0.0f, Math.min(1.0f, denoiseStrength));
         float clampedRayLength = Math.max(1.0f, Math.min(500.0f, rayLength));
