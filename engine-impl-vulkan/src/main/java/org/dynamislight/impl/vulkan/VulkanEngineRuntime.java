@@ -1176,10 +1176,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
-        boolean available = !"unavailable".equals(shadowCapabilityFeatureIdLastFrame)
-                && !"unavailable".equals(shadowCapabilityModeLastFrame);
-        return new ShadowCapabilityDiagnostics(
-                available,
+        return VulkanShadowDiagnosticsMapper.capability(
                 shadowCapabilityFeatureIdLastFrame,
                 shadowCapabilityModeLastFrame,
                 shadowCapabilitySignalsLastFrame
@@ -1188,7 +1185,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowCadenceDiagnostics backendShadowCadenceDiagnostics() {
-        return new ShadowCadenceDiagnostics(
+        return VulkanShadowDiagnosticsMapper.cadence(
                 shadowCapabilityDiagnostics().available(),
                 shadowCadenceSelectedLocalLightsLastFrame,
                 shadowCadenceDeferredLocalLightsLastFrame,
@@ -1208,9 +1205,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowPointBudgetDiagnostics backendShadowPointBudgetDiagnostics() {
-        return new ShadowPointBudgetDiagnostics(
+        return VulkanShadowDiagnosticsMapper.pointBudget(
                 shadowCapabilityDiagnostics().available(),
-                Math.max(0, shadowMaxFacesPerFrame),
+                shadowMaxFacesPerFrame,
                 shadowPointBudgetRenderedCubemapsLastFrame,
                 shadowPointBudgetRenderedFacesLastFrame,
                 shadowPointBudgetDeferredCountLastFrame,
@@ -1229,7 +1226,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowSpotProjectedDiagnostics backendShadowSpotProjectedDiagnostics() {
-        return new ShadowSpotProjectedDiagnostics(
+        return VulkanShadowDiagnosticsMapper.spotProjected(
                 shadowCapabilityDiagnostics().available(),
                 shadowSpotProjectedRequestedLastFrame,
                 shadowSpotProjectedActiveLastFrame,
@@ -1244,12 +1241,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowCacheDiagnostics backendShadowCacheDiagnostics() {
-        return new ShadowCacheDiagnostics(
+        return VulkanShadowDiagnosticsMapper.cache(
                 shadowCapabilityDiagnostics().available(),
-                "cached_static_dynamic".equals(shadowCapabilityModeLastFrame),
-                shadowCacheMissCountLastFrame > 0 || shadowCadenceDeferredLocalLightsLastFrame > 0,
-                shadowCacheHitCountLastFrame,
+                shadowCapabilityModeLastFrame,
                 shadowCacheMissCountLastFrame,
+                shadowCadenceDeferredLocalLightsLastFrame,
+                shadowCacheHitCountLastFrame,
                 shadowCacheEvictionCountLastFrame,
                 shadowCacheHitRatioLastFrame,
                 shadowCacheChurnRatioLastFrame,
@@ -1266,7 +1263,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowRtDiagnostics backendShadowRtDiagnostics() {
-        return new ShadowRtDiagnostics(
+        return VulkanShadowDiagnosticsMapper.rt(
                 shadowCapabilityDiagnostics().available(),
                 currentShadows.rtShadowMode(),
                 currentShadows.rtShadowActive(),
@@ -1286,10 +1283,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowHybridDiagnostics backendShadowHybridDiagnostics() {
-        boolean hybridModeActive = "hybrid_cascade_contact_rt".equals(shadowCapabilityModeLastFrame);
-        return new ShadowHybridDiagnostics(
+        return VulkanShadowDiagnosticsMapper.hybrid(
                 shadowCapabilityDiagnostics().available(),
-                hybridModeActive,
+                shadowCapabilityModeLastFrame,
                 shadowHybridCascadeShareLastFrame,
                 shadowHybridContactShareLastFrame,
                 shadowHybridRtShareLastFrame,
@@ -1305,7 +1301,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowTransparentReceiverDiagnostics backendShadowTransparentReceiverDiagnostics() {
-        return new ShadowTransparentReceiverDiagnostics(
+        return VulkanShadowDiagnosticsMapper.transparentReceivers(
                 shadowCapabilityDiagnostics().available(),
                 shadowTransparentReceiversRequested,
                 shadowTransparentReceiversSupported,
@@ -1323,22 +1319,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowExtendedModeDiagnostics backendShadowExtendedModeDiagnostics() {
-        return new ShadowExtendedModeDiagnostics(
+        return VulkanShadowDiagnosticsMapper.extendedModes(
                 shadowCapabilityDiagnostics().available(),
                 shadowAreaApproxRequested,
                 shadowAreaApproxSupported,
-                shadowAreaApproxSupported ? "enabled" : "fallback_standard_shadow",
                 shadowAreaApproxBreachedLastFrame,
                 shadowDistanceFieldRequested,
                 shadowDistanceFieldSupported,
-                shadowDistanceFieldSupported ? "enabled" : "fallback_standard_shadow",
                 shadowDistanceFieldBreachedLastFrame
         );
     }
 
     @Override
     protected ShadowTopologyDiagnostics backendShadowTopologyDiagnostics() {
-        return new ShadowTopologyDiagnostics(
+        return VulkanShadowDiagnosticsMapper.topology(
                 shadowCapabilityDiagnostics().available(),
                 shadowCadenceSelectedLocalLightsLastFrame,
                 currentShadows.renderedLocalShadowLights(),
@@ -1365,7 +1359,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowPhaseAPromotionDiagnostics backendShadowPhaseAPromotionDiagnostics() {
-        return new ShadowPhaseAPromotionDiagnostics(
+        return VulkanShadowDiagnosticsMapper.phaseA(
                 shadowCapabilityDiagnostics().available(),
                 shadowCadencePromotionReadyLastFrame,
                 shadowPointBudgetPromotionReadyLastFrame,
@@ -1378,21 +1372,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected ShadowPhaseDPromotionDiagnostics backendShadowPhaseDPromotionDiagnostics() {
-        boolean cacheStable = !shadowCacheEnvelopeBreachedLastFrame && shadowCacheWarnCooldownRemaining == 0;
-        boolean rtStable = !shadowRtEnvelopeBreachedLastFrame && shadowRtWarnCooldownRemaining == 0;
-        boolean hybridStable = !shadowHybridEnvelopeBreachedLastFrame && shadowHybridWarnCooldownRemaining == 0;
-        boolean transparentStable = !shadowTransparentReceiverEnvelopeBreachedLastFrame
-                && shadowTransparentReceiverWarnCooldownRemaining == 0;
-        boolean areaStable = !shadowAreaApproxBreachedLastFrame;
-        boolean distanceStable = !shadowDistanceFieldBreachedLastFrame;
-        return new ShadowPhaseDPromotionDiagnostics(
+        return VulkanShadowDiagnosticsMapper.phaseD(
                 shadowCapabilityDiagnostics().available(),
-                cacheStable,
-                rtStable,
-                hybridStable,
-                transparentStable,
-                areaStable,
-                distanceStable,
+                shadowCacheEnvelopeBreachedLastFrame,
+                shadowCacheWarnCooldownRemaining,
+                shadowRtEnvelopeBreachedLastFrame,
+                shadowRtWarnCooldownRemaining,
+                shadowHybridEnvelopeBreachedLastFrame,
+                shadowHybridWarnCooldownRemaining,
+                shadowTransparentReceiverEnvelopeBreachedLastFrame,
+                shadowTransparentReceiverWarnCooldownRemaining,
+                shadowAreaApproxBreachedLastFrame,
+                shadowDistanceFieldBreachedLastFrame,
                 shadowPhaseDPromotionReadyMinFrames,
                 shadowPhaseDPromotionStableStreak,
                 shadowPhaseDPromotionReadyLastFrame
