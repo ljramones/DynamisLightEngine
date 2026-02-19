@@ -2672,73 +2672,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " normalBiasScale=" + currentShadows.normalBiasScale()
                             + " slopeBiasScale=" + currentShadows.slopeBiasScale()
             ));
-            if (currentShadows.renderedLocalShadowLights() < currentShadows.selectedLocalShadowLights()) {
-                boolean budgetBoundDeferral = currentShadows.deferredShadowLightCount() > 0
-                        || (shadowMaxFacesPerFrame > 0
-                        && shadowPointBudgetRenderedFacesLastFrame >= shadowMaxFacesPerFrame)
-                        || (shadowMaxLocalLayers > 0
-                        && currentShadows.maxShadowedLocalLights() > shadowMaxLocalLayers)
-                        || shadowSchedulerEnabled;
-                if (budgetBoundDeferral) {
-                    warnings.add(new EngineWarning(
-                            "SHADOW_LOCAL_RENDER_DEFERRED_POLICY",
-                            "Vulkan local-shadow deferral active by policy/budget "
-                                    + "(requestedLocalShadows=" + currentShadows.selectedLocalShadowLights()
-                                    + ", renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
-                                    + ", deferredShadowLights=" + currentShadows.deferredShadowLightCount()
-                                    + ", schedulerEnabled=" + shadowSchedulerEnabled
-                                    + ", maxShadowFacesPerFrameConfigured=" + (shadowMaxFacesPerFrame > 0 ? Integer.toString(shadowMaxFacesPerFrame) : "auto")
-                                    + ", maxLocalShadowLayersConfigured=" + (shadowMaxLocalLayers > 0 ? Integer.toString(shadowMaxLocalLayers) : "auto")
-                                    + ")"
-                    ));
-                } else {
-                    warnings.add(new EngineWarning(
-                            "SHADOW_LOCAL_RENDER_BASELINE",
-                            "Vulkan local-shadow render path is below expected coverage without explicit policy constraint "
-                                    + "(requestedLocalShadows=" + currentShadows.selectedLocalShadowLights()
-                                    + ", renderedLocalShadows=" + currentShadows.renderedLocalShadowLights()
-                                    + ", deferredShadowLights=" + currentShadows.deferredShadowLightCount() + ")"
-                    ));
-                }
-            }
-            if (currentShadows.momentFilterEstimateOnly()) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_FILTER_MOMENT_ESTIMATE_ONLY",
-                        "Shadow moment filter requested: " + currentShadows.filterPath()
-                                + " (runtime active filter path=" + currentShadows.runtimeFilterPath()
-                                + ", moment atlas sizing/telemetry is estimate-only)"
-                ));
-            }
-            if (currentShadows.momentPipelineRequested() && !currentShadows.momentPipelineActive()) {
-                if (context.hasShadowMomentResources() && !context.isShadowMomentInitialized()) {
-                    warnings.add(new EngineWarning(
-                            "SHADOW_MOMENT_PIPELINE_INITIALIZING",
-                            "Shadow moment resources are allocated but awaiting first-use initialization "
-                                    + "(requested=" + currentShadows.momentPipelineRequested()
-                                    + ", active=" + currentShadows.momentPipelineActive() + ")"
-                    ));
-                } else {
-                    warnings.add(new EngineWarning(
-                            "SHADOW_MOMENT_PIPELINE_PENDING",
-                            "Shadow moment pipeline requested but not yet active "
-                                    + "(requested=" + currentShadows.momentPipelineRequested()
-                                    + ", active=" + currentShadows.momentPipelineActive() + ")"
-                    ));
-                }
-            } else if (currentShadows.momentPipelineActive()) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_MOMENT_APPROX_ACTIVE",
-                        "Shadow moment pipeline active with provisional "
-                                + currentShadows.runtimeFilterPath()
-                                + " approximation path (full production filter chain pending)"
-                ));
-            } else if (!currentShadows.filterPath().equals(currentShadows.runtimeFilterPath())) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_FILTER_PATH_REQUESTED",
-                        "Shadow filter path requested: " + currentShadows.filterPath()
-                                + " (runtime active filter path=" + currentShadows.runtimeFilterPath() + ")"
-                ));
-            }
+            VulkanShadowCoverageMomentWarningEmitter.State shadowCoverageMomentState = new VulkanShadowCoverageMomentWarningEmitter.State();
+            shadowCoverageMomentState.currentShadows = currentShadows;
+            shadowCoverageMomentState.shadowSchedulerEnabled = shadowSchedulerEnabled;
+            shadowCoverageMomentState.shadowMaxFacesPerFrame = shadowMaxFacesPerFrame;
+            shadowCoverageMomentState.shadowPointBudgetRenderedFacesLastFrame = shadowPointBudgetRenderedFacesLastFrame;
+            shadowCoverageMomentState.shadowMaxLocalLayers = shadowMaxLocalLayers;
+            shadowCoverageMomentState.shadowMomentResourcesAvailable = context.hasShadowMomentResources();
+            shadowCoverageMomentState.shadowMomentInitialized = context.isShadowMomentInitialized();
+            VulkanShadowCoverageMomentWarningEmitter.emit(warnings, shadowCoverageMomentState);
             VulkanShadowRtWarningEmitter.State shadowRtState = new VulkanShadowRtWarningEmitter.State();
             shadowRtState.currentShadows = currentShadows;
             shadowRtState.qualityTier = qualityTier;
