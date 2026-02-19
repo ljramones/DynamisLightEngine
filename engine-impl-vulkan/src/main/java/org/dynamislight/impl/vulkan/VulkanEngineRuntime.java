@@ -225,6 +225,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionProbeQualityOverlapWarnMaxPairs = 8;
     private int reflectionProbeQualityBleedRiskWarnMaxPairs = 0;
     private int reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
+    private double reflectionOverrideProbeOnlyRatioWarnMax = 0.75;
+    private double reflectionOverrideSsrOnlyRatioWarnMax = 0.75;
+    private int reflectionOverrideOtherWarnMax;
+    private int reflectionOverrideWarnMinFrames = 3;
+    private int reflectionOverrideWarnCooldownFrames = 120;
+    private int reflectionOverrideHighStreak;
+    private int reflectionOverrideWarnCooldownRemaining;
+    private boolean reflectionOverrideBreachedLastFrame;
     private double reflectionProbeQualityBoxProjectionMinRatio = 0.60;
     private int reflectionProbeQualityInvalidBlendDistanceWarnMax;
     private double reflectionProbeQualityOverlapCoverageWarnMin = 0.12;
@@ -492,6 +500,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionProbeQualityOverlapWarnMaxPairs = options.reflectionProbeQualityOverlapWarnMaxPairs();
         reflectionProbeQualityBleedRiskWarnMaxPairs = options.reflectionProbeQualityBleedRiskWarnMaxPairs();
         reflectionProbeQualityMinOverlapPairsWhenMultiple = options.reflectionProbeQualityMinOverlapPairsWhenMultiple();
+        reflectionOverrideProbeOnlyRatioWarnMax = options.reflectionOverrideProbeOnlyRatioWarnMax();
+        reflectionOverrideSsrOnlyRatioWarnMax = options.reflectionOverrideSsrOnlyRatioWarnMax();
+        reflectionOverrideOtherWarnMax = options.reflectionOverrideOtherWarnMax();
+        reflectionOverrideWarnMinFrames = options.reflectionOverrideWarnMinFrames();
+        reflectionOverrideWarnCooldownFrames = options.reflectionOverrideWarnCooldownFrames();
         reflectionProbeQualityBoxProjectionMinRatio = options.reflectionProbeQualityBoxProjectionMinRatio();
         reflectionProbeQualityInvalidBlendDistanceWarnMax = options.reflectionProbeQualityInvalidBlendDistanceWarnMax();
         reflectionProbeQualityOverlapCoverageWarnMin = options.reflectionProbeQualityOverlapCoverageWarnMin();
@@ -625,6 +638,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionRtAsMemoryMbEstimate = 0.0;
         reflectionRtPromotionReadyLastFrame = false;
         reflectionRtPromotionReadyHighStreak = 0;
+        reflectionOverrideHighStreak = 0;
+        reflectionOverrideWarnCooldownRemaining = 0;
+        reflectionOverrideBreachedLastFrame = false;
         reflectionTransparencyAlphaTestedCandidateCount = 0;
         reflectionTransparencyReactiveCandidateCount = 0;
         reflectionTransparencyProbeOnlyCandidateCount = 0;
@@ -1031,6 +1047,50 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", other=" + overrideSummary.otherCount()
                             + ", planarSelectiveExcludes=probe_only|ssr_only)"
             ));
+            int overrideTotal = Math.max(1, overrideSummary.totalCount());
+            double overrideProbeOnlyRatio = (double) overrideSummary.probeOnlyCount() / (double) overrideTotal;
+            double overrideSsrOnlyRatio = (double) overrideSummary.ssrOnlyCount() / (double) overrideTotal;
+            boolean overrideRisk = overrideProbeOnlyRatio > reflectionOverrideProbeOnlyRatioWarnMax
+                    || overrideSsrOnlyRatio > reflectionOverrideSsrOnlyRatioWarnMax
+                    || overrideSummary.otherCount() > reflectionOverrideOtherWarnMax;
+            if (overrideRisk) {
+                reflectionOverrideHighStreak++;
+            } else {
+                reflectionOverrideHighStreak = 0;
+            }
+            if (reflectionOverrideWarnCooldownRemaining > 0) {
+                reflectionOverrideWarnCooldownRemaining--;
+            }
+            boolean overrideTriggered = false;
+            if (overrideRisk
+                    && reflectionOverrideHighStreak >= reflectionOverrideWarnMinFrames
+                    && reflectionOverrideWarnCooldownRemaining <= 0) {
+                reflectionOverrideWarnCooldownRemaining = reflectionOverrideWarnCooldownFrames;
+                overrideTriggered = true;
+            }
+            reflectionOverrideBreachedLastFrame = overrideTriggered;
+            warnings.add(new EngineWarning(
+                    "REFLECTION_OVERRIDE_POLICY_ENVELOPE",
+                    "Reflection override policy envelope (probeOnlyRatio=" + overrideProbeOnlyRatio
+                            + ", ssrOnlyRatio=" + overrideSsrOnlyRatio
+                            + ", otherCount=" + overrideSummary.otherCount()
+                            + ", probeOnlyRatioWarnMax=" + reflectionOverrideProbeOnlyRatioWarnMax
+                            + ", ssrOnlyRatioWarnMax=" + reflectionOverrideSsrOnlyRatioWarnMax
+                            + ", otherWarnMax=" + reflectionOverrideOtherWarnMax
+                            + ", highStreak=" + reflectionOverrideHighStreak
+                            + ", warnMinFrames=" + reflectionOverrideWarnMinFrames
+                            + ", warnCooldownFrames=" + reflectionOverrideWarnCooldownFrames
+                            + ", warnCooldownRemaining=" + reflectionOverrideWarnCooldownRemaining
+                            + ", breached=" + reflectionOverrideBreachedLastFrame + ")"
+            ));
+            if (reflectionOverrideBreachedLastFrame) {
+                warnings.add(new EngineWarning(
+                        "REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH",
+                        "Reflection override policy envelope breached (probeOnlyRatio=" + overrideProbeOnlyRatio
+                                + ", ssrOnlyRatio=" + overrideSsrOnlyRatio
+                                + ", otherCount=" + overrideSummary.otherCount() + ")"
+                ));
+            }
             warnings.add(new EngineWarning(
                     "REFLECTION_PROBE_BLEND_DIAGNOSTICS",
                     "Probe blend diagnostics (configured=" + probeDiagnostics.configuredProbeCount()
@@ -1771,6 +1831,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", probeOverlapWarnMaxPairs=" + reflectionProbeQualityOverlapWarnMaxPairs
                             + ", probeBleedRiskWarnMaxPairs=" + reflectionProbeQualityBleedRiskWarnMaxPairs
                             + ", probeMinOverlapPairsWhenMultiple=" + reflectionProbeQualityMinOverlapPairsWhenMultiple
+                            + ", overrideProbeOnlyRatioWarnMax=" + reflectionOverrideProbeOnlyRatioWarnMax
+                            + ", overrideSsrOnlyRatioWarnMax=" + reflectionOverrideSsrOnlyRatioWarnMax
+                            + ", overrideOtherWarnMax=" + reflectionOverrideOtherWarnMax
+                            + ", overrideWarnMinFrames=" + reflectionOverrideWarnMinFrames
+                            + ", overrideWarnCooldownFrames=" + reflectionOverrideWarnCooldownFrames
                             + ", probeBoxProjectionMinRatio=" + reflectionProbeQualityBoxProjectionMinRatio
                             + ", probeInvalidBlendDistanceWarnMax=" + reflectionProbeQualityInvalidBlendDistanceWarnMax
                             + ", probeOverlapCoverageWarnMin=" + reflectionProbeQualityOverlapCoverageWarnMin
@@ -3247,11 +3312,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     ReflectionOverridePolicyDiagnostics debugReflectionOverridePolicyDiagnostics() {
         ReflectionOverrideSummary summary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
+        int total = Math.max(1, summary.totalCount());
         return new ReflectionOverridePolicyDiagnostics(
                 summary.autoCount(),
                 summary.probeOnlyCount(),
                 summary.ssrOnlyCount(),
                 summary.otherCount(),
+                (double) summary.probeOnlyCount() / (double) total,
+                (double) summary.ssrOnlyCount() / (double) total,
+                reflectionOverrideProbeOnlyRatioWarnMax,
+                reflectionOverrideSsrOnlyRatioWarnMax,
+                reflectionOverrideOtherWarnMax,
+                reflectionOverrideHighStreak,
+                reflectionOverrideWarnMinFrames,
+                reflectionOverrideWarnCooldownFrames,
+                reflectionOverrideWarnCooldownRemaining,
+                reflectionOverrideBreachedLastFrame,
                 "probe_only|ssr_only"
         );
     }
@@ -3596,6 +3672,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int probeOnlyCount,
             int ssrOnlyCount,
             int otherCount,
+            double probeOnlyRatio,
+            double ssrOnlyRatio,
+            double probeOnlyRatioWarnMax,
+            double ssrOnlyRatioWarnMax,
+            int otherWarnMax,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
+            boolean breachedLastFrame,
             String planarSelectiveExcludes
     ) {
     }
@@ -3749,6 +3835,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private record ReflectionOverrideSummary(int autoCount, int probeOnlyCount, int ssrOnlyCount, int otherCount) {
+        private int totalCount() {
+            return Math.max(0, autoCount + probeOnlyCount + ssrOnlyCount + otherCount);
+        }
     }
 
     private record TransparencyCandidateSummary(
@@ -3882,6 +3971,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapWarnMaxPairs")) reflectionProbeQualityOverlapWarnMaxPairs = 6;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBleedRiskWarnMaxPairs")) reflectionProbeQualityBleedRiskWarnMaxPairs = 0;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple")) reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideProbeOnlyRatioWarnMax")) reflectionOverrideProbeOnlyRatioWarnMax = 0.55;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideSsrOnlyRatioWarnMax")) reflectionOverrideSsrOnlyRatioWarnMax = 0.55;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideOtherWarnMax")) reflectionOverrideOtherWarnMax = 0;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnMinFrames")) reflectionOverrideWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnCooldownFrames")) reflectionOverrideWarnCooldownFrames = 180;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBoxProjectionMinRatio")) reflectionProbeQualityBoxProjectionMinRatio = 0.75;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax")) reflectionProbeQualityInvalidBlendDistanceWarnMax = 0;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapCoverageWarnMin")) reflectionProbeQualityOverlapCoverageWarnMin = 0.20;
@@ -3953,6 +4047,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapWarnMaxPairs")) reflectionProbeQualityOverlapWarnMaxPairs = 10;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBleedRiskWarnMaxPairs")) reflectionProbeQualityBleedRiskWarnMaxPairs = 1;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple")) reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideProbeOnlyRatioWarnMax")) reflectionOverrideProbeOnlyRatioWarnMax = 0.75;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideSsrOnlyRatioWarnMax")) reflectionOverrideSsrOnlyRatioWarnMax = 0.75;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideOtherWarnMax")) reflectionOverrideOtherWarnMax = 0;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnMinFrames")) reflectionOverrideWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnCooldownFrames")) reflectionOverrideWarnCooldownFrames = 120;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBoxProjectionMinRatio")) reflectionProbeQualityBoxProjectionMinRatio = 0.60;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax")) reflectionProbeQualityInvalidBlendDistanceWarnMax = 0;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapCoverageWarnMin")) reflectionProbeQualityOverlapCoverageWarnMin = 0.12;
@@ -4024,6 +4123,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapWarnMaxPairs")) reflectionProbeQualityOverlapWarnMaxPairs = 12;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBleedRiskWarnMaxPairs")) reflectionProbeQualityBleedRiskWarnMaxPairs = 1;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple")) reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideProbeOnlyRatioWarnMax")) reflectionOverrideProbeOnlyRatioWarnMax = 0.85;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideSsrOnlyRatioWarnMax")) reflectionOverrideSsrOnlyRatioWarnMax = 0.85;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideOtherWarnMax")) reflectionOverrideOtherWarnMax = 1;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnMinFrames")) reflectionOverrideWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnCooldownFrames")) reflectionOverrideWarnCooldownFrames = 90;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBoxProjectionMinRatio")) reflectionProbeQualityBoxProjectionMinRatio = 0.45;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax")) reflectionProbeQualityInvalidBlendDistanceWarnMax = 1;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapCoverageWarnMin")) reflectionProbeQualityOverlapCoverageWarnMin = 0.08;

@@ -41,6 +41,11 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.probeQualityOverlapWarnMaxPairs", "12"),
                         Map.entry("vulkan.reflections.probeQualityBleedRiskWarnMaxPairs", "2"),
                         Map.entry("vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple", "3"),
+                        Map.entry("vulkan.reflections.overrideProbeOnlyRatioWarnMax", "0.58"),
+                        Map.entry("vulkan.reflections.overrideSsrOnlyRatioWarnMax", "0.49"),
+                        Map.entry("vulkan.reflections.overrideOtherWarnMax", "2"),
+                        Map.entry("vulkan.reflections.overrideWarnMinFrames", "6"),
+                        Map.entry("vulkan.reflections.overrideWarnCooldownFrames", "210"),
                         Map.entry("vulkan.reflections.probeQualityBoxProjectionMinRatio", "0.82"),
                         Map.entry("vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax", "4"),
                         Map.entry("vulkan.reflections.probeQualityOverlapCoverageWarnMin", "0.27"),
@@ -150,6 +155,11 @@ class VulkanRuntimeOptionsTest {
         assertEquals(12, parsed.reflectionProbeQualityOverlapWarnMaxPairs());
         assertEquals(2, parsed.reflectionProbeQualityBleedRiskWarnMaxPairs());
         assertEquals(3, parsed.reflectionProbeQualityMinOverlapPairsWhenMultiple());
+        assertEquals(0.58, parsed.reflectionOverrideProbeOnlyRatioWarnMax());
+        assertEquals(0.49, parsed.reflectionOverrideSsrOnlyRatioWarnMax());
+        assertEquals(2, parsed.reflectionOverrideOtherWarnMax());
+        assertEquals(6, parsed.reflectionOverrideWarnMinFrames());
+        assertEquals(210, parsed.reflectionOverrideWarnCooldownFrames());
         assertEquals(0.82, parsed.reflectionProbeQualityBoxProjectionMinRatio());
         assertEquals(4, parsed.reflectionProbeQualityInvalidBlendDistanceWarnMax());
         assertEquals(0.27, parsed.reflectionProbeQualityOverlapCoverageWarnMin());
@@ -249,6 +259,11 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.probeQualityOverlapWarnMaxPairs", "-1"),
                         Map.entry("vulkan.reflections.probeQualityBleedRiskWarnMaxPairs", "-1"),
                         Map.entry("vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple", "-1"),
+                        Map.entry("vulkan.reflections.overrideProbeOnlyRatioWarnMax", "9.0"),
+                        Map.entry("vulkan.reflections.overrideSsrOnlyRatioWarnMax", "-9.0"),
+                        Map.entry("vulkan.reflections.overrideOtherWarnMax", "-2"),
+                        Map.entry("vulkan.reflections.overrideWarnMinFrames", "0"),
+                        Map.entry("vulkan.reflections.overrideWarnCooldownFrames", "999999"),
                         Map.entry("vulkan.reflections.probeQualityBoxProjectionMinRatio", "5.0"),
                         Map.entry("vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax", "-4"),
                         Map.entry("vulkan.reflections.probeQualityOverlapCoverageWarnMin", "-2.0"),
@@ -348,6 +363,11 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0, parsed.reflectionProbeQualityOverlapWarnMaxPairs());
         assertEquals(0, parsed.reflectionProbeQualityBleedRiskWarnMaxPairs());
         assertEquals(0, parsed.reflectionProbeQualityMinOverlapPairsWhenMultiple());
+        assertEquals(1.0, parsed.reflectionOverrideProbeOnlyRatioWarnMax());
+        assertEquals(0.0, parsed.reflectionOverrideSsrOnlyRatioWarnMax());
+        assertEquals(0, parsed.reflectionOverrideOtherWarnMax());
+        assertEquals(1, parsed.reflectionOverrideWarnMinFrames());
+        assertEquals(10000, parsed.reflectionOverrideWarnCooldownFrames());
         assertEquals(1.0, parsed.reflectionProbeQualityBoxProjectionMinRatio());
         assertEquals(0, parsed.reflectionProbeQualityInvalidBlendDistanceWarnMax());
         assertEquals(0.0, parsed.reflectionProbeQualityOverlapCoverageWarnMin());

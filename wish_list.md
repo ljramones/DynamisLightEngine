@@ -4,10 +4,10 @@ Living capability board. Update statuses as implementation evolves.
 
 Review metadata:
 
-- Last reviewed: 2026-02-18
+- Last reviewed: 2026-02-19
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-18 16:31 ET — Planar promotion finalized as Vulkan-scoped `In` with real-signoff runner, profile-locked envelopes, and timestamp-backed perf timing path.
+- Latest reflection update: 2026-02-19 11:12 ET — Per-material reflection override promoted to Vulkan-scoped `In` with profile-tuned envelope gates, cooldown breach signaling, and typed diagnostics parity tests.
 
 Status legend:
 
@@ -19,8 +19,8 @@ Status summary snapshot (2026-02-18):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 23 |
-| `Partial` | 58 |
+| `In` | 24 |
+| `Partial` | 57 |
 | `Not In Yet` | 110 |
 
 ## Shadows
@@ -51,7 +51,7 @@ Status summary snapshot (2026-02-18):
 - RT reflections (single-bounce, multi-bounce) — `In`
 - RT + SSR hybrid (RT for rough, SSR for sharp, probe for miss) — `In`
 - Reflection probe streaming (LOD, priority-based update) — `In`
-- Per-material reflection override (force probe-only for specific surfaces) — `Partial`
+- Per-material reflection override (force probe-only for specific surfaces) — `In`
 - Contact-hardening reflections (roughness ramp near contact) — `Partial`
 - Transparent/refractive surface reflections — `In`
 
@@ -61,6 +61,7 @@ Reflection notes:
 - Optional probe cubemap-face ingestion/discovery (`*_px/_nx/_py/_ny/_pz/_nz`) is wired behind a disabled-by-default flag as groundwork; runtime shading still consumes 2D-array probe radiance textures.
 - Vulkan now supports per-material reflection overrides (`PROBE_ONLY`, `SSR_ONLY`) via scene color alpha metadata in post reflection resolve.
 - Vulkan reflection baseline warning telemetry now includes per-frame override counts (`AUTO`, `PROBE_ONLY`, `SSR_ONLY`, other).
+- Vulkan now emits override envelope diagnostics (`REFLECTION_OVERRIDE_POLICY_ENVELOPE`) plus cooldown-gated breach warnings (`REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH`) with profile-tuned defaults.
 - Vulkan reflection warnings now include probe telemetry (`configured`, `active`, `slots`, `capacity`) with dedicated `REFLECTION_PROBE_BLEND_DIAGNOSTICS` emission.
 - Vulkan runtime now exposes probe diagnostics directly for integration/telemetry validation without warning-string parsing.
 - Vulkan now tracks probe active-set churn across frames and emits `REFLECTION_PROBE_CHURN_HIGH` when instability persists.

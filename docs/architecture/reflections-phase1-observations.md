@@ -1,6 +1,6 @@
 # Reflections Phase 1 Observations (Vulkan)
 
-Last updated: February 18, 2026.
+Last updated: February 19, 2026.
 
 This log captures concrete findings from the current probe-focused reflection depth pass.
 It is intended as extraction input for future capability contracts and render-graph migration.
@@ -11,7 +11,7 @@ It is intended as extraction input for future capability contracts and render-gr
 - Vulkan maps probes into runtime state and uploads frame-visible probe metadata into a per-frame SSBO.
 - Main fragment shader consumes probe metadata, evaluates per-fragment probe influence, applies optional box-projected direction shaping, and blends probe influence into the existing IBL radiance path.
 - Probe overlap uses priority-aware remaining-coverage blending.
-- Per-material reflection override groundwork is in place via `MaterialDesc.reflectionOverride`, currently with `PROBE_ONLY` and `SSR_ONLY` support in Vulkan.
+- Per-material reflection override is production-active in Vulkan via `MaterialDesc.reflectionOverride` (`PROBE_ONLY`, `SSR_ONLY`) with envelope diagnostics and cooldown-gated breach warnings.
 
 ## Capability observations
 
@@ -78,4 +78,4 @@ It is intended as extraction input for future capability contracts and render-gr
 
 ## Next reflection implementation target
 
-- Add integration tests that assert per-material override behavior (`AUTO`, `PROBE_ONLY`, `SSR_ONLY`) in composed post reflection paths.
+- Contact-hardening reflections (`roughness ramp near contact`) after per-material override promotion completion.

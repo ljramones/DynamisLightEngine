@@ -1,6 +1,6 @@
 # Reflections Testing Guide (Vulkan)
 
-Updated: 2026-02-18
+Updated: 2026-02-19
 
 ## RT Promotion Thresholds
 
@@ -37,6 +37,14 @@ Updated: 2026-02-18
 - `vulkan.reflections.transparencyWarnMinFrames=3` (default)
 - `vulkan.reflections.transparencyWarnCooldownFrames=120` (default)
 
+## Override Policy Thresholds
+
+- `vulkan.reflections.overrideProbeOnlyRatioWarnMax` (profile default)
+- `vulkan.reflections.overrideSsrOnlyRatioWarnMax` (profile default)
+- `vulkan.reflections.overrideOtherWarnMax` (profile default)
+- `vulkan.reflections.overrideWarnMinFrames` (profile default)
+- `vulkan.reflections.overrideWarnCooldownFrames` (profile default)
+
 ## Required Test Lanes
 
 1. Lockdown contracts:
@@ -60,6 +68,8 @@ Updated: 2026-02-18
   - `REFLECTION_PROBE_STREAMING_DIAGNOSTICS`
   - `REFLECTION_PROBE_STREAMING_ENVELOPE`
   - `REFLECTION_PROBE_QUALITY_SWEEP`
+  - `REFLECTION_OVERRIDE_POLICY`
+  - `REFLECTION_OVERRIDE_POLICY_ENVELOPE`
   - `REFLECTION_TRANSPARENCY_STAGE_GATE`
   - `REFLECTION_TRANSPARENCY_POLICY`
 - Fail on any breach warnings in blessed lanes:
@@ -69,4 +79,5 @@ Updated: 2026-02-18
   - `REFLECTION_RT_AS_BUDGET_BREACH`
   - `REFLECTION_PROBE_STREAMING_ENVELOPE_BREACH`
   - `REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`
+  - `REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH`
   - `REFLECTION_TRANSPARENCY_ENVELOPE_BREACH`

@@ -557,6 +557,7 @@ class VulkanEngineRuntimeIntegrationTest {
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTIONS_BASELINE_ACTIVE".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_OVERRIDE_POLICY".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_OVERRIDE_POLICY_ENVELOPE".equals(w.code())));
         String baseline = warningMessageByCode(frame, "REFLECTIONS_BASELINE_ACTIVE");
         assertTrue(baseline.contains("overrideAuto=1"));
         assertTrue(baseline.contains("overrideProbeOnly=1"));
@@ -567,11 +568,73 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(policy.contains("probeOnly=1"));
         assertTrue(policy.contains("ssrOnly=1"));
         assertTrue(policy.contains("planarSelectiveExcludes=probe_only|ssr_only"));
+        String envelope = warningMessageByCode(frame, "REFLECTION_OVERRIDE_POLICY_ENVELOPE");
+        assertTrue(envelope.contains("probeOnlyRatio="));
+        assertTrue(envelope.contains("ssrOnlyRatio="));
+        assertTrue(envelope.contains("probeOnlyRatioWarnMax="));
+        assertTrue(envelope.contains("ssrOnlyRatioWarnMax="));
+        assertTrue(envelope.contains("warnMinFrames="));
+        assertTrue(envelope.contains("warnCooldownFrames="));
         assertEquals(List.of(0, 1, 2), runtime.debugReflectionOverrideModes());
         var policyDiagnostics = runtime.debugReflectionOverridePolicyDiagnostics();
         assertEquals(1, policyDiagnostics.autoCount());
         assertEquals(1, policyDiagnostics.probeOnlyCount());
         assertEquals(1, policyDiagnostics.ssrOnlyCount());
+        assertEquals(0, policyDiagnostics.otherCount());
+        assertTrue(policyDiagnostics.probeOnlyRatio() > 0.0);
+        assertTrue(policyDiagnostics.ssrOnlyRatio() > 0.0);
+        assertFalse(policyDiagnostics.breachedLastFrame());
+        assertEquals("probe_only|ssr_only", policyDiagnostics.planarSelectiveExcludes());
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionOverrideEnvelopeBreachEmitsUnderStrictThresholds() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.overrideProbeOnlyRatioWarnMax", "0.10"),
+                Map.entry("vulkan.reflections.overrideSsrOnlyRatioWarnMax", "0.10"),
+                Map.entry("vulkan.reflections.overrideOtherWarnMax", "0"),
+                Map.entry("vulkan.reflections.overrideWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.overrideWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validMaterialOverrideReflectionScene(ReflectionOverrideMode.PROBE_ONLY));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_OVERRIDE_POLICY_ENVELOPE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH".equals(w.code())));
+        String envelope = warningMessageByCode(frame, "REFLECTION_OVERRIDE_POLICY_ENVELOPE");
+        assertTrue(envelope.contains("probeOnlyRatioWarnMax=0.1"));
+        assertTrue(envelope.contains("ssrOnlyRatioWarnMax=0.1"));
+        assertTrue(envelope.contains("warnMinFrames=1"));
+        assertTrue(envelope.contains("warnCooldownFrames=8"));
+        var diagnostics = runtime.debugReflectionOverridePolicyDiagnostics();
+        assertTrue(diagnostics.breachedLastFrame());
+        assertTrue(diagnostics.warnCooldownRemaining() > 0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionOverrideEnvelopeCooldownPreventsImmediateRepeatBreach() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.overrideProbeOnlyRatioWarnMax", "0.10"),
+                Map.entry("vulkan.reflections.overrideSsrOnlyRatioWarnMax", "0.10"),
+                Map.entry("vulkan.reflections.overrideWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.overrideWarnCooldownFrames", "2")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validMaterialOverrideReflectionScene(ReflectionOverrideMode.PROBE_ONLY));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+        var frameC = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH".equals(w.code())));
+        assertTrue(frameC.warnings().stream().anyMatch(w -> "REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH".equals(w.code())));
         runtime.shutdown();
     }
 
@@ -2023,6 +2086,43 @@ class VulkanEngineRuntimeIntegrationTest {
                 1.8, 2.8, 3.8, 5.0,
                 2.4, 48.0, 2, 90
         );
+    }
+
+    @Test
+    void reflectionProfilesApplyTypedOverridePolicyDefaults() throws Exception {
+        assertOverrideProfileDefaults("performance", 0.55, 0.55, 0, 4, 180);
+        assertOverrideProfileDefaults("quality", 0.75, 0.75, 0, 3, 120);
+        assertOverrideProfileDefaults("stability", 0.85, 0.85, 1, 2, 90);
+    }
+
+    @Test
+    void reflectionOverrideExplicitOptionsOverrideProfileDefaults() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflectionsProfile", "stability"),
+                Map.entry("vulkan.reflections.overrideProbeOnlyRatioWarnMax", "0.61"),
+                Map.entry("vulkan.reflections.overrideSsrOnlyRatioWarnMax", "0.62"),
+                Map.entry("vulkan.reflections.overrideOtherWarnMax", "3"),
+                Map.entry("vulkan.reflections.overrideWarnMinFrames", "7"),
+                Map.entry("vulkan.reflections.overrideWarnCooldownFrames", "77")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validMixedMaterialOverrideReflectionScene());
+
+        var frame = runtime.render();
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+        var diagnostics = runtime.debugReflectionOverridePolicyDiagnostics();
+        assertTrue(profileWarning.contains("overrideProbeOnlyRatioWarnMax=0.61"));
+        assertTrue(profileWarning.contains("overrideSsrOnlyRatioWarnMax=0.62"));
+        assertTrue(profileWarning.contains("overrideOtherWarnMax=3"));
+        assertTrue(profileWarning.contains("overrideWarnMinFrames=7"));
+        assertTrue(profileWarning.contains("overrideWarnCooldownFrames=77"));
+        assertEquals(0.61, diagnostics.probeOnlyRatioWarnMax(), 1e-6);
+        assertEquals(0.62, diagnostics.ssrOnlyRatioWarnMax(), 1e-6);
+        assertEquals(3, diagnostics.otherWarnMax());
+        assertEquals(7, diagnostics.warnMinFrames());
+        assertEquals(77, diagnostics.warnCooldownFrames());
+        runtime.shutdown();
     }
 
     @Test
@@ -4246,6 +4346,38 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(profileWarning.contains("planarPerfMemoryBudgetMb=" + expectedMemoryBudgetMb));
         assertTrue(profileWarning.contains("planarPerfWarnMinFrames=" + expectedPerfWarnMinFrames));
         assertTrue(profileWarning.contains("planarPerfWarnCooldownFrames=" + expectedPerfWarnCooldownFrames));
+        runtime.shutdown();
+    }
+
+    private static void assertOverrideProfileDefaults(
+            String profile,
+            double expectedProbeOnlyRatioWarnMax,
+            double expectedSsrOnlyRatioWarnMax,
+            int expectedOtherWarnMax,
+            int expectedWarnMinFrames,
+            int expectedWarnCooldownFrames
+    ) throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflectionsProfile", profile)
+        )), new RecordingCallbacks());
+        runtime.loadScene(validMixedMaterialOverrideReflectionScene());
+
+        var frame = runtime.render();
+        var diagnostics = runtime.debugReflectionOverridePolicyDiagnostics();
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+
+        assertEquals(expectedProbeOnlyRatioWarnMax, diagnostics.probeOnlyRatioWarnMax(), 1e-6);
+        assertEquals(expectedSsrOnlyRatioWarnMax, diagnostics.ssrOnlyRatioWarnMax(), 1e-6);
+        assertEquals(expectedOtherWarnMax, diagnostics.otherWarnMax());
+        assertEquals(expectedWarnMinFrames, diagnostics.warnMinFrames());
+        assertEquals(expectedWarnCooldownFrames, diagnostics.warnCooldownFrames());
+        assertTrue(profileWarning.contains("overrideProbeOnlyRatioWarnMax=" + expectedProbeOnlyRatioWarnMax));
+        assertTrue(profileWarning.contains("overrideSsrOnlyRatioWarnMax=" + expectedSsrOnlyRatioWarnMax));
+        assertTrue(profileWarning.contains("overrideOtherWarnMax=" + expectedOtherWarnMax));
+        assertTrue(profileWarning.contains("overrideWarnMinFrames=" + expectedWarnMinFrames));
+        assertTrue(profileWarning.contains("overrideWarnCooldownFrames=" + expectedWarnCooldownFrames));
         runtime.shutdown();
     }
 
