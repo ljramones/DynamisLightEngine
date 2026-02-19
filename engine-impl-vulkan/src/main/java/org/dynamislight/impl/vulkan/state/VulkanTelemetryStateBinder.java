@@ -1,11 +1,11 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.state;
 
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
-final class VulkanTelemetryStateBinder {
-    static void copyMatchingFields(Object source, Object target) {
+public final class VulkanTelemetryStateBinder {
+    public static void copyMatchingFields(Object source, Object target) {
         if (source == null || target == null) {
             return;
         }

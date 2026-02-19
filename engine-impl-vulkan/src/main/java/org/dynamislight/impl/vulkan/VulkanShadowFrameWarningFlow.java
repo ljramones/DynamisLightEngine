@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
+
 import java.util.List;
 import java.util.Locale;
 import org.dynamislight.api.config.QualityTier;

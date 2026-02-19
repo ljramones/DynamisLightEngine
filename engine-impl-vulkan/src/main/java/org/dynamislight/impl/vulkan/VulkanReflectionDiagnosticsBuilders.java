@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
+
 final class VulkanReflectionDiagnosticsBuilders {
     static final class State {
         int reflectionProbeMaxVisible;
