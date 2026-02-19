@@ -2187,92 +2187,39 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             shadowPointBudgetEnvelopeBreachedLastFrame = shadowCadencePointState.shadowPointBudgetEnvelopeBreachedLastFrame;
             shadowPhaseAPromotionStableStreak = shadowCadencePointState.shadowPhaseAPromotionStableStreak;
             shadowPhaseAPromotionReadyLastFrame = shadowCadencePointState.shadowPhaseAPromotionReadyLastFrame;
-            int candidateSpotLights = 0;
-            int candidatePointLights = 0;
-            if (currentSceneLights != null) {
-                for (LightDesc light : currentSceneLights) {
-                    if (light == null || !light.castsShadows() || light.shadow() == null) {
-                        continue;
-                    }
-                    if (light.type() == LightType.SPOT) {
-                        candidateSpotLights++;
-                    } else if (light.type() == LightType.POINT) {
-                        candidatePointLights++;
-                    }
-                }
-            }
-            shadowTopologyCandidateSpotLightsLastFrame = candidateSpotLights;
-            shadowTopologyCandidatePointLightsLastFrame = candidatePointLights;
-            int renderedLocalLights = Math.max(0, currentShadows.renderedLocalShadowLights());
-            shadowTopologyLocalCoverageLastFrame = shadowCadenceSelectedLocalLightsLastFrame <= 0
-                    ? 1.0
-                    : Math.min(1.0, (double) renderedLocalLights / (double) shadowCadenceSelectedLocalLightsLastFrame);
-            shadowTopologySpotCoverageLastFrame = candidateSpotLights <= 0
-                    ? 1.0
-                    : Math.min(1.0, (double) shadowSpotProjectedRenderedCountLastFrame / (double) candidateSpotLights);
-            shadowTopologyPointCoverageLastFrame = candidatePointLights <= 0
-                    ? 1.0
-                    : Math.min(1.0, (double) shadowPointBudgetRenderedCubemapsLastFrame / (double) candidatePointLights);
-            boolean topologyEnvelopeNow = shadowTopologyLocalCoverageLastFrame < shadowTopologyLocalCoverageWarnMin
-                    || shadowTopologySpotCoverageLastFrame < shadowTopologySpotCoverageWarnMin
-                    || shadowTopologyPointCoverageLastFrame < shadowTopologyPointCoverageWarnMin;
-            if (topologyEnvelopeNow) {
-                shadowTopologyHighStreak = Math.min(10_000, shadowTopologyHighStreak + 1);
-                shadowTopologyStableStreak = 0;
-                shadowTopologyPromotionReadyLastFrame = false;
-                shadowTopologyEnvelopeBreachedLastFrame = true;
-            } else {
-                shadowTopologyHighStreak = 0;
-                shadowTopologyStableStreak = Math.min(10_000, shadowTopologyStableStreak + 1);
-                shadowTopologyPromotionReadyLastFrame = shadowTopologyStableStreak >= shadowTopologyPromotionReadyMinFrames;
-            }
-            warnings.add(new EngineWarning(
-                    "SHADOW_TOPOLOGY_CONTRACT",
-                    "Shadow topology contract (selectedLocal=" + shadowCadenceSelectedLocalLightsLastFrame
-                            + ", renderedLocal=" + renderedLocalLights
-                            + ", candidateSpot=" + candidateSpotLights
-                            + ", renderedSpot=" + shadowSpotProjectedRenderedCountLastFrame
-                            + ", candidatePoint=" + candidatePointLights
-                            + ", renderedPointCubemaps=" + shadowPointBudgetRenderedCubemapsLastFrame
-                            + ", localCoverage=" + shadowTopologyLocalCoverageLastFrame
-                            + ", spotCoverage=" + shadowTopologySpotCoverageLastFrame
-                            + ", pointCoverage=" + shadowTopologyPointCoverageLastFrame
-                            + ", localCoverageWarnMin=" + shadowTopologyLocalCoverageWarnMin
-                            + ", spotCoverageWarnMin=" + shadowTopologySpotCoverageWarnMin
-                            + ", pointCoverageWarnMin=" + shadowTopologyPointCoverageWarnMin
-                            + ", warnMinFrames=" + shadowTopologyWarnMinFrames
-                            + ", cooldownRemaining=" + shadowTopologyWarnCooldownRemaining
-                            + ", stableStreak=" + shadowTopologyStableStreak
-                            + ", promotionReadyMinFrames=" + shadowTopologyPromotionReadyMinFrames
-                            + ", promotionReady=" + shadowTopologyPromotionReadyLastFrame + ")"
-            ));
-            if (topologyEnvelopeNow
-                    && shadowTopologyHighStreak >= shadowTopologyWarnMinFrames
-                    && shadowTopologyWarnCooldownRemaining == 0) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_TOPOLOGY_CONTRACT_BREACH",
-                        "Shadow topology contract breached (localCoverage=" + shadowTopologyLocalCoverageLastFrame
-                                + ", spotCoverage=" + shadowTopologySpotCoverageLastFrame
-                                + ", pointCoverage=" + shadowTopologyPointCoverageLastFrame
-                                + ", localCoverageWarnMin=" + shadowTopologyLocalCoverageWarnMin
-                                + ", spotCoverageWarnMin=" + shadowTopologySpotCoverageWarnMin
-                                + ", pointCoverageWarnMin=" + shadowTopologyPointCoverageWarnMin
-                                + ", highStreak=" + shadowTopologyHighStreak
-                                + ", warnMinFrames=" + shadowTopologyWarnMinFrames
-                                + ", cooldownFrames=" + shadowTopologyWarnCooldownFrames + ")"
-                ));
-                shadowTopologyWarnCooldownRemaining = shadowTopologyWarnCooldownFrames;
-            }
-            if (shadowTopologyPromotionReadyLastFrame) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_TOPOLOGY_PROMOTION_READY",
-                        "Shadow topology promotion-ready (localCoverage=" + shadowTopologyLocalCoverageLastFrame
-                                + ", spotCoverage=" + shadowTopologySpotCoverageLastFrame
-                                + ", pointCoverage=" + shadowTopologyPointCoverageLastFrame
-                                + ", stableStreak=" + shadowTopologyStableStreak
-                                + ", promotionReadyMinFrames=" + shadowTopologyPromotionReadyMinFrames + ")"
-                ));
-            }
+            VulkanShadowTopologyWarningEmitter.State shadowTopologyState = new VulkanShadowTopologyWarningEmitter.State();
+            shadowTopologyState.currentSceneLights = currentSceneLights;
+            shadowTopologyState.shadowCadenceSelectedLocalLightsLastFrame = shadowCadenceSelectedLocalLightsLastFrame;
+            shadowTopologyState.shadowSpotProjectedRenderedCountLastFrame = shadowSpotProjectedRenderedCountLastFrame;
+            shadowTopologyState.shadowPointBudgetRenderedCubemapsLastFrame = shadowPointBudgetRenderedCubemapsLastFrame;
+            shadowTopologyState.shadowTopologyCandidateSpotLightsLastFrame = shadowTopologyCandidateSpotLightsLastFrame;
+            shadowTopologyState.shadowTopologyCandidatePointLightsLastFrame = shadowTopologyCandidatePointLightsLastFrame;
+            shadowTopologyState.shadowTopologyLocalCoverageLastFrame = shadowTopologyLocalCoverageLastFrame;
+            shadowTopologyState.shadowTopologySpotCoverageLastFrame = shadowTopologySpotCoverageLastFrame;
+            shadowTopologyState.shadowTopologyPointCoverageLastFrame = shadowTopologyPointCoverageLastFrame;
+            shadowTopologyState.shadowTopologyLocalCoverageWarnMin = shadowTopologyLocalCoverageWarnMin;
+            shadowTopologyState.shadowTopologySpotCoverageWarnMin = shadowTopologySpotCoverageWarnMin;
+            shadowTopologyState.shadowTopologyPointCoverageWarnMin = shadowTopologyPointCoverageWarnMin;
+            shadowTopologyState.shadowTopologyWarnMinFrames = shadowTopologyWarnMinFrames;
+            shadowTopologyState.shadowTopologyWarnCooldownFrames = shadowTopologyWarnCooldownFrames;
+            shadowTopologyState.shadowTopologyWarnCooldownRemaining = shadowTopologyWarnCooldownRemaining;
+            shadowTopologyState.shadowTopologyHighStreak = shadowTopologyHighStreak;
+            shadowTopologyState.shadowTopologyStableStreak = shadowTopologyStableStreak;
+            shadowTopologyState.shadowTopologyPromotionReadyMinFrames = shadowTopologyPromotionReadyMinFrames;
+            shadowTopologyState.shadowTopologyPromotionReadyLastFrame = shadowTopologyPromotionReadyLastFrame;
+            shadowTopologyState.shadowTopologyEnvelopeBreachedLastFrame = shadowTopologyEnvelopeBreachedLastFrame;
+            shadowTopologyState.currentShadows = currentShadows;
+            VulkanShadowTopologyWarningEmitter.emit(warnings, shadowTopologyState);
+            shadowTopologyCandidateSpotLightsLastFrame = shadowTopologyState.shadowTopologyCandidateSpotLightsLastFrame;
+            shadowTopologyCandidatePointLightsLastFrame = shadowTopologyState.shadowTopologyCandidatePointLightsLastFrame;
+            shadowTopologyLocalCoverageLastFrame = shadowTopologyState.shadowTopologyLocalCoverageLastFrame;
+            shadowTopologySpotCoverageLastFrame = shadowTopologyState.shadowTopologySpotCoverageLastFrame;
+            shadowTopologyPointCoverageLastFrame = shadowTopologyState.shadowTopologyPointCoverageLastFrame;
+            shadowTopologyWarnCooldownRemaining = shadowTopologyState.shadowTopologyWarnCooldownRemaining;
+            shadowTopologyHighStreak = shadowTopologyState.shadowTopologyHighStreak;
+            shadowTopologyStableStreak = shadowTopologyState.shadowTopologyStableStreak;
+            shadowTopologyPromotionReadyLastFrame = shadowTopologyState.shadowTopologyPromotionReadyLastFrame;
+            shadowTopologyEnvelopeBreachedLastFrame = shadowTopologyState.shadowTopologyEnvelopeBreachedLastFrame;
             shadowCacheHitCountLastFrame = Math.max(0, shadowAllocatorReusedAssignments);
             shadowCacheMissCountLastFrame = Math.max(0,
                     shadowCadenceSelectedLocalLightsLastFrame - shadowCacheHitCountLastFrame);
