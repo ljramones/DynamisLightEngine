@@ -17,13 +17,21 @@ Introduce deterministic render-graph metadata compilation from capability declar
 - `VulkanRenderGraphPlan`: ordered nodes + validation issues + lifetimes.
 - `VulkanRenderGraphResourceLifetime`: first/last usage boundaries.
 - `VulkanRenderGraphCompiler`:
-  - deterministic ordering by phase, pass, feature
+  - deterministic Kahn topological ordering (dependency-first)
+  - phase/insertion tie-break behavior for equivalent candidates
   - duplicate-writer validation (different pass groups only)
-  - missing-producer validation with pass-group awareness
+  - missing-producer validation with imported-resource awareness
+  - cycle detection diagnostics
+  - in-pass read/write self-dependency acceptance
   - resource lifetime computation
 - `VulkanAaPostRenderGraphPlanner`:
   - bridges `VulkanAaPostCapabilityPlanner` output into compiled graph metadata
-  - includes default external input policy (`scene_color`, `velocity`, `depth`, `history_color`, `history_velocity`)
+  - includes typed default imported resources (`scene_color`, `velocity`, `depth`, `history_color`, `history_velocity`)
+- Imported resource model:
+  - `VulkanImportedResource` with provider/lifetime/type metadata
+- Resource access diagnostics:
+  - `VulkanRenderGraphAccessOrder`
+  - per-resource `READ/WRITE/READ_WRITE` ordered access events
 
 ## Behavior boundary
 

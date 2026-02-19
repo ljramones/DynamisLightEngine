@@ -6,42 +6,68 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import java.util.Set;
-import org.dynamislight.spi.render.RenderCapabilityValidationIssue;
+import java.util.stream.Collectors;
 import org.dynamislight.spi.render.RenderFeatureCapability;
 import org.dynamislight.spi.render.RenderFeatureContract;
 import org.dynamislight.spi.render.RenderPassContribution;
 import org.dynamislight.spi.render.RenderPassPhase;
+import org.dynamislight.spi.render.RenderResourceType;
 import org.junit.jupiter.api.Test;
 
 class VulkanRenderGraphCompilerTest {
     private final VulkanRenderGraphCompiler compiler = new VulkanRenderGraphCompiler();
 
     @Test
-    void ordersNodesByPhasePassAndFeatureDeterministically() {
-        RenderFeatureCapability preA = capability("feature.pre.a", pass("pre_a", RenderPassPhase.PRE_MAIN, List.of(), List.of("pre_a")));
-        RenderFeatureCapability mainB = capability("feature.main.b", pass("main", RenderPassPhase.MAIN, List.of("pre_a"), List.of("main_b")));
-        RenderFeatureCapability mainA = capability("feature.main.a", pass("main", RenderPassPhase.MAIN, List.of("pre_a"), List.of("main_a")));
-        RenderFeatureCapability post = capability("feature.post", pass("post", RenderPassPhase.POST_MAIN, List.of("main_b"), List.of("resolved")));
+    void linearChainProducesExpectedOrder() {
+        RenderFeatureCapability shadow = capability("feature.shadow", pass("shadow", RenderPassPhase.PRE_MAIN, List.of(), List.of("shadow_map")));
+        RenderFeatureCapability main = capability("feature.main", pass("main", RenderPassPhase.MAIN, List.of("shadow_map"), List.of("scene_color", "depth")));
+        RenderFeatureCapability post = capability("feature.post", pass("post", RenderPassPhase.POST_MAIN, List.of("scene_color"), List.of("resolved_color")));
 
-        VulkanRenderGraphPlan plan = compiler.compile(List.of(post, mainB, preA, mainA), Set.of());
+        VulkanRenderGraphPlan plan = compiler.compile(List.of(post, main, shadow), List.of());
 
-        List<String> ordered = plan.orderedNodes().stream().map(VulkanRenderGraphNode::nodeId).toList();
+        assertFalse(plan.hasErrors());
         assertEquals(List.of(
-                "feature.pre.a:pre_a#0",
-                "feature.main.a:main#0",
-                "feature.main.b:main#0",
+                "feature.shadow:shadow#0",
+                "feature.main:main#0",
                 "feature.post:post#0"
-        ), ordered);
+        ), plan.orderedNodes().stream().map(VulkanRenderGraphNode::nodeId).toList());
     }
 
     @Test
-    void reportsMissingProducerWhenResourceNotExternalOrWritten() {
-        RenderFeatureCapability post = capability(
-                "feature.post",
-                pass("post", RenderPassPhase.POST_MAIN, List.of("scene_color", "missing_buffer"), List.of("resolved_color"))
+    void importedResourceDoesNotRequirePassProducer() {
+        RenderFeatureCapability main = capability(
+                "feature.main",
+                pass("main", RenderPassPhase.MAIN, List.of("probe_metadata", "scene_color"), List.of("resolved_color"))
+        );
+        List<VulkanImportedResource> imports = List.of(
+                new VulkanImportedResource(
+                        "probe_metadata",
+                        RenderResourceType.STORAGE_BUFFER,
+                        VulkanImportedResource.ResourceLifetime.PER_FRAME,
+                        VulkanImportedResource.ResourceProvider.CPU_UPLOAD
+                ),
+                new VulkanImportedResource(
+                        "scene_color",
+                        RenderResourceType.SAMPLED_IMAGE,
+                        VulkanImportedResource.ResourceLifetime.PER_FRAME,
+                        VulkanImportedResource.ResourceProvider.EXTERNAL_SYSTEM
+                )
         );
 
-        VulkanRenderGraphPlan plan = compiler.compile(List.of(post), Set.of("scene_color"));
+        VulkanRenderGraphPlan plan = compiler.compile(List.of(main), imports);
+
+        assertFalse(plan.hasErrors());
+        assertEquals(2, plan.importedResources().size());
+    }
+
+    @Test
+    void reportsMissingProducerWhenResourceNotImportedOrWritten() {
+        RenderFeatureCapability main = capability(
+                "feature.main",
+                pass("main", RenderPassPhase.MAIN, List.of("missing_buffer"), List.of("resolved_color"))
+        );
+
+        VulkanRenderGraphPlan plan = compiler.compile(List.of(main), List.of());
 
         assertTrue(plan.hasErrors());
         assertTrue(plan.validationIssues().stream().anyMatch(i ->
@@ -49,24 +75,104 @@ class VulkanRenderGraphCompilerTest {
     }
 
     @Test
-    void allowsDuplicateWritersInsideSamePassGroup() {
-        RenderFeatureCapability tonemap = capability(
-                "vulkan.post.tonemap",
-                pass("post_composite", RenderPassPhase.POST_MAIN, List.of("scene_color"), List.of("resolved_color"))
+    void reportsCycleForMutualDependency() {
+        RenderFeatureCapability a = capability(
+                "feature.a",
+                pass("pass_a", RenderPassPhase.MAIN, List.of("y"), List.of("x"))
         );
-        RenderFeatureCapability bloom = capability(
-                "vulkan.post.bloom",
-                pass("post_composite", RenderPassPhase.POST_MAIN, List.of("scene_color"), List.of("resolved_color"))
+        RenderFeatureCapability b = capability(
+                "feature.b",
+                pass("pass_b", RenderPassPhase.POST_MAIN, List.of("x"), List.of("y"))
         );
 
-        VulkanRenderGraphPlan plan = compiler.compile(List.of(tonemap, bloom), Set.of("scene_color"));
+        VulkanRenderGraphPlan plan = compiler.compile(List.of(a, b), List.of());
 
-        assertFalse(plan.hasErrors());
-        assertTrue(plan.validationIssues().stream().noneMatch(i -> i.code().equals("DUPLICATE_WRITER")));
+        assertTrue(plan.hasErrors());
+        assertTrue(plan.validationIssues().stream().anyMatch(i -> i.code().equals("CYCLE_DETECTED")));
     }
 
     @Test
-    void reportsDuplicateWritersAcrossDifferentPassGroups() {
+    void allowsSelfDependencyReadWriteSameResourceInPassGroup() {
+        RenderFeatureCapability moment = capability(
+                "feature.moment",
+                pass("moment_blit", RenderPassPhase.PRE_MAIN, List.of("moment_atlas"), List.of("moment_atlas"))
+        );
+
+        VulkanRenderGraphPlan plan = compiler.compile(List.of(moment), List.of());
+
+        assertFalse(plan.hasErrors());
+        var access = plan.resourceAccessOrder().get("moment_atlas");
+        assertEquals(1, access.size());
+        assertEquals(VulkanRenderGraphResourceAccessType.READ_WRITE, access.getFirst().accessType());
+    }
+
+    @Test
+    void persistentPreviousFrameImportDoesNotCreateCycle() {
+        RenderFeatureCapability resolve = capability(
+                "feature.taa",
+                pass("taa_resolve", RenderPassPhase.POST_MAIN, List.of("taa_history_prev", "scene_color"), List.of("taa_history_next", "resolved_color"))
+        );
+
+        List<VulkanImportedResource> imports = List.of(
+                new VulkanImportedResource(
+                        "taa_history_prev",
+                        RenderResourceType.SAMPLED_IMAGE,
+                        VulkanImportedResource.ResourceLifetime.PERSISTENT,
+                        VulkanImportedResource.ResourceProvider.PREVIOUS_FRAME
+                ),
+                new VulkanImportedResource(
+                        "scene_color",
+                        RenderResourceType.SAMPLED_IMAGE,
+                        VulkanImportedResource.ResourceLifetime.PER_FRAME,
+                        VulkanImportedResource.ResourceProvider.EXTERNAL_SYSTEM
+                )
+        );
+
+        VulkanRenderGraphPlan plan = compiler.compile(List.of(resolve), imports);
+
+        assertFalse(plan.hasErrors());
+        assertTrue(plan.importedResources().stream().anyMatch(r ->
+                r.resourceName().equals("taa_history_prev") && r.provider() == VulkanImportedResource.ResourceProvider.PREVIOUS_FRAME));
+    }
+
+    @Test
+    void tieBreakUsesPhaseAndInsertionOrderForIndependentNodes() {
+        RenderFeatureCapability shadowA = capability("feature.shadow.a", pass("shadow_a", RenderPassPhase.PRE_MAIN, List.of(), List.of("cascade_a")));
+        RenderFeatureCapability shadowB = capability("feature.shadow.b", pass("shadow_b", RenderPassPhase.PRE_MAIN, List.of(), List.of("cascade_b")));
+        RenderFeatureCapability main = capability("feature.main", pass("main", RenderPassPhase.MAIN, List.of("cascade_a", "cascade_b"), List.of("scene_color")));
+
+        VulkanRenderGraphPlan plan = compiler.compile(List.of(shadowA, shadowB, main), List.of());
+
+        assertFalse(plan.hasErrors());
+        assertEquals(List.of(
+                "feature.shadow.a:shadow_a#0",
+                "feature.shadow.b:shadow_b#0",
+                "feature.main:main#0"
+        ), plan.orderedNodes().stream().map(VulkanRenderGraphNode::nodeId).toList());
+    }
+
+    @Test
+    void dependencyOverridesPhaseHintOrdering() {
+        RenderFeatureCapability postProducer = capability(
+                "feature.post_producer",
+                pass("late_source", RenderPassPhase.POST_MAIN, List.of(), List.of("intermediate_x"))
+        );
+        RenderFeatureCapability mainConsumer = capability(
+                "feature.main_consumer",
+                pass("main_consumer", RenderPassPhase.MAIN, List.of("intermediate_x"), List.of("scene_color"))
+        );
+
+        VulkanRenderGraphPlan plan = compiler.compile(List.of(mainConsumer, postProducer), List.of());
+
+        assertFalse(plan.hasErrors());
+        assertEquals(List.of(
+                "feature.post_producer:late_source#0",
+                "feature.main_consumer:main_consumer#0"
+        ), plan.orderedNodes().stream().map(VulkanRenderGraphNode::nodeId).toList());
+    }
+
+    @Test
+    void duplicateWriterAcrossDifferentPassGroupsIsError() {
         RenderFeatureCapability first = capability(
                 "feature.first",
                 pass("main_a", RenderPassPhase.MAIN, List.of("scene_color"), List.of("resolved_color"))
@@ -83,7 +189,7 @@ class VulkanRenderGraphCompilerTest {
     }
 
     @Test
-    void computesResourceLifetimesAcrossOrderedNodes() {
+    void resourceAccessOrderDiagnosticsAreResourceCentric() {
         RenderFeatureCapability pre = capability(
                 "feature.pre",
                 pass("depth_pre", RenderPassPhase.PRE_MAIN, List.of(), List.of("depth"))
@@ -97,19 +203,15 @@ class VulkanRenderGraphCompilerTest {
                 pass("post", RenderPassPhase.POST_MAIN, List.of("scene_color"), List.of("resolved_color"))
         );
 
-        VulkanRenderGraphPlan plan = compiler.compile(List.of(post, main, pre), Set.of());
+        VulkanRenderGraphPlan plan = compiler.compile(List.of(post, main, pre), List.of());
 
-        var byName = plan.resourceLifetimes().stream().collect(java.util.stream.Collectors.toMap(
-                VulkanRenderGraphResourceLifetime::resourceName,
-                lifetime -> lifetime
-        ));
-
-        assertEquals(0, byName.get("depth").firstNodeIndex());
-        assertEquals(1, byName.get("depth").lastNodeIndex());
-        assertEquals(1, byName.get("scene_color").firstNodeIndex());
-        assertEquals(2, byName.get("scene_color").lastNodeIndex());
-        assertEquals(2, byName.get("resolved_color").firstNodeIndex());
-        assertEquals(2, byName.get("resolved_color").lastNodeIndex());
+        var depthSeq = plan.resourceAccessOrder().get("depth").stream()
+                .map(e -> e.nodeId() + ":" + e.accessType().name())
+                .collect(Collectors.toList());
+        assertEquals(List.of(
+                "feature.pre:depth_pre#0:WRITE",
+                "feature.main:main#0:READ"
+        ), depthSeq);
     }
 
     private static RenderFeatureCapability capability(String featureId, RenderPassContribution pass) {

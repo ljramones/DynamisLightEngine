@@ -12,9 +12,11 @@ Scope target: compile/validation/lifetime metadata (no runtime rewiring yet)
 ## 2. Compiler
 
 - [x] Compile graph nodes from capability contracts.
-- [x] Produce deterministic ordering.
+- [x] Produce deterministic Kahn topological ordering with phase/insertion tie-breaks.
 - [x] Validate missing producers.
 - [x] Validate duplicate writers (across pass groups).
+- [x] Validate dependency cycles.
+- [x] Allow in-pass read/write self dependency (no false cycle).
 
 ## 3. Lifetime tracking
 
@@ -25,6 +27,7 @@ Scope target: compile/validation/lifetime metadata (no runtime rewiring yet)
 
 - [x] Bridge Phase 3 planner output into Phase B graph compiler input.
 - [x] Define default external input policy for AA/post compile.
+- [x] Add typed imported-resource metadata (provider/lifetime).
 
 ## 5. Tests
 
@@ -33,6 +36,10 @@ Scope target: compile/validation/lifetime metadata (no runtime rewiring yet)
 - [x] Add duplicate writer diagnostics test.
 - [x] Add resource lifetime boundary test.
 - [x] Add AA/post bridge compile tests.
+- [x] Add cycle detection test.
+- [x] Add imported-resource and previous-frame tests.
+- [x] Add dependency-overrides-phase test.
+- [x] Add resource-centric access-order diagnostics test.
 
 ## 6. Documentation
 

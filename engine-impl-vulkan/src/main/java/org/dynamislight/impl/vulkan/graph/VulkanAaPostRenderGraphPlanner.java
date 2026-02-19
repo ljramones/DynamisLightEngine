@@ -1,8 +1,10 @@
 package org.dynamislight.impl.vulkan.graph;
 
+import java.util.List;
 import java.util.Set;
 import org.dynamislight.impl.vulkan.capability.VulkanAaPostCapabilityPlan;
 import org.dynamislight.impl.vulkan.capability.VulkanAaPostCapabilityPlanner;
+import org.dynamislight.spi.render.RenderResourceType;
 
 /**
  * Phase B bridge: compiles AA/post capability planner output into render-graph metadata.
@@ -10,12 +12,37 @@ import org.dynamislight.impl.vulkan.capability.VulkanAaPostCapabilityPlanner;
  * This planner is metadata-only and does not rewire runtime command recording yet.
  */
 public final class VulkanAaPostRenderGraphPlanner {
-    private static final Set<String> DEFAULT_EXTERNAL_INPUTS = Set.of(
-            "scene_color",
-            "velocity",
-            "depth",
-            "history_color",
-            "history_velocity"
+    private static final List<VulkanImportedResource> DEFAULT_IMPORTS = List.of(
+            new VulkanImportedResource(
+                    "scene_color",
+                    RenderResourceType.SAMPLED_IMAGE,
+                    VulkanImportedResource.ResourceLifetime.PER_FRAME,
+                    VulkanImportedResource.ResourceProvider.EXTERNAL_SYSTEM
+            ),
+            new VulkanImportedResource(
+                    "velocity",
+                    RenderResourceType.SAMPLED_IMAGE,
+                    VulkanImportedResource.ResourceLifetime.PER_FRAME,
+                    VulkanImportedResource.ResourceProvider.EXTERNAL_SYSTEM
+            ),
+            new VulkanImportedResource(
+                    "depth",
+                    RenderResourceType.SAMPLED_IMAGE,
+                    VulkanImportedResource.ResourceLifetime.PER_FRAME,
+                    VulkanImportedResource.ResourceProvider.EXTERNAL_SYSTEM
+            ),
+            new VulkanImportedResource(
+                    "history_color",
+                    RenderResourceType.SAMPLED_IMAGE,
+                    VulkanImportedResource.ResourceLifetime.PERSISTENT,
+                    VulkanImportedResource.ResourceProvider.PREVIOUS_FRAME
+            ),
+            new VulkanImportedResource(
+                    "history_velocity",
+                    RenderResourceType.SAMPLED_IMAGE,
+                    VulkanImportedResource.ResourceLifetime.PERSISTENT,
+                    VulkanImportedResource.ResourceProvider.PREVIOUS_FRAME
+            )
     );
 
     private final VulkanRenderGraphCompiler compiler;
@@ -29,30 +56,55 @@ public final class VulkanAaPostRenderGraphPlanner {
     }
 
     public VulkanAaPostRenderGraphCompilation compile(VulkanAaPostCapabilityPlanner.PlanInput input) {
-        return compile(input, DEFAULT_EXTERNAL_INPUTS);
+        return compile(input, DEFAULT_IMPORTS);
     }
 
     public VulkanAaPostRenderGraphCompilation compile(
             VulkanAaPostCapabilityPlanner.PlanInput input,
             Set<String> externalInputs
     ) {
+        List<VulkanImportedResource> imports = externalInputs == null
+                ? DEFAULT_IMPORTS
+                : externalInputs.stream()
+                .map(name -> new VulkanImportedResource(
+                        name,
+                        RenderResourceType.ATTACHMENT,
+                        VulkanImportedResource.ResourceLifetime.PER_FRAME,
+                        VulkanImportedResource.ResourceProvider.EXTERNAL_SYSTEM
+                ))
+                .toList();
+        return compile(input, imports);
+    }
+
+    public VulkanAaPostRenderGraphCompilation compile(
+            VulkanAaPostCapabilityPlanner.PlanInput input,
+            List<VulkanImportedResource> importedResources
+    ) {
         VulkanAaPostCapabilityPlan capabilityPlan = VulkanAaPostCapabilityPlanner.plan(input);
-        Set<String> externals = externalInputs == null ? DEFAULT_EXTERNAL_INPUTS : Set.copyOf(externalInputs);
-        VulkanRenderGraphPlan graphPlan = compiler.compile(capabilityPlan.activeCapabilities(), externals);
-        return new VulkanAaPostRenderGraphCompilation(capabilityPlan, graphPlan, externals);
+        List<VulkanImportedResource> imports = importedResources == null ? DEFAULT_IMPORTS : List.copyOf(importedResources);
+        VulkanRenderGraphPlan graphPlan = compiler.compile(capabilityPlan.activeCapabilities(), imports);
+        return new VulkanAaPostRenderGraphCompilation(capabilityPlan, graphPlan, imports);
+    }
+
+    public static List<VulkanImportedResource> defaultImportedResources() {
+        return DEFAULT_IMPORTS;
     }
 
     public static Set<String> defaultExternalInputs() {
-        return DEFAULT_EXTERNAL_INPUTS;
+        return DEFAULT_IMPORTS.stream().map(VulkanImportedResource::resourceName).collect(java.util.stream.Collectors.toSet());
     }
 
     public record VulkanAaPostRenderGraphCompilation(
             VulkanAaPostCapabilityPlan capabilityPlan,
             VulkanRenderGraphPlan graphPlan,
-            Set<String> externalInputs
+            List<VulkanImportedResource> importedResources
     ) {
         public VulkanAaPostRenderGraphCompilation {
-            externalInputs = externalInputs == null ? Set.of() : Set.copyOf(externalInputs);
+            importedResources = importedResources == null ? List.of() : List.copyOf(importedResources);
+        }
+
+        public Set<String> externalInputs() {
+            return importedResources.stream().map(VulkanImportedResource::resourceName).collect(java.util.stream.Collectors.toSet());
         }
     }
 }

@@ -5,29 +5,57 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.dynamislight.spi.render.RenderCapabilityValidationIssue;
 import org.dynamislight.spi.render.RenderFeatureCapability;
 import org.dynamislight.spi.render.RenderPassContribution;
 import org.dynamislight.spi.render.RenderPassPhase;
+import org.dynamislight.spi.render.RenderResourceType;
 
 /**
  * Metadata compiler for capability pass declarations into graph plans.
  */
 public final class VulkanRenderGraphCompiler {
     public VulkanRenderGraphPlan compile(List<RenderFeatureCapability> capabilities, Set<String> externalInputs) {
+        List<VulkanImportedResource> imports = externalInputs == null
+                ? List.of()
+                : externalInputs.stream()
+                .map(name -> new VulkanImportedResource(
+                        name,
+                        RenderResourceType.ATTACHMENT,
+                        VulkanImportedResource.ResourceLifetime.PER_FRAME,
+                        VulkanImportedResource.ResourceProvider.EXTERNAL_SYSTEM
+                ))
+                .toList();
+        return compile(capabilities, imports);
+    }
+
+    public VulkanRenderGraphPlan compile(
+            List<RenderFeatureCapability> capabilities,
+            List<VulkanImportedResource> importedResources
+    ) {
         List<VulkanRenderGraphNode> nodes = toNodes(capabilities);
+        List<Group> groups = toGroups(nodes);
         List<RenderCapabilityValidationIssue> issues = new ArrayList<>();
-        Set<String> externals = externalInputs == null ? Set.of() : Set.copyOf(externalInputs);
+        List<VulkanImportedResource> imports = normalizeImports(importedResources);
+        Set<String> importNames = imports.stream()
+                .map(VulkanImportedResource::resourceName)
+                .filter(name -> !name.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        validateDuplicateWriters(nodes, issues);
-        validateMissingProducers(nodes, externals, issues);
+        Map<String, GroupKey> writerByResource = validateDuplicateWriters(groups, issues);
+        validateMissingProducers(groups, writerByResource, importNames, issues);
 
-        List<VulkanRenderGraphNode> ordered = order(nodes);
-        List<VulkanRenderGraphResourceLifetime> lifetimes = lifetimes(ordered);
-        return new VulkanRenderGraphPlan(ordered, issues, lifetimes);
+        List<Group> orderedGroups = orderGroups(groups, writerByResource, issues);
+        List<VulkanRenderGraphNode> orderedNodes = flatten(orderedGroups);
+        List<VulkanRenderGraphResourceLifetime> lifetimes = lifetimes(orderedNodes);
+
+        return new VulkanRenderGraphPlan(orderedNodes, imports, issues, lifetimes);
     }
 
     private static List<VulkanRenderGraphNode> toNodes(List<RenderFeatureCapability> capabilities) {
@@ -58,23 +86,86 @@ public final class VulkanRenderGraphCompiler {
         return out;
     }
 
-    private static void validateDuplicateWriters(
-            List<VulkanRenderGraphNode> nodes,
+    private static List<Group> toGroups(List<VulkanRenderGraphNode> nodes) {
+        Map<GroupKey, GroupBuilder> byKey = new LinkedHashMap<>();
+        int sequence = 0;
+        for (VulkanRenderGraphNode node : nodes) {
+            GroupKey key = new GroupKey(node.phase(), node.passId());
+            GroupBuilder builder = byKey.get(key);
+            if (builder == null) {
+                builder = new GroupBuilder(key, sequence++);
+                byKey.put(key, builder);
+            }
+            builder.addNode(node);
+        }
+        return byKey.values().stream().map(GroupBuilder::build).toList();
+    }
+
+    private static List<VulkanImportedResource> normalizeImports(List<VulkanImportedResource> importedResources) {
+        if (importedResources == null) {
+            return List.of();
+        }
+        Map<String, VulkanImportedResource> byName = new LinkedHashMap<>();
+        for (VulkanImportedResource resource : importedResources) {
+            if (resource == null) {
+                continue;
+            }
+            String name = normalizeResourceName(resource.resourceName());
+            if (name.isBlank()) {
+                continue;
+            }
+            byName.putIfAbsent(name, new VulkanImportedResource(
+                    name,
+                    resource.resourceType(),
+                    resource.lifetime(),
+                    resource.provider()
+            ));
+        }
+        return List.copyOf(byName.values());
+    }
+
+    private static Map<String, GroupKey> validateDuplicateWriters(
+            List<Group> groups,
             List<RenderCapabilityValidationIssue> issues
     ) {
-        Map<String, WriterRef> writerByResource = new HashMap<>();
-        for (VulkanRenderGraphNode node : nodes) {
-            for (String writes : node.writes()) {
-                String resource = normalizeResourceName(writes);
-                if (resource.isBlank()) {
-                    continue;
-                }
-                WriterRef current = new WriterRef(node.nodeId(), new PassGroupKey(node.phase(), node.passId()));
-                WriterRef previous = writerByResource.putIfAbsent(resource, current);
-                if (previous != null && !previous.groupKey().equals(current.groupKey())) {
+        Map<String, GroupKey> writerByResource = new LinkedHashMap<>();
+        Map<String, String> writerNodeByResource = new LinkedHashMap<>();
+        for (Group group : groups) {
+            String writerNodeId = group.nodes().isEmpty() ? group.key().passId() : group.nodes().getFirst().nodeId();
+            for (String resource : group.writes()) {
+                GroupKey previousGroup = writerByResource.putIfAbsent(resource, group.key());
+                String previousNode = writerNodeByResource.putIfAbsent(resource, writerNodeId);
+                if (previousGroup != null && !previousGroup.equals(group.key())) {
                     issues.add(new RenderCapabilityValidationIssue(
                             "DUPLICATE_WRITER",
-                            "Resource '" + resource + "' written by both '" + previous.nodeId() + "' and '" + node.nodeId() + "'",
+                            "Resource '" + resource + "' written by both '" + previousNode + "' and '" + writerNodeId + "'",
+                            RenderCapabilityValidationIssue.Severity.ERROR
+                    ));
+                }
+            }
+        }
+        return writerByResource;
+    }
+
+    private static void validateMissingProducers(
+            List<Group> groups,
+            Map<String, GroupKey> writerByResource,
+            Set<String> importNames,
+            List<RenderCapabilityValidationIssue> issues
+    ) {
+        for (Group group : groups) {
+            for (String read : group.reads()) {
+                if (importNames.contains(read)) {
+                    continue;
+                }
+                if (group.writes().contains(read)) {
+                    continue;
+                }
+                if (!writerByResource.containsKey(read)) {
+                    String nodeId = group.nodes().isEmpty() ? group.key().passId() : group.nodes().getFirst().nodeId();
+                    issues.add(new RenderCapabilityValidationIssue(
+                            "MISSING_PRODUCER",
+                            "Node '" + nodeId + "' reads '" + read + "' with no producer",
                             RenderCapabilityValidationIssue.Severity.ERROR
                     ));
                 }
@@ -82,63 +173,89 @@ public final class VulkanRenderGraphCompiler {
         }
     }
 
-    private static void validateMissingProducers(
-            List<VulkanRenderGraphNode> nodes,
-            Set<String> externalInputs,
+    private static List<Group> orderGroups(
+            List<Group> groups,
+            Map<String, GroupKey> writerByResource,
             List<RenderCapabilityValidationIssue> issues
     ) {
-        Set<String> produced = new HashSet<>(externalInputs);
-        List<VulkanRenderGraphNode> sorted = order(nodes);
+        Map<GroupKey, Group> byKey = groups.stream().collect(Collectors.toMap(
+                Group::key,
+                g -> g,
+                (a, b) -> a,
+                LinkedHashMap::new
+        ));
 
-        int index = 0;
-        while (index < sorted.size()) {
-            VulkanRenderGraphNode seed = sorted.get(index);
-            PassGroupKey group = new PassGroupKey(seed.phase(), seed.passId());
-            int end = index;
-            Set<String> groupWrites = new HashSet<>();
-            while (end < sorted.size()) {
-                VulkanRenderGraphNode candidate = sorted.get(end);
-                if (!group.equals(new PassGroupKey(candidate.phase(), candidate.passId()))) {
-                    break;
-                }
-                for (String write : candidate.writes()) {
-                    String normalizedWrite = normalizeResourceName(write);
-                    if (!normalizedWrite.isBlank()) {
-                        groupWrites.add(normalizedWrite);
-                    }
-                }
-                end++;
-            }
-
-            for (int i = index; i < end; i++) {
-                VulkanRenderGraphNode node = sorted.get(i);
-                for (String read : node.reads()) {
-                    String normalizedRead = normalizeResourceName(read);
-                    if (normalizedRead.isBlank()) {
-                        continue;
-                    }
-                    if (!produced.contains(normalizedRead) && !groupWrites.contains(normalizedRead)) {
-                        issues.add(new RenderCapabilityValidationIssue(
-                                "MISSING_PRODUCER",
-                                "Node '" + node.nodeId() + "' reads '" + normalizedRead + "' with no producer",
-                                RenderCapabilityValidationIssue.Severity.ERROR
-                        ));
-                    }
-                }
-            }
-
-            produced.addAll(groupWrites);
-            index = end;
+        Map<GroupKey, Set<GroupKey>> outgoing = new LinkedHashMap<>();
+        Map<GroupKey, Integer> inDegree = new LinkedHashMap<>();
+        for (Group group : groups) {
+            outgoing.put(group.key(), new LinkedHashSet<>());
+            inDegree.put(group.key(), 0);
         }
+
+        for (Group reader : groups) {
+            for (String resource : reader.reads()) {
+                GroupKey writerKey = writerByResource.get(resource);
+                if (writerKey == null || writerKey.equals(reader.key())) {
+                    continue;
+                }
+                if (outgoing.get(writerKey).add(reader.key())) {
+                    inDegree.compute(reader.key(), (k, v) -> v == null ? 1 : v + 1);
+                }
+            }
+        }
+
+        Comparator<Group> readyOrder = Comparator
+                .comparingInt((Group g) -> phaseRank(g.key().phase()))
+                .thenComparingInt(Group::sequenceIndex);
+
+        PriorityQueue<Group> ready = new PriorityQueue<>(readyOrder);
+        for (Group group : groups) {
+            if (inDegree.get(group.key()) == 0) {
+                ready.add(group);
+            }
+        }
+
+        List<Group> ordered = new ArrayList<>(groups.size());
+        while (!ready.isEmpty()) {
+            Group current = ready.poll();
+            ordered.add(current);
+            for (GroupKey nextKey : outgoing.get(current.key())) {
+                int nextDegree = inDegree.get(nextKey) - 1;
+                inDegree.put(nextKey, nextDegree);
+                if (nextDegree == 0) {
+                    ready.add(byKey.get(nextKey));
+                }
+            }
+        }
+
+        if (ordered.size() != groups.size()) {
+            List<Group> cycleGroups = groups.stream()
+                    .filter(group -> inDegree.get(group.key()) > 0)
+                    .sorted(readyOrder)
+                    .toList();
+            String cycleNames = cycleGroups.stream()
+                    .map(g -> g.key().phase() + ":" + g.key().passId())
+                    .collect(Collectors.joining(" -> "));
+            issues.add(new RenderCapabilityValidationIssue(
+                    "CYCLE_DETECTED",
+                    "Render graph cycle detected across pass groups: " + cycleNames,
+                    RenderCapabilityValidationIssue.Severity.ERROR
+            ));
+            for (Group group : cycleGroups) {
+                if (!ordered.contains(group)) {
+                    ordered.add(group);
+                }
+            }
+        }
+
+        return ordered;
     }
 
-    private static List<VulkanRenderGraphNode> order(List<VulkanRenderGraphNode> nodes) {
-        List<VulkanRenderGraphNode> ordered = new ArrayList<>(nodes);
-        ordered.sort(Comparator
-                .comparing((VulkanRenderGraphNode n) -> phaseRank(n.phase()))
-                .thenComparing(VulkanRenderGraphNode::passId)
-                .thenComparing(VulkanRenderGraphNode::featureId)
-                .thenComparing(VulkanRenderGraphNode::nodeId));
+    private static List<VulkanRenderGraphNode> flatten(List<Group> orderedGroups) {
+        List<VulkanRenderGraphNode> ordered = new ArrayList<>();
+        for (Group group : orderedGroups) {
+            ordered.addAll(group.nodes());
+        }
         return ordered;
     }
 
@@ -189,16 +306,51 @@ public final class VulkanRenderGraphCompiler {
         return resource == null ? "" : resource.trim();
     }
 
-    private record PassGroupKey(RenderPassPhase phase, String passId) {
-        private PassGroupKey {
+    private record GroupKey(RenderPassPhase phase, String passId) {
+        private GroupKey {
             phase = phase == null ? RenderPassPhase.AUXILIARY : phase;
             passId = passId == null ? "" : passId.trim();
         }
     }
 
-    private record WriterRef(String nodeId, PassGroupKey groupKey) {
-        private WriterRef {
-            nodeId = nodeId == null ? "" : nodeId.trim();
+    private record Group(GroupKey key, int sequenceIndex, List<VulkanRenderGraphNode> nodes, Set<String> reads, Set<String> writes) {
+        private Group {
+            nodes = nodes == null ? List.of() : List.copyOf(nodes);
+            reads = reads == null ? Set.of() : Set.copyOf(reads);
+            writes = writes == null ? Set.of() : Set.copyOf(writes);
+        }
+    }
+
+    private static final class GroupBuilder {
+        private final GroupKey key;
+        private final int sequenceIndex;
+        private final List<VulkanRenderGraphNode> nodes = new ArrayList<>();
+        private final Set<String> reads = new LinkedHashSet<>();
+        private final Set<String> writes = new LinkedHashSet<>();
+
+        private GroupBuilder(GroupKey key, int sequenceIndex) {
+            this.key = key;
+            this.sequenceIndex = sequenceIndex;
+        }
+
+        private void addNode(VulkanRenderGraphNode node) {
+            nodes.add(node);
+            for (String read : node.reads()) {
+                String normalized = normalizeResourceName(read);
+                if (!normalized.isBlank()) {
+                    reads.add(normalized);
+                }
+            }
+            for (String write : node.writes()) {
+                String normalized = normalizeResourceName(write);
+                if (!normalized.isBlank()) {
+                    writes.add(normalized);
+                }
+            }
+        }
+
+        private Group build() {
+            return new Group(key, sequenceIndex, nodes, reads, writes);
         }
     }
 }

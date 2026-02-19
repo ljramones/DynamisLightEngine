@@ -12,9 +12,12 @@ Goal: add render graph compile/validation/resource lifetime orchestration (no ru
 2. Compiler
 - Build compiler from capability declarations.
 - Validate:
-  - missing producers for required reads (except known external resources)
-  - duplicate writers for same resource
-- Produce deterministic node order.
+  - missing producers for required reads (except imported resources)
+  - duplicate writers for same resource (across pass groups)
+  - dependency cycles
+- Produce deterministic Kahn topological order:
+  - dependency-driven
+  - tie-break by phase and insertion sequence
 
 3. Resource lifetime tracking
 - Compute first/last node usage per resource (read/write).
@@ -22,13 +25,21 @@ Goal: add render graph compile/validation/resource lifetime orchestration (no ru
 
 4. AA/post graph builder
 - Bridge Phase 3 planner output into graph compiler input.
+- Add typed imported resources:
+  - provider (CPU upload / previous-frame / external)
+  - lifetime (per-frame / persistent)
 - Keep output metadata-only in this slice.
 
 5. Tests
 - Validate ordering.
 - Validate missing producer diagnostics.
 - Validate duplicate writer diagnostics.
+- Validate cycle diagnostics.
+- Validate self read/write pass acceptance.
+- Validate imported previous-frame resource behavior.
+- Validate dependency-overrides-phase ordering.
 - Validate lifetime boundaries.
+- Validate resource-centric access-order diagnostics.
 
 6. Docs
 - Add Phase B checklist and summary.
