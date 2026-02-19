@@ -1,0 +1,79 @@
+# Shadow Deep-Dive Implementation Checklist
+
+Date: 2026-02-19  
+Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to production-ready `In` (Vulkan path first), with strict CI/telemetry gates.
+
+## Sequencing
+
+1. Per-light atlas + cadence scheduling hardening (`local_atlas_cadence`)
+2. Point cubemap + face-budget control hardening (`point_cubemap_budget`)
+3. Spot projected shadows hardening (`spot_projected`)
+4. Shadow caching static/dynamic overlay hardening (`cached_static_dynamic`)
+5. RT shadows denoised path hardening (`rt_denoised`)
+6. Hybrid cascade + contact + RT composition hardening (`hybrid_cascade_contact_rt`)
+7. Transparent shadow receivers implementation/hardening (`transparent_receivers`)
+8. Area light shadow approximation path (`area_approx`)
+9. Distance-field soft shadows path (`distance_field_soft`)
+
+## Phase Gates
+
+- Phase A (1-3): atlas topology parity + scheduling/budget stability + no-regression on current shadow matrix.
+- Phase B (4): cache invalidation correctness + churn/perf envelope gates.
+- Phase C (5-6): RT availability/perf/denoise/hybrid envelope gates.
+- Phase D (7-9): material correctness + scene coverage + stress/perf lock.
+
+## Work Items
+
+### 1) Per-light atlas + cadence scheduling
+
+- [x] Planner/runtime mode diagnostics use rendered topology signals (selected/deferred/spot/point), not only static config hints.
+- [ ] Add typed atlas/cadence diagnostics accessor (selected/deferred/stale-bypass/allocator reuse).
+- [ ] Add cadence envelope warning + cooldown gate (deferred ratio / starvation streak).
+- [ ] Add CI assertions for cadence envelope stability on blessed tiers.
+
+### 2) Point cubemap + face-budget
+
+- [ ] Add dedicated point-face budget diagnostics + envelope gates.
+- [ ] Add scene coverage for multi-point + budget rotation stress.
+- [ ] Lock point face-budget thresholds per profile.
+
+### 3) Spot projected
+
+- [ ] Add explicit projected-spot contract diagnostics (active/inactive/reason).
+- [ ] Add projected-spot scene coverage and artifact gates.
+
+### 4) Shadow caching
+
+- [ ] Implement/enable explicit static cache + dynamic overlay path in Vulkan runtime.
+- [ ] Add cache churn/miss diagnostics and invalidation reason telemetry.
+- [ ] Add cache stability CI gate.
+
+### 5) RT shadows denoised
+
+- [ ] Activate strict denoise envelope gates and typed diagnostics parity.
+- [ ] Lock RT perf + denoise thresholds by profile.
+
+### 6) Hybrid cascade + contact + RT
+
+- [ ] Add composition-share diagnostics and breach gates.
+- [ ] Add hybrid stability CI envelope assertions.
+
+### 7) Transparent shadow receivers
+
+- [ ] Implement transparent receiver mask/resolve path.
+- [ ] Add transparent receiver envelope warnings + typed diagnostics.
+
+### 8) Area light shadows
+
+- [ ] Implement approximate area-light shadow path (initial Vulkan production baseline).
+- [ ] Add area-light quality/perf contract diagnostics.
+
+### 9) Distance-field soft shadows
+
+- [ ] Implement distance-field prepass + sampling path.
+- [ ] Add DF memory/perf envelope diagnostics and scene stress tests.
+
+## Notes
+
+- Contract-mode coverage is already tracked in `docs/shadow-contract-v2-backlog-checklist.md`.
+- This checklist is execution-focused (runtime implementation + CI gates), not only contract metadata.

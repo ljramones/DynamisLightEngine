@@ -49,12 +49,12 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                     .findFirst()
                     .orElse(null);
             assertNotNull(modeWarning);
-            assertTrue(modeWarning.message().contains("mode=local_atlas_cadence"), modeWarning.message());
+            assertTrue(modeWarning.message().contains("mode=vsm"), modeWarning.message());
             assertTrue(modeWarning.message().contains("filterPath=vsm"), modeWarning.message());
             var diagnostics = runtime.shadowCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertEquals("vulkan.shadow", diagnostics.featureId());
-            assertEquals("local_atlas_cadence", diagnostics.mode());
+            assertEquals("vsm", diagnostics.mode());
             assertTrue(diagnostics.signals().stream().anyMatch(s -> s.equals("filterPath=vsm")));
         } finally {
             runtime.shutdown();

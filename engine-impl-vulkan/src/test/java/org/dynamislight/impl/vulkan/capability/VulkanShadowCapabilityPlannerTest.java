@@ -37,6 +37,10 @@ class VulkanShadowCapabilityPlannerTest {
                 0,
                 0,
                 0,
+                0,
+                0,
+                0,
+                0,
                 true,
                 false,
                 false,
@@ -52,6 +56,10 @@ class VulkanShadowCapabilityPlannerTest {
                 "evsm",
                 true,
                 "rt_native_denoised",
+                0,
+                0,
+                0,
+                0,
                 0,
                 0,
                 0,
@@ -76,6 +84,10 @@ class VulkanShadowCapabilityPlannerTest {
                 4,
                 8,
                 12,
+                3,
+                1,
+                2,
+                1,
                 true,
                 true,
                 true,
@@ -89,7 +101,7 @@ class VulkanShadowCapabilityPlannerTest {
     }
 
     @Test
-    void fallsBackToAtlasCadenceWhenSchedulerOrLayerBudgetActive() {
+    void resolvesAtlasCadenceWhenLocalSelectionOrDeferredWorkExists() {
         VulkanShadowCapabilityPlanner.Plan plan = VulkanShadowCapabilityPlanner.plan(new VulkanShadowCapabilityPlanner.PlanInput(
                 QualityTier.MEDIUM,
                 "pcf",
@@ -97,6 +109,10 @@ class VulkanShadowCapabilityPlannerTest {
                 "off",
                 2,
                 6,
+                0,
+                2,
+                1,
+                0,
                 0,
                 true,
                 false,
@@ -108,12 +124,61 @@ class VulkanShadowCapabilityPlannerTest {
         assertEquals(VulkanShadowCapabilityDescriptorV2.MODE_LOCAL_ATLAS_CADENCE, plan.mode());
     }
 
+    @Test
+    void pointAndSpotModesResolveFromRenderedTopologySignals() {
+        VulkanShadowCapabilityPlanner.Plan pointPlan = VulkanShadowCapabilityPlanner.plan(new VulkanShadowCapabilityPlanner.PlanInput(
+                QualityTier.HIGH,
+                "pcf",
+                false,
+                "off",
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                2,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false
+        ));
+        assertEquals(VulkanShadowCapabilityDescriptorV2.MODE_POINT_CUBEMAP_BUDGET, pointPlan.mode());
+
+        VulkanShadowCapabilityPlanner.Plan spotPlan = VulkanShadowCapabilityPlanner.plan(new VulkanShadowCapabilityPlanner.PlanInput(
+                QualityTier.HIGH,
+                "pcf",
+                false,
+                "off",
+                0,
+                0,
+                0,
+                0,
+                0,
+                2,
+                0,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false
+        ));
+        assertEquals(VulkanShadowCapabilityDescriptorV2.MODE_SPOT_PROJECTED, spotPlan.mode());
+    }
+
     private static VulkanShadowCapabilityPlanner.Plan plan(String filterPath, String rtMode, boolean contactShadows) {
         return VulkanShadowCapabilityPlanner.plan(new VulkanShadowCapabilityPlanner.PlanInput(
                 QualityTier.HIGH,
                 filterPath,
                 contactShadows,
                 rtMode,
+                0,
+                0,
+                0,
+                0,
                 0,
                 0,
                 0,

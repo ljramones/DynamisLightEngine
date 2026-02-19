@@ -42,16 +42,16 @@ public final class VulkanShadowCapabilityPlanner {
         if (input.areaLightShadowsEnabled()) {
             return VulkanShadowCapabilityDescriptorV2.MODE_AREA_APPROX;
         }
-        if (input.spotProjectedEnabled()) {
-            return VulkanShadowCapabilityDescriptorV2.MODE_SPOT_PROJECTED;
-        }
         if (input.shadowCacheEnabled()) {
             return VulkanShadowCapabilityDescriptorV2.MODE_CACHED_STATIC_DYNAMIC;
         }
-        if (input.maxShadowFacesPerFrame() > 0) {
+        if (input.maxShadowFacesPerFrame() > 0 || input.renderedPointShadowCubemaps() > 0) {
             return VulkanShadowCapabilityDescriptorV2.MODE_POINT_CUBEMAP_BUDGET;
         }
-        if (input.schedulerEnabled() || input.maxShadowedLocalLights() > 0 || input.maxLocalShadowLayers() > 0) {
+        if (input.spotProjectedEnabled() || input.renderedSpotShadowLights() > 0) {
+            return VulkanShadowCapabilityDescriptorV2.MODE_SPOT_PROJECTED;
+        }
+        if (input.selectedLocalShadowLights() > 0 || input.deferredShadowLightCount() > 0) {
             return VulkanShadowCapabilityDescriptorV2.MODE_LOCAL_ATLAS_CADENCE;
         }
         return switch (input.shadowFilterPath()) {
@@ -81,6 +81,18 @@ public final class VulkanShadowCapabilityPlanner {
         }
         if (input.maxShadowFacesPerFrame() > 0) {
             signals.add("maxShadowFacesPerFrame=" + input.maxShadowFacesPerFrame());
+        }
+        if (input.selectedLocalShadowLights() > 0) {
+            signals.add("selectedLocalShadowLights=" + input.selectedLocalShadowLights());
+        }
+        if (input.deferredShadowLightCount() > 0) {
+            signals.add("deferredShadowLightCount=" + input.deferredShadowLightCount());
+        }
+        if (input.renderedSpotShadowLights() > 0) {
+            signals.add("renderedSpotShadowLights=" + input.renderedSpotShadowLights());
+        }
+        if (input.renderedPointShadowCubemaps() > 0) {
+            signals.add("renderedPointShadowCubemaps=" + input.renderedPointShadowCubemaps());
         }
         if (input.shadowCacheEnabled()) {
             signals.add("shadowCache=true");
@@ -133,6 +145,10 @@ public final class VulkanShadowCapabilityPlanner {
             int maxShadowedLocalLights,
             int maxLocalShadowLayers,
             int maxShadowFacesPerFrame,
+            int selectedLocalShadowLights,
+            int deferredShadowLightCount,
+            int renderedSpotShadowLights,
+            int renderedPointShadowCubemaps,
             boolean schedulerEnabled,
             boolean shadowCacheEnabled,
             boolean areaLightShadowsEnabled,
@@ -151,6 +167,10 @@ public final class VulkanShadowCapabilityPlanner {
                     Math.max(0, maxShadowedLocalLights),
                     Math.max(0, maxLocalShadowLayers),
                     Math.max(0, maxShadowFacesPerFrame),
+                    Math.max(0, selectedLocalShadowLights),
+                    Math.max(0, deferredShadowLightCount),
+                    Math.max(0, renderedSpotShadowLights),
+                    Math.max(0, renderedPointShadowCubemaps),
                     schedulerEnabled,
                     shadowCacheEnabled,
                     areaLightShadowsEnabled,
@@ -166,6 +186,10 @@ public final class VulkanShadowCapabilityPlanner {
                     "pcf",
                     false,
                     "off",
+                    0,
+                    0,
+                    0,
+                    0,
                     0,
                     0,
                     0,

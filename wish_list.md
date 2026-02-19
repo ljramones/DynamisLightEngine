@@ -47,6 +47,8 @@ Shadow notes:
 - Contract-mode coverage and cross-capability validation checklist is tracked in `docs/shadow-contract-v2-backlog-checklist.md`.
 - Vulkan runtime now emits `SHADOW_CAPABILITY_MODE_ACTIVE` each frame when shadows are active, with planner-resolved mode and signal payload for parser-friendly CI/telemetry checks.
 - Engine runtime API now exposes backend-agnostic typed shadow capability diagnostics (`shadowCapabilityDiagnostics()`) so CI/hosts can assert planner-resolved mode/signals without warning-string parsing.
+- Deep-dive execution sequencing and phase/exit checklist is now tracked in `docs/shadow-deep-dive-implementation-checklist.md`.
+- Shadow capability mode planning now incorporates rendered topology signals (`selected/deferred local`, `rendered spot`, `rendered point cubemaps`) so mode telemetry reflects active runtime shadow topology instead of config-only hints.
 
 ## Reflections
 
