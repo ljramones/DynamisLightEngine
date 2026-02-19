@@ -11,7 +11,9 @@ import java.util.List;
 import java.util.function.IntUnaryOperator;
 
 public final class VulkanFrameCommandOrchestrator {
-    private static final VulkanShadowMainPassRecorder SHADOW_MAIN_RECORDER = new VulkanShadowMainPassRecorder();
+    private static final VulkanShadowPassRecorder SHADOW_RECORDER = new VulkanShadowPassRecorder();
+    private static final VulkanPlanarReflectionPassRecorder PLANAR_RECORDER = new VulkanPlanarReflectionPassRecorder();
+    private static final VulkanMainPassRecorder MAIN_RECORDER = new VulkanMainPassRecorder();
     private static final VulkanPostCompositePassRecorder POST_COMPOSITE_RECORDER = new VulkanPostCompositePassRecorder();
 
     private VulkanFrameCommandOrchestrator() {
@@ -52,13 +54,18 @@ public final class VulkanFrameCommandOrchestrator {
             ));
         }
 
-        SHADOW_MAIN_RECORDER.record(
+        VulkanRenderCommandRecorder.resetPlanarTimestampQueries(
+                commandBuffer,
+                inputs.planarTimestampQueryPool(),
+                inputs.planarTimestampQueryStartIndex(),
+                inputs.planarTimestampQueryEndIndex()
+        );
+
+        SHADOW_RECORDER.record(
                 stack,
                 commandBuffer,
-                new VulkanRenderCommandRecorder.RenderPassInputs(
+                new VulkanRenderCommandRecorder.ShadowPassInputs(
                         drawCount,
-                        inputs.swapchainWidth(),
-                        inputs.swapchainHeight(),
                         inputs.shadowMapResolution(),
                         inputs.shadowEnabled(),
                         inputs.pointShadowEnabled(),
@@ -67,10 +74,6 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.maxShadowCascades(),
                         inputs.pointShadowFaces(),
                         frameDescriptorSet,
-                        inputs.renderPass(),
-                        inputs.framebuffers()[imageIndex],
-                        inputs.graphicsPipeline(),
-                        inputs.pipelineLayout(),
                         inputs.shadowRenderPass(),
                         inputs.shadowPipeline(),
                         inputs.shadowPipelineLayout(),
@@ -78,14 +81,52 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.shadowMomentImage(),
                         inputs.shadowMomentMipLevels(),
                         inputs.shadowMomentPipelineRequested(),
-                        inputs.shadowMomentInitialized(),
+                        inputs.shadowMomentInitialized()
+                ),
+                meshes,
+                meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
+        );
+
+        if (VulkanRenderCommandRecorder.isPlanarReflectionPassRequested(inputs.reflectionsMode(), inputs.planarCaptureImage())) {
+            PLANAR_RECORDER.record(
+                    stack,
+                    commandBuffer,
+                    new VulkanRenderCommandRecorder.PlanarReflectionPassInputs(
+                            drawCount,
+                            inputs.swapchainWidth(),
+                            inputs.swapchainHeight(),
+                            frameDescriptorSet,
+                            inputs.renderPass(),
+                            inputs.framebuffers()[imageIndex],
+                            inputs.graphicsPipeline(),
+                            inputs.pipelineLayout(),
+                            inputs.reflectionsMode(),
+                            inputs.reflectionsPlanarPlaneHeight(),
+                            inputs.planarTimestampQueryPool(),
+                            inputs.planarTimestampQueryStartIndex(),
+                            inputs.planarTimestampQueryEndIndex(),
+                            inputs.planarCaptureImage(),
+                            inputs.swapchainImages()[imageIndex],
+                            inputs.taaHistoryInitialized()
+                    ),
+                    meshes,
+                    meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
+            );
+        }
+
+        MAIN_RECORDER.record(
+                stack,
+                commandBuffer,
+                new VulkanRenderCommandRecorder.MainPassInputs(
+                        drawCount,
+                        inputs.swapchainWidth(),
+                        inputs.swapchainHeight(),
+                        frameDescriptorSet,
+                        inputs.renderPass(),
+                        inputs.framebuffers()[imageIndex],
+                        inputs.graphicsPipeline(),
+                        inputs.pipelineLayout(),
                         inputs.reflectionsMode(),
-                        inputs.planarTimestampQueryPool(),
-                        inputs.planarTimestampQueryStartIndex(),
-                        inputs.planarTimestampQueryEndIndex(),
-                        inputs.taaHistoryInitialized(),
-                        inputs.planarCaptureImage(),
-                        inputs.swapchainImages()[imageIndex],
                         inputs.reflectionsPlanarPlaneHeight()
                 ),
                 meshes,

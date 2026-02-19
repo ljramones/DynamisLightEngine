@@ -106,17 +106,119 @@ public final class VulkanRenderCommandRecorder {
             List<MeshDrawCmd> meshes,
             IntUnaryOperator dynamicUniformOffset
     ) {
-        if (in.planarTimestampQueryPool() != VK_NULL_HANDLE
-                && in.planarTimestampQueryStartIndex() >= 0
-                && in.planarTimestampQueryEndIndex() >= in.planarTimestampQueryStartIndex()) {
+        resetPlanarTimestampQueries(
+                commandBuffer,
+                in.planarTimestampQueryPool(),
+                in.planarTimestampQueryStartIndex(),
+                in.planarTimestampQueryEndIndex()
+        );
+
+        recordShadowPasses(
+                stack,
+                commandBuffer,
+                new ShadowPassInputs(
+                        in.drawCount(),
+                        in.shadowMapResolution(),
+                        in.shadowEnabled(),
+                        in.pointShadowEnabled(),
+                        in.shadowCascadeCount(),
+                        in.maxShadowMatrices(),
+                        in.maxShadowCascades(),
+                        in.pointShadowFaces(),
+                        in.frameDescriptorSet(),
+                        in.shadowRenderPass(),
+                        in.shadowPipeline(),
+                        in.shadowPipelineLayout(),
+                        in.shadowFramebuffers(),
+                        in.shadowMomentImage(),
+                        in.shadowMomentMipLevels(),
+                        in.shadowMomentPipelineRequested(),
+                        in.shadowMomentInitialized()
+                ),
+                meshes,
+                dynamicUniformOffset
+        );
+
+        recordPlanarReflectionPass(
+                stack,
+                commandBuffer,
+                new PlanarReflectionPassInputs(
+                        in.drawCount(),
+                        in.swapchainWidth(),
+                        in.swapchainHeight(),
+                        in.frameDescriptorSet(),
+                        in.renderPass(),
+                        in.framebuffer(),
+                        in.graphicsPipeline(),
+                        in.pipelineLayout(),
+                        in.reflectionsMode(),
+                        in.reflectionsPlanarPlaneHeight(),
+                        in.planarTimestampQueryPool(),
+                        in.planarTimestampQueryStartIndex(),
+                        in.planarTimestampQueryEndIndex(),
+                        in.planarCaptureImage(),
+                        in.swapchainImageForCapture(),
+                        in.taaHistoryInitialized()
+                ),
+                meshes,
+                dynamicUniformOffset
+        );
+
+        recordMainPass(
+                stack,
+                commandBuffer,
+                new MainPassInputs(
+                        in.drawCount(),
+                        in.swapchainWidth(),
+                        in.swapchainHeight(),
+                        in.frameDescriptorSet(),
+                        in.renderPass(),
+                        in.framebuffer(),
+                        in.graphicsPipeline(),
+                        in.pipelineLayout(),
+                        in.reflectionsMode(),
+                        in.reflectionsPlanarPlaneHeight()
+                ),
+                meshes,
+                dynamicUniformOffset
+        );
+    }
+
+    public static void resetPlanarTimestampQueries(
+            VkCommandBuffer commandBuffer,
+            long planarTimestampQueryPool,
+            int planarTimestampQueryStartIndex,
+            int planarTimestampQueryEndIndex
+    ) {
+        if (planarTimestampQueryPool != VK_NULL_HANDLE
+                && planarTimestampQueryStartIndex >= 0
+                && planarTimestampQueryEndIndex >= planarTimestampQueryStartIndex) {
             vkCmdResetQueryPool(
                     commandBuffer,
-                    in.planarTimestampQueryPool(),
-                    in.planarTimestampQueryStartIndex(),
-                    (in.planarTimestampQueryEndIndex() - in.planarTimestampQueryStartIndex()) + 1
+                    planarTimestampQueryPool,
+                    planarTimestampQueryStartIndex,
+                    (planarTimestampQueryEndIndex - planarTimestampQueryStartIndex) + 1
             );
         }
+    }
 
+    static boolean isPlanarReflectionPassRequested(int reflectionsMode, long planarCaptureImage) {
+        boolean planarCaptureRequested = (reflectionsMode & REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT) != 0;
+        boolean planarSelectiveRequested = (reflectionsMode & REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT) != 0;
+        boolean planarGeometryCaptureRequested = (reflectionsMode & REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT) != 0;
+        return planarCaptureRequested
+                && planarSelectiveRequested
+                && planarGeometryCaptureRequested
+                && planarCaptureImage != VK_NULL_HANDLE;
+    }
+
+    public static void recordShadowPasses(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            ShadowPassInputs in,
+            List<MeshDrawCmd> meshes,
+            IntUnaryOperator dynamicUniformOffset
+    ) {
         if (in.shadowMomentPipelineRequested()
                 && in.shadowMomentImage() != VK_NULL_HANDLE) {
             int mipLevels = Math.max(1, in.shadowMomentMipLevels());
@@ -149,7 +251,7 @@ public final class VulkanRenderCommandRecorder {
             );
         }
 
-        int shadowPassCount = shadowPassCount(in);
+        int shadowPassCount = shadowPassCount(in.toRenderPassInputsShadowView());
         if (in.shadowEnabled()
                 && in.shadowRenderPass() != VK_NULL_HANDLE
                 && in.shadowPipeline() != VK_NULL_HANDLE
@@ -394,14 +496,16 @@ public final class VulkanRenderCommandRecorder {
                 );
             }
         }
+    }
 
-        boolean planarCaptureRequested = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT) != 0;
-        boolean planarSelectiveRequested = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT) != 0;
-        boolean planarGeometryCaptureRequested = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT) != 0;
-        if (planarCaptureRequested
-                && planarSelectiveRequested
-                && planarGeometryCaptureRequested
-                && in.planarCaptureImage() != VK_NULL_HANDLE) {
+    public static void recordPlanarReflectionPass(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            PlanarReflectionPassInputs in,
+            List<MeshDrawCmd> meshes,
+            IntUnaryOperator dynamicUniformOffset
+    ) {
+        if (isPlanarReflectionPassRequested(in.reflectionsMode(), in.planarCaptureImage())) {
             if (in.planarTimestampQueryPool() != VK_NULL_HANDLE
                     && in.planarTimestampQueryStartIndex() >= 0
                     && in.planarTimestampQueryEndIndex() >= in.planarTimestampQueryStartIndex()) {
@@ -415,7 +519,7 @@ public final class VulkanRenderCommandRecorder {
             recordMainRenderPass(
                     stack,
                     commandBuffer,
-                    in,
+                    in.toMainPassInputs(),
                     meshes,
                     dynamicUniformOffset,
                     true
@@ -431,6 +535,15 @@ public final class VulkanRenderCommandRecorder {
                 );
             }
         }
+    }
+
+    public static void recordMainPass(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            MainPassInputs in,
+            List<MeshDrawCmd> meshes,
+            IntUnaryOperator dynamicUniformOffset
+    ) {
         recordMainRenderPass(
                 stack,
                 commandBuffer,
@@ -445,6 +558,75 @@ public final class VulkanRenderCommandRecorder {
             MemoryStack stack,
             VkCommandBuffer commandBuffer,
             RenderPassInputs in,
+            List<MeshDrawCmd> meshes,
+            IntUnaryOperator dynamicUniformOffset,
+            boolean planarSelectiveOnly
+    ) {
+        VkClearValue.Buffer clearValues = VkClearValue.calloc(3, stack);
+        clearValues.get(0).color().float32(0, 0.08f);
+        clearValues.get(0).color().float32(1, 0.09f);
+        clearValues.get(0).color().float32(2, 0.12f);
+        clearValues.get(0).color().float32(3, 1.0f);
+        clearValues.get(1).color().float32(0, 0.5f);
+        clearValues.get(1).color().float32(1, 0.5f);
+        clearValues.get(1).color().float32(2, 0.5f);
+        clearValues.get(1).color().float32(3, 1.0f);
+        clearValues.get(2).depthStencil().depth(1.0f).stencil(0);
+
+        VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.calloc(stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO)
+                .renderPass(in.renderPass())
+                .framebuffer(in.framebuffer())
+                .pClearValues(clearValues);
+        renderPassInfo.renderArea()
+                .offset(it -> it.set(0, 0))
+                .extent(org.lwjgl.vulkan.VkExtent2D.calloc(stack).set(in.swapchainWidth(), in.swapchainHeight()));
+
+        vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, in.graphicsPipeline());
+        boolean planarClipEnabled = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_CLIP_BIT) != 0;
+        float planarCaptureFlag = planarSelectiveOnly ? 1.0f : 0.0f;
+        float planarHeight = planarClipEnabled ? in.reflectionsPlanarPlaneHeight() : -10_000.0f;
+        ByteBuffer planarPush = stack.malloc(4 * Float.BYTES);
+        planarPush.asFloatBuffer().put(new float[]{planarCaptureFlag, planarHeight, 0.0f, 0.0f});
+        vkCmdPushConstants(
+                commandBuffer,
+                in.pipelineLayout(),
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                0,
+                planarPush
+        );
+        boolean anyDrawn = false;
+        for (int meshIndex = 0; meshIndex < in.drawCount() && meshIndex < meshes.size(); meshIndex++) {
+            MeshDrawCmd mesh = meshes.get(meshIndex);
+            if (planarSelectiveOnly && !isPlanarEligible(mesh.reflectionOverrideMode(), in.reflectionsMode())) {
+                continue;
+            }
+            if (in.frameDescriptorSet() != VK_NULL_HANDLE && mesh.textureDescriptorSet() != VK_NULL_HANDLE) {
+                vkCmdBindDescriptorSets(
+                        commandBuffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        in.pipelineLayout(),
+                        0,
+                        stack.longs(in.frameDescriptorSet(), mesh.textureDescriptorSet()),
+                        stack.ints(dynamicUniformOffset.applyAsInt(meshIndex))
+                );
+            }
+            vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer()), stack.longs(0));
+            vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+            vkCmdDrawIndexed(commandBuffer, mesh.indexCount(), 1, 0, 0, 0);
+            anyDrawn = true;
+        }
+        if (!anyDrawn) {
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        }
+        vkCmdEndRenderPass(commandBuffer);
+    }
+
+    private static void recordMainRenderPass(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            MainPassInputs in,
             List<MeshDrawCmd> meshes,
             IntUnaryOperator dynamicUniformOffset,
             boolean planarSelectiveOnly
@@ -531,6 +713,131 @@ public final class VulkanRenderCommandRecorder {
             MemoryStack stack,
             VkCommandBuffer commandBuffer,
             RenderPassInputs in
+    ) {
+        VkImageMemoryBarrier.Buffer captureSrcToTransfer = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                .oldLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)
+                .newLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(in.swapchainImageForCapture());
+        captureSrcToTransfer.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                null,
+                null,
+                captureSrcToTransfer
+        );
+
+        int historyOldLayout = in.taaHistoryInitialized()
+                ? VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                : VK_IMAGE_LAYOUT_UNDEFINED;
+        VkImageMemoryBarrier.Buffer captureDstToTransfer = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(in.taaHistoryInitialized() ? VK10.VK_ACCESS_SHADER_READ_BIT : 0)
+                .dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                .oldLayout(historyOldLayout)
+                .newLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(in.planarCaptureImage());
+        captureDstToTransfer.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                in.taaHistoryInitialized() ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                null,
+                null,
+                captureDstToTransfer
+        );
+
+        VkImageCopy.Buffer copyRegion = VkImageCopy.calloc(1, stack);
+        copyRegion.get(0)
+                .srcSubresource(it -> it.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1))
+                .srcOffset(it -> it.set(0, 0, 0))
+                .dstSubresource(it -> it.aspectMask(VK_IMAGE_ASPECT_COLOR_BIT).mipLevel(0).baseArrayLayer(0).layerCount(1))
+                .dstOffset(it -> it.set(0, 0, 0))
+                .extent(it -> it.set(in.swapchainWidth(), in.swapchainHeight(), 1));
+        vkCmdCopyImage(
+                commandBuffer,
+                in.swapchainImageForCapture(),
+                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                in.planarCaptureImage(),
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                copyRegion
+        );
+
+        VkImageMemoryBarrier.Buffer captureDstToShaderRead = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT)
+                .dstAccessMask(VK10.VK_ACCESS_SHADER_READ_BIT)
+                .oldLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+                .newLayout(VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(in.planarCaptureImage());
+        captureDstToShaderRead.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                null,
+                null,
+                captureDstToShaderRead
+        );
+
+        VkImageMemoryBarrier.Buffer captureSrcToColor = VkImageMemoryBarrier.calloc(1, stack)
+                .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
+                .srcAccessMask(VK10.VK_ACCESS_TRANSFER_READ_BIT)
+                .dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT)
+                .oldLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+                .newLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+                .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                .image(in.swapchainImageForCapture());
+        captureSrcToColor.get(0).subresourceRange()
+                .aspectMask(VK_IMAGE_ASPECT_COLOR_BIT)
+                .baseMipLevel(0)
+                .levelCount(1)
+                .baseArrayLayer(0)
+                .layerCount(1);
+        vkCmdPipelineBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                0,
+                null,
+                null,
+                captureSrcToColor
+        );
+    }
+
+    private static void copyPlanarCaptureImage(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            PlanarReflectionPassInputs in
     ) {
         VkImageMemoryBarrier.Buffer captureSrcToTransfer = VkImageMemoryBarrier.calloc(1, stack)
                 .sType(VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER)
@@ -1291,6 +1598,83 @@ public final class VulkanRenderCommandRecorder {
     }
 
     public record MeshDrawCmd(long vertexBuffer, long indexBuffer, int indexCount, long textureDescriptorSet, int reflectionOverrideMode) {
+    }
+
+    public record ShadowPassInputs(
+            int drawCount,
+            int shadowMapResolution,
+            boolean shadowEnabled,
+            boolean pointShadowEnabled,
+            int shadowCascadeCount,
+            int maxShadowMatrices,
+            int maxShadowCascades,
+            int pointShadowFaces,
+            long frameDescriptorSet,
+            long shadowRenderPass,
+            long shadowPipeline,
+            long shadowPipelineLayout,
+            long[] shadowFramebuffers,
+            long shadowMomentImage,
+            int shadowMomentMipLevels,
+            boolean shadowMomentPipelineRequested,
+            boolean shadowMomentInitialized
+    ) {
+        RenderPassInputs toRenderPassInputsShadowView() {
+            return new RenderPassInputs(
+                    drawCount, 0, 0, shadowMapResolution, shadowEnabled, pointShadowEnabled, shadowCascadeCount, maxShadowMatrices,
+                    maxShadowCascades, pointShadowFaces, frameDescriptorSet, 0L, 0L, 0L, 0L, shadowRenderPass,
+                    shadowPipeline, shadowPipelineLayout, shadowFramebuffers, shadowMomentImage, shadowMomentMipLevels,
+                    shadowMomentPipelineRequested, shadowMomentInitialized, 0, 0L, -1, -1, false, 0L, 0L, 0f
+            );
+        }
+    }
+
+    public record MainPassInputs(
+            int drawCount,
+            int swapchainWidth,
+            int swapchainHeight,
+            long frameDescriptorSet,
+            long renderPass,
+            long framebuffer,
+            long graphicsPipeline,
+            long pipelineLayout,
+            int reflectionsMode,
+            float reflectionsPlanarPlaneHeight
+    ) {
+    }
+
+    public record PlanarReflectionPassInputs(
+            int drawCount,
+            int swapchainWidth,
+            int swapchainHeight,
+            long frameDescriptorSet,
+            long renderPass,
+            long framebuffer,
+            long graphicsPipeline,
+            long pipelineLayout,
+            int reflectionsMode,
+            float reflectionsPlanarPlaneHeight,
+            long planarTimestampQueryPool,
+            int planarTimestampQueryStartIndex,
+            int planarTimestampQueryEndIndex,
+            long planarCaptureImage,
+            long swapchainImageForCapture,
+            boolean taaHistoryInitialized
+    ) {
+        MainPassInputs toMainPassInputs() {
+            return new MainPassInputs(
+                    drawCount,
+                    swapchainWidth,
+                    swapchainHeight,
+                    frameDescriptorSet,
+                    renderPass,
+                    framebuffer,
+                    graphicsPipeline,
+                    pipelineLayout,
+                    reflectionsMode,
+                    reflectionsPlanarPlaneHeight
+            );
+        }
     }
 
     public record RenderPassInputs(

@@ -6,19 +6,17 @@ import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
 /**
- * Feature-owned recorder facade for shadow + main geometry pass execution.
- *
- * This is a Phase A extraction wrapper with no behavior changes.
+ * Feature-owned recorder for planar reflection selective capture pass.
  */
-final class VulkanShadowMainPassRecorder {
+final class VulkanPlanarReflectionPassRecorder {
     void record(
             MemoryStack stack,
             VkCommandBuffer commandBuffer,
-            VulkanRenderCommandRecorder.RenderPassInputs inputs,
+            VulkanRenderCommandRecorder.PlanarReflectionPassInputs inputs,
             List<VulkanRenderCommandRecorder.MeshDrawCmd> meshes,
             IntUnaryOperator dynamicUniformOffset
     ) {
-        VulkanRenderCommandRecorder.recordShadowAndMainPasses(
+        VulkanRenderCommandRecorder.recordPlanarReflectionPass(
                 stack,
                 commandBuffer,
                 inputs,
