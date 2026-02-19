@@ -20,6 +20,11 @@ Scope: post-reflections sequencing kickoff
 2. Minimal SPI contract types (no runtime wiring, no behavior change).
 3. Checklist with explicit completion criteria.
 4. Validation run (compile/tests) and local commit.
+5. Evidence audits from mature domains:
+   - `docs/capability-contract-shadow-audit.md`
+   - `docs/capability-contract-reflections-audit.md`
+6. Side-by-side extraction synthesis:
+   - `docs/capability-contract-side-by-side-extraction.md`
 
 ## Non-goals for Phase 1
 
