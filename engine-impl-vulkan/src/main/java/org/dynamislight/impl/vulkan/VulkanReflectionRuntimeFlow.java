@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 import org.dynamislight.impl.vulkan.runtime.warning.VulkanRuntimeWarningResets;
+import org.dynamislight.impl.vulkan.reflection.VulkanReflectionRtStateMachine;
 
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
 

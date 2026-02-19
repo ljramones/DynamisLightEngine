@@ -744,11 +744,11 @@ public final class VulkanContext {
         return renderState.shadowMomentInitialized;
     }
 
-    boolean isHardwareRtShadowTraversalSupported() {
+    public boolean isHardwareRtShadowTraversalSupported() {
         return backendResources.shadowRtTraversalSupported;
     }
 
-    boolean isHardwareRtShadowBvhSupported() {
+    public boolean isHardwareRtShadowBvhSupported() {
         return backendResources.shadowRtBvhSupported;
     }
 

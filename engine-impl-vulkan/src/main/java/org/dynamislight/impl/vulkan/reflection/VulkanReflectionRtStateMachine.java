@@ -1,9 +1,10 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
+import org.dynamislight.impl.vulkan.VulkanContext;
 
-final class VulkanReflectionRtStateMachine {
-    static final class State {
+public final class VulkanReflectionRtStateMachine {
+    public static final class State {
         PostProcessRenderConfig currentPost;
         boolean mockContext;
         boolean reflectionRtSingleBounceEnabled;
@@ -39,7 +40,7 @@ final class VulkanReflectionRtStateMachine {
         int reflectionRtSbtRecordCount;
     }
 
-    static void refreshRtPathState(State state, int reflectionBaseMode, VulkanContext context) {
+    public static void refreshRtPathState(State state, int reflectionBaseMode, VulkanContext context) {
         state.reflectionRtLaneRequested = (state.currentPost.reflectionsMode() & 1024) != 0 || reflectionBaseMode == 4;
         state.reflectionRtTraversalSupported = state.mockContext || context.isHardwareRtShadowTraversalSupported();
         state.reflectionRtDedicatedCapabilitySupported = state.mockContext || context.isHardwareRtShadowBvhSupported();
@@ -81,7 +82,7 @@ final class VulkanReflectionRtStateMachine {
         }
     }
 
-    static int composeExecutionMode(State state, int configuredMode, boolean rtLaneActive, boolean planarSelectiveEligible, boolean transparencyCandidatesPresent) {
+    public static int composeExecutionMode(State state, int configuredMode, boolean rtLaneActive, boolean planarSelectiveEligible, boolean transparencyCandidatesPresent) {
         int mode = configuredMode & (0x7
                 | (1 << 3)
                 | (0x7 << 4)
