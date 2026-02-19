@@ -2055,186 +2055,73 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 double taaConfidence = context.taaConfidenceMean();
                 long taaDrops = context.taaConfidenceDropEvents();
                 ReflectionSsrTaaRiskDiagnostics ssrTaaRisk = updateReflectionSsrTaaRiskDiagnostics(taaReject, taaConfidence, taaDrops);
-                warnings.add(new EngineWarning(
-                        "REFLECTION_SSR_TAA_DIAGNOSTICS",
-                        "SSR/TAA diagnostics (mode="
-                                + switch (reflectionBaseMode) {
-                            case 1 -> "ssr";
-                            case 3 -> "hybrid";
-                            case 4 -> "rt_hybrid_fallback";
-                            default -> "unknown";
-                        }
-                                + ", ssrStrength=" + currentPost.reflectionsSsrStrength()
-                                + ", ssrMaxRoughness=" + currentPost.reflectionsSsrMaxRoughness()
-                                + ", ssrStepScale=" + currentPost.reflectionsSsrStepScale()
-                                + ", reflectionTemporalWeight=" + currentPost.reflectionsTemporalWeight()
-                                + ", taaBlend=" + currentPost.taaBlend()
-                                + ", taaClipScale=" + currentPost.taaClipScale()
-                                + ", taaLumaClip=" + currentPost.taaLumaClipEnabled()
-                                + ", historyRejectRate=" + taaReject
-                                + ", confidenceMean=" + taaConfidence
-                                + ", confidenceDropEvents=" + taaDrops
-                                + ", instabilityRejectMin=" + reflectionSsrTaaInstabilityRejectMin
-                                + ", instabilityConfidenceMax=" + reflectionSsrTaaInstabilityConfidenceMax
-                                + ", instabilityDropEventsMin=" + reflectionSsrTaaInstabilityDropEventsMin
-                                + ", instabilityWarnMinFrames=" + reflectionSsrTaaInstabilityWarnMinFrames
-                                + ", instabilityWarnCooldownFrames=" + reflectionSsrTaaInstabilityWarnCooldownFrames
-                                + ", instabilityRiskEmaAlpha=" + reflectionSsrTaaRiskEmaAlpha
-                                + ", instabilityRiskHighStreak=" + ssrTaaRisk.highStreak()
-                                + ", instabilityRiskCooldownRemaining=" + ssrTaaRisk.warnCooldownRemaining()
-                                + ", instabilityRiskEmaReject=" + ssrTaaRisk.emaReject()
-                                + ", instabilityRiskEmaConfidence=" + ssrTaaRisk.emaConfidence()
-                                + ", instabilityRiskInstant=" + ssrTaaRisk.instantRisk()
-                                + ", adaptiveTemporalWeightActive=" + reflectionAdaptiveTemporalWeightActive
-                                + ", adaptiveSsrStrengthActive=" + reflectionAdaptiveSsrStrengthActive
-                                + ", adaptiveSsrStepScaleActive=" + reflectionAdaptiveSsrStepScaleActive
-                                + ")"
-                ));
-                warnings.add(new EngineWarning(
-                        "REFLECTION_SSR_TAA_ADAPTIVE_POLICY_ACTIVE",
-                        "SSR/TAA adaptive policy (enabled=" + reflectionSsrTaaAdaptiveEnabled
-                                + ", baseTemporalWeight=" + currentPost.reflectionsTemporalWeight()
-                                + ", activeTemporalWeight=" + reflectionAdaptiveTemporalWeightActive
-                                + ", baseSsrStrength=" + currentPost.reflectionsSsrStrength()
-                                + ", activeSsrStrength=" + reflectionAdaptiveSsrStrengthActive
-                                + ", baseSsrStepScale=" + currentPost.reflectionsSsrStepScale()
-                                + ", activeSsrStepScale=" + reflectionAdaptiveSsrStepScaleActive
-                                + ", riskHighStreak=" + ssrTaaRisk.highStreak()
-                                + ", riskWarnCooldownRemaining=" + ssrTaaRisk.warnCooldownRemaining()
-                                + ")"
-                ));
-                warnings.add(new EngineWarning(
-                        "REFLECTION_SSR_TAA_HISTORY_POLICY",
-                        "SSR/TAA history policy (policy=" + reflectionSsrTaaHistoryPolicyActive
-                                + ", reprojectionPolicy=" + reflectionSsrTaaReprojectionPolicyActive
-                                + ", severityInstant=" + reflectionAdaptiveSeverityInstant
-                                + ", riskHighStreak=" + reflectionSsrTaaRiskHighStreak
-                                + ", latestRejectRate=" + reflectionSsrTaaLatestRejectRate
-                                + ", latestConfidenceMean=" + reflectionSsrTaaLatestConfidenceMean
-                                + ", latestDropEvents=" + reflectionSsrTaaLatestDropEvents
-                                + ", rejectBias=" + reflectionSsrTaaHistoryRejectBiasActive
-                                + ", confidenceDecay=" + reflectionSsrTaaHistoryConfidenceDecayActive
-                                + ", rejectSeverityMin=" + reflectionSsrTaaHistoryRejectSeverityMin
-                                + ", decaySeverityMin=" + reflectionSsrTaaHistoryConfidenceDecaySeverityMin
-                                + ", rejectRiskStreakMin=" + reflectionSsrTaaHistoryRejectRiskStreakMin
-                                + ", disocclusionRejectDropEventsMin=" + reflectionSsrTaaDisocclusionRejectDropEventsMin
-                                + ", disocclusionRejectConfidenceMax=" + reflectionSsrTaaDisocclusionRejectConfidenceMax
-                                + ")"
-                ));
-                boolean envelopeRisk = taaReject >= reflectionSsrEnvelopeRejectWarnMax
-                        || taaConfidence <= reflectionSsrEnvelopeConfidenceWarnMin
-                        || taaDrops >= reflectionSsrEnvelopeDropWarnMin;
-                if (envelopeRisk) {
-                    reflectionSsrEnvelopeHighStreak++;
-                } else {
-                    reflectionSsrEnvelopeHighStreak = 0;
-                }
-                boolean envelopeTriggered = false;
-                if (reflectionSsrEnvelopeHighStreak >= reflectionSsrEnvelopeWarnMinFrames
-                        && reflectionSsrEnvelopeWarnCooldownRemaining <= 0) {
-                    envelopeTriggered = true;
-                    reflectionSsrEnvelopeWarnCooldownRemaining = reflectionSsrEnvelopeWarnCooldownFrames;
-                }
-                if (reflectionSsrEnvelopeWarnCooldownRemaining > 0) {
-                    reflectionSsrEnvelopeWarnCooldownRemaining--;
-                }
-                reflectionSsrEnvelopeBreachedLastFrame = envelopeTriggered;
-                warnings.add(new EngineWarning(
-                        "REFLECTION_SSR_REPROJECTION_ENVELOPE",
-                        "SSR reprojection envelope (risk=" + envelopeRisk
-                                + ", rejectRate=" + taaReject
-                                + ", confidenceMean=" + taaConfidence
-                                + ", dropEvents=" + taaDrops
-                                + ", rejectWarnMax=" + reflectionSsrEnvelopeRejectWarnMax
-                                + ", confidenceWarnMin=" + reflectionSsrEnvelopeConfidenceWarnMin
-                                + ", dropWarnMin=" + reflectionSsrEnvelopeDropWarnMin
-                                + ", warnMinFrames=" + reflectionSsrEnvelopeWarnMinFrames
-                                + ", warnCooldownFrames=" + reflectionSsrEnvelopeWarnCooldownFrames
-                                + ", highStreak=" + reflectionSsrEnvelopeHighStreak
-                                + ", cooldownRemaining=" + reflectionSsrEnvelopeWarnCooldownRemaining
-                                + ", breached=" + envelopeTriggered
-                                + ")"
-                ));
-                if (envelopeTriggered) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH",
-                            "SSR reprojection envelope breach (rejectRate=" + taaReject
-                                    + ", confidenceMean=" + taaConfidence
-                                    + ", dropEvents=" + taaDrops + ")"
-                    ));
-                }
                 boolean adaptiveTrendWarningTriggered = updateReflectionAdaptiveTrendWarningGate();
                 ReflectionAdaptiveTrendDiagnostics adaptiveTrend = snapshotReflectionAdaptiveTrendDiagnostics(adaptiveTrendWarningTriggered);
-                warnings.add(new EngineWarning(
-                        "REFLECTION_SSR_TAA_ADAPTIVE_TREND_REPORT",
-                        "SSR/TAA adaptive trend report (windowFrames=" + reflectionSsrTaaAdaptiveTrendWindowFrames
-                                + ", windowSamples=" + adaptiveTrend.windowSamples()
-                                + ", meanSeverity=" + adaptiveTrend.meanSeverity()
-                                + ", peakSeverity=" + adaptiveTrend.peakSeverity()
-                                + ", severityLowCount=" + adaptiveTrend.lowCount()
-                                + ", severityMediumCount=" + adaptiveTrend.mediumCount()
-                                + ", severityHighCount=" + adaptiveTrend.highCount()
-                                + ", severityLowRatio=" + adaptiveTrend.lowRatio()
-                                + ", severityMediumRatio=" + adaptiveTrend.mediumRatio()
-                                + ", severityHighRatio=" + adaptiveTrend.highRatio()
-                                + ", meanTemporalDelta=" + adaptiveTrend.meanTemporalDelta()
-                                + ", meanSsrStrengthDelta=" + adaptiveTrend.meanSsrStrengthDelta()
-                                + ", meanSsrStepScaleDelta=" + adaptiveTrend.meanSsrStepScaleDelta()
-                                + ", highRatioWarnMin=" + adaptiveTrend.highRatioWarnMin()
-                                + ", highRatioWarnMinFrames=" + adaptiveTrend.highRatioWarnMinFrames()
-                                + ", highRatioWarnCooldownFrames=" + adaptiveTrend.highRatioWarnCooldownFrames()
-                                + ", highRatioWarnMinSamples=" + adaptiveTrend.highRatioWarnMinSamples()
-                                + ", highRatioWarnHighStreak=" + adaptiveTrend.highRatioWarnHighStreak()
-                                + ", highRatioWarnCooldownRemaining=" + adaptiveTrend.highRatioWarnCooldownRemaining()
-                                + ", highRatioWarnTriggered=" + adaptiveTrend.highRatioWarnTriggered()
-                                + ")"
-                ));
                 TrendSloAudit trendSloAudit = evaluateReflectionAdaptiveTrendSlo(adaptiveTrend);
-                warnings.add(new EngineWarning(
-                        "REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_AUDIT",
-                        "SSR/TAA adaptive trend SLO audit (status=" + trendSloAudit.status()
-                                + ", reason=" + trendSloAudit.reason()
-                                + ", meanSeverity=" + adaptiveTrend.meanSeverity()
-                                + ", highRatio=" + adaptiveTrend.highRatio()
-                                + ", windowSamples=" + adaptiveTrend.windowSamples()
-                                + ", sloMeanSeverityMax=" + reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax
-                                + ", sloHighRatioMax=" + reflectionSsrTaaAdaptiveTrendSloHighRatioMax
-                                + ", sloMinSamples=" + reflectionSsrTaaAdaptiveTrendSloMinSamples
-                                + ")"
-                ));
-                if (trendSloAudit.failed()) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_SSR_TAA_ADAPTIVE_TREND_SLO_FAILED",
-                            "SSR/TAA adaptive trend SLO failed (meanSeverity=" + adaptiveTrend.meanSeverity()
-                                    + ", highRatio=" + adaptiveTrend.highRatio()
-                                    + ", windowSamples=" + adaptiveTrend.windowSamples()
-                                    + ", reason=" + trendSloAudit.reason()
-                                    + ")"
-                    ));
-                }
-                if (adaptiveTrendWarningTriggered) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_SSR_TAA_ADAPTIVE_TREND_HIGH_RISK",
-                            "SSR/TAA adaptive trend high-risk gate triggered (highRatio=" + adaptiveTrend.highRatio()
-                                    + ", highRatioWarnMin=" + reflectionSsrTaaAdaptiveTrendHighRatioWarnMin
-                                    + ", windowSamples=" + adaptiveTrend.windowSamples()
-                                    + ", warnMinSamples=" + reflectionSsrTaaAdaptiveTrendWarnMinSamples
-                                    + ", warnHighStreak=" + reflectionSsrTaaAdaptiveTrendWarnHighStreak
-                                    + ")"
-                    ));
-                }
-                if (ssrTaaRisk.warningTriggered()) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_SSR_TAA_INSTABILITY_RISK",
-                            "SSR/TAA instability risk detected (historyRejectRate="
-                                    + taaReject
-                                    + ", confidenceMean=" + taaConfidence
-                                    + ", confidenceDropEvents=" + taaDrops
-                                    + ", riskHighStreak=" + ssrTaaRisk.highStreak()
-                                    + ", riskEmaReject=" + ssrTaaRisk.emaReject()
-                                    + ", riskEmaConfidence=" + ssrTaaRisk.emaConfidence() + ")"
-                    ));
-                }
+                VulkanReflectionSsrTaaWarningEmitter.State ssrTaaState = new VulkanReflectionSsrTaaWarningEmitter.State();
+                ssrTaaState.reflectionSsrTaaAdaptiveEnabled = reflectionSsrTaaAdaptiveEnabled;
+                ssrTaaState.reflectionSsrTaaInstabilityRejectMin = reflectionSsrTaaInstabilityRejectMin;
+                ssrTaaState.reflectionSsrTaaInstabilityConfidenceMax = reflectionSsrTaaInstabilityConfidenceMax;
+                ssrTaaState.reflectionSsrTaaInstabilityDropEventsMin = reflectionSsrTaaInstabilityDropEventsMin;
+                ssrTaaState.reflectionSsrTaaInstabilityWarnMinFrames = reflectionSsrTaaInstabilityWarnMinFrames;
+                ssrTaaState.reflectionSsrTaaInstabilityWarnCooldownFrames = reflectionSsrTaaInstabilityWarnCooldownFrames;
+                ssrTaaState.reflectionSsrTaaRiskEmaAlpha = reflectionSsrTaaRiskEmaAlpha;
+                ssrTaaState.reflectionSsrTaaHistoryPolicyActive = reflectionSsrTaaHistoryPolicyActive;
+                ssrTaaState.reflectionSsrTaaReprojectionPolicyActive = reflectionSsrTaaReprojectionPolicyActive;
+                ssrTaaState.reflectionAdaptiveSeverityInstant = reflectionAdaptiveSeverityInstant;
+                ssrTaaState.reflectionSsrTaaRiskHighStreak = reflectionSsrTaaRiskHighStreak;
+                ssrTaaState.reflectionSsrTaaLatestRejectRate = reflectionSsrTaaLatestRejectRate;
+                ssrTaaState.reflectionSsrTaaLatestConfidenceMean = reflectionSsrTaaLatestConfidenceMean;
+                ssrTaaState.reflectionSsrTaaLatestDropEvents = reflectionSsrTaaLatestDropEvents;
+                ssrTaaState.reflectionSsrTaaHistoryRejectBiasActive = reflectionSsrTaaHistoryRejectBiasActive;
+                ssrTaaState.reflectionSsrTaaHistoryConfidenceDecayActive = reflectionSsrTaaHistoryConfidenceDecayActive;
+                ssrTaaState.reflectionSsrTaaHistoryRejectSeverityMin = reflectionSsrTaaHistoryRejectSeverityMin;
+                ssrTaaState.reflectionSsrTaaHistoryConfidenceDecaySeverityMin = reflectionSsrTaaHistoryConfidenceDecaySeverityMin;
+                ssrTaaState.reflectionSsrTaaHistoryRejectRiskStreakMin = reflectionSsrTaaHistoryRejectRiskStreakMin;
+                ssrTaaState.reflectionSsrTaaDisocclusionRejectDropEventsMin = reflectionSsrTaaDisocclusionRejectDropEventsMin;
+                ssrTaaState.reflectionSsrTaaDisocclusionRejectConfidenceMax = reflectionSsrTaaDisocclusionRejectConfidenceMax;
+                ssrTaaState.reflectionAdaptiveTemporalWeightActive = reflectionAdaptiveTemporalWeightActive;
+                ssrTaaState.reflectionAdaptiveSsrStrengthActive = reflectionAdaptiveSsrStrengthActive;
+                ssrTaaState.reflectionAdaptiveSsrStepScaleActive = reflectionAdaptiveSsrStepScaleActive;
+                ssrTaaState.reflectionSsrEnvelopeRejectWarnMax = reflectionSsrEnvelopeRejectWarnMax;
+                ssrTaaState.reflectionSsrEnvelopeConfidenceWarnMin = reflectionSsrEnvelopeConfidenceWarnMin;
+                ssrTaaState.reflectionSsrEnvelopeDropWarnMin = reflectionSsrEnvelopeDropWarnMin;
+                ssrTaaState.reflectionSsrEnvelopeWarnMinFrames = reflectionSsrEnvelopeWarnMinFrames;
+                ssrTaaState.reflectionSsrEnvelopeWarnCooldownFrames = reflectionSsrEnvelopeWarnCooldownFrames;
+                ssrTaaState.reflectionSsrEnvelopeHighStreak = reflectionSsrEnvelopeHighStreak;
+                ssrTaaState.reflectionSsrEnvelopeWarnCooldownRemaining = reflectionSsrEnvelopeWarnCooldownRemaining;
+                ssrTaaState.reflectionSsrEnvelopeBreachedLastFrame = reflectionSsrEnvelopeBreachedLastFrame;
+                ssrTaaState.reflectionSsrTaaAdaptiveTrendWindowFrames = reflectionSsrTaaAdaptiveTrendWindowFrames;
+                ssrTaaState.reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax;
+                ssrTaaState.reflectionSsrTaaAdaptiveTrendSloHighRatioMax = reflectionSsrTaaAdaptiveTrendSloHighRatioMax;
+                ssrTaaState.reflectionSsrTaaAdaptiveTrendSloMinSamples = reflectionSsrTaaAdaptiveTrendSloMinSamples;
+                ssrTaaState.reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = reflectionSsrTaaAdaptiveTrendHighRatioWarnMin;
+                ssrTaaState.reflectionSsrTaaAdaptiveTrendWarnMinSamples = reflectionSsrTaaAdaptiveTrendWarnMinSamples;
+                ssrTaaState.reflectionSsrTaaAdaptiveTrendWarnHighStreak = reflectionSsrTaaAdaptiveTrendWarnHighStreak;
+                VulkanReflectionSsrTaaWarningEmitter.emit(
+                        warnings,
+                        ssrTaaState,
+                        reflectionBaseMode,
+                        currentPost.reflectionsSsrStrength(),
+                        currentPost.reflectionsSsrMaxRoughness(),
+                        currentPost.reflectionsSsrStepScale(),
+                        currentPost.reflectionsTemporalWeight(),
+                        currentPost.taaBlend(),
+                        currentPost.taaClipScale(),
+                        currentPost.taaLumaClipEnabled(),
+                        taaReject,
+                        taaConfidence,
+                        taaDrops,
+                        ssrTaaRisk,
+                        adaptiveTrend,
+                        adaptiveTrendWarningTriggered,
+                        trendSloAudit.status(),
+                        trendSloAudit.reason(),
+                        trendSloAudit.failed()
+                );
+                reflectionSsrEnvelopeHighStreak = ssrTaaState.reflectionSsrEnvelopeHighStreak;
+                reflectionSsrEnvelopeWarnCooldownRemaining = ssrTaaState.reflectionSsrEnvelopeWarnCooldownRemaining;
+                reflectionSsrEnvelopeBreachedLastFrame = ssrTaaState.reflectionSsrEnvelopeBreachedLastFrame;
             } else {
                 resetReflectionSsrTaaRiskDiagnostics();
                 resetReflectionAdaptiveState();
