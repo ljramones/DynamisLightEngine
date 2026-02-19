@@ -11,6 +11,9 @@ import java.util.List;
 import java.util.function.IntUnaryOperator;
 
 public final class VulkanFrameCommandOrchestrator {
+    private static final VulkanShadowMainPassRecorder SHADOW_MAIN_RECORDER = new VulkanShadowMainPassRecorder();
+    private static final VulkanPostCompositePassRecorder POST_COMPOSITE_RECORDER = new VulkanPostCompositePassRecorder();
+
     private VulkanFrameCommandOrchestrator() {
     }
 
@@ -49,7 +52,7 @@ public final class VulkanFrameCommandOrchestrator {
             ));
         }
 
-        VulkanRenderCommandRecorder.recordShadowAndMainPasses(
+        SHADOW_MAIN_RECORDER.record(
                 stack,
                 commandBuffer,
                 new VulkanRenderCommandRecorder.RenderPassInputs(
@@ -90,7 +93,7 @@ public final class VulkanFrameCommandOrchestrator {
         );
 
         if (inputs.postOffscreenActive()) {
-            VulkanRenderCommandRecorder.PostCompositeState postInitialized = VulkanRenderCommandRecorder.executePostCompositePass(
+            VulkanRenderCommandRecorder.PostCompositeState postInitialized = POST_COMPOSITE_RECORDER.record(
                     stack,
                     commandBuffer,
                     new VulkanRenderCommandRecorder.PostCompositeInputs(

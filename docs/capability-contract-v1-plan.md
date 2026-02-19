@@ -49,3 +49,9 @@ Scope: post-reflections sequencing kickoff
 - Post modularization activation/planning artifacts are tracked in:
   - `docs/capability-contract-phase3-post-modularization.md`
   - `docs/capability-contract-phase3-post-modularization-checklist.md`
+
+## Phase A status
+
+- Pass-recorder extraction kickoff artifacts are tracked in:
+  - `docs/capability-contract-phaseA-pass-recorder-extraction.md`
+  - `docs/capability-contract-phaseA-pass-recorder-checklist.md`
