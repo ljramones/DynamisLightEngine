@@ -2,6 +2,8 @@
 
 This guide covers reflection controls in `PostProcessDesc`.
 
+For the Vulkan reflections closeout index (all promoted `In` items, checklists, and commit ledger), see `docs/reflections-vulkan-closeout.md`.
+
 ## API Surface
 
 `PostProcessDesc.reflections` uses `ReflectionDesc`:
@@ -137,7 +139,6 @@ PostProcessDesc post = new PostProcessDesc(
   - `vulkan.reflections.contactHardeningMinSsrMaxRoughness`
   - `vulkan.reflections.contactHardeningWarnMinFrames`
   - `vulkan.reflections.contactHardeningWarnCooldownFrames`
-- Planar capture remains selective-scope and still evolves under the broader planar `Partial` maturity status, but mirrored clip-plane camera rerender is now active in the Vulkan path.
 - Vulkan now emits SSR reprojection envelope diagnostics (`REFLECTION_SSR_REPROJECTION_ENVELOPE`) and breach warnings (`REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`) with threshold/cooldown gating for ghosting/disocclusion risk.
 - Vulkan RT lane now supports dedicated denoise staging (spatial + temporal) behind runtime mode bit activation.
 - RT path diagnostics now explicitly report dedicated-denoise pipeline intent in warning payload and typed runtime diagnostics.

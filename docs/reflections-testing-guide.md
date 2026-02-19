@@ -2,6 +2,8 @@
 
 Updated: 2026-02-19
 
+Closeout index: `docs/reflections-vulkan-closeout.md`
+
 ## RT Promotion Thresholds
 
 - `vulkan.reflections.rtHybridProbeShareWarnMax=0.70` (default)

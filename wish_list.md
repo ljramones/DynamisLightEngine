@@ -7,7 +7,7 @@ Review metadata:
 - Last reviewed: 2026-02-19
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
-- Latest reflection update: 2026-02-19 12:03 ET — Contact-hardening reflections promoted to Vulkan-scoped `In` with policy envelope gates, cooldown breach signaling, and typed diagnostics/profile defaults coverage.
+- Latest reflection update: 2026-02-19 12:14 ET — Reflections Vulkan closeout index added (`docs/reflections-vulkan-closeout.md`) with linked checklists, exit criteria, and promotion commit ledger.
 
 Status legend:
 
