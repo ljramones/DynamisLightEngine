@@ -17,6 +17,8 @@ import org.dynamislight.spi.render.RenderResourceType;
 import org.dynamislight.spi.render.RenderSchedulerDeclaration;
 import org.dynamislight.spi.render.RenderShaderContribution;
 import org.dynamislight.spi.render.RenderShaderInjectionPoint;
+import org.dynamislight.spi.render.RenderShaderModuleBinding;
+import org.dynamislight.spi.render.RenderShaderModuleDeclaration;
 import org.dynamislight.spi.render.RenderShaderStage;
 import org.dynamislight.spi.render.RenderTelemetryDeclaration;
 import org.dynamislight.spi.render.RenderUniformRequirement;
@@ -155,10 +157,71 @@ public final class VulkanReflectionCapabilityDescriptorV2 implements RenderFeatu
     }
 
     @Override
+    public List<RenderShaderModuleDeclaration> shaderModules(RenderFeatureMode mode) {
+        RenderFeatureMode active = sanitizeMode(mode);
+        java.util.ArrayList<RenderShaderModuleDeclaration> modules = new java.util.ArrayList<>(List.of(
+                new RenderShaderModuleDeclaration(
+                        "reflections.main.evaluate." + active.id(),
+                        featureId(),
+                        "main_geometry",
+                        RenderShaderInjectionPoint.LIGHTING_EVAL,
+                        RenderShaderStage.FRAGMENT,
+                        "evaluateReflectionProbe",
+                        "vec3 evaluateReflectionProbe(in vec3 worldPos, in vec3 normal, in float roughness)",
+                        "vec3 evaluateReflectionProbe(in vec3 worldPos, in vec3 normal, in float roughness) {\n" +
+                                "    vec4 probeMeta = texture(uProbeMetadata, worldPos.xy);\n" +
+                                "    vec2 uv = clamp(probeMeta.xy, vec2(0.0), vec2(1.0));\n" +
+                                "    vec3 probeColor = texture(uProbeRadianceAtlas, uv).rgb;\n" +
+                                "    return probeColor;\n" +
+                                "}",
+                        List.of(
+                                new RenderShaderModuleBinding("uProbeMetadata",
+                                        descriptorByTargetSetBinding(active, "main_geometry", 0, 2)),
+                                new RenderShaderModuleBinding("uProbeRadianceAtlas",
+                                        descriptorByTargetSetBinding(active, "main_geometry", 1, 9))
+                        ),
+                        List.of(
+                                new RenderUniformRequirement("global_scene", "uPlanarView", 0, 0),
+                                new RenderUniformRequirement("global_scene", "uPlanarProj", 0, 0)
+                        ),
+                        List.of(),
+                        20,
+                        false
+                )
+        ));
+
+        if (!MODE_IBL_ONLY.equals(active)) {
+            modules.add(new RenderShaderModuleDeclaration(
+                    "reflections.post.resolve." + active.id(),
+                    featureId(),
+                    "post_composite",
+                    RenderShaderInjectionPoint.POST_RESOLVE,
+                    RenderShaderStage.FRAGMENT,
+                    "resolveReflections",
+                    "vec4 resolveReflections(in vec2 uv, in vec4 baseColor)",
+                    reflectionPostBody(active),
+                    List.of(
+                            new RenderShaderModuleBinding("uSceneColor", descriptorByTargetSetBinding(active, "post_composite", 0, 0)),
+                            new RenderShaderModuleBinding("uVelocity", descriptorByTargetSetBinding(active, "post_composite", 0, 1)),
+                            new RenderShaderModuleBinding("uHistoryColor", descriptorByTargetSetBinding(active, "post_composite", 0, 2)),
+                            new RenderShaderModuleBinding("uPlanarCapture", descriptorByTargetSetBinding(active, "post_composite", 0, 3)),
+                            new RenderShaderModuleBinding("uRtReflectionLane", descriptorByTargetSetBinding(active, "post_composite", 0, 4))
+                    ),
+                    List.of(
+                            new RenderUniformRequirement("post_push", "reflectionsA", 0, 16),
+                            new RenderUniformRequirement("post_push", "reflectionsB", 0, 16)
+                    ),
+                    List.of(new RenderPushConstantRequirement("post_composite", List.of(RenderShaderStage.FRAGMENT), 0, 128)),
+                    10,
+                    true
+            ));
+        }
+        return List.copyOf(modules);
+    }
+
+    @Override
     public List<RenderDescriptorRequirement> descriptorRequirements(RenderFeatureMode mode) {
-        return shaderContributions(mode).stream()
-                .flatMap(sc -> sc.descriptorRequirements().stream())
-                .toList();
+        return descriptorRequirementsStatic(mode);
     }
 
     @Override
@@ -295,5 +358,73 @@ public final class VulkanReflectionCapabilityDescriptorV2 implements RenderFeatu
     private static boolean usesPlanar(RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
         return MODE_PLANAR.equals(active) || MODE_HYBRID.equals(active) || MODE_RT_HYBRID.equals(active);
+    }
+
+    private static String reflectionPostBody(RenderFeatureMode mode) {
+        RenderFeatureMode active = sanitizeMode(mode);
+        if (MODE_RT_HYBRID.equals(active)) {
+            return "vec4 resolveReflections(in vec2 uv, in vec4 baseColor) {\n" +
+                    "    vec3 scene = texture(uSceneColor, uv).rgb;\n" +
+                    "    vec3 history = texture(uHistoryColor, uv).rgb;\n" +
+                    "    vec3 rt = texture(uRtReflectionLane, uv).rgb;\n" +
+                    "    vec3 resolved = mix(mix(scene, history, 0.2), rt, 0.6);\n" +
+                    "    return vec4(resolved, baseColor.a);\n" +
+                    "}";
+        }
+        if (usesPlanar(active)) {
+            return "vec4 resolveReflections(in vec2 uv, in vec4 baseColor) {\n" +
+                    "    vec3 scene = texture(uSceneColor, uv).rgb;\n" +
+                    "    vec3 planar = texture(uPlanarCapture, uv).rgb;\n" +
+                    "    vec3 history = texture(uHistoryColor, uv).rgb;\n" +
+                    "    vec3 resolved = mix(mix(scene, planar, 0.5), history, 0.2);\n" +
+                    "    return vec4(resolved, baseColor.a);\n" +
+                    "}";
+        }
+        return "vec4 resolveReflections(in vec2 uv, in vec4 baseColor) {\n" +
+                "    vec3 scene = texture(uSceneColor, uv).rgb;\n" +
+                "    vec3 history = texture(uHistoryColor, uv).rgb;\n" +
+                "    vec3 resolved = mix(scene, history, 0.25);\n" +
+                "    return vec4(resolved, baseColor.a);\n" +
+                "}";
+    }
+
+    private static RenderDescriptorRequirement descriptorByTargetSetBinding(
+            RenderFeatureMode mode,
+            String targetPassId,
+            int setIndex,
+            int bindingIndex
+    ) {
+        for (RenderDescriptorRequirement requirement : descriptorRequirementsStatic(mode)) {
+            if (requirement.targetPassId().equals(targetPassId)
+                    && requirement.setIndex() == setIndex
+                    && requirement.bindingIndex() == bindingIndex) {
+                return requirement;
+            }
+        }
+        return new RenderDescriptorRequirement(
+                targetPassId,
+                setIndex,
+                bindingIndex,
+                RenderDescriptorType.COMBINED_IMAGE_SAMPLER,
+                RenderBindingFrequency.PER_FRAME,
+                true
+        );
+    }
+
+    private static List<RenderDescriptorRequirement> descriptorRequirementsStatic(RenderFeatureMode mode) {
+        RenderFeatureMode active = sanitizeMode(mode);
+        java.util.ArrayList<RenderDescriptorRequirement> requirements = new java.util.ArrayList<>(List.of(
+                new RenderDescriptorRequirement("main_geometry", 0, 2, RenderDescriptorType.STORAGE_BUFFER, RenderBindingFrequency.PER_FRAME, false),
+                new RenderDescriptorRequirement("main_geometry", 1, 9, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_MATERIAL, false),
+                new RenderDescriptorRequirement("post_composite", 0, 0, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
+                new RenderDescriptorRequirement("post_composite", 0, 1, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true),
+                new RenderDescriptorRequirement("post_composite", 0, 2, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
+                new RenderDescriptorRequirement("post_composite", 0, 3, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true),
+                new RenderDescriptorRequirement("post_composite", 0, 4, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true)
+        ));
+        if (MODE_IBL_ONLY.equals(active)) {
+            requirements.removeIf(requirement -> "post_composite".equals(requirement.targetPassId()));
+        }
+        return List.copyOf(requirements);
     }
 }

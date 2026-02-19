@@ -201,11 +201,11 @@ class VulkanCapabilityContractV2DescriptorsTest {
 
                 for (RenderShaderModuleBinding binding : module.bindings()) {
                     assertEqualsNonBlank(binding.symbolName());
-                    RenderDescriptorRequirement descriptor = binding.descriptor();
+                    RenderDescriptorRequirement moduleDescriptor = binding.descriptor();
                     boolean descriptorExists = descriptorRequirements.stream().anyMatch(req ->
-                            req.targetPassId().equals(descriptor.targetPassId())
-                                    && req.setIndex() == descriptor.setIndex()
-                                    && req.bindingIndex() == descriptor.bindingIndex()
+                            req.targetPassId().equals(moduleDescriptor.targetPassId())
+                                    && req.setIndex() == moduleDescriptor.setIndex()
+                                    && req.bindingIndex() == moduleDescriptor.bindingIndex()
                     );
                     assertTrue(descriptorExists,
                             "module binding must map to declared descriptor requirement for mode "
@@ -268,6 +268,76 @@ class VulkanCapabilityContractV2DescriptorsTest {
             );
             assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),
                     "expected zero errors for mode " + mode.id() + ", got: " + issues);
+        }
+    }
+
+    @Test
+    void everyReflectionModeProducesShaderModulesWithDescriptorAlignedBindings() {
+        for (RenderFeatureMode mode : VulkanReflectionCapabilityDescriptorV2.withMode(null).supportedModes()) {
+            VulkanReflectionCapabilityDescriptorV2 descriptor = VulkanReflectionCapabilityDescriptorV2.withMode(mode);
+            List<RenderShaderModuleDeclaration> modules = descriptor.shaderModules(mode);
+            assertFalse(modules.isEmpty(), "mode " + mode.id() + " must declare at least one shader module");
+
+            List<RenderDescriptorRequirement> descriptorRequirements = descriptor.descriptorRequirements(mode);
+            for (RenderShaderModuleDeclaration module : modules) {
+                assertEqualsNonBlank(module.moduleId());
+                assertEqualsNonBlank(module.providerFeatureId());
+                assertEqualsNonBlank(module.targetPassId());
+                assertEqualsNonBlank(module.hookFunction());
+                assertEqualsNonBlank(module.functionSignature());
+                assertTrue(module.functionSignature().contains(module.hookFunction()),
+                        "signature must contain hook function for module " + module.moduleId());
+                assertEqualsNonBlank(module.glslBody());
+                assertFalse(module.bindings().isEmpty(),
+                        "module " + module.moduleId() + " must declare at least one binding");
+                for (RenderShaderModuleBinding binding : module.bindings()) {
+                    assertEqualsNonBlank(binding.symbolName());
+                    RenderDescriptorRequirement moduleDescriptor = binding.descriptor();
+                    boolean descriptorExists = descriptorRequirements.stream().anyMatch(req ->
+                            req.targetPassId().equals(moduleDescriptor.targetPassId())
+                                    && req.setIndex() == moduleDescriptor.setIndex()
+                                    && req.bindingIndex() == moduleDescriptor.bindingIndex()
+                    );
+                    assertTrue(descriptorExists,
+                            "module binding must map to declared descriptor requirement for mode "
+                                    + mode.id() + ": " + binding);
+                }
+            }
+        }
+    }
+
+    @Test
+    void everyAaModeProducesShaderModulesWithDescriptorAlignedBindings() {
+        for (RenderFeatureMode mode : VulkanAaCapabilityDescriptorV2.withMode(null).supportedModes()) {
+            VulkanAaCapabilityDescriptorV2 descriptor = VulkanAaCapabilityDescriptorV2.withMode(mode);
+            List<RenderShaderModuleDeclaration> modules = descriptor.shaderModules(mode);
+            assertFalse(modules.isEmpty(), "mode " + mode.id() + " must declare at least one shader module");
+
+            List<RenderDescriptorRequirement> descriptorRequirements = descriptor.descriptorRequirements(mode);
+            for (RenderShaderModuleDeclaration module : modules) {
+                assertEqualsNonBlank(module.moduleId());
+                assertEqualsNonBlank(module.providerFeatureId());
+                assertEqualsNonBlank(module.targetPassId());
+                assertEqualsNonBlank(module.hookFunction());
+                assertEqualsNonBlank(module.functionSignature());
+                assertTrue(module.functionSignature().contains(module.hookFunction()),
+                        "signature must contain hook function for module " + module.moduleId());
+                assertEqualsNonBlank(module.glslBody());
+                assertFalse(module.bindings().isEmpty(),
+                        "module " + module.moduleId() + " must declare at least one binding");
+                for (RenderShaderModuleBinding binding : module.bindings()) {
+                    assertEqualsNonBlank(binding.symbolName());
+                    RenderDescriptorRequirement descriptorReq = binding.descriptor();
+                    boolean descriptorExists = descriptorRequirements.stream().anyMatch(req ->
+                            req.targetPassId().equals(descriptorReq.targetPassId())
+                                    && req.setIndex() == descriptorReq.setIndex()
+                                    && req.bindingIndex() == descriptorReq.bindingIndex()
+                    );
+                    assertTrue(descriptorExists,
+                            "module binding must map to declared descriptor requirement for mode "
+                                    + mode.id() + ": " + binding);
+                }
+            }
         }
     }
 

@@ -16,6 +16,8 @@ import org.dynamislight.spi.render.RenderResourceType;
 import org.dynamislight.spi.render.RenderSchedulerDeclaration;
 import org.dynamislight.spi.render.RenderShaderContribution;
 import org.dynamislight.spi.render.RenderShaderInjectionPoint;
+import org.dynamislight.spi.render.RenderShaderModuleBinding;
+import org.dynamislight.spi.render.RenderShaderModuleDeclaration;
 import org.dynamislight.spi.render.RenderShaderStage;
 import org.dynamislight.spi.render.RenderTelemetryDeclaration;
 import org.dynamislight.spi.render.RenderUniformRequirement;
@@ -115,19 +117,46 @@ public final class VulkanAaCapabilityDescriptorV2 implements RenderFeatureCapabi
     }
 
     @Override
-    public List<RenderDescriptorRequirement> descriptorRequirements(RenderFeatureMode mode) {
+    public List<RenderShaderModuleDeclaration> shaderModules(RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
-        boolean temporal = requiresTemporalHistory(active);
-        java.util.ArrayList<RenderDescriptorRequirement> requirements = new java.util.ArrayList<>(List.of(
-                new RenderDescriptorRequirement("post_composite", 0, 20, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
-                new RenderDescriptorRequirement("post_composite", 0, 21, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
-                new RenderDescriptorRequirement("post_composite", 0, 22, RenderDescriptorType.UNIFORM_BUFFER, RenderBindingFrequency.PER_FRAME, false)
+        java.util.ArrayList<RenderShaderModuleBinding> bindings = new java.util.ArrayList<>(List.of(
+                new RenderShaderModuleBinding("uPostSceneColor", descriptorByTargetSetBinding(active, "post_composite", 0, 20)),
+                new RenderShaderModuleBinding("uPostVelocity", descriptorByTargetSetBinding(active, "post_composite", 0, 21)),
+                new RenderShaderModuleBinding("uAaUniforms", descriptorByTargetSetBinding(active, "post_composite", 0, 22))
         ));
-        if (temporal) {
-            requirements.add(new RenderDescriptorRequirement("post_composite", 0, 23, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
-            requirements.add(new RenderDescriptorRequirement("post_composite", 0, 24, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
+        if (requiresTemporalHistory(active)) {
+            bindings.add(new RenderShaderModuleBinding("uHistoryColor", descriptorByTargetSetBinding(active, "post_composite", 0, 23)));
+            bindings.add(new RenderShaderModuleBinding("uHistoryVelocity", descriptorByTargetSetBinding(active, "post_composite", 0, 24)));
         }
-        return List.copyOf(requirements);
+        return List.of(new RenderShaderModuleDeclaration(
+                "aa.post.resolve." + active.id(),
+                featureId(),
+                "post_composite",
+                RenderShaderInjectionPoint.POST_RESOLVE,
+                RenderShaderStage.FRAGMENT,
+                "resolveAntiAliasing",
+                "vec4 resolveAntiAliasing(in vec2 uv, in vec4 sourceColor)",
+                aaResolveBody(active),
+                List.copyOf(bindings),
+                uniformRequirements(active),
+                List.of(),
+                switch (active.id()) {
+                    case "fxaa_low" -> 340;
+                    case "msaa_selective" -> 350;
+                    case "hybrid_tuua_msaa" -> 360;
+                    case "taa" -> 370;
+                    case "tuua" -> 380;
+                    case "tsr" -> 390;
+                    case "dlaa" -> 400;
+                    default -> 370;
+                },
+                false
+        ));
+    }
+
+    @Override
+    public List<RenderDescriptorRequirement> descriptorRequirements(RenderFeatureMode mode) {
+        return descriptorRequirementsStatic(mode);
     }
 
     @Override
@@ -255,5 +284,67 @@ public final class VulkanAaCapabilityDescriptorV2 implements RenderFeatureCapabi
                 || "tuua".equals(id)
                 || "hybrid_tuua_msaa".equals(id)
                 || "dlaa".equals(id);
+    }
+
+    private static RenderDescriptorRequirement descriptorByTargetSetBinding(
+            RenderFeatureMode mode,
+            String targetPassId,
+            int setIndex,
+            int bindingIndex
+    ) {
+        for (RenderDescriptorRequirement requirement : descriptorRequirementsStatic(mode)) {
+            if (requirement.targetPassId().equals(targetPassId)
+                    && requirement.setIndex() == setIndex
+                    && requirement.bindingIndex() == bindingIndex) {
+                return requirement;
+            }
+        }
+        return new RenderDescriptorRequirement(
+                targetPassId,
+                setIndex,
+                bindingIndex,
+                RenderDescriptorType.COMBINED_IMAGE_SAMPLER,
+                RenderBindingFrequency.PER_FRAME,
+                true
+        );
+    }
+
+    private static List<RenderDescriptorRequirement> descriptorRequirementsStatic(RenderFeatureMode mode) {
+        RenderFeatureMode active = sanitizeMode(mode);
+        boolean temporal = requiresTemporalHistory(active);
+        java.util.ArrayList<RenderDescriptorRequirement> requirements = new java.util.ArrayList<>(List.of(
+                new RenderDescriptorRequirement("post_composite", 0, 20, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
+                new RenderDescriptorRequirement("post_composite", 0, 21, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
+                new RenderDescriptorRequirement("post_composite", 0, 22, RenderDescriptorType.UNIFORM_BUFFER, RenderBindingFrequency.PER_FRAME, false)
+        ));
+        if (temporal) {
+            requirements.add(new RenderDescriptorRequirement("post_composite", 0, 23, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
+            requirements.add(new RenderDescriptorRequirement("post_composite", 0, 24, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
+        }
+        return List.copyOf(requirements);
+    }
+
+    private static String aaResolveBody(RenderFeatureMode mode) {
+        RenderFeatureMode active = sanitizeMode(mode);
+        String id = active.id();
+        if ("fxaa_low".equals(id)) {
+            return "vec4 resolveAntiAliasing(in vec2 uv, in vec4 sourceColor) {\n" +
+                    "    vec3 c = texture(uPostSceneColor, uv).rgb;\n" +
+                    "    return vec4(c, sourceColor.a);\n" +
+                    "}";
+        }
+        if (!requiresTemporalHistory(active)) {
+            return "vec4 resolveAntiAliasing(in vec2 uv, in vec4 sourceColor) {\n" +
+                    "    vec3 c = texture(uPostSceneColor, uv).rgb;\n" +
+                    "    return vec4(c, sourceColor.a);\n" +
+                    "}";
+        }
+        return "vec4 resolveAntiAliasing(in vec2 uv, in vec4 sourceColor) {\n" +
+                "    vec3 current = texture(uPostSceneColor, uv).rgb;\n" +
+                "    vec3 history = texture(uHistoryColor, uv).rgb;\n" +
+                "    float w = clamp(0.5, 0.0, 1.0);\n" +
+                "    vec3 resolved = mix(current, history, w);\n" +
+                "    return vec4(resolved, sourceColor.a);\n" +
+                "}";
     }
 }
