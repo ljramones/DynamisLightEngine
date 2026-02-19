@@ -55,3 +55,10 @@ Scope: post-reflections sequencing kickoff
 - Pass-recorder extraction kickoff artifacts are tracked in:
   - `docs/capability-contract-phaseA-pass-recorder-extraction.md`
   - `docs/capability-contract-phaseA-pass-recorder-checklist.md`
+
+## Phase B status
+
+- Render graph compile/validation/lifetime artifacts are tracked in:
+  - `docs/capability-contract-phaseB-render-graph.md`
+  - `docs/capability-contract-phaseB-render-graph-checklist.md`
+  - `docs/capability-contract-phaseB-render-graph-detailed-tasks.md`
