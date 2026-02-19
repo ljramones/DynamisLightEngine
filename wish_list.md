@@ -43,8 +43,8 @@ Status summary snapshot (2026-02-18):
 ## Reflections
 
 - IBL / environment cubemap (static, runtime-captured) — `In`
-- Box-projected parallax-corrected probes — `Partial`
-- Probe blending (distance, priority, volume-weighted) — `Partial`
+- Box-projected parallax-corrected probes — `In`
+- Probe blending (distance, priority, volume-weighted) — `In`
 - Screen-space reflections (Hi-Z marching, variable quality) — `In`
 - Planar reflections (clip-plane re-render, selective objects) — `In`
 - SSR + probe fallback (seamless blend at SSR miss) — `In`
@@ -85,6 +85,8 @@ Reflection notes:
 - SSR/TAA reflection ghosting mitigation now surfaces explicit history-policy mode diagnostics (`surface_motion_vectors`, `reflection_region_decay`, `reflection_region_reject`) with threshold and bias telemetry.
 - SSR/TAA diagnostics now include explicit reprojection policy and disocclusion-triggered rejection gates (`reflection_space_reject`) for stricter reflected-region history handling.
 - Probe quality sweep now reports overlap/priority bleed metrics with configurable envelope gates and breach warnings.
+- Probe quality sweep now also reports box-projection coverage, invalid blend/extents counts, and overlap-coverage ratio with breach reasons for projection/blend envelope failures.
+- Vulkan probe shading now applies hardened slab-based box projection and distance-priority weighted blending to reduce overlap bleed artifacts in shared probe volumes.
 - Planar reflections now expose selective scope + pass-order contract diagnostics (`planar_capture_before_main_sample_before_post`).
 - RT reflection minimal lane now exposes single/multi-bounce intent + fallback-chain diagnostics (`rt->ssr->probe` vs `ssr->probe`).
 - Transparency/refraction path now has an explicit stage gate tied to RT-minimal readiness, with pending warnings for transparent candidates.

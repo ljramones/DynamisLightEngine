@@ -101,7 +101,10 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan now emits an explicit SSR/TAA history policy warning (`REFLECTION_SSR_TAA_HISTORY_POLICY`) describing active reflected-region history strategy (`surface_motion_vectors`, `reflection_region_decay`, `reflection_region_reject`) with thresholds and active reject/decay bias.
 - Vulkan now emits a formal SSR/TAA reprojection policy signal (`surface_motion_vectors`, `reflection_space_bias`, `reflection_space_reject`) in history-policy diagnostics, including disocclusion-driven rejection gates.
 - Vulkan now emits probe quality sweep diagnostics (`REFLECTION_PROBE_QUALITY_SWEEP`) and envelope breach warnings (`REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`) based on overlap/priority analysis of configured probe volumes.
+- Probe quality diagnostics now include box-projection coverage ratio, invalid blend-distance/extents counts, and overlap-coverage ratio to gate probe transition quality.
 - Vulkan now emits probe streaming diagnostics (`REFLECTION_PROBE_STREAMING_DIAGNOSTICS`) plus budget-pressure warnings (`REFLECTION_PROBE_STREAMING_BUDGET_PRESSURE`) and envelope breaches (`REFLECTION_PROBE_STREAMING_ENVELOPE_BREACH`) when streaming stability budgets are exceeded.
+- Box projection sampling now uses hardened slab-intersection math with stable non-box fallback behavior for degenerate rays.
+- Probe blending now combines volume weighting with distance shaping and priority influence to reduce overlap bleed in shared volumes.
 - Vulkan now emits planar scope/order contracts (`REFLECTION_PLANAR_SCOPE_CONTRACT`) including selective mesh eligibility and required pass order contract.
 - Vulkan now emits explicit per-material override policy diagnostics (`REFLECTION_OVERRIDE_POLICY`) and provides a typed runtime snapshot of override counts for parser-free validation.
 - Vulkan now executes runtime-composed reflection mode bits for reflection-space reprojection/reject policy, selective planar execution, RT lane activation, and transparent/refraction integration.

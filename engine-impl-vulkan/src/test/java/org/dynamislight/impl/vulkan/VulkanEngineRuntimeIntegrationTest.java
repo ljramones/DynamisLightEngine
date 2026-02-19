@@ -642,6 +642,33 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionProbeQualitySweepFlagsBoxProjectionAndBlendDistanceEnvelope() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.probeQualityBoxProjectionMinRatio", "0.95"),
+                Map.entry("vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax", "0"),
+                Map.entry("vulkan.reflections.probeQualityOverlapCoverageWarnMin", "0.10")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionProbeQualityBreachScene());
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_QUALITY_SWEEP".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH".equals(w.code())));
+        String sweep = warningMessageByCode(frame, "REFLECTION_PROBE_QUALITY_SWEEP");
+        assertTrue(sweep.contains("boxProjectionRatio="));
+        assertTrue(sweep.contains("invalidBlendDistanceCount="));
+        assertTrue(sweep.contains("meanOverlapCoverage="));
+        var diagnostics = runtime.debugReflectionProbeQualityDiagnostics();
+        assertEquals(3, diagnostics.configuredProbeCount());
+        assertTrue(diagnostics.boxProjectionRatio() < 0.95);
+        assertTrue(diagnostics.invalidBlendDistanceCount() > 0);
+        assertTrue(diagnostics.envelopeBreached());
+        runtime.shutdown();
+    }
+
+    @Test
     void reflectionProbeStreamingDiagnosticsEmitBudgetPressureWhenVisibleBudgetIsTight() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(
@@ -3829,6 +3856,95 @@ class VulkanEngineRuntimeIntegrationTest {
                                 3,
                                 1.0f,
                                 1.1f,
+                                false
+                        )
+                ),
+                false,
+                0.75f,
+                "hybrid"
+        );
+        PostProcessDesc post = new PostProcessDesc(
+                base.postProcess().enabled(),
+                base.postProcess().tonemapEnabled(),
+                base.postProcess().exposure(),
+                base.postProcess().gamma(),
+                base.postProcess().bloomEnabled(),
+                base.postProcess().bloomThreshold(),
+                base.postProcess().bloomStrength(),
+                base.postProcess().ssaoEnabled(),
+                base.postProcess().ssaoStrength(),
+                base.postProcess().ssaoRadius(),
+                base.postProcess().ssaoBias(),
+                base.postProcess().ssaoPower(),
+                base.postProcess().smaaEnabled(),
+                base.postProcess().smaaStrength(),
+                base.postProcess().taaEnabled(),
+                base.postProcess().taaBlend(),
+                base.postProcess().taaLumaClipEnabled(),
+                base.postProcess().antiAliasing(),
+                base.postProcess().reflections(),
+                advanced
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                base.materials(),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                post
+        );
+    }
+
+    private static SceneDescriptor validReflectionProbeQualityBreachScene() {
+        SceneDescriptor base = validReflectionsScene("hybrid");
+        ReflectionAdvancedDesc advanced = new ReflectionAdvancedDesc(
+                true,
+                5,
+                2,
+                false,
+                0.0f,
+                0.5f,
+                6.0f,
+                true,
+                true,
+                2.0f,
+                List.of(
+                        new ReflectionProbeDesc(
+                                11,
+                                new Vec3(0f, 0f, 0f),
+                                new Vec3(-4f, -2f, -4f),
+                                new Vec3(4f, 2f, 4f),
+                                "textures/probes/quality_a.ktx2",
+                                1,
+                                0.0f,
+                                1.0f,
+                                false
+                        ),
+                        new ReflectionProbeDesc(
+                                12,
+                                new Vec3(1f, 0f, 0f),
+                                new Vec3(-3f, -2f, -3f),
+                                new Vec3(5f, 2f, 5f),
+                                "textures/probes/quality_b.ktx2",
+                                1,
+                                0.5f,
+                                1.0f,
+                                false
+                        ),
+                        new ReflectionProbeDesc(
+                                13,
+                                new Vec3(-1f, 0f, 0f),
+                                new Vec3(-5f, -2f, -5f),
+                                new Vec3(3f, 2f, 3f),
+                                "textures/probes/quality_c.ktx2",
+                                2,
+                                0.5f,
+                                0.9f,
                                 false
                         )
                 ),

@@ -41,6 +41,9 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.probeQualityOverlapWarnMaxPairs", "12"),
                         Map.entry("vulkan.reflections.probeQualityBleedRiskWarnMaxPairs", "2"),
                         Map.entry("vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple", "3"),
+                        Map.entry("vulkan.reflections.probeQualityBoxProjectionMinRatio", "0.82"),
+                        Map.entry("vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax", "4"),
+                        Map.entry("vulkan.reflections.probeQualityOverlapCoverageWarnMin", "0.27"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "0.42"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "0.61"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "3"),
@@ -143,6 +146,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(12, parsed.reflectionProbeQualityOverlapWarnMaxPairs());
         assertEquals(2, parsed.reflectionProbeQualityBleedRiskWarnMaxPairs());
         assertEquals(3, parsed.reflectionProbeQualityMinOverlapPairsWhenMultiple());
+        assertEquals(0.82, parsed.reflectionProbeQualityBoxProjectionMinRatio());
+        assertEquals(4, parsed.reflectionProbeQualityInvalidBlendDistanceWarnMax());
+        assertEquals(0.27, parsed.reflectionProbeQualityOverlapCoverageWarnMin());
         assertEquals(0.42, parsed.reflectionSsrTaaInstabilityRejectMin());
         assertEquals(0.61, parsed.reflectionSsrTaaInstabilityConfidenceMax());
         assertEquals(3L, parsed.reflectionSsrTaaInstabilityDropEventsMin());
@@ -235,6 +241,9 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.probeQualityOverlapWarnMaxPairs", "-1"),
                         Map.entry("vulkan.reflections.probeQualityBleedRiskWarnMaxPairs", "-1"),
                         Map.entry("vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple", "-1"),
+                        Map.entry("vulkan.reflections.probeQualityBoxProjectionMinRatio", "5.0"),
+                        Map.entry("vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax", "-4"),
+                        Map.entry("vulkan.reflections.probeQualityOverlapCoverageWarnMin", "-2.0"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityRejectMin", "9.0"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityConfidenceMax", "-2.0"),
                         Map.entry("vulkan.reflections.ssrTaaInstabilityDropEventsMin", "-5"),
@@ -327,6 +336,9 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0, parsed.reflectionProbeQualityOverlapWarnMaxPairs());
         assertEquals(0, parsed.reflectionProbeQualityBleedRiskWarnMaxPairs());
         assertEquals(0, parsed.reflectionProbeQualityMinOverlapPairsWhenMultiple());
+        assertEquals(1.0, parsed.reflectionProbeQualityBoxProjectionMinRatio());
+        assertEquals(0, parsed.reflectionProbeQualityInvalidBlendDistanceWarnMax());
+        assertEquals(0.0, parsed.reflectionProbeQualityOverlapCoverageWarnMin());
         assertEquals(1.0, parsed.reflectionSsrTaaInstabilityRejectMin());
         assertEquals(0.0, parsed.reflectionSsrTaaInstabilityConfidenceMax());
         assertEquals(0L, parsed.reflectionSsrTaaInstabilityDropEventsMin());

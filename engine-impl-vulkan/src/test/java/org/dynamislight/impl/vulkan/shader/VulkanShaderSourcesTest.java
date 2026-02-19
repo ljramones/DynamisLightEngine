@@ -88,6 +88,11 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("layout(set = 1, binding = 9) uniform sampler2DArray uProbeRadianceTexture;"));
         assertTrue(shader.contains("float probeWeightAtWorldPos(vec3 worldPos, ProbeData probe)"));
         assertTrue(shader.contains("vec3 probeSampleDirection(vec3 worldPos, vec3 reflectDir, ProbeData probe)"));
+        assertTrue(shader.contains("float distanceWeight = clamp(1.0 - (length(clamp(normalizedOffset, vec3(0.0), vec3(1.5))) / 1.73205), 0.0, 1.0);"));
+        assertTrue(shader.contains("float priorityWeight = mix(0.55, 1.35, priorityNormalized);"));
+        assertTrue(shader.contains("float nearT = max(max(tMin.x, tMin.y), tMin.z);"));
+        assertTrue(shader.contains("float farT = min(min(tMax.x, tMax.y), tMax.z);"));
+        assertTrue(shader.contains("if (farT < 0.0 || farT < nearT) {"));
         assertTrue(shader.contains("vec3 sampleProbeRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter, int layerIndex, int layerCount)"));
         assertTrue(shader.contains("int probeAtlasLayerCount = max(probes.uProbeHeader.y, 1);"));
         assertTrue(shader.contains("probe.cubemapIndexAndFlags.x,"));

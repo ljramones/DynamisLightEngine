@@ -247,8 +247,14 @@ public final class VulkanShaderSources {
                     float wx = probeAxisWeight(worldPos.x, probe.extentsMin.x, probe.extentsMax.x, blendDistance);
                     float wy = probeAxisWeight(worldPos.y, probe.extentsMin.y, probe.extentsMax.y, blendDistance);
                     float wz = probeAxisWeight(worldPos.z, probe.extentsMin.z, probe.extentsMax.z, blendDistance);
+                    vec3 extents = max(probe.extentsMax.xyz - probe.extentsMin.xyz, vec3(0.0001));
+                    vec3 center = (probe.extentsMin.xyz + probe.extentsMax.xyz) * 0.5;
+                    vec3 normalizedOffset = abs(worldPos - center) / max(extents * 0.5, vec3(0.0001));
+                    float distanceWeight = clamp(1.0 - (length(clamp(normalizedOffset, vec3(0.0), vec3(1.5))) / 1.73205), 0.0, 1.0);
+                    float priorityNormalized = clamp((probe.extentsMax.w + 64.0) / 128.0, 0.0, 1.0);
+                    float priorityWeight = mix(0.55, 1.35, priorityNormalized);
                     float intensity = max(probe.positionAndIntensity.w, 0.0);
-                    return wx * wy * wz * intensity;
+                    return wx * wy * wz * distanceWeight * priorityWeight * intensity;
                 }
                 vec3 probeSampleDirection(vec3 worldPos, vec3 reflectDir, ProbeData probe) {
                     bool boxProjection = probe.cubemapIndexAndFlags.y != 0;
@@ -261,10 +267,16 @@ public final class VulkanShaderSources {
                             abs(dir.y) < 0.0001 ? (dir.y >= 0.0 ? 0.0001 : -0.0001) : dir.y,
                             abs(dir.z) < 0.0001 ? (dir.z >= 0.0 ? 0.0001 : -0.0001) : dir.z
                     );
+                    vec3 t0 = (probe.extentsMin.xyz - worldPos) / dirSafe;
                     vec3 t1 = (probe.extentsMax.xyz - worldPos) / dirSafe;
-                    vec3 t2 = (probe.extentsMin.xyz - worldPos) / dirSafe;
-                    vec3 tf = max(t1, t2);
-                    float t = max(min(min(tf.x, tf.y), tf.z), 0.0);
+                    vec3 tMin = min(t0, t1);
+                    vec3 tMax = max(t0, t1);
+                    float nearT = max(max(tMin.x, tMin.y), tMin.z);
+                    float farT = min(min(tMax.x, tMax.y), tMax.z);
+                    if (farT < 0.0 || farT < nearT) {
+                        return dir;
+                    }
+                    float t = nearT > 0.0 ? nearT : farT;
                     vec3 hitPoint = worldPos + dir * t;
                     vec3 corrected = hitPoint - probe.positionAndIntensity.xyz;
                     if (length(corrected) < 0.0001) {
