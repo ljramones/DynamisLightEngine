@@ -387,6 +387,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionProbeUpdateCadenceFrames = 1;
     private int reflectionProbeMaxVisible = 64;
     private double reflectionProbeLodDepthScale = 1.0;
+    private int reflectionProbeStreamingWarnMinFrames = 3;
+    private int reflectionProbeStreamingWarnCooldownFrames = 120;
+    private double reflectionProbeStreamingMissRatioWarnMax = 0.35;
+    private double reflectionProbeStreamingDeferredRatioWarnMax = 0.55;
+    private double reflectionProbeStreamingLodSkewWarnMax = 0.70;
+    private double reflectionProbeStreamingMemoryBudgetMb = 48.0;
+    private int reflectionProbeStreamingHighStreak;
+    private int reflectionProbeStreamingWarnCooldownRemaining;
+    private boolean reflectionProbeStreamingBreachedLastFrame;
     private ReflectionProbeQualityDiagnostics reflectionProbeQualityDiagnostics = ReflectionProbeQualityDiagnostics.zero();
     private List<ReflectionProbeDesc> currentReflectionProbes = List.of();
     private List<MaterialDesc> currentSceneMaterials = List.of();
@@ -540,6 +549,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionProbeUpdateCadenceFrames = options.reflectionProbeUpdateCadenceFrames();
         reflectionProbeMaxVisible = options.reflectionProbeMaxVisible();
         reflectionProbeLodDepthScale = options.reflectionProbeLodDepthScale();
+        reflectionProbeStreamingWarnMinFrames = options.reflectionProbeStreamingWarnMinFrames();
+        reflectionProbeStreamingWarnCooldownFrames = options.reflectionProbeStreamingWarnCooldownFrames();
+        reflectionProbeStreamingMissRatioWarnMax = options.reflectionProbeStreamingMissRatioWarnMax();
+        reflectionProbeStreamingDeferredRatioWarnMax = options.reflectionProbeStreamingDeferredRatioWarnMax();
+        reflectionProbeStreamingLodSkewWarnMax = options.reflectionProbeStreamingLodSkewWarnMax();
+        reflectionProbeStreamingMemoryBudgetMb = options.reflectionProbeStreamingMemoryBudgetMb();
         shadowSchedulerFrameTick = 0L;
         currentSceneLights = List.of();
         shadowSchedulerLastRenderedTicks.clear();
@@ -571,6 +586,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionPlanarPerfLastTimingSource = "frame_estimate";
         reflectionPlanarPerfLastTimestampAvailable = false;
         reflectionPlanarPerfLastTimestampRequirementUnmet = false;
+        reflectionProbeStreamingHighStreak = 0;
+        reflectionProbeStreamingWarnCooldownRemaining = 0;
+        reflectionProbeStreamingBreachedLastFrame = false;
         reflectionRtHybridHighStreak = 0;
         reflectionRtHybridWarnCooldownRemaining = 0;
         reflectionRtHybridBreachedLastFrame = false;
@@ -1005,15 +1023,60 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int effectiveStreamingBudget = Math.max(1, Math.min(reflectionProbeMaxVisible, probeDiagnostics.metadataCapacity()));
             boolean streamingBudgetPressure = probeDiagnostics.configuredProbeCount() > probeDiagnostics.activeProbeCount()
                     && (probeDiagnostics.activeProbeCount() >= effectiveStreamingBudget || probeDiagnostics.activeProbeCount() == 0);
+            double missingSlotRatio = probeDiagnostics.visibleUniquePathCount() <= 0
+                    ? 0.0
+                    : (double) probeDiagnostics.missingSlotPathCount() / (double) probeDiagnostics.visibleUniquePathCount();
+            double deferredRatio = probeDiagnostics.frustumVisibleCount() <= 0
+                    ? 0.0
+                    : (double) probeDiagnostics.deferredProbeCount() / (double) probeDiagnostics.frustumVisibleCount();
+            int activeProbeCountSafe = Math.max(1, probeDiagnostics.activeProbeCount());
+            double lodSkewRatio = (double) probeDiagnostics.lodTier3Count() / (double) activeProbeCountSafe;
+            double memoryEstimateMb = probeDiagnostics.activeProbeCount() * 1.5;
+            boolean streamingRisk = streamingBudgetPressure
+                    || missingSlotRatio > reflectionProbeStreamingMissRatioWarnMax
+                    || deferredRatio > reflectionProbeStreamingDeferredRatioWarnMax
+                    || lodSkewRatio > reflectionProbeStreamingLodSkewWarnMax
+                    || memoryEstimateMb > reflectionProbeStreamingMemoryBudgetMb;
+            if (streamingRisk) {
+                reflectionProbeStreamingHighStreak++;
+            } else {
+                reflectionProbeStreamingHighStreak = 0;
+            }
+            if (reflectionProbeStreamingWarnCooldownRemaining > 0) {
+                reflectionProbeStreamingWarnCooldownRemaining--;
+            }
+            boolean streamingTriggered = false;
+            if (streamingRisk
+                    && reflectionProbeStreamingHighStreak >= reflectionProbeStreamingWarnMinFrames
+                    && reflectionProbeStreamingWarnCooldownRemaining <= 0) {
+                reflectionProbeStreamingWarnCooldownRemaining = reflectionProbeStreamingWarnCooldownFrames;
+                streamingTriggered = true;
+            }
+            reflectionProbeStreamingBreachedLastFrame = streamingTriggered;
             warnings.add(new EngineWarning(
                     "REFLECTION_PROBE_STREAMING_DIAGNOSTICS",
                     "Probe streaming diagnostics (configured=" + probeDiagnostics.configuredProbeCount()
                             + ", active=" + probeDiagnostics.activeProbeCount()
+                            + ", frustumVisible=" + probeDiagnostics.frustumVisibleCount()
+                            + ", deferred=" + probeDiagnostics.deferredProbeCount()
+                            + ", visibleUniquePaths=" + probeDiagnostics.visibleUniquePathCount()
+                            + ", missingSlotPaths=" + probeDiagnostics.missingSlotPathCount()
+                            + ", missingSlotRatio=" + missingSlotRatio
+                            + ", deferredRatio=" + deferredRatio
+                            + ", lodSkewRatio=" + lodSkewRatio
+                            + ", memoryEstimateMb=" + memoryEstimateMb
+                            + ", memoryBudgetMb=" + reflectionProbeStreamingMemoryBudgetMb
                             + ", effectiveBudget=" + effectiveStreamingBudget
                             + ", cadenceFrames=" + reflectionProbeUpdateCadenceFrames
                             + ", maxVisible=" + reflectionProbeMaxVisible
                             + ", lodDepthScale=" + reflectionProbeLodDepthScale
-                            + ", budgetPressure=" + streamingBudgetPressure + ")"
+                            + ", budgetPressure=" + streamingBudgetPressure
+                            + ", risk=" + streamingRisk
+                            + ", highStreak=" + reflectionProbeStreamingHighStreak
+                            + ", warnMinFrames=" + reflectionProbeStreamingWarnMinFrames
+                            + ", warnCooldownFrames=" + reflectionProbeStreamingWarnCooldownFrames
+                            + ", warnCooldownRemaining=" + reflectionProbeStreamingWarnCooldownRemaining
+                            + ", breached=" + reflectionProbeStreamingBreachedLastFrame + ")"
             ));
             if (streamingBudgetPressure) {
                 warnings.add(new EngineWarning(
@@ -1022,6 +1085,23 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + "(configured=" + probeDiagnostics.configuredProbeCount()
                                 + ", active=" + probeDiagnostics.activeProbeCount()
                                 + ", effectiveBudget=" + effectiveStreamingBudget + ")"
+                ));
+            }
+            warnings.add(new EngineWarning(
+                    "REFLECTION_PROBE_STREAMING_ENVELOPE",
+                    "Probe streaming envelope (missRatioMax=" + reflectionProbeStreamingMissRatioWarnMax
+                            + ", deferredRatioMax=" + reflectionProbeStreamingDeferredRatioWarnMax
+                            + ", lodSkewMax=" + reflectionProbeStreamingLodSkewWarnMax
+                            + ", memoryBudgetMb=" + reflectionProbeStreamingMemoryBudgetMb
+                            + ", breached=" + reflectionProbeStreamingBreachedLastFrame + ")"
+            ));
+            if (reflectionProbeStreamingBreachedLastFrame) {
+                warnings.add(new EngineWarning(
+                        "REFLECTION_PROBE_STREAMING_ENVELOPE_BREACH",
+                        "Probe streaming envelope breached (missingSlotRatio=" + missingSlotRatio
+                                + ", deferredRatio=" + deferredRatio
+                                + ", lodSkewRatio=" + lodSkewRatio
+                                + ", memoryEstimateMb=" + memoryEstimateMb + ")"
                 ));
             }
             warnings.add(new EngineWarning(
@@ -1678,6 +1758,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", probeUpdateCadenceFrames=" + reflectionProbeUpdateCadenceFrames
                             + ", probeMaxVisible=" + reflectionProbeMaxVisible
                             + ", probeLodDepthScale=" + reflectionProbeLodDepthScale
+                            + ", probeStreamingWarnMinFrames=" + reflectionProbeStreamingWarnMinFrames
+                            + ", probeStreamingWarnCooldownFrames=" + reflectionProbeStreamingWarnCooldownFrames
+                            + ", probeStreamingMissRatioWarnMax=" + reflectionProbeStreamingMissRatioWarnMax
+                            + ", probeStreamingDeferredRatioWarnMax=" + reflectionProbeStreamingDeferredRatioWarnMax
+                            + ", probeStreamingLodSkewWarnMax=" + reflectionProbeStreamingLodSkewWarnMax
+                            + ", probeStreamingMemoryBudgetMb=" + reflectionProbeStreamingMemoryBudgetMb
                             + ")"
             ));
             boolean ssrPathActive = reflectionBaseMode == 1 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
@@ -1923,6 +2009,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtPerfBreachedLastFrame = false;
             reflectionRtPromotionReadyLastFrame = false;
             reflectionRtPromotionReadyHighStreak = 0;
+            reflectionProbeStreamingHighStreak = 0;
+            reflectionProbeStreamingWarnCooldownRemaining = 0;
+            reflectionProbeStreamingBreachedLastFrame = false;
             reflectionTransparentCandidateCount = 0;
             reflectionTransparencyStageGateStatus = "not_required";
             reflectionTransparencyFallbackPath = "none";
@@ -2841,7 +2930,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 diagnostics.configuredProbeCount(),
                 diagnostics.activeProbeCount(),
                 diagnostics.slotCount(),
-                diagnostics.metadataCapacity()
+                diagnostics.metadataCapacity(),
+                diagnostics.frustumVisibleCount(),
+                diagnostics.deferredProbeCount(),
+                diagnostics.visibleUniquePathCount(),
+                diagnostics.missingSlotPathCount(),
+                diagnostics.lodTier0Count(),
+                diagnostics.lodTier1Count(),
+                diagnostics.lodTier2Count(),
+                diagnostics.lodTier3Count()
         );
     }
 
@@ -2850,6 +2947,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         int effectiveStreamingBudget = Math.max(1, Math.min(reflectionProbeMaxVisible, diagnostics.metadataCapacity()));
         boolean budgetPressure = diagnostics.configuredProbeCount() > diagnostics.activeProbeCount()
                 && (diagnostics.activeProbeCount() >= effectiveStreamingBudget || diagnostics.activeProbeCount() == 0);
+        double missingSlotRatio = diagnostics.visibleUniquePathCount() <= 0
+                ? 0.0
+                : (double) diagnostics.missingSlotPathCount() / (double) diagnostics.visibleUniquePathCount();
+        double deferredRatio = diagnostics.frustumVisibleCount() <= 0
+                ? 0.0
+                : (double) diagnostics.deferredProbeCount() / (double) diagnostics.frustumVisibleCount();
+        int active = Math.max(1, diagnostics.activeProbeCount());
+        double lodSkewRatio = (double) diagnostics.lodTier3Count() / (double) active;
+        double memoryEstimateMb = diagnostics.activeProbeCount() * 1.5;
         return new ReflectionProbeStreamingDiagnostics(
                 diagnostics.configuredProbeCount(),
                 diagnostics.activeProbeCount(),
@@ -2857,7 +2963,21 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 effectiveStreamingBudget,
                 reflectionProbeUpdateCadenceFrames,
                 reflectionProbeLodDepthScale,
-                budgetPressure
+                diagnostics.frustumVisibleCount(),
+                diagnostics.deferredProbeCount(),
+                diagnostics.visibleUniquePathCount(),
+                diagnostics.missingSlotPathCount(),
+                missingSlotRatio,
+                deferredRatio,
+                lodSkewRatio,
+                reflectionProbeStreamingMemoryBudgetMb,
+                memoryEstimateMb,
+                reflectionProbeStreamingHighStreak,
+                reflectionProbeStreamingWarnMinFrames,
+                reflectionProbeStreamingWarnCooldownFrames,
+                reflectionProbeStreamingWarnCooldownRemaining,
+                budgetPressure,
+                reflectionProbeStreamingBreachedLastFrame
         );
     }
 
@@ -3109,7 +3229,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int configuredProbeCount,
             int activeProbeCount,
             int slotCount,
-            int metadataCapacity
+            int metadataCapacity,
+            int frustumVisibleCount,
+            int deferredProbeCount,
+            int visibleUniquePathCount,
+            int missingSlotPathCount,
+            int lodTier0Count,
+            int lodTier1Count,
+            int lodTier2Count,
+            int lodTier3Count
     ) {
     }
 
@@ -3131,7 +3259,21 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int effectiveStreamingBudget,
             int updateCadenceFrames,
             double lodDepthScale,
-            boolean budgetPressure
+            int frustumVisibleCount,
+            int deferredProbeCount,
+            int visibleUniquePathCount,
+            int missingSlotPathCount,
+            double missingSlotRatio,
+            double deferredRatio,
+            double lodSkewRatio,
+            double memoryBudgetMb,
+            double memoryEstimateMb,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
+            boolean budgetPressure,
+            boolean breachedLastFrame
     ) {
     }
 
@@ -3503,6 +3645,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapWarnMaxPairs")) reflectionProbeQualityOverlapWarnMaxPairs = 6;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBleedRiskWarnMaxPairs")) reflectionProbeQualityBleedRiskWarnMaxPairs = 0;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple")) reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnMinFrames")) reflectionProbeStreamingWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnCooldownFrames")) reflectionProbeStreamingWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingMissRatioWarnMax")) reflectionProbeStreamingMissRatioWarnMax = 0.20;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingDeferredRatioWarnMax")) reflectionProbeStreamingDeferredRatioWarnMax = 0.35;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingLodSkewWarnMax")) reflectionProbeStreamingLodSkewWarnMax = 0.55;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingMemoryBudgetMb")) reflectionProbeStreamingMemoryBudgetMb = 28.0;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityRejectMin")) reflectionSsrTaaInstabilityRejectMin = 0.45;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityConfidenceMax")) reflectionSsrTaaInstabilityConfidenceMax = 0.60;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityDropEventsMin")) reflectionSsrTaaInstabilityDropEventsMin = 2;
@@ -3561,6 +3709,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapWarnMaxPairs")) reflectionProbeQualityOverlapWarnMaxPairs = 10;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBleedRiskWarnMaxPairs")) reflectionProbeQualityBleedRiskWarnMaxPairs = 1;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple")) reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnMinFrames")) reflectionProbeStreamingWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnCooldownFrames")) reflectionProbeStreamingWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingMissRatioWarnMax")) reflectionProbeStreamingMissRatioWarnMax = 0.35;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingDeferredRatioWarnMax")) reflectionProbeStreamingDeferredRatioWarnMax = 0.55;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingLodSkewWarnMax")) reflectionProbeStreamingLodSkewWarnMax = 0.70;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingMemoryBudgetMb")) reflectionProbeStreamingMemoryBudgetMb = 52.0;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityRejectMin")) reflectionSsrTaaInstabilityRejectMin = 0.32;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityConfidenceMax")) reflectionSsrTaaInstabilityConfidenceMax = 0.74;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityDropEventsMin")) reflectionSsrTaaInstabilityDropEventsMin = 0;
@@ -3619,6 +3773,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapWarnMaxPairs")) reflectionProbeQualityOverlapWarnMaxPairs = 12;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBleedRiskWarnMaxPairs")) reflectionProbeQualityBleedRiskWarnMaxPairs = 1;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityMinOverlapPairsWhenMultiple")) reflectionProbeQualityMinOverlapPairsWhenMultiple = 1;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnMinFrames")) reflectionProbeStreamingWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingWarnCooldownFrames")) reflectionProbeStreamingWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingMissRatioWarnMax")) reflectionProbeStreamingMissRatioWarnMax = 0.45;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingDeferredRatioWarnMax")) reflectionProbeStreamingDeferredRatioWarnMax = 0.70;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingLodSkewWarnMax")) reflectionProbeStreamingLodSkewWarnMax = 0.80;
+                if (!hasBackendOption(safe, "vulkan.reflections.probeStreamingMemoryBudgetMb")) reflectionProbeStreamingMemoryBudgetMb = 72.0;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityRejectMin")) reflectionSsrTaaInstabilityRejectMin = 0.28;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityConfidenceMax")) reflectionSsrTaaInstabilityConfidenceMax = 0.78;
                 if (!hasBackendOption(safe, "vulkan.reflections.ssrTaaInstabilityDropEventsMin")) reflectionSsrTaaInstabilityDropEventsMin = 0;

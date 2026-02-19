@@ -190,6 +190,32 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void guardedRealVulkanProbeStreamingContractEmitsDiagnostics() {
+        assumeRealVulkanReady("real Vulkan probe streaming contract integration test");
+
+        var runtime = new VulkanEngineRuntime();
+        var callbacks = new RecordingCallbacks();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.reflections.probeMaxVisible", "8"),
+                    Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "2")
+            ), QualityTier.HIGH), callbacks);
+            runtime.loadScene(validReflectionProbeDiagnosticsScene());
+            var frame = runtime.render();
+
+            assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_STREAMING_DIAGNOSTICS".equals(w.code())));
+            var diagnostics = runtime.debugReflectionProbeStreamingDiagnostics();
+            assertTrue(diagnostics.configuredProbeCount() >= 0);
+            assertTrue(diagnostics.activeProbeCount() >= 0);
+            assertTrue(diagnostics.effectiveStreamingBudget() > 0);
+        } catch (EngineException e) {
+            assertEquals(EngineErrorCode.BACKEND_INIT_FAILED, e.code());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
     void mockVulkanPathAlwaysWorksInCi() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
@@ -621,7 +647,13 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.initialize(validConfig(Map.ofEntries(
                 Map.entry("vulkan.mockContext", "true"),
                 Map.entry("vulkan.reflections.probeMaxVisible", "1"),
-                Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "2")
+                Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "2"),
+                Map.entry("vulkan.reflections.probeStreamingWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.probeStreamingWarnCooldownFrames", "8"),
+                Map.entry("vulkan.reflections.probeStreamingMissRatioWarnMax", "0.0"),
+                Map.entry("vulkan.reflections.probeStreamingDeferredRatioWarnMax", "0.0"),
+                Map.entry("vulkan.reflections.probeStreamingLodSkewWarnMax", "0.0"),
+                Map.entry("vulkan.reflections.probeStreamingMemoryBudgetMb", "1.0")
         )), new RecordingCallbacks());
         runtime.loadScene(validReflectionProbeDiagnosticsScene());
 
@@ -629,6 +661,8 @@ class VulkanEngineRuntimeIntegrationTest {
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_STREAMING_DIAGNOSTICS".equals(w.code())));
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_STREAMING_BUDGET_PRESSURE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_STREAMING_ENVELOPE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_PROBE_STREAMING_ENVELOPE_BREACH".equals(w.code())));
         String streaming = warningMessageByCode(frame, "REFLECTION_PROBE_STREAMING_DIAGNOSTICS");
         assertTrue(streaming.contains("configured=3"));
         assertTrue(streaming.contains("effectiveBudget=1"));
@@ -639,6 +673,10 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(1, diagnostics.maxVisibleBudget());
         assertEquals(2, diagnostics.updateCadenceFrames());
         assertTrue(diagnostics.budgetPressure());
+        assertTrue(diagnostics.breachedLastFrame());
+        assertTrue(diagnostics.frustumVisibleCount() >= diagnostics.activeProbeCount());
+        assertTrue(diagnostics.missingSlotRatio() >= 0.0);
+        assertTrue(diagnostics.deferredRatio() >= 0.0);
         runtime.shutdown();
     }
 

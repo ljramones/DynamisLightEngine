@@ -19,8 +19,8 @@ Status summary snapshot (2026-02-18):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 22 |
-| `Partial` | 59 |
+| `In` | 23 |
+| `Partial` | 58 |
 | `Not In Yet` | 110 |
 
 ## Shadows
@@ -50,7 +50,7 @@ Status summary snapshot (2026-02-18):
 - SSR + probe fallback (seamless blend at SSR miss) — `In`
 - RT reflections (single-bounce, multi-bounce) — `In`
 - RT + SSR hybrid (RT for rough, SSR for sharp, probe for miss) — `In`
-- Reflection probe streaming (LOD, priority-based update) — `Partial`
+- Reflection probe streaming (LOD, priority-based update) — `In`
 - Per-material reflection override (force probe-only for specific surfaces) — `Partial`
 - Contact-hardening reflections (roughness ramp near contact) — `Partial`
 - Transparent/refractive surface reflections — `Partial`
@@ -99,6 +99,7 @@ Reflection notes:
 - Planar path is now `In` for Vulkan scope: mirrored clip-plane camera rerender, selective prepass capture, stability/perf/resource gates, stress coverage, and guarded real-Vulkan signoff runner are in place.
 - SSR confidence/reprojection now has explicit envelope diagnostics and cooldown-gated breach warnings for ghost/disocclusion stress.
 - Probe upload now supports cadence rotation + max-visible budget + LOD depth-tier tagging in metadata for progressive probe streaming behavior.
+- Probe streaming now includes typed frustum/deferred/missing-slot/LOD-tier diagnostics and envelope breach gating (`REFLECTION_PROBE_STREAMING_ENVELOPE_BREACH`) with streak/cooldown controls.
 - OpenGL parity for probe slot/array path is not yet implemented.
 - Vulkan is the implementation target for current planar hardening; wishlist `In` promotion for planar should be interpreted as Vulkan-path scoped until explicit OpenGL parity lands.
 - Planar maturity now has an explicit exit checklist with pass/fail criteria in `docs/planar-in-exit-criteria.md`.

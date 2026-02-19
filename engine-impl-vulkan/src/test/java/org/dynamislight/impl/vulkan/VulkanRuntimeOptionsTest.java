@@ -96,6 +96,12 @@ class VulkanRuntimeOptionsTest {
                         ,Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "6")
                         ,Map.entry("vulkan.reflections.probeMaxVisible", "48")
                         ,Map.entry("vulkan.reflections.probeLodDepthScale", "1.8")
+                        ,Map.entry("vulkan.reflections.probeStreamingWarnMinFrames", "7")
+                        ,Map.entry("vulkan.reflections.probeStreamingWarnCooldownFrames", "222")
+                        ,Map.entry("vulkan.reflections.probeStreamingMissRatioWarnMax", "0.24")
+                        ,Map.entry("vulkan.reflections.probeStreamingDeferredRatioWarnMax", "0.41")
+                        ,Map.entry("vulkan.reflections.probeStreamingLodSkewWarnMax", "0.66")
+                        ,Map.entry("vulkan.reflections.probeStreamingMemoryBudgetMb", "96")
                 ),
                 256
         );
@@ -192,6 +198,12 @@ class VulkanRuntimeOptionsTest {
         assertEquals(6, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(48, parsed.reflectionProbeMaxVisible());
         assertEquals(1.8, parsed.reflectionProbeLodDepthScale());
+        assertEquals(7, parsed.reflectionProbeStreamingWarnMinFrames());
+        assertEquals(222, parsed.reflectionProbeStreamingWarnCooldownFrames());
+        assertEquals(0.24, parsed.reflectionProbeStreamingMissRatioWarnMax());
+        assertEquals(0.41, parsed.reflectionProbeStreamingDeferredRatioWarnMax());
+        assertEquals(0.66, parsed.reflectionProbeStreamingLodSkewWarnMax());
+        assertEquals(96.0, parsed.reflectionProbeStreamingMemoryBudgetMb());
     }
 
     @Test
@@ -273,7 +285,13 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtAsMemoryBudgetMb", "99999.0"),
                         Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "0"),
                         Map.entry("vulkan.reflections.probeMaxVisible", "999"),
-                        Map.entry("vulkan.reflections.probeLodDepthScale", "9.0")
+                        Map.entry("vulkan.reflections.probeLodDepthScale", "9.0"),
+                        Map.entry("vulkan.reflections.probeStreamingWarnMinFrames", "0"),
+                        Map.entry("vulkan.reflections.probeStreamingWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.reflections.probeStreamingMissRatioWarnMax", "-2.0"),
+                        Map.entry("vulkan.reflections.probeStreamingDeferredRatioWarnMax", "9.0"),
+                        Map.entry("vulkan.reflections.probeStreamingLodSkewWarnMax", "2.0"),
+                        Map.entry("vulkan.reflections.probeStreamingMemoryBudgetMb", "99999.0")
                 ),
                 256
         );
@@ -364,5 +382,11 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(256, parsed.reflectionProbeMaxVisible());
         assertEquals(4.0, parsed.reflectionProbeLodDepthScale());
+        assertEquals(1, parsed.reflectionProbeStreamingWarnMinFrames());
+        assertEquals(10000, parsed.reflectionProbeStreamingWarnCooldownFrames());
+        assertEquals(0.0, parsed.reflectionProbeStreamingMissRatioWarnMax());
+        assertEquals(1.0, parsed.reflectionProbeStreamingDeferredRatioWarnMax());
+        assertEquals(1.0, parsed.reflectionProbeStreamingLodSkewWarnMax());
+        assertEquals(4096.0, parsed.reflectionProbeStreamingMemoryBudgetMb());
     }
 }

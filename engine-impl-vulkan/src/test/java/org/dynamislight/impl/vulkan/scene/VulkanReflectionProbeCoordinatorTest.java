@@ -23,7 +23,7 @@ class VulkanReflectionProbeCoordinatorTest {
         ReflectionProbeDesc visibleHigh = probe(2, -1f, -1f, -6f, 1f, 1f, -3f, 10);
         ReflectionProbeDesc invisibleBehind = probe(3, -1f, -1f, 2f, 1f, 1f, 6f, 99);
 
-        List<ReflectionProbeDesc> visible = VulkanReflectionProbeCoordinator.visibleProbes(
+        var visibleResult = VulkanReflectionProbeCoordinator.visibleProbes(
                 List.of(visibleLow, visibleHigh, invisibleBehind),
                 vp,
                 8,
@@ -31,6 +31,7 @@ class VulkanReflectionProbeCoordinatorTest {
                 1,
                 8
         );
+        List<ReflectionProbeDesc> visible = visibleResult.probes();
 
         assertEquals(2, visible.size());
         assertEquals(2, visible.get(0).id());
@@ -54,7 +55,7 @@ class VulkanReflectionProbeCoordinatorTest {
                 true
         );
 
-        ByteBuffer packed = VulkanReflectionProbeCoordinator.packVisibleProbes(
+        var packedMetadata = VulkanReflectionProbeCoordinator.packVisibleProbes(
                 List.of(probe),
                 vp,
                 4,
@@ -67,6 +68,7 @@ class VulkanReflectionProbeCoordinatorTest {
                 4,
                 1.0f
         );
+        ByteBuffer packed = packedMetadata.buffer();
 
         assertEquals(1, packed.getInt(0));
         assertEquals(1, packed.getInt(4));
@@ -120,7 +122,7 @@ class VulkanReflectionProbeCoordinatorTest {
                 true
         );
 
-        ByteBuffer packed = VulkanReflectionProbeCoordinator.packVisibleProbes(
+        var packedMetadata = VulkanReflectionProbeCoordinator.packVisibleProbes(
                 List.of(probeHighPriorityB, probeLowPriorityA),
                 vp,
                 4,
@@ -136,6 +138,7 @@ class VulkanReflectionProbeCoordinatorTest {
                 4,
                 1.0f
         );
+        ByteBuffer packed = packedMetadata.buffer();
 
         int base0 = 16;
         int base1 = 16 + 80;
@@ -176,7 +179,7 @@ class VulkanReflectionProbeCoordinatorTest {
                 true
         );
 
-        ByteBuffer packed = VulkanReflectionProbeCoordinator.packVisibleProbes(
+        var packedMetadata = VulkanReflectionProbeCoordinator.packVisibleProbes(
                 List.of(probeA, probeB),
                 vp,
                 4,
@@ -189,6 +192,7 @@ class VulkanReflectionProbeCoordinatorTest {
                 4,
                 1.0f
         );
+        ByteBuffer packed = packedMetadata.buffer();
 
         assertEquals(2, packed.getInt(0)); // visible probe count
         assertEquals(1, packed.getInt(4)); // total global slot count
@@ -212,8 +216,8 @@ class VulkanReflectionProbeCoordinatorTest {
                 probe(6, -1f, -1f, -14f, 1f, 1f, -12f, 50)
         );
 
-        List<ReflectionProbeDesc> frameA = VulkanReflectionProbeCoordinator.visibleProbes(probes, vp, 6, 0L, 2, 6);
-        List<ReflectionProbeDesc> frameB = VulkanReflectionProbeCoordinator.visibleProbes(probes, vp, 6, 1L, 2, 6);
+        List<ReflectionProbeDesc> frameA = VulkanReflectionProbeCoordinator.visibleProbes(probes, vp, 6, 0L, 2, 6).probes();
+        List<ReflectionProbeDesc> frameB = VulkanReflectionProbeCoordinator.visibleProbes(probes, vp, 6, 1L, 2, 6).probes();
 
         assertEquals(6, frameA.size());
         assertEquals(6, frameB.size());

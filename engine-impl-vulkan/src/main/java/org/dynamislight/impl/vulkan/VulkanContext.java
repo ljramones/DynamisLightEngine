@@ -141,6 +141,14 @@ final class VulkanContext {
     private int reflectionProbeMaxVisible = 64;
     private float reflectionProbeLodDepthScale = 1.0f;
     private long reflectionProbeFrameTick;
+    private int reflectionProbeFrustumVisibleCount;
+    private int reflectionProbeDeferredCount;
+    private int reflectionProbeVisibleUniquePathCount;
+    private int reflectionProbeMissingSlotPathCount;
+    private int reflectionProbeLodTier0Count;
+    private int reflectionProbeLodTier1Count;
+    private int reflectionProbeLodTier2Count;
+    private int reflectionProbeLodTier3Count;
 
     VulkanContext() {
         backendResources.depthFormat = resolveConfiguredDepthFormat();
@@ -319,7 +327,20 @@ final class VulkanContext {
         int activeProbeCount = Math.max(0, descriptorResources.reflectionProbeMetadataActiveCount);
         int slotCount = Math.max(0, reflectionProbeCubemapSlotCount);
         int metadataCapacity = Math.max(0, descriptorResources.reflectionProbeMetadataMaxCount);
-        return new ReflectionProbeDiagnostics(configuredProbeCount, activeProbeCount, slotCount, metadataCapacity);
+        return new ReflectionProbeDiagnostics(
+                configuredProbeCount,
+                activeProbeCount,
+                slotCount,
+                metadataCapacity,
+                reflectionProbeFrustumVisibleCount,
+                reflectionProbeDeferredCount,
+                reflectionProbeVisibleUniquePathCount,
+                reflectionProbeMissingSlotPathCount,
+                reflectionProbeLodTier0Count,
+                reflectionProbeLodTier1Count,
+                reflectionProbeLodTier2Count,
+                reflectionProbeLodTier3Count
+        );
     }
 
     int debugReflectionsMode() {
@@ -402,7 +423,15 @@ final class VulkanContext {
             int configuredProbeCount,
             int activeProbeCount,
             int slotCount,
-            int metadataCapacity
+            int metadataCapacity,
+            int frustumVisibleCount,
+            int deferredProbeCount,
+            int visibleUniquePathCount,
+            int missingSlotPathCount,
+            int lodTier0Count,
+            int lodTier1Count,
+            int lodTier2Count,
+            int lodTier3Count
     ) {
     }
 
@@ -1490,6 +1519,14 @@ final class VulkanContext {
         iblState.probeRadianceTexture = null;
         reflectionProbeCubemapSlots = Map.of();
         reflectionProbeCubemapSlotCount = 0;
+        reflectionProbeFrustumVisibleCount = 0;
+        reflectionProbeDeferredCount = 0;
+        reflectionProbeVisibleUniquePathCount = 0;
+        reflectionProbeMissingSlotPathCount = 0;
+        reflectionProbeLodTier0Count = 0;
+        reflectionProbeLodTier1Count = 0;
+        reflectionProbeLodTier2Count = 0;
+        reflectionProbeLodTier3Count = 0;
     }
 
     private VulkanGpuTexture resolveOrCreateTexture(
@@ -1678,7 +1715,7 @@ final class VulkanContext {
             return;
         }
         float[] viewProj = mul(projMatrix, viewMatrix);
-        int activeCount = VulkanReflectionProbeCoordinator.uploadVisibleProbes(
+        VulkanReflectionProbeCoordinator.UploadStats stats = VulkanReflectionProbeCoordinator.uploadVisibleProbes(
                 reflectionProbes,
                 viewProj,
                 descriptorResources.reflectionProbeMetadataMaxCount,
@@ -1692,7 +1729,15 @@ final class VulkanContext {
                 reflectionProbeMaxVisible,
                 reflectionProbeLodDepthScale
         );
-        descriptorResources.reflectionProbeMetadataActiveCount = activeCount;
+        descriptorResources.reflectionProbeMetadataActiveCount = stats.activeProbeCount();
+        reflectionProbeFrustumVisibleCount = stats.frustumVisibleCount();
+        reflectionProbeDeferredCount = stats.deferredProbeCount();
+        reflectionProbeVisibleUniquePathCount = stats.visibleUniquePaths();
+        reflectionProbeMissingSlotPathCount = stats.missingSlotPaths();
+        reflectionProbeLodTier0Count = stats.lodTier0Count();
+        reflectionProbeLodTier1Count = stats.lodTier1Count();
+        reflectionProbeLodTier2Count = stats.lodTier2Count();
+        reflectionProbeLodTier3Count = stats.lodTier3Count();
     }
 
     private static float[] planarReflectionMatrix(float planeHeight) {

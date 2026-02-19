@@ -15,7 +15,7 @@ public final class VulkanReflectionProbeCoordinator {
     private VulkanReflectionProbeCoordinator() {
     }
 
-    public static int uploadVisibleProbes(
+    public static UploadStats uploadVisibleProbes(
             List<ReflectionProbeDesc> probes,
             float[] viewProjMatrix,
             int maxProbeCount,
@@ -30,9 +30,9 @@ public final class VulkanReflectionProbeCoordinator {
             float lodDepthScale
     ) {
         if (mappedAddress == 0L || bufferBytes <= 0) {
-            return 0;
+            return new UploadStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
-        ByteBuffer packed = packVisibleProbes(
+        PackedProbeMetadata packedMetadata = packVisibleProbes(
                 probes,
                 viewProjMatrix,
                 maxProbeCount,
@@ -45,15 +45,16 @@ public final class VulkanReflectionProbeCoordinator {
                 maxVisibleProbes,
                 lodDepthScale
         );
+        ByteBuffer packed = packedMetadata.buffer();
         ByteBuffer mapped = MemoryUtil.memByteBuffer(mappedAddress, packed.capacity());
         packed.clear();
         mapped.position(0);
         mapped.put(packed);
         mapped.position(0);
-        return packed.getInt(0);
+        return packedMetadata.stats();
     }
 
-    static ByteBuffer packVisibleProbes(
+    static PackedProbeMetadata packVisibleProbes(
             List<ReflectionProbeDesc> probes,
             float[] viewProjMatrix,
             int maxProbeCount,
@@ -71,7 +72,7 @@ public final class VulkanReflectionProbeCoordinator {
         int minBytes = 16 + (clampedMax * clampedStride);
         int outBytes = Math.max(minBytes, bufferBytes);
         ByteBuffer packed = ByteBuffer.allocate(outBytes);
-        List<ReflectionProbeDesc> visible = visibleProbes(
+        SelectionResult selection = visibleProbes(
                 probes,
                 viewProjMatrix,
                 clampedMax,
@@ -79,8 +80,13 @@ public final class VulkanReflectionProbeCoordinator {
                 updateCadenceFrames,
                 maxVisibleProbes
         );
+        List<ReflectionProbeDesc> visible = selection.probes();
         Set<String> visibleUniquePaths = new HashSet<>();
         int visibleAssigned = 0;
+        int lod0 = 0;
+        int lod1 = 0;
+        int lod2 = 0;
+        int lod3 = 0;
         Map<String, Integer> safeSlots = cubemapSlots == null ? Map.of() : cubemapSlots;
         for (ReflectionProbeDesc probe : visible) {
             if (probe == null) {
@@ -105,12 +111,29 @@ public final class VulkanReflectionProbeCoordinator {
             int cubemapSlot = existingSlot != null ? existingSlot : -1;
             int base = 16 + (i * clampedStride);
             int lodTier = estimateProbeLodTier(probe, viewProjMatrix, lodDepthScale);
+            switch (lodTier) {
+                case 0 -> lod0++;
+                case 1 -> lod1++;
+                case 2 -> lod2++;
+                default -> lod3++;
+            }
             putProbe(packed, base, probe, cubemapSlot, lodTier);
         }
-        return packed;
+        return new PackedProbeMetadata(
+                packed,
+                new UploadStats(
+                        visible.size(),
+                        Math.max(0, cubemapSlotCount),
+                        visibleUniquePaths.size(),
+                        Math.max(0, visibleUniquePaths.size() - visibleAssigned),
+                        selection.frustumVisibleCount(),
+                        Math.max(0, selection.frustumVisibleCount() - visible.size()),
+                        lod0, lod1, lod2, lod3
+                )
+        );
     }
 
-    static List<ReflectionProbeDesc> visibleProbes(
+    static SelectionResult visibleProbes(
             List<ReflectionProbeDesc> probes,
             float[] viewProjMatrix,
             int maxProbeCount,
@@ -119,7 +142,7 @@ public final class VulkanReflectionProbeCoordinator {
             int maxVisibleProbes
     ) {
         if (probes == null || probes.isEmpty()) {
-            return List.of();
+            return new SelectionResult(List.of(), 0);
         }
         Plane[] planes = extractFrustumPlanes(viewProjMatrix);
         List<ReflectionProbeDesc> visible = new ArrayList<>();
@@ -133,8 +156,9 @@ public final class VulkanReflectionProbeCoordinator {
         }
         visible.sort(Comparator.comparingInt(ReflectionProbeDesc::priority).reversed());
         int cappedMax = Math.max(1, Math.min(maxProbeCount, maxVisibleProbes));
+        int frustumVisible = visible.size();
         if (visible.size() <= cappedMax && updateCadenceFrames <= 1) {
-            return visible;
+            return new SelectionResult(visible, frustumVisible);
         }
         int cadence = Math.max(1, updateCadenceFrames);
         List<ReflectionProbeDesc> selected = new ArrayList<>(Math.min(cappedMax, visible.size()));
@@ -158,7 +182,7 @@ public final class VulkanReflectionProbeCoordinator {
                 }
             }
         }
-        return selected;
+        return new SelectionResult(selected, frustumVisible);
     }
 
     private static void putProbe(ByteBuffer out, int base, ReflectionProbeDesc probe, int cubemapSlot, int lodTier) {
@@ -245,5 +269,25 @@ public final class VulkanReflectionProbeCoordinator {
     }
 
     private record Plane(float nx, float ny, float nz, float d) {
+    }
+
+    public static record UploadStats(
+            int activeProbeCount,
+            int slotCount,
+            int visibleUniquePaths,
+            int missingSlotPaths,
+            int frustumVisibleCount,
+            int deferredProbeCount,
+            int lodTier0Count,
+            int lodTier1Count,
+            int lodTier2Count,
+            int lodTier3Count
+    ) {
+    }
+
+    static record PackedProbeMetadata(ByteBuffer buffer, UploadStats stats) {
+    }
+
+    static record SelectionResult(List<ReflectionProbeDesc> probes, int frustumVisibleCount) {
     }
 }
