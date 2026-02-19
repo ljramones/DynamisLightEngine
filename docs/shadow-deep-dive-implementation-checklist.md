@@ -32,6 +32,7 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
   - `vulkan.shadow.cadenceWarnDeferredRatioMax`
   - `vulkan.shadow.cadenceWarnMinFrames`
   - `vulkan.shadow.cadenceWarnCooldownFrames`
+- [x] Add cadence promotion-ready gate (`SHADOW_CADENCE_PROMOTION_READY`) with typed stability fields and profile-default window (`vulkan.shadow.cadencePromotionReadyMinFrames`).
 - [x] Add CI assertions for cadence envelope stability on blessed tiers (`VulkanShadowCapabilityWarningIntegrationTest#cadenceEnvelopeStaysStableAcrossBlessedTiers`).
 
 ### 2) Point cubemap + face-budget
@@ -39,6 +40,7 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 - [x] Add dedicated point-face budget diagnostics + envelope gates (`SHADOW_POINT_FACE_BUDGET_ENVELOPE`, `SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH`) + typed runtime accessor `shadowPointBudgetDiagnostics()`.
 - [x] Add scene coverage for multi-point budget saturation/breach behavior (`VulkanShadowCapabilityWarningIntegrationTest#pointFaceBudgetBreachGateTriggersOnSaturatedDeferredPointWork`).
 - [x] Lock point face-budget thresholds per tier profile in runtime defaults with explicit override precedence and warning telemetry (`SHADOW_TELEMETRY_PROFILE_ACTIVE`).
+- [x] Add point face-budget promotion-ready gate (`SHADOW_POINT_FACE_BUDGET_PROMOTION_READY`) with typed stability fields and profile-default window (`vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames`).
 
 ### 3) Spot projected
 
@@ -47,6 +49,7 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
   - `SHADOW_SPOT_PROJECTED_CONTRACT_BREACH`
   and typed runtime accessor `shadowSpotProjectedDiagnostics()`.
 - [x] Add projected-spot scene coverage for contract activation/breach state (`VulkanShadowCapabilityWarningIntegrationTest#emitsCadenceEnvelopeWarningAndTypedDiagnostics`).
+- [x] Add projected-spot promotion-ready gate (`SHADOW_SPOT_PROJECTED_PROMOTION_READY`) with typed stability fields and profile-default window (`vulkan.shadow.spotProjectedPromotionReadyMinFrames`).
 - [x] Add strict topology contract diagnostics/gates across local/spot/point coverage (`shadowTopologyDiagnostics()`, `SHADOW_TOPOLOGY_CONTRACT`, `SHADOW_TOPOLOGY_CONTRACT_BREACH`).
 - [x] Add topology promotion-ready gate diagnostics (`stableStreak`, `topologyPromotionReadyMinFrames`) with explicit readiness warning (`SHADOW_TOPOLOGY_PROMOTION_READY`) and typed runtime fields.
 

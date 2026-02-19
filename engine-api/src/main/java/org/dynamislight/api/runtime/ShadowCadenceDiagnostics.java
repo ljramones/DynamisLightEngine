@@ -14,6 +14,9 @@ public record ShadowCadenceDiagnostics(
         int warnCooldownFrames,
         int highStreak,
         int warnCooldownRemaining,
+        int stableStreak,
+        int promotionReadyMinFrames,
+        boolean promotionReadyLastFrame,
         boolean envelopeBreachedLastFrame
 ) {
     public static ShadowCadenceDiagnostics unavailable() {
@@ -28,6 +31,9 @@ public record ShadowCadenceDiagnostics(
                 0,
                 0,
                 0,
+                0,
+                0,
+                false,
                 false
         );
     }

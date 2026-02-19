@@ -217,9 +217,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double shadowCadenceWarnDeferredRatioMax = 0.55;
     private int shadowCadenceWarnMinFrames = 3;
     private int shadowCadenceWarnCooldownFrames = 120;
+    private int shadowCadencePromotionReadyMinFrames = 6;
     private double shadowPointFaceBudgetWarnSaturationMin = 1.0;
     private int shadowPointFaceBudgetWarnMinFrames = 3;
     private int shadowPointFaceBudgetWarnCooldownFrames = 120;
+    private int shadowPointFaceBudgetPromotionReadyMinFrames = 6;
     private double shadowCacheChurnWarnMax = 0.35;
     private int shadowCacheMissWarnMax = 2;
     private int shadowCacheWarnMinFrames = 3;
@@ -247,6 +249,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean shadowDistanceFieldRequested;
     private boolean shadowDistanceFieldRequireActive;
     private final boolean shadowDistanceFieldSupported = false;
+    private int shadowSpotProjectedPromotionReadyMinFrames = 6;
     private double shadowTopologyLocalCoverageWarnMin = 0.60;
     private double shadowTopologySpotCoverageWarnMin = 0.60;
     private double shadowTopologyPointCoverageWarnMin = 0.50;
@@ -268,6 +271,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double shadowCadenceDeferredRatioLastFrame;
     private int shadowCadenceHighStreak;
     private int shadowCadenceWarnCooldownRemaining;
+    private int shadowCadenceStableStreak;
+    private boolean shadowCadencePromotionReadyLastFrame;
     private boolean shadowCadenceEnvelopeBreachedLastFrame;
     private int shadowPointBudgetRenderedCubemapsLastFrame;
     private int shadowPointBudgetRenderedFacesLastFrame;
@@ -275,6 +280,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double shadowPointBudgetSaturationRatioLastFrame;
     private int shadowPointBudgetHighStreak;
     private int shadowPointBudgetWarnCooldownRemaining;
+    private int shadowPointBudgetStableStreak;
+    private boolean shadowPointBudgetPromotionReadyLastFrame;
     private boolean shadowPointBudgetEnvelopeBreachedLastFrame;
     private int shadowCacheHitCountLastFrame;
     private int shadowCacheMissCountLastFrame;
@@ -319,6 +326,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowSpotProjectedRenderedCountLastFrame;
     private String shadowSpotProjectedContractStatusLastFrame = "unavailable";
     private boolean shadowSpotProjectedContractBreachedLastFrame;
+    private int shadowSpotProjectedStableStreak;
+    private boolean shadowSpotProjectedPromotionReadyLastFrame;
     private boolean shadowRtTraversalSupported;
     private boolean shadowRtBvhSupported;
     private int lastActiveReflectionProbeCount = -1;
@@ -820,16 +829,38 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 (float) reflectionProbeLodDepthScale
         );
         context.setTaaDebugView(taaDebugView);
-        taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("vulkan.taaLumaClip", "false"));
-        aaPreset = parseAaPreset(config.backendOptions().get("vulkan.aaPreset"));
-        aaMode = parseAaMode(config.backendOptions().get("vulkan.aaMode"));
-        upscalerMode = parseUpscalerMode(config.backendOptions().get("vulkan.upscalerMode"));
-        upscalerQuality = parseUpscalerQuality(config.backendOptions().get("vulkan.upscalerQuality"));
-        reflectionProfile = parseReflectionProfile(config.backendOptions().get("vulkan.reflectionsProfile"));
-        applyShadowTelemetryProfileDefaults(config.backendOptions(), config.qualityTier());
-        applyReflectionProfileTelemetryDefaults(config.backendOptions());
-        tsrControls = parseTsrControls(config.backendOptions(), "vulkan.");
-        externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", config.backendOptions());
+        Map<String, String> safeBackendOptions = config.backendOptions() == null ? Map.of() : config.backendOptions();
+        taaLumaClipEnabledDefault = Boolean.parseBoolean(safeBackendOptions.getOrDefault("vulkan.taaLumaClip", "false"));
+        aaPreset = parseAaPreset(safeBackendOptions.get("vulkan.aaPreset"));
+        aaMode = parseAaMode(safeBackendOptions.get("vulkan.aaMode"));
+        upscalerMode = parseUpscalerMode(safeBackendOptions.get("vulkan.upscalerMode"));
+        upscalerQuality = parseUpscalerQuality(safeBackendOptions.get("vulkan.upscalerQuality"));
+        reflectionProfile = parseReflectionProfile(safeBackendOptions.get("vulkan.reflectionsProfile"));
+        shadowCadencePromotionReadyMinFrames = parseBackendIntOption(
+                safeBackendOptions,
+                "vulkan.shadow.cadencePromotionReadyMinFrames",
+                shadowCadencePromotionReadyMinFrames,
+                1,
+                10_000
+        );
+        shadowPointFaceBudgetPromotionReadyMinFrames = parseBackendIntOption(
+                safeBackendOptions,
+                "vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames",
+                shadowPointFaceBudgetPromotionReadyMinFrames,
+                1,
+                10_000
+        );
+        shadowSpotProjectedPromotionReadyMinFrames = parseBackendIntOption(
+                safeBackendOptions,
+                "vulkan.shadow.spotProjectedPromotionReadyMinFrames",
+                shadowSpotProjectedPromotionReadyMinFrames,
+                1,
+                10_000
+        );
+        applyShadowTelemetryProfileDefaults(safeBackendOptions, config.qualityTier());
+        applyReflectionProfileTelemetryDefaults(safeBackendOptions);
+        tsrControls = parseTsrControls(safeBackendOptions, "vulkan.");
+        externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", safeBackendOptions);
         nativeUpscalerActive = false;
         nativeUpscalerProvider = externalUpscaler.providerId();
         nativeUpscalerDetail = externalUpscaler.statusDetail();
@@ -1168,6 +1199,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowCadenceWarnCooldownFrames,
                 shadowCadenceHighStreak,
                 shadowCadenceWarnCooldownRemaining,
+                shadowCadenceStableStreak,
+                shadowCadencePromotionReadyMinFrames,
+                shadowCadencePromotionReadyLastFrame,
                 shadowCadenceEnvelopeBreachedLastFrame
         );
     }
@@ -1186,6 +1220,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowPointFaceBudgetWarnCooldownFrames,
                 shadowPointBudgetHighStreak,
                 shadowPointBudgetWarnCooldownRemaining,
+                shadowPointBudgetStableStreak,
+                shadowPointFaceBudgetPromotionReadyMinFrames,
+                shadowPointBudgetPromotionReadyLastFrame,
                 shadowPointBudgetEnvelopeBreachedLastFrame
         );
     }
@@ -1198,7 +1235,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowSpotProjectedActiveLastFrame,
                 shadowSpotProjectedRenderedCountLastFrame,
                 shadowSpotProjectedContractStatusLastFrame,
-                shadowSpotProjectedContractBreachedLastFrame
+                shadowSpotProjectedContractBreachedLastFrame,
+                shadowSpotProjectedStableStreak,
+                shadowSpotProjectedPromotionReadyMinFrames,
+                shadowSpotProjectedPromotionReadyLastFrame
         );
     }
 
@@ -2576,11 +2616,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowCadenceDeferredLocalLightsLastFrame = 0;
         shadowCadenceStaleBypassCountLastFrame = 0;
         shadowCadenceDeferredRatioLastFrame = 0.0;
+        shadowCadencePromotionReadyLastFrame = false;
         shadowCadenceEnvelopeBreachedLastFrame = false;
         shadowPointBudgetRenderedCubemapsLastFrame = 0;
         shadowPointBudgetRenderedFacesLastFrame = 0;
         shadowPointBudgetDeferredCountLastFrame = 0;
         shadowPointBudgetSaturationRatioLastFrame = 0.0;
+        shadowPointBudgetPromotionReadyLastFrame = false;
         shadowPointBudgetEnvelopeBreachedLastFrame = false;
         shadowCacheHitCountLastFrame = 0;
         shadowCacheMissCountLastFrame = 0;
@@ -2614,6 +2656,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowSpotProjectedRenderedCountLastFrame = 0;
         shadowSpotProjectedContractStatusLastFrame = "unavailable";
         shadowSpotProjectedContractBreachedLastFrame = false;
+        shadowSpotProjectedPromotionReadyLastFrame = false;
         if (shadowCadenceWarnCooldownRemaining > 0) {
             shadowCadenceWarnCooldownRemaining--;
         }
@@ -2638,8 +2681,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (!currentShadows.enabled()) {
             shadowCadenceHighStreak = 0;
             shadowCadenceWarnCooldownRemaining = 0;
+            shadowCadenceStableStreak = 0;
+            shadowCadencePromotionReadyLastFrame = false;
             shadowPointBudgetHighStreak = 0;
             shadowPointBudgetWarnCooldownRemaining = 0;
+            shadowPointBudgetStableStreak = 0;
+            shadowPointBudgetPromotionReadyLastFrame = false;
             shadowCacheHighStreak = 0;
             shadowCacheWarnCooldownRemaining = 0;
             shadowRtHighStreak = 0;
@@ -2652,6 +2699,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             shadowTopologyWarnCooldownRemaining = 0;
             shadowTopologyStableStreak = 0;
             shadowTopologyPromotionReadyLastFrame = false;
+            shadowSpotProjectedStableStreak = 0;
+            shadowSpotProjectedPromotionReadyLastFrame = false;
         }
         if (currentShadows.enabled()) {
             VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
@@ -2693,6 +2742,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             }
             shadowSpotProjectedContractBreachedLastFrame =
                     shadowSpotProjectedRequestedLastFrame && !shadowSpotProjectedActiveLastFrame;
+            if (shadowSpotProjectedContractBreachedLastFrame) {
+                shadowSpotProjectedStableStreak = 0;
+                shadowSpotProjectedPromotionReadyLastFrame = false;
+            } else {
+                shadowSpotProjectedStableStreak = Math.min(10_000, shadowSpotProjectedStableStreak + 1);
+                shadowSpotProjectedPromotionReadyLastFrame =
+                        shadowSpotProjectedRequestedLastFrame
+                                && shadowSpotProjectedActiveLastFrame
+                                && shadowSpotProjectedStableStreak >= shadowSpotProjectedPromotionReadyMinFrames;
+            }
             shadowCadenceSelectedLocalLightsLastFrame = currentShadows.selectedLocalShadowLights();
             shadowCadenceDeferredLocalLightsLastFrame = currentShadows.deferredShadowLightCount();
             shadowCadenceStaleBypassCountLastFrame = currentShadows.staleBypassShadowLightCount();
@@ -2703,9 +2762,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     && shadowCadenceDeferredRatioLastFrame > shadowCadenceWarnDeferredRatioMax;
             if (cadenceEnvelopeNow) {
                 shadowCadenceHighStreak = Math.min(10_000, shadowCadenceHighStreak + 1);
+                shadowCadenceStableStreak = 0;
+                shadowCadencePromotionReadyLastFrame = false;
                 shadowCadenceEnvelopeBreachedLastFrame = true;
             } else {
                 shadowCadenceHighStreak = 0;
+                shadowCadenceStableStreak = Math.min(10_000, shadowCadenceStableStreak + 1);
+                shadowCadencePromotionReadyLastFrame =
+                        shadowCadenceStableStreak >= shadowCadencePromotionReadyMinFrames;
             }
             warnings.add(new EngineWarning(
                     "SHADOW_CAPABILITY_MODE_ACTIVE",
@@ -2720,9 +2784,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", cadenceDeferredRatioWarnMax=" + shadowCadenceWarnDeferredRatioMax
                             + ", cadenceWarnMinFrames=" + shadowCadenceWarnMinFrames
                             + ", cadenceWarnCooldownFrames=" + shadowCadenceWarnCooldownFrames
+                            + ", cadencePromotionReadyMinFrames=" + shadowCadencePromotionReadyMinFrames
                             + ", pointFaceBudgetSaturationWarnMin=" + shadowPointFaceBudgetWarnSaturationMin
                             + ", pointFaceBudgetWarnMinFrames=" + shadowPointFaceBudgetWarnMinFrames
                             + ", pointFaceBudgetWarnCooldownFrames=" + shadowPointFaceBudgetWarnCooldownFrames
+                            + ", pointFaceBudgetPromotionReadyMinFrames=" + shadowPointFaceBudgetPromotionReadyMinFrames
                             + ", cacheChurnWarnMax=" + shadowCacheChurnWarnMax
                             + ", cacheMissWarnMax=" + shadowCacheMissWarnMax
                             + ", cacheWarnMinFrames=" + shadowCacheWarnMinFrames
@@ -2750,6 +2816,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", distanceFieldRequested=" + shadowDistanceFieldRequested
                             + ", distanceFieldSupported=" + shadowDistanceFieldSupported
                             + ", distanceFieldRequireActive=" + shadowDistanceFieldRequireActive
+                            + ", spotProjectedPromotionReadyMinFrames=" + shadowSpotProjectedPromotionReadyMinFrames
                             + ", topologyLocalCoverageWarnMin=" + shadowTopologyLocalCoverageWarnMin
                             + ", topologySpotCoverageWarnMin=" + shadowTopologySpotCoverageWarnMin
                             + ", topologyPointCoverageWarnMin=" + shadowTopologyPointCoverageWarnMin
@@ -2774,6 +2841,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", status=" + shadowSpotProjectedContractStatusLastFrame + ")"
                 ));
             }
+            if (shadowSpotProjectedPromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_SPOT_PROJECTED_PROMOTION_READY",
+                        "Shadow spot projected promotion-ready (status=" + shadowSpotProjectedContractStatusLastFrame
+                                + ", renderedSpotShadows=" + shadowSpotProjectedRenderedCountLastFrame
+                                + ", stableStreak=" + shadowSpotProjectedStableStreak
+                                + ", promotionReadyMinFrames=" + shadowSpotProjectedPromotionReadyMinFrames + ")"
+                ));
+            }
             warnings.add(new EngineWarning(
                     "SHADOW_CADENCE_ENVELOPE",
                     "Shadow cadence envelope (selectedLocal="
@@ -2784,7 +2860,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", deferredRatioWarnMax=" + shadowCadenceWarnDeferredRatioMax
                             + ", highStreak=" + shadowCadenceHighStreak
                             + ", warnMinFrames=" + shadowCadenceWarnMinFrames
-                            + ", cooldownRemaining=" + shadowCadenceWarnCooldownRemaining + ")"
+                            + ", cooldownRemaining=" + shadowCadenceWarnCooldownRemaining
+                            + ", stableStreak=" + shadowCadenceStableStreak
+                            + ", promotionReadyMinFrames=" + shadowCadencePromotionReadyMinFrames
+                            + ", promotionReady=" + shadowCadencePromotionReadyLastFrame + ")"
             ));
             if (cadenceEnvelopeNow
                     && shadowCadenceHighStreak >= shadowCadenceWarnMinFrames
@@ -2802,6 +2881,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 ));
                 shadowCadenceWarnCooldownRemaining = shadowCadenceWarnCooldownFrames;
             }
+            if (shadowCadencePromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_CADENCE_PROMOTION_READY",
+                        "Shadow cadence promotion-ready (selectedLocal=" + shadowCadenceSelectedLocalLightsLastFrame
+                                + ", deferredLocal=" + shadowCadenceDeferredLocalLightsLastFrame
+                                + ", deferredRatio=" + shadowCadenceDeferredRatioLastFrame
+                                + ", stableStreak=" + shadowCadenceStableStreak
+                                + ", promotionReadyMinFrames=" + shadowCadencePromotionReadyMinFrames + ")"
+                ));
+            }
             shadowPointBudgetRenderedCubemapsLastFrame = currentShadows.renderedPointShadowCubemaps();
             shadowPointBudgetRenderedFacesLastFrame = shadowPointBudgetRenderedCubemapsLastFrame * 6;
             shadowPointBudgetDeferredCountLastFrame = currentShadows.deferredShadowLightCount();
@@ -2815,9 +2904,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     && shadowPointBudgetDeferredCountLastFrame > 0;
             if (pointBudgetEnvelopeNow) {
                 shadowPointBudgetHighStreak = Math.min(10_000, shadowPointBudgetHighStreak + 1);
+                shadowPointBudgetStableStreak = 0;
+                shadowPointBudgetPromotionReadyLastFrame = false;
                 shadowPointBudgetEnvelopeBreachedLastFrame = true;
             } else {
                 shadowPointBudgetHighStreak = 0;
+                shadowPointBudgetStableStreak = Math.min(10_000, shadowPointBudgetStableStreak + 1);
+                shadowPointBudgetPromotionReadyLastFrame =
+                        shadowPointBudgetStableStreak >= shadowPointFaceBudgetPromotionReadyMinFrames;
             }
             warnings.add(new EngineWarning(
                     "SHADOW_POINT_FACE_BUDGET_ENVELOPE",
@@ -2830,7 +2924,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", saturationWarnMin=" + shadowPointFaceBudgetWarnSaturationMin
                             + ", highStreak=" + shadowPointBudgetHighStreak
                             + ", warnMinFrames=" + shadowPointFaceBudgetWarnMinFrames
-                            + ", cooldownRemaining=" + shadowPointBudgetWarnCooldownRemaining + ")"
+                            + ", cooldownRemaining=" + shadowPointBudgetWarnCooldownRemaining
+                            + ", stableStreak=" + shadowPointBudgetStableStreak
+                            + ", promotionReadyMinFrames=" + shadowPointFaceBudgetPromotionReadyMinFrames
+                            + ", promotionReady=" + shadowPointBudgetPromotionReadyLastFrame + ")"
             ));
             if (pointBudgetEnvelopeNow
                     && shadowPointBudgetHighStreak >= shadowPointFaceBudgetWarnMinFrames
@@ -2848,6 +2945,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", cooldownFrames=" + shadowPointFaceBudgetWarnCooldownFrames + ")"
                 ));
                 shadowPointBudgetWarnCooldownRemaining = shadowPointFaceBudgetWarnCooldownFrames;
+            }
+            if (shadowPointBudgetPromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_POINT_FACE_BUDGET_PROMOTION_READY",
+                        "Shadow point face-budget promotion-ready (configuredMaxFacesPerFrame="
+                                + pointFaceBudgetConfigured
+                                + ", renderedPointFaces=" + shadowPointBudgetRenderedFacesLastFrame
+                                + ", deferredShadowLightCount=" + shadowPointBudgetDeferredCountLastFrame
+                                + ", stableStreak=" + shadowPointBudgetStableStreak
+                                + ", promotionReadyMinFrames=" + shadowPointFaceBudgetPromotionReadyMinFrames + ")"
+                ));
             }
             int candidateSpotLights = 0;
             int candidatePointLights = 0;
@@ -5261,9 +5369,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.75;
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadencePromotionReadyMinFrames")) shadowCadencePromotionReadyMinFrames = 8;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 1.0;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames")) shadowPointFaceBudgetPromotionReadyMinFrames = 8;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheChurnWarnMax")) shadowCacheChurnWarnMax = 0.55;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 3;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 4;
@@ -5283,6 +5393,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.10;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.shadow.spotProjectedPromotionReadyMinFrames")) shadowSpotProjectedPromotionReadyMinFrames = 8;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.72;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.70;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.58;
@@ -5294,9 +5405,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.55;
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 3;
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadencePromotionReadyMinFrames")) shadowCadencePromotionReadyMinFrames = 6;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 1.0;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 3;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames")) shadowPointFaceBudgetPromotionReadyMinFrames = 6;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheChurnWarnMax")) shadowCacheChurnWarnMax = 0.35;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 3;
@@ -5316,6 +5429,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.20;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 3;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.shadow.spotProjectedPromotionReadyMinFrames")) shadowSpotProjectedPromotionReadyMinFrames = 6;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.60;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.60;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.50;
@@ -5327,9 +5441,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.45;
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadencePromotionReadyMinFrames")) shadowCadencePromotionReadyMinFrames = 5;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 0.95;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames")) shadowPointFaceBudgetPromotionReadyMinFrames = 5;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheChurnWarnMax")) shadowCacheChurnWarnMax = 0.28;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 1;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 2;
@@ -5349,6 +5465,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.28;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.shadow.spotProjectedPromotionReadyMinFrames")) shadowSpotProjectedPromotionReadyMinFrames = 5;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.52;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.50;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.42;
@@ -5360,9 +5477,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.35;
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 60;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadencePromotionReadyMinFrames")) shadowCadencePromotionReadyMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 0.90;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 60;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames")) shadowPointFaceBudgetPromotionReadyMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheChurnWarnMax")) shadowCacheChurnWarnMax = 0.22;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheMissWarnMax")) shadowCacheMissWarnMax = 1;
                 if (!hasBackendOption(safe, "vulkan.shadow.cacheWarnMinFrames")) shadowCacheWarnMinFrames = 2;
@@ -5382,6 +5501,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.35;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 60;
+                if (!hasBackendOption(safe, "vulkan.shadow.spotProjectedPromotionReadyMinFrames")) shadowSpotProjectedPromotionReadyMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.45;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.42;
                 if (!hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.35;
@@ -5398,6 +5518,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         }
         String value = backendOptions.get(key);
         return value != null && !value.isBlank();
+    }
+
+    private static int parseBackendIntOption(Map<String, String> backendOptions, String key, int fallback, int min, int max) {
+        if (backendOptions == null || key == null || key.isBlank()) {
+            return fallback;
+        }
+        String value = backendOptions.get(key);
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            return Math.max(min, Math.min(max, parsed));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
     }
 
     private AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {

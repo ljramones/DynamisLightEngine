@@ -15,6 +15,9 @@ public record ShadowPointBudgetDiagnostics(
         int warnCooldownFrames,
         int highStreak,
         int warnCooldownRemaining,
+        int stableStreak,
+        int promotionReadyMinFrames,
+        boolean promotionReadyLastFrame,
         boolean envelopeBreachedLastFrame
 ) {
     public static ShadowPointBudgetDiagnostics unavailable() {
@@ -30,6 +33,9 @@ public record ShadowPointBudgetDiagnostics(
                 0,
                 0,
                 0,
+                0,
+                0,
+                false,
                 false
         );
     }

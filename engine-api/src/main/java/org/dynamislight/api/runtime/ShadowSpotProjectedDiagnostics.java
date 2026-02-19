@@ -9,7 +9,10 @@ public record ShadowSpotProjectedDiagnostics(
         boolean active,
         int renderedSpotShadowLights,
         String contractStatus,
-        boolean contractBreachedLastFrame
+        boolean contractBreachedLastFrame,
+        int stableStreak,
+        int promotionReadyMinFrames,
+        boolean promotionReadyLastFrame
 ) {
     public static ShadowSpotProjectedDiagnostics unavailable() {
         return new ShadowSpotProjectedDiagnostics(
@@ -18,6 +21,9 @@ public record ShadowSpotProjectedDiagnostics(
                 false,
                 0,
                 "unavailable",
+                false,
+                0,
+                0,
                 false
         );
     }
