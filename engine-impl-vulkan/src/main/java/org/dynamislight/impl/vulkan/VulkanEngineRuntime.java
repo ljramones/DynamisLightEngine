@@ -2740,45 +2740,55 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private void refreshReflectionRtPathState(int reflectionBaseMode) {
-        reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
-        reflectionRtTraversalSupported = mockContext || context.isHardwareRtShadowTraversalSupported();
-        reflectionRtDedicatedCapabilitySupported = mockContext || context.isHardwareRtShadowBvhSupported();
-        reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled && reflectionRtTraversalSupported;
-        boolean reflectionRtMultiBounceActive = reflectionRtLaneActive && reflectionRtMultiBounceEnabled;
-        reflectionRtDedicatedHardwarePipelineActive = reflectionRtLaneActive
-                && reflectionRtDedicatedPipelineEnabled
-                && reflectionRtDedicatedCapabilitySupported;
-        reflectionRtFallbackChainActive = reflectionRtLaneActive ? "rt->ssr->probe" : "ssr->probe";
-        reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActive && reflectionRtLaneRequested && !reflectionRtLaneActive;
-        reflectionRtRequireMultiBounceUnmetLastFrame =
-                reflectionRtRequireMultiBounce && reflectionRtLaneRequested && !reflectionRtMultiBounceActive;
-        reflectionRtRequireDedicatedPipelineUnmetLastFrame =
-                reflectionRtRequireDedicatedPipeline && reflectionRtLaneRequested && !reflectionRtDedicatedHardwarePipelineActive;
-        if (!(reflectionRtLaneRequested || reflectionBaseMode == 4)) {
-            reflectionRtBlasLifecycleState = "disabled";
-            reflectionRtTlasLifecycleState = "disabled";
-            reflectionRtSbtLifecycleState = "disabled";
-            reflectionRtBlasObjectCount = 0;
-            reflectionRtTlasInstanceCount = 0;
-            reflectionRtSbtRecordCount = 0;
-            return;
-        }
-        if (reflectionRtDedicatedHardwarePipelineActive) {
-            reflectionRtBlasLifecycleState = mockContext ? "mock_active" : "active";
-            reflectionRtTlasLifecycleState = mockContext ? "mock_active" : "active";
-            reflectionRtSbtLifecycleState = mockContext ? "mock_active" : "active";
-            int sceneObjectEstimate = (int) Math.max(0L, Math.min((long) Integer.MAX_VALUE, plannedVisibleObjects));
-            reflectionRtBlasObjectCount = sceneObjectEstimate;
-            reflectionRtTlasInstanceCount = sceneObjectEstimate;
-            reflectionRtSbtRecordCount = Math.max(1, sceneObjectEstimate + 2);
-        } else {
-            reflectionRtBlasLifecycleState = "pending";
-            reflectionRtTlasLifecycleState = "pending";
-            reflectionRtSbtLifecycleState = "pending";
-            reflectionRtBlasObjectCount = 0;
-            reflectionRtTlasInstanceCount = 0;
-            reflectionRtSbtRecordCount = 0;
-        }
+        VulkanReflectionRtStateMachine.State state = new VulkanReflectionRtStateMachine.State();
+        state.currentPost = currentPost;
+        state.mockContext = mockContext;
+        state.reflectionRtSingleBounceEnabled = reflectionRtSingleBounceEnabled;
+        state.reflectionRtMultiBounceEnabled = reflectionRtMultiBounceEnabled;
+        state.reflectionRtDedicatedPipelineEnabled = reflectionRtDedicatedPipelineEnabled;
+        state.reflectionRtDedicatedDenoisePipelineEnabled = reflectionRtDedicatedDenoisePipelineEnabled;
+        state.reflectionRtPromotionReadyLastFrame = reflectionRtPromotionReadyLastFrame;
+        state.reflectionPlanarScopeIncludeAuto = reflectionPlanarScopeIncludeAuto;
+        state.reflectionPlanarScopeIncludeProbeOnly = reflectionPlanarScopeIncludeProbeOnly;
+        state.reflectionPlanarScopeIncludeSsrOnly = reflectionPlanarScopeIncludeSsrOnly;
+        state.reflectionPlanarScopeIncludeOther = reflectionPlanarScopeIncludeOther;
+        state.reflectionSsrTaaReprojectionPolicyActive = reflectionSsrTaaReprojectionPolicyActive;
+        state.reflectionSsrTaaHistoryPolicyActive = reflectionSsrTaaHistoryPolicyActive;
+        state.plannedVisibleObjects = plannedVisibleObjects;
+        state.reflectionRtLaneRequested = reflectionRtLaneRequested;
+        state.reflectionRtTraversalSupported = reflectionRtTraversalSupported;
+        state.reflectionRtDedicatedCapabilitySupported = reflectionRtDedicatedCapabilitySupported;
+        state.reflectionRtLaneActive = reflectionRtLaneActive;
+        state.reflectionRtDedicatedHardwarePipelineActive = reflectionRtDedicatedHardwarePipelineActive;
+        state.reflectionRtFallbackChainActive = reflectionRtFallbackChainActive;
+        state.reflectionRtRequireActive = reflectionRtRequireActive;
+        state.reflectionRtRequireMultiBounce = reflectionRtRequireMultiBounce;
+        state.reflectionRtRequireDedicatedPipeline = reflectionRtRequireDedicatedPipeline;
+        state.reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActiveUnmetLastFrame;
+        state.reflectionRtRequireMultiBounceUnmetLastFrame = reflectionRtRequireMultiBounceUnmetLastFrame;
+        state.reflectionRtRequireDedicatedPipelineUnmetLastFrame = reflectionRtRequireDedicatedPipelineUnmetLastFrame;
+        state.reflectionRtBlasLifecycleState = reflectionRtBlasLifecycleState;
+        state.reflectionRtTlasLifecycleState = reflectionRtTlasLifecycleState;
+        state.reflectionRtSbtLifecycleState = reflectionRtSbtLifecycleState;
+        state.reflectionRtBlasObjectCount = reflectionRtBlasObjectCount;
+        state.reflectionRtTlasInstanceCount = reflectionRtTlasInstanceCount;
+        state.reflectionRtSbtRecordCount = reflectionRtSbtRecordCount;
+        VulkanReflectionRtStateMachine.refreshRtPathState(state, reflectionBaseMode, context);
+        reflectionRtLaneRequested = state.reflectionRtLaneRequested;
+        reflectionRtTraversalSupported = state.reflectionRtTraversalSupported;
+        reflectionRtDedicatedCapabilitySupported = state.reflectionRtDedicatedCapabilitySupported;
+        reflectionRtLaneActive = state.reflectionRtLaneActive;
+        reflectionRtDedicatedHardwarePipelineActive = state.reflectionRtDedicatedHardwarePipelineActive;
+        reflectionRtFallbackChainActive = state.reflectionRtFallbackChainActive;
+        reflectionRtRequireActiveUnmetLastFrame = state.reflectionRtRequireActiveUnmetLastFrame;
+        reflectionRtRequireMultiBounceUnmetLastFrame = state.reflectionRtRequireMultiBounceUnmetLastFrame;
+        reflectionRtRequireDedicatedPipelineUnmetLastFrame = state.reflectionRtRequireDedicatedPipelineUnmetLastFrame;
+        reflectionRtBlasLifecycleState = state.reflectionRtBlasLifecycleState;
+        reflectionRtTlasLifecycleState = state.reflectionRtTlasLifecycleState;
+        reflectionRtSbtLifecycleState = state.reflectionRtSbtLifecycleState;
+        reflectionRtBlasObjectCount = state.reflectionRtBlasObjectCount;
+        reflectionRtTlasInstanceCount = state.reflectionRtTlasInstanceCount;
+        reflectionRtSbtRecordCount = state.reflectionRtSbtRecordCount;
     }
 
     private int composeReflectionExecutionMode(
@@ -2787,73 +2797,28 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             boolean planarSelectiveEligible,
             boolean transparencyCandidatesPresent
     ) {
-        int mode = configuredMode & (REFLECTION_MODE_BASE_MASK
-                | REFLECTION_MODE_HIZ_BIT
-                | REFLECTION_MODE_DENOISE_MASK
-                | REFLECTION_MODE_PLANAR_CLIP_BIT
-                | REFLECTION_MODE_PROBE_VOLUME_BIT
-                | REFLECTION_MODE_PROBE_BOX_BIT
-                | REFLECTION_MODE_RT_REQUEST_BIT);
-        if (rtLaneActive && reflectionRtMultiBounceEnabled) {
-            mode |= REFLECTION_MODE_RT_MULTI_BOUNCE_BIT;
-        }
-        if (rtLaneActive) {
-            mode |= REFLECTION_MODE_RT_ACTIVE_BIT;
-            if (reflectionRtDedicatedDenoisePipelineEnabled) {
-                mode |= REFLECTION_MODE_RT_DEDICATED_DENOISE_BIT;
-            }
-        }
-        if (reflectionRtDedicatedHardwarePipelineActive
-                || (mockContext && rtLaneActive && reflectionRtDedicatedPipelineEnabled)) {
-            mode |= REFLECTION_MODE_RT_DEDICATED_ACTIVE_BIT;
-        }
-        if (reflectionRtPromotionReadyLastFrame) {
-            mode |= REFLECTION_MODE_RT_PROMOTION_READY_BIT;
-        }
-        if (planarSelectiveEligible) {
-            mode |= REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT;
-            mode |= REFLECTION_MODE_PLANAR_CAPTURE_EXEC_BIT;
-            mode |= REFLECTION_MODE_PLANAR_GEOMETRY_CAPTURE_BIT;
-        }
-        if (reflectionPlanarScopeIncludeAuto) {
-            mode |= REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_AUTO_BIT;
-        }
-        if (reflectionPlanarScopeIncludeProbeOnly) {
-            mode |= REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_PROBE_ONLY_BIT;
-        }
-        if (reflectionPlanarScopeIncludeSsrOnly) {
-            mode |= REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_SSR_ONLY_BIT;
-        }
-        if (reflectionPlanarScopeIncludeOther) {
-            mode |= REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_OTHER_BIT;
-        }
-        if (transparencyCandidatesPresent) {
-            mode |= REFLECTION_MODE_TRANSPARENCY_INTEGRATION_BIT;
-        }
-        if (isReflectionSpaceReprojectionPolicyActive()) {
-            mode |= REFLECTION_MODE_REPROJECTION_REFLECTION_SPACE_BIT;
-        }
-        if (isStrictReflectionHistoryRejectPolicyActive()) {
-            mode |= REFLECTION_MODE_HISTORY_STRICT_REJECT_BIT;
-        }
-        if (isDisocclusionRejectPolicyActive()) {
-            mode |= REFLECTION_MODE_DISOCCLUSION_REJECT_BIT;
-        }
-        return mode;
-    }
-
-    private boolean isReflectionSpaceReprojectionPolicyActive() {
-        return "reflection_space_reject".equals(reflectionSsrTaaReprojectionPolicyActive)
-                || "reflection_space_bias".equals(reflectionSsrTaaReprojectionPolicyActive);
-    }
-
-    private boolean isStrictReflectionHistoryRejectPolicyActive() {
-        return "reflection_disocclusion_reject".equals(reflectionSsrTaaHistoryPolicyActive)
-                || "reflection_region_reject".equals(reflectionSsrTaaHistoryPolicyActive);
-    }
-
-    private boolean isDisocclusionRejectPolicyActive() {
-        return "reflection_disocclusion_reject".equals(reflectionSsrTaaHistoryPolicyActive);
+        VulkanReflectionRtStateMachine.State state = new VulkanReflectionRtStateMachine.State();
+        state.currentPost = currentPost;
+        state.mockContext = mockContext;
+        state.reflectionRtSingleBounceEnabled = reflectionRtSingleBounceEnabled;
+        state.reflectionRtMultiBounceEnabled = reflectionRtMultiBounceEnabled;
+        state.reflectionRtDedicatedPipelineEnabled = reflectionRtDedicatedPipelineEnabled;
+        state.reflectionRtDedicatedDenoisePipelineEnabled = reflectionRtDedicatedDenoisePipelineEnabled;
+        state.reflectionRtPromotionReadyLastFrame = reflectionRtPromotionReadyLastFrame;
+        state.reflectionPlanarScopeIncludeAuto = reflectionPlanarScopeIncludeAuto;
+        state.reflectionPlanarScopeIncludeProbeOnly = reflectionPlanarScopeIncludeProbeOnly;
+        state.reflectionPlanarScopeIncludeSsrOnly = reflectionPlanarScopeIncludeSsrOnly;
+        state.reflectionPlanarScopeIncludeOther = reflectionPlanarScopeIncludeOther;
+        state.reflectionSsrTaaReprojectionPolicyActive = reflectionSsrTaaReprojectionPolicyActive;
+        state.reflectionSsrTaaHistoryPolicyActive = reflectionSsrTaaHistoryPolicyActive;
+        state.reflectionRtDedicatedHardwarePipelineActive = reflectionRtDedicatedHardwarePipelineActive;
+        return VulkanReflectionRtStateMachine.composeExecutionMode(
+                state,
+                configuredMode,
+                rtLaneActive,
+                planarSelectiveEligible,
+                transparencyCandidatesPresent
+        );
     }
 
     private void resetReflectionAdaptiveState() {
