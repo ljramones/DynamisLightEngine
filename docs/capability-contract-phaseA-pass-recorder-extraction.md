@@ -12,6 +12,11 @@ Extract feature-owned pass recorders with zero rendering behavior change.
 - Added `VulkanShadowMainPassRecorder` wrapper for shadow/main recording.
 - Added `VulkanPostCompositePassRecorder` wrapper for post composite recording.
 - Updated `VulkanFrameCommandOrchestrator` to delegate to these recorders.
+- Added module-level post boundaries in `VulkanPostCompositePassRecorder` for:
+  - tonemap / bloom / SSAO
+  - AA resolve (TAA)
+  - reflection resolve
+- Added `VulkanPostModulePlan` metadata output for active/pruned module tracking.
 
 ## Behavior boundary
 
@@ -19,9 +24,7 @@ Extract feature-owned pass recorders with zero rendering behavior change.
 - No pass ordering changes.
 - No shader/descriptor/runtime behavior changes.
 
-## Next in Phase A
+## Phase A closeout
 
-- Split wrappers into per-feature ownership boundaries aligned with capability catalog:
-  - post modules (tonemap/bloom/ssao/smaa/taa/fog)
-  - reflection module recorder boundary
-  - AA resolve recorder boundary
+- Phase A structural extraction goals in this lane are complete.
+- Next migration stage is Phase B (graph build/validation/lifetime orchestration).

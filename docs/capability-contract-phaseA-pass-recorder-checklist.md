@@ -20,5 +20,5 @@ Scope target: structural extraction only, zero behavior change
 
 ## 4. Next
 
-- [ ] Decompose post composite wrapper into module-level recorder boundaries.
-- [ ] Decompose reflection/AA recorder boundaries for graph-ready ownership.
+- [x] Decompose post composite wrapper into module-level recorder boundaries.
+- [x] Decompose reflection/AA recorder boundaries for graph-ready ownership.
