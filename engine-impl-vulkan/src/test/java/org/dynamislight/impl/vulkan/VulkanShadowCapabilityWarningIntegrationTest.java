@@ -239,6 +239,9 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("hybridContactShareWarnMin=0.06"), profileWarning);
             assertTrue(profileWarning.contains("hybridWarnMinFrames=2"), profileWarning);
             assertTrue(profileWarning.contains("hybridWarnCooldownFrames=60"), profileWarning);
+            assertTrue(profileWarning.contains("transparentReceiverCandidateRatioWarnMax=0.35"), profileWarning);
+            assertTrue(profileWarning.contains("transparentReceiverWarnMinFrames=2"), profileWarning);
+            assertTrue(profileWarning.contains("transparentReceiverWarnCooldownFrames=60"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.35, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(2, cadence.warnMinFrames());
@@ -257,6 +260,10 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals(0.06, hybrid.contactShareWarnMin(), 1e-6);
             assertEquals(2, hybrid.warnMinFrames());
             assertEquals(60, hybrid.warnCooldownFrames());
+            var transparent = runtime.shadowTransparentReceiverDiagnostics();
+            assertEquals(0.35, transparent.candidateRatioWarnMax(), 1e-6);
+            assertEquals(2, transparent.warnMinFrames());
+            assertEquals(60, transparent.warnCooldownFrames());
         } finally {
             runtime.shutdown();
         }
@@ -289,7 +296,10 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                     Map.entry("vulkan.shadow.hybridRtShareWarnMin", "0.45"),
                     Map.entry("vulkan.shadow.hybridContactShareWarnMin", "0.30"),
                     Map.entry("vulkan.shadow.hybridWarnMinFrames", "6"),
-                    Map.entry("vulkan.shadow.hybridWarnCooldownFrames", "70")
+                    Map.entry("vulkan.shadow.hybridWarnCooldownFrames", "70"),
+                    Map.entry("vulkan.shadow.transparentReceiverCandidateRatioWarnMax", "0.22"),
+                    Map.entry("vulkan.shadow.transparentReceiverWarnMinFrames", "5"),
+                    Map.entry("vulkan.shadow.transparentReceiverWarnCooldownFrames", "88")
             ), QualityTier.ULTRA), new NoopCallbacks());
             runtime.loadScene(validThreeSpotShadowScene());
             var frame = runtime.render();
@@ -316,6 +326,9 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("hybridContactShareWarnMin=0.3"), profileWarning);
             assertTrue(profileWarning.contains("hybridWarnMinFrames=6"), profileWarning);
             assertTrue(profileWarning.contains("hybridWarnCooldownFrames=70"), profileWarning);
+            assertTrue(profileWarning.contains("transparentReceiverCandidateRatioWarnMax=0.22"), profileWarning);
+            assertTrue(profileWarning.contains("transparentReceiverWarnMinFrames=5"), profileWarning);
+            assertTrue(profileWarning.contains("transparentReceiverWarnCooldownFrames=88"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.22, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(7, cadence.warnMinFrames());
@@ -343,6 +356,10 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals(0.30, hybrid.contactShareWarnMin(), 1e-6);
             assertEquals(6, hybrid.warnMinFrames());
             assertEquals(70, hybrid.warnCooldownFrames());
+            var transparent = runtime.shadowTransparentReceiverDiagnostics();
+            assertEquals(0.22, transparent.candidateRatioWarnMax(), 1e-6);
+            assertEquals(5, transparent.warnMinFrames());
+            assertEquals(88, transparent.warnCooldownFrames());
         } finally {
             runtime.shutdown();
         }
@@ -430,6 +447,32 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(hybrid.available());
             assertTrue(hybrid.hybridModeActive());
             assertTrue(hybrid.envelopeBreachedLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void shadowTransparentReceiverEnvelopeBreachGateTriggersWithAggressiveThresholds() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.transparentReceiversEnabled", "true"),
+                    Map.entry("vulkan.shadow.transparentReceiverCandidateRatioWarnMax", "0.01"),
+                    Map.entry("vulkan.shadow.transparentReceiverWarnMinFrames", "1"),
+                    Map.entry("vulkan.shadow.transparentReceiverWarnCooldownFrames", "0")
+            )), new NoopCallbacks());
+            runtime.loadScene(validAlphaTestedShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_TRANSPARENT_RECEIVER_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH".equals(w.code())));
+            var transparent = runtime.shadowTransparentReceiverDiagnostics();
+            assertTrue(transparent.available());
+            assertTrue(transparent.requested());
+            assertFalse(transparent.supported());
+            assertTrue(transparent.envelopeBreachedLastFrame());
+            assertEquals("fallback_opaque_only", transparent.activePolicy());
         } finally {
             runtime.shutdown();
         }
@@ -619,6 +662,41 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                 List.of(mesh),
                 List.of(material),
                 List.of(lightA, lightB, lightC),
+                environment,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validAlphaTestedShadowScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "matAlpha", "mesh.glb");
+        MaterialDesc material = new MaterialDesc(
+                "matAlpha",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0f,
+                true,
+                false
+        );
+        ShadowDesc shadow = new ShadowDesc(1024, 0.0015f, 1, 4);
+        LightDesc light = new LightDesc("spotAlpha", new Vec3(1, 3, 2), new Vec3(1, 1, 1), 1.0f, 20f, true, shadow, LightType.SPOT);
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        return new SceneDescriptor(
+                "shadow-transparent-receiver-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(material),
+                List.of(light),
                 environment,
                 fog,
                 List.<SmokeEmitterDesc>of()

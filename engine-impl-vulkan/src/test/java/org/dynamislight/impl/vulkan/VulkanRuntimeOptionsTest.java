@@ -55,6 +55,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.hybridContactShareWarnMin", "0.14"),
                         Map.entry("vulkan.shadow.hybridWarnMinFrames", "7"),
                         Map.entry("vulkan.shadow.hybridWarnCooldownFrames", "123"),
+                        Map.entry("vulkan.shadow.transparentReceiversEnabled", "true"),
+                        Map.entry("vulkan.shadow.transparentReceiverCandidateRatioWarnMax", "0.24"),
+                        Map.entry("vulkan.shadow.transparentReceiverWarnMinFrames", "6"),
+                        Map.entry("vulkan.shadow.transparentReceiverWarnCooldownFrames", "131"),
                         Map.entry("vulkan.shadow.directionalTexelSnapEnabled", "false"),
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "1.75"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "2"),
@@ -195,6 +199,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.14, parsed.shadowHybridContactShareWarnMin());
         assertEquals(7, parsed.shadowHybridWarnMinFrames());
         assertEquals(123, parsed.shadowHybridWarnCooldownFrames());
+        assertEquals(true, parsed.shadowTransparentReceiversEnabled());
+        assertEquals(0.24, parsed.shadowTransparentReceiverCandidateRatioWarnMax());
+        assertEquals(6, parsed.shadowTransparentReceiverWarnMinFrames());
+        assertEquals(131, parsed.shadowTransparentReceiverWarnCooldownFrames());
         assertEquals(false, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(1.75f, parsed.shadowDirectionalTexelSnapScale());
         assertEquals(2, parsed.reflectionProbeChurnWarnMinDelta());
@@ -326,6 +334,9 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.hybridContactShareWarnMin", "-1.0"),
                         Map.entry("vulkan.shadow.hybridWarnMinFrames", "0"),
                         Map.entry("vulkan.shadow.hybridWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.shadow.transparentReceiverCandidateRatioWarnMax", "2.0"),
+                        Map.entry("vulkan.shadow.transparentReceiverWarnMinFrames", "0"),
+                        Map.entry("vulkan.shadow.transparentReceiverWarnCooldownFrames", "999999"),
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "10.0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "0"),
@@ -455,6 +466,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.0, parsed.shadowHybridContactShareWarnMin());
         assertEquals(1, parsed.shadowHybridWarnMinFrames());
         assertEquals(10000, parsed.shadowHybridWarnCooldownFrames());
+        assertEquals(false, parsed.shadowTransparentReceiversEnabled());
+        assertEquals(1.0, parsed.shadowTransparentReceiverCandidateRatioWarnMax());
+        assertEquals(1, parsed.shadowTransparentReceiverWarnMinFrames());
+        assertEquals(10000, parsed.shadowTransparentReceiverWarnCooldownFrames());
         assertEquals(true, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(4.0f, parsed.shadowDirectionalTexelSnapScale());
         assertEquals(1, parsed.reflectionProbeChurnWarnMinDelta());

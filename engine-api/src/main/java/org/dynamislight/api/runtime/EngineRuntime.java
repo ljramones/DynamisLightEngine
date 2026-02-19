@@ -255,6 +255,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic transparent shadow receiver diagnostics.
+     *
+     * Backends that do not expose transparent receiver diagnostics return
+     * {@link ShadowTransparentReceiverDiagnostics#unavailable()}.
+     *
+     * @return current transparent shadow receiver diagnostics snapshot.
+     */
+    default ShadowTransparentReceiverDiagnostics shadowTransparentReceiverDiagnostics() {
+        return ShadowTransparentReceiverDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

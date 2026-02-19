@@ -25,6 +25,7 @@ import org.dynamislight.api.runtime.ShadowPointBudgetDiagnostics;
 import org.dynamislight.api.runtime.ShadowRtDiagnostics;
 import org.dynamislight.api.runtime.ShadowHybridDiagnostics;
 import org.dynamislight.api.runtime.ShadowSpotProjectedDiagnostics;
+import org.dynamislight.api.runtime.ShadowTransparentReceiverDiagnostics;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
@@ -233,6 +234,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double shadowHybridContactShareWarnMin = 0.10;
     private int shadowHybridWarnMinFrames = 3;
     private int shadowHybridWarnCooldownFrames = 120;
+    private boolean shadowTransparentReceiversRequested;
+    private final boolean shadowTransparentReceiversSupported = false;
+    private double shadowTransparentReceiverCandidateRatioWarnMax = 0.20;
+    private int shadowTransparentReceiverWarnMinFrames = 3;
+    private int shadowTransparentReceiverWarnCooldownFrames = 120;
     private boolean shadowDirectionalTexelSnapEnabled = true;
     private float shadowDirectionalTexelSnapScale = 1.0f;
     private long shadowSchedulerFrameTick;
@@ -276,6 +282,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowHybridHighStreak;
     private int shadowHybridWarnCooldownRemaining;
     private boolean shadowHybridEnvelopeBreachedLastFrame;
+    private int shadowTransparentReceiverCandidateCountLastFrame;
+    private double shadowTransparentReceiverCandidateRatioLastFrame;
+    private String shadowTransparentReceiverPolicyLastFrame = "unavailable";
+    private int shadowTransparentReceiverHighStreak;
+    private int shadowTransparentReceiverWarnCooldownRemaining;
+    private boolean shadowTransparentReceiverEnvelopeBreachedLastFrame;
     private boolean shadowSpotProjectedRequestedLastFrame;
     private boolean shadowSpotProjectedActiveLastFrame;
     private int shadowSpotProjectedRenderedCountLastFrame;
@@ -596,6 +608,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowHybridContactShareWarnMin = options.shadowHybridContactShareWarnMin();
         shadowHybridWarnMinFrames = options.shadowHybridWarnMinFrames();
         shadowHybridWarnCooldownFrames = options.shadowHybridWarnCooldownFrames();
+        shadowTransparentReceiversRequested = options.shadowTransparentReceiversEnabled();
+        shadowTransparentReceiverCandidateRatioWarnMax = options.shadowTransparentReceiverCandidateRatioWarnMax();
+        shadowTransparentReceiverWarnMinFrames = options.shadowTransparentReceiverWarnMinFrames();
+        shadowTransparentReceiverWarnCooldownFrames = options.shadowTransparentReceiverWarnCooldownFrames();
         shadowDirectionalTexelSnapEnabled = options.shadowDirectionalTexelSnapEnabled();
         shadowDirectionalTexelSnapScale = options.shadowDirectionalTexelSnapScale();
         reflectionProbeChurnWarnMinDelta = options.reflectionProbeChurnWarnMinDelta();
@@ -1208,6 +1224,24 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowHybridHighStreak,
                 shadowHybridWarnCooldownRemaining,
                 shadowHybridEnvelopeBreachedLastFrame
+        );
+    }
+
+    @Override
+    protected ShadowTransparentReceiverDiagnostics backendShadowTransparentReceiverDiagnostics() {
+        return new ShadowTransparentReceiverDiagnostics(
+                shadowCapabilityDiagnostics().available(),
+                shadowTransparentReceiversRequested,
+                shadowTransparentReceiversSupported,
+                shadowTransparentReceiverPolicyLastFrame,
+                shadowTransparentReceiverCandidateCountLastFrame,
+                shadowTransparentReceiverCandidateRatioLastFrame,
+                shadowTransparentReceiverCandidateRatioWarnMax,
+                shadowTransparentReceiverWarnMinFrames,
+                shadowTransparentReceiverWarnCooldownFrames,
+                shadowTransparentReceiverHighStreak,
+                shadowTransparentReceiverWarnCooldownRemaining,
+                shadowTransparentReceiverEnvelopeBreachedLastFrame
         );
     }
 
@@ -2484,6 +2518,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowHybridContactShareLastFrame = 0.0;
         shadowHybridRtShareLastFrame = 0.0;
         shadowHybridEnvelopeBreachedLastFrame = false;
+        shadowTransparentReceiverCandidateCountLastFrame = 0;
+        shadowTransparentReceiverCandidateRatioLastFrame = 0.0;
+        shadowTransparentReceiverPolicyLastFrame = shadowTransparentReceiversSupported ? "enabled" : "fallback_opaque_only";
+        shadowTransparentReceiverEnvelopeBreachedLastFrame = false;
         shadowSpotProjectedRequestedLastFrame = false;
         shadowSpotProjectedActiveLastFrame = false;
         shadowSpotProjectedRenderedCountLastFrame = 0;
@@ -2504,6 +2542,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (shadowHybridWarnCooldownRemaining > 0) {
             shadowHybridWarnCooldownRemaining--;
         }
+        if (shadowTransparentReceiverWarnCooldownRemaining > 0) {
+            shadowTransparentReceiverWarnCooldownRemaining--;
+        }
         if (!currentShadows.enabled()) {
             shadowCadenceHighStreak = 0;
             shadowCadenceWarnCooldownRemaining = 0;
@@ -2515,6 +2556,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             shadowRtWarnCooldownRemaining = 0;
             shadowHybridHighStreak = 0;
             shadowHybridWarnCooldownRemaining = 0;
+            shadowTransparentReceiverHighStreak = 0;
+            shadowTransparentReceiverWarnCooldownRemaining = 0;
         }
         if (currentShadows.enabled()) {
             VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
@@ -2602,6 +2645,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", hybridContactShareWarnMin=" + shadowHybridContactShareWarnMin
                             + ", hybridWarnMinFrames=" + shadowHybridWarnMinFrames
                             + ", hybridWarnCooldownFrames=" + shadowHybridWarnCooldownFrames
+                            + ", transparentReceiversRequested=" + shadowTransparentReceiversRequested
+                            + ", transparentReceiversSupported=" + shadowTransparentReceiversSupported
+                            + ", transparentReceiverCandidateRatioWarnMax=" + shadowTransparentReceiverCandidateRatioWarnMax
+                            + ", transparentReceiverWarnMinFrames=" + shadowTransparentReceiverWarnMinFrames
+                            + ", transparentReceiverWarnCooldownFrames=" + shadowTransparentReceiverWarnCooldownFrames
                             + ")"
             ));
             warnings.add(new EngineWarning(
@@ -2800,6 +2848,56 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", cooldownFrames=" + shadowHybridWarnCooldownFrames + ")"
                 ));
                 shadowHybridWarnCooldownRemaining = shadowHybridWarnCooldownFrames;
+            }
+            int transparentCandidateCount = 0;
+            if (currentSceneMaterials != null) {
+                for (MaterialDesc material : currentSceneMaterials) {
+                    if (material != null && material.alphaTested()) {
+                        transparentCandidateCount++;
+                    }
+                }
+            }
+            shadowTransparentReceiverCandidateCountLastFrame = transparentCandidateCount;
+            shadowTransparentReceiverCandidateRatioLastFrame = currentSceneMaterials == null || currentSceneMaterials.isEmpty()
+                    ? 0.0
+                    : (double) transparentCandidateCount / (double) currentSceneMaterials.size();
+            shadowTransparentReceiverPolicyLastFrame = shadowTransparentReceiversRequested
+                    ? (shadowTransparentReceiversSupported ? "enabled" : "fallback_opaque_only")
+                    : "disabled";
+            boolean transparentEnvelopeNow = shadowTransparentReceiversRequested
+                    && !shadowTransparentReceiversSupported
+                    && shadowTransparentReceiverCandidateRatioLastFrame > shadowTransparentReceiverCandidateRatioWarnMax;
+            if (transparentEnvelopeNow) {
+                shadowTransparentReceiverHighStreak = Math.min(10_000, shadowTransparentReceiverHighStreak + 1);
+                shadowTransparentReceiverEnvelopeBreachedLastFrame = true;
+            } else {
+                shadowTransparentReceiverHighStreak = 0;
+            }
+            warnings.add(new EngineWarning(
+                    "SHADOW_TRANSPARENT_RECEIVER_POLICY",
+                    "Shadow transparent receiver policy (requested=" + shadowTransparentReceiversRequested
+                            + ", supported=" + shadowTransparentReceiversSupported
+                            + ", activePolicy=" + shadowTransparentReceiverPolicyLastFrame
+                            + ", candidateMaterials=" + shadowTransparentReceiverCandidateCountLastFrame
+                            + ", candidateRatio=" + shadowTransparentReceiverCandidateRatioLastFrame
+                            + ", candidateRatioWarnMax=" + shadowTransparentReceiverCandidateRatioWarnMax
+                            + ", warnMinFrames=" + shadowTransparentReceiverWarnMinFrames
+                            + ", cooldownRemaining=" + shadowTransparentReceiverWarnCooldownRemaining + ")"
+            ));
+            if (transparentEnvelopeNow
+                    && shadowTransparentReceiverHighStreak >= shadowTransparentReceiverWarnMinFrames
+                    && shadowTransparentReceiverWarnCooldownRemaining == 0) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH",
+                        "Shadow transparent receiver envelope breached (requested=true, supported=false"
+                                + ", candidateMaterials=" + shadowTransparentReceiverCandidateCountLastFrame
+                                + ", candidateRatio=" + shadowTransparentReceiverCandidateRatioLastFrame
+                                + ", candidateRatioWarnMax=" + shadowTransparentReceiverCandidateRatioWarnMax
+                                + ", highStreak=" + shadowTransparentReceiverHighStreak
+                                + ", warnMinFrames=" + shadowTransparentReceiverWarnMinFrames
+                                + ", cooldownFrames=" + shadowTransparentReceiverWarnCooldownFrames + ")"
+                ));
+                shadowTransparentReceiverWarnCooldownRemaining = shadowTransparentReceiverWarnCooldownFrames;
             }
             String momentPhase = "pending";
             if (context.hasShadowMomentResources()) {
@@ -4938,6 +5036,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridContactShareWarnMin")) shadowHybridContactShareWarnMin = 0.18;
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridWarnMinFrames")) shadowHybridWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridWarnCooldownFrames")) shadowHybridWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.10;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 180;
             }
             case MEDIUM -> {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.55;
@@ -4962,6 +5063,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridContactShareWarnMin")) shadowHybridContactShareWarnMin = 0.10;
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridWarnMinFrames")) shadowHybridWarnMinFrames = 3;
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridWarnCooldownFrames")) shadowHybridWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.20;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 120;
             }
             case HIGH -> {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.45;
@@ -4986,6 +5090,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridContactShareWarnMin")) shadowHybridContactShareWarnMin = 0.08;
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridWarnMinFrames")) shadowHybridWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridWarnCooldownFrames")) shadowHybridWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.28;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 90;
             }
             case ULTRA -> {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.35;
@@ -5010,6 +5117,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridContactShareWarnMin")) shadowHybridContactShareWarnMin = 0.06;
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridWarnMinFrames")) shadowHybridWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.hybridWarnCooldownFrames")) shadowHybridWarnCooldownFrames = 60;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.35;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 60;
             }
         }
     }

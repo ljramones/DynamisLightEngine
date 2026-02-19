@@ -56,6 +56,7 @@ Shadow notes:
 - Engine runtime API now exposes typed shadow-cache diagnostics (`shadowCacheDiagnostics()`), and Vulkan emits cache policy/churn warnings (`SHADOW_CACHE_POLICY_ACTIVE`, `SHADOW_CACHE_CHURN_HIGH`) including invalidation reason telemetry with cooldown-gated CI breach signaling.
 - Engine runtime API now exposes typed shadow RT diagnostics (`shadowRtDiagnostics()`), and Vulkan emits RT denoise/perf envelope warnings (`SHADOW_RT_DENOISE_ENVELOPE`, `SHADOW_RT_DENOISE_ENVELOPE_BREACH`) with tier-locked thresholds and override precedence.
 - Engine runtime API now exposes typed shadow hybrid diagnostics (`shadowHybridDiagnostics()`), and Vulkan emits hybrid composition-share telemetry/warnings (`SHADOW_HYBRID_COMPOSITION`, `SHADOW_HYBRID_COMPOSITION_BREACH`) with tier-locked share-envelope thresholds.
+- Engine runtime API now exposes typed transparent receiver diagnostics (`shadowTransparentReceiverDiagnostics()`), and Vulkan now emits transparent receiver policy/envelope warnings (`SHADOW_TRANSPARENT_RECEIVER_POLICY`, `SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH`) with explicit `fallback_opaque_only` policy when requested support is unavailable.
 
 ## Reflections
 

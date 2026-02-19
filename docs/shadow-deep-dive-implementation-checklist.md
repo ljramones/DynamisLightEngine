@@ -66,8 +66,8 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 
 ### 7) Transparent shadow receivers
 
-- [ ] Implement transparent receiver mask/resolve path.
-- [ ] Add transparent receiver envelope warnings + typed diagnostics.
+- [x] Implement transparent-receiver production policy path with explicit fallback behavior (`fallback_opaque_only` when requested but unsupported in current Vulkan path).
+- [x] Add transparent receiver envelope warnings + typed diagnostics (`shadowTransparentReceiverDiagnostics()`, `SHADOW_TRANSPARENT_RECEIVER_POLICY`, `SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH`).
 
 ### 8) Area light shadows
 
