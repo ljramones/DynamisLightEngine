@@ -68,6 +68,23 @@ permissions:
   contents: read
 
 jobs:
+  structure-guardrails:
+    name: Structure Guardrails (JDK 25, ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run structure guardrails (Vulkan scope)
+        run: bash ./scripts/java_structure_guardrails.sh
+
   build-and-test:
     name: Build and Test (JDK 25, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}

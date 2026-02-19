@@ -23,6 +23,7 @@ Goal: keep maintainability guardrails active while continuing capability work.
 - [x] Baseline current Vulkan root package direct class count.
 - [x] Record guardrail policy in docs.
 - [x] Update wishlist with infrastructure guardrail status.
+- [x] Wire CI lane for guardrail enforcement (`.github/workflows/ci.yml` job: `structure-guardrails`).
 - [x] Run guardrail script locally and keep output clean.
 - [x] Run focused Vulkan verification (`compile` + key integration test).
 
@@ -39,5 +40,5 @@ mvn -pl engine-impl-vulkan -am -Dtest=VulkanEngineRuntimeIntegrationTest -Dsuref
 ## Next Phase (follow-up)
 
 - Add module-specific package-count caps for other hotspots when needed.
-- Add CI workflow lane invoking `scripts/java_structure_guardrails.sh` on PRs.
+- Add optional non-blocking full-tree audit lane (`SCOPE=all`) after OpenGL large-class refactors.
 - Continue splitting files that approach `1200+` lines before they reach hard limit.
