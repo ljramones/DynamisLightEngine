@@ -2868,87 +2868,70 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             float baseSsrStepScale,
             double severity
     ) {
-        reflectionAdaptiveSeverityInstant = Math.max(0.0, Math.min(1.0, severity));
-        reflectionAdaptiveSeverityPeak = Math.max(reflectionAdaptiveSeverityPeak, reflectionAdaptiveSeverityInstant);
-        reflectionAdaptiveTelemetrySamples++;
-        reflectionAdaptiveSeverityAccum += reflectionAdaptiveSeverityInstant;
-        double temporalDelta = reflectionAdaptiveTemporalWeightActive - baseTemporalWeight;
-        double ssrStrengthDelta = reflectionAdaptiveSsrStrengthActive - baseSsrStrength;
-        double ssrStepScaleDelta = reflectionAdaptiveSsrStepScaleActive - baseSsrStepScale;
-        reflectionAdaptiveTemporalDeltaAccum += temporalDelta;
-        reflectionAdaptiveSsrStrengthDeltaAccum += ssrStrengthDelta;
-        reflectionAdaptiveSsrStepScaleDeltaAccum += ssrStepScaleDelta;
-        reflectionAdaptiveTrendSamples.addLast(new ReflectionAdaptiveWindowSample(
-                reflectionAdaptiveSeverityInstant,
-                temporalDelta,
-                ssrStrengthDelta,
-                ssrStepScaleDelta
-        ));
-        while (reflectionAdaptiveTrendSamples.size() > reflectionSsrTaaAdaptiveTrendWindowFrames) {
-            reflectionAdaptiveTrendSamples.removeFirst();
-        }
+        VulkanReflectionAdaptiveTrendEngine.State state = createReflectionAdaptiveTrendState();
+        VulkanReflectionAdaptiveTrendEngine.recordSample(state, baseTemporalWeight, baseSsrStrength, baseSsrStepScale, severity);
+        applyReflectionAdaptiveTrendState(state);
     }
 
     private void resetReflectionAdaptiveTelemetryMetrics() {
-        reflectionAdaptiveSeverityInstant = 0.0;
-        reflectionAdaptiveSeverityPeak = 0.0;
-        reflectionAdaptiveSeverityAccum = 0.0;
-        reflectionAdaptiveTemporalDeltaAccum = 0.0;
-        reflectionAdaptiveSsrStrengthDeltaAccum = 0.0;
-        reflectionAdaptiveSsrStepScaleDeltaAccum = 0.0;
-        reflectionAdaptiveTelemetrySamples = 0L;
-        reflectionSsrTaaAdaptiveTrendWarnHighStreak = 0;
-        reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining = 0;
-        reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = false;
-        reflectionAdaptiveTrendSamples.clear();
+        VulkanReflectionAdaptiveTrendEngine.State state = createReflectionAdaptiveTrendState();
+        VulkanReflectionAdaptiveTrendEngine.resetTelemetry(state);
+        applyReflectionAdaptiveTrendState(state);
     }
 
     private ReflectionAdaptiveTrendDiagnostics snapshotReflectionAdaptiveTrendDiagnostics(boolean warningTriggered) {
-        return VulkanReflectionAdaptiveMath.snapshotTrendDiagnostics(
-                reflectionAdaptiveTrendSamples,
-                reflectionSsrTaaAdaptiveTrendHighRatioWarnMin,
-                reflectionSsrTaaAdaptiveTrendWarnMinFrames,
-                reflectionSsrTaaAdaptiveTrendWarnCooldownFrames,
-                reflectionSsrTaaAdaptiveTrendWarnMinSamples,
-                reflectionSsrTaaAdaptiveTrendWarnHighStreak,
-                reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining,
-                warningTriggered
-        );
+        return VulkanReflectionAdaptiveTrendEngine.snapshotTrend(createReflectionAdaptiveTrendState(), warningTriggered);
     }
 
     private boolean updateReflectionAdaptiveTrendWarningGate() {
-        ReflectionAdaptiveTrendDiagnostics trend = snapshotReflectionAdaptiveTrendDiagnostics(false);
-        boolean highRisk = trend.windowSamples() >= reflectionSsrTaaAdaptiveTrendWarnMinSamples
-                && trend.highRatio() >= reflectionSsrTaaAdaptiveTrendHighRatioWarnMin;
-        boolean warningTriggered = false;
-        if (highRisk) {
-            reflectionSsrTaaAdaptiveTrendWarnHighStreak++;
-            if (reflectionSsrTaaAdaptiveTrendWarnHighStreak >= reflectionSsrTaaAdaptiveTrendWarnMinFrames
-                    && reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining <= 0) {
-                reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining = reflectionSsrTaaAdaptiveTrendWarnCooldownFrames;
-                warningTriggered = true;
-            }
-        } else {
-            reflectionSsrTaaAdaptiveTrendWarnHighStreak = 0;
-        }
-        if (reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining > 0) {
-            reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining--;
-        }
-        reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = warningTriggered;
+        VulkanReflectionAdaptiveTrendEngine.State state = createReflectionAdaptiveTrendState();
+        boolean warningTriggered = VulkanReflectionAdaptiveTrendEngine.updateWarningGate(state);
+        applyReflectionAdaptiveTrendState(state);
         return warningTriggered;
     }
 
     private TrendSloAudit evaluateReflectionAdaptiveTrendSlo(ReflectionAdaptiveTrendDiagnostics trend) {
-        if (trend.windowSamples() < reflectionSsrTaaAdaptiveTrendSloMinSamples) {
-            return new TrendSloAudit("pending", "insufficient_samples", false);
-        }
-        if (trend.meanSeverity() > reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax) {
-            return new TrendSloAudit("fail", "mean_severity_exceeded", true);
-        }
-        if (trend.highRatio() > reflectionSsrTaaAdaptiveTrendSloHighRatioMax) {
-            return new TrendSloAudit("fail", "high_ratio_exceeded", true);
-        }
-        return new TrendSloAudit("pass", "within_thresholds", false);
+        return VulkanReflectionAdaptiveTrendEngine.evaluateSlo(createReflectionAdaptiveTrendState(), trend);
+    }
+
+    private VulkanReflectionAdaptiveTrendEngine.State createReflectionAdaptiveTrendState() {
+        VulkanReflectionAdaptiveTrendEngine.State state = new VulkanReflectionAdaptiveTrendEngine.State();
+        state.reflectionAdaptiveSeverityInstant = reflectionAdaptiveSeverityInstant;
+        state.reflectionAdaptiveSeverityPeak = reflectionAdaptiveSeverityPeak;
+        state.reflectionAdaptiveSeverityAccum = reflectionAdaptiveSeverityAccum;
+        state.reflectionAdaptiveTemporalDeltaAccum = reflectionAdaptiveTemporalDeltaAccum;
+        state.reflectionAdaptiveSsrStrengthDeltaAccum = reflectionAdaptiveSsrStrengthDeltaAccum;
+        state.reflectionAdaptiveSsrStepScaleDeltaAccum = reflectionAdaptiveSsrStepScaleDeltaAccum;
+        state.reflectionAdaptiveTelemetrySamples = reflectionAdaptiveTelemetrySamples;
+        state.reflectionSsrTaaAdaptiveTrendWarnHighStreak = reflectionSsrTaaAdaptiveTrendWarnHighStreak;
+        state.reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining = reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining;
+        state.reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame;
+        state.reflectionSsrTaaAdaptiveTrendWindowFrames = reflectionSsrTaaAdaptiveTrendWindowFrames;
+        state.reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = reflectionSsrTaaAdaptiveTrendHighRatioWarnMin;
+        state.reflectionSsrTaaAdaptiveTrendWarnMinFrames = reflectionSsrTaaAdaptiveTrendWarnMinFrames;
+        state.reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = reflectionSsrTaaAdaptiveTrendWarnCooldownFrames;
+        state.reflectionSsrTaaAdaptiveTrendWarnMinSamples = reflectionSsrTaaAdaptiveTrendWarnMinSamples;
+        state.reflectionSsrTaaAdaptiveTrendSloMinSamples = reflectionSsrTaaAdaptiveTrendSloMinSamples;
+        state.reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax;
+        state.reflectionSsrTaaAdaptiveTrendSloHighRatioMax = reflectionSsrTaaAdaptiveTrendSloHighRatioMax;
+        state.reflectionAdaptiveTemporalWeightActive = reflectionAdaptiveTemporalWeightActive;
+        state.reflectionAdaptiveSsrStrengthActive = reflectionAdaptiveSsrStrengthActive;
+        state.reflectionAdaptiveSsrStepScaleActive = reflectionAdaptiveSsrStepScaleActive;
+        state.reflectionAdaptiveTrendSamples = reflectionAdaptiveTrendSamples;
+        return state;
+    }
+
+    private void applyReflectionAdaptiveTrendState(VulkanReflectionAdaptiveTrendEngine.State state) {
+        reflectionAdaptiveSeverityInstant = state.reflectionAdaptiveSeverityInstant;
+        reflectionAdaptiveSeverityPeak = state.reflectionAdaptiveSeverityPeak;
+        reflectionAdaptiveSeverityAccum = state.reflectionAdaptiveSeverityAccum;
+        reflectionAdaptiveTemporalDeltaAccum = state.reflectionAdaptiveTemporalDeltaAccum;
+        reflectionAdaptiveSsrStrengthDeltaAccum = state.reflectionAdaptiveSsrStrengthDeltaAccum;
+        reflectionAdaptiveSsrStepScaleDeltaAccum = state.reflectionAdaptiveSsrStepScaleDeltaAccum;
+        reflectionAdaptiveTelemetrySamples = state.reflectionAdaptiveTelemetrySamples;
+        reflectionSsrTaaAdaptiveTrendWarnHighStreak = state.reflectionSsrTaaAdaptiveTrendWarnHighStreak;
+        reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining = state.reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining;
+        reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = state.reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame;
     }
 
     SceneReuseStats debugSceneReuseStats() {
@@ -3314,7 +3297,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
-    private record TrendSloAudit(
+    record TrendSloAudit(
             String status,
             String reason,
             boolean failed
