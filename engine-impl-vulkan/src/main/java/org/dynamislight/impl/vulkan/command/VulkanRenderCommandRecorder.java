@@ -959,7 +959,7 @@ public final class VulkanRenderCommandRecorder {
         );
     }
 
-    private static void vkCmdPipelineBarrier(
+    static void vkCmdPipelineBarrier(
             VkCommandBuffer commandBuffer,
             int srcStageMask,
             int dstStageMask,
