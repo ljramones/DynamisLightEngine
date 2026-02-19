@@ -1613,299 +1613,112 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionPlanarPerfLastTimestampAvailable = planarState.reflectionPlanarPerfLastTimestampAvailable;
             reflectionPlanarPerfLastTimestampRequirementUnmet = planarState.reflectionPlanarPerfLastTimestampRequirementUnmet;
             refreshReflectionRtPathState(reflectionBaseMode);
-            boolean reflectionRtMultiBounceActive = reflectionRtLaneActive && reflectionRtMultiBounceEnabled;
-            if (reflectionRtLaneRequested || reflectionBaseMode == 4) {
-                warnings.add(new EngineWarning(
-                        "REFLECTION_RT_PATH_REQUESTED",
-                        "RT reflection path requested (singleBounceEnabled=" + reflectionRtSingleBounceEnabled
-                                + ", multiBounceEnabled=" + reflectionRtMultiBounceEnabled
-                                + ", multiBounceActive=" + reflectionRtMultiBounceActive
-                                + ", requireActive=" + reflectionRtRequireActive
-                                + ", requireMultiBounce=" + reflectionRtRequireMultiBounce
-                                + ", requireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline
-                                + ", dedicatedPipelineEnabled=" + reflectionRtDedicatedPipelineEnabled
-                                + ", traversalSupported=" + reflectionRtTraversalSupported
-                                + ", dedicatedCapabilitySupported=" + reflectionRtDedicatedCapabilitySupported
-                                + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
-                                + ", denoiseStrength=" + reflectionRtDenoiseStrength
-                                + ", laneActive=" + reflectionRtLaneActive
-                                + ", fallbackChain=" + reflectionRtFallbackChainActive + ")"
-                ));
-                if (reflectionRtDedicatedHardwarePipelineActive) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_RT_DEDICATED_PIPELINE_ACTIVE",
-                            "RT dedicated pipeline active (dedicatedHardwarePipelineActive=true, mockContext="
-                                    + mockContext + ", dedicatedCapabilitySupported="
-                                    + reflectionRtDedicatedCapabilitySupported + ")"
-                    ));
-                } else {
-                    warnings.add(new EngineWarning(
-                        "REFLECTION_RT_DEDICATED_PIPELINE_PENDING",
-                        "RT dedicated pipeline contract (dedicatedHardwarePipelineActive="
-                                + reflectionRtDedicatedHardwarePipelineActive
-                                + ", dedicatedPipelineEnabled=" + reflectionRtDedicatedPipelineEnabled
-                                + ", dedicatedCapabilitySupported=" + reflectionRtDedicatedCapabilitySupported
-                                + ", requireDedicatedPipeline=" + reflectionRtRequireDedicatedPipeline + ")"
-                    ));
-                }
-                warnings.add(new EngineWarning(
-                        "REFLECTION_RT_PIPELINE_LIFECYCLE",
-                        "RT pipeline lifecycle (blasState=" + reflectionRtBlasLifecycleState
-                                + ", tlasState=" + reflectionRtTlasLifecycleState
-                                + ", sbtState=" + reflectionRtSbtLifecycleState
-                                + ", blasObjectCount=" + reflectionRtBlasObjectCount
-                                + ", tlasInstanceCount=" + reflectionRtTlasInstanceCount
-                                + ", sbtRecordCount=" + reflectionRtSbtRecordCount
-                                + ", dedicatedActive=" + reflectionRtDedicatedHardwarePipelineActive + ")"
-                ));
-                if (!reflectionRtLaneActive) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_RT_PATH_FALLBACK_ACTIVE",
-                            "RT reflection lane unavailable; fallback chain active (" + reflectionRtFallbackChainActive + ")"
-                    ));
-                }
-                if (reflectionRtRequireActiveUnmetLastFrame) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_RT_PATH_REQUIRED_UNAVAILABLE_BREACH",
-                            "RT reflection lane required but unavailable (requireActive=true, fallbackChain="
-                                    + reflectionRtFallbackChainActive + ")"
-                    ));
-                }
-                if (reflectionRtRequireMultiBounceUnmetLastFrame) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_RT_MULTI_BOUNCE_REQUIRED_UNAVAILABLE_BREACH",
-                            "RT multi-bounce required but unavailable (requireMultiBounce=true, laneActive="
-                                    + reflectionRtLaneActive + ", multiBounceEnabled=" + reflectionRtMultiBounceEnabled + ")"
-                    ));
-                }
-                if (reflectionRtRequireDedicatedPipelineUnmetLastFrame) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH",
-                            "RT dedicated pipeline required but unavailable (requireDedicatedPipeline=true)"
-                    ));
-                }
-                double rtGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
-                double rtLaneWeight = reflectionRtLaneActive ? 0.45 : 0.0;
-                double bounceFactor = reflectionRtMultiBounceEnabled ? 1.35 : 1.0;
-                double denoiseFactor = reflectionRtDedicatedDenoisePipelineEnabled ? 1.08 : 1.0;
-                double rtGpuMsEstimate = Math.max(0.0, lastFrameGpuMs) * rtLaneWeight * bounceFactor * denoiseFactor;
-                boolean rtPerfRisk = rtGpuMsEstimate > rtGpuMsCap;
-                if (rtPerfRisk) {
-                    reflectionRtPerfHighStreak++;
-                } else {
-                    reflectionRtPerfHighStreak = 0;
-                }
-                boolean rtPerfTriggered = false;
-                if (reflectionRtPerfWarnCooldownRemaining > 0) {
-                    reflectionRtPerfWarnCooldownRemaining--;
-                }
-                if (rtPerfRisk
-                        && reflectionRtPerfHighStreak >= reflectionRtPerfWarnMinFrames
-                        && reflectionRtPerfWarnCooldownRemaining <= 0) {
-                    reflectionRtPerfWarnCooldownRemaining = reflectionRtPerfWarnCooldownFrames;
-                    rtPerfTriggered = true;
-                }
-                reflectionRtPerfLastGpuMsEstimate = rtGpuMsEstimate;
-                reflectionRtPerfLastGpuMsCap = rtGpuMsCap;
-                reflectionRtPerfBreachedLastFrame = rtPerfTriggered;
-                warnings.add(new EngineWarning(
-                        "REFLECTION_RT_PERF_GATES",
-                        "RT perf gates (risk=" + rtPerfRisk
-                                + ", laneActive=" + reflectionRtLaneActive
-                                + ", gpuMsEstimate=" + rtGpuMsEstimate
-                                + ", gpuMsCap=" + rtGpuMsCap
-                                + ", multiBounceEnabled=" + reflectionRtMultiBounceEnabled
-                                + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled
-                                + ", highStreak=" + reflectionRtPerfHighStreak
-                                + ", warnMinFrames=" + reflectionRtPerfWarnMinFrames
-                                + ", warnCooldownFrames=" + reflectionRtPerfWarnCooldownFrames
-                                + ", warnCooldownRemaining=" + reflectionRtPerfWarnCooldownRemaining
-                                + ", breached=" + rtPerfTriggered + ")"
-                ));
-                if (rtPerfTriggered) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_RT_PERF_GATES_BREACH",
-                            "RT perf gates breached (gpuMsEstimate=" + rtGpuMsEstimate
-                                    + ", gpuMsCap=" + rtGpuMsCap
-                                    + ", multiBounceEnabled=" + reflectionRtMultiBounceEnabled
-                                    + ", dedicatedDenoisePipelineEnabled=" + reflectionRtDedicatedDenoisePipelineEnabled + ")"
-                    ));
-                }
-                reflectionRtHybridRtShare = reflectionRtLaneActive
-                        ? Math.max(0.15, Math.min(0.85, 1.0 - currentPost.reflectionsSsrMaxRoughness()))
-                        : 0.0;
-                reflectionRtHybridSsrShare = Math.max(
-                        0.0,
-                        Math.min(1.0 - reflectionRtHybridRtShare, currentPost.reflectionsSsrStrength() * (1.0 - reflectionRtHybridRtShare))
-                );
-                reflectionRtHybridProbeShare = Math.max(0.0, 1.0 - reflectionRtHybridRtShare - reflectionRtHybridSsrShare);
-                boolean rtHybridRisk = reflectionRtLaneActive && reflectionRtHybridProbeShare > reflectionRtHybridProbeShareWarnMax;
-                if (rtHybridRisk) {
-                    reflectionRtHybridHighStreak++;
-                } else {
-                    reflectionRtHybridHighStreak = 0;
-                }
-                boolean rtHybridTriggered = false;
-                if (reflectionRtHybridWarnCooldownRemaining > 0) {
-                    reflectionRtHybridWarnCooldownRemaining--;
-                }
-                if (rtHybridRisk
-                        && reflectionRtHybridHighStreak >= reflectionRtHybridWarnMinFrames
-                        && reflectionRtHybridWarnCooldownRemaining <= 0) {
-                    reflectionRtHybridWarnCooldownRemaining = reflectionRtHybridWarnCooldownFrames;
-                    rtHybridTriggered = true;
-                }
-                reflectionRtHybridBreachedLastFrame = rtHybridTriggered;
-                warnings.add(new EngineWarning(
-                        "REFLECTION_RT_HYBRID_COMPOSITION",
-                        "RT hybrid composition (rtShare=" + reflectionRtHybridRtShare
-                                + ", ssrShare=" + reflectionRtHybridSsrShare
-                                + ", probeShare=" + reflectionRtHybridProbeShare
-                                + ", laneActive=" + reflectionRtLaneActive
-                                + ", threshold=" + reflectionRtHybridProbeShareWarnMax
-                                + ", highStreak=" + reflectionRtHybridHighStreak
-                                + ", warnMinFrames=" + reflectionRtHybridWarnMinFrames
-                                + ", warnCooldownFrames=" + reflectionRtHybridWarnCooldownFrames
-                                + ", warnCooldownRemaining=" + reflectionRtHybridWarnCooldownRemaining
-                                + ", breached=" + reflectionRtHybridBreachedLastFrame + ")"
-                ));
-                if (reflectionRtHybridBreachedLastFrame) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_RT_HYBRID_COMPOSITION_BREACH",
-                            "RT hybrid composition breached (probeShare=" + reflectionRtHybridProbeShare
-                                    + ", threshold=" + reflectionRtHybridProbeShareWarnMax
-                                    + ", laneActive=" + reflectionRtLaneActive + ")"
-                    ));
-                }
-                double denoiseBoost = reflectionRtDedicatedDenoisePipelineEnabled ? 1.12 : 1.0;
-                double bounceBoost = reflectionRtMultiBounceEnabled ? 1.20 : 1.0;
-                reflectionRtDenoiseSpatialVariance = Math.max(
-                        0.0,
-                        Math.min(1.0, (1.0 - reflectionRtDenoiseStrength) * denoiseBoost * bounceBoost)
-                );
-                reflectionRtDenoiseTemporalLag = Math.max(
-                        0.0,
-                        Math.min(1.0, currentPost.reflectionsTemporalWeight() * 0.60 * denoiseBoost)
-                );
-                boolean rtDenoiseRisk = reflectionRtLaneActive
-                        && (reflectionRtDenoiseSpatialVariance > reflectionRtDenoiseSpatialVarianceWarnMax
-                        || reflectionRtDenoiseTemporalLag > reflectionRtDenoiseTemporalLagWarnMax);
-                if (rtDenoiseRisk) {
-                    reflectionRtDenoiseHighStreak++;
-                } else {
-                    reflectionRtDenoiseHighStreak = 0;
-                }
-                boolean rtDenoiseTriggered = false;
-                if (reflectionRtDenoiseWarnCooldownRemaining > 0) {
-                    reflectionRtDenoiseWarnCooldownRemaining--;
-                }
-                if (rtDenoiseRisk
-                        && reflectionRtDenoiseHighStreak >= reflectionRtDenoiseWarnMinFrames
-                        && reflectionRtDenoiseWarnCooldownRemaining <= 0) {
-                    reflectionRtDenoiseWarnCooldownRemaining = reflectionRtDenoiseWarnCooldownFrames;
-                    rtDenoiseTriggered = true;
-                }
-                reflectionRtDenoiseBreachedLastFrame = rtDenoiseTriggered;
-                warnings.add(new EngineWarning(
-                        "REFLECTION_RT_DENOISE_ENVELOPE",
-                        "RT denoise envelope (spatialVariance=" + reflectionRtDenoiseSpatialVariance
-                                + ", temporalLag=" + reflectionRtDenoiseTemporalLag
-                                + ", spatialVarianceMax=" + reflectionRtDenoiseSpatialVarianceWarnMax
-                                + ", temporalLagMax=" + reflectionRtDenoiseTemporalLagWarnMax
-                                + ", highStreak=" + reflectionRtDenoiseHighStreak
-                                + ", warnMinFrames=" + reflectionRtDenoiseWarnMinFrames
-                                + ", warnCooldownFrames=" + reflectionRtDenoiseWarnCooldownFrames
-                                + ", warnCooldownRemaining=" + reflectionRtDenoiseWarnCooldownRemaining
-                                + ", breached=" + reflectionRtDenoiseBreachedLastFrame + ")"
-                ));
-                if (reflectionRtDenoiseBreachedLastFrame) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_RT_DENOISE_ENVELOPE_BREACH",
-                            "RT denoise envelope breached (spatialVariance=" + reflectionRtDenoiseSpatialVariance
-                                    + ", temporalLag=" + reflectionRtDenoiseTemporalLag + ")"
-                    ));
-                }
-                double asBuildFactor = reflectionRtDedicatedHardwarePipelineActive ? 0.11 : 0.07;
-                double asBounceFactor = reflectionRtMultiBounceEnabled ? 1.25 : 1.0;
-                reflectionRtAsBuildGpuMsEstimate = Math.max(0.0, lastFrameGpuMs) * asBuildFactor * asBounceFactor;
-                long sceneObjectEstimate = Math.max(0L, plannedVisibleObjects);
-                reflectionRtAsMemoryMbEstimate = Math.max(0.0, sceneObjectEstimate * 0.11);
-                boolean rtAsBudgetRisk = reflectionRtLaneActive
-                        && (reflectionRtAsBuildGpuMsEstimate > reflectionRtAsBuildGpuMsWarnMax
-                        || reflectionRtAsMemoryMbEstimate > reflectionRtAsMemoryBudgetMb);
-                if (rtAsBudgetRisk) {
-                    reflectionRtAsBudgetHighStreak++;
-                } else {
-                    reflectionRtAsBudgetHighStreak = 0;
-                }
-                boolean rtAsBudgetTriggered = false;
-                if (reflectionRtAsBudgetWarnCooldownRemaining > 0) {
-                    reflectionRtAsBudgetWarnCooldownRemaining--;
-                }
-                if (rtAsBudgetRisk
-                        && reflectionRtAsBudgetHighStreak >= reflectionRtPerfWarnMinFrames
-                        && reflectionRtAsBudgetWarnCooldownRemaining <= 0) {
-                    reflectionRtAsBudgetWarnCooldownRemaining = reflectionRtPerfWarnCooldownFrames;
-                    rtAsBudgetTriggered = true;
-                }
-                reflectionRtAsBudgetBreachedLastFrame = rtAsBudgetTriggered;
-                warnings.add(new EngineWarning(
-                        "REFLECTION_RT_AS_BUDGET",
-                        "RT AS budget (buildGpuMsEstimate=" + reflectionRtAsBuildGpuMsEstimate
-                                + ", buildGpuMsMax=" + reflectionRtAsBuildGpuMsWarnMax
-                                + ", memoryMbEstimate=" + reflectionRtAsMemoryMbEstimate
-                                + ", memoryMbBudget=" + reflectionRtAsMemoryBudgetMb
-                                + ", highStreak=" + reflectionRtAsBudgetHighStreak
-                                + ", warnMinFrames=" + reflectionRtPerfWarnMinFrames
-                                + ", warnCooldownFrames=" + reflectionRtPerfWarnCooldownFrames
-                                + ", warnCooldownRemaining=" + reflectionRtAsBudgetWarnCooldownRemaining
-                                + ", breached=" + reflectionRtAsBudgetBreachedLastFrame + ")"
-                ));
-                if (reflectionRtAsBudgetBreachedLastFrame) {
-                    warnings.add(new EngineWarning(
-                            "REFLECTION_RT_AS_BUDGET_BREACH",
-                            "RT AS budget breached (buildGpuMsEstimate=" + reflectionRtAsBuildGpuMsEstimate
-                                    + ", memoryMbEstimate=" + reflectionRtAsMemoryMbEstimate + ")"
-                    ));
-                }
-            } else {
-                reflectionRtFallbackChainActive = "probe";
-                reflectionRtRequireActiveUnmetLastFrame = false;
-                reflectionRtRequireMultiBounceUnmetLastFrame = false;
-                reflectionRtRequireDedicatedPipelineUnmetLastFrame = false;
-                reflectionRtTraversalSupported = false;
-                reflectionRtDedicatedCapabilitySupported = false;
-                reflectionRtDedicatedHardwarePipelineActive = false;
-                reflectionRtBlasLifecycleState = "disabled";
-                reflectionRtTlasLifecycleState = "disabled";
-                reflectionRtSbtLifecycleState = "disabled";
-                reflectionRtBlasObjectCount = 0;
-                reflectionRtTlasInstanceCount = 0;
-                reflectionRtSbtRecordCount = 0;
-                reflectionRtHybridRtShare = 0.0;
-                reflectionRtHybridSsrShare = Math.max(0.0, Math.min(1.0, currentPost.reflectionsSsrStrength()));
-                reflectionRtHybridProbeShare = Math.max(0.0, 1.0 - reflectionRtHybridSsrShare);
-                reflectionRtHybridHighStreak = 0;
-                reflectionRtHybridWarnCooldownRemaining = 0;
-                reflectionRtHybridBreachedLastFrame = false;
-                reflectionRtDenoiseSpatialVariance = 0.0;
-                reflectionRtDenoiseTemporalLag = 0.0;
-                reflectionRtDenoiseHighStreak = 0;
-                reflectionRtDenoiseWarnCooldownRemaining = 0;
-                reflectionRtDenoiseBreachedLastFrame = false;
-                reflectionRtAsBuildGpuMsEstimate = 0.0;
-                reflectionRtAsMemoryMbEstimate = 0.0;
-                reflectionRtAsBudgetHighStreak = 0;
-                reflectionRtAsBudgetWarnCooldownRemaining = 0;
-                reflectionRtAsBudgetBreachedLastFrame = false;
-                reflectionRtPromotionReadyLastFrame = false;
-                reflectionRtPromotionReadyHighStreak = 0;
-                reflectionRtPerfHighStreak = 0;
-                reflectionRtPerfWarnCooldownRemaining = 0;
-                reflectionRtPerfBreachedLastFrame = false;
-                reflectionRtPerfLastGpuMsEstimate = 0.0;
-                reflectionRtPerfLastGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
-            }
+            VulkanReflectionRtWarningEmitter.State rtWarningState = new VulkanReflectionRtWarningEmitter.State();
+            rtWarningState.reflectionRtLaneActive = reflectionRtLaneActive;
+            rtWarningState.reflectionRtMultiBounceEnabled = reflectionRtMultiBounceEnabled;
+            rtWarningState.reflectionRtSingleBounceEnabled = reflectionRtSingleBounceEnabled;
+            rtWarningState.reflectionRtRequireActive = reflectionRtRequireActive;
+            rtWarningState.reflectionRtRequireMultiBounce = reflectionRtRequireMultiBounce;
+            rtWarningState.reflectionRtRequireDedicatedPipeline = reflectionRtRequireDedicatedPipeline;
+            rtWarningState.reflectionRtDedicatedPipelineEnabled = reflectionRtDedicatedPipelineEnabled;
+            rtWarningState.reflectionRtTraversalSupported = reflectionRtTraversalSupported;
+            rtWarningState.reflectionRtDedicatedCapabilitySupported = reflectionRtDedicatedCapabilitySupported;
+            rtWarningState.reflectionRtDedicatedDenoisePipelineEnabled = reflectionRtDedicatedDenoisePipelineEnabled;
+            rtWarningState.reflectionRtDenoiseStrength = reflectionRtDenoiseStrength;
+            rtWarningState.reflectionRtFallbackChainActive = reflectionRtFallbackChainActive;
+            rtWarningState.reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActiveUnmetLastFrame;
+            rtWarningState.reflectionRtRequireMultiBounceUnmetLastFrame = reflectionRtRequireMultiBounceUnmetLastFrame;
+            rtWarningState.reflectionRtRequireDedicatedPipelineUnmetLastFrame = reflectionRtRequireDedicatedPipelineUnmetLastFrame;
+            rtWarningState.reflectionRtDedicatedHardwarePipelineActive = reflectionRtDedicatedHardwarePipelineActive;
+            rtWarningState.reflectionRtBlasLifecycleState = reflectionRtBlasLifecycleState;
+            rtWarningState.reflectionRtTlasLifecycleState = reflectionRtTlasLifecycleState;
+            rtWarningState.reflectionRtSbtLifecycleState = reflectionRtSbtLifecycleState;
+            rtWarningState.reflectionRtBlasObjectCount = reflectionRtBlasObjectCount;
+            rtWarningState.reflectionRtTlasInstanceCount = reflectionRtTlasInstanceCount;
+            rtWarningState.reflectionRtSbtRecordCount = reflectionRtSbtRecordCount;
+            rtWarningState.mockContext = mockContext;
+            rtWarningState.reflectionRtPerfHighStreak = reflectionRtPerfHighStreak;
+            rtWarningState.reflectionRtPerfWarnCooldownRemaining = reflectionRtPerfWarnCooldownRemaining;
+            rtWarningState.reflectionRtPerfWarnMinFrames = reflectionRtPerfWarnMinFrames;
+            rtWarningState.reflectionRtPerfWarnCooldownFrames = reflectionRtPerfWarnCooldownFrames;
+            rtWarningState.reflectionRtPerfBreachedLastFrame = reflectionRtPerfBreachedLastFrame;
+            rtWarningState.reflectionRtPerfLastGpuMsEstimate = reflectionRtPerfLastGpuMsEstimate;
+            rtWarningState.reflectionRtPerfLastGpuMsCap = reflectionRtPerfLastGpuMsCap;
+            rtWarningState.reflectionRtHybridRtShare = reflectionRtHybridRtShare;
+            rtWarningState.reflectionRtHybridSsrShare = reflectionRtHybridSsrShare;
+            rtWarningState.reflectionRtHybridProbeShare = reflectionRtHybridProbeShare;
+            rtWarningState.reflectionRtHybridProbeShareWarnMax = reflectionRtHybridProbeShareWarnMax;
+            rtWarningState.reflectionRtHybridHighStreak = reflectionRtHybridHighStreak;
+            rtWarningState.reflectionRtHybridWarnCooldownRemaining = reflectionRtHybridWarnCooldownRemaining;
+            rtWarningState.reflectionRtHybridWarnMinFrames = reflectionRtHybridWarnMinFrames;
+            rtWarningState.reflectionRtHybridWarnCooldownFrames = reflectionRtHybridWarnCooldownFrames;
+            rtWarningState.reflectionRtHybridBreachedLastFrame = reflectionRtHybridBreachedLastFrame;
+            rtWarningState.reflectionRtDenoiseSpatialVariance = reflectionRtDenoiseSpatialVariance;
+            rtWarningState.reflectionRtDenoiseTemporalLag = reflectionRtDenoiseTemporalLag;
+            rtWarningState.reflectionRtDenoiseSpatialVarianceWarnMax = reflectionRtDenoiseSpatialVarianceWarnMax;
+            rtWarningState.reflectionRtDenoiseTemporalLagWarnMax = reflectionRtDenoiseTemporalLagWarnMax;
+            rtWarningState.reflectionRtDenoiseHighStreak = reflectionRtDenoiseHighStreak;
+            rtWarningState.reflectionRtDenoiseWarnCooldownRemaining = reflectionRtDenoiseWarnCooldownRemaining;
+            rtWarningState.reflectionRtDenoiseWarnMinFrames = reflectionRtDenoiseWarnMinFrames;
+            rtWarningState.reflectionRtDenoiseWarnCooldownFrames = reflectionRtDenoiseWarnCooldownFrames;
+            rtWarningState.reflectionRtDenoiseBreachedLastFrame = reflectionRtDenoiseBreachedLastFrame;
+            rtWarningState.reflectionRtAsBuildGpuMsEstimate = reflectionRtAsBuildGpuMsEstimate;
+            rtWarningState.reflectionRtAsMemoryMbEstimate = reflectionRtAsMemoryMbEstimate;
+            rtWarningState.reflectionRtAsBuildGpuMsWarnMax = reflectionRtAsBuildGpuMsWarnMax;
+            rtWarningState.reflectionRtAsMemoryBudgetMb = reflectionRtAsMemoryBudgetMb;
+            rtWarningState.reflectionRtAsBudgetHighStreak = reflectionRtAsBudgetHighStreak;
+            rtWarningState.reflectionRtAsBudgetWarnCooldownRemaining = reflectionRtAsBudgetWarnCooldownRemaining;
+            rtWarningState.reflectionRtAsBudgetBreachedLastFrame = reflectionRtAsBudgetBreachedLastFrame;
+            rtWarningState.reflectionRtPromotionReadyLastFrame = reflectionRtPromotionReadyLastFrame;
+            rtWarningState.reflectionRtPromotionReadyHighStreak = reflectionRtPromotionReadyHighStreak;
+            VulkanReflectionRtWarningEmitter.emit(
+                    warnings,
+                    rtWarningState,
+                    reflectionRtLaneRequested,
+                    reflectionBaseMode,
+                    lastFrameGpuMs,
+                    plannedVisibleObjects,
+                    currentPost.reflectionsSsrStrength(),
+                    currentPost.reflectionsSsrMaxRoughness(),
+                    currentPost.reflectionsTemporalWeight(),
+                    rtPerfGpuMsCapForTier(qualityTier)
+            );
+            reflectionRtFallbackChainActive = rtWarningState.reflectionRtFallbackChainActive;
+            reflectionRtRequireActiveUnmetLastFrame = rtWarningState.reflectionRtRequireActiveUnmetLastFrame;
+            reflectionRtRequireMultiBounceUnmetLastFrame = rtWarningState.reflectionRtRequireMultiBounceUnmetLastFrame;
+            reflectionRtRequireDedicatedPipelineUnmetLastFrame = rtWarningState.reflectionRtRequireDedicatedPipelineUnmetLastFrame;
+            reflectionRtTraversalSupported = rtWarningState.reflectionRtTraversalSupported;
+            reflectionRtDedicatedCapabilitySupported = rtWarningState.reflectionRtDedicatedCapabilitySupported;
+            reflectionRtDedicatedHardwarePipelineActive = rtWarningState.reflectionRtDedicatedHardwarePipelineActive;
+            reflectionRtBlasLifecycleState = rtWarningState.reflectionRtBlasLifecycleState;
+            reflectionRtTlasLifecycleState = rtWarningState.reflectionRtTlasLifecycleState;
+            reflectionRtSbtLifecycleState = rtWarningState.reflectionRtSbtLifecycleState;
+            reflectionRtBlasObjectCount = rtWarningState.reflectionRtBlasObjectCount;
+            reflectionRtTlasInstanceCount = rtWarningState.reflectionRtTlasInstanceCount;
+            reflectionRtSbtRecordCount = rtWarningState.reflectionRtSbtRecordCount;
+            reflectionRtPerfHighStreak = rtWarningState.reflectionRtPerfHighStreak;
+            reflectionRtPerfWarnCooldownRemaining = rtWarningState.reflectionRtPerfWarnCooldownRemaining;
+            reflectionRtPerfBreachedLastFrame = rtWarningState.reflectionRtPerfBreachedLastFrame;
+            reflectionRtPerfLastGpuMsEstimate = rtWarningState.reflectionRtPerfLastGpuMsEstimate;
+            reflectionRtPerfLastGpuMsCap = rtWarningState.reflectionRtPerfLastGpuMsCap;
+            reflectionRtHybridRtShare = rtWarningState.reflectionRtHybridRtShare;
+            reflectionRtHybridSsrShare = rtWarningState.reflectionRtHybridSsrShare;
+            reflectionRtHybridProbeShare = rtWarningState.reflectionRtHybridProbeShare;
+            reflectionRtHybridHighStreak = rtWarningState.reflectionRtHybridHighStreak;
+            reflectionRtHybridWarnCooldownRemaining = rtWarningState.reflectionRtHybridWarnCooldownRemaining;
+            reflectionRtHybridBreachedLastFrame = rtWarningState.reflectionRtHybridBreachedLastFrame;
+            reflectionRtDenoiseSpatialVariance = rtWarningState.reflectionRtDenoiseSpatialVariance;
+            reflectionRtDenoiseTemporalLag = rtWarningState.reflectionRtDenoiseTemporalLag;
+            reflectionRtDenoiseHighStreak = rtWarningState.reflectionRtDenoiseHighStreak;
+            reflectionRtDenoiseWarnCooldownRemaining = rtWarningState.reflectionRtDenoiseWarnCooldownRemaining;
+            reflectionRtDenoiseBreachedLastFrame = rtWarningState.reflectionRtDenoiseBreachedLastFrame;
+            reflectionRtAsBuildGpuMsEstimate = rtWarningState.reflectionRtAsBuildGpuMsEstimate;
+            reflectionRtAsMemoryMbEstimate = rtWarningState.reflectionRtAsMemoryMbEstimate;
+            reflectionRtAsBudgetHighStreak = rtWarningState.reflectionRtAsBudgetHighStreak;
+            reflectionRtAsBudgetWarnCooldownRemaining = rtWarningState.reflectionRtAsBudgetWarnCooldownRemaining;
+            reflectionRtAsBudgetBreachedLastFrame = rtWarningState.reflectionRtAsBudgetBreachedLastFrame;
+            reflectionRtPromotionReadyLastFrame = rtWarningState.reflectionRtPromotionReadyLastFrame;
+            reflectionRtPromotionReadyHighStreak = rtWarningState.reflectionRtPromotionReadyHighStreak;
             TransparencyCandidateSummary transparencySummary =
                     VulkanReflectionAnalysis.summarizeReflectionTransparencyCandidates(currentSceneMaterials, reflectionTransparencyCandidateReactiveMin);
             VulkanReflectionRtTransparencyWarningEmitter.State rtTransparencyState = new VulkanReflectionRtTransparencyWarningEmitter.State();
