@@ -1,5 +1,6 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
+import org.dynamislight.impl.vulkan.VulkanContext;
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;

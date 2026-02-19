@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
 final class VulkanReflectionAdaptiveDiagnostics {
     static final class ProbeChurnState {

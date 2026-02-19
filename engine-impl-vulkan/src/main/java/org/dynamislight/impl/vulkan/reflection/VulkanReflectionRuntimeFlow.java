@@ -1,5 +1,7 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
+import org.dynamislight.impl.vulkan.VulkanContext;
+import org.dynamislight.impl.vulkan.VulkanEngineRuntime;
 import org.dynamislight.impl.vulkan.runtime.model.*;
 import org.dynamislight.impl.vulkan.runtime.warning.VulkanRuntimeWarningResets;
 import org.dynamislight.impl.vulkan.reflection.VulkanReflectionRtStateMachine;
@@ -13,10 +15,10 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.scene.MaterialDesc;
 
-final class VulkanReflectionRuntimeFlow {
+public final class VulkanReflectionRuntimeFlow {
     private static final int REFLECTION_MODE_BASE_MASK = 0x7;
 
-    static void processFrameWarnings(
+    public static void processFrameWarnings(
             VulkanEngineRuntime runtime,
             VulkanContext context,
             QualityTier qualityTier,
@@ -142,7 +144,7 @@ final class VulkanReflectionRuntimeFlow {
         }
     }
 
-    static void applyAdaptivePostParameters(VulkanEngineRuntime runtime, VulkanContext context) {
+    public static void applyAdaptivePostParameters(VulkanEngineRuntime runtime, VulkanContext context) {
         State state = snapshot(runtime);
         float baseTemporalWeight = state.currentPost.reflectionsTemporalWeight();
         float baseSsrStrength = state.currentPost.reflectionsSsrStrength();
@@ -257,7 +259,7 @@ final class VulkanReflectionRuntimeFlow {
         );
     }
 
-    static void resetWhenDisabled(VulkanEngineRuntime runtime, QualityTier qualityTier) {
+    public static void resetWhenDisabled(VulkanEngineRuntime runtime, QualityTier qualityTier) {
         resetProbeChurnDiagnostics(runtime);
         resetSsrTaaRiskDiagnostics(runtime);
         resetAdaptiveState(runtime);
@@ -266,7 +268,7 @@ final class VulkanReflectionRuntimeFlow {
         VulkanRuntimeWarningResets.resetReflectionWhenDisabled(runtime, rtPerfGpuMsCapForTier(state, qualityTier));
     }
 
-    static ReflectionProbeChurnDiagnostics snapshotProbeChurnDiagnostics(VulkanEngineRuntime runtime, boolean warningTriggered) {
+    public static ReflectionProbeChurnDiagnostics snapshotProbeChurnDiagnostics(VulkanEngineRuntime runtime, boolean warningTriggered) {
         State state = snapshot(runtime);
         double meanDelta = state.reflectionProbeActiveChurnEvents <= 0
                 ? 0.0
@@ -282,21 +284,21 @@ final class VulkanReflectionRuntimeFlow {
         );
     }
 
-    static ReflectionAdaptiveTrendDiagnostics snapshotAdaptiveTrendDiagnostics(
+    public static ReflectionAdaptiveTrendDiagnostics snapshotAdaptiveTrendDiagnostics(
             VulkanEngineRuntime runtime,
             boolean warningTriggered
     ) {
         return VulkanReflectionAdaptiveTrendEngine.snapshotTrend(createTrendState(snapshot(runtime)), warningTriggered);
     }
 
-    static VulkanEngineRuntime.TrendSloAudit evaluateAdaptiveTrendSlo(
+    public static VulkanEngineRuntime.TrendSloAudit evaluateAdaptiveTrendSlo(
             VulkanEngineRuntime runtime,
             ReflectionAdaptiveTrendDiagnostics trend
     ) {
         return VulkanReflectionAdaptiveTrendEngine.evaluateSlo(createTrendState(snapshot(runtime)), trend);
     }
 
-    static void resetAdaptiveState(VulkanEngineRuntime runtime) {
+    public static void resetAdaptiveState(VulkanEngineRuntime runtime) {
         State state = snapshot(runtime);
         state.reflectionAdaptiveTemporalWeightActive = state.currentPost == null ? 0.80f : state.currentPost.reflectionsTemporalWeight();
         state.reflectionAdaptiveSsrStrengthActive = state.currentPost == null ? 0.6f : state.currentPost.reflectionsSsrStrength();
@@ -308,7 +310,7 @@ final class VulkanReflectionRuntimeFlow {
         apply(runtime, state);
     }
 
-    static void resetAdaptiveTelemetryMetrics(VulkanEngineRuntime runtime) {
+    public static void resetAdaptiveTelemetryMetrics(VulkanEngineRuntime runtime) {
         State state = snapshot(runtime);
         VulkanReflectionAdaptiveTrendEngine.State trend = createTrendState(state);
         VulkanReflectionAdaptiveTrendEngine.resetTelemetry(trend);
@@ -328,7 +330,7 @@ final class VulkanReflectionRuntimeFlow {
         return result.diagnostics;
     }
 
-    static void resetProbeChurnDiagnostics(VulkanEngineRuntime runtime) {
+    public static void resetProbeChurnDiagnostics(VulkanEngineRuntime runtime) {
         VulkanReflectionAdaptiveDiagnostics.ProbeChurnState state = new VulkanReflectionAdaptiveDiagnostics.ProbeChurnState();
         VulkanReflectionAdaptiveDiagnostics.resetProbeChurn(state);
         VulkanTelemetryStateBinder.copyMatchingFields(state, runtime);
@@ -348,7 +350,7 @@ final class VulkanReflectionRuntimeFlow {
         return result.diagnostics;
     }
 
-    static void resetSsrTaaRiskDiagnostics(VulkanEngineRuntime runtime) {
+    public static void resetSsrTaaRiskDiagnostics(VulkanEngineRuntime runtime) {
         VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState state = new VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState();
         VulkanReflectionAdaptiveDiagnostics.resetSsrTaaRisk(state);
         VulkanTelemetryStateBinder.copyMatchingFields(state, runtime);

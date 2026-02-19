@@ -286,19 +286,19 @@ public final class VulkanContext {
         }
     }
 
-    double taaHistoryRejectRate() {
+    public double taaHistoryRejectRate() {
         return taaHistoryRejectRate;
     }
 
-    double taaConfidenceMean() {
+    public double taaConfidenceMean() {
         return taaConfidenceMean;
     }
 
-    long taaConfidenceDropEvents() {
+    public long taaConfidenceDropEvents() {
         return taaConfidenceDropEvents;
     }
 
-    List<Integer> debugGpuMeshReflectionOverrideModes() {
+    public List<Integer> debugGpuMeshReflectionOverrideModes() {
         if (!sceneResources.gpuMeshes.isEmpty()) {
             List<Integer> modes = new ArrayList<>(sceneResources.gpuMeshes.size());
             for (VulkanGpuMesh mesh : sceneResources.gpuMeshes) {
@@ -322,7 +322,7 @@ public final class VulkanContext {
         return List.copyOf(modes);
     }
 
-    ReflectionProbeDiagnostics debugReflectionProbeDiagnostics() {
+    public ReflectionProbeDiagnostics debugReflectionProbeDiagnostics() {
         int configuredProbeCount = reflectionProbes == null ? 0 : reflectionProbes.size();
         int activeProbeCount = Math.max(0, descriptorResources.reflectionProbeMetadataActiveCount);
         int slotCount = Math.max(0, reflectionProbeCubemapSlotCount);
@@ -419,7 +419,7 @@ public final class VulkanContext {
         );
     }
 
-    record ReflectionProbeDiagnostics(
+    public record ReflectionProbeDiagnostics(
             int configuredProbeCount,
             int activeProbeCount,
             int slotCount,
@@ -837,7 +837,7 @@ public final class VulkanContext {
         reflectionProbeLodDepthScale = Math.max(0.25f, Math.min(4.0f, lodDepthScale));
     }
 
-    void setPostProcessParameters(
+    public void setPostProcessParameters(
             boolean tonemapEnabled,
             float exposure,
             float gamma,
@@ -2142,3 +2142,4 @@ public final class VulkanContext {
     }
 
 }
+

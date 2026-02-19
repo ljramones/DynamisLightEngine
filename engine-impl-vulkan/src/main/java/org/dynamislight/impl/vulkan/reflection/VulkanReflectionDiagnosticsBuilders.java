@@ -1,10 +1,11 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
+import org.dynamislight.impl.vulkan.VulkanContext;
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
 
-final class VulkanReflectionDiagnosticsBuilders {
+public final class VulkanReflectionDiagnosticsBuilders {
     static final class State {
         int reflectionProbeMaxVisible;
         int reflectionProbeUpdateCadenceFrames;
@@ -166,7 +167,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         return state;
     }
 
-    static ReflectionProbeStreamingDiagnostics probeStreaming(Object runtime, VulkanContext context) {
+    public static ReflectionProbeStreamingDiagnostics probeStreaming(Object runtime, VulkanContext context) {
         State state = stateFrom(runtime);
         VulkanContext.ReflectionProbeDiagnostics diagnostics = context.debugReflectionProbeDiagnostics();
         int effectiveStreamingBudget = Math.max(1, Math.min(state.reflectionProbeMaxVisible, diagnostics.metadataCapacity()));
@@ -206,11 +207,11 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionProbeQualityDiagnostics probeQuality(Object runtime) {
+    public static ReflectionProbeQualityDiagnostics probeQuality(Object runtime) {
         return stateFrom(runtime).reflectionProbeQualityDiagnostics;
     }
 
-    static ReflectionSsrTaaRiskDiagnostics ssrTaaRisk(Object runtime) {
+    public static ReflectionSsrTaaRiskDiagnostics ssrTaaRisk(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionSsrTaaRiskDiagnostics(
                 false,
@@ -222,7 +223,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionPlanarContractDiagnostics planarContract(Object runtime) {
+    public static ReflectionPlanarContractDiagnostics planarContract(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionPlanarContractDiagnostics(
                 state.reflectionPlanarPassOrderContractStatus,
@@ -233,7 +234,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionPlanarStabilityDiagnostics planarStability(Object runtime) {
+    public static ReflectionPlanarStabilityDiagnostics planarStability(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionPlanarStabilityDiagnostics(
                 state.reflectionPlanarLatestPlaneDelta,
@@ -248,7 +249,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionPlanarPerfDiagnostics planarPerf(Object runtime) {
+    public static ReflectionPlanarPerfDiagnostics planarPerf(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionPlanarPerfDiagnostics(
                 state.reflectionPlanarPerfLastGpuMsEstimate,
@@ -269,7 +270,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionOverridePolicyDiagnostics overridePolicy(Object runtime, VulkanContext context) {
+    public static ReflectionOverridePolicyDiagnostics overridePolicy(Object runtime, VulkanContext context) {
         State state = stateFrom(runtime);
         ReflectionOverrideSummary summary = VulkanReflectionAnalysis.summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
         int total = Math.max(1, summary.totalCount());
@@ -292,7 +293,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionContactHardeningDiagnostics contactHardening(Object runtime) {
+    public static ReflectionContactHardeningDiagnostics contactHardening(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionContactHardeningDiagnostics(
                 state.reflectionContactHardeningActiveLastFrame,
@@ -307,7 +308,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionRtPathDiagnostics rtPath(Object runtime) {
+    public static ReflectionRtPathDiagnostics rtPath(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionRtPathDiagnostics(
                 state.reflectionRtLaneRequested,
@@ -330,7 +331,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionRtPerfDiagnostics rtPerf(Object runtime) {
+    public static ReflectionRtPerfDiagnostics rtPerf(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionRtPerfDiagnostics(
                 state.reflectionRtPerfLastGpuMsEstimate,
@@ -343,7 +344,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionRtPipelineDiagnostics rtPipeline(Object runtime) {
+    public static ReflectionRtPipelineDiagnostics rtPipeline(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionRtPipelineDiagnostics(
                 state.reflectionRtBlasLifecycleState,
@@ -355,7 +356,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionRtHybridDiagnostics rtHybrid(Object runtime) {
+    public static ReflectionRtHybridDiagnostics rtHybrid(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionRtHybridDiagnostics(
                 state.reflectionRtHybridRtShare,
@@ -370,7 +371,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionRtDenoiseDiagnostics rtDenoise(Object runtime) {
+    public static ReflectionRtDenoiseDiagnostics rtDenoise(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionRtDenoiseDiagnostics(
                 state.reflectionRtDenoiseSpatialVariance,
@@ -385,7 +386,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionRtAsBudgetDiagnostics rtAsBudget(Object runtime) {
+    public static ReflectionRtAsBudgetDiagnostics rtAsBudget(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionRtAsBudgetDiagnostics(
                 state.reflectionRtAsBuildGpuMsEstimate,
@@ -400,7 +401,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionRtPromotionDiagnostics rtPromotion(Object runtime) {
+    public static ReflectionRtPromotionDiagnostics rtPromotion(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionRtPromotionDiagnostics(
                 state.reflectionRtPromotionReadyLastFrame,
@@ -415,7 +416,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionTransparencyDiagnostics transparency(Object runtime) {
+    public static ReflectionTransparencyDiagnostics transparency(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionTransparencyDiagnostics(
                 state.reflectionTransparentCandidateCount,
@@ -435,7 +436,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionAdaptivePolicyDiagnostics adaptivePolicy(Object runtime) {
+    public static ReflectionAdaptivePolicyDiagnostics adaptivePolicy(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionAdaptivePolicyDiagnostics(
                 state.reflectionSsrTaaAdaptiveEnabled,
@@ -451,7 +452,7 @@ final class VulkanReflectionDiagnosticsBuilders {
         );
     }
 
-    static ReflectionSsrTaaHistoryPolicyDiagnostics historyPolicy(Object runtime) {
+    public static ReflectionSsrTaaHistoryPolicyDiagnostics historyPolicy(Object runtime) {
         State state = stateFrom(runtime);
         return new ReflectionSsrTaaHistoryPolicyDiagnostics(
                 state.reflectionSsrTaaHistoryPolicyActive,

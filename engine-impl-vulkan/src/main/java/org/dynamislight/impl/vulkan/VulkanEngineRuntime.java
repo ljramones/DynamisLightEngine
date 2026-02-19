@@ -23,6 +23,7 @@ import org.dynamislight.impl.vulkan.runtime.config.UpscalerMode;
 import org.dynamislight.impl.vulkan.runtime.config.UpscalerQuality;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptions;
+import org.dynamislight.impl.vulkan.reflection.*;
 import org.dynamislight.impl.vulkan.reflection.VulkanReflectionTelemetryDefaults;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowTelemetryDefaults;
 
@@ -1304,7 +1305,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
-    record TrendSloAudit(
+    public record TrendSloAudit(
             String status,
             String reason,
             boolean failed

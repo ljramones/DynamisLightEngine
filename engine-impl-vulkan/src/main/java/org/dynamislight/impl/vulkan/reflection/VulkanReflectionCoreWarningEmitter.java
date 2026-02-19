@@ -1,5 +1,6 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
+import org.dynamislight.impl.vulkan.VulkanContext;
 import java.util.List;
 
 import org.dynamislight.api.event.EngineWarning;

@@ -1,5 +1,7 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
+import org.dynamislight.impl.vulkan.VulkanEngineRuntime;
+import java.util.ArrayDeque;
 import java.util.Deque;
 
 final class VulkanReflectionAdaptiveTrendEngine {
@@ -35,6 +37,9 @@ final class VulkanReflectionAdaptiveTrendEngine {
             float baseSsrStepScale,
             double severity
     ) {
+        if (state.reflectionAdaptiveTrendSamples == null) {
+            state.reflectionAdaptiveTrendSamples = new ArrayDeque<>();
+        }
         state.reflectionAdaptiveSeverityInstant = Math.max(0.0, Math.min(1.0, severity));
         state.reflectionAdaptiveSeverityPeak = Math.max(state.reflectionAdaptiveSeverityPeak, state.reflectionAdaptiveSeverityInstant);
         state.reflectionAdaptiveTelemetrySamples++;
@@ -57,6 +62,9 @@ final class VulkanReflectionAdaptiveTrendEngine {
     }
 
     static void resetTelemetry(State state) {
+        if (state.reflectionAdaptiveTrendSamples == null) {
+            state.reflectionAdaptiveTrendSamples = new ArrayDeque<>();
+        }
         state.reflectionAdaptiveSeverityInstant = 0.0;
         state.reflectionAdaptiveSeverityPeak = 0.0;
         state.reflectionAdaptiveSeverityAccum = 0.0;
@@ -71,6 +79,9 @@ final class VulkanReflectionAdaptiveTrendEngine {
     }
 
     static ReflectionAdaptiveTrendDiagnostics snapshotTrend(State state, boolean warningTriggered) {
+        if (state.reflectionAdaptiveTrendSamples == null) {
+            state.reflectionAdaptiveTrendSamples = new ArrayDeque<>();
+        }
         return VulkanReflectionAdaptiveMath.snapshotTrendDiagnostics(
                 state.reflectionAdaptiveTrendSamples,
                 state.reflectionSsrTaaAdaptiveTrendHighRatioWarnMin,

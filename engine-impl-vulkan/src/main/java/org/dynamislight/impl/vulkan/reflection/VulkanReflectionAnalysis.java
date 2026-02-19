@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.reflection;
 
 import java.util.List;
 
@@ -6,11 +6,11 @@ import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.ReflectionProbeDesc;
 import org.dynamislight.api.scene.ReflectionOverrideMode;
 
-final class VulkanReflectionAnalysis {
+public final class VulkanReflectionAnalysis {
     private VulkanReflectionAnalysis() {
     }
 
-    record ProbeQualityThresholds(
+    public record ProbeQualityThresholds(
             int overlapWarnMaxPairs,
             int bleedRiskWarnMaxPairs,
             int minOverlapPairsWhenMultiple,
@@ -20,7 +20,7 @@ final class VulkanReflectionAnalysis {
     ) {
     }
 
-    static ReflectionOverrideSummary summarizeReflectionOverrides(List<Integer> modes) {
+    public static ReflectionOverrideSummary summarizeReflectionOverrides(List<Integer> modes) {
         int autoCount = 0;
         int probeOnlyCount = 0;
         int ssrOnlyCount = 0;
@@ -37,7 +37,7 @@ final class VulkanReflectionAnalysis {
         return new ReflectionOverrideSummary(autoCount, probeOnlyCount, ssrOnlyCount, otherCount);
     }
 
-    static ReflectionProbeQualityDiagnostics analyzeReflectionProbeQuality(
+    public static ReflectionProbeQualityDiagnostics analyzeReflectionProbeQuality(
             List<ReflectionProbeDesc> probes,
             ProbeQualityThresholds thresholds
     ) {
@@ -142,7 +142,7 @@ final class VulkanReflectionAnalysis {
         );
     }
 
-    static TransparencyCandidateSummary summarizeReflectionTransparencyCandidates(
+    public static TransparencyCandidateSummary summarizeReflectionTransparencyCandidates(
             List<MaterialDesc> materials,
             double candidateReactiveMin
     ) {
