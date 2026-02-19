@@ -31,9 +31,9 @@ Status summary snapshot (2026-02-18):
 - VSM / EVSM (moment-based with bleed reduction) — `In`
 - Contact shadows (screen-space, short-range detail) — `In`
 - Cascaded shadow maps (directional, N-cascade configurable) — `In`
-- Per-light atlas with cadence scheduling — `Partial`
-- Point light cubemap shadows with face-budget control — `Partial`
-- Spot light projected shadows — `Partial`
+- Per-light atlas with cadence scheduling — `In`
+- Point light cubemap shadows with face-budget control — `In`
+- Spot light projected shadows — `In`
 - Area light shadows (approximate or sampled) — `Partial`
 - RT shadows (hard, soft, denoised) — `Partial`
 - Hybrid combinations (cascade + contact + RT detail fill) — `Partial`
@@ -54,6 +54,7 @@ Shadow notes:
 - Engine runtime API now exposes typed spot-projected diagnostics (`shadowSpotProjectedDiagnostics()`), and Vulkan emits explicit spot contract status warnings (`SHADOW_SPOT_PROJECTED_CONTRACT`, `SHADOW_SPOT_PROJECTED_CONTRACT_BREACH`).
 - Vulkan now emits promotion-ready readiness warnings for cadence/point/spot shadow slices (`SHADOW_CADENCE_PROMOTION_READY`, `SHADOW_POINT_FACE_BUDGET_PROMOTION_READY`, `SHADOW_SPOT_PROJECTED_PROMOTION_READY`) with typed stability streak/min-window diagnostics and tier-profile defaults.
 - Vulkan now emits a consolidated Phase A readiness signal (`SHADOW_PHASEA_PROMOTION_READY`) when cadence + point-budget + spot-projected promotion gates are jointly stable, with typed runtime diagnostics (`shadowPhaseAPromotionDiagnostics()`).
+- Shadow Phase A has a strict promotion lockdown runner (`scripts/shadow_phasea_promotion_lockdown.sh`) and always-on CI lane (`shadow-phasea-lockdown`) with sustained-window assertions across blessed tiers.
 - Vulkan shadow telemetry defaults are now locked per blessed tier profile with explicit override precedence and emitted each frame via `SHADOW_TELEMETRY_PROFILE_ACTIVE`; cadence stability CI assertions now run across `LOW|MEDIUM|HIGH|ULTRA`.
 - Engine runtime API now exposes typed shadow-cache diagnostics (`shadowCacheDiagnostics()`), and Vulkan emits cache policy/churn warnings (`SHADOW_CACHE_POLICY_ACTIVE`, `SHADOW_CACHE_CHURN_HIGH`) including invalidation reason telemetry with cooldown-gated CI breach signaling.
 - Engine runtime API now exposes typed shadow RT diagnostics (`shadowRtDiagnostics()`), and Vulkan emits RT denoise/perf envelope warnings (`SHADOW_RT_DENOISE_ENVELOPE`, `SHADOW_RT_DENOISE_ENVELOPE_BREACH`) with tier-locked thresholds and override precedence.

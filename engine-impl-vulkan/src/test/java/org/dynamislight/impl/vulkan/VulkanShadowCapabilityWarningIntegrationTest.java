@@ -561,6 +561,47 @@ class VulkanShadowCapabilityWarningIntegrationTest {
         }
     }
 
+    @ParameterizedTest
+    @EnumSource(value = QualityTier.class, names = {"LOW", "MEDIUM", "HIGH", "ULTRA"})
+    void phaseAPromotionReadinessRequiresSustainedWindowAcrossBlessedTiers(QualityTier tier) throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "false"),
+                    Map.entry("vulkan.shadow.maxShadowedLocalLights", "8"),
+                    Map.entry("vulkan.shadow.maxLocalShadowLayers", "24"),
+                    Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "24"),
+                    Map.entry("vulkan.shadow.cadenceWarnDeferredRatioMax", "0.95"),
+                    Map.entry("vulkan.shadow.cadencePromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.shadow.spotProjectedPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.shadow.phaseAPromotionReadyMinFrames", "2")
+            ), tier), new NoopCallbacks());
+            runtime.loadScene(validMixedSpotPointShadowScene());
+            var first = runtime.render();
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_PHASEA_PROMOTION_READY".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_CADENCE_ENVELOPE_BREACH".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_SPOT_PROJECTED_CONTRACT_BREACH".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_TOPOLOGY_CONTRACT_BREACH".equals(w.code())));
+            var second = runtime.render();
+            assertTrue(second.warnings().stream().anyMatch(w -> "SHADOW_PHASEA_PROMOTION_READY".equals(w.code())));
+            var phaseA = runtime.shadowPhaseAPromotionDiagnostics();
+            assertTrue(phaseA.available());
+            assertTrue(phaseA.cadencePromotionReady());
+            assertTrue(phaseA.pointFaceBudgetPromotionReady());
+            assertTrue(phaseA.spotProjectedPromotionReady());
+            assertTrue(phaseA.promotionReadyLastFrame());
+            assertTrue(phaseA.stableStreak() >= phaseA.promotionReadyMinFrames());
+            assertEquals(0, runtime.shadowCadenceDiagnostics().warnCooldownRemaining());
+            assertEquals(0, runtime.shadowPointBudgetDiagnostics().warnCooldownRemaining());
+            assertEquals(0, runtime.shadowTopologyDiagnostics().warnCooldownRemaining());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     @Test
     void shadowCacheBreachGateTriggersWithAggressiveThresholds() throws Exception {
         VulkanEngineRuntime runtime = new VulkanEngineRuntime();
@@ -939,6 +980,33 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                 List.of(mesh),
                 List.of(material),
                 List.of(lightA, lightB, lightC),
+                environment,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validMixedSpotPointShadowScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
+        MaterialDesc material = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        ShadowDesc shadow = new ShadowDesc(1024, 0.0015f, 1, 4);
+        LightDesc spotA = new LightDesc("spotA", new Vec3(1, 3, 2), new Vec3(1, 0.9f, 0.8f), 1.0f, 20f, true, shadow, LightType.SPOT);
+        LightDesc spotB = new LightDesc("spotB", new Vec3(-2, 3, 2), new Vec3(0.8f, 1, 0.9f), 1.0f, 20f, true, shadow, LightType.SPOT);
+        LightDesc pointA = new LightDesc("pointA", new Vec3(0, 3, -2), new Vec3(0.9f, 0.9f, 1), 1.0f, 20f, true, shadow, LightType.POINT);
+        LightDesc pointB = new LightDesc("pointB", new Vec3(2, 3, -1), new Vec3(0.9f, 1.0f, 0.9f), 1.0f, 20f, true, shadow, LightType.POINT);
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "shadow-phasea-mixed-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(material),
+                List.of(spotA, spotB, pointA, pointB),
                 environment,
                 fog,
                 List.<SmokeEmitterDesc>of()

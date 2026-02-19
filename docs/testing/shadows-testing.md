@@ -66,6 +66,7 @@ End-to-end shadow CI matrix automation:
 
 CI always-on rollout:
 - GitHub Actions `shadow-matrix` runs on `push`/`pull_request` with mock Vulkan safety.
+- GitHub Actions `shadow-phasea-lockdown` runs on `push`/`pull_request`/`schedule` and enforces strict cadence/point/spot/phase-a promotion gates.
 - Weekly scheduled run (`schedule`) also executes long-run AA/shadow motion sampling.
 - GitHub Actions `shadow-real-longrun-guarded` now runs on `push`/`pull_request`/`schedule` and emits guarded threshold-lock recommendations when real Vulkan is available.
 - GitHub Actions `shadow-production-quality-sweeps` now runs on `push`/`pull_request`/`schedule` and executes production profile sweeps (`pcf`, `pcss/contact`, `vsm`, `evsm`, `rt optional`, `rt bvh`, `rt bvh_dedicated`, `rt bvh_production`, `rt native`, `rt native denoised`) with guarded threshold-lock output.
@@ -87,6 +88,8 @@ CI always-on rollout:
   - production sweeps with strict BVH lane
   via `scripts/shadow_ci_lockdown_full.sh`.
 - Scheduled `shadow-lockdown-full` runs set `DLE_SHADOW_LOCKDOWN_PROMOTE_MODE=real` so generated recommendations can be promoted into tracked real-Vulkan threshold profiles.
+- Local strict Phase A gate runner:
+  - `./scripts/shadow_phasea_promotion_lockdown.sh`
 - GitHub Actions `aa-upscaler-vendor-matrix` now runs on `schedule` (and optional manual dispatch) to keep FSR/XeSS/DLSS hook/native-state regressions visible in CI.
 - GitHub Actions `shadow-stable-promote-real` is available via manual dispatch to run a two-pass stability gate before promoting real-Vulkan shadow thresholds.
 
