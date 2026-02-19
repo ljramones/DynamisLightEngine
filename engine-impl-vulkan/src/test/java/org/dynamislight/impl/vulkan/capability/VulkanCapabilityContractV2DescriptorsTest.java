@@ -342,6 +342,33 @@ class VulkanCapabilityContractV2DescriptorsTest {
     }
 
     @Test
+    void shadowShaderModulesUseCanonicalBodyFunctions() {
+        VulkanShadowCapabilityDescriptorV2 descriptor =
+                VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM);
+        List<RenderShaderModuleDeclaration> modules = descriptor.shaderModules(descriptor.activeMode());
+        assertTrue(modules.stream().anyMatch(module -> module.glslBody().contains("float finalizeShadowVisibility(")));
+        assertTrue(modules.stream().anyMatch(module -> module.glslBody().contains("float momentVisibilityApprox(")));
+    }
+
+    @Test
+    void reflectionShaderModulesUseCanonicalBodyFunctions() {
+        VulkanReflectionCapabilityDescriptorV2 descriptor =
+                VulkanReflectionCapabilityDescriptorV2.withMode(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID);
+        List<RenderShaderModuleDeclaration> modules = descriptor.shaderModules(descriptor.activeMode());
+        assertTrue(modules.stream().anyMatch(module -> module.glslBody().contains("vec3 sampleProbeRadiance(")));
+        assertTrue(modules.stream().anyMatch(module -> module.glslBody().contains("vec3 applyReflections(")));
+    }
+
+    @Test
+    void aaShaderModulesUseCanonicalBodyFunctions() {
+        VulkanAaCapabilityDescriptorV2 descriptor =
+                VulkanAaCapabilityDescriptorV2.withMode(VulkanAaCapabilityDescriptorV2.MODE_TAA);
+        List<RenderShaderModuleDeclaration> modules = descriptor.shaderModules(descriptor.activeMode());
+        assertTrue(modules.stream().anyMatch(module -> module.glslBody().contains("vec3 smaaFull(")));
+        assertTrue(modules.stream().anyMatch(module -> module.glslBody().contains("vec3 taaSharpen(")));
+    }
+
+    @Test
     void everyPostModeProducesCompleteContractAndValidatesWithShadowReflectionAndAa() {
         VulkanShadowCapabilityDescriptorV2 shadow =
                 VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM);

@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.capability;
 
 import java.util.List;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.impl.vulkan.shader.VulkanCanonicalShaderModuleBodies;
 import org.dynamislight.spi.render.RenderBindingFrequency;
 import org.dynamislight.spi.render.RenderBudgetParameter;
 import org.dynamislight.spi.render.RenderDescriptorRequirement;
@@ -166,14 +167,9 @@ public final class VulkanReflectionCapabilityDescriptorV2 implements RenderFeatu
                         "main_geometry",
                         RenderShaderInjectionPoint.LIGHTING_EVAL,
                         RenderShaderStage.FRAGMENT,
-                        "evaluateReflectionProbe",
-                        "vec3 evaluateReflectionProbe(in vec3 worldPos, in vec3 normal, in float roughness)",
-                        "vec3 evaluateReflectionProbe(in vec3 worldPos, in vec3 normal, in float roughness) {\n" +
-                                "    vec4 probeMeta = texture(uProbeMetadata, worldPos.xy);\n" +
-                                "    vec2 uv = clamp(probeMeta.xy, vec2(0.0), vec2(1.0));\n" +
-                                "    vec3 probeColor = texture(uProbeRadianceAtlas, uv).rgb;\n" +
-                                "    return probeColor;\n" +
-                                "}",
+                        "sampleProbeRadiance",
+                        "vec3 sampleProbeRadiance(vec2 specUv, vec2 baseUv, float roughness, float prefilter, int layerIndex, int layerCount)",
+                        VulkanCanonicalShaderModuleBodies.reflectionMainBody(active),
                         List.of(
                                 new RenderShaderModuleBinding("uProbeMetadata",
                                         descriptorByTargetSetBinding(active, "main_geometry", 0, 2)),
@@ -197,9 +193,9 @@ public final class VulkanReflectionCapabilityDescriptorV2 implements RenderFeatu
                     "post_composite",
                     RenderShaderInjectionPoint.POST_RESOLVE,
                     RenderShaderStage.FRAGMENT,
-                    "resolveReflections",
-                    "vec4 resolveReflections(in vec2 uv, in vec4 baseColor)",
-                    reflectionPostBody(active),
+                    "applyReflections",
+                    "vec3 applyReflections(vec2 uv, vec3 color, float currentDepth, float historyConfidenceOut, int reflectionOverrideMode, vec2 surfaceVelocityUv, float materialReactive, float disocclusionSignal)",
+                    VulkanCanonicalShaderModuleBodies.reflectionPostBody(active),
                     List.of(
                             new RenderShaderModuleBinding("uSceneColor", descriptorByTargetSetBinding(active, "post_composite", 0, 0)),
                             new RenderShaderModuleBinding("uVelocity", descriptorByTargetSetBinding(active, "post_composite", 0, 1)),
@@ -358,34 +354,6 @@ public final class VulkanReflectionCapabilityDescriptorV2 implements RenderFeatu
     private static boolean usesPlanar(RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
         return MODE_PLANAR.equals(active) || MODE_HYBRID.equals(active) || MODE_RT_HYBRID.equals(active);
-    }
-
-    private static String reflectionPostBody(RenderFeatureMode mode) {
-        RenderFeatureMode active = sanitizeMode(mode);
-        if (MODE_RT_HYBRID.equals(active)) {
-            return "vec4 resolveReflections(in vec2 uv, in vec4 baseColor) {\n" +
-                    "    vec3 scene = texture(uSceneColor, uv).rgb;\n" +
-                    "    vec3 history = texture(uHistoryColor, uv).rgb;\n" +
-                    "    vec3 rt = texture(uRtReflectionLane, uv).rgb;\n" +
-                    "    vec3 resolved = mix(mix(scene, history, 0.2), rt, 0.6);\n" +
-                    "    return vec4(resolved, baseColor.a);\n" +
-                    "}";
-        }
-        if (usesPlanar(active)) {
-            return "vec4 resolveReflections(in vec2 uv, in vec4 baseColor) {\n" +
-                    "    vec3 scene = texture(uSceneColor, uv).rgb;\n" +
-                    "    vec3 planar = texture(uPlanarCapture, uv).rgb;\n" +
-                    "    vec3 history = texture(uHistoryColor, uv).rgb;\n" +
-                    "    vec3 resolved = mix(mix(scene, planar, 0.5), history, 0.2);\n" +
-                    "    return vec4(resolved, baseColor.a);\n" +
-                    "}";
-        }
-        return "vec4 resolveReflections(in vec2 uv, in vec4 baseColor) {\n" +
-                "    vec3 scene = texture(uSceneColor, uv).rgb;\n" +
-                "    vec3 history = texture(uHistoryColor, uv).rgb;\n" +
-                "    vec3 resolved = mix(scene, history, 0.25);\n" +
-                "    return vec4(resolved, baseColor.a);\n" +
-                "}";
     }
 
     private static RenderDescriptorRequirement descriptorByTargetSetBinding(

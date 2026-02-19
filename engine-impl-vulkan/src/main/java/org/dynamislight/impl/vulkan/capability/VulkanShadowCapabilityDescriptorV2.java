@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.capability;
 
 import java.util.List;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.impl.vulkan.shader.VulkanCanonicalShaderModuleBodies;
 import org.dynamislight.spi.render.RenderBindingFrequency;
 import org.dynamislight.spi.render.RenderBudgetParameter;
 import org.dynamislight.spi.render.RenderDescriptorRequirement;
@@ -156,9 +157,13 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
                 "main_geometry",
                 RenderShaderInjectionPoint.LIGHTING_EVAL,
                 RenderShaderStage.FRAGMENT,
-                "evaluateShadow",
-                "float evaluateShadow(in vec3 worldPos, in vec3 normal, in vec3 viewDir)",
-                shadowMainModuleBody(active),
+                "finalizeShadowVisibility",
+                "float finalizeShadowVisibility("
+                        + "float pcfVisibility, int shadowFilterMode, bool shadowRtEnabled, int shadowRtMode, "
+                        + "int shadowRtSampleCount, float shadowRtDenoiseStrength, float shadowRtRayLength, "
+                        + "vec2 uv, float compareDepth, int layer, float ndl, float depthRatio, "
+                        + "float pcssSoftness, float shadowTemporalStability)",
+                VulkanCanonicalShaderModuleBodies.shadowMainBody(active),
                 shadowMainModuleBindings(active),
                 uniformRequirements(active),
                 List.of(),
@@ -172,14 +177,10 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
                     "shadow_rt_denoise",
                     RenderShaderInjectionPoint.AUXILIARY,
                     RenderShaderStage.FRAGMENT,
-                    "resolveShadowRtDenoise",
-                    "vec4 resolveShadowRtDenoise(in vec2 uv)",
-                    "vec4 resolveShadowRtDenoise(in vec2 uv) {\n" +
-                            "    vec4 rtRaw = texture(uShadowRtVisibility, uv);\n" +
-                            "    vec4 rtFiltered = texture(uShadowRtDenoised, uv);\n" +
-                            "    float blendWeight = clamp(uShadowRtDenoiseBlend, 0.0, 1.0);\n" +
-                            "    return mix(rtRaw, rtFiltered, blendWeight);\n" +
-                            "}",
+                    "rtNativeDenoiseStack",
+                    "float rtNativeDenoiseStack(float baseVisibility, vec2 uv, float compareDepth, int layer, float texel, "
+                            + "float shadowRtDenoiseStrength, float shadowTemporalStability)",
+                    VulkanCanonicalShaderModuleBodies.shadowMainBody(active),
                     List.of(
                             new RenderShaderModuleBinding("uShadowRtVisibility", descriptorByTargetSetBinding(active, "main_geometry", 1, 10)),
                             new RenderShaderModuleBinding("uShadowRtDenoised", descriptorByTargetSetBinding(active, "main_geometry", 1, 10))
@@ -449,33 +450,6 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
             ));
         }
         return List.copyOf(bindings);
-    }
-
-    private static String shadowMainModuleBody(RenderFeatureMode mode) {
-        RenderFeatureMode active = sanitizeMode(mode);
-        String id = active.id();
-        if (MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active)) {
-            return "float evaluateShadow(in vec3 worldPos, in vec3 normal, in vec3 viewDir) {\n" +
-                    "    float atlasSample = texture(uShadowMap, vec3(worldPos.xy, 0.0));\n" +
-                    "    float rtSample = texture(uShadowRtDenoised, worldPos.xy).r;\n" +
-                    "    float rtBlend = clamp(uShadowHybridBlendParams.x, 0.0, 1.0);\n" +
-                    "    return mix(atlasSample, rtSample, rtBlend);\n" +
-                    "}";
-        }
-        if (isMomentMode(active)) {
-            return "float evaluateShadow(in vec3 worldPos, in vec3 normal, in vec3 viewDir) {\n" +
-                    "    vec2 moments = texture(uShadowMomentAtlas, worldPos.xy).rg;\n" +
-                    "    float d = moments.x;\n" +
-                    "    float variance = max(moments.y - (d * d), 0.00001);\n" +
-                    "    float m = worldPos.z - d;\n" +
-                    "    float p = variance / (variance + (m * m));\n" +
-                    "    return clamp(p, 0.0, 1.0);\n" +
-                    "}";
-        }
-        return "float evaluateShadow(in vec3 worldPos, in vec3 normal, in vec3 viewDir) {\n" +
-                "    float shadowTerm = texture(uShadowMap, vec3(worldPos.xy, 0.0));\n" +
-                "    return clamp(shadowTerm, 0.0, 1.0);\n" +
-                "}";
     }
 
     private static RenderDescriptorRequirement descriptorByTargetSetBinding(

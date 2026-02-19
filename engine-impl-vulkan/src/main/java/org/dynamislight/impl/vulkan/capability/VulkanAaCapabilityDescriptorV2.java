@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.capability;
 
 import java.util.List;
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.impl.vulkan.shader.VulkanCanonicalShaderModuleBodies;
 import org.dynamislight.spi.render.RenderBindingFrequency;
 import org.dynamislight.spi.render.RenderDescriptorRequirement;
 import org.dynamislight.spi.render.RenderDescriptorType;
@@ -134,9 +135,9 @@ public final class VulkanAaCapabilityDescriptorV2 implements RenderFeatureCapabi
                 "post_composite",
                 RenderShaderInjectionPoint.POST_RESOLVE,
                 RenderShaderStage.FRAGMENT,
-                "resolveAntiAliasing",
-                "vec4 resolveAntiAliasing(in vec2 uv, in vec4 sourceColor)",
-                aaResolveBody(active),
+                "smaaFull",
+                "vec3 smaaFull(vec2 uv, vec3 color)",
+                VulkanCanonicalShaderModuleBodies.aaPostBody(active),
                 List.copyOf(bindings),
                 uniformRequirements(active),
                 List.of(),
@@ -322,29 +323,5 @@ public final class VulkanAaCapabilityDescriptorV2 implements RenderFeatureCapabi
             requirements.add(new RenderDescriptorRequirement("post_composite", 0, 24, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
         }
         return List.copyOf(requirements);
-    }
-
-    private static String aaResolveBody(RenderFeatureMode mode) {
-        RenderFeatureMode active = sanitizeMode(mode);
-        String id = active.id();
-        if ("fxaa_low".equals(id)) {
-            return "vec4 resolveAntiAliasing(in vec2 uv, in vec4 sourceColor) {\n" +
-                    "    vec3 c = texture(uPostSceneColor, uv).rgb;\n" +
-                    "    return vec4(c, sourceColor.a);\n" +
-                    "}";
-        }
-        if (!requiresTemporalHistory(active)) {
-            return "vec4 resolveAntiAliasing(in vec2 uv, in vec4 sourceColor) {\n" +
-                    "    vec3 c = texture(uPostSceneColor, uv).rgb;\n" +
-                    "    return vec4(c, sourceColor.a);\n" +
-                    "}";
-        }
-        return "vec4 resolveAntiAliasing(in vec2 uv, in vec4 sourceColor) {\n" +
-                "    vec3 current = texture(uPostSceneColor, uv).rgb;\n" +
-                "    vec3 history = texture(uHistoryColor, uv).rgb;\n" +
-                "    float w = clamp(0.5, 0.0, 1.0);\n" +
-                "    vec3 resolved = mix(current, history, w);\n" +
-                "    return vec4(resolved, sourceColor.a);\n" +
-                "}";
     }
 }
