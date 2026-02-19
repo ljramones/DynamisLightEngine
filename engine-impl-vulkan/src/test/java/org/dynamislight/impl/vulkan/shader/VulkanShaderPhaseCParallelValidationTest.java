@@ -32,8 +32,8 @@ class VulkanShaderPhaseCParallelValidationTest {
     ) throws Exception {
         List<RenderShaderModuleDeclaration> modules = gatherModules(shadowMode, reflectionMode, aaMode);
 
-        String monolithicMain = VulkanShaderSources.mainFragment();
-        String monolithicPost = VulkanShaderSources.postFragment();
+        String monolithicMain = VulkanShaderSources.mainFragmentMonolithic();
+        String monolithicPost = VulkanShaderSources.postFragmentMonolithic();
         VulkanShaderAssemblyResult assembledMainResult = VulkanShaderProfileAssembler.assembleMainFragmentCanonical(modules);
         VulkanShaderAssemblyResult assembledPostResult = VulkanShaderProfileAssembler.assemblePostFragmentCanonical(modules);
         String assembledMain = assembledMainResult.source();
@@ -134,4 +134,3 @@ class VulkanShaderPhaseCParallelValidationTest {
         );
     }
 }
-

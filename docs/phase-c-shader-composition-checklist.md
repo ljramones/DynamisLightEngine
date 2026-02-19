@@ -13,7 +13,9 @@ Scope: final architecture migration for composed shaders, composed descriptor la
   - Canonical alignment complete: shadow/reflection/AA module bodies now extracted from Vulkan monolithic shader functions.
 - [x] C.1.6 Parallel validation compile for blessed profiles (no runtime cutover).
   - Added blessed profile compile/equivalence matrix test (`performance`, `balanced`, `quality`, `stability`) for monolithic vs assembled canonical shader paths.
-- [ ] C.1.7 Cutover Vulkan pipelines to assembled shader sources.
+- [x] C.1.7 Cutover Vulkan pipelines to assembled shader sources.
+  - `VulkanShaderSources.mainFragment()` and `postFragment()` now resolve to canonical assembled runtime sources.
+  - Monolithic fallbacks retained as explicit methods (`mainFragmentMonolithic`, `postFragmentMonolithic`) for C.1.6/C.1.8 validation windows.
 - [ ] C.1.8 Remove legacy monolithic shader source path.
 
 ## C.2 Descriptor Layout Composition

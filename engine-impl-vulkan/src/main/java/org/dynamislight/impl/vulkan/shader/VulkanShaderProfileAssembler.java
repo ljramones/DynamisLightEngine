@@ -15,7 +15,7 @@ public final class VulkanShaderProfileAssembler {
 
     public static VulkanShaderAssemblyResult assembleMainFragmentCanonical(List<RenderShaderModuleDeclaration> modules) {
         return assembleCanonical(
-                VulkanShaderSources.mainFragment(),
+                VulkanMainShaderSources.mainFragment(),
                 "main_geometry",
                 RenderShaderStage.FRAGMENT,
                 modules
@@ -24,7 +24,7 @@ public final class VulkanShaderProfileAssembler {
 
     public static VulkanShaderAssemblyResult assemblePostFragmentCanonical(List<RenderShaderModuleDeclaration> modules) {
         return assembleCanonical(
-                VulkanShaderSources.postFragment(),
+                VulkanPostShaderSources.postFragment(),
                 "post_composite",
                 RenderShaderStage.FRAGMENT,
                 modules
