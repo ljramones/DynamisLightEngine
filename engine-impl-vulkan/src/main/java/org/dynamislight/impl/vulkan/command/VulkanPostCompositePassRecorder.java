@@ -2,6 +2,9 @@ package org.dynamislight.impl.vulkan.command;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.dynamislight.impl.vulkan.graph.VulkanExecutableRenderGraphBuilder;
+import org.dynamislight.spi.render.RenderPassContribution;
+import org.dynamislight.spi.render.RenderPassPhase;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
@@ -11,6 +14,8 @@ import org.lwjgl.vulkan.VkCommandBuffer;
  * This is a Phase A extraction wrapper with no behavior changes.
  */
 final class VulkanPostCompositePassRecorder {
+    static final String FEATURE_ID = "vulkan.post";
+    static final String PASS_ID = "post_composite";
     private volatile VulkanPostModulePlan lastModulePlan = new VulkanPostModulePlan(List.of(), List.of());
 
     VulkanRenderCommandRecorder.PostCompositeState record(
@@ -28,6 +33,38 @@ final class VulkanPostCompositePassRecorder {
 
     VulkanPostModulePlan lastModulePlan() {
         return lastModulePlan;
+    }
+
+    void declarePasses(
+            VulkanExecutableRenderGraphBuilder builder,
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            VulkanRenderCommandRecorder.PostCompositeInputs inputs,
+            java.util.function.Consumer<Boolean> postIntermediateInitializedSink,
+            java.util.function.Consumer<Boolean> taaHistoryInitializedSink
+    ) {
+        if (builder == null || inputs == null) {
+            return;
+        }
+        builder.addPass(
+                FEATURE_ID,
+                new RenderPassContribution(
+                        PASS_ID,
+                        RenderPassPhase.POST_MAIN,
+                        List.of("scene_color", "velocity", "history_color", "history_velocity", "planar_capture"),
+                        List.of("resolved_color", "history_color_next", "history_velocity_next"),
+                        false
+                ),
+                () -> {
+                    VulkanRenderCommandRecorder.PostCompositeState state = record(stack, commandBuffer, inputs);
+                    if (postIntermediateInitializedSink != null) {
+                        postIntermediateInitializedSink.accept(state.postIntermediateInitialized());
+                    }
+                    if (taaHistoryInitializedSink != null) {
+                        taaHistoryInitializedSink.accept(state.taaHistoryInitialized());
+                    }
+                }
+        );
     }
 
     VulkanPostModulePlan planModules(VulkanRenderCommandRecorder.PostCompositeInputs inputs) {
