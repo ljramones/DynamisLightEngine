@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.AaTemporalPromotionDiagnostics;
+import org.dynamislight.api.runtime.AaUpscalePromotionDiagnostics;
+import org.dynamislight.impl.vulkan.runtime.config.UpscalerMode;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 
 /**
@@ -47,6 +49,24 @@ public final class VulkanAaTemporalRuntimeState {
     public int temporalCorePromotionReadyMinFrames = 6;
     public int temporalCoreStableStreak;
     public boolean temporalCorePromotionReadyLastFrame;
+    public boolean upscaleModeActiveLastFrame;
+    public String upscaleModeIdLastFrame = "";
+    public boolean upscaleTemporalPathActiveLastFrame;
+    public double upscaleRenderScaleLastFrame = 1.0;
+    public String upscaleModePathLastFrame = "none";
+    public boolean upscaleNativeUpscalerActiveLastFrame;
+    public String upscaleNativeUpscalerProviderLastFrame = "none";
+    public double upscaleWarnMinRenderScale = 0.5;
+    public double upscaleWarnMaxRenderScaleTsr = 0.95;
+    public double upscaleWarnMaxRenderScaleTuua = 0.95;
+    public int upscaleWarnMinFrames = 3;
+    public int upscaleWarnCooldownFrames = 120;
+    public int upscalePromotionReadyMinFrames = 6;
+    public int upscaleStableStreak;
+    public int upscaleHighStreak;
+    public int upscaleWarnCooldownRemaining;
+    public boolean upscaleEnvelopeBreachedLastFrame;
+    public boolean upscalePromotionReadyLastFrame;
 
     public void resetFrameState() {
         temporalPathRequestedLastFrame = false;
@@ -73,6 +93,18 @@ public final class VulkanAaTemporalRuntimeState {
         historyClampBreachedLastFrame = false;
         temporalCoreStableStreak = 0;
         temporalCorePromotionReadyLastFrame = false;
+        upscaleModeActiveLastFrame = false;
+        upscaleModeIdLastFrame = "";
+        upscaleTemporalPathActiveLastFrame = false;
+        upscaleRenderScaleLastFrame = 1.0;
+        upscaleModePathLastFrame = "none";
+        upscaleNativeUpscalerActiveLastFrame = false;
+        upscaleNativeUpscalerProviderLastFrame = "none";
+        upscaleStableStreak = 0;
+        upscaleHighStreak = 0;
+        upscaleWarnCooldownRemaining = 0;
+        upscaleEnvelopeBreachedLastFrame = false;
+        upscalePromotionReadyLastFrame = false;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -102,6 +134,18 @@ public final class VulkanAaTemporalRuntimeState {
                 backendOptions, "vulkan.aa.historyClampWarnCooldownFrames", historyClampWarnCooldownFrames, 0, 10_000);
         temporalCorePromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
                 backendOptions, "vulkan.aa.temporalCorePromotionReadyMinFrames", temporalCorePromotionReadyMinFrames, 1, 10_000);
+        upscaleWarnMinRenderScale = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                backendOptions, "vulkan.aa.upscaleWarnMinRenderScale", upscaleWarnMinRenderScale, 0.1, 2.0);
+        upscaleWarnMaxRenderScaleTsr = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                backendOptions, "vulkan.aa.upscaleWarnMaxRenderScaleTsr", upscaleWarnMaxRenderScaleTsr, 0.1, 2.0);
+        upscaleWarnMaxRenderScaleTuua = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                backendOptions, "vulkan.aa.upscaleWarnMaxRenderScaleTuua", upscaleWarnMaxRenderScaleTuua, 0.1, 2.0);
+        upscaleWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.upscaleWarnMinFrames", upscaleWarnMinFrames, 1, 10_000);
+        upscaleWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.upscaleWarnCooldownFrames", upscaleWarnCooldownFrames, 0, 10_000);
+        upscalePromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.upscalePromotionReadyMinFrames", upscalePromotionReadyMinFrames, 1, 10_000);
     }
 
     public void applyTemporalEmission(VulkanAaTemporalWarningEmitter.Result emission) {
@@ -152,6 +196,27 @@ public final class VulkanAaTemporalRuntimeState {
         }
     }
 
+    public void applyUpscaleEmission(VulkanAaUpscaleWarningEmitter.Result emission) {
+        upscaleModeActiveLastFrame = emission.upscaleModeActive();
+        upscaleModeIdLastFrame = emission.aaModeId();
+        upscaleTemporalPathActiveLastFrame = emission.temporalPathActive();
+        upscaleRenderScaleLastFrame = emission.renderScale();
+        upscaleModePathLastFrame = emission.upscalerModeId();
+        upscaleNativeUpscalerActiveLastFrame = emission.nativeUpscalerActive();
+        upscaleNativeUpscalerProviderLastFrame = emission.nativeUpscalerProvider();
+        upscaleWarnMinRenderScale = emission.warnMinRenderScale();
+        if ("tuua".equalsIgnoreCase(emission.aaModeId())) {
+            upscaleWarnMaxRenderScaleTuua = emission.warnMaxRenderScale();
+        } else if ("tsr".equalsIgnoreCase(emission.aaModeId())) {
+            upscaleWarnMaxRenderScaleTsr = emission.warnMaxRenderScale();
+        }
+        upscaleStableStreak = emission.stableStreak();
+        upscaleHighStreak = emission.nextHighStreak();
+        upscaleWarnCooldownRemaining = emission.nextCooldownRemaining();
+        upscaleEnvelopeBreachedLastFrame = emission.envelopeBreachedLastFrame();
+        upscalePromotionReadyLastFrame = emission.promotionReadyLastFrame();
+    }
+
     public AaTemporalPromotionDiagnostics diagnostics(String aaModeId) {
         return new AaTemporalPromotionDiagnostics(
                 aaModeId != null && !aaModeId.isBlank(),
@@ -182,5 +247,54 @@ public final class VulkanAaTemporalRuntimeState {
                 temporalCoreStableStreak,
                 temporalCorePromotionReadyLastFrame
         );
+    }
+
+    public AaUpscalePromotionDiagnostics upscaleDiagnostics() {
+        double warnMaxRenderScale = "tuua".equalsIgnoreCase(upscaleModeIdLastFrame)
+                ? upscaleWarnMaxRenderScaleTuua
+                : upscaleWarnMaxRenderScaleTsr;
+        return new AaUpscalePromotionDiagnostics(
+                true,
+                upscaleModeActiveLastFrame,
+                upscaleModeIdLastFrame,
+                upscaleTemporalPathActiveLastFrame,
+                upscaleRenderScaleLastFrame,
+                upscaleModePathLastFrame,
+                upscaleNativeUpscalerActiveLastFrame,
+                upscaleNativeUpscalerProviderLastFrame,
+                upscaleWarnMinRenderScale,
+                warnMaxRenderScale,
+                upscalePromotionReadyMinFrames,
+                upscaleStableStreak,
+                upscaleEnvelopeBreachedLastFrame,
+                upscalePromotionReadyLastFrame
+        );
+    }
+
+    public VulkanAaUpscaleWarningEmitter.Result emitUpscale(
+            org.dynamislight.impl.vulkan.runtime.config.AaMode aaMode,
+            double renderScale,
+            UpscalerMode upscalerMode,
+            boolean nativeUpscalerActive,
+            String nativeUpscalerProvider,
+            boolean temporalPathActive
+    ) {
+        return VulkanAaUpscaleWarningEmitter.emit(new VulkanAaUpscaleWarningEmitter.Input(
+                aaMode,
+                temporalPathActive,
+                renderScale,
+                upscalerMode,
+                nativeUpscalerActive,
+                nativeUpscalerProvider,
+                upscaleWarnMinRenderScale,
+                upscaleWarnMaxRenderScaleTsr,
+                upscaleWarnMaxRenderScaleTuua,
+                upscaleWarnMinFrames,
+                upscaleWarnCooldownFrames,
+                upscalePromotionReadyMinFrames,
+                upscaleStableStreak,
+                upscaleHighStreak,
+                upscaleWarnCooldownRemaining
+        ));
     }
 }

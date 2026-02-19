@@ -10,7 +10,7 @@ Review metadata:
 - Latest reflection update: 2026-02-19 12:14 ET — Reflections Vulkan closeout index added (`docs/reflections-vulkan-closeout.md`) with linked checklists, exit criteria, and promotion commit ledger.
 - Latest shadow contract update: 2026-02-19 13:05 ET — Shadow v2 backlog modes/checklist added (`docs/shadow-contract-v2-backlog-checklist.md`) to track remaining shadow items through contract validation.
 - Latest structure guardrails update: 2026-02-19 16:52 ET — Class-size and package hygiene guardrails now enforced in CI (`.github/workflows/ci.yml` job `structure-guardrails`) via `scripts/java_structure_guardrails.sh`.
-- Latest AA temporal hardening update: 2026-02-19 17:48 ET — AA temporal material policy gates/warnings + typed diagnostics were added (`AA_REACTIVE_MASK_POLICY`, `AA_REACTIVE_MASK_ENVELOPE_BREACH`, `AA_HISTORY_CLAMP_POLICY`, `AA_HISTORY_CLAMP_ENVELOPE_BREACH`, `AA_TEMPORAL_CORE_PROMOTION_READY`) with lockdown coverage.
+- Latest AA temporal hardening update: 2026-02-19 18:12 ET — TUUA/TSR upscale envelope/promotion gates + typed diagnostics were added (`AA_UPSCALE_POLICY_ACTIVE`, `AA_UPSCALE_ENVELOPE`, `AA_UPSCALE_ENVELOPE_BREACH`, `AA_UPSCALE_PROMOTION_READY`, `aaUpscalePromotionDiagnostics()`), with lockdown coverage.
 
 Status legend:
 
@@ -22,8 +22,8 @@ Status summary snapshot (2026-02-19):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 44 |
-| `Partial` | 41 |
+| `In` | 46 |
+| `Partial` | 39 |
 | `Not In Yet` | 107 |
 
 ## Shadows
@@ -165,8 +165,8 @@ Reflection notes:
 - TAA with confidence buffer (decay/recovery on disocclusion) — `In`
 - MSAA (selective, per-material opt-in) — `Partial`
 - Hybrid MSAA + temporal (MSAA edges, temporal fill) — `Partial`
-- TUUA (temporal upscaling with AA) — `Partial`
-- TSR (temporal super resolution, internal render scale) — `Partial`
+- TUUA (temporal upscaling with AA) — `In`
+- TSR (temporal super resolution, internal render scale) — `In`
 - DLAA (deep learning AA — native res, neural filter) — `Partial`
 - Per-material reactive masks (alpha, emissive, specular boost) — `In`
 - Per-material history clamp control — `In`
@@ -181,6 +181,7 @@ AA notes:
 - Vulkan runtime now emits `AA_POST_CAPABILITY_PLAN_ACTIVE` each frame and exposes typed runtime diagnostics (`aaPostCapabilityDiagnostics()`) so hosts/CI can assert active/pruned AA+post capability planning without warning-string parsing.
 - Post stack execution is now modularized with module-owned execution contracts (`vulkan.post`, `vulkan.aa`, `vulkan.reflections`) used for pass IO declaration in `post_composite`.
 - Vulkan runtime now emits AA temporal hardening warnings (`AA_TEMPORAL_POLICY_ACTIVE`, `AA_TEMPORAL_ENVELOPE`, `AA_TEMPORAL_ENVELOPE_BREACH`, `AA_TEMPORAL_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`aaTemporalPromotionDiagnostics()`).
+- Vulkan runtime now emits TUUA/TSR upscale policy + envelope + promotion warnings (`AA_UPSCALE_POLICY_ACTIVE`, `AA_UPSCALE_ENVELOPE`, `AA_UPSCALE_ENVELOPE_BREACH`, `AA_UPSCALE_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`aaUpscalePromotionDiagnostics()`).
 
 ## Global Illumination
 

@@ -52,6 +52,9 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             assertTrue(temporalDiagnostics.temporalPathRequested());
             assertTrue(temporalDiagnostics.temporalPathActive());
             assertTrue(temporalDiagnostics.materialCount() > 0);
+            var upscaleDiagnostics = runtime.aaUpscalePromotionDiagnostics();
+            assertTrue(upscaleDiagnostics.available());
+            assertFalse(upscaleDiagnostics.upscaleModeActive());
         } finally {
             runtime.shutdown();
         }
@@ -115,6 +118,35 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             assertFalse(temporalDiagnostics.promotionReadyLastFrame());
             assertTrue(temporalDiagnostics.reactiveMaskBreachedLastFrame());
             assertTrue(temporalDiagnostics.historyClampBreachedLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void upscaleEnvelopeCanBeForcedForCiGateValidation() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.aaMode", "tsr"),
+                    Map.entry("vulkan.upscalerMode", "dlss"),
+                    Map.entry("vulkan.aa.upscaleWarnMaxRenderScaleTsr", "0.1"),
+                    Map.entry("vulkan.aa.upscaleWarnMinFrames", "1"),
+                    Map.entry("vulkan.aa.upscaleWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.aa.upscalePromotionReadyMinFrames", "1")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene(true));
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_UPSCALE_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_UPSCALE_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_UPSCALE_ENVELOPE_BREACH".equals(w.code())));
+            var upscaleDiagnostics = runtime.aaUpscalePromotionDiagnostics();
+            assertTrue(upscaleDiagnostics.available());
+            assertTrue(upscaleDiagnostics.upscaleModeActive());
+            assertTrue("tsr".equals(upscaleDiagnostics.aaMode()));
+            assertTrue(upscaleDiagnostics.envelopeBreachedLastFrame());
+            assertFalse(upscaleDiagnostics.promotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }

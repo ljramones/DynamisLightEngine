@@ -339,6 +339,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic AA upscale hardening/promotion diagnostics for TSR/TUUA paths.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link AaUpscalePromotionDiagnostics#unavailable()}.
+     *
+     * @return current AA upscale promotion diagnostics snapshot.
+     */
+    default AaUpscalePromotionDiagnostics aaUpscalePromotionDiagnostics() {
+        return AaUpscalePromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Retrieves backend-agnostic GI capability-plan diagnostics.
      *
      * Backends that do not expose this snapshot return

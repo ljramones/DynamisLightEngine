@@ -197,11 +197,16 @@ public final class VulkanAaCapabilityDescriptorV2 implements RenderFeatureCapabi
                         "AA_REACTIVE_MASK_ENVELOPE_BREACH",
                         "AA_HISTORY_CLAMP_POLICY",
                         "AA_HISTORY_CLAMP_ENVELOPE_BREACH",
-                        "AA_TEMPORAL_CORE_PROMOTION_READY"
+                        "AA_TEMPORAL_CORE_PROMOTION_READY",
+                        "AA_UPSCALE_POLICY_ACTIVE",
+                        "AA_UPSCALE_ENVELOPE",
+                        "AA_UPSCALE_ENVELOPE_BREACH",
+                        "AA_UPSCALE_PROMOTION_READY"
                 ),
                 List.of(
                         "aaPolicyDiagnostics",
-                        "aaTemporalPromotionDiagnostics"
+                        "aaTemporalPromotionDiagnostics",
+                        "aaUpscalePromotionDiagnostics"
                 ),
                 List.of(),
                 List.of(

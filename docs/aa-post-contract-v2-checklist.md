@@ -16,6 +16,7 @@ Scope: harden Vulkan AA + post capability declarations against the extracted v2 
 - [x] Add always-on CI lane for the lockdown bundle.
 - [x] Add AA temporal hardening envelope + promotion warnings (`AA_TEMPORAL_ENVELOPE`, `AA_TEMPORAL_ENVELOPE_BREACH`, `AA_TEMPORAL_PROMOTION_READY`) with typed diagnostics (`aaTemporalPromotionDiagnostics()`).
 - [x] Add material-policy temporal hardening gates (`AA_REACTIVE_MASK_POLICY`, `AA_REACTIVE_MASK_ENVELOPE_BREACH`, `AA_HISTORY_CLAMP_POLICY`, `AA_HISTORY_CLAMP_ENVELOPE_BREACH`) and consolidated readiness signal (`AA_TEMPORAL_CORE_PROMOTION_READY`).
+- [x] Add TUUA/TSR upscale envelope + promotion warnings (`AA_UPSCALE_POLICY_ACTIVE`, `AA_UPSCALE_ENVELOPE`, `AA_UPSCALE_ENVELOPE_BREACH`, `AA_UPSCALE_PROMOTION_READY`) with typed diagnostics (`aaUpscalePromotionDiagnostics()`).
 
 ## Verification
 
