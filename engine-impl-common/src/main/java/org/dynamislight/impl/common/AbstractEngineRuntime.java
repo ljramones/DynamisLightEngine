@@ -34,6 +34,7 @@ import org.dynamislight.api.runtime.EngineStats;
 import org.dynamislight.api.runtime.ReflectionAdaptiveTrendSloDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
+import org.dynamislight.api.runtime.ShadowPointBudgetDiagnostics;
 import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.EngineEvent;
@@ -290,6 +291,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public ShadowPointBudgetDiagnostics shadowPointBudgetDiagnostics() {
+        return backendShadowPointBudgetDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -359,6 +365,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected ShadowCadenceDiagnostics backendShadowCadenceDiagnostics() {
         return ShadowCadenceDiagnostics.unavailable();
+    }
+
+    protected ShadowPointBudgetDiagnostics backendShadowPointBudgetDiagnostics() {
+        return ShadowPointBudgetDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(

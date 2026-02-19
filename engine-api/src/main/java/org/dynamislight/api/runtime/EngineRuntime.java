@@ -195,6 +195,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic point-shadow face-budget diagnostics.
+     *
+     * Backends that do not expose point budget diagnostics return
+     * {@link ShadowPointBudgetDiagnostics#unavailable()}.
+     *
+     * @return current point-shadow face-budget diagnostics snapshot.
+     */
+    default ShadowPointBudgetDiagnostics shadowPointBudgetDiagnostics() {
+        return ShadowPointBudgetDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

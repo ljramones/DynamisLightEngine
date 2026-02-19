@@ -129,6 +129,7 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(cadence.selectedLocalShadowLights() >= 0);
             assertTrue(cadence.deferredShadowLightCount() >= 0);
             assertTrue(cadence.deferredRatio() >= 0.0);
+            assertFalse(runtime.shadowPointBudgetDiagnostics().available() && runtime.shadowPointBudgetDiagnostics().configuredMaxShadowFacesPerFrame() > 0);
         } finally {
             runtime.shutdown();
         }
@@ -159,7 +160,40 @@ class VulkanShadowCapabilityWarningIntegrationTest {
         }
     }
 
+    @Test
+    void pointFaceBudgetBreachGateTriggersOnSaturatedDeferredPointWork() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "false"),
+                    Map.entry("vulkan.shadow.maxShadowedLocalLights", "6"),
+                    Map.entry("vulkan.shadow.maxLocalShadowLayers", "24"),
+                    Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "6"),
+                    Map.entry("vulkan.shadow.pointFaceBudgetWarnSaturationMin", "0.90"),
+                    Map.entry("vulkan.shadow.pointFaceBudgetWarnMinFrames", "1"),
+                    Map.entry("vulkan.shadow.pointFaceBudgetWarnCooldownFrames", "0")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validThreePointShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_POINT_FACE_BUDGET_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH".equals(w.code())));
+            var pointBudget = runtime.shadowPointBudgetDiagnostics();
+            assertTrue(pointBudget.available());
+            assertEquals(6, pointBudget.configuredMaxShadowFacesPerFrame());
+            assertTrue(pointBudget.renderedPointFaces() >= 6);
+            assertTrue(pointBudget.saturationRatio() >= 0.9);
+            assertTrue(pointBudget.envelopeBreachedLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     private static EngineConfig validConfig(Map<String, String> backendOptions) {
+        return validConfig(backendOptions, QualityTier.MEDIUM);
+    }
+
+    private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier qualityTier) {
         return new EngineConfig(
                 "vulkan",
                 "vulkan-shadow-capability-warning-test",
@@ -168,7 +202,7 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                 1.0f,
                 true,
                 60,
-                QualityTier.MEDIUM,
+                qualityTier,
                 Path.of("."),
                 backendOptions
         );
@@ -250,6 +284,32 @@ class VulkanShadowCapabilityWarningIntegrationTest {
 
         return new SceneDescriptor(
                 "shadow-cadence-three-spot-scene",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(material),
+                List.of(lightA, lightB, lightC),
+                environment,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validThreePointShadowScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
+        MaterialDesc material = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        ShadowDesc shadow = new ShadowDesc(1024, 0.0015f, 1, 4);
+        LightDesc lightA = new LightDesc("pointA", new Vec3(1, 3, 2), new Vec3(1, 0.9f, 0.8f), 1.0f, 20f, true, shadow, LightType.POINT);
+        LightDesc lightB = new LightDesc("pointB", new Vec3(-2, 3, 2), new Vec3(0.8f, 1, 0.9f), 1.0f, 20f, true, shadow, LightType.POINT);
+        LightDesc lightC = new LightDesc("pointC", new Vec3(0, 3, -2), new Vec3(0.9f, 0.9f, 1), 1.0f, 20f, true, shadow, LightType.POINT);
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+
+        return new SceneDescriptor(
+                "shadow-point-budget-three-point-scene",
                 List.of(camera),
                 "cam",
                 List.of(transform),

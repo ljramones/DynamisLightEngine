@@ -50,6 +50,7 @@ Shadow notes:
 - Deep-dive execution sequencing and phase/exit checklist is now tracked in `docs/shadow-deep-dive-implementation-checklist.md`.
 - Shadow capability mode planning now incorporates rendered topology signals (`selected/deferred local`, `rendered spot`, `rendered point cubemaps`) so mode telemetry reflects active runtime shadow topology instead of config-only hints.
 - Engine runtime API now exposes typed shadow cadence diagnostics (`shadowCadenceDiagnostics()`) and Vulkan emits cadence envelope warnings (`SHADOW_CADENCE_ENVELOPE`, `SHADOW_CADENCE_ENVELOPE_BREACH`) with configurable deferred-ratio/streak/cooldown thresholds.
+- Engine runtime API now exposes typed point-shadow face-budget diagnostics (`shadowPointBudgetDiagnostics()`), and Vulkan emits point-budget envelope warnings (`SHADOW_POINT_FACE_BUDGET_ENVELOPE`, `SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH`) with configurable saturation/streak/cooldown thresholds.
 
 ## Reflections
 

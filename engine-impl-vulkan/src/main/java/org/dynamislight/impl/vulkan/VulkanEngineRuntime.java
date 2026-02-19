@@ -19,6 +19,7 @@ import org.dynamislight.api.event.ReflectionAdaptiveTelemetryEvent;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
+import org.dynamislight.api.runtime.ShadowPointBudgetDiagnostics;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
@@ -208,6 +209,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private double shadowCadenceWarnDeferredRatioMax = 0.55;
     private int shadowCadenceWarnMinFrames = 3;
     private int shadowCadenceWarnCooldownFrames = 120;
+    private double shadowPointFaceBudgetWarnSaturationMin = 1.0;
+    private int shadowPointFaceBudgetWarnMinFrames = 3;
+    private int shadowPointFaceBudgetWarnCooldownFrames = 120;
     private boolean shadowDirectionalTexelSnapEnabled = true;
     private float shadowDirectionalTexelSnapScale = 1.0f;
     private long shadowSchedulerFrameTick;
@@ -224,6 +228,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowCadenceHighStreak;
     private int shadowCadenceWarnCooldownRemaining;
     private boolean shadowCadenceEnvelopeBreachedLastFrame;
+    private int shadowPointBudgetRenderedCubemapsLastFrame;
+    private int shadowPointBudgetRenderedFacesLastFrame;
+    private int shadowPointBudgetDeferredCountLastFrame;
+    private double shadowPointBudgetSaturationRatioLastFrame;
+    private int shadowPointBudgetHighStreak;
+    private int shadowPointBudgetWarnCooldownRemaining;
+    private boolean shadowPointBudgetEnvelopeBreachedLastFrame;
     private boolean shadowRtTraversalSupported;
     private boolean shadowRtBvhSupported;
     private int lastActiveReflectionProbeCount = -1;
@@ -520,6 +531,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowCadenceWarnDeferredRatioMax = options.shadowCadenceWarnDeferredRatioMax();
         shadowCadenceWarnMinFrames = options.shadowCadenceWarnMinFrames();
         shadowCadenceWarnCooldownFrames = options.shadowCadenceWarnCooldownFrames();
+        shadowPointFaceBudgetWarnSaturationMin = options.shadowPointFaceBudgetWarnSaturationMin();
+        shadowPointFaceBudgetWarnMinFrames = options.shadowPointFaceBudgetWarnMinFrames();
+        shadowPointFaceBudgetWarnCooldownFrames = options.shadowPointFaceBudgetWarnCooldownFrames();
         shadowDirectionalTexelSnapEnabled = options.shadowDirectionalTexelSnapEnabled();
         shadowDirectionalTexelSnapScale = options.shadowDirectionalTexelSnapScale();
         reflectionProbeChurnWarnMinDelta = options.reflectionProbeChurnWarnMinDelta();
@@ -1040,6 +1054,24 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowCadenceHighStreak,
                 shadowCadenceWarnCooldownRemaining,
                 shadowCadenceEnvelopeBreachedLastFrame
+        );
+    }
+
+    @Override
+    protected ShadowPointBudgetDiagnostics backendShadowPointBudgetDiagnostics() {
+        return new ShadowPointBudgetDiagnostics(
+                shadowCapabilityDiagnostics().available(),
+                Math.max(0, shadowMaxFacesPerFrame),
+                shadowPointBudgetRenderedCubemapsLastFrame,
+                shadowPointBudgetRenderedFacesLastFrame,
+                shadowPointBudgetDeferredCountLastFrame,
+                shadowPointBudgetSaturationRatioLastFrame,
+                shadowPointFaceBudgetWarnSaturationMin,
+                shadowPointFaceBudgetWarnMinFrames,
+                shadowPointFaceBudgetWarnCooldownFrames,
+                shadowPointBudgetHighStreak,
+                shadowPointBudgetWarnCooldownRemaining,
+                shadowPointBudgetEnvelopeBreachedLastFrame
         );
     }
 
@@ -2297,12 +2329,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowCadenceStaleBypassCountLastFrame = 0;
         shadowCadenceDeferredRatioLastFrame = 0.0;
         shadowCadenceEnvelopeBreachedLastFrame = false;
+        shadowPointBudgetRenderedCubemapsLastFrame = 0;
+        shadowPointBudgetRenderedFacesLastFrame = 0;
+        shadowPointBudgetDeferredCountLastFrame = 0;
+        shadowPointBudgetSaturationRatioLastFrame = 0.0;
+        shadowPointBudgetEnvelopeBreachedLastFrame = false;
         if (shadowCadenceWarnCooldownRemaining > 0) {
             shadowCadenceWarnCooldownRemaining--;
+        }
+        if (shadowPointBudgetWarnCooldownRemaining > 0) {
+            shadowPointBudgetWarnCooldownRemaining--;
         }
         if (!currentShadows.enabled()) {
             shadowCadenceHighStreak = 0;
             shadowCadenceWarnCooldownRemaining = 0;
+            shadowPointBudgetHighStreak = 0;
+            shadowPointBudgetWarnCooldownRemaining = 0;
         }
         if (currentShadows.enabled()) {
             VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
@@ -2377,6 +2419,53 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", cooldownFrames=" + shadowCadenceWarnCooldownFrames + ")"
                 ));
                 shadowCadenceWarnCooldownRemaining = shadowCadenceWarnCooldownFrames;
+            }
+            shadowPointBudgetRenderedCubemapsLastFrame = currentShadows.renderedPointShadowCubemaps();
+            shadowPointBudgetRenderedFacesLastFrame = shadowPointBudgetRenderedCubemapsLastFrame * 6;
+            shadowPointBudgetDeferredCountLastFrame = currentShadows.deferredShadowLightCount();
+            int pointFaceBudgetConfigured = Math.max(0, shadowMaxFacesPerFrame);
+            shadowPointBudgetSaturationRatioLastFrame = pointFaceBudgetConfigured <= 0
+                    ? 0.0
+                    : Math.min(1.0, (double) shadowPointBudgetRenderedFacesLastFrame / (double) pointFaceBudgetConfigured);
+            boolean pointBudgetEnvelopeNow = pointFaceBudgetConfigured > 0
+                    && shadowPointBudgetRenderedFacesLastFrame > 0
+                    && shadowPointBudgetSaturationRatioLastFrame >= shadowPointFaceBudgetWarnSaturationMin
+                    && shadowPointBudgetDeferredCountLastFrame > 0;
+            if (pointBudgetEnvelopeNow) {
+                shadowPointBudgetHighStreak = Math.min(10_000, shadowPointBudgetHighStreak + 1);
+                shadowPointBudgetEnvelopeBreachedLastFrame = true;
+            } else {
+                shadowPointBudgetHighStreak = 0;
+            }
+            warnings.add(new EngineWarning(
+                    "SHADOW_POINT_FACE_BUDGET_ENVELOPE",
+                    "Shadow point face-budget envelope (configuredMaxFacesPerFrame="
+                            + pointFaceBudgetConfigured
+                            + ", renderedPointCubemaps=" + shadowPointBudgetRenderedCubemapsLastFrame
+                            + ", renderedPointFaces=" + shadowPointBudgetRenderedFacesLastFrame
+                            + ", deferredShadowLightCount=" + shadowPointBudgetDeferredCountLastFrame
+                            + ", saturationRatio=" + shadowPointBudgetSaturationRatioLastFrame
+                            + ", saturationWarnMin=" + shadowPointFaceBudgetWarnSaturationMin
+                            + ", highStreak=" + shadowPointBudgetHighStreak
+                            + ", warnMinFrames=" + shadowPointFaceBudgetWarnMinFrames
+                            + ", cooldownRemaining=" + shadowPointBudgetWarnCooldownRemaining + ")"
+            ));
+            if (pointBudgetEnvelopeNow
+                    && shadowPointBudgetHighStreak >= shadowPointFaceBudgetWarnMinFrames
+                    && shadowPointBudgetWarnCooldownRemaining == 0) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH",
+                        "Shadow point face-budget envelope breached (configuredMaxFacesPerFrame="
+                                + pointFaceBudgetConfigured
+                                + ", renderedPointFaces=" + shadowPointBudgetRenderedFacesLastFrame
+                                + ", saturationRatio=" + shadowPointBudgetSaturationRatioLastFrame
+                                + ", saturationWarnMin=" + shadowPointFaceBudgetWarnSaturationMin
+                                + ", deferredShadowLightCount=" + shadowPointBudgetDeferredCountLastFrame
+                                + ", highStreak=" + shadowPointBudgetHighStreak
+                                + ", warnMinFrames=" + shadowPointFaceBudgetWarnMinFrames
+                                + ", cooldownFrames=" + shadowPointFaceBudgetWarnCooldownFrames + ")"
+                ));
+                shadowPointBudgetWarnCooldownRemaining = shadowPointFaceBudgetWarnCooldownFrames;
             }
             String momentPhase = "pending";
             if (context.hasShadowMomentResources()) {

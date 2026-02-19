@@ -36,8 +36,8 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 
 ### 2) Point cubemap + face-budget
 
-- [ ] Add dedicated point-face budget diagnostics + envelope gates.
-- [ ] Add scene coverage for multi-point + budget rotation stress.
+- [x] Add dedicated point-face budget diagnostics + envelope gates (`SHADOW_POINT_FACE_BUDGET_ENVELOPE`, `SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH`) + typed runtime accessor `shadowPointBudgetDiagnostics()`.
+- [x] Add scene coverage for multi-point budget saturation/breach behavior (`VulkanShadowCapabilityWarningIntegrationTest#pointFaceBudgetBreachGateTriggersOnSaturatedDeferredPointWork`).
 - [ ] Lock point face-budget thresholds per profile.
 
 ### 3) Spot projected
