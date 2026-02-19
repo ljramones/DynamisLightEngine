@@ -27,6 +27,7 @@ import org.dynamislight.api.runtime.ShadowHybridDiagnostics;
 import org.dynamislight.api.runtime.ShadowSpotProjectedDiagnostics;
 import org.dynamislight.api.runtime.ShadowTransparentReceiverDiagnostics;
 import org.dynamislight.api.runtime.ShadowExtendedModeDiagnostics;
+import org.dynamislight.api.runtime.ShadowTopologyDiagnostics;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
@@ -246,6 +247,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean shadowDistanceFieldRequested;
     private boolean shadowDistanceFieldRequireActive;
     private final boolean shadowDistanceFieldSupported = false;
+    private double shadowTopologyLocalCoverageWarnMin = 0.60;
+    private double shadowTopologySpotCoverageWarnMin = 0.60;
+    private double shadowTopologyPointCoverageWarnMin = 0.50;
+    private int shadowTopologyWarnMinFrames = 3;
+    private int shadowTopologyWarnCooldownFrames = 120;
     private boolean shadowDirectionalTexelSnapEnabled = true;
     private float shadowDirectionalTexelSnapScale = 1.0f;
     private long shadowSchedulerFrameTick;
@@ -297,6 +303,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean shadowTransparentReceiverEnvelopeBreachedLastFrame;
     private boolean shadowAreaApproxBreachedLastFrame;
     private boolean shadowDistanceFieldBreachedLastFrame;
+    private int shadowTopologyCandidateSpotLightsLastFrame;
+    private int shadowTopologyCandidatePointLightsLastFrame;
+    private double shadowTopologyLocalCoverageLastFrame;
+    private double shadowTopologySpotCoverageLastFrame;
+    private double shadowTopologyPointCoverageLastFrame;
+    private int shadowTopologyHighStreak;
+    private int shadowTopologyWarnCooldownRemaining;
+    private boolean shadowTopologyEnvelopeBreachedLastFrame;
     private boolean shadowSpotProjectedRequestedLastFrame;
     private boolean shadowSpotProjectedActiveLastFrame;
     private int shadowSpotProjectedRenderedCountLastFrame;
@@ -625,6 +639,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowAreaApproxRequireActive = options.shadowAreaApproxRequireActive();
         shadowDistanceFieldRequested = options.shadowDistanceFieldSoftEnabled();
         shadowDistanceFieldRequireActive = options.shadowDistanceFieldRequireActive();
+        shadowTopologyLocalCoverageWarnMin = options.shadowTopologyLocalCoverageWarnMin();
+        shadowTopologySpotCoverageWarnMin = options.shadowTopologySpotCoverageWarnMin();
+        shadowTopologyPointCoverageWarnMin = options.shadowTopologyPointCoverageWarnMin();
+        shadowTopologyWarnMinFrames = options.shadowTopologyWarnMinFrames();
+        shadowTopologyWarnCooldownFrames = options.shadowTopologyWarnCooldownFrames();
         shadowDirectionalTexelSnapEnabled = options.shadowDirectionalTexelSnapEnabled();
         shadowDirectionalTexelSnapScale = options.shadowDirectionalTexelSnapScale();
         reflectionProbeChurnWarnMinDelta = options.reflectionProbeChurnWarnMinDelta();
@@ -1270,6 +1289,30 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowDistanceFieldSupported,
                 shadowDistanceFieldSupported ? "enabled" : "fallback_standard_shadow",
                 shadowDistanceFieldBreachedLastFrame
+        );
+    }
+
+    @Override
+    protected ShadowTopologyDiagnostics backendShadowTopologyDiagnostics() {
+        return new ShadowTopologyDiagnostics(
+                shadowCapabilityDiagnostics().available(),
+                shadowCadenceSelectedLocalLightsLastFrame,
+                currentShadows.renderedLocalShadowLights(),
+                shadowTopologyCandidateSpotLightsLastFrame,
+                shadowSpotProjectedRenderedCountLastFrame,
+                shadowTopologyCandidatePointLightsLastFrame,
+                shadowPointBudgetRenderedCubemapsLastFrame,
+                shadowTopologyLocalCoverageLastFrame,
+                shadowTopologySpotCoverageLastFrame,
+                shadowTopologyPointCoverageLastFrame,
+                shadowTopologyLocalCoverageWarnMin,
+                shadowTopologySpotCoverageWarnMin,
+                shadowTopologyPointCoverageWarnMin,
+                shadowTopologyWarnMinFrames,
+                shadowTopologyWarnCooldownFrames,
+                shadowTopologyHighStreak,
+                shadowTopologyWarnCooldownRemaining,
+                shadowTopologyEnvelopeBreachedLastFrame
         );
     }
 
@@ -2552,6 +2595,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowTransparentReceiverEnvelopeBreachedLastFrame = false;
         shadowAreaApproxBreachedLastFrame = false;
         shadowDistanceFieldBreachedLastFrame = false;
+        shadowTopologyCandidateSpotLightsLastFrame = 0;
+        shadowTopologyCandidatePointLightsLastFrame = 0;
+        shadowTopologyLocalCoverageLastFrame = 0.0;
+        shadowTopologySpotCoverageLastFrame = 0.0;
+        shadowTopologyPointCoverageLastFrame = 0.0;
+        shadowTopologyEnvelopeBreachedLastFrame = false;
         shadowSpotProjectedRequestedLastFrame = false;
         shadowSpotProjectedActiveLastFrame = false;
         shadowSpotProjectedRenderedCountLastFrame = 0;
@@ -2575,6 +2624,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (shadowTransparentReceiverWarnCooldownRemaining > 0) {
             shadowTransparentReceiverWarnCooldownRemaining--;
         }
+        if (shadowTopologyWarnCooldownRemaining > 0) {
+            shadowTopologyWarnCooldownRemaining--;
+        }
         if (!currentShadows.enabled()) {
             shadowCadenceHighStreak = 0;
             shadowCadenceWarnCooldownRemaining = 0;
@@ -2588,6 +2640,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             shadowHybridWarnCooldownRemaining = 0;
             shadowTransparentReceiverHighStreak = 0;
             shadowTransparentReceiverWarnCooldownRemaining = 0;
+            shadowTopologyHighStreak = 0;
+            shadowTopologyWarnCooldownRemaining = 0;
         }
         if (currentShadows.enabled()) {
             VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
@@ -2686,6 +2740,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", distanceFieldRequested=" + shadowDistanceFieldRequested
                             + ", distanceFieldSupported=" + shadowDistanceFieldSupported
                             + ", distanceFieldRequireActive=" + shadowDistanceFieldRequireActive
+                            + ", topologyLocalCoverageWarnMin=" + shadowTopologyLocalCoverageWarnMin
+                            + ", topologySpotCoverageWarnMin=" + shadowTopologySpotCoverageWarnMin
+                            + ", topologyPointCoverageWarnMin=" + shadowTopologyPointCoverageWarnMin
+                            + ", topologyWarnMinFrames=" + shadowTopologyWarnMinFrames
+                            + ", topologyWarnCooldownFrames=" + shadowTopologyWarnCooldownFrames
                             + ")"
             ));
             warnings.add(new EngineWarning(
@@ -2778,6 +2837,75 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + ", cooldownFrames=" + shadowPointFaceBudgetWarnCooldownFrames + ")"
                 ));
                 shadowPointBudgetWarnCooldownRemaining = shadowPointFaceBudgetWarnCooldownFrames;
+            }
+            int candidateSpotLights = 0;
+            int candidatePointLights = 0;
+            if (currentSceneLights != null) {
+                for (LightDesc light : currentSceneLights) {
+                    if (light == null || !light.castsShadows() || light.shadow() == null) {
+                        continue;
+                    }
+                    if (light.type() == LightType.SPOT) {
+                        candidateSpotLights++;
+                    } else if (light.type() == LightType.POINT) {
+                        candidatePointLights++;
+                    }
+                }
+            }
+            shadowTopologyCandidateSpotLightsLastFrame = candidateSpotLights;
+            shadowTopologyCandidatePointLightsLastFrame = candidatePointLights;
+            int renderedLocalLights = Math.max(0, currentShadows.renderedLocalShadowLights());
+            shadowTopologyLocalCoverageLastFrame = shadowCadenceSelectedLocalLightsLastFrame <= 0
+                    ? 1.0
+                    : Math.min(1.0, (double) renderedLocalLights / (double) shadowCadenceSelectedLocalLightsLastFrame);
+            shadowTopologySpotCoverageLastFrame = candidateSpotLights <= 0
+                    ? 1.0
+                    : Math.min(1.0, (double) shadowSpotProjectedRenderedCountLastFrame / (double) candidateSpotLights);
+            shadowTopologyPointCoverageLastFrame = candidatePointLights <= 0
+                    ? 1.0
+                    : Math.min(1.0, (double) shadowPointBudgetRenderedCubemapsLastFrame / (double) candidatePointLights);
+            boolean topologyEnvelopeNow = shadowTopologyLocalCoverageLastFrame < shadowTopologyLocalCoverageWarnMin
+                    || shadowTopologySpotCoverageLastFrame < shadowTopologySpotCoverageWarnMin
+                    || shadowTopologyPointCoverageLastFrame < shadowTopologyPointCoverageWarnMin;
+            if (topologyEnvelopeNow) {
+                shadowTopologyHighStreak = Math.min(10_000, shadowTopologyHighStreak + 1);
+                shadowTopologyEnvelopeBreachedLastFrame = true;
+            } else {
+                shadowTopologyHighStreak = 0;
+            }
+            warnings.add(new EngineWarning(
+                    "SHADOW_TOPOLOGY_CONTRACT",
+                    "Shadow topology contract (selectedLocal=" + shadowCadenceSelectedLocalLightsLastFrame
+                            + ", renderedLocal=" + renderedLocalLights
+                            + ", candidateSpot=" + candidateSpotLights
+                            + ", renderedSpot=" + shadowSpotProjectedRenderedCountLastFrame
+                            + ", candidatePoint=" + candidatePointLights
+                            + ", renderedPointCubemaps=" + shadowPointBudgetRenderedCubemapsLastFrame
+                            + ", localCoverage=" + shadowTopologyLocalCoverageLastFrame
+                            + ", spotCoverage=" + shadowTopologySpotCoverageLastFrame
+                            + ", pointCoverage=" + shadowTopologyPointCoverageLastFrame
+                            + ", localCoverageWarnMin=" + shadowTopologyLocalCoverageWarnMin
+                            + ", spotCoverageWarnMin=" + shadowTopologySpotCoverageWarnMin
+                            + ", pointCoverageWarnMin=" + shadowTopologyPointCoverageWarnMin
+                            + ", warnMinFrames=" + shadowTopologyWarnMinFrames
+                            + ", cooldownRemaining=" + shadowTopologyWarnCooldownRemaining + ")"
+            ));
+            if (topologyEnvelopeNow
+                    && shadowTopologyHighStreak >= shadowTopologyWarnMinFrames
+                    && shadowTopologyWarnCooldownRemaining == 0) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_TOPOLOGY_CONTRACT_BREACH",
+                        "Shadow topology contract breached (localCoverage=" + shadowTopologyLocalCoverageLastFrame
+                                + ", spotCoverage=" + shadowTopologySpotCoverageLastFrame
+                                + ", pointCoverage=" + shadowTopologyPointCoverageLastFrame
+                                + ", localCoverageWarnMin=" + shadowTopologyLocalCoverageWarnMin
+                                + ", spotCoverageWarnMin=" + shadowTopologySpotCoverageWarnMin
+                                + ", pointCoverageWarnMin=" + shadowTopologyPointCoverageWarnMin
+                                + ", highStreak=" + shadowTopologyHighStreak
+                                + ", warnMinFrames=" + shadowTopologyWarnMinFrames
+                                + ", cooldownFrames=" + shadowTopologyWarnCooldownFrames + ")"
+                ));
+                shadowTopologyWarnCooldownRemaining = shadowTopologyWarnCooldownFrames;
             }
             shadowCacheHitCountLastFrame = Math.max(0, shadowAllocatorReusedAssignments);
             shadowCacheMissCountLastFrame = Math.max(0,
@@ -5107,6 +5235,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.10;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.72;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.70;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.58;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyWarnMinFrames")) shadowTopologyWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyWarnCooldownFrames")) shadowTopologyWarnCooldownFrames = 180;
             }
             case MEDIUM -> {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.55;
@@ -5134,6 +5267,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.20;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 3;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.60;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.60;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.50;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyWarnMinFrames")) shadowTopologyWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyWarnCooldownFrames")) shadowTopologyWarnCooldownFrames = 120;
             }
             case HIGH -> {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.45;
@@ -5161,6 +5299,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.28;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.52;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.50;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.42;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyWarnMinFrames")) shadowTopologyWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyWarnCooldownFrames")) shadowTopologyWarnCooldownFrames = 90;
             }
             case ULTRA -> {
                 if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.35;
@@ -5188,6 +5331,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverCandidateRatioWarnMax")) shadowTransparentReceiverCandidateRatioWarnMax = 0.35;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnMinFrames")) shadowTransparentReceiverWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.shadow.transparentReceiverWarnCooldownFrames")) shadowTransparentReceiverWarnCooldownFrames = 60;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyLocalCoverageWarnMin")) shadowTopologyLocalCoverageWarnMin = 0.45;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologySpotCoverageWarnMin")) shadowTopologySpotCoverageWarnMin = 0.42;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyPointCoverageWarnMin")) shadowTopologyPointCoverageWarnMin = 0.35;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyWarnMinFrames")) shadowTopologyWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.topologyWarnCooldownFrames")) shadowTopologyWarnCooldownFrames = 60;
             }
         }
     }

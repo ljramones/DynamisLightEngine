@@ -47,6 +47,7 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
   - `SHADOW_SPOT_PROJECTED_CONTRACT_BREACH`
   and typed runtime accessor `shadowSpotProjectedDiagnostics()`.
 - [x] Add projected-spot scene coverage for contract activation/breach state (`VulkanShadowCapabilityWarningIntegrationTest#emitsCadenceEnvelopeWarningAndTypedDiagnostics`).
+- [x] Add strict topology contract diagnostics/gates across local/spot/point coverage (`shadowTopologyDiagnostics()`, `SHADOW_TOPOLOGY_CONTRACT`, `SHADOW_TOPOLOGY_CONTRACT_BREACH`).
 
 ### 4) Shadow caching
 

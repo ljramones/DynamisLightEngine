@@ -279,6 +279,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic shadow topology coverage diagnostics.
+     *
+     * Backends that do not expose topology diagnostics return
+     * {@link ShadowTopologyDiagnostics#unavailable()}.
+     *
+     * @return current shadow topology diagnostics snapshot.
+     */
+    default ShadowTopologyDiagnostics shadowTopologyDiagnostics() {
+        return ShadowTopologyDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

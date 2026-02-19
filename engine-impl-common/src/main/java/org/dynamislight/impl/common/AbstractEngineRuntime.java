@@ -41,6 +41,7 @@ import org.dynamislight.api.runtime.ShadowHybridDiagnostics;
 import org.dynamislight.api.runtime.ShadowSpotProjectedDiagnostics;
 import org.dynamislight.api.runtime.ShadowTransparentReceiverDiagnostics;
 import org.dynamislight.api.runtime.ShadowExtendedModeDiagnostics;
+import org.dynamislight.api.runtime.ShadowTopologyDiagnostics;
 import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.EngineEvent;
@@ -332,6 +333,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public ShadowTopologyDiagnostics shadowTopologyDiagnostics() {
+        return backendShadowTopologyDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -429,6 +435,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected ShadowExtendedModeDiagnostics backendShadowExtendedModeDiagnostics() {
         return ShadowExtendedModeDiagnostics.unavailable();
+    }
+
+    protected ShadowTopologyDiagnostics backendShadowTopologyDiagnostics() {
+        return ShadowTopologyDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(
