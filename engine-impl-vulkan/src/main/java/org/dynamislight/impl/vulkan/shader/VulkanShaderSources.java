@@ -71,14 +71,6 @@ public final class VulkanShaderSources {
         );
     }
 
-    public static String mainFragmentMonolithic() {
-        return VulkanMainShaderSources.mainFragment();
-    }
-
-    public static String postFragmentMonolithic() {
-        return VulkanPostShaderSources.postFragment();
-    }
-
     private static List<RenderShaderModuleDeclaration> runtimeMainModules() {
         java.util.ArrayList<RenderShaderModuleDeclaration> modules = new java.util.ArrayList<>();
         modules.addAll(VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_PCF)

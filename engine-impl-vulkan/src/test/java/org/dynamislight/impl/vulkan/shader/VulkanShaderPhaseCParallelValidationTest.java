@@ -1,6 +1,5 @@
 package org.dynamislight.impl.vulkan.shader;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,9 +21,9 @@ import org.junit.jupiter.params.provider.MethodSource;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_fragment_shader;
 
 class VulkanShaderPhaseCParallelValidationTest {
-    @ParameterizedTest(name = "phase-c c1.6 compile parity: {0}")
+    @ParameterizedTest(name = "phase-c c1.8 assembled compile validation: {0}")
     @MethodSource("blessedProfiles")
-    void assembledShadersCompileAndMatchCanonicalFunctionBodies(
+    void assembledShadersCompileAndContainCanonicalFunctionBodies(
             String profile,
             RenderFeatureMode shadowMode,
             RenderFeatureMode reflectionMode,
@@ -32,30 +31,22 @@ class VulkanShaderPhaseCParallelValidationTest {
     ) throws Exception {
         List<RenderShaderModuleDeclaration> modules = gatherModules(shadowMode, reflectionMode, aaMode);
 
-        String monolithicMain = VulkanShaderSources.mainFragmentMonolithic();
-        String monolithicPost = VulkanShaderSources.postFragmentMonolithic();
         VulkanShaderAssemblyResult assembledMainResult = VulkanShaderProfileAssembler.assembleMainFragmentCanonical(modules);
         VulkanShaderAssemblyResult assembledPostResult = VulkanShaderProfileAssembler.assemblePostFragmentCanonical(modules);
         String assembledMain = assembledMainResult.source();
         String assembledPost = assembledPostResult.source();
 
-        ByteBuffer monoMainSpv = VulkanShaderCompiler.compileGlslToSpv(monolithicMain, shaderc_fragment_shader, profile + ".mono.main.frag");
-        ByteBuffer monoPostSpv = VulkanShaderCompiler.compileGlslToSpv(monolithicPost, shaderc_fragment_shader, profile + ".mono.post.frag");
         ByteBuffer asmMainSpv = VulkanShaderCompiler.compileGlslToSpv(assembledMain, shaderc_fragment_shader, profile + ".asm.main.frag");
         ByteBuffer asmPostSpv = VulkanShaderCompiler.compileGlslToSpv(assembledPost, shaderc_fragment_shader, profile + ".asm.post.frag");
-        assertTrue(monoMainSpv.remaining() > 0);
-        assertTrue(monoPostSpv.remaining() > 0);
         assertTrue(asmMainSpv.remaining() > 0);
         assertTrue(asmPostSpv.remaining() > 0);
 
-        assertFunctionBodiesEquivalent(
+        assertFunctionBodiesPresent(
                 moduleFunctionNamesFor(modules, "main_geometry", RenderShaderStage.FRAGMENT),
-                monolithicMain,
                 assembledMain
         );
-        assertFunctionBodiesEquivalent(
+        assertFunctionBodiesPresent(
                 moduleFunctionNamesFor(modules, "post_composite", RenderShaderStage.FRAGMENT),
-                monolithicPost,
                 assembledPost
         );
 
@@ -95,13 +86,10 @@ class VulkanShaderPhaseCParallelValidationTest {
         return names;
     }
 
-    private static void assertFunctionBodiesEquivalent(Set<String> functionNames, String monolithic, String assembled) {
+    private static void assertFunctionBodiesPresent(Set<String> functionNames, String assembled) {
         for (String functionName : functionNames) {
-            String mono = VulkanShaderFunctionText.extractFunctionDefinition(monolithic, functionName).trim();
             String asm = VulkanShaderFunctionText.extractFunctionDefinition(assembled, functionName).trim();
-            assertFalse(mono.isBlank(), "missing monolithic function: " + functionName);
             assertFalse(asm.isBlank(), "missing assembled function: " + functionName);
-            assertEquals(mono, asm, "function body mismatch: " + functionName);
         }
     }
 
