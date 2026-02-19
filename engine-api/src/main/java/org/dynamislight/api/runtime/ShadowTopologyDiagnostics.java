@@ -21,6 +21,9 @@ public record ShadowTopologyDiagnostics(
         int warnCooldownFrames,
         int highStreak,
         int warnCooldownRemaining,
+        int stableStreak,
+        int promotionReadyMinFrames,
+        boolean promotionReadyLastFrame,
         boolean envelopeBreachedLastFrame
 ) {
     public static ShadowTopologyDiagnostics unavailable() {
@@ -42,6 +45,9 @@ public record ShadowTopologyDiagnostics(
                 0,
                 0,
                 0,
+                0,
+                0,
+                false,
                 false
         );
     }

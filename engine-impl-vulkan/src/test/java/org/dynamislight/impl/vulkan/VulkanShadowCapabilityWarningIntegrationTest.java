@@ -248,6 +248,7 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("topologyPointCoverageWarnMin=0.35"), profileWarning);
             assertTrue(profileWarning.contains("topologyWarnMinFrames=2"), profileWarning);
             assertTrue(profileWarning.contains("topologyWarnCooldownFrames=60"), profileWarning);
+            assertTrue(profileWarning.contains("topologyPromotionReadyMinFrames=4"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.35, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(2, cadence.warnMinFrames());
@@ -276,6 +277,7 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals(0.35, topology.pointCoverageWarnMin(), 1e-6);
             assertEquals(2, topology.warnMinFrames());
             assertEquals(60, topology.warnCooldownFrames());
+            assertEquals(4, topology.promotionReadyMinFrames());
         } finally {
             runtime.shutdown();
         }
@@ -316,7 +318,8 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                     Map.entry("vulkan.shadow.topologySpotCoverageWarnMin", "0.72"),
                     Map.entry("vulkan.shadow.topologyPointCoverageWarnMin", "0.63"),
                     Map.entry("vulkan.shadow.topologyWarnMinFrames", "4"),
-                    Map.entry("vulkan.shadow.topologyWarnCooldownFrames", "99")
+                    Map.entry("vulkan.shadow.topologyWarnCooldownFrames", "99"),
+                    Map.entry("vulkan.shadow.topologyPromotionReadyMinFrames", "11")
             ), QualityTier.ULTRA), new NoopCallbacks());
             runtime.loadScene(validThreeSpotShadowScene());
             var frame = runtime.render();
@@ -351,6 +354,7 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("topologyPointCoverageWarnMin=0.63"), profileWarning);
             assertTrue(profileWarning.contains("topologyWarnMinFrames=4"), profileWarning);
             assertTrue(profileWarning.contains("topologyWarnCooldownFrames=99"), profileWarning);
+            assertTrue(profileWarning.contains("topologyPromotionReadyMinFrames=11"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.22, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(7, cadence.warnMinFrames());
@@ -388,6 +392,36 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals(0.63, topology.pointCoverageWarnMin(), 1e-6);
             assertEquals(4, topology.warnMinFrames());
             assertEquals(99, topology.warnCooldownFrames());
+            assertEquals(11, topology.promotionReadyMinFrames());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void shadowTopologyPromotionReadyWarningEmitsAfterStableCoverageWindow() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "false"),
+                    Map.entry("vulkan.shadow.maxShadowedLocalLights", "8"),
+                    Map.entry("vulkan.shadow.maxLocalShadowLayers", "24"),
+                    Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "24"),
+                    Map.entry("vulkan.shadow.topologyWarnMinFrames", "1"),
+                    Map.entry("vulkan.shadow.topologyWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.shadow.topologyPromotionReadyMinFrames", "1")
+            )), new NoopCallbacks());
+            runtime.loadScene(validThreeSpotShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_TOPOLOGY_CONTRACT".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_TOPOLOGY_PROMOTION_READY".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_TOPOLOGY_CONTRACT_BREACH".equals(w.code())));
+            var topology = runtime.shadowTopologyDiagnostics();
+            assertTrue(topology.available());
+            assertTrue(topology.promotionReadyLastFrame());
+            assertTrue(topology.stableStreak() >= topology.promotionReadyMinFrames());
+            assertFalse(topology.envelopeBreachedLastFrame());
         } finally {
             runtime.shutdown();
         }

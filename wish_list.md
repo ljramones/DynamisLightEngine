@@ -59,6 +59,7 @@ Shadow notes:
 - Engine runtime API now exposes typed transparent receiver diagnostics (`shadowTransparentReceiverDiagnostics()`), and Vulkan now emits transparent receiver policy/envelope warnings (`SHADOW_TRANSPARENT_RECEIVER_POLICY`, `SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH`) with explicit `fallback_opaque_only` policy when requested support is unavailable.
 - Engine runtime API now exposes typed extended shadow-mode diagnostics (`shadowExtendedModeDiagnostics()`), and Vulkan now emits policy/required-path breach warnings for area-approx and distance-field soft modes (`SHADOW_AREA_APPROX_POLICY`, `SHADOW_AREA_APPROX_REQUIRED_UNAVAILABLE_BREACH`, `SHADOW_DISTANCE_FIELD_SOFT_POLICY`, `SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH`).
 - Engine runtime API now exposes typed shadow topology diagnostics (`shadowTopologyDiagnostics()`), and Vulkan emits strict topology contract warnings (`SHADOW_TOPOLOGY_CONTRACT`, `SHADOW_TOPOLOGY_CONTRACT_BREACH`) for local/spot/point execution coverage with tier-locked envelope defaults.
+- Vulkan shadow topology diagnostics now track stability streak + promotion readiness (`topologyPromotionReadyMinFrames`) and emit explicit readiness signaling (`SHADOW_TOPOLOGY_PROMOTION_READY`) when sustained coverage meets the configured window.
 - Vulkan local-shadow warning behavior is now policy-aware: scheduler/budget-driven deferral emits `SHADOW_LOCAL_RENDER_DEFERRED_POLICY` instead of rollout-gap baseline warnings.
 
 ## Reflections

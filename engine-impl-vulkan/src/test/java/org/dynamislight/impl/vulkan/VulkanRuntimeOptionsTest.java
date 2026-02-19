@@ -68,6 +68,7 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.topologyPointCoverageWarnMin", "0.55"),
                         Map.entry("vulkan.shadow.topologyWarnMinFrames", "8"),
                         Map.entry("vulkan.shadow.topologyWarnCooldownFrames", "222"),
+                        Map.entry("vulkan.shadow.topologyPromotionReadyMinFrames", "19"),
                         Map.entry("vulkan.shadow.directionalTexelSnapEnabled", "false"),
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "1.75"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "2"),
@@ -221,6 +222,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.55, parsed.shadowTopologyPointCoverageWarnMin());
         assertEquals(8, parsed.shadowTopologyWarnMinFrames());
         assertEquals(222, parsed.shadowTopologyWarnCooldownFrames());
+        assertEquals(19, parsed.shadowTopologyPromotionReadyMinFrames());
         assertEquals(false, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(1.75f, parsed.shadowDirectionalTexelSnapScale());
         assertEquals(2, parsed.reflectionProbeChurnWarnMinDelta());
@@ -364,6 +366,7 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.topologyPointCoverageWarnMin", "9.0"),
                         Map.entry("vulkan.shadow.topologyWarnMinFrames", "0"),
                         Map.entry("vulkan.shadow.topologyWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.shadow.topologyPromotionReadyMinFrames", "0"),
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "10.0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "0"),
@@ -506,6 +509,7 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1.0, parsed.shadowTopologyPointCoverageWarnMin());
         assertEquals(1, parsed.shadowTopologyWarnMinFrames());
         assertEquals(10000, parsed.shadowTopologyWarnCooldownFrames());
+        assertEquals(1, parsed.shadowTopologyPromotionReadyMinFrames());
         assertEquals(true, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(4.0f, parsed.shadowDirectionalTexelSnapScale());
         assertEquals(1, parsed.reflectionProbeChurnWarnMinDelta());
