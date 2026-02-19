@@ -728,10 +728,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowAllocatorAssignedLights = 0;
         shadowAllocatorReusedAssignments = 0;
         shadowAllocatorEvictions = 0;
-        resetReflectionProbeChurnDiagnostics();
-        resetReflectionSsrTaaRiskDiagnostics();
-        resetReflectionAdaptiveState();
-        resetReflectionAdaptiveTelemetryMetrics();
+        VulkanReflectionRuntimeFlow.resetProbeChurnDiagnostics(this);
+        VulkanReflectionRuntimeFlow.resetSsrTaaRiskDiagnostics(this);
+        VulkanReflectionRuntimeFlow.resetAdaptiveState(this);
+        VulkanReflectionRuntimeFlow.resetAdaptiveTelemetryMetrics(this);
         reflectionSsrEnvelopeHighStreak = 0;
         reflectionSsrEnvelopeWarnCooldownRemaining = 0;
         reflectionSsrEnvelopeBreachedLastFrame = false;
@@ -927,8 +927,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         currentShadows = sceneState.shadows();
         currentPost = sceneState.post();
         currentPost = applyExternalUpscalerDecision(currentPost);
-        resetReflectionAdaptiveState();
-        resetReflectionAdaptiveTelemetryMetrics();
+        VulkanReflectionRuntimeFlow.resetAdaptiveState(this);
+        VulkanReflectionRuntimeFlow.resetAdaptiveTelemetryMetrics(this);
         currentIbl = sceneState.ibl();
         currentReflectionProbes = sceneState.reflectionProbes() == null ? List.of() : List.copyOf(sceneState.reflectionProbes());
         currentSceneMaterials = scene == null || scene.materials() == null ? List.of() : List.copyOf(scene.materials());
@@ -1060,7 +1060,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                     shadowDirectionalTexelSnapScale
             );
         }
-        applyAdaptiveReflectionPostParameters();
+        VulkanReflectionRuntimeFlow.applyAdaptivePostParameters(this, context);
         VulkanRuntimeLifecycle.RenderState frame = VulkanRuntimeLifecycle.render(
                 context,
                 mockContext,
@@ -1289,475 +1289,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         aaPostActiveCapabilitiesLastFrame = aaPostEmission.activeCapabilities();
         aaPostPrunedCapabilitiesLastFrame = aaPostEmission.prunedCapabilities();
         warnings.add(aaPostEmission.warning());
-        if (currentPost.reflectionsEnabled()) {
-            int reflectionBaseMode = currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
-            ReflectionOverrideSummary overrideSummary = VulkanReflectionAnalysis.summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
-            VulkanContext.ReflectionProbeDiagnostics probeDiagnostics = context.debugReflectionProbeDiagnostics();
-            ReflectionProbeChurnDiagnostics churnDiagnostics = updateReflectionProbeChurnDiagnostics(probeDiagnostics);
-            warnings.add(new EngineWarning(
-                    "REFLECTIONS_BASELINE_ACTIVE",
-                    "Reflections baseline active (mode="
-                            + switch (reflectionBaseMode) {
-                        case 1 -> "ssr";
-                        case 2 -> "planar";
-                        case 3 -> "hybrid";
-                        case 4 -> "rt_hybrid_fallback";
-                        default -> "ibl_only";
-                    }
-                            + ", ssrStrength=" + currentPost.reflectionsSsrStrength()
-                            + ", planarStrength=" + currentPost.reflectionsPlanarStrength()
-                            + ", overrideAuto=" + overrideSummary.autoCount()
-                            + ", overrideProbeOnly=" + overrideSummary.probeOnlyCount()
-                            + ", overrideSsrOnly=" + overrideSummary.ssrOnlyCount()
-                            + ", overrideOther=" + overrideSummary.otherCount()
-                            + ", probeConfigured=" + probeDiagnostics.configuredProbeCount()
-                            + ", probeActive=" + probeDiagnostics.activeProbeCount()
-                            + ", probeSlots=" + probeDiagnostics.slotCount()
-                            + ", probeCapacity=" + probeDiagnostics.metadataCapacity()
-                            + ", probeDelta=" + churnDiagnostics.lastDelta()
-                            + ", probeChurnEvents=" + churnDiagnostics.churnEvents()
-                            + ")"
-            ));
-            int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
-            int planarExcluded = planarScopeExclusionCountFromOverrideSummary(overrideSummary);
-            refreshReflectionRtPathState(reflectionBaseMode);
-            VulkanReflectionWarningCoreFlow.process(
-                    this,
-                    context,
-                    qualityTier,
-                    warnings,
-                    reflectionBaseMode,
-                    overrideSummary,
-                    probeDiagnostics,
-                    churnDiagnostics,
-                    reflectionRtLaneRequested,
-                    planarEligible,
-                    planarExcluded,
-                    currentPost,
-                    lastFrameGpuMs,
-                    plannedVisibleObjects,
-                    reflectionProfile,
-                    mockContext,
-                    currentSceneMaterials,
-                    reflectionTransparencyCandidateReactiveMin,
-                    planarPerfGpuMsCapForTier(qualityTier),
-                    rtPerfGpuMsCapForTier(qualityTier)
-            );
-            boolean ssrPathActive = reflectionBaseMode == 1 || reflectionBaseMode == 3 || reflectionBaseMode == 4;
-            if (ssrPathActive && currentPost.taaEnabled()) {
-                double taaReject = context.taaHistoryRejectRate();
-                double taaConfidence = context.taaConfidenceMean();
-                long taaDrops = context.taaConfidenceDropEvents();
-                ReflectionSsrTaaRiskDiagnostics ssrTaaRisk = updateReflectionSsrTaaRiskDiagnostics(taaReject, taaConfidence, taaDrops);
-                boolean adaptiveTrendWarningTriggered = updateReflectionAdaptiveTrendWarningGate();
-                ReflectionAdaptiveTrendDiagnostics adaptiveTrend = snapshotReflectionAdaptiveTrendDiagnostics(adaptiveTrendWarningTriggered);
-                TrendSloAudit trendSloAudit = evaluateReflectionAdaptiveTrendSlo(adaptiveTrend);
-                VulkanReflectionSsrTaaWarningEmitter.State ssrTaaState = new VulkanReflectionSsrTaaWarningEmitter.State();
-                VulkanTelemetryStateBinder.copyMatchingFields(this, ssrTaaState);
-                VulkanReflectionSsrTaaWarningEmitter.emit(
-                        warnings,
-                        ssrTaaState,
-                        reflectionBaseMode,
-                        currentPost.reflectionsSsrStrength(),
-                        currentPost.reflectionsSsrMaxRoughness(),
-                        currentPost.reflectionsSsrStepScale(),
-                        currentPost.reflectionsTemporalWeight(),
-                        currentPost.taaBlend(),
-                        currentPost.taaClipScale(),
-                        currentPost.taaLumaClipEnabled(),
-                        taaReject,
-                        taaConfidence,
-                        taaDrops,
-                        ssrTaaRisk,
-                        adaptiveTrend,
-                        adaptiveTrendWarningTriggered,
-                        trendSloAudit.status(),
-                        trendSloAudit.reason(),
-                        trendSloAudit.failed()
-                );
-                reflectionSsrEnvelopeHighStreak = ssrTaaState.reflectionSsrEnvelopeHighStreak;
-                reflectionSsrEnvelopeWarnCooldownRemaining = ssrTaaState.reflectionSsrEnvelopeWarnCooldownRemaining;
-                reflectionSsrEnvelopeBreachedLastFrame = ssrTaaState.reflectionSsrEnvelopeBreachedLastFrame;
-            } else {
-                resetReflectionSsrTaaRiskDiagnostics();
-                resetReflectionAdaptiveState();
-                reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = false;
-            }
-            if (churnDiagnostics.warningTriggered()) {
-                warnings.add(new EngineWarning(
-                        "REFLECTION_PROBE_CHURN_HIGH",
-                        "Active reflection probe set changed repeatedly across frames "
-                                + "(delta=" + churnDiagnostics.lastDelta()
-                                + ", churnEvents=" + churnDiagnostics.churnEvents()
-                                + ", meanDelta=" + churnDiagnostics.meanDelta()
-                                + ", highStreak=" + churnDiagnostics.highStreak() + ")"
-                ));
-            }
-            if (qualityTier == QualityTier.MEDIUM) {
-                warnings.add(new EngineWarning(
-                        "REFLECTIONS_QUALITY_DEGRADED",
-                        "Reflections quality is reduced at MEDIUM tier to stabilize frame time"
-                ));
-            }
-        } else {
-            resetReflectionWarningStateWhenDisabled();
-        }
+        VulkanReflectionRuntimeFlow.processFrameWarnings(this, context, qualityTier, warnings);
         VulkanShadowFrameWarningFlow.process(this, context, qualityTier, warnings);
         return warnings;
-    }
-
-    private void resetReflectionWarningStateWhenDisabled() {
-        resetReflectionProbeChurnDiagnostics();
-        resetReflectionSsrTaaRiskDiagnostics();
-        resetReflectionAdaptiveState();
-        resetReflectionAdaptiveTelemetryMetrics();
-        VulkanRuntimeWarningResets.resetReflectionWhenDisabled(this, rtPerfGpuMsCapForTier(qualityTier));
-    }
-
-    private int countPlanarEligibleFromOverrideSummary(ReflectionOverrideSummary summary) {
-        int eligible = 0;
-        if (reflectionPlanarScopeIncludeAuto) {
-            eligible += summary.autoCount();
-        }
-        if (reflectionPlanarScopeIncludeProbeOnly) {
-            eligible += summary.probeOnlyCount();
-        }
-        if (reflectionPlanarScopeIncludeSsrOnly) {
-            eligible += summary.ssrOnlyCount();
-        }
-        if (reflectionPlanarScopeIncludeOther) {
-            eligible += summary.otherCount();
-        }
-        return Math.max(0, eligible);
-    }
-
-    private int planarScopeExclusionCountFromOverrideSummary(ReflectionOverrideSummary summary) {
-        int excluded = 0;
-        if (!reflectionPlanarScopeIncludeAuto) {
-            excluded += summary.autoCount();
-        }
-        if (!reflectionPlanarScopeIncludeProbeOnly) {
-            excluded += summary.probeOnlyCount();
-        }
-        if (!reflectionPlanarScopeIncludeSsrOnly) {
-            excluded += summary.ssrOnlyCount();
-        }
-        if (!reflectionPlanarScopeIncludeOther) {
-            excluded += summary.otherCount();
-        }
-        return Math.max(0, excluded);
-    }
-
-    private double planarPerfGpuMsCapForTier(QualityTier tier) {
-        return switch (tier) {
-            case LOW -> reflectionPlanarPerfMaxGpuMsLow;
-            case MEDIUM -> reflectionPlanarPerfMaxGpuMsMedium;
-            case HIGH -> reflectionPlanarPerfMaxGpuMsHigh;
-            case ULTRA -> reflectionPlanarPerfMaxGpuMsUltra;
-        };
-    }
-
-    private double rtPerfGpuMsCapForTier(QualityTier tier) {
-        return switch (tier) {
-            case LOW -> reflectionRtPerfMaxGpuMsLow;
-            case MEDIUM -> reflectionRtPerfMaxGpuMsMedium;
-            case HIGH -> reflectionRtPerfMaxGpuMsHigh;
-            case ULTRA -> reflectionRtPerfMaxGpuMsUltra;
-        };
-    }
-
-    private ReflectionProbeChurnDiagnostics updateReflectionProbeChurnDiagnostics(VulkanContext.ReflectionProbeDiagnostics diagnostics) {
-        VulkanReflectionAdaptiveDiagnostics.ProbeChurnState state = new VulkanReflectionAdaptiveDiagnostics.ProbeChurnState();
-        VulkanTelemetryStateBinder.copyMatchingFields(this, state);
-        VulkanReflectionAdaptiveDiagnostics.ProbeChurnUpdateResult result =
-                VulkanReflectionAdaptiveDiagnostics.updateProbeChurn(state, diagnostics.activeProbeCount());
-        VulkanTelemetryStateBinder.copyMatchingFields(result.state, this);
-        return result.diagnostics;
-    }
-
-    private ReflectionProbeChurnDiagnostics snapshotReflectionProbeChurnDiagnostics(boolean warningTriggered) {
-        double meanDelta = reflectionProbeActiveChurnEvents <= 0
-                ? 0.0
-                : (double) reflectionProbeActiveDeltaAccum / (double) reflectionProbeActiveChurnEvents;
-        return new ReflectionProbeChurnDiagnostics(
-                lastActiveReflectionProbeCount,
-                reflectionProbeLastDelta,
-                reflectionProbeActiveChurnEvents,
-                meanDelta,
-                reflectionProbeChurnHighStreak,
-                reflectionProbeChurnWarnCooldownRemaining,
-                warningTriggered
-        );
-    }
-
-    private void resetReflectionProbeChurnDiagnostics() {
-        VulkanReflectionAdaptiveDiagnostics.ProbeChurnState state = new VulkanReflectionAdaptiveDiagnostics.ProbeChurnState();
-        VulkanReflectionAdaptiveDiagnostics.resetProbeChurn(state);
-        VulkanTelemetryStateBinder.copyMatchingFields(state, this);
-    }
-
-    private ReflectionSsrTaaRiskDiagnostics updateReflectionSsrTaaRiskDiagnostics(
-            double taaReject,
-            double taaConfidence,
-            long taaDrops
-    ) {
-        VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState state = new VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState();
-        VulkanTelemetryStateBinder.copyMatchingFields(this, state);
-        VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskUpdateResult result =
-                VulkanReflectionAdaptiveDiagnostics.updateSsrTaaRisk(state, taaReject, taaConfidence, taaDrops);
-        VulkanTelemetryStateBinder.copyMatchingFields(result.state, this);
-        return result.diagnostics;
-    }
-
-    private void resetReflectionSsrTaaRiskDiagnostics() {
-        VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState state = new VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState();
-        VulkanReflectionAdaptiveDiagnostics.resetSsrTaaRisk(state);
-        VulkanTelemetryStateBinder.copyMatchingFields(state, this);
-    }
-
-    private void applyAdaptiveReflectionPostParameters() {
-        float baseTemporalWeight = currentPost.reflectionsTemporalWeight();
-        float baseSsrStrength = currentPost.reflectionsSsrStrength();
-        float baseSsrStepScale = currentPost.reflectionsSsrStepScale();
-        reflectionAdaptiveTemporalWeightActive = baseTemporalWeight;
-        reflectionAdaptiveSsrStrengthActive = baseSsrStrength;
-        reflectionAdaptiveSsrStepScaleActive = baseSsrStepScale;
-        double severity = 0.0;
-
-        if (reflectionSsrTaaAdaptiveEnabled
-                && currentPost.reflectionsEnabled()
-                && currentPost.taaEnabled()
-                && isReflectionSsrPathActive(currentPost.reflectionsMode())) {
-            severity = computeReflectionAdaptiveSeverity();
-            reflectionAdaptiveTemporalWeightActive = clamp(
-                    (float) (baseTemporalWeight + severity * reflectionSsrTaaAdaptiveTemporalBoostMax),
-                    0.0f,
-                    0.98f
-            );
-            double strengthScale = 1.0 - severity * (1.0 - reflectionSsrTaaAdaptiveSsrStrengthScaleMin);
-            reflectionAdaptiveSsrStrengthActive = clamp(
-                    (float) (baseSsrStrength * strengthScale),
-                    0.0f,
-                    1.0f
-            );
-            reflectionAdaptiveSsrStepScaleActive = clamp(
-                    (float) (baseSsrStepScale * (1.0 + severity * reflectionSsrTaaAdaptiveStepScaleBoostMax)),
-                    0.5f,
-                    3.0f
-            );
-        }
-        updateReflectionSsrTaaHistoryPolicy(
-                currentPost.reflectionsEnabled(),
-                currentPost.taaEnabled(),
-                isReflectionSsrPathActive(currentPost.reflectionsMode()),
-                severity,
-                reflectionSsrTaaLatestRejectRate,
-                reflectionSsrTaaLatestConfidenceMean,
-                reflectionSsrTaaLatestDropEvents
-        );
-        if (currentPost.reflectionsEnabled()) {
-            recordReflectionAdaptiveTelemetrySample(baseTemporalWeight, baseSsrStrength, baseSsrStepScale, severity);
-        } else {
-            reflectionAdaptiveSeverityInstant = 0.0;
-        }
-        int reflectionBaseMode = currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
-        ReflectionOverrideSummary overrideSummary = VulkanReflectionAnalysis.summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
-        int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
-        reflectionTransparentCandidateCount = VulkanReflectionAnalysis.summarizeReflectionTransparencyCandidates(
-                currentSceneMaterials,
-                reflectionTransparencyCandidateReactiveMin
-        ).totalCount();
-        refreshReflectionRtPathState(reflectionBaseMode);
-        int reflectionModeRuntime = composeReflectionExecutionMode(
-                currentPost.reflectionsMode(),
-                reflectionRtLaneActive,
-                planarEligible > 0,
-                reflectionTransparentCandidateCount > 0
-        );
-
-        context.setPostProcessParameters(
-                currentPost.tonemapEnabled(),
-                currentPost.exposure(),
-                currentPost.gamma(),
-                currentPost.bloomEnabled(),
-                currentPost.bloomThreshold(),
-                currentPost.bloomStrength(),
-                currentPost.ssaoEnabled(),
-                currentPost.ssaoStrength(),
-                currentPost.ssaoRadius(),
-                currentPost.ssaoBias(),
-                currentPost.ssaoPower(),
-                currentPost.smaaEnabled(),
-                currentPost.smaaStrength(),
-                currentPost.taaEnabled(),
-                currentPost.taaBlend(),
-                currentPost.taaClipScale(),
-                currentPost.taaLumaClipEnabled(),
-                currentPost.taaSharpenStrength(),
-                currentPost.taaRenderScale(),
-                currentPost.reflectionsEnabled(),
-                reflectionModeRuntime,
-                reflectionAdaptiveSsrStrengthActive,
-                currentPost.reflectionsSsrMaxRoughness(),
-                reflectionAdaptiveSsrStepScaleActive,
-                reflectionAdaptiveTemporalWeightActive,
-                currentPost.reflectionsPlanarStrength(),
-                currentPost.reflectionsPlanarPlaneHeight(),
-                (float) reflectionRtDenoiseStrength
-        );
-    }
-
-    private double computeReflectionAdaptiveSeverity() {
-        return VulkanReflectionAdaptiveMath.computeAdaptiveSeverity(
-                reflectionSsrTaaEmaReject,
-                reflectionSsrTaaEmaConfidence,
-                reflectionSsrTaaInstabilityRejectMin,
-                reflectionSsrTaaInstabilityConfidenceMax,
-                reflectionSsrTaaRiskHighStreak,
-                reflectionSsrTaaInstabilityWarnMinFrames
-        );
-    }
-
-    private static boolean isReflectionSsrPathActive(int reflectionsMode) {
-        int baseMode = reflectionsMode & REFLECTION_MODE_BASE_MASK;
-        return baseMode == 1 || baseMode == 3 || baseMode == 4;
-    }
-
-    private void refreshReflectionRtPathState(int reflectionBaseMode) {
-        VulkanReflectionRtStateMachine.State state = new VulkanReflectionRtStateMachine.State();
-        VulkanTelemetryStateBinder.copyMatchingFields(this, state);
-        VulkanReflectionRtStateMachine.refreshRtPathState(state, reflectionBaseMode, context);
-        VulkanTelemetryStateBinder.copyMatchingFields(state, this);
-    }
-
-    private int composeReflectionExecutionMode(
-            int configuredMode,
-            boolean rtLaneActive,
-            boolean planarSelectiveEligible,
-            boolean transparencyCandidatesPresent
-    ) {
-        VulkanReflectionRtStateMachine.State state = new VulkanReflectionRtStateMachine.State();
-        VulkanTelemetryStateBinder.copyMatchingFields(this, state);
-        return VulkanReflectionRtStateMachine.composeExecutionMode(
-                state,
-                configuredMode,
-                rtLaneActive,
-                planarSelectiveEligible,
-                transparencyCandidatesPresent
-        );
-    }
-
-    private void resetReflectionAdaptiveState() {
-        reflectionAdaptiveTemporalWeightActive = currentPost == null ? 0.80f : currentPost.reflectionsTemporalWeight();
-        reflectionAdaptiveSsrStrengthActive = currentPost == null ? 0.6f : currentPost.reflectionsSsrStrength();
-        reflectionAdaptiveSsrStepScaleActive = currentPost == null ? 1.0f : currentPost.reflectionsSsrStepScale();
-        reflectionSsrTaaHistoryPolicyActive = "inactive";
-        reflectionSsrTaaReprojectionPolicyActive = "surface_motion_vectors";
-        reflectionSsrTaaHistoryRejectBiasActive = 0.0;
-        reflectionSsrTaaHistoryConfidenceDecayActive = 0.0;
-    }
-
-    private void updateReflectionSsrTaaHistoryPolicy(
-            boolean reflectionsEnabled,
-            boolean taaEnabled,
-            boolean ssrPathActive,
-            double severity,
-            double taaReject,
-            double taaConfidence,
-            long taaDrops
-    ) {
-        VulkanReflectionAdaptiveMath.ReflectionSsrTaaHistoryPolicy policy =
-                VulkanReflectionAdaptiveMath.computeHistoryPolicy(
-                        reflectionsEnabled,
-                        taaEnabled,
-                        ssrPathActive,
-                        severity,
-                        taaReject,
-                        taaConfidence,
-                        taaDrops,
-                        reflectionSsrTaaDisocclusionRejectDropEventsMin,
-                        reflectionSsrTaaDisocclusionRejectConfidenceMax,
-                        reflectionSsrTaaHistoryRejectSeverityMin,
-                        reflectionSsrTaaHistoryRejectRiskStreakMin,
-                        reflectionSsrTaaRiskHighStreak,
-                        reflectionSsrTaaHistoryConfidenceDecaySeverityMin
-                );
-        reflectionSsrTaaHistoryPolicyActive = policy.historyPolicy();
-        reflectionSsrTaaReprojectionPolicyActive = policy.reprojectionPolicy();
-        reflectionSsrTaaHistoryRejectBiasActive = policy.historyRejectBias();
-        reflectionSsrTaaHistoryConfidenceDecayActive = policy.historyConfidenceDecay();
-    }
-
-    private void recordReflectionAdaptiveTelemetrySample(
-            float baseTemporalWeight,
-            float baseSsrStrength,
-            float baseSsrStepScale,
-            double severity
-    ) {
-        VulkanReflectionAdaptiveTrendEngine.State state = createReflectionAdaptiveTrendState();
-        VulkanReflectionAdaptiveTrendEngine.recordSample(state, baseTemporalWeight, baseSsrStrength, baseSsrStepScale, severity);
-        applyReflectionAdaptiveTrendState(state);
-    }
-
-    private void resetReflectionAdaptiveTelemetryMetrics() {
-        VulkanReflectionAdaptiveTrendEngine.State state = createReflectionAdaptiveTrendState();
-        VulkanReflectionAdaptiveTrendEngine.resetTelemetry(state);
-        applyReflectionAdaptiveTrendState(state);
-    }
-
-    private ReflectionAdaptiveTrendDiagnostics snapshotReflectionAdaptiveTrendDiagnostics(boolean warningTriggered) {
-        return VulkanReflectionAdaptiveTrendEngine.snapshotTrend(createReflectionAdaptiveTrendState(), warningTriggered);
-    }
-
-    private boolean updateReflectionAdaptiveTrendWarningGate() {
-        VulkanReflectionAdaptiveTrendEngine.State state = createReflectionAdaptiveTrendState();
-        boolean warningTriggered = VulkanReflectionAdaptiveTrendEngine.updateWarningGate(state);
-        applyReflectionAdaptiveTrendState(state);
-        return warningTriggered;
-    }
-
-    private TrendSloAudit evaluateReflectionAdaptiveTrendSlo(ReflectionAdaptiveTrendDiagnostics trend) {
-        return VulkanReflectionAdaptiveTrendEngine.evaluateSlo(createReflectionAdaptiveTrendState(), trend);
-    }
-
-    private VulkanReflectionAdaptiveTrendEngine.State createReflectionAdaptiveTrendState() {
-        VulkanReflectionAdaptiveTrendEngine.State state = new VulkanReflectionAdaptiveTrendEngine.State();
-        state.reflectionAdaptiveSeverityInstant = reflectionAdaptiveSeverityInstant;
-        state.reflectionAdaptiveSeverityPeak = reflectionAdaptiveSeverityPeak;
-        state.reflectionAdaptiveSeverityAccum = reflectionAdaptiveSeverityAccum;
-        state.reflectionAdaptiveTemporalDeltaAccum = reflectionAdaptiveTemporalDeltaAccum;
-        state.reflectionAdaptiveSsrStrengthDeltaAccum = reflectionAdaptiveSsrStrengthDeltaAccum;
-        state.reflectionAdaptiveSsrStepScaleDeltaAccum = reflectionAdaptiveSsrStepScaleDeltaAccum;
-        state.reflectionAdaptiveTelemetrySamples = reflectionAdaptiveTelemetrySamples;
-        state.reflectionSsrTaaAdaptiveTrendWarnHighStreak = reflectionSsrTaaAdaptiveTrendWarnHighStreak;
-        state.reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining = reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining;
-        state.reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame;
-        state.reflectionSsrTaaAdaptiveTrendWindowFrames = reflectionSsrTaaAdaptiveTrendWindowFrames;
-        state.reflectionSsrTaaAdaptiveTrendHighRatioWarnMin = reflectionSsrTaaAdaptiveTrendHighRatioWarnMin;
-        state.reflectionSsrTaaAdaptiveTrendWarnMinFrames = reflectionSsrTaaAdaptiveTrendWarnMinFrames;
-        state.reflectionSsrTaaAdaptiveTrendWarnCooldownFrames = reflectionSsrTaaAdaptiveTrendWarnCooldownFrames;
-        state.reflectionSsrTaaAdaptiveTrendWarnMinSamples = reflectionSsrTaaAdaptiveTrendWarnMinSamples;
-        state.reflectionSsrTaaAdaptiveTrendSloMinSamples = reflectionSsrTaaAdaptiveTrendSloMinSamples;
-        state.reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax = reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax;
-        state.reflectionSsrTaaAdaptiveTrendSloHighRatioMax = reflectionSsrTaaAdaptiveTrendSloHighRatioMax;
-        state.reflectionAdaptiveTemporalWeightActive = reflectionAdaptiveTemporalWeightActive;
-        state.reflectionAdaptiveSsrStrengthActive = reflectionAdaptiveSsrStrengthActive;
-        state.reflectionAdaptiveSsrStepScaleActive = reflectionAdaptiveSsrStepScaleActive;
-        state.reflectionAdaptiveTrendSamples = reflectionAdaptiveTrendSamples;
-        return state;
-    }
-
-    private void applyReflectionAdaptiveTrendState(VulkanReflectionAdaptiveTrendEngine.State state) {
-        reflectionAdaptiveSeverityInstant = state.reflectionAdaptiveSeverityInstant;
-        reflectionAdaptiveSeverityPeak = state.reflectionAdaptiveSeverityPeak;
-        reflectionAdaptiveSeverityAccum = state.reflectionAdaptiveSeverityAccum;
-        reflectionAdaptiveTemporalDeltaAccum = state.reflectionAdaptiveTemporalDeltaAccum;
-        reflectionAdaptiveSsrStrengthDeltaAccum = state.reflectionAdaptiveSsrStrengthDeltaAccum;
-        reflectionAdaptiveSsrStepScaleDeltaAccum = state.reflectionAdaptiveSsrStepScaleDeltaAccum;
-        reflectionAdaptiveTelemetrySamples = state.reflectionAdaptiveTelemetrySamples;
-        reflectionSsrTaaAdaptiveTrendWarnHighStreak = state.reflectionSsrTaaAdaptiveTrendWarnHighStreak;
-        reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining = state.reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining;
-        reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame = state.reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame;
     }
 
     SceneReuseStats debugSceneReuseStats() {
@@ -1813,7 +1347,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     ReflectionProbeChurnDiagnostics debugReflectionProbeChurnDiagnostics() {
-        return snapshotReflectionProbeChurnDiagnostics(false);
+        return VulkanReflectionRuntimeFlow.snapshotProbeChurnDiagnostics(this, false);
     }
 
     ReflectionProbeQualityDiagnostics debugReflectionProbeQualityDiagnostics() {
@@ -1885,14 +1419,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     ReflectionAdaptiveTrendDiagnostics debugReflectionAdaptiveTrendDiagnostics() {
-        return snapshotReflectionAdaptiveTrendDiagnostics(reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame);
+        return VulkanReflectionRuntimeFlow.snapshotAdaptiveTrendDiagnostics(this, reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame);
     }
 
     ReflectionAdaptiveTrendSloDiagnostics debugReflectionAdaptiveTrendSloDiagnostics() {
-        ReflectionAdaptiveTrendDiagnostics trend = snapshotReflectionAdaptiveTrendDiagnostics(
+        ReflectionAdaptiveTrendDiagnostics trend = VulkanReflectionRuntimeFlow.snapshotAdaptiveTrendDiagnostics(
+                this,
                 reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame
         );
-        TrendSloAudit audit = evaluateReflectionAdaptiveTrendSlo(trend);
+        TrendSloAudit audit = VulkanReflectionRuntimeFlow.evaluateAdaptiveTrendSlo(this, trend);
         return new ReflectionAdaptiveTrendSloDiagnostics(
                 audit.status(),
                 audit.reason(),
