@@ -50,9 +50,9 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 
 ### 4) Shadow caching
 
-- [ ] Implement/enable explicit static cache + dynamic overlay path in Vulkan runtime.
-- [ ] Add cache churn/miss diagnostics and invalidation reason telemetry.
-- [ ] Add cache stability CI gate.
+- [x] Implement/enable explicit static cache + dynamic overlay contract signaling in Vulkan runtime (`SHADOW_CACHE_POLICY_ACTIVE`).
+- [x] Add cache churn/miss diagnostics and invalidation reason telemetry via typed runtime accessor `shadowCacheDiagnostics()`.
+- [x] Add cache stability CI gate (`SHADOW_CACHE_CHURN_HIGH`) with streak/cooldown thresholds and integration coverage (`VulkanShadowCapabilityWarningIntegrationTest#shadowCacheBreachGateTriggersWithAggressiveThresholds`).
 
 ### 5) RT shadows denoised
 

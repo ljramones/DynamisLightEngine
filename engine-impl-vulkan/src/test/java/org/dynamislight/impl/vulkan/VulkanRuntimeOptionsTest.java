@@ -39,6 +39,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.pointFaceBudgetWarnSaturationMin", "0.88"),
                         Map.entry("vulkan.shadow.pointFaceBudgetWarnMinFrames", "5"),
                         Map.entry("vulkan.shadow.pointFaceBudgetWarnCooldownFrames", "66"),
+                        Map.entry("vulkan.shadow.cacheChurnWarnMax", "0.29"),
+                        Map.entry("vulkan.shadow.cacheMissWarnMax", "4"),
+                        Map.entry("vulkan.shadow.cacheWarnMinFrames", "6"),
+                        Map.entry("vulkan.shadow.cacheWarnCooldownFrames", "99"),
                         Map.entry("vulkan.shadow.directionalTexelSnapEnabled", "false"),
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "1.75"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "2"),
@@ -163,6 +167,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0.88, parsed.shadowPointFaceBudgetWarnSaturationMin());
         assertEquals(5, parsed.shadowPointFaceBudgetWarnMinFrames());
         assertEquals(66, parsed.shadowPointFaceBudgetWarnCooldownFrames());
+        assertEquals(0.29, parsed.shadowCacheChurnWarnMax());
+        assertEquals(4, parsed.shadowCacheMissWarnMax());
+        assertEquals(6, parsed.shadowCacheWarnMinFrames());
+        assertEquals(99, parsed.shadowCacheWarnCooldownFrames());
         assertEquals(false, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(1.75f, parsed.shadowDirectionalTexelSnapScale());
         assertEquals(2, parsed.reflectionProbeChurnWarnMinDelta());
@@ -278,6 +286,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.shadow.pointFaceBudgetWarnSaturationMin", "9.0"),
                         Map.entry("vulkan.shadow.pointFaceBudgetWarnMinFrames", "0"),
                         Map.entry("vulkan.shadow.pointFaceBudgetWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.shadow.cacheChurnWarnMax", "9.0"),
+                        Map.entry("vulkan.shadow.cacheMissWarnMax", "-3"),
+                        Map.entry("vulkan.shadow.cacheWarnMinFrames", "0"),
+                        Map.entry("vulkan.shadow.cacheWarnCooldownFrames", "999999"),
                         Map.entry("vulkan.shadow.directionalTexelSnapScale", "10.0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinDelta", "0"),
                         Map.entry("vulkan.reflections.probeChurnWarnMinStreak", "0"),
@@ -391,6 +403,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(1.0, parsed.shadowPointFaceBudgetWarnSaturationMin());
         assertEquals(1, parsed.shadowPointFaceBudgetWarnMinFrames());
         assertEquals(10000, parsed.shadowPointFaceBudgetWarnCooldownFrames());
+        assertEquals(1.0, parsed.shadowCacheChurnWarnMax());
+        assertEquals(0, parsed.shadowCacheMissWarnMax());
+        assertEquals(1, parsed.shadowCacheWarnMinFrames());
+        assertEquals(10000, parsed.shadowCacheWarnCooldownFrames());
         assertEquals(true, parsed.shadowDirectionalTexelSnapEnabled());
         assertEquals(4.0f, parsed.shadowDirectionalTexelSnapScale());
         assertEquals(1, parsed.reflectionProbeChurnWarnMinDelta());

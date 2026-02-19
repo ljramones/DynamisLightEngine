@@ -53,6 +53,7 @@ Shadow notes:
 - Engine runtime API now exposes typed point-shadow face-budget diagnostics (`shadowPointBudgetDiagnostics()`), and Vulkan emits point-budget envelope warnings (`SHADOW_POINT_FACE_BUDGET_ENVELOPE`, `SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH`) with configurable saturation/streak/cooldown thresholds.
 - Engine runtime API now exposes typed spot-projected diagnostics (`shadowSpotProjectedDiagnostics()`), and Vulkan emits explicit spot contract status warnings (`SHADOW_SPOT_PROJECTED_CONTRACT`, `SHADOW_SPOT_PROJECTED_CONTRACT_BREACH`).
 - Vulkan shadow telemetry defaults are now locked per blessed tier profile with explicit override precedence and emitted each frame via `SHADOW_TELEMETRY_PROFILE_ACTIVE`; cadence stability CI assertions now run across `LOW|MEDIUM|HIGH|ULTRA`.
+- Engine runtime API now exposes typed shadow-cache diagnostics (`shadowCacheDiagnostics()`), and Vulkan emits cache policy/churn warnings (`SHADOW_CACHE_POLICY_ACTIVE`, `SHADOW_CACHE_CHURN_HIGH`) including invalidation reason telemetry with cooldown-gated CI breach signaling.
 
 ## Reflections
 

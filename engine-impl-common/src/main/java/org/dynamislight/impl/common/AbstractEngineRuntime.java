@@ -33,6 +33,7 @@ import org.dynamislight.api.runtime.EngineRuntime;
 import org.dynamislight.api.runtime.EngineStats;
 import org.dynamislight.api.runtime.ReflectionAdaptiveTrendSloDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
+import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
 import org.dynamislight.api.runtime.ShadowPointBudgetDiagnostics;
 import org.dynamislight.api.runtime.ShadowSpotProjectedDiagnostics;
@@ -302,6 +303,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public ShadowCacheDiagnostics shadowCacheDiagnostics() {
+        return backendShadowCacheDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -379,6 +385,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected ShadowSpotProjectedDiagnostics backendShadowSpotProjectedDiagnostics() {
         return ShadowSpotProjectedDiagnostics.unavailable();
+    }
+
+    protected ShadowCacheDiagnostics backendShadowCacheDiagnostics() {
+        return ShadowCacheDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(

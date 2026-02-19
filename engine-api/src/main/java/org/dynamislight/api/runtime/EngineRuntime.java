@@ -219,6 +219,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic shadow-cache diagnostics.
+     *
+     * Backends that do not expose cache diagnostics return
+     * {@link ShadowCacheDiagnostics#unavailable()}.
+     *
+     * @return current shadow-cache diagnostics snapshot.
+     */
+    default ShadowCacheDiagnostics shadowCacheDiagnostics() {
+        return ShadowCacheDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

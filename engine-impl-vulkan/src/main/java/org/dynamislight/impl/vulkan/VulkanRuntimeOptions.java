@@ -166,6 +166,10 @@ final class VulkanRuntimeOptions {
                 parseDoubleOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin", 1.0, 0.0, 1.0),
                 parseIntOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames", 3, 1, 600),
                 parseIntOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames", 120, 0, 10000),
+                parseDoubleOption(safe, "vulkan.shadow.cacheChurnWarnMax", 0.35, 0.0, 1.0),
+                parseIntOption(safe, "vulkan.shadow.cacheMissWarnMax", 2, 0, 10000),
+                parseIntOption(safe, "vulkan.shadow.cacheWarnMinFrames", 3, 1, 600),
+                parseIntOption(safe, "vulkan.shadow.cacheWarnCooldownFrames", 120, 0, 10000),
                 parseBoolean(safe, "vulkan.shadow.directionalTexelSnapEnabled", true),
                 (float) parseDoubleOption(safe, "vulkan.shadow.directionalTexelSnapScale", 1.0, 0.25, 4.0)
         );
@@ -395,6 +399,10 @@ final class VulkanRuntimeOptions {
             double shadowPointFaceBudgetWarnSaturationMin,
             int shadowPointFaceBudgetWarnMinFrames,
             int shadowPointFaceBudgetWarnCooldownFrames,
+            double shadowCacheChurnWarnMax,
+            int shadowCacheMissWarnMax,
+            int shadowCacheWarnMinFrames,
+            int shadowCacheWarnCooldownFrames,
             boolean shadowDirectionalTexelSnapEnabled,
             float shadowDirectionalTexelSnapScale
     ) {

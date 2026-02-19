@@ -114,6 +114,7 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertFalse(cadence.available());
             var spot = runtime.shadowSpotProjectedDiagnostics();
             assertFalse(spot.available());
+            assertFalse(runtime.shadowCacheDiagnostics().available());
         } finally {
             runtime.shutdown();
         }
@@ -218,6 +219,10 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("pointFaceBudgetSaturationWarnMin=0.9"), profileWarning);
             assertTrue(profileWarning.contains("pointFaceBudgetWarnMinFrames=2"), profileWarning);
             assertTrue(profileWarning.contains("pointFaceBudgetWarnCooldownFrames=60"), profileWarning);
+            assertTrue(profileWarning.contains("cacheChurnWarnMax=0.22"), profileWarning);
+            assertTrue(profileWarning.contains("cacheMissWarnMax=1"), profileWarning);
+            assertTrue(profileWarning.contains("cacheWarnMinFrames=2"), profileWarning);
+            assertTrue(profileWarning.contains("cacheWarnCooldownFrames=60"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.35, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(2, cadence.warnMinFrames());
@@ -226,6 +231,11 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals(0.90, pointBudget.saturationWarnMin(), 1e-6);
             assertEquals(2, pointBudget.warnMinFrames());
             assertEquals(60, pointBudget.warnCooldownFrames());
+            var cache = runtime.shadowCacheDiagnostics();
+            assertEquals(0.22, cache.churnWarnMax(), 1e-6);
+            assertEquals(1, cache.missWarnMax());
+            assertEquals(2, cache.warnMinFrames());
+            assertEquals(60, cache.warnCooldownFrames());
         } finally {
             runtime.shutdown();
         }
@@ -242,7 +252,11 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                     Map.entry("vulkan.shadow.cadenceWarnCooldownFrames", "77"),
                     Map.entry("vulkan.shadow.pointFaceBudgetWarnSaturationMin", "0.66"),
                     Map.entry("vulkan.shadow.pointFaceBudgetWarnMinFrames", "6"),
-                    Map.entry("vulkan.shadow.pointFaceBudgetWarnCooldownFrames", "88")
+                    Map.entry("vulkan.shadow.pointFaceBudgetWarnCooldownFrames", "88"),
+                    Map.entry("vulkan.shadow.cacheChurnWarnMax", "0.31"),
+                    Map.entry("vulkan.shadow.cacheMissWarnMax", "9"),
+                    Map.entry("vulkan.shadow.cacheWarnMinFrames", "4"),
+                    Map.entry("vulkan.shadow.cacheWarnCooldownFrames", "55")
             ), QualityTier.ULTRA), new NoopCallbacks());
             runtime.loadScene(validThreeSpotShadowScene());
             var frame = runtime.render();
@@ -253,6 +267,10 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("pointFaceBudgetSaturationWarnMin=0.66"), profileWarning);
             assertTrue(profileWarning.contains("pointFaceBudgetWarnMinFrames=6"), profileWarning);
             assertTrue(profileWarning.contains("pointFaceBudgetWarnCooldownFrames=88"), profileWarning);
+            assertTrue(profileWarning.contains("cacheChurnWarnMax=0.31"), profileWarning);
+            assertTrue(profileWarning.contains("cacheMissWarnMax=9"), profileWarning);
+            assertTrue(profileWarning.contains("cacheWarnMinFrames=4"), profileWarning);
+            assertTrue(profileWarning.contains("cacheWarnCooldownFrames=55"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.22, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(7, cadence.warnMinFrames());
@@ -261,6 +279,39 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertEquals(0.66, pointBudget.saturationWarnMin(), 1e-6);
             assertEquals(6, pointBudget.warnMinFrames());
             assertEquals(88, pointBudget.warnCooldownFrames());
+            var cache = runtime.shadowCacheDiagnostics();
+            assertEquals(0.31, cache.churnWarnMax(), 1e-6);
+            assertEquals(9, cache.missWarnMax());
+            assertEquals(4, cache.warnMinFrames());
+            assertEquals(55, cache.warnCooldownFrames());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void shadowCacheBreachGateTriggersWithAggressiveThresholds() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "true"),
+                    Map.entry("vulkan.shadow.maxShadowedLocalLights", "2"),
+                    Map.entry("vulkan.shadow.maxLocalShadowLayers", "2"),
+                    Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "2"),
+                    Map.entry("vulkan.shadow.cacheChurnWarnMax", "0.01"),
+                    Map.entry("vulkan.shadow.cacheMissWarnMax", "0"),
+                    Map.entry("vulkan.shadow.cacheWarnMinFrames", "1"),
+                    Map.entry("vulkan.shadow.cacheWarnCooldownFrames", "0")
+            )), new NoopCallbacks());
+            runtime.loadScene(validThreeSpotShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_CACHE_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_CACHE_CHURN_HIGH".equals(w.code())));
+            var cache = runtime.shadowCacheDiagnostics();
+            assertTrue(cache.available());
+            assertTrue(cache.envelopeBreachedLastFrame());
+            assertTrue(cache.cacheMissCount() > 0 || cache.cacheEvictionCount() > 0);
         } finally {
             runtime.shutdown();
         }
