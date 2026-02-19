@@ -6,7 +6,6 @@ import org.dynamislight.impl.vulkan.graph.VulkanAaPostRenderGraphPlanner;
 import org.dynamislight.impl.vulkan.graph.VulkanExecutableRenderGraphPlan;
 import org.dynamislight.impl.vulkan.graph.VulkanExecutableRenderGraphBuilder;
 import org.dynamislight.impl.vulkan.graph.VulkanExecutableRenderGraphPlanner;
-import org.dynamislight.impl.vulkan.graph.VulkanRenderGraphBarrierEquivalence;
 import org.dynamislight.impl.vulkan.graph.VulkanResourceBindingTable;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
 import org.lwjgl.system.MemoryStack;
@@ -33,9 +32,6 @@ public final class VulkanFrameCommandOrchestrator {
     private static final VulkanPostCompositePassRecorder POST_COMPOSITE_RECORDER = new VulkanPostCompositePassRecorder();
     private static final VulkanExecutableRenderGraphPlanner EXECUTABLE_GRAPH_PLANNER = new VulkanExecutableRenderGraphPlanner();
     private static final VulkanRenderGraphExecutor GRAPH_EXECUTOR = new VulkanRenderGraphExecutor();
-    private static final boolean GRAPH_EXECUTION_ENABLED = Boolean.getBoolean("dle.vulkan.graph.execution.enabled");
-    private static final boolean GRAPH_PARITY_VALIDATION_ENABLED = Boolean.getBoolean("dle.vulkan.graph.parity.validation.enabled");
-    private static final boolean GRAPH_PARITY_VALIDATION_STRICT = Boolean.getBoolean("dle.vulkan.graph.parity.validation.strict");
 
     private VulkanFrameCommandOrchestrator() {
     }
@@ -160,9 +156,8 @@ public final class VulkanFrameCommandOrchestrator {
                 meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
         );
 
-        VulkanRenderCommandRecorder.PostCompositeInputs postInputs = null;
         if (inputs.postOffscreenActive()) {
-            postInputs = new VulkanRenderCommandRecorder.PostCompositeInputs(
+            VulkanRenderCommandRecorder.PostCompositeInputs postInputs = new VulkanRenderCommandRecorder.PostCompositeInputs(
                     imageIndex,
                     inputs.swapchainWidth(),
                     inputs.swapchainHeight(),
@@ -212,13 +207,6 @@ public final class VulkanFrameCommandOrchestrator {
                     inputs.swapchainImages()[imageIndex],
                     inputs.postFramebuffers()
             );
-            VulkanRenderCommandRecorder.PostCompositeState postInitialized = POST_COMPOSITE_RECORDER.record(
-                    stack,
-                    commandBuffer,
-                    postInputs
-            );
-            hooks.postIntermediateInitializedSink().accept(postInitialized.postIntermediateInitialized());
-            hooks.postTaaHistoryInitializedSink().accept(postInitialized.taaHistoryInitialized());
             POST_COMPOSITE_RECORDER.declarePasses(
                     graphBuilder,
                     stack,
@@ -251,101 +239,11 @@ public final class VulkanFrameCommandOrchestrator {
             );
         }
 
-        if (GRAPH_EXECUTION_ENABLED) {
-            GRAPH_EXECUTOR.execute(stack, commandBuffer, executablePlan, bindingTable);
-        } else {
-            VulkanRuntimeBarrierTrace runtimeTrace = null;
-            if (GRAPH_PARITY_VALIDATION_ENABLED) {
-                runtimeTrace = new VulkanRuntimeBarrierTrace();
-                VulkanRenderCommandRecorder.installBarrierTrace(runtimeTrace);
-            }
-            try {
-                recordLinear(
-                        stack,
-                        commandBuffer,
-                        inputs,
-                        shadowInputs,
-                        planarInputs,
-                        mainInputs,
-                        postInputs,
-                        meshes,
-                        hooks
-                );
-            } finally {
-                if (runtimeTrace != null) {
-                    VulkanRenderCommandRecorder.clearBarrierTrace();
-                }
-            }
-            if (runtimeTrace != null) {
-                validateParity(executablePlan, runtimeTrace.imageBarrierEvents());
-            }
-        }
+        GRAPH_EXECUTOR.execute(stack, commandBuffer, executablePlan, bindingTable);
 
         int endResult = VulkanRenderCommandRecorder.end(commandBuffer);
         if (endResult != VK10.VK_SUCCESS) {
             throw inputs.vkFailure().failure("vkEndCommandBuffer", endResult);
-        }
-    }
-
-    private static void recordLinear(
-            MemoryStack stack,
-            VkCommandBuffer commandBuffer,
-            Inputs inputs,
-            VulkanRenderCommandRecorder.ShadowPassInputs shadowInputs,
-            VulkanRenderCommandRecorder.PlanarReflectionPassInputs planarInputs,
-            VulkanRenderCommandRecorder.MainPassInputs mainInputs,
-            VulkanRenderCommandRecorder.PostCompositeInputs postInputs,
-            List<VulkanRenderCommandRecorder.MeshDrawCmd> meshes,
-            FrameHooks hooks
-    ) {
-        SHADOW_RECORDER.record(
-                stack,
-                commandBuffer,
-                shadowInputs,
-                meshes,
-                meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
-        );
-        if (VulkanRenderCommandRecorder.isPlanarReflectionPassRequested(inputs.reflectionsMode(), inputs.planarCaptureImage())) {
-            PLANAR_RECORDER.record(
-                    stack,
-                    commandBuffer,
-                    planarInputs,
-                    meshes,
-                    meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
-            );
-        }
-        MAIN_RECORDER.record(
-                stack,
-                commandBuffer,
-                mainInputs,
-                meshes,
-                meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
-        );
-        if (postInputs != null) {
-            VulkanRenderCommandRecorder.PostCompositeState postInitialized = POST_COMPOSITE_RECORDER.record(
-                    stack,
-                    commandBuffer,
-                    postInputs
-            );
-            hooks.postIntermediateInitializedSink().accept(postInitialized.postIntermediateInitialized());
-            hooks.postTaaHistoryInitializedSink().accept(postInitialized.taaHistoryInitialized());
-        }
-    }
-
-    private static void validateParity(
-            VulkanExecutableRenderGraphPlan executablePlan,
-            List<VulkanRuntimeBarrierTrace.ImageBarrierEvent> runtimeImageBarriers
-    ) throws EngineException {
-        VulkanRenderGraphBarrierEquivalence.Result result = VulkanRenderGraphBarrierEquivalence.compare(
-                executablePlan.barrierPlan(),
-                runtimeImageBarriers
-        );
-        if (!result.equivalent() && GRAPH_PARITY_VALIDATION_STRICT) {
-            throw new EngineException(
-                    EngineErrorCode.INTERNAL_ERROR,
-                    "Graph parity validation failed: " + String.join(" | ", result.mismatches()),
-                    false
-            );
         }
     }
 
