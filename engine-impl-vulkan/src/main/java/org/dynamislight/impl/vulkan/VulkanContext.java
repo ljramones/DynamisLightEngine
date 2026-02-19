@@ -364,7 +364,7 @@ public final class VulkanContext {
         plannedVisibleObjects = Math.max(1, visibleObjects);
     }
 
-    SceneReuseStats sceneReuseStats() {
+    public SceneReuseStats sceneReuseStats() {
         return VulkanContextProfileCoordinator.sceneReuse(
                 new VulkanContextProfileCoordinator.SceneReuseRequest(
                         sceneResources.sceneReuseHitCount,
@@ -378,7 +378,7 @@ public final class VulkanContext {
         );
     }
 
-    FrameResourceProfile frameResourceProfile() {
+    public FrameResourceProfile frameResourceProfile() {
         return VulkanContextProfileCoordinator.frameResource(
                 new VulkanContextProfileCoordinator.FrameResourceRequest(
                         framesInFlight,
@@ -435,7 +435,7 @@ public final class VulkanContext {
     ) {
     }
 
-    ShadowCascadeProfile shadowCascadeProfile() {
+    public ShadowCascadeProfile shadowCascadeProfile() {
         return VulkanContextProfileCoordinator.shadowCascade(
                 new VulkanContextProfileCoordinator.ShadowRequest(
                         renderState.shadowEnabled,
@@ -448,7 +448,7 @@ public final class VulkanContext {
         );
     }
 
-    PostProcessPipelineProfile postProcessPipelineProfile() {
+    public PostProcessPipelineProfile postProcessPipelineProfile() {
         return VulkanContextProfileCoordinator.postProcess(
                 new VulkanContextProfileCoordinator.PostRequest(renderState.postOffscreenRequested, renderState.postOffscreenActive)
         );

@@ -1,8 +1,5 @@
 package org.dynamislight.impl.vulkan;
 
-record MeshGeometryCacheProfile(long hits, long misses, long evictions, int entries, int maxEntries) {
-}
-
 record ReflectionProbeDiagnostics(
         int configuredProbeCount,
         int activeProbeCount,

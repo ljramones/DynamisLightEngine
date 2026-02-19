@@ -1,6 +1,7 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.warning;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
+import org.dynamislight.impl.vulkan.VulkanContext;
 
 import org.dynamislight.impl.vulkan.runtime.config.*;
 
@@ -15,8 +16,8 @@ import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
 import org.dynamislight.impl.vulkan.profile.SceneReuseStats;
 import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
 
-final class VulkanRuntimeWarningPolicy {
-    static final class State {
+public final class VulkanRuntimeWarningPolicy {
+    public static final class State {
         int descriptorRingWasteHighStreak;
         int descriptorRingWasteWarnCooldownRemaining;
         int descriptorRingCapPressureStreak;
@@ -26,23 +27,23 @@ final class VulkanRuntimeWarningPolicy {
         int descriptorRingActiveWarnCooldownRemaining;
     }
 
-    static final class Config {
-        double descriptorRingWasteWarnRatio = 0.85;
-        int descriptorRingWasteWarnMinFrames = 8;
-        int descriptorRingWasteWarnMinCapacity = 64;
-        int descriptorRingWasteWarnCooldownFrames = 120;
-        long descriptorRingCapPressureWarnMinBypasses = 4;
-        int descriptorRingCapPressureWarnMinFrames = 2;
-        int descriptorRingCapPressureWarnCooldownFrames = 120;
-        int uniformUploadSoftLimitBytes = 2 * 1024 * 1024;
-        int uniformUploadWarnCooldownFrames = 120;
-        int pendingUploadRangeSoftLimit = 48;
-        int pendingUploadRangeWarnCooldownFrames = 120;
-        int descriptorRingActiveSoftLimit = 2048;
-        int descriptorRingActiveWarnCooldownFrames = 120;
+    public static final class Config {
+        public double descriptorRingWasteWarnRatio = 0.85;
+        public int descriptorRingWasteWarnMinFrames = 8;
+        public int descriptorRingWasteWarnMinCapacity = 64;
+        public int descriptorRingWasteWarnCooldownFrames = 120;
+        public long descriptorRingCapPressureWarnMinBypasses = 4;
+        public int descriptorRingCapPressureWarnMinFrames = 2;
+        public int descriptorRingCapPressureWarnCooldownFrames = 120;
+        public int uniformUploadSoftLimitBytes = 2 * 1024 * 1024;
+        public int uniformUploadWarnCooldownFrames = 120;
+        public int pendingUploadRangeSoftLimit = 48;
+        public int pendingUploadRangeWarnCooldownFrames = 120;
+        public int descriptorRingActiveSoftLimit = 2048;
+        public int descriptorRingActiveWarnCooldownFrames = 120;
     }
 
-    void reset(State state) {
+    public void reset(State state) {
         state.descriptorRingWasteHighStreak = 0;
         state.descriptorRingCapPressureStreak = 0;
         state.descriptorRingWasteWarnCooldownRemaining = 0;
@@ -52,7 +53,7 @@ final class VulkanRuntimeWarningPolicy {
         state.descriptorRingActiveWarnCooldownRemaining = 0;
     }
 
-    List<EngineWarning> frameWarnings(State state, Config cfg, Inputs in) {
+    public List<EngineWarning> frameWarnings(State state, Config cfg, Inputs in) {
         List<EngineWarning> warnings = new ArrayList<>();
         if (in.currentSmoke().enabled() && in.currentSmoke().degraded()) {
             warnings.add(new EngineWarning(
@@ -318,7 +319,7 @@ final class VulkanRuntimeWarningPolicy {
         return warnings;
     }
 
-    record Inputs(
+    public record Inputs(
             QualityTier qualityTier,
             FogRenderConfig currentFog,
             SmokeRenderConfig currentSmoke,
