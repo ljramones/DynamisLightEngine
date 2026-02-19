@@ -603,6 +603,77 @@ class VulkanShadowCapabilityWarningIntegrationTest {
     }
 
     @Test
+    void shadowPhaseDPromotionReadyWarningEmitsWhenPhaseDStabilityContractsHold() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "false"),
+                    Map.entry("vulkan.shadow.rtMode", "off"),
+                    Map.entry("vulkan.shadow.transparentReceiversEnabled", "false"),
+                    Map.entry("vulkan.shadow.areaApproxEnabled", "false"),
+                    Map.entry("vulkan.shadow.distanceFieldSoftEnabled", "false"),
+                    Map.entry("vulkan.shadow.phaseDPromotionReadyMinFrames", "1")
+            )), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_PHASED_PROMOTION_READY".equals(w.code())));
+            var phaseD = runtime.shadowPhaseDPromotionDiagnostics();
+            assertTrue(phaseD.available());
+            assertTrue(phaseD.cacheStable());
+            assertTrue(phaseD.rtStable());
+            assertTrue(phaseD.hybridStable());
+            assertTrue(phaseD.transparentReceiverStable());
+            assertTrue(phaseD.areaApproxStable());
+            assertTrue(phaseD.distanceFieldStable());
+            assertTrue(phaseD.promotionReadyLastFrame());
+            assertTrue(phaseD.stableStreak() >= phaseD.promotionReadyMinFrames());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = QualityTier.class, names = {"LOW", "MEDIUM", "HIGH", "ULTRA"})
+    void phaseDPromotionReadinessRequiresSustainedWindowAcrossBlessedTiers(QualityTier tier) throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "false"),
+                    Map.entry("vulkan.shadow.rtMode", "off"),
+                    Map.entry("vulkan.shadow.transparentReceiversEnabled", "false"),
+                    Map.entry("vulkan.shadow.areaApproxEnabled", "false"),
+                    Map.entry("vulkan.shadow.distanceFieldSoftEnabled", "false"),
+                    Map.entry("vulkan.shadow.phaseDPromotionReadyMinFrames", "2")
+            ), tier), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            var first = runtime.render();
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_PHASED_PROMOTION_READY".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_CACHE_CHURN_HIGH".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_RT_DENOISE_ENVELOPE_BREACH".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_HYBRID_COMPOSITION_BREACH".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_AREA_APPROX_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            assertFalse(first.warnings().stream().anyMatch(w -> "SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            var second = runtime.render();
+            assertTrue(second.warnings().stream().anyMatch(w -> "SHADOW_PHASED_PROMOTION_READY".equals(w.code())));
+            var phaseD = runtime.shadowPhaseDPromotionDiagnostics();
+            assertTrue(phaseD.available());
+            assertTrue(phaseD.cacheStable());
+            assertTrue(phaseD.rtStable());
+            assertTrue(phaseD.hybridStable());
+            assertTrue(phaseD.transparentReceiverStable());
+            assertTrue(phaseD.areaApproxStable());
+            assertTrue(phaseD.distanceFieldStable());
+            assertTrue(phaseD.promotionReadyLastFrame());
+            assertTrue(phaseD.stableStreak() >= phaseD.promotionReadyMinFrames());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
     void shadowCacheBreachGateTriggersWithAggressiveThresholds() throws Exception {
         VulkanEngineRuntime runtime = new VulkanEngineRuntime();
         try {
@@ -937,6 +1008,33 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(hybrid.available());
             assertFalse(hybrid.envelopeBreachedLastFrame());
             assertEquals(0, hybrid.warnCooldownRemaining());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = QualityTier.class, names = {"LOW", "MEDIUM", "HIGH", "ULTRA"})
+    void areaAndDistancePoliciesStayStableAcrossBlessedTiers(QualityTier tier) throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.areaApproxEnabled", "true"),
+                    Map.entry("vulkan.shadow.areaApproxRequireActive", "false"),
+                    Map.entry("vulkan.shadow.distanceFieldSoftEnabled", "true"),
+                    Map.entry("vulkan.shadow.distanceFieldRequireActive", "false")
+            ), tier), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_AREA_APPROX_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_DISTANCE_FIELD_SOFT_POLICY".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_AREA_APPROX_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            var extended = runtime.shadowExtendedModeDiagnostics();
+            assertTrue(extended.available());
+            assertFalse(extended.areaApproxBreachedLastFrame());
+            assertFalse(extended.distanceFieldBreachedLastFrame());
         } finally {
             runtime.shutdown();
         }

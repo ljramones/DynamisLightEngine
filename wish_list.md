@@ -34,12 +34,12 @@ Status summary snapshot (2026-02-18):
 - Per-light atlas with cadence scheduling — `In`
 - Point light cubemap shadows with face-budget control — `In`
 - Spot light projected shadows — `In`
-- Area light shadows (approximate or sampled) — `Partial`
-- RT shadows (hard, soft, denoised) — `Partial`
-- Hybrid combinations (cascade + contact + RT detail fill) — `Partial`
-- Transparent shadow receivers — `Partial`
-- Shadow caching (static geometry cache, dynamic overlay) — `Partial`
-- Distance-field soft shadows (medium-range, no map needed) — `Partial`
+- Area light shadows (approximate or sampled) — `In`
+- RT shadows (hard, soft, denoised) — `In`
+- Hybrid combinations (cascade + contact + RT detail fill) — `In`
+- Transparent shadow receivers — `In`
+- Shadow caching (static geometry cache, dynamic overlay) — `In`
+- Distance-field soft shadows (medium-range, no map needed) — `In`
 
 Shadow notes:
 
@@ -66,6 +66,8 @@ Shadow notes:
 - Engine runtime API now exposes typed shadow topology diagnostics (`shadowTopologyDiagnostics()`), and Vulkan emits strict topology contract warnings (`SHADOW_TOPOLOGY_CONTRACT`, `SHADOW_TOPOLOGY_CONTRACT_BREACH`) for local/spot/point execution coverage with tier-locked envelope defaults.
 - Vulkan shadow topology diagnostics now track stability streak + promotion readiness (`topologyPromotionReadyMinFrames`) and emit explicit readiness signaling (`SHADOW_TOPOLOGY_PROMOTION_READY`) when sustained coverage meets the configured window.
 - Vulkan local-shadow warning behavior is now policy-aware: scheduler/budget-driven deferral emits `SHADOW_LOCAL_RENDER_DEFERRED_POLICY` instead of rollout-gap baseline warnings.
+- Engine runtime API now exposes typed Phase D promotion diagnostics (`shadowPhaseDPromotionDiagnostics()`), and Vulkan emits consolidated readiness (`SHADOW_PHASED_PROMOTION_READY`) when cache/RT/hybrid/transparent/area/distance contracts remain stable for a configured sustained window.
+- Shadow Phase D has a strict lockdown runner (`scripts/shadow_phased_lockdown.sh`) and always-on CI lane (`shadow-phased-lockdown`) with sustained-window assertions across blessed tiers.
 
 ## Reflections
 

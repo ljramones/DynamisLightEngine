@@ -43,6 +43,10 @@ on:
         description: 'Run strict shadow Phase C (cache/rt/hybrid) lockdown gate'
         required: false
         default: 'false'
+      run_shadow_phased_lockdown:
+        description: 'Run strict shadow Phase D (transparent/area/distance + promotion) lockdown gate'
+        required: false
+        default: 'false'
       run_aa_upscaler_vendor_matrix:
         description: 'Run AA upscaler vendor matrix lane'
         required: false
@@ -359,6 +363,27 @@ jobs:
 
       - name: Run Phase C lockdown
         run: ./scripts/shadow_phasec_lockdown.sh
+
+  shadow-phased-lockdown:
+    name: Shadow Phase D Lockdown (JDK 25, macos-latest)
+    if: github.event_name == 'schedule'
+      || github.event_name == 'push'
+      || github.event_name == 'pull_request'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_shadow_phased_lockdown == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run Phase D lockdown
+        run: ./scripts/shadow_phased_lockdown.sh
 
   shadow-stable-promote-real:
     name: Shadow Stable Promote Real (JDK 25, macos-latest)

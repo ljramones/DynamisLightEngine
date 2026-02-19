@@ -20,7 +20,7 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 - Phase A (1-3): atlas topology parity + scheduling/budget stability + no-regression on current shadow matrix.
 - Phase B (4): cache invalidation correctness + churn/perf envelope gates.
 - Phase C (5-6): RT availability/perf/denoise/hybrid envelope gates.
-- Phase D (7-9): material correctness + scene coverage + stress/perf lock.
+- Phase D (7-9): material correctness + scene coverage + stress/perf lock + consolidated promotion-ready gate.
 
 ## Work Items
 
@@ -87,6 +87,12 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 
 - [x] Implement Vulkan distance-field shadow capability policy stage with explicit fallback contract and strict required-path breach signaling.
 - [x] Add DF contract diagnostics (`SHADOW_DISTANCE_FIELD_SOFT_POLICY`, `SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH`) via typed extended-mode diagnostics.
+
+### 10) Consolidated Phase D promotion gate
+
+- [x] Add consolidated Phase D readiness signal (`SHADOW_PHASED_PROMOTION_READY`) requiring stable cache/RT/hybrid/transparent/area/distance contracts for a configured sustained window (`vulkan.shadow.phaseDPromotionReadyMinFrames`).
+- [x] Add typed backend-agnostic Phase D diagnostics accessor (`shadowPhaseDPromotionDiagnostics()`) for parser-free CI assertions.
+- [x] Add strict Phase D lockdown runner (`scripts/shadow_phased_lockdown.sh`) and always-on CI lane (`shadow-phased-lockdown`) for sustained-window + policy stability assertions.
 
 ## Notes
 
