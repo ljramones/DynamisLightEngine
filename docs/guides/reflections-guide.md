@@ -109,7 +109,10 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan now emits explicit per-material override policy diagnostics (`REFLECTION_OVERRIDE_POLICY`) and provides a typed runtime snapshot of override counts for parser-free validation.
 - Vulkan now executes runtime-composed reflection mode bits for reflection-space reprojection/reject policy, selective planar execution, RT lane activation, and transparent/refraction integration.
 - Vulkan RT hybrid now executes an active RT-oriented reflection trace + denoise path in post shader, with fallback diagnostics only when the lane is disabled.
-- Vulkan now emits transparency/refraction stage-gate diagnostics (`REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) and activates `preview_enabled` integration when RT lane is active.
+- Vulkan now emits transparency/refraction stage-gate diagnostics (`REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_POLICY`) with active fallback policy:
+  - `active_probe_fallback` when RT lane is unavailable
+  - `active_rt_or_probe` when RT lane is active
+- Vulkan now emits transparency envelope breach warnings (`REFLECTION_TRANSPARENCY_ENVELOPE_BREACH`) when transparent-candidate composition exceeds configured policy bounds.
 - Vulkan now runs an explicit planar selective geometry capture pre-pass before main scene pass, then copies that capture into the planar history source prior to post composite (`planar_capture_before_main_sample_before_post` contract is now backed by execution).
 - Vulkan planar capture now runs with mirrored camera matrices (`uPlanarView/uPlanarProj/uPlanarPrevViewProj`) sourced via global uniforms for the selective pre-main capture pass only.
 - Planar clip-plane culling is now evaluated against world/planar camera-consistent height (`vWorldPos.y` vs configured plane height) during planar capture.
@@ -157,7 +160,7 @@ PostProcessDesc post = new PostProcessDesc(
   - `REFLECTION_RT_DEDICATED_PIPELINE_ACTIVE` / `REFLECTION_RT_DEDICATED_PIPELINE_PENDING` / `REFLECTION_RT_DEDICATED_PIPELINE_REQUIRED_UNAVAILABLE_BREACH`
   - `REFLECTION_RT_PIPELINE_LIFECYCLE` (BLAS/TLAS/SBT lifecycle telemetry state)
   - `REFLECTION_RT_HYBRID_COMPOSITION` / `REFLECTION_RT_HYBRID_COMPOSITION_BREACH`
-  - `REFLECTION_TRANSPARENCY_STAGE_GATE` / `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`
+  - `REFLECTION_TRANSPARENCY_STAGE_GATE` / `REFLECTION_TRANSPARENCY_POLICY` / `REFLECTION_TRANSPARENCY_ENVELOPE_BREACH`
 - High-risk/fail adaptive trend warnings now also emit `PerformanceWarningEvent` callbacks in Vulkan for parser-free host/CI alerting.
 
 ## Planar Limits (Current)

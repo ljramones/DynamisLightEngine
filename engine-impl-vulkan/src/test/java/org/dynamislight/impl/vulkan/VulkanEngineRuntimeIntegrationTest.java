@@ -1388,6 +1388,7 @@ class VulkanEngineRuntimeIntegrationTest {
         runtime.shutdown();
     }
 
+    @Test
     void transparentCandidatesEmitStageGateWarningUntilRtLaneIsActive() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
@@ -1396,13 +1397,18 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_STAGE_GATE".equals(w.code())));
-        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_REFRACTION_PENDING".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_POLICY".equals(w.code())));
+        assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_REFRACTION_PENDING".equals(w.code())));
         String gate = warningMessageByCode(frame, "REFLECTION_TRANSPARENCY_STAGE_GATE");
-        assertTrue(gate.contains("status=blocked_until_rt_minimal_stable"));
+        assertTrue(gate.contains("status=active_probe_fallback"));
         var diagnostics = runtime.debugReflectionTransparencyDiagnostics();
         assertTrue(diagnostics.transparentCandidateCount() > 0);
-        assertEquals("blocked_until_rt_minimal_stable", diagnostics.stageGateStatus());
+        assertEquals("active_probe_fallback", diagnostics.stageGateStatus());
         assertEquals("probe_only", diagnostics.fallbackPath());
+        assertTrue(diagnostics.alphaTestedCandidateCount() > 0);
+        assertFalse(diagnostics.breachedLastFrame());
+        int runtimeMode = runtime.debugReflectionRuntimeMode();
+        assertTrue((runtimeMode & (1 << 16)) != 0);
         runtime.shutdown();
     }
 
@@ -1418,15 +1424,40 @@ class VulkanEngineRuntimeIntegrationTest {
         var frame = runtime.render();
 
         assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_STAGE_GATE".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_POLICY".equals(w.code())));
         assertFalse(frame.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_REFRACTION_PENDING".equals(w.code())));
         String gate = warningMessageByCode(frame, "REFLECTION_TRANSPARENCY_STAGE_GATE");
-        assertTrue(gate.contains("status=preview_enabled"));
+        assertTrue(gate.contains("status=active_rt_or_probe"));
         var diagnostics = runtime.debugReflectionTransparencyDiagnostics();
         assertTrue(diagnostics.transparentCandidateCount() > 0);
-        assertEquals("preview_enabled", diagnostics.stageGateStatus());
+        assertEquals("active_rt_or_probe", diagnostics.stageGateStatus());
         assertEquals("rt_or_probe", diagnostics.fallbackPath());
+        assertTrue(diagnostics.rtLaneActive());
         int runtimeMode = runtime.debugReflectionRuntimeMode();
         assertTrue((runtimeMode & (1 << 16)) != 0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void transparencyEnvelopeBreachEmitsUnderStrictProbeOnlyRatioThreshold() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.transparencyProbeOnlyRatioWarnMax", "0.0"),
+                Map.entry("vulkan.reflections.transparencyWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.transparencyWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validProbeOnlyTransparentReflectionsScene("hybrid"));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_POLICY".equals(w.code())));
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_ENVELOPE_BREACH".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "REFLECTION_TRANSPARENCY_ENVELOPE_BREACH".equals(w.code())));
+        var diagnostics = runtime.debugReflectionTransparencyDiagnostics();
+        assertTrue(diagnostics.probeOnlyCandidateCount() > 0);
+        assertTrue(diagnostics.breachedLastFrame() || diagnostics.warnCooldownRemaining() > 0);
         runtime.shutdown();
     }
 
@@ -3553,6 +3584,41 @@ class VulkanEngineRuntimeIntegrationTest {
                 1.0f,
                 null,
                 ReflectionOverrideMode.AUTO
+        );
+        return new SceneDescriptor(
+                base.sceneName(),
+                base.cameras(),
+                base.activeCameraId(),
+                base.transforms(),
+                base.meshes(),
+                List.of(mat),
+                base.lights(),
+                base.environment(),
+                base.fog(),
+                base.smokeEmitters(),
+                base.postProcess()
+        );
+    }
+
+    private static SceneDescriptor validProbeOnlyTransparentReflectionsScene(String mode) {
+        SceneDescriptor base = validReflectionsScene(mode);
+        MaterialDesc mat = new MaterialDesc(
+                "mat",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0.65f,
+                true,
+                false,
+                1.0f,
+                1.0f,
+                1.0f,
+                null,
+                ReflectionOverrideMode.PROBE_ONLY
         );
         return new SceneDescriptor(
                 base.sceneName(),

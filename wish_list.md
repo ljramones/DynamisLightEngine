@@ -53,7 +53,7 @@ Status summary snapshot (2026-02-18):
 - Reflection probe streaming (LOD, priority-based update) — `In`
 - Per-material reflection override (force probe-only for specific surfaces) — `Partial`
 - Contact-hardening reflections (roughness ramp near contact) — `Partial`
-- Transparent/refractive surface reflections — `Partial`
+- Transparent/refractive surface reflections — `In`
 
 Reflection notes:
 
@@ -89,8 +89,10 @@ Reflection notes:
 - Vulkan probe shading now applies hardened slab-based box projection and distance-priority weighted blending to reduce overlap bleed artifacts in shared probe volumes.
 - Planar reflections now expose selective scope + pass-order contract diagnostics (`planar_capture_before_main_sample_before_post`).
 - RT reflection minimal lane now exposes single/multi-bounce intent + fallback-chain diagnostics (`rt->ssr->probe` vs `ssr->probe`).
-- Transparency/refraction path now has an explicit stage gate tied to RT-minimal readiness, with pending warnings for transparent candidates.
+- Transparency/refraction path now has an explicit production stage policy with active fallback behavior for transparent candidates.
 - Vulkan reflection runtime now composes execution mode bits per frame (reprojection/reject policy, planar-selective execution, RT lane active/multi-bounce, transparency integration) and applies them in post shader logic.
+- Transparency/refraction stage policy is now production-active in Vulkan with explicit fallback chain (`active_probe_fallback` without RT, `active_rt_or_probe` with RT) and typed diagnostics.
+- Transparency envelope gates now enforce candidate composition risk (`probeOnly` ratio) with streak/cooldown breach warnings for CI (`REFLECTION_TRANSPARENCY_ENVELOPE_BREACH`).
 - Vulkan post reflection push constants now carry RT denoise strength; runtime exposes typed debug accessors for composed mode and denoise strength.
 - Vulkan now executes planar selective capture as a real pre-main geometry pass and copies capture to planar history source, using runtime-composed capture bits (`1<<18` capture + `1<<20` geometry-capture execution).
 - Vulkan planar sampling now reads from a dedicated planar capture texture lane in post composite (`uPlanarCaptureColor`), decoupled from TAA history velocity.

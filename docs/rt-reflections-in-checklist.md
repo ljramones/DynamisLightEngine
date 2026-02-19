@@ -51,9 +51,9 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 
 ## 6. Transparent/Refractive Integration
 
-- [ ] Finalize transparent/refractive material classes on top of RT path.
-- [ ] Add ordering/sorting edge-case coverage scenes.
-- [ ] Lock fallback policy (`rt_or_probe`) and known unsupported cases.
+- [x] Finalize transparent/refractive material classes on top of RT path.
+- [x] Add ordering/sorting edge-case coverage scenes.
+- [x] Lock fallback policy (`rt_or_probe`) and known unsupported cases.
 
 ## 7. Performance Gates
 

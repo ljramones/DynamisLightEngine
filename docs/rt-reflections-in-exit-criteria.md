@@ -31,7 +31,7 @@ RT reflections are `In` when the RT lane is truly executable (not fallback-only)
 - [x] Runtime-composed mode bits expose RT active/multi-bounce/denoise state.
   Evidence: `debugReflectionRuntimeMode`, `debugReflectionRuntimeRtDenoiseStrength`.
 - [x] Transparency stage gate is integrated with RT lane status.
-  Evidence: `REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_REFRACTION_PENDING`.
+  Evidence: `REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_POLICY`, `REFLECTION_TRANSPARENCY_ENVELOPE_BREACH`.
 - [x] CI lockdown lane exists for RT contracts and parity scenes.
   Evidence: `scripts/rt_reflections_ci_lockdown_full.sh`.
 - [x] Guarded real-Vulkan signoff runner exists for RT contract replay.

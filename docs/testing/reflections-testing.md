@@ -150,8 +150,9 @@ Current profile tags in parity tests:
 
 8. Transparency/refraction stage-gate checks
 - For alpha-tested/transparent candidates, assert `REFLECTION_TRANSPARENCY_STAGE_GATE` is emitted.
-- Assert pending warning (`REFLECTION_TRANSPARENCY_REFRACTION_PENDING`) when RT lane is not active, and `preview_enabled` + `rt_or_probe` fallback when RT lane is active.
-- Validate typed diagnostics (`debugReflectionTransparencyDiagnostics`) for candidate count/status/fallback path.
+- Assert policy warning (`REFLECTION_TRANSPARENCY_POLICY`) emits candidate composition metrics.
+- Assert `active_probe_fallback` + `probe_only` fallback when RT lane is not active, and `active_rt_or_probe` + `rt_or_probe` fallback when RT lane is active.
+- Validate typed diagnostics (`debugReflectionTransparencyDiagnostics`) for candidate class counts, status/fallback path, and envelope streak/cooldown state.
 
 9. SSR calibration envelope checks
 - Assert `REFLECTION_SSR_REPROJECTION_ENVELOPE` always emits under SSR/TAA path.

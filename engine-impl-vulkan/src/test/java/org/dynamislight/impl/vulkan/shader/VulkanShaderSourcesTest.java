@@ -108,7 +108,9 @@ class VulkanShaderSourcesTest {
     void postFragmentIncludesReflectionOverrideModes() {
         String shader = VulkanShaderSources.postFragment();
         assertTrue(shader.contains("int reflectionOverrideMode = int(clamp(floor(sceneSample.a * 3.0 + 0.5), 0.0, 3.0));"));
-        assertTrue(shader.contains("if (reflectionOverrideMode == 1) {"));
+        assertTrue(shader.contains("bool probeOnlyOverride = reflectionOverrideMode == 1;"));
+        assertTrue(shader.contains("bool transparentCandidate = materialReactive >= 0.30;"));
+        assertTrue(shader.contains("if (probeOnlyOverride) {"));
         assertTrue(shader.contains("int mode = reflectionOverrideMode == 2 ? 1 : (packedMode & 7);"));
     }
 }

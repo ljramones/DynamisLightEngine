@@ -25,6 +25,7 @@ import org.dynamislight.api.scene.LightType;
 import org.dynamislight.api.scene.MeshDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 import org.dynamislight.api.scene.ReflectionProbeDesc;
+import org.dynamislight.api.scene.ReflectionOverrideMode;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.api.scene.FogDesc;
@@ -385,8 +386,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean reflectionPlanarMirrorCameraActive;
     private boolean reflectionPlanarDedicatedCaptureLaneActive;
     private int reflectionTransparentCandidateCount;
+    private int reflectionTransparencyAlphaTestedCandidateCount;
+    private int reflectionTransparencyReactiveCandidateCount;
+    private int reflectionTransparencyProbeOnlyCandidateCount;
     private String reflectionTransparencyStageGateStatus = "not_required";
     private String reflectionTransparencyFallbackPath = "none";
+    private double reflectionTransparencyCandidateReactiveMin = 0.35;
+    private double reflectionTransparencyProbeOnlyRatioWarnMax = 0.65;
+    private int reflectionTransparencyWarnMinFrames = 3;
+    private int reflectionTransparencyWarnCooldownFrames = 120;
+    private int reflectionTransparencyHighStreak;
+    private int reflectionTransparencyWarnCooldownRemaining;
+    private boolean reflectionTransparencyBreachedLastFrame;
     private int reflectionProbeUpdateCadenceFrames = 1;
     private int reflectionProbeMaxVisible = 64;
     private double reflectionProbeLodDepthScale = 1.0;
@@ -552,6 +563,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionRtDenoiseWarnCooldownFrames = options.reflectionRtDenoiseWarnCooldownFrames();
         reflectionRtAsBuildGpuMsWarnMax = options.reflectionRtAsBuildGpuMsWarnMax();
         reflectionRtAsMemoryBudgetMb = options.reflectionRtAsMemoryBudgetMb();
+        reflectionTransparencyCandidateReactiveMin = options.reflectionTransparencyCandidateReactiveMin();
+        reflectionTransparencyProbeOnlyRatioWarnMax = options.reflectionTransparencyProbeOnlyRatioWarnMax();
+        reflectionTransparencyWarnMinFrames = options.reflectionTransparencyWarnMinFrames();
+        reflectionTransparencyWarnCooldownFrames = options.reflectionTransparencyWarnCooldownFrames();
         reflectionProbeUpdateCadenceFrames = options.reflectionProbeUpdateCadenceFrames();
         reflectionProbeMaxVisible = options.reflectionProbeMaxVisible();
         reflectionProbeLodDepthScale = options.reflectionProbeLodDepthScale();
@@ -610,6 +625,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionRtAsMemoryMbEstimate = 0.0;
         reflectionRtPromotionReadyLastFrame = false;
         reflectionRtPromotionReadyHighStreak = 0;
+        reflectionTransparencyAlphaTestedCandidateCount = 0;
+        reflectionTransparencyReactiveCandidateCount = 0;
+        reflectionTransparencyProbeOnlyCandidateCount = 0;
+        reflectionTransparencyHighStreak = 0;
+        reflectionTransparencyWarnCooldownRemaining = 0;
+        reflectionTransparencyBreachedLastFrame = false;
         lastFramePlanarCaptureGpuMs = Double.NaN;
         lastFrameGpuTimingSource = "frame_estimate";
         context.configureReflectionProbeStreaming(
@@ -1631,34 +1652,78 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtPerfLastGpuMsEstimate = 0.0;
                 reflectionRtPerfLastGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
             }
-            reflectionTransparentCandidateCount = countReflectionTransparentCandidates(currentSceneMaterials);
+            TransparencyCandidateSummary transparencySummary =
+                    summarizeReflectionTransparencyCandidates(currentSceneMaterials, reflectionTransparencyCandidateReactiveMin);
+            reflectionTransparentCandidateCount = transparencySummary.totalCount();
+            reflectionTransparencyAlphaTestedCandidateCount = transparencySummary.alphaTestedCount();
+            reflectionTransparencyReactiveCandidateCount = transparencySummary.reactiveCandidateCount();
+            reflectionTransparencyProbeOnlyCandidateCount = transparencySummary.probeOnlyOverrideCount();
             if (reflectionTransparentCandidateCount > 0) {
                 if (reflectionRtLaneActive) {
-                    reflectionTransparencyStageGateStatus = "preview_enabled";
+                    reflectionTransparencyStageGateStatus = "active_rt_or_probe";
                     reflectionTransparencyFallbackPath = "rt_or_probe";
                 } else {
-                    reflectionTransparencyStageGateStatus = "blocked_until_rt_minimal_stable";
+                    reflectionTransparencyStageGateStatus = "active_probe_fallback";
                     reflectionTransparencyFallbackPath = "probe_only";
                 }
+                double probeOnlyRatio = (double) reflectionTransparencyProbeOnlyCandidateCount
+                        / (double) Math.max(1, reflectionTransparentCandidateCount);
+                boolean transparencyRisk = probeOnlyRatio > reflectionTransparencyProbeOnlyRatioWarnMax;
+                if (transparencyRisk) {
+                    reflectionTransparencyHighStreak++;
+                } else {
+                    reflectionTransparencyHighStreak = 0;
+                }
+                if (reflectionTransparencyWarnCooldownRemaining > 0) {
+                    reflectionTransparencyWarnCooldownRemaining--;
+                }
+                boolean transparencyTriggered = false;
+                if (transparencyRisk
+                        && reflectionTransparencyHighStreak >= reflectionTransparencyWarnMinFrames
+                        && reflectionTransparencyWarnCooldownRemaining <= 0) {
+                    reflectionTransparencyWarnCooldownRemaining = reflectionTransparencyWarnCooldownFrames;
+                    transparencyTriggered = true;
+                }
+                reflectionTransparencyBreachedLastFrame = transparencyTriggered;
                 warnings.add(new EngineWarning(
                         "REFLECTION_TRANSPARENCY_STAGE_GATE",
                         "Transparency/refraction stage gate (status=" + reflectionTransparencyStageGateStatus
                                 + ", transparentCandidates=" + reflectionTransparentCandidateCount
+                                + ", alphaTestedCandidates=" + reflectionTransparencyAlphaTestedCandidateCount
+                                + ", reactiveCandidates=" + reflectionTransparencyReactiveCandidateCount
                                 + ", fallbackPath=" + reflectionTransparencyFallbackPath + ")"
                 ));
-                if (!reflectionRtLaneActive) {
+                warnings.add(new EngineWarning(
+                        "REFLECTION_TRANSPARENCY_POLICY",
+                        "Transparency policy (candidateReactiveMin=" + reflectionTransparencyCandidateReactiveMin
+                                + ", probeOnlyCandidates=" + reflectionTransparencyProbeOnlyCandidateCount
+                                + ", probeOnlyRatio=" + probeOnlyRatio
+                                + ", probeOnlyRatioWarnMax=" + reflectionTransparencyProbeOnlyRatioWarnMax
+                                + ", highStreak=" + reflectionTransparencyHighStreak
+                                + ", warnMinFrames=" + reflectionTransparencyWarnMinFrames
+                                + ", warnCooldownFrames=" + reflectionTransparencyWarnCooldownFrames
+                                + ", warnCooldownRemaining=" + reflectionTransparencyWarnCooldownRemaining
+                                + ", breached=" + reflectionTransparencyBreachedLastFrame + ")"
+                ));
+                if (reflectionTransparencyBreachedLastFrame) {
                     warnings.add(new EngineWarning(
-                            "REFLECTION_TRANSPARENCY_REFRACTION_PENDING",
-                            "Transparent/refractive reflection path pending RT minimal stability "
-                                    + "(transparentCandidates=" + reflectionTransparentCandidateCount + ")"
+                            "REFLECTION_TRANSPARENCY_ENVELOPE_BREACH",
+                            "Transparency envelope breached (probeOnlyRatio=" + probeOnlyRatio
+                                    + ", probeOnlyRatioWarnMax=" + reflectionTransparencyProbeOnlyRatioWarnMax + ")"
                     ));
                 }
             } else {
                 reflectionTransparencyStageGateStatus = "not_required";
                 reflectionTransparencyFallbackPath = "none";
+                reflectionTransparencyHighStreak = 0;
+                reflectionTransparencyWarnCooldownRemaining = 0;
+                reflectionTransparencyBreachedLastFrame = false;
+                reflectionTransparencyAlphaTestedCandidateCount = 0;
+                reflectionTransparencyReactiveCandidateCount = 0;
+                reflectionTransparencyProbeOnlyCandidateCount = 0;
             }
             boolean rtTransparencyReady = reflectionTransparentCandidateCount <= 0
-                    || "preview_enabled".equals(reflectionTransparencyStageGateStatus);
+                    || reflectionTransparencyStageGateStatus.startsWith("active_");
             boolean rtPromotionDedicatedReady = reflectionRtDedicatedHardwarePipelineActive
                     || (mockContext && reflectionRtLaneActive && reflectionRtDedicatedPipelineEnabled);
             boolean rtPromotionCandidate = reflectionRtLaneActive
@@ -1776,6 +1841,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", rtAsBuildGpuMsWarnMax=" + reflectionRtAsBuildGpuMsWarnMax
                             + ", rtAsMemoryBudgetMb=" + reflectionRtAsMemoryBudgetMb
                             + ", rtPromotionReadyMinFrames=" + reflectionRtPromotionReadyMinFrames
+                            + ", transparencyCandidateReactiveMin=" + reflectionTransparencyCandidateReactiveMin
+                            + ", transparencyProbeOnlyRatioWarnMax=" + reflectionTransparencyProbeOnlyRatioWarnMax
+                            + ", transparencyWarnMinFrames=" + reflectionTransparencyWarnMinFrames
+                            + ", transparencyWarnCooldownFrames=" + reflectionTransparencyWarnCooldownFrames
                             + ", probeUpdateCadenceFrames=" + reflectionProbeUpdateCadenceFrames
                             + ", probeMaxVisible=" + reflectionProbeMaxVisible
                             + ", probeLodDepthScale=" + reflectionProbeLodDepthScale
@@ -2391,17 +2460,40 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return x * y * z;
     }
 
-    private static int countReflectionTransparentCandidates(List<MaterialDesc> materials) {
+    private static TransparencyCandidateSummary summarizeReflectionTransparencyCandidates(
+            List<MaterialDesc> materials,
+            double candidateReactiveMin
+    ) {
         if (materials == null || materials.isEmpty()) {
-            return 0;
+            return TransparencyCandidateSummary.zero();
         }
-        int count = 0;
+        int total = 0;
+        int alphaTested = 0;
+        int reactive = 0;
+        int probeOnlyOverrides = 0;
+        float reactiveThreshold = (float) Math.max(0.0, Math.min(1.0, candidateReactiveMin));
         for (MaterialDesc material : materials) {
-            if (material != null && material.alphaTested()) {
-                count++;
+            if (material == null) {
+                continue;
+            }
+            boolean alphaCandidate = material.alphaTested();
+            boolean reactiveCandidate = material.reactiveStrength() >= reactiveThreshold;
+            boolean candidate = alphaCandidate || reactiveCandidate;
+            if (!candidate) {
+                continue;
+            }
+            total++;
+            if (alphaCandidate) {
+                alphaTested++;
+            }
+            if (reactiveCandidate) {
+                reactive++;
+            }
+            if (material.reflectionOverride() == ReflectionOverrideMode.PROBE_ONLY) {
+                probeOnlyOverrides++;
             }
         }
-        return count;
+        return new TransparencyCandidateSummary(total, alphaTested, reactive, probeOnlyOverrides);
     }
 
     private int countPlanarEligibleFromOverrideSummary(ReflectionOverrideSummary summary) {
@@ -2615,7 +2707,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         int reflectionBaseMode = currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
         ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
         int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
-        reflectionTransparentCandidateCount = countReflectionTransparentCandidates(currentSceneMaterials);
+        reflectionTransparentCandidateCount = summarizeReflectionTransparencyCandidates(
+                currentSceneMaterials,
+                reflectionTransparencyCandidateReactiveMin
+        ).totalCount();
         refreshReflectionRtPathState(reflectionBaseMode);
         int reflectionModeRuntime = composeReflectionExecutionMode(
                 currentPost.reflectionsMode(),
@@ -2764,7 +2859,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         if (reflectionPlanarScopeIncludeOther) {
             mode |= REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_OTHER_BIT;
         }
-        if (transparencyCandidatesPresent && rtLaneActive) {
+        if (transparencyCandidatesPresent) {
             mode |= REFLECTION_MODE_TRANSPARENCY_INTEGRATION_BIT;
         }
         if (isReflectionSpaceReprojectionPolicyActive()) {
@@ -3265,9 +3360,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     ReflectionTransparencyDiagnostics debugReflectionTransparencyDiagnostics() {
         return new ReflectionTransparencyDiagnostics(
                 reflectionTransparentCandidateCount,
+                reflectionTransparencyAlphaTestedCandidateCount,
+                reflectionTransparencyReactiveCandidateCount,
+                reflectionTransparencyProbeOnlyCandidateCount,
                 reflectionTransparencyStageGateStatus,
                 reflectionTransparencyFallbackPath,
-                reflectionRtLaneActive
+                reflectionRtLaneActive,
+                reflectionTransparencyCandidateReactiveMin,
+                reflectionTransparencyProbeOnlyRatioWarnMax,
+                reflectionTransparencyHighStreak,
+                reflectionTransparencyWarnMinFrames,
+                reflectionTransparencyWarnCooldownFrames,
+                reflectionTransparencyWarnCooldownRemaining,
+                reflectionTransparencyBreachedLastFrame
         );
     }
 
@@ -3591,9 +3696,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     record ReflectionTransparencyDiagnostics(
             int transparentCandidateCount,
+            int alphaTestedCandidateCount,
+            int reactiveCandidateCount,
+            int probeOnlyCandidateCount,
             String stageGateStatus,
             String fallbackPath,
-            boolean rtLaneActive
+            boolean rtLaneActive,
+            double candidateReactiveMin,
+            double probeOnlyRatioWarnMax,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
+            boolean breachedLastFrame
     ) {
     }
 
@@ -3634,6 +3749,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private record ReflectionOverrideSummary(int autoCount, int probeOnlyCount, int ssrOnlyCount, int otherCount) {
+    }
+
+    private record TransparencyCandidateSummary(
+            int totalCount,
+            int alphaTestedCount,
+            int reactiveCandidateCount,
+            int probeOnlyOverrideCount
+    ) {
+        private static TransparencyCandidateSummary zero() {
+            return new TransparencyCandidateSummary(0, 0, 0, 0);
+        }
     }
 
     private record ReflectionAdaptiveWindowSample(
@@ -3815,6 +3941,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnCooldownFrames")) reflectionRtDenoiseWarnCooldownFrames = 180;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtAsBuildGpuMsWarnMax")) reflectionRtAsBuildGpuMsWarnMax = 1.0;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtAsMemoryBudgetMb")) reflectionRtAsMemoryBudgetMb = 48.0;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyCandidateReactiveMin")) reflectionTransparencyCandidateReactiveMin = 0.45;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyProbeOnlyRatioWarnMax")) reflectionTransparencyProbeOnlyRatioWarnMax = 0.50;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyWarnMinFrames")) reflectionTransparencyWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyWarnCooldownFrames")) reflectionTransparencyWarnCooldownFrames = 180;
             }
             case QUALITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -3882,6 +4012,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnCooldownFrames")) reflectionRtDenoiseWarnCooldownFrames = 120;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtAsBuildGpuMsWarnMax")) reflectionRtAsBuildGpuMsWarnMax = 1.4;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtAsMemoryBudgetMb")) reflectionRtAsMemoryBudgetMb = 80.0;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyCandidateReactiveMin")) reflectionTransparencyCandidateReactiveMin = 0.35;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyProbeOnlyRatioWarnMax")) reflectionTransparencyProbeOnlyRatioWarnMax = 0.65;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyWarnMinFrames")) reflectionTransparencyWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyWarnCooldownFrames")) reflectionTransparencyWarnCooldownFrames = 120;
             }
             case STABILITY -> {
                 if (!hasBackendOption(safe, "vulkan.reflections.probeChurnWarnMinDelta")) reflectionProbeChurnWarnMinDelta = 1;
@@ -3949,6 +4083,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.rtDenoiseWarnCooldownFrames")) reflectionRtDenoiseWarnCooldownFrames = 90;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtAsBuildGpuMsWarnMax")) reflectionRtAsBuildGpuMsWarnMax = 1.8;
                 if (!hasBackendOption(safe, "vulkan.reflections.rtAsMemoryBudgetMb")) reflectionRtAsMemoryBudgetMb = 96.0;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyCandidateReactiveMin")) reflectionTransparencyCandidateReactiveMin = 0.25;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyProbeOnlyRatioWarnMax")) reflectionTransparencyProbeOnlyRatioWarnMax = 0.75;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyWarnMinFrames")) reflectionTransparencyWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.transparencyWarnCooldownFrames")) reflectionTransparencyWarnCooldownFrames = 90;
             }
             default -> {
             }

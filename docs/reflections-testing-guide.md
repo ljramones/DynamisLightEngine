@@ -30,6 +30,13 @@ Updated: 2026-02-18
 - `vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax=0` (default)
 - `vulkan.reflections.probeQualityOverlapCoverageWarnMin=0.12` (default)
 
+## Transparency Thresholds
+
+- `vulkan.reflections.transparencyCandidateReactiveMin=0.35` (default)
+- `vulkan.reflections.transparencyProbeOnlyRatioWarnMax=0.65` (default)
+- `vulkan.reflections.transparencyWarnMinFrames=3` (default)
+- `vulkan.reflections.transparencyWarnCooldownFrames=120` (default)
+
 ## Required Test Lanes
 
 1. Lockdown contracts:
@@ -53,6 +60,8 @@ Updated: 2026-02-18
   - `REFLECTION_PROBE_STREAMING_DIAGNOSTICS`
   - `REFLECTION_PROBE_STREAMING_ENVELOPE`
   - `REFLECTION_PROBE_QUALITY_SWEEP`
+  - `REFLECTION_TRANSPARENCY_STAGE_GATE`
+  - `REFLECTION_TRANSPARENCY_POLICY`
 - Fail on any breach warnings in blessed lanes:
   - `REFLECTION_RT_PERF_GATES_BREACH`
   - `REFLECTION_RT_HYBRID_COMPOSITION_BREACH`
@@ -60,3 +69,4 @@ Updated: 2026-02-18
   - `REFLECTION_RT_AS_BUDGET_BREACH`
   - `REFLECTION_PROBE_STREAMING_ENVELOPE_BREACH`
   - `REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`
+  - `REFLECTION_TRANSPARENCY_ENVELOPE_BREACH`

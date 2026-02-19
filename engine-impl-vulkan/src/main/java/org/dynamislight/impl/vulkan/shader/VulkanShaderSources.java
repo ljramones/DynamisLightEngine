@@ -1866,9 +1866,6 @@ public final class VulkanShaderSources {
                     if (pc.reflectionsA.x < 0.5 || int(pc.reflectionsA.y + 0.5) == 0) {
                         return color;
                     }
-                    if (reflectionOverrideMode == 1) {
-                        return color;
-                    }
                     int packedMode = max(int(pc.reflectionsA.y + 0.5), 0);
                     int mode = reflectionOverrideMode == 2 ? 1 : (packedMode & 7);
                     bool hiZEnabled = (packedMode & (1 << 3)) != 0;
@@ -1888,6 +1885,8 @@ public final class VulkanShaderSources {
                     bool rtDedicatedDenoisePipeline = (packedMode & (1 << 19)) != 0;
                     vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
                     float roughnessProxy = clamp(1.0 - dot(color, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+                    bool probeOnlyOverride = reflectionOverrideMode == 1;
+                    bool transparentCandidate = materialReactive >= 0.30;
                     float roughnessMask = 1.0 - smoothstep(clamp(pc.reflectionsA.w, 0.05, 1.0), 1.0, roughnessProxy);
                     float ssrStrength = clamp(pc.reflectionsA.z, 0.0, 1.0) * roughnessMask;
                     float stepScale = clamp(pc.reflectionsB.x, 0.5, 3.0);
@@ -2009,7 +2008,9 @@ public final class VulkanShaderSources {
                         temporalColor = mix(temporalColor, rtColor, clamp(rtHit * 1.20, 0.0, 1.0));
                     }
                     vec3 reflected = color;
-                    if (mode == 1) {
+                    if (probeOnlyOverride) {
+                        reflected = color;
+                    } else if (mode == 1) {
                         reflected = mix(color, temporalColor, ssrStrength * clamp(ssrHit * 1.15, 0.0, 1.0));
                     } else if (mode == 2) {
                         reflected = mix(color, planarColor, planarStrength * (0.75 + 0.25 * (1.0 - roughnessProxy)));
@@ -2021,7 +2022,7 @@ public final class VulkanShaderSources {
                         }
                         reflected = mix(color, hybrid, hybridWeight);
                     }
-                    if (transparencyIntegration && reflectionOverrideMode != 1) {
+                    if (transparencyIntegration && transparentCandidate) {
                         float transparencyWeight = clamp(materialReactive * 1.15, 0.0, 1.0);
                         vec2 refractOffset = (surfaceVelocityUv * 0.08) + (rayDir * texel * (2.0 + currentDepth * 10.0));
                         vec3 refracted = texture(uSceneColor, clamp(uv - refractOffset, vec2(0.0), vec2(1.0))).rgb;

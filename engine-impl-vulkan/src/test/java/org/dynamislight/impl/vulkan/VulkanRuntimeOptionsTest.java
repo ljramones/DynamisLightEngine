@@ -95,6 +95,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtDenoiseWarnCooldownFrames", "160"),
                         Map.entry("vulkan.reflections.rtAsBuildGpuMsWarnMax", "1.9"),
                         Map.entry("vulkan.reflections.rtAsMemoryBudgetMb", "88.0"),
+                        Map.entry("vulkan.reflections.transparencyCandidateReactiveMin", "0.41"),
+                        Map.entry("vulkan.reflections.transparencyProbeOnlyRatioWarnMax", "0.57"),
+                        Map.entry("vulkan.reflections.transparencyWarnMinFrames", "5"),
+                        Map.entry("vulkan.reflections.transparencyWarnCooldownFrames", "220"),
                         Map.entry("vulkan.reflections.planarPerfRequireGpuTimestamp", "true")
                         ,Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "6")
                         ,Map.entry("vulkan.reflections.probeMaxVisible", "48")
@@ -200,6 +204,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(160, parsed.reflectionRtDenoiseWarnCooldownFrames());
         assertEquals(1.9, parsed.reflectionRtAsBuildGpuMsWarnMax());
         assertEquals(88.0, parsed.reflectionRtAsMemoryBudgetMb());
+        assertEquals(0.41, parsed.reflectionTransparencyCandidateReactiveMin());
+        assertEquals(0.57, parsed.reflectionTransparencyProbeOnlyRatioWarnMax());
+        assertEquals(5, parsed.reflectionTransparencyWarnMinFrames());
+        assertEquals(220, parsed.reflectionTransparencyWarnCooldownFrames());
         assertEquals(true, parsed.reflectionPlanarPerfRequireGpuTimestamp());
         assertEquals(6, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(48, parsed.reflectionProbeMaxVisible());
@@ -292,6 +300,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.rtDenoiseWarnCooldownFrames", "999999"),
                         Map.entry("vulkan.reflections.rtAsBuildGpuMsWarnMax", "-1.0"),
                         Map.entry("vulkan.reflections.rtAsMemoryBudgetMb", "99999.0"),
+                        Map.entry("vulkan.reflections.transparencyCandidateReactiveMin", "9.0"),
+                        Map.entry("vulkan.reflections.transparencyProbeOnlyRatioWarnMax", "-9.0"),
+                        Map.entry("vulkan.reflections.transparencyWarnMinFrames", "0"),
+                        Map.entry("vulkan.reflections.transparencyWarnCooldownFrames", "999999"),
                         Map.entry("vulkan.reflections.probeUpdateCadenceFrames", "0"),
                         Map.entry("vulkan.reflections.probeMaxVisible", "999"),
                         Map.entry("vulkan.reflections.probeLodDepthScale", "9.0"),
@@ -390,6 +402,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(10000, parsed.reflectionRtDenoiseWarnCooldownFrames());
         assertEquals(0.0, parsed.reflectionRtAsBuildGpuMsWarnMax());
         assertEquals(4096.0, parsed.reflectionRtAsMemoryBudgetMb());
+        assertEquals(1.0, parsed.reflectionTransparencyCandidateReactiveMin());
+        assertEquals(0.0, parsed.reflectionTransparencyProbeOnlyRatioWarnMax());
+        assertEquals(1, parsed.reflectionTransparencyWarnMinFrames());
+        assertEquals(10000, parsed.reflectionTransparencyWarnCooldownFrames());
         assertEquals(false, parsed.reflectionPlanarPerfRequireGpuTimestamp());
         assertEquals(1, parsed.reflectionProbeUpdateCadenceFrames());
         assertEquals(256, parsed.reflectionProbeMaxVisible());
