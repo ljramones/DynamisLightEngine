@@ -45,6 +45,13 @@ Updated: 2026-02-19
 - `vulkan.reflections.overrideWarnMinFrames` (profile default)
 - `vulkan.reflections.overrideWarnCooldownFrames` (profile default)
 
+## Contact-Hardening Thresholds
+
+- `vulkan.reflections.contactHardeningMinSsrStrength` (profile default)
+- `vulkan.reflections.contactHardeningMinSsrMaxRoughness` (profile default)
+- `vulkan.reflections.contactHardeningWarnMinFrames` (profile default)
+- `vulkan.reflections.contactHardeningWarnCooldownFrames` (profile default)
+
 ## Required Test Lanes
 
 1. Lockdown contracts:
@@ -70,6 +77,7 @@ Updated: 2026-02-19
   - `REFLECTION_PROBE_QUALITY_SWEEP`
   - `REFLECTION_OVERRIDE_POLICY`
   - `REFLECTION_OVERRIDE_POLICY_ENVELOPE`
+  - `REFLECTION_CONTACT_HARDENING_POLICY`
   - `REFLECTION_TRANSPARENCY_STAGE_GATE`
   - `REFLECTION_TRANSPARENCY_POLICY`
 - Fail on any breach warnings in blessed lanes:
@@ -80,4 +88,5 @@ Updated: 2026-02-19
   - `REFLECTION_PROBE_STREAMING_ENVELOPE_BREACH`
   - `REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH`
   - `REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH`
+  - `REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH`
   - `REFLECTION_TRANSPARENCY_ENVELOPE_BREACH`

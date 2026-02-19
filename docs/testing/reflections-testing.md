@@ -21,6 +21,7 @@ This document defines reflection validation for OpenGL and Vulkan.
 - MEDIUM-tier reflection scenes emit `REFLECTIONS_QUALITY_DEGRADED`.
 - Mixed override scenes emit `REFLECTION_OVERRIDE_POLICY` and expose typed override-policy diagnostics for counts/scope assertions.
 - Mixed override scenes emit `REFLECTION_OVERRIDE_POLICY_ENVELOPE` and strict-threshold scenes emit cooldown-gated `REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH`.
+- Reflection scenes emit `REFLECTION_CONTACT_HARDENING_POLICY`; strict-threshold scenes emit cooldown-gated `REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH`.
 
 3. Profile validation
 - Run each reflection mode with `performance`, `balanced`, `quality`, `stability`.
@@ -160,11 +161,16 @@ Current profile tags in parity tests:
 - Under strict thresholds, assert cooldown-gated `REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH`.
 - Validate typed diagnostics (`debugReflectionOverridePolicyDiagnostics`) against warning payload for counts/ratios/thresholds and streak/cooldown state.
 
-10. SSR calibration envelope checks
+10. Contact-hardening envelope checks
+- Assert `REFLECTION_CONTACT_HARDENING_POLICY` is emitted for reflection-active SSR-capable modes.
+- Under strict thresholds, assert cooldown-gated `REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH`.
+- Validate typed diagnostics (`debugReflectionContactHardeningDiagnostics`) for active/estimated-strength/threshold/streak/cooldown parity.
+
+11. SSR calibration envelope checks
 - Assert `REFLECTION_SSR_REPROJECTION_ENVELOPE` always emits under SSR/TAA path.
 - Under strict thresholds, assert cooldown-gated `REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`.
 
-11. Probe streaming/LOD checks
+12. Probe streaming/LOD checks
 - Validate `VulkanReflectionProbeCoordinator` cadence rotation keeps top-priority probes and rotates lower-priority probes.
 - Validate probe metadata payload includes bounded LOD tier in probe flags (`cubemapIndexAndFlags.w` in `[0..3]`).
 - Assert streaming diagnostics warning (`REFLECTION_PROBE_STREAMING_DIAGNOSTICS`) and budget-pressure warning (`REFLECTION_PROBE_STREAMING_BUDGET_PRESSURE`) under tight `probeMaxVisible` settings.

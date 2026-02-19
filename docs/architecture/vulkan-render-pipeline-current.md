@@ -103,6 +103,7 @@ Current limitation:
 - Probe texture selection by `cubemapIndex` is active, but source assets are interpreted through the existing 2D radiance projection path.
 - Optional cube-face probe discovery (`*_px/_nx/_py/_ny/_pz/_nz`) is present behind `dle.vulkan.reflections.probeCubeArrayEnabled`, but runtime texture creation remains pinned to 2D-array probe sampling.
 - Per-material reflection override lane is available via `MaterialDesc.reflectionOverride` with `PROBE_ONLY` and `SSR_ONLY` support in Vulkan.
+- Contact-hardening reflection shaping is active in Vulkan post resolve (depth-window ramp + roughness/strength boosts), with runtime policy diagnostics and envelope breach signaling.
 
 ### Uniform sizes and upload
 

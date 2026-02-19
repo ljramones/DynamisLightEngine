@@ -233,6 +233,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int reflectionOverrideHighStreak;
     private int reflectionOverrideWarnCooldownRemaining;
     private boolean reflectionOverrideBreachedLastFrame;
+    private double reflectionContactHardeningMinSsrStrength = 0.35;
+    private double reflectionContactHardeningMinSsrMaxRoughness = 0.55;
+    private int reflectionContactHardeningWarnMinFrames = 3;
+    private int reflectionContactHardeningWarnCooldownFrames = 120;
+    private int reflectionContactHardeningHighStreak;
+    private int reflectionContactHardeningWarnCooldownRemaining;
+    private boolean reflectionContactHardeningBreachedLastFrame;
+    private boolean reflectionContactHardeningActiveLastFrame;
+    private double reflectionContactHardeningEstimatedStrengthLastFrame;
     private double reflectionProbeQualityBoxProjectionMinRatio = 0.60;
     private int reflectionProbeQualityInvalidBlendDistanceWarnMax;
     private double reflectionProbeQualityOverlapCoverageWarnMin = 0.12;
@@ -505,6 +514,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionOverrideOtherWarnMax = options.reflectionOverrideOtherWarnMax();
         reflectionOverrideWarnMinFrames = options.reflectionOverrideWarnMinFrames();
         reflectionOverrideWarnCooldownFrames = options.reflectionOverrideWarnCooldownFrames();
+        reflectionContactHardeningMinSsrStrength = options.reflectionContactHardeningMinSsrStrength();
+        reflectionContactHardeningMinSsrMaxRoughness = options.reflectionContactHardeningMinSsrMaxRoughness();
+        reflectionContactHardeningWarnMinFrames = options.reflectionContactHardeningWarnMinFrames();
+        reflectionContactHardeningWarnCooldownFrames = options.reflectionContactHardeningWarnCooldownFrames();
         reflectionProbeQualityBoxProjectionMinRatio = options.reflectionProbeQualityBoxProjectionMinRatio();
         reflectionProbeQualityInvalidBlendDistanceWarnMax = options.reflectionProbeQualityInvalidBlendDistanceWarnMax();
         reflectionProbeQualityOverlapCoverageWarnMin = options.reflectionProbeQualityOverlapCoverageWarnMin();
@@ -641,6 +654,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionOverrideHighStreak = 0;
         reflectionOverrideWarnCooldownRemaining = 0;
         reflectionOverrideBreachedLastFrame = false;
+        reflectionContactHardeningHighStreak = 0;
+        reflectionContactHardeningWarnCooldownRemaining = 0;
+        reflectionContactHardeningBreachedLastFrame = false;
+        reflectionContactHardeningActiveLastFrame = false;
+        reflectionContactHardeningEstimatedStrengthLastFrame = 0.0;
         reflectionTransparencyAlphaTestedCandidateCount = 0;
         reflectionTransparencyReactiveCandidateCount = 0;
         reflectionTransparencyProbeOnlyCandidateCount = 0;
@@ -1089,6 +1107,54 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                         "Reflection override policy envelope breached (probeOnlyRatio=" + overrideProbeOnlyRatio
                                 + ", ssrOnlyRatio=" + overrideSsrOnlyRatio
                                 + ", otherCount=" + overrideSummary.otherCount() + ")"
+                ));
+            }
+            boolean contactHardeningActive = reflectionBaseMode > 0;
+            double contactHardeningEstimatedStrength = currentPost.reflectionsSsrStrength()
+                    * currentPost.reflectionsSsrMaxRoughness();
+            boolean contactHardeningRisk = contactHardeningActive
+                    && (currentPost.reflectionsSsrStrength() < reflectionContactHardeningMinSsrStrength
+                    || currentPost.reflectionsSsrMaxRoughness() < reflectionContactHardeningMinSsrMaxRoughness);
+            if (contactHardeningRisk) {
+                reflectionContactHardeningHighStreak++;
+            } else {
+                reflectionContactHardeningHighStreak = 0;
+            }
+            if (reflectionContactHardeningWarnCooldownRemaining > 0) {
+                reflectionContactHardeningWarnCooldownRemaining--;
+            }
+            boolean contactHardeningTriggered = false;
+            if (contactHardeningRisk
+                    && reflectionContactHardeningHighStreak >= reflectionContactHardeningWarnMinFrames
+                    && reflectionContactHardeningWarnCooldownRemaining <= 0) {
+                reflectionContactHardeningWarnCooldownRemaining = reflectionContactHardeningWarnCooldownFrames;
+                contactHardeningTriggered = true;
+            }
+            reflectionContactHardeningActiveLastFrame = contactHardeningActive;
+            reflectionContactHardeningEstimatedStrengthLastFrame = contactHardeningEstimatedStrength;
+            reflectionContactHardeningBreachedLastFrame = contactHardeningTriggered;
+            warnings.add(new EngineWarning(
+                    "REFLECTION_CONTACT_HARDENING_POLICY",
+                    "Contact-hardening policy (active=" + reflectionContactHardeningActiveLastFrame
+                            + ", estimatedStrength=" + reflectionContactHardeningEstimatedStrengthLastFrame
+                            + ", ssrStrength=" + currentPost.reflectionsSsrStrength()
+                            + ", ssrMaxRoughness=" + currentPost.reflectionsSsrMaxRoughness()
+                            + ", depthWindowMin=0.01, depthWindowMax=0.16, roughnessRampMin=0.58, ssrBoostMax=1.22, planarBoostMax=1.10"
+                            + ", minSsrStrength=" + reflectionContactHardeningMinSsrStrength
+                            + ", minSsrMaxRoughness=" + reflectionContactHardeningMinSsrMaxRoughness
+                            + ", highStreak=" + reflectionContactHardeningHighStreak
+                            + ", warnMinFrames=" + reflectionContactHardeningWarnMinFrames
+                            + ", warnCooldownFrames=" + reflectionContactHardeningWarnCooldownFrames
+                            + ", warnCooldownRemaining=" + reflectionContactHardeningWarnCooldownRemaining
+                            + ", breached=" + reflectionContactHardeningBreachedLastFrame + ")"
+            ));
+            if (reflectionContactHardeningBreachedLastFrame) {
+                warnings.add(new EngineWarning(
+                        "REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH",
+                        "Contact-hardening envelope breached (ssrStrength=" + currentPost.reflectionsSsrStrength()
+                                + ", ssrMaxRoughness=" + currentPost.reflectionsSsrMaxRoughness()
+                                + ", minSsrStrength=" + reflectionContactHardeningMinSsrStrength
+                                + ", minSsrMaxRoughness=" + reflectionContactHardeningMinSsrMaxRoughness + ")"
                 ));
             }
             warnings.add(new EngineWarning(
@@ -1836,6 +1902,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", overrideOtherWarnMax=" + reflectionOverrideOtherWarnMax
                             + ", overrideWarnMinFrames=" + reflectionOverrideWarnMinFrames
                             + ", overrideWarnCooldownFrames=" + reflectionOverrideWarnCooldownFrames
+                            + ", contactHardeningMinSsrStrength=" + reflectionContactHardeningMinSsrStrength
+                            + ", contactHardeningMinSsrMaxRoughness=" + reflectionContactHardeningMinSsrMaxRoughness
+                            + ", contactHardeningWarnMinFrames=" + reflectionContactHardeningWarnMinFrames
+                            + ", contactHardeningWarnCooldownFrames=" + reflectionContactHardeningWarnCooldownFrames
                             + ", probeBoxProjectionMinRatio=" + reflectionProbeQualityBoxProjectionMinRatio
                             + ", probeInvalidBlendDistanceWarnMax=" + reflectionProbeQualityInvalidBlendDistanceWarnMax
                             + ", probeOverlapCoverageWarnMin=" + reflectionProbeQualityOverlapCoverageWarnMin
@@ -3332,6 +3402,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionContactHardeningDiagnostics debugReflectionContactHardeningDiagnostics() {
+        return new ReflectionContactHardeningDiagnostics(
+                reflectionContactHardeningActiveLastFrame,
+                reflectionContactHardeningEstimatedStrengthLastFrame,
+                reflectionContactHardeningMinSsrStrength,
+                reflectionContactHardeningMinSsrMaxRoughness,
+                reflectionContactHardeningHighStreak,
+                reflectionContactHardeningWarnMinFrames,
+                reflectionContactHardeningWarnCooldownFrames,
+                reflectionContactHardeningWarnCooldownRemaining,
+                reflectionContactHardeningBreachedLastFrame
+        );
+    }
+
     ReflectionRtPathDiagnostics debugReflectionRtPathDiagnostics() {
         return new ReflectionRtPathDiagnostics(
                 reflectionRtLaneRequested,
@@ -3686,6 +3770,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     ) {
     }
 
+    record ReflectionContactHardeningDiagnostics(
+            boolean activeLastFrame,
+            double estimatedStrengthLastFrame,
+            double minSsrStrength,
+            double minSsrMaxRoughness,
+            int highStreak,
+            int warnMinFrames,
+            int warnCooldownFrames,
+            int warnCooldownRemaining,
+            boolean breachedLastFrame
+    ) {
+    }
+
     record ReflectionRtPathDiagnostics(
             boolean laneRequested,
             boolean laneActive,
@@ -3976,6 +4073,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.overrideOtherWarnMax")) reflectionOverrideOtherWarnMax = 0;
                 if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnMinFrames")) reflectionOverrideWarnMinFrames = 4;
                 if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnCooldownFrames")) reflectionOverrideWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrStrength")) reflectionContactHardeningMinSsrStrength = 0.30;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrMaxRoughness")) reflectionContactHardeningMinSsrMaxRoughness = 0.50;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnMinFrames")) reflectionContactHardeningWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnCooldownFrames")) reflectionContactHardeningWarnCooldownFrames = 180;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBoxProjectionMinRatio")) reflectionProbeQualityBoxProjectionMinRatio = 0.75;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax")) reflectionProbeQualityInvalidBlendDistanceWarnMax = 0;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapCoverageWarnMin")) reflectionProbeQualityOverlapCoverageWarnMin = 0.20;
@@ -4052,6 +4153,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.overrideOtherWarnMax")) reflectionOverrideOtherWarnMax = 0;
                 if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnMinFrames")) reflectionOverrideWarnMinFrames = 3;
                 if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnCooldownFrames")) reflectionOverrideWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrStrength")) reflectionContactHardeningMinSsrStrength = 0.35;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrMaxRoughness")) reflectionContactHardeningMinSsrMaxRoughness = 0.55;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnMinFrames")) reflectionContactHardeningWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnCooldownFrames")) reflectionContactHardeningWarnCooldownFrames = 120;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBoxProjectionMinRatio")) reflectionProbeQualityBoxProjectionMinRatio = 0.60;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax")) reflectionProbeQualityInvalidBlendDistanceWarnMax = 0;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapCoverageWarnMin")) reflectionProbeQualityOverlapCoverageWarnMin = 0.12;
@@ -4128,6 +4233,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.overrideOtherWarnMax")) reflectionOverrideOtherWarnMax = 1;
                 if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnMinFrames")) reflectionOverrideWarnMinFrames = 2;
                 if (!hasBackendOption(safe, "vulkan.reflections.overrideWarnCooldownFrames")) reflectionOverrideWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrStrength")) reflectionContactHardeningMinSsrStrength = 0.25;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningMinSsrMaxRoughness")) reflectionContactHardeningMinSsrMaxRoughness = 0.45;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnMinFrames")) reflectionContactHardeningWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.reflections.contactHardeningWarnCooldownFrames")) reflectionContactHardeningWarnCooldownFrames = 90;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityBoxProjectionMinRatio")) reflectionProbeQualityBoxProjectionMinRatio = 0.45;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax")) reflectionProbeQualityInvalidBlendDistanceWarnMax = 1;
                 if (!hasBackendOption(safe, "vulkan.reflections.probeQualityOverlapCoverageWarnMin")) reflectionProbeQualityOverlapCoverageWarnMin = 0.08;

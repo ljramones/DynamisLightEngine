@@ -46,6 +46,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.overrideOtherWarnMax", "2"),
                         Map.entry("vulkan.reflections.overrideWarnMinFrames", "6"),
                         Map.entry("vulkan.reflections.overrideWarnCooldownFrames", "210"),
+                        Map.entry("vulkan.reflections.contactHardeningMinSsrStrength", "0.41"),
+                        Map.entry("vulkan.reflections.contactHardeningMinSsrMaxRoughness", "0.63"),
+                        Map.entry("vulkan.reflections.contactHardeningWarnMinFrames", "5"),
+                        Map.entry("vulkan.reflections.contactHardeningWarnCooldownFrames", "205"),
                         Map.entry("vulkan.reflections.probeQualityBoxProjectionMinRatio", "0.82"),
                         Map.entry("vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax", "4"),
                         Map.entry("vulkan.reflections.probeQualityOverlapCoverageWarnMin", "0.27"),
@@ -160,6 +164,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(2, parsed.reflectionOverrideOtherWarnMax());
         assertEquals(6, parsed.reflectionOverrideWarnMinFrames());
         assertEquals(210, parsed.reflectionOverrideWarnCooldownFrames());
+        assertEquals(0.41, parsed.reflectionContactHardeningMinSsrStrength());
+        assertEquals(0.63, parsed.reflectionContactHardeningMinSsrMaxRoughness());
+        assertEquals(5, parsed.reflectionContactHardeningWarnMinFrames());
+        assertEquals(205, parsed.reflectionContactHardeningWarnCooldownFrames());
         assertEquals(0.82, parsed.reflectionProbeQualityBoxProjectionMinRatio());
         assertEquals(4, parsed.reflectionProbeQualityInvalidBlendDistanceWarnMax());
         assertEquals(0.27, parsed.reflectionProbeQualityOverlapCoverageWarnMin());
@@ -264,6 +272,10 @@ class VulkanRuntimeOptionsTest {
                         Map.entry("vulkan.reflections.overrideOtherWarnMax", "-2"),
                         Map.entry("vulkan.reflections.overrideWarnMinFrames", "0"),
                         Map.entry("vulkan.reflections.overrideWarnCooldownFrames", "999999"),
+                        Map.entry("vulkan.reflections.contactHardeningMinSsrStrength", "-9.0"),
+                        Map.entry("vulkan.reflections.contactHardeningMinSsrMaxRoughness", "9.0"),
+                        Map.entry("vulkan.reflections.contactHardeningWarnMinFrames", "0"),
+                        Map.entry("vulkan.reflections.contactHardeningWarnCooldownFrames", "999999"),
                         Map.entry("vulkan.reflections.probeQualityBoxProjectionMinRatio", "5.0"),
                         Map.entry("vulkan.reflections.probeQualityInvalidBlendDistanceWarnMax", "-4"),
                         Map.entry("vulkan.reflections.probeQualityOverlapCoverageWarnMin", "-2.0"),
@@ -368,6 +380,10 @@ class VulkanRuntimeOptionsTest {
         assertEquals(0, parsed.reflectionOverrideOtherWarnMax());
         assertEquals(1, parsed.reflectionOverrideWarnMinFrames());
         assertEquals(10000, parsed.reflectionOverrideWarnCooldownFrames());
+        assertEquals(0.0, parsed.reflectionContactHardeningMinSsrStrength());
+        assertEquals(1.0, parsed.reflectionContactHardeningMinSsrMaxRoughness());
+        assertEquals(1, parsed.reflectionContactHardeningWarnMinFrames());
+        assertEquals(10000, parsed.reflectionContactHardeningWarnCooldownFrames());
         assertEquals(1.0, parsed.reflectionProbeQualityBoxProjectionMinRatio());
         assertEquals(0, parsed.reflectionProbeQualityInvalidBlendDistanceWarnMax());
         assertEquals(0.0, parsed.reflectionProbeQualityOverlapCoverageWarnMin());

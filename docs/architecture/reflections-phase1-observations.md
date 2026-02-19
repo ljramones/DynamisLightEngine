@@ -78,4 +78,4 @@ It is intended as extraction input for future capability contracts and render-gr
 
 ## Next reflection implementation target
 
-- Contact-hardening reflections (`roughness ramp near contact`) after per-material override promotion completion.
+- Vulkan/OpenGL parity hardening for the reflection promotion set (`In` items are currently Vulkan-scoped).

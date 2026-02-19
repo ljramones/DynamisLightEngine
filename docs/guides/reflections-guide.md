@@ -108,6 +108,7 @@ PostProcessDesc post = new PostProcessDesc(
 - Vulkan now emits planar scope/order contracts (`REFLECTION_PLANAR_SCOPE_CONTRACT`) including selective mesh eligibility and required pass order contract.
 - Vulkan now emits explicit per-material override policy diagnostics (`REFLECTION_OVERRIDE_POLICY`) and provides a typed runtime snapshot of override counts for parser-free validation.
 - Vulkan now emits override-envelope diagnostics (`REFLECTION_OVERRIDE_POLICY_ENVELOPE`) and cooldown-gated breach warnings (`REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH`) with profile-tuned thresholds and typed gate-state diagnostics.
+- Vulkan now emits contact-hardening policy diagnostics (`REFLECTION_CONTACT_HARDENING_POLICY`) and cooldown-gated breach warnings (`REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH`) for roughness-ramp viability envelopes.
 - Vulkan now executes runtime-composed reflection mode bits for reflection-space reprojection/reject policy, selective planar execution, RT lane activation, and transparent/refraction integration.
 - Vulkan RT hybrid now executes an active RT-oriented reflection trace + denoise path in post shader, with fallback diagnostics only when the lane is disabled.
 - Vulkan now emits transparency/refraction stage-gate diagnostics (`REFLECTION_TRANSPARENCY_STAGE_GATE`, `REFLECTION_TRANSPARENCY_POLICY`) with active fallback policy:
@@ -131,6 +132,11 @@ PostProcessDesc post = new PostProcessDesc(
   - perf gate persistence/cooldown: `vulkan.reflections.planarPerfWarnMinFrames`, `vulkan.reflections.planarPerfWarnCooldownFrames`
   - strict timing requirement gate: `vulkan.reflections.planarPerfRequireGpuTimestamp` (forces breach when timestamp timing source is unavailable)
 - Vulkan reflection resolve now includes a first contact-hardening pass behavior: near depth-contact SSR hits receive a roughness ramp/weight boost to stabilize sharp contact reflections.
+- Contact-hardening policy thresholds are configurable via:
+  - `vulkan.reflections.contactHardeningMinSsrStrength`
+  - `vulkan.reflections.contactHardeningMinSsrMaxRoughness`
+  - `vulkan.reflections.contactHardeningWarnMinFrames`
+  - `vulkan.reflections.contactHardeningWarnCooldownFrames`
 - Planar capture remains selective-scope and still evolves under the broader planar `Partial` maturity status, but mirrored clip-plane camera rerender is now active in the Vulkan path.
 - Vulkan now emits SSR reprojection envelope diagnostics (`REFLECTION_SSR_REPROJECTION_ENVELOPE`) and breach warnings (`REFLECTION_SSR_REPROJECTION_ENVELOPE_BREACH`) with threshold/cooldown gating for ghosting/disocclusion risk.
 - Vulkan RT lane now supports dedicated denoise staging (spatial + temporal) behind runtime mode bit activation.

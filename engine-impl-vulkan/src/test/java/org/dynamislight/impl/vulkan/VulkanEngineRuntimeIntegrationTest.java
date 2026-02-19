@@ -639,6 +639,71 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionContactHardeningPolicyEmitsTypedDiagnostics() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.of("vulkan.mockContext", "true")), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_CONTACT_HARDENING_POLICY".equals(w.code())));
+        String policy = warningMessageByCode(frame, "REFLECTION_CONTACT_HARDENING_POLICY");
+        assertTrue(policy.contains("active=true"));
+        assertTrue(policy.contains("estimatedStrength="));
+        assertTrue(policy.contains("depthWindowMin=0.01"));
+        assertTrue(policy.contains("roughnessRampMin=0.58"));
+        var diagnostics = runtime.debugReflectionContactHardeningDiagnostics();
+        assertTrue(diagnostics.activeLastFrame());
+        assertTrue(diagnostics.estimatedStrengthLastFrame() >= 0.0);
+        assertFalse(diagnostics.breachedLastFrame());
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionContactHardeningEnvelopeBreachEmitsUnderStrictThresholds() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.contactHardeningMinSsrStrength", "0.95"),
+                Map.entry("vulkan.reflections.contactHardeningMinSsrMaxRoughness", "0.95"),
+                Map.entry("vulkan.reflections.contactHardeningWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.contactHardeningWarnCooldownFrames", "8")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_CONTACT_HARDENING_POLICY".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH".equals(w.code())));
+        var diagnostics = runtime.debugReflectionContactHardeningDiagnostics();
+        assertTrue(diagnostics.breachedLastFrame());
+        assertTrue(diagnostics.warnCooldownRemaining() > 0);
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionContactHardeningEnvelopeCooldownPreventsImmediateRepeatBreach() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.contactHardeningMinSsrStrength", "0.95"),
+                Map.entry("vulkan.reflections.contactHardeningMinSsrMaxRoughness", "0.95"),
+                Map.entry("vulkan.reflections.contactHardeningWarnMinFrames", "1"),
+                Map.entry("vulkan.reflections.contactHardeningWarnCooldownFrames", "2")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frameA = runtime.render();
+        var frameB = runtime.render();
+        var frameC = runtime.render();
+
+        assertTrue(frameA.warnings().stream().anyMatch(w -> "REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH".equals(w.code())));
+        assertFalse(frameB.warnings().stream().anyMatch(w -> "REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH".equals(w.code())));
+        assertTrue(frameC.warnings().stream().anyMatch(w -> "REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH".equals(w.code())));
+        runtime.shutdown();
+    }
+
+    @Test
     void reflectionProbeBlendDiagnosticsWarningReportsProbeTelemetry() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(true), new RecordingCallbacks());
@@ -2096,6 +2161,13 @@ class VulkanEngineRuntimeIntegrationTest {
     }
 
     @Test
+    void reflectionProfilesApplyTypedContactHardeningDefaults() throws Exception {
+        assertContactHardeningProfileDefaults("performance", 0.30, 0.50, 4, 180);
+        assertContactHardeningProfileDefaults("quality", 0.35, 0.55, 3, 120);
+        assertContactHardeningProfileDefaults("stability", 0.25, 0.45, 2, 90);
+    }
+
+    @Test
     void reflectionOverrideExplicitOptionsOverrideProfileDefaults() throws Exception {
         var runtime = new VulkanEngineRuntime();
         runtime.initialize(validConfig(Map.ofEntries(
@@ -2120,6 +2192,33 @@ class VulkanEngineRuntimeIntegrationTest {
         assertEquals(0.61, diagnostics.probeOnlyRatioWarnMax(), 1e-6);
         assertEquals(0.62, diagnostics.ssrOnlyRatioWarnMax(), 1e-6);
         assertEquals(3, diagnostics.otherWarnMax());
+        assertEquals(7, diagnostics.warnMinFrames());
+        assertEquals(77, diagnostics.warnCooldownFrames());
+        runtime.shutdown();
+    }
+
+    @Test
+    void reflectionContactHardeningExplicitOptionsOverrideProfileDefaults() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflectionsProfile", "stability"),
+                Map.entry("vulkan.reflections.contactHardeningMinSsrStrength", "0.61"),
+                Map.entry("vulkan.reflections.contactHardeningMinSsrMaxRoughness", "0.62"),
+                Map.entry("vulkan.reflections.contactHardeningWarnMinFrames", "7"),
+                Map.entry("vulkan.reflections.contactHardeningWarnCooldownFrames", "77")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+        var diagnostics = runtime.debugReflectionContactHardeningDiagnostics();
+        assertTrue(profileWarning.contains("contactHardeningMinSsrStrength=0.61"));
+        assertTrue(profileWarning.contains("contactHardeningMinSsrMaxRoughness=0.62"));
+        assertTrue(profileWarning.contains("contactHardeningWarnMinFrames=7"));
+        assertTrue(profileWarning.contains("contactHardeningWarnCooldownFrames=77"));
+        assertEquals(0.61, diagnostics.minSsrStrength(), 1e-6);
+        assertEquals(0.62, diagnostics.minSsrMaxRoughness(), 1e-6);
         assertEquals(7, diagnostics.warnMinFrames());
         assertEquals(77, diagnostics.warnCooldownFrames());
         runtime.shutdown();
@@ -4378,6 +4477,35 @@ class VulkanEngineRuntimeIntegrationTest {
         assertTrue(profileWarning.contains("overrideOtherWarnMax=" + expectedOtherWarnMax));
         assertTrue(profileWarning.contains("overrideWarnMinFrames=" + expectedWarnMinFrames));
         assertTrue(profileWarning.contains("overrideWarnCooldownFrames=" + expectedWarnCooldownFrames));
+        runtime.shutdown();
+    }
+
+    private static void assertContactHardeningProfileDefaults(
+            String profile,
+            double expectedMinSsrStrength,
+            double expectedMinSsrMaxRoughness,
+            int expectedWarnMinFrames,
+            int expectedWarnCooldownFrames
+    ) throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflectionsProfile", profile)
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("hybrid"));
+
+        var frame = runtime.render();
+        var diagnostics = runtime.debugReflectionContactHardeningDiagnostics();
+        String profileWarning = warningMessageByCode(frame, "REFLECTION_TELEMETRY_PROFILE_ACTIVE");
+
+        assertEquals(expectedMinSsrStrength, diagnostics.minSsrStrength(), 1e-6);
+        assertEquals(expectedMinSsrMaxRoughness, diagnostics.minSsrMaxRoughness(), 1e-6);
+        assertEquals(expectedWarnMinFrames, diagnostics.warnMinFrames());
+        assertEquals(expectedWarnCooldownFrames, diagnostics.warnCooldownFrames());
+        assertTrue(profileWarning.contains("contactHardeningMinSsrStrength=" + expectedMinSsrStrength));
+        assertTrue(profileWarning.contains("contactHardeningMinSsrMaxRoughness=" + expectedMinSsrMaxRoughness));
+        assertTrue(profileWarning.contains("contactHardeningWarnMinFrames=" + expectedWarnMinFrames));
+        assertTrue(profileWarning.contains("contactHardeningWarnCooldownFrames=" + expectedWarnCooldownFrames));
         runtime.shutdown();
     }
 
