@@ -87,9 +87,7 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
         RenderFeatureMode active = sanitizeMode(mode);
         boolean momentPipeline = isMomentMode(active);
         boolean cacheMode = MODE_CACHED_STATIC_DYNAMIC.equals(active);
-        boolean distanceFieldMode = MODE_DISTANCE_FIELD_SOFT.equals(active);
         boolean rtDenoiseMode = MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active);
-        boolean transparentReceivers = MODE_TRANSPARENT_RECEIVERS.equals(active);
 
         List<String> writes = new java.util.ArrayList<>();
         writes.add("shadow_depth");
@@ -99,27 +97,11 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
         if (cacheMode) {
             writes.add("shadow_cache_overlay");
         }
-        if (transparentReceivers) {
-            writes.add("shadow_transparency_mask");
-        }
         if (rtDenoiseMode) {
             writes.add("shadow_rt_visibility");
         }
 
         List<RenderPassDeclaration> passes = new java.util.ArrayList<>();
-        if (distanceFieldMode) {
-            passes.add(new RenderPassDeclaration(
-                    "shadow_distance_field_prepass",
-                    RenderPassPhase.PRE_MAIN,
-                    List.of(),
-                    List.of("shadow_distance_field"),
-                    false,
-                    false,
-                    false,
-                    List.of()
-            ));
-        }
-
         passes.add(new RenderPassDeclaration(
                 "shadow_passes",
                 RenderPassPhase.PRE_MAIN,
@@ -167,8 +149,6 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
     public List<RenderDescriptorRequirement> descriptorRequirements(RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
         boolean momentPipeline = isMomentMode(active);
-        boolean transparentReceivers = MODE_TRANSPARENT_RECEIVERS.equals(active);
-        boolean distanceFieldMode = MODE_DISTANCE_FIELD_SOFT.equals(active);
         boolean rtDenoiseMode = MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active);
 
         java.util.ArrayList<RenderDescriptorRequirement> requirements = new java.util.ArrayList<>(List.of(
@@ -182,12 +162,6 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
         if (rtDenoiseMode) {
             requirements.add(new RenderDescriptorRequirement("main_geometry", 1, 10, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
         }
-        if (transparentReceivers) {
-            requirements.add(new RenderDescriptorRequirement("main_geometry", 1, 11, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
-        }
-        if (distanceFieldMode) {
-            requirements.add(new RenderDescriptorRequirement("main_geometry", 1, 12, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_FRAME, true));
-        }
         return List.copyOf(requirements);
     }
 
@@ -198,14 +172,8 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
                 new RenderUniformRequirement("global_scene", "uShadowLightViewProj", 0, 0),
                 new RenderUniformRequirement("global_scene", "shadow_filter_rt_contact", 0, 0)
         ));
-        if (MODE_AREA_APPROX.equals(active)) {
-            requirements.add(new RenderUniformRequirement("global_scene", "uAreaShadowLtcParams", 0, 0));
-        }
         if (MODE_HYBRID_CASCADE_CONTACT_RT.equals(active)) {
             requirements.add(new RenderUniformRequirement("global_scene", "uShadowHybridBlendParams", 0, 0));
-        }
-        if (MODE_TRANSPARENT_RECEIVERS.equals(active)) {
-            requirements.add(new RenderUniformRequirement("global_scene", "uShadowTransparencyParams", 0, 0));
         }
         return List.copyOf(requirements);
     }
@@ -235,9 +203,7 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
         RenderFeatureMode active = sanitizeMode(mode);
         boolean momentPipeline = isMomentMode(active);
         boolean cacheMode = MODE_CACHED_STATIC_DYNAMIC.equals(active);
-        boolean distanceFieldMode = MODE_DISTANCE_FIELD_SOFT.equals(active);
         boolean rtDenoiseMode = MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active);
-        boolean transparentReceivers = MODE_TRANSPARENT_RECEIVERS.equals(active);
 
         java.util.ArrayList<RenderResourceDeclaration> resources = new java.util.ArrayList<>(List.of(
                 new RenderResourceDeclaration(
@@ -273,15 +239,6 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
                     List.of("dynamicShadowCastersChanged", "shadowCachePolicyChanged")
             ));
         }
-        if (distanceFieldMode) {
-            resources.add(new RenderResourceDeclaration(
-                    "shadow_distance_field",
-                    RenderResourceType.STORAGE_IMAGE,
-                    RenderResourceLifecycle.PERSISTENT_PARTIAL_UPDATE,
-                    false,
-                    List.of("distanceFieldVolumeChanged", "distanceFieldResolutionChanged")
-            ));
-        }
         if (rtDenoiseMode) {
             resources.add(new RenderResourceDeclaration(
                     "shadow_rt_visibility",
@@ -296,15 +253,6 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
                     RenderResourceLifecycle.TRANSIENT,
                     false,
                     List.of("shadowRtModeChanged", "swapchainRecreated")
-            ));
-        }
-        if (transparentReceivers) {
-            resources.add(new RenderResourceDeclaration(
-                    "shadow_transparency_mask",
-                    RenderResourceType.ATTACHMENT,
-                    RenderResourceLifecycle.TRANSIENT,
-                    false,
-                    List.of("transparentReceiverSetChanged", "swapchainRecreated")
             ));
         }
         return List.copyOf(resources);
@@ -352,40 +300,75 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
     public RenderTelemetryDeclaration telemetry(RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
         java.util.ArrayList<String> warnings = new java.util.ArrayList<>(List.of(
+                "SHADOW_CAPABILITY_MODE_ACTIVE",
+                "SHADOW_TELEMETRY_PROFILE_ACTIVE",
                 "SHADOW_POLICY_ACTIVE",
-                "SHADOW_QUALITY_DEGRADED",
                 "SHADOW_LOCAL_RENDER_BASELINE",
-                "SHADOW_CASCADE_PROFILE"
+                "SHADOW_LOCAL_RENDER_DEFERRED_POLICY",
+                "SHADOW_CADENCE_ENVELOPE",
+                "SHADOW_CADENCE_ENVELOPE_BREACH",
+                "SHADOW_POINT_FACE_BUDGET_ENVELOPE",
+                "SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH",
+                "SHADOW_SPOT_PROJECTED_CONTRACT",
+                "SHADOW_SPOT_PROJECTED_CONTRACT_BREACH",
+                "SHADOW_TOPOLOGY_CONTRACT",
+                "SHADOW_TOPOLOGY_CONTRACT_BREACH",
+                "SHADOW_CACHE_POLICY_ACTIVE",
+                "SHADOW_CACHE_CHURN_HIGH",
+                "SHADOW_HYBRID_COMPOSITION",
+                "SHADOW_HYBRID_COMPOSITION_BREACH",
+                "SHADOW_TRANSPARENT_RECEIVER_POLICY",
+                "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH",
+                "SHADOW_AREA_APPROX_POLICY",
+                "SHADOW_DISTANCE_FIELD_SOFT_POLICY",
+                "SHADOW_CADENCE_PROMOTION_READY",
+                "SHADOW_POINT_FACE_BUDGET_PROMOTION_READY",
+                "SHADOW_SPOT_PROJECTED_PROMOTION_READY",
+                "SHADOW_TOPOLOGY_PROMOTION_READY",
+                "SHADOW_PHASEA_PROMOTION_READY",
+                "SHADOW_PHASED_PROMOTION_READY"
         ));
         java.util.ArrayList<String> diagnostics = new java.util.ArrayList<>(List.of(
-                "shadowCascadeProfile",
-                "shadowDepthFormatTag",
-                "shadowMomentFormatTag"
+                "shadowCapabilityDiagnostics",
+                "shadowCadenceDiagnostics",
+                "shadowPointBudgetDiagnostics",
+                "shadowSpotProjectedDiagnostics",
+                "shadowCacheDiagnostics",
+                "shadowRtDiagnostics",
+                "shadowHybridDiagnostics",
+                "shadowTransparentReceiverDiagnostics",
+                "shadowExtendedModeDiagnostics",
+                "shadowTopologyDiagnostics",
+                "shadowPhaseAPromotionDiagnostics",
+                "shadowPhaseDPromotionDiagnostics"
         ));
         java.util.ArrayList<String> ciGates = new java.util.ArrayList<>(List.of(
-                "shadow_ci_matrix",
-                "shadow_lockdown",
-                "shadow_real_longrun"
+                "shadow-phasea-lockdown",
+                "shadow-phasec-lockdown",
+                "shadow-transparent-lockdown",
+                "shadow-phased-lockdown"
         ));
         if (MODE_RT.equals(active) || MODE_RT_DENOISED.equals(active) || MODE_HYBRID_CASCADE_CONTACT_RT.equals(active)) {
-            warnings.add("SHADOW_RT_PATH_REQUIRED_UNAVAILABLE_BREACH");
-            warnings.add("SHADOW_RT_PERF_GATES_BREACH");
-            diagnostics.add("debugShadowRtDiagnostics");
-            ciGates.add("shadow_rt_lockdown");
+            warnings.add("SHADOW_RT_PATH_REQUESTED");
+            warnings.add("SHADOW_RT_PATH_FALLBACK_ACTIVE");
+            warnings.add("SHADOW_RT_DENOISE_ENVELOPE");
+            warnings.add("SHADOW_RT_DENOISE_ENVELOPE_BREACH");
         }
         if (MODE_TRANSPARENT_RECEIVERS.equals(active)) {
+            warnings.add("SHADOW_TRANSPARENT_RECEIVER_POLICY");
             warnings.add("SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH");
-            diagnostics.add("debugShadowTransparentReceiverDiagnostics");
         }
         if (MODE_DISTANCE_FIELD_SOFT.equals(active)) {
-            warnings.add("SHADOW_DISTANCE_FIELD_ENVELOPE_BREACH");
-            diagnostics.add("debugShadowDistanceFieldDiagnostics");
+            warnings.add("SHADOW_DISTANCE_FIELD_SOFT_POLICY");
+            warnings.add("SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH");
+        }
+        if (MODE_AREA_APPROX.equals(active)) {
+            warnings.add("SHADOW_AREA_APPROX_POLICY");
+            warnings.add("SHADOW_AREA_APPROX_REQUIRED_UNAVAILABLE_BREACH");
         }
         if (MODE_CACHED_STATIC_DYNAMIC.equals(active)) {
             warnings.add("SHADOW_CACHE_POLICY_ACTIVE");
             warnings.add("SHADOW_CACHE_CHURN_HIGH");
-            diagnostics.add("debugShadowCacheDiagnostics");
-            ciGates.add("shadow_cache_stability");
         }
         return new RenderTelemetryDeclaration(
                 List.copyOf(warnings),

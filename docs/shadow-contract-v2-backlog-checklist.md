@@ -43,3 +43,8 @@ Add shadow backlog capability modes to the v2 contract so each remaining shadow 
 
 - This checklist validates contract expressiveness and composition safety only; it does not mark each shadow wishlist item as runtime-production complete.
 - Runtime hardening/promotion remains tracked in `docs/shadow-production-execution-plan-2026.md` and `wish_list.md`.
+- Runtime-production promotion proof points now exist and are linked:
+  - Phase A sustained promotion gate: `SHADOW_PHASEA_PROMOTION_READY`, runner `scripts/shadow_phasea_promotion_lockdown.sh`, CI lane `shadow-phasea-lockdown`.
+  - Phase C sustained stability gates: `SHADOW_CACHE_CHURN_HIGH`, `SHADOW_RT_DENOISE_ENVELOPE_BREACH`, `SHADOW_HYBRID_COMPOSITION_BREACH`, runner `scripts/shadow_phasec_lockdown.sh`, CI lane `shadow-phasec-lockdown`.
+  - Transparent receiver policy/stability gates: `SHADOW_TRANSPARENT_RECEIVER_POLICY`, `SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH`, runner `scripts/shadow_transparent_receivers_lockdown.sh`, CI lane `shadow-transparent-lockdown`.
+  - Phase D consolidated promotion gate: `SHADOW_PHASED_PROMOTION_READY`, runner `scripts/shadow_phased_lockdown.sh`, CI lane `shadow-phased-lockdown`.
