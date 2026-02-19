@@ -715,6 +715,59 @@ class VulkanShadowCapabilityWarningIntegrationTest {
         }
     }
 
+    @ParameterizedTest
+    @EnumSource(value = QualityTier.class, names = {"LOW", "MEDIUM", "HIGH", "ULTRA"})
+    void transparentReceiverPolicyStaysStableAcrossBlessedTiers(QualityTier tier) throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.transparentReceiversEnabled", "true"),
+                    Map.entry("vulkan.shadow.transparentReceiverCandidateRatioWarnMax", "1.0"),
+                    Map.entry("vulkan.shadow.transparentReceiverWarnMinFrames", "2"),
+                    Map.entry("vulkan.shadow.transparentReceiverWarnCooldownFrames", "60")
+            ), tier), new NoopCallbacks());
+            runtime.loadScene(validMixedTransparencyShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_TRANSPARENT_RECEIVER_POLICY".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH".equals(w.code())));
+            var transparent = runtime.shadowTransparentReceiverDiagnostics();
+            assertTrue(transparent.available());
+            assertTrue(transparent.requested());
+            assertFalse(transparent.supported());
+            assertEquals("fallback_opaque_only", transparent.activePolicy());
+            assertFalse(transparent.envelopeBreachedLastFrame());
+            assertEquals(0, transparent.warnCooldownRemaining());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void transparentReceiverBreachCooldownPreventsContinuousReemit() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.transparentReceiversEnabled", "true"),
+                    Map.entry("vulkan.shadow.transparentReceiverCandidateRatioWarnMax", "0.01"),
+                    Map.entry("vulkan.shadow.transparentReceiverWarnMinFrames", "1"),
+                    Map.entry("vulkan.shadow.transparentReceiverWarnCooldownFrames", "3")
+            )), new NoopCallbacks());
+            runtime.loadScene(validAlphaTestedShadowScene());
+            var first = runtime.render();
+            assertTrue(first.warnings().stream().anyMatch(w -> "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH".equals(w.code())));
+            var second = runtime.render();
+            assertFalse(second.warnings().stream().anyMatch(w -> "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH".equals(w.code())));
+            var third = runtime.render();
+            assertFalse(third.warnings().stream().anyMatch(w -> "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH".equals(w.code())));
+            var fourth = runtime.render();
+            assertTrue(fourth.warnings().stream().anyMatch(w -> "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH".equals(w.code())));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     @Test
     void shadowTopologyContractBreachGateTriggersWithAggressiveThresholds() throws Exception {
         VulkanEngineRuntime runtime = new VulkanEngineRuntime();
@@ -1041,6 +1094,51 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                 List.of(transform),
                 List.of(mesh),
                 List.of(material),
+                List.of(light),
+                environment,
+                fog,
+                List.<SmokeEmitterDesc>of()
+        );
+    }
+
+    private static SceneDescriptor validMixedTransparencyShadowScene() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transformA = new TransformDesc("xformA", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        TransformDesc transformB = new TransformDesc("xformB", new Vec3(1, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc meshA = new MeshDesc("meshA", "xformA", "matAlpha", "mesh.glb");
+        MeshDesc meshB = new MeshDesc("meshB", "xformB", "matOpaque", "mesh.glb");
+        MaterialDesc alpha = new MaterialDesc(
+                "matAlpha",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0f,
+                true,
+                false
+        );
+        MaterialDesc opaque = new MaterialDesc(
+                "matOpaque",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null
+        );
+        ShadowDesc shadow = new ShadowDesc(1024, 0.0015f, 1, 4);
+        LightDesc light = new LightDesc("spotMix", new Vec3(1, 3, 2), new Vec3(1, 1, 1), 1.0f, 20f, true, shadow, LightType.SPOT);
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        return new SceneDescriptor(
+                "shadow-transparent-mixed-scene",
+                List.of(camera),
+                "cam",
+                List.of(transformA, transformB),
+                List.of(meshA, meshB),
+                List.of(alpha, opaque),
                 List.of(light),
                 environment,
                 fog,
