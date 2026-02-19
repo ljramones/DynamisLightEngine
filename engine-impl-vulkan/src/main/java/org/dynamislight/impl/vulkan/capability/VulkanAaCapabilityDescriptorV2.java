@@ -201,12 +201,17 @@ public final class VulkanAaCapabilityDescriptorV2 implements RenderFeatureCapabi
                         "AA_UPSCALE_POLICY_ACTIVE",
                         "AA_UPSCALE_ENVELOPE",
                         "AA_UPSCALE_ENVELOPE_BREACH",
-                        "AA_UPSCALE_PROMOTION_READY"
+                        "AA_UPSCALE_PROMOTION_READY",
+                        "AA_MSAA_POLICY_ACTIVE",
+                        "AA_MSAA_ENVELOPE",
+                        "AA_MSAA_ENVELOPE_BREACH",
+                        "AA_MSAA_PROMOTION_READY"
                 ),
                 List.of(
                         "aaPolicyDiagnostics",
                         "aaTemporalPromotionDiagnostics",
-                        "aaUpscalePromotionDiagnostics"
+                        "aaUpscalePromotionDiagnostics",
+                        "aaMsaaPromotionDiagnostics"
                 ),
                 List.of(),
                 List.of(

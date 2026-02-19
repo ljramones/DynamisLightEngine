@@ -41,6 +41,7 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.runtime.AaPostCapabilityDiagnostics;
 import org.dynamislight.api.runtime.AaTemporalPromotionDiagnostics;
 import org.dynamislight.api.runtime.AaUpscalePromotionDiagnostics;
+import org.dynamislight.api.runtime.AaMsaaPromotionDiagnostics;
 import org.dynamislight.api.runtime.GiCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
@@ -77,6 +78,7 @@ import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityMode;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaPostWarningEmitter;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalMaterialWarningEmitter;
+import org.dynamislight.impl.vulkan.warning.aa.VulkanAaMsaaWarningEmitter;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalRuntimeState;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalWarningEmitter;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaUpscaleWarningEmitter;
@@ -1064,6 +1066,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
+    protected AaMsaaPromotionDiagnostics backendAaMsaaPromotionDiagnostics() {
+        return aaTemporalState.msaaDiagnostics();
+    }
+
+    @Override
     protected GiCapabilityDiagnostics backendGiCapabilityDiagnostics() {
         return new GiCapabilityDiagnostics(
                 !giModeLastFrame.isBlank(),
@@ -1223,6 +1230,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
         warnings.addAll(aaUpscaleEmission.warnings());
         aaTemporalState.applyUpscaleEmission(aaUpscaleEmission);
+        VulkanAaMsaaWarningEmitter.Result aaMsaaEmission = aaTemporalState.emitMsaa(
+                aaMode,
+                currentSceneMaterials,
+                currentPost.smaaEnabled(),
+                aaTemporalEmission.temporalPathActive()
+        );
+        warnings.addAll(aaMsaaEmission.warnings());
+        aaTemporalState.applyMsaaEmission(aaMsaaEmission);
         VulkanAaTemporalMaterialWarningEmitter.Result aaMaterialEmission = VulkanAaTemporalMaterialWarningEmitter.emit(
                 new VulkanAaTemporalMaterialWarningEmitter.Input(
                         currentSceneMaterials,

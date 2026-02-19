@@ -5,6 +5,7 @@ import java.util.Map;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.AaTemporalPromotionDiagnostics;
 import org.dynamislight.api.runtime.AaUpscalePromotionDiagnostics;
+import org.dynamislight.api.runtime.AaMsaaPromotionDiagnostics;
 import org.dynamislight.impl.vulkan.runtime.config.UpscalerMode;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 
@@ -67,6 +68,23 @@ public final class VulkanAaTemporalRuntimeState {
     public int upscaleWarnCooldownRemaining;
     public boolean upscaleEnvelopeBreachedLastFrame;
     public boolean upscalePromotionReadyLastFrame;
+    public boolean msaaModeActiveLastFrame;
+    public String msaaModeIdLastFrame = "";
+    public boolean msaaSmaaEnabledLastFrame;
+    public boolean msaaTemporalPathActiveLastFrame;
+    public int msaaMaterialCountLastFrame;
+    public int msaaCandidateCountLastFrame;
+    public double msaaCandidateRatioLastFrame;
+    public double msaaCandidateWarnMinRatio = 0.05;
+    public boolean msaaHybridTemporalRequired = true;
+    public int msaaWarnMinFrames = 3;
+    public int msaaWarnCooldownFrames = 120;
+    public int msaaPromotionReadyMinFrames = 6;
+    public int msaaStableStreak;
+    public int msaaHighStreak;
+    public int msaaWarnCooldownRemaining;
+    public boolean msaaEnvelopeBreachedLastFrame;
+    public boolean msaaPromotionReadyLastFrame;
 
     public void resetFrameState() {
         temporalPathRequestedLastFrame = false;
@@ -105,6 +123,18 @@ public final class VulkanAaTemporalRuntimeState {
         upscaleWarnCooldownRemaining = 0;
         upscaleEnvelopeBreachedLastFrame = false;
         upscalePromotionReadyLastFrame = false;
+        msaaModeActiveLastFrame = false;
+        msaaModeIdLastFrame = "";
+        msaaSmaaEnabledLastFrame = false;
+        msaaTemporalPathActiveLastFrame = false;
+        msaaMaterialCountLastFrame = 0;
+        msaaCandidateCountLastFrame = 0;
+        msaaCandidateRatioLastFrame = 0.0;
+        msaaStableStreak = 0;
+        msaaHighStreak = 0;
+        msaaWarnCooldownRemaining = 0;
+        msaaEnvelopeBreachedLastFrame = false;
+        msaaPromotionReadyLastFrame = false;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -146,6 +176,16 @@ public final class VulkanAaTemporalRuntimeState {
                 backendOptions, "vulkan.aa.upscaleWarnCooldownFrames", upscaleWarnCooldownFrames, 0, 10_000);
         upscalePromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
                 backendOptions, "vulkan.aa.upscalePromotionReadyMinFrames", upscalePromotionReadyMinFrames, 1, 10_000);
+        msaaCandidateWarnMinRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                backendOptions, "vulkan.aa.msaaCandidateWarnMinRatio", msaaCandidateWarnMinRatio, 0.0, 1.0);
+        msaaHybridTemporalRequired = Boolean.parseBoolean(
+                backendOptions.getOrDefault("vulkan.aa.msaaWarnRequireTemporalForHybrid", String.valueOf(msaaHybridTemporalRequired)));
+        msaaWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.msaaWarnMinFrames", msaaWarnMinFrames, 1, 10_000);
+        msaaWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.msaaWarnCooldownFrames", msaaWarnCooldownFrames, 0, 10_000);
+        msaaPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.msaaPromotionReadyMinFrames", msaaPromotionReadyMinFrames, 1, 10_000);
     }
 
     public void applyTemporalEmission(VulkanAaTemporalWarningEmitter.Result emission) {
@@ -296,5 +336,63 @@ public final class VulkanAaTemporalRuntimeState {
                 upscaleHighStreak,
                 upscaleWarnCooldownRemaining
         ));
+    }
+
+    public VulkanAaMsaaWarningEmitter.Result emitMsaa(
+            org.dynamislight.impl.vulkan.runtime.config.AaMode aaMode,
+            java.util.List<org.dynamislight.api.scene.MaterialDesc> materials,
+            boolean smaaEnabled,
+            boolean temporalPathActive
+    ) {
+        return VulkanAaMsaaWarningEmitter.emit(new VulkanAaMsaaWarningEmitter.Input(
+                aaMode,
+                materials,
+                smaaEnabled,
+                temporalPathActive,
+                msaaCandidateWarnMinRatio,
+                msaaHybridTemporalRequired,
+                msaaWarnMinFrames,
+                msaaWarnCooldownFrames,
+                msaaPromotionReadyMinFrames,
+                msaaStableStreak,
+                msaaHighStreak,
+                msaaWarnCooldownRemaining
+        ));
+    }
+
+    public void applyMsaaEmission(VulkanAaMsaaWarningEmitter.Result emission) {
+        msaaModeActiveLastFrame = emission.msaaModeActive();
+        msaaModeIdLastFrame = emission.aaModeId();
+        msaaSmaaEnabledLastFrame = emission.smaaEnabled();
+        msaaTemporalPathActiveLastFrame = emission.temporalPathActive();
+        msaaMaterialCountLastFrame = emission.materialCount();
+        msaaCandidateCountLastFrame = emission.msaaCandidateCount();
+        msaaCandidateRatioLastFrame = emission.msaaCandidateRatio();
+        msaaCandidateWarnMinRatio = emission.msaaCandidateWarnMinRatio();
+        msaaHybridTemporalRequired = emission.hybridTemporalRequired();
+        msaaStableStreak = emission.stableStreak();
+        msaaHighStreak = emission.nextHighStreak();
+        msaaWarnCooldownRemaining = emission.nextCooldownRemaining();
+        msaaEnvelopeBreachedLastFrame = emission.envelopeBreachedLastFrame();
+        msaaPromotionReadyLastFrame = emission.promotionReadyLastFrame();
+    }
+
+    public AaMsaaPromotionDiagnostics msaaDiagnostics() {
+        return new AaMsaaPromotionDiagnostics(
+                true,
+                msaaModeActiveLastFrame,
+                msaaModeIdLastFrame,
+                msaaSmaaEnabledLastFrame,
+                msaaTemporalPathActiveLastFrame,
+                msaaMaterialCountLastFrame,
+                msaaCandidateCountLastFrame,
+                msaaCandidateRatioLastFrame,
+                msaaCandidateWarnMinRatio,
+                msaaHybridTemporalRequired,
+                msaaPromotionReadyMinFrames,
+                msaaStableStreak,
+                msaaEnvelopeBreachedLastFrame,
+                msaaPromotionReadyLastFrame
+        );
     }
 }

@@ -351,6 +351,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic AA MSAA/hybrid hardening/promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link AaMsaaPromotionDiagnostics#unavailable()}.
+     *
+     * @return current AA MSAA/hybrid promotion diagnostics snapshot.
+     */
+    default AaMsaaPromotionDiagnostics aaMsaaPromotionDiagnostics() {
+        return AaMsaaPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Retrieves backend-agnostic GI capability-plan diagnostics.
      *
      * Backends that do not expose this snapshot return

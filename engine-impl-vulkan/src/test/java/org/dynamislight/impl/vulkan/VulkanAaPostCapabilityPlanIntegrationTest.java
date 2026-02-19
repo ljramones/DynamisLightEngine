@@ -55,6 +55,9 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             var upscaleDiagnostics = runtime.aaUpscalePromotionDiagnostics();
             assertTrue(upscaleDiagnostics.available());
             assertFalse(upscaleDiagnostics.upscaleModeActive());
+            var msaaDiagnostics = runtime.aaMsaaPromotionDiagnostics();
+            assertTrue(msaaDiagnostics.available());
+            assertFalse(msaaDiagnostics.msaaModeActive());
         } finally {
             runtime.shutdown();
         }
@@ -147,6 +150,34 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             assertTrue("tsr".equals(upscaleDiagnostics.aaMode()));
             assertTrue(upscaleDiagnostics.envelopeBreachedLastFrame());
             assertFalse(upscaleDiagnostics.promotionReadyLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void msaaEnvelopeCanBeForcedForCiGateValidation() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.aaMode", "msaa_selective"),
+                    Map.entry("vulkan.aa.msaaCandidateWarnMinRatio", "0.95"),
+                    Map.entry("vulkan.aa.msaaWarnMinFrames", "1"),
+                    Map.entry("vulkan.aa.msaaWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.aa.msaaPromotionReadyMinFrames", "1")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene(false));
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_MSAA_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_MSAA_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "AA_MSAA_ENVELOPE_BREACH".equals(w.code())));
+            var msaaDiagnostics = runtime.aaMsaaPromotionDiagnostics();
+            assertTrue(msaaDiagnostics.available());
+            assertTrue(msaaDiagnostics.msaaModeActive());
+            assertTrue("msaa_selective".equals(msaaDiagnostics.aaMode()));
+            assertTrue(msaaDiagnostics.envelopeBreachedLastFrame());
+            assertFalse(msaaDiagnostics.promotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
