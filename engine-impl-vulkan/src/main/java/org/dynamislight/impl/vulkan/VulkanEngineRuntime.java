@@ -2220,230 +2220,87 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             shadowTopologyStableStreak = shadowTopologyState.shadowTopologyStableStreak;
             shadowTopologyPromotionReadyLastFrame = shadowTopologyState.shadowTopologyPromotionReadyLastFrame;
             shadowTopologyEnvelopeBreachedLastFrame = shadowTopologyState.shadowTopologyEnvelopeBreachedLastFrame;
-            shadowCacheHitCountLastFrame = Math.max(0, shadowAllocatorReusedAssignments);
-            shadowCacheMissCountLastFrame = Math.max(0,
-                    shadowCadenceSelectedLocalLightsLastFrame - shadowCacheHitCountLastFrame);
-            shadowCacheEvictionCountLastFrame = Math.max(0, shadowAllocatorEvictions);
-            int cacheTotalOps = shadowCacheHitCountLastFrame + shadowCacheMissCountLastFrame;
-            shadowCacheHitRatioLastFrame = cacheTotalOps <= 0
-                    ? 1.0
-                    : (double) shadowCacheHitCountLastFrame / (double) cacheTotalOps;
-            shadowCacheChurnRatioLastFrame = Math.min(1.0,
-                    (double) shadowCacheEvictionCountLastFrame
-                            / (double) Math.max(1, shadowCadenceSelectedLocalLightsLastFrame));
-            if (shadowCacheEvictionCountLastFrame > 0) {
-                shadowCacheInvalidationReasonLastFrame = "atlas_eviction";
-            } else if (shadowCacheMissCountLastFrame > 0) {
-                shadowCacheInvalidationReasonLastFrame = "new_assignment";
-            } else if (shadowCadenceDeferredLocalLightsLastFrame > 0) {
-                shadowCacheInvalidationReasonLastFrame = "deferred_overlay";
-            } else {
-                shadowCacheInvalidationReasonLastFrame = "none";
-            }
-            boolean cacheEnvelopeNow = shadowCacheChurnRatioLastFrame > shadowCacheChurnWarnMax
-                    || shadowCacheMissCountLastFrame > shadowCacheMissWarnMax;
-            if (cacheEnvelopeNow) {
-                shadowCacheHighStreak = Math.min(10_000, shadowCacheHighStreak + 1);
-                shadowCacheEnvelopeBreachedLastFrame = true;
-            } else {
-                shadowCacheHighStreak = 0;
-            }
-            warnings.add(new EngineWarning(
-                    "SHADOW_CACHE_POLICY_ACTIVE",
-                    "Shadow cache policy (mode=" + shadowCapabilityModeLastFrame
-                            + ", staticCacheActive=" + "cached_static_dynamic".equals(shadowCapabilityModeLastFrame)
-                            + ", dynamicOverlayActive=" + (shadowCacheMissCountLastFrame > 0 || shadowCadenceDeferredLocalLightsLastFrame > 0)
-                            + ", cacheHitCount=" + shadowCacheHitCountLastFrame
-                            + ", cacheMissCount=" + shadowCacheMissCountLastFrame
-                            + ", cacheEvictions=" + shadowCacheEvictionCountLastFrame
-                            + ", cacheHitRatio=" + shadowCacheHitRatioLastFrame
-                            + ", churnRatio=" + shadowCacheChurnRatioLastFrame
-                            + ", invalidationReason=" + shadowCacheInvalidationReasonLastFrame
-                            + ", churnWarnMax=" + shadowCacheChurnWarnMax
-                            + ", missWarnMax=" + shadowCacheMissWarnMax
-                            + ", warnMinFrames=" + shadowCacheWarnMinFrames
-                            + ", cooldownRemaining=" + shadowCacheWarnCooldownRemaining + ")"
-            ));
-            if (cacheEnvelopeNow
-                    && shadowCacheHighStreak >= shadowCacheWarnMinFrames
-                    && shadowCacheWarnCooldownRemaining == 0) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_CACHE_CHURN_HIGH",
-                        "Shadow cache envelope breached (cacheMissCount=" + shadowCacheMissCountLastFrame
-                                + ", cacheEvictions=" + shadowCacheEvictionCountLastFrame
-                                + ", cacheHitRatio=" + shadowCacheHitRatioLastFrame
-                                + ", churnRatio=" + shadowCacheChurnRatioLastFrame
-                                + ", churnWarnMax=" + shadowCacheChurnWarnMax
-                                + ", missWarnMax=" + shadowCacheMissWarnMax
-                                + ", highStreak=" + shadowCacheHighStreak
-                                + ", warnMinFrames=" + shadowCacheWarnMinFrames
-                                + ", cooldownFrames=" + shadowCacheWarnCooldownFrames
-                                + ", invalidationReason=" + shadowCacheInvalidationReasonLastFrame + ")"
-                ));
-                shadowCacheWarnCooldownRemaining = shadowCacheWarnCooldownFrames;
-            }
-            boolean hybridModeActive = "hybrid_cascade_contact_rt".equals(shadowCapabilityModeLastFrame);
-            double cascadeWeight = 1.0;
-            double contactWeight = currentShadows.contactShadowsRequested() ? 0.6 : 0.0;
-            double rtWeight = "off".equals(currentShadows.rtShadowMode()) ? 0.0 : (currentShadows.rtShadowActive() ? 0.8 : 0.2);
-            double hybridWeightTotal = Math.max(1e-6, cascadeWeight + contactWeight + rtWeight);
-            shadowHybridCascadeShareLastFrame = cascadeWeight / hybridWeightTotal;
-            shadowHybridContactShareLastFrame = contactWeight / hybridWeightTotal;
-            shadowHybridRtShareLastFrame = rtWeight / hybridWeightTotal;
-            boolean hybridEnvelopeNow = hybridModeActive
-                    && (shadowHybridRtShareLastFrame < shadowHybridRtShareWarnMin
-                    || shadowHybridContactShareLastFrame < shadowHybridContactShareWarnMin);
-            if (hybridEnvelopeNow) {
-                shadowHybridHighStreak = Math.min(10_000, shadowHybridHighStreak + 1);
-                shadowHybridEnvelopeBreachedLastFrame = true;
-            } else {
-                shadowHybridHighStreak = 0;
-            }
-            warnings.add(new EngineWarning(
-                    "SHADOW_HYBRID_COMPOSITION",
-                    "Shadow hybrid composition (modeActive=" + hybridModeActive
-                            + ", cascadeShare=" + shadowHybridCascadeShareLastFrame
-                            + ", contactShare=" + shadowHybridContactShareLastFrame
-                            + ", rtShare=" + shadowHybridRtShareLastFrame
-                            + ", rtShareWarnMin=" + shadowHybridRtShareWarnMin
-                            + ", contactShareWarnMin=" + shadowHybridContactShareWarnMin
-                            + ", warnMinFrames=" + shadowHybridWarnMinFrames
-                            + ", cooldownRemaining=" + shadowHybridWarnCooldownRemaining + ")"
-            ));
-            if (hybridEnvelopeNow
-                    && shadowHybridHighStreak >= shadowHybridWarnMinFrames
-                    && shadowHybridWarnCooldownRemaining == 0) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_HYBRID_COMPOSITION_BREACH",
-                        "Shadow hybrid composition envelope breached (cascadeShare=" + shadowHybridCascadeShareLastFrame
-                                + ", contactShare=" + shadowHybridContactShareLastFrame
-                                + ", rtShare=" + shadowHybridRtShareLastFrame
-                                + ", rtShareWarnMin=" + shadowHybridRtShareWarnMin
-                                + ", contactShareWarnMin=" + shadowHybridContactShareWarnMin
-                                + ", highStreak=" + shadowHybridHighStreak
-                                + ", warnMinFrames=" + shadowHybridWarnMinFrames
-                                + ", cooldownFrames=" + shadowHybridWarnCooldownFrames + ")"
-                ));
-                shadowHybridWarnCooldownRemaining = shadowHybridWarnCooldownFrames;
-            }
-            int transparentCandidateCount = 0;
-            if (currentSceneMaterials != null) {
-                for (MaterialDesc material : currentSceneMaterials) {
-                    if (material != null && material.alphaTested()) {
-                        transparentCandidateCount++;
-                    }
-                }
-            }
-            shadowTransparentReceiverCandidateCountLastFrame = transparentCandidateCount;
-            shadowTransparentReceiverCandidateRatioLastFrame = currentSceneMaterials == null || currentSceneMaterials.isEmpty()
-                    ? 0.0
-                    : (double) transparentCandidateCount / (double) currentSceneMaterials.size();
-            shadowTransparentReceiverPolicyLastFrame = shadowTransparentReceiversRequested
-                    ? (shadowTransparentReceiversSupported ? "enabled" : "fallback_opaque_only")
-                    : "disabled";
-            boolean transparentEnvelopeNow = shadowTransparentReceiversRequested
-                    && !shadowTransparentReceiversSupported
-                    && shadowTransparentReceiverCandidateRatioLastFrame > shadowTransparentReceiverCandidateRatioWarnMax;
-            if (transparentEnvelopeNow) {
-                shadowTransparentReceiverHighStreak = Math.min(10_000, shadowTransparentReceiverHighStreak + 1);
-                shadowTransparentReceiverEnvelopeBreachedLastFrame = true;
-            } else {
-                shadowTransparentReceiverHighStreak = 0;
-            }
-            warnings.add(new EngineWarning(
-                    "SHADOW_TRANSPARENT_RECEIVER_POLICY",
-                    "Shadow transparent receiver policy (requested=" + shadowTransparentReceiversRequested
-                            + ", supported=" + shadowTransparentReceiversSupported
-                            + ", activePolicy=" + shadowTransparentReceiverPolicyLastFrame
-                            + ", candidateMaterials=" + shadowTransparentReceiverCandidateCountLastFrame
-                            + ", candidateRatio=" + shadowTransparentReceiverCandidateRatioLastFrame
-                            + ", candidateRatioWarnMax=" + shadowTransparentReceiverCandidateRatioWarnMax
-                            + ", warnMinFrames=" + shadowTransparentReceiverWarnMinFrames
-                            + ", cooldownRemaining=" + shadowTransparentReceiverWarnCooldownRemaining + ")"
-            ));
-            if (transparentEnvelopeNow
-                    && shadowTransparentReceiverHighStreak >= shadowTransparentReceiverWarnMinFrames
-                    && shadowTransparentReceiverWarnCooldownRemaining == 0) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_TRANSPARENT_RECEIVER_ENVELOPE_BREACH",
-                        "Shadow transparent receiver envelope breached (requested=true, supported=false"
-                                + ", candidateMaterials=" + shadowTransparentReceiverCandidateCountLastFrame
-                                + ", candidateRatio=" + shadowTransparentReceiverCandidateRatioLastFrame
-                                + ", candidateRatioWarnMax=" + shadowTransparentReceiverCandidateRatioWarnMax
-                                + ", highStreak=" + shadowTransparentReceiverHighStreak
-                                + ", warnMinFrames=" + shadowTransparentReceiverWarnMinFrames
-                                + ", cooldownFrames=" + shadowTransparentReceiverWarnCooldownFrames + ")"
-                ));
-                shadowTransparentReceiverWarnCooldownRemaining = shadowTransparentReceiverWarnCooldownFrames;
-            }
-            warnings.add(new EngineWarning(
-                    "SHADOW_AREA_APPROX_POLICY",
-                    "Shadow area-approx policy (requested=" + shadowAreaApproxRequested
-                            + ", supported=" + shadowAreaApproxSupported
-                            + ", activePolicy=" + (shadowAreaApproxSupported ? "enabled" : "fallback_standard_shadow")
-                            + ", requireActive=" + shadowAreaApproxRequireActive + ")"
-            ));
-            shadowAreaApproxBreachedLastFrame = shadowAreaApproxRequested
-                    && shadowAreaApproxRequireActive
-                    && !shadowAreaApproxSupported;
-            if (shadowAreaApproxBreachedLastFrame) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_AREA_APPROX_REQUIRED_UNAVAILABLE_BREACH",
-                        "Shadow area-approx required but unavailable (requested=true, supported=false)"
-                ));
-            }
-            warnings.add(new EngineWarning(
-                    "SHADOW_DISTANCE_FIELD_SOFT_POLICY",
-                    "Shadow distance-field policy (requested=" + shadowDistanceFieldRequested
-                            + ", supported=" + shadowDistanceFieldSupported
-                            + ", activePolicy=" + (shadowDistanceFieldSupported ? "enabled" : "fallback_standard_shadow")
-                            + ", requireActive=" + shadowDistanceFieldRequireActive + ")"
-            ));
-            shadowDistanceFieldBreachedLastFrame = shadowDistanceFieldRequested
-                    && shadowDistanceFieldRequireActive
-                    && !shadowDistanceFieldSupported;
-            if (shadowDistanceFieldBreachedLastFrame) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_DISTANCE_FIELD_REQUIRED_UNAVAILABLE_BREACH",
-                        "Shadow distance-field soft shadows required but unavailable (requested=true, supported=false)"
-                ));
-            }
-            boolean phaseDPromotionNow =
-                    !shadowCacheEnvelopeBreachedLastFrame
-                            && shadowCacheWarnCooldownRemaining == 0
-                            && !shadowRtEnvelopeBreachedLastFrame
-                            && shadowRtWarnCooldownRemaining == 0
-                            && !shadowHybridEnvelopeBreachedLastFrame
-                            && shadowHybridWarnCooldownRemaining == 0
-                            && !shadowTransparentReceiverEnvelopeBreachedLastFrame
-                            && shadowTransparentReceiverWarnCooldownRemaining == 0
-                            && !shadowAreaApproxBreachedLastFrame
-                            && !shadowDistanceFieldBreachedLastFrame;
-            if (phaseDPromotionNow) {
-                shadowPhaseDPromotionStableStreak = Math.min(10_000, shadowPhaseDPromotionStableStreak + 1);
-                shadowPhaseDPromotionReadyLastFrame =
-                        shadowPhaseDPromotionStableStreak >= shadowPhaseDPromotionReadyMinFrames;
-            } else {
-                shadowPhaseDPromotionStableStreak = 0;
-                shadowPhaseDPromotionReadyLastFrame = false;
-            }
-            if (shadowPhaseDPromotionReadyLastFrame) {
-                warnings.add(new EngineWarning(
-                        "SHADOW_PHASED_PROMOTION_READY",
-                        "Shadow Phase D promotion-ready (cacheStable=" + (!shadowCacheEnvelopeBreachedLastFrame
-                                && shadowCacheWarnCooldownRemaining == 0)
-                                + ", rtStable=" + (!shadowRtEnvelopeBreachedLastFrame
-                                && shadowRtWarnCooldownRemaining == 0)
-                                + ", hybridStable=" + (!shadowHybridEnvelopeBreachedLastFrame
-                                && shadowHybridWarnCooldownRemaining == 0)
-                                + ", transparentReceiverStable=" + (!shadowTransparentReceiverEnvelopeBreachedLastFrame
-                                && shadowTransparentReceiverWarnCooldownRemaining == 0)
-                                + ", areaApproxStable=" + (!shadowAreaApproxBreachedLastFrame)
-                                + ", distanceFieldStable=" + (!shadowDistanceFieldBreachedLastFrame)
-                                + ", stableStreak=" + shadowPhaseDPromotionStableStreak
-                                + ", promotionReadyMinFrames=" + shadowPhaseDPromotionReadyMinFrames + ")"
-                ));
-            }
+            VulkanShadowCacheHybridExtendedWarningEmitter.State shadowCacheHybridExtendedState = new VulkanShadowCacheHybridExtendedWarningEmitter.State();
+            shadowCacheHybridExtendedState.shadowCapabilityModeLastFrame = shadowCapabilityModeLastFrame;
+            shadowCacheHybridExtendedState.shadowAllocatorReusedAssignments = shadowAllocatorReusedAssignments;
+            shadowCacheHybridExtendedState.shadowAllocatorEvictions = shadowAllocatorEvictions;
+            shadowCacheHybridExtendedState.shadowCadenceSelectedLocalLightsLastFrame = shadowCadenceSelectedLocalLightsLastFrame;
+            shadowCacheHybridExtendedState.shadowCadenceDeferredLocalLightsLastFrame = shadowCadenceDeferredLocalLightsLastFrame;
+            shadowCacheHybridExtendedState.shadowCacheChurnWarnMax = shadowCacheChurnWarnMax;
+            shadowCacheHybridExtendedState.shadowCacheMissWarnMax = shadowCacheMissWarnMax;
+            shadowCacheHybridExtendedState.shadowCacheWarnMinFrames = shadowCacheWarnMinFrames;
+            shadowCacheHybridExtendedState.shadowCacheWarnCooldownFrames = shadowCacheWarnCooldownFrames;
+            shadowCacheHybridExtendedState.shadowCacheWarnCooldownRemaining = shadowCacheWarnCooldownRemaining;
+            shadowCacheHybridExtendedState.shadowCacheHighStreak = shadowCacheHighStreak;
+            shadowCacheHybridExtendedState.shadowCacheEnvelopeBreachedLastFrame = shadowCacheEnvelopeBreachedLastFrame;
+            shadowCacheHybridExtendedState.shadowCacheHitCountLastFrame = shadowCacheHitCountLastFrame;
+            shadowCacheHybridExtendedState.shadowCacheMissCountLastFrame = shadowCacheMissCountLastFrame;
+            shadowCacheHybridExtendedState.shadowCacheEvictionCountLastFrame = shadowCacheEvictionCountLastFrame;
+            shadowCacheHybridExtendedState.shadowCacheHitRatioLastFrame = shadowCacheHitRatioLastFrame;
+            shadowCacheHybridExtendedState.shadowCacheChurnRatioLastFrame = shadowCacheChurnRatioLastFrame;
+            shadowCacheHybridExtendedState.shadowCacheInvalidationReasonLastFrame = shadowCacheInvalidationReasonLastFrame;
+            shadowCacheHybridExtendedState.currentShadows = currentShadows;
+            shadowCacheHybridExtendedState.shadowHybridRtShareWarnMin = shadowHybridRtShareWarnMin;
+            shadowCacheHybridExtendedState.shadowHybridContactShareWarnMin = shadowHybridContactShareWarnMin;
+            shadowCacheHybridExtendedState.shadowHybridWarnMinFrames = shadowHybridWarnMinFrames;
+            shadowCacheHybridExtendedState.shadowHybridWarnCooldownFrames = shadowHybridWarnCooldownFrames;
+            shadowCacheHybridExtendedState.shadowHybridWarnCooldownRemaining = shadowHybridWarnCooldownRemaining;
+            shadowCacheHybridExtendedState.shadowHybridHighStreak = shadowHybridHighStreak;
+            shadowCacheHybridExtendedState.shadowHybridEnvelopeBreachedLastFrame = shadowHybridEnvelopeBreachedLastFrame;
+            shadowCacheHybridExtendedState.shadowHybridCascadeShareLastFrame = shadowHybridCascadeShareLastFrame;
+            shadowCacheHybridExtendedState.shadowHybridContactShareLastFrame = shadowHybridContactShareLastFrame;
+            shadowCacheHybridExtendedState.shadowHybridRtShareLastFrame = shadowHybridRtShareLastFrame;
+            shadowCacheHybridExtendedState.currentSceneMaterials = currentSceneMaterials;
+            shadowCacheHybridExtendedState.shadowTransparentReceiversRequested = shadowTransparentReceiversRequested;
+            shadowCacheHybridExtendedState.shadowTransparentReceiversSupported = shadowTransparentReceiversSupported;
+            shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateRatioWarnMax = shadowTransparentReceiverCandidateRatioWarnMax;
+            shadowCacheHybridExtendedState.shadowTransparentReceiverWarnMinFrames = shadowTransparentReceiverWarnMinFrames;
+            shadowCacheHybridExtendedState.shadowTransparentReceiverWarnCooldownFrames = shadowTransparentReceiverWarnCooldownFrames;
+            shadowCacheHybridExtendedState.shadowTransparentReceiverWarnCooldownRemaining = shadowTransparentReceiverWarnCooldownRemaining;
+            shadowCacheHybridExtendedState.shadowTransparentReceiverHighStreak = shadowTransparentReceiverHighStreak;
+            shadowCacheHybridExtendedState.shadowTransparentReceiverEnvelopeBreachedLastFrame = shadowTransparentReceiverEnvelopeBreachedLastFrame;
+            shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateCountLastFrame = shadowTransparentReceiverCandidateCountLastFrame;
+            shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateRatioLastFrame = shadowTransparentReceiverCandidateRatioLastFrame;
+            shadowCacheHybridExtendedState.shadowTransparentReceiverPolicyLastFrame = shadowTransparentReceiverPolicyLastFrame;
+            shadowCacheHybridExtendedState.shadowAreaApproxRequested = shadowAreaApproxRequested;
+            shadowCacheHybridExtendedState.shadowAreaApproxSupported = shadowAreaApproxSupported;
+            shadowCacheHybridExtendedState.shadowAreaApproxRequireActive = shadowAreaApproxRequireActive;
+            shadowCacheHybridExtendedState.shadowAreaApproxBreachedLastFrame = shadowAreaApproxBreachedLastFrame;
+            shadowCacheHybridExtendedState.shadowDistanceFieldRequested = shadowDistanceFieldRequested;
+            shadowCacheHybridExtendedState.shadowDistanceFieldSupported = shadowDistanceFieldSupported;
+            shadowCacheHybridExtendedState.shadowDistanceFieldRequireActive = shadowDistanceFieldRequireActive;
+            shadowCacheHybridExtendedState.shadowDistanceFieldBreachedLastFrame = shadowDistanceFieldBreachedLastFrame;
+            shadowCacheHybridExtendedState.shadowRtEnvelopeBreachedLastFrame = shadowRtEnvelopeBreachedLastFrame;
+            shadowCacheHybridExtendedState.shadowRtWarnCooldownRemaining = shadowRtWarnCooldownRemaining;
+            shadowCacheHybridExtendedState.shadowPhaseDPromotionStableStreak = shadowPhaseDPromotionStableStreak;
+            shadowCacheHybridExtendedState.shadowPhaseDPromotionReadyLastFrame = shadowPhaseDPromotionReadyLastFrame;
+            shadowCacheHybridExtendedState.shadowPhaseDPromotionReadyMinFrames = shadowPhaseDPromotionReadyMinFrames;
+            VulkanShadowCacheHybridExtendedWarningEmitter.emit(warnings, shadowCacheHybridExtendedState);
+            shadowCacheWarnCooldownRemaining = shadowCacheHybridExtendedState.shadowCacheWarnCooldownRemaining;
+            shadowCacheHighStreak = shadowCacheHybridExtendedState.shadowCacheHighStreak;
+            shadowCacheEnvelopeBreachedLastFrame = shadowCacheHybridExtendedState.shadowCacheEnvelopeBreachedLastFrame;
+            shadowCacheHitCountLastFrame = shadowCacheHybridExtendedState.shadowCacheHitCountLastFrame;
+            shadowCacheMissCountLastFrame = shadowCacheHybridExtendedState.shadowCacheMissCountLastFrame;
+            shadowCacheEvictionCountLastFrame = shadowCacheHybridExtendedState.shadowCacheEvictionCountLastFrame;
+            shadowCacheHitRatioLastFrame = shadowCacheHybridExtendedState.shadowCacheHitRatioLastFrame;
+            shadowCacheChurnRatioLastFrame = shadowCacheHybridExtendedState.shadowCacheChurnRatioLastFrame;
+            shadowCacheInvalidationReasonLastFrame = shadowCacheHybridExtendedState.shadowCacheInvalidationReasonLastFrame;
+            shadowHybridWarnCooldownRemaining = shadowCacheHybridExtendedState.shadowHybridWarnCooldownRemaining;
+            shadowHybridHighStreak = shadowCacheHybridExtendedState.shadowHybridHighStreak;
+            shadowHybridEnvelopeBreachedLastFrame = shadowCacheHybridExtendedState.shadowHybridEnvelopeBreachedLastFrame;
+            shadowHybridCascadeShareLastFrame = shadowCacheHybridExtendedState.shadowHybridCascadeShareLastFrame;
+            shadowHybridContactShareLastFrame = shadowCacheHybridExtendedState.shadowHybridContactShareLastFrame;
+            shadowHybridRtShareLastFrame = shadowCacheHybridExtendedState.shadowHybridRtShareLastFrame;
+            shadowTransparentReceiverWarnCooldownRemaining = shadowCacheHybridExtendedState.shadowTransparentReceiverWarnCooldownRemaining;
+            shadowTransparentReceiverHighStreak = shadowCacheHybridExtendedState.shadowTransparentReceiverHighStreak;
+            shadowTransparentReceiverEnvelopeBreachedLastFrame = shadowCacheHybridExtendedState.shadowTransparentReceiverEnvelopeBreachedLastFrame;
+            shadowTransparentReceiverCandidateCountLastFrame = shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateCountLastFrame;
+            shadowTransparentReceiverCandidateRatioLastFrame = shadowCacheHybridExtendedState.shadowTransparentReceiverCandidateRatioLastFrame;
+            shadowTransparentReceiverPolicyLastFrame = shadowCacheHybridExtendedState.shadowTransparentReceiverPolicyLastFrame;
+            shadowAreaApproxBreachedLastFrame = shadowCacheHybridExtendedState.shadowAreaApproxBreachedLastFrame;
+            shadowDistanceFieldBreachedLastFrame = shadowCacheHybridExtendedState.shadowDistanceFieldBreachedLastFrame;
+            shadowPhaseDPromotionStableStreak = shadowCacheHybridExtendedState.shadowPhaseDPromotionStableStreak;
+            shadowPhaseDPromotionReadyLastFrame = shadowCacheHybridExtendedState.shadowPhaseDPromotionReadyLastFrame;
             String momentPhase = "pending";
             if (context.hasShadowMomentResources()) {
                 momentPhase = context.isShadowMomentInitialized() ? "active" : "initializing";
