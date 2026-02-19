@@ -10,6 +10,7 @@ Review metadata:
 - Latest reflection update: 2026-02-19 12:14 ET — Reflections Vulkan closeout index added (`docs/reflections-vulkan-closeout.md`) with linked checklists, exit criteria, and promotion commit ledger.
 - Latest shadow contract update: 2026-02-19 13:05 ET — Shadow v2 backlog modes/checklist added (`docs/shadow-contract-v2-backlog-checklist.md`) to track remaining shadow items through contract validation.
 - Latest structure guardrails update: 2026-02-19 16:52 ET — Class-size and package hygiene guardrails now enforced in CI (`.github/workflows/ci.yml` job `structure-guardrails`) via `scripts/java_structure_guardrails.sh`.
+- Latest AA/GI contract update: 2026-02-19 17:30 ET — Post execution contracts + AA temporal promotion diagnostics + GI Phase 1 v2 scaffold/checklist/lockdown added.
 
 Status legend:
 
@@ -178,6 +179,8 @@ AA notes:
 - Vulkan AA now has v2 capability descriptors for all runtime AA modes (`taa`, `tsr`, `tuua`, `msaa_selective`, `hybrid_tuua_msaa`, `dlaa`, `fxaa_low`) with explicit temporal-resource contracts and ordered post injection points.
 - AA v2 contracts are validated in composition with shadow/reflection/post descriptors through `RenderCapabilityContractV2Validator` and are covered by `scripts/aa_post_contract_v2_lockdown.sh`.
 - Vulkan runtime now emits `AA_POST_CAPABILITY_PLAN_ACTIVE` each frame and exposes typed runtime diagnostics (`aaPostCapabilityDiagnostics()`) so hosts/CI can assert active/pruned AA+post capability planning without warning-string parsing.
+- Post stack execution is now modularized with module-owned execution contracts (`vulkan.post`, `vulkan.aa`, `vulkan.reflections`) used for pass IO declaration in `post_composite`.
+- Vulkan runtime now emits AA temporal hardening warnings (`AA_TEMPORAL_POLICY_ACTIVE`, `AA_TEMPORAL_ENVELOPE`, `AA_TEMPORAL_ENVELOPE_BREACH`, `AA_TEMPORAL_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`aaTemporalPromotionDiagnostics()`).
 
 ## Global Illumination
 
@@ -194,6 +197,14 @@ AA notes:
 - Emissive GI contribution (emissive surfaces as light sources) — `Not In Yet`
 - Dynamic sky GI (environment drives indirect lighting, time-of-day responsive) — `Not In Yet`
 - Indirect specular from GI (feeds reflection probes or direct sample) — `Not In Yet`
+
+GI notes:
+
+- GI Phase 1 contract/planner scaffold is now present in Vulkan:
+  - `VulkanGiCapabilityDescriptorV2` modes: `ssgi`, `probe_grid`, `rtgi_single`, `hybrid_probe_ssgi_rt`
+  - deterministic planner + warning emission (`GI_CAPABILITY_PLAN_ACTIVE`)
+  - typed backend-agnostic diagnostics (`giCapabilityDiagnostics()`)
+  - checklist and lockdown runner: `docs/gi-phase1-contract-v2-checklist.md`, `scripts/gi_phase1_contract_v2_lockdown.sh`
 
 ## Lighting
 

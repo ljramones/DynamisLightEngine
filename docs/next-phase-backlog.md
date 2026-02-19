@@ -9,6 +9,16 @@ Primary roadmap: `docs/rendering-roadmap-2026.md`
 - Phase D (planned): platform/tooling expansion.
 
 ## Latest Completed Batch (February 2026)
+- Post execution modularization landed beyond descriptor level:
+  - post stack now uses module-owned execution contracts (`vulkan.post`, `vulkan.aa`, `vulkan.reflections`)
+  - post pass read/write declarations are derived from active execution contracts
+- AA temporal hardening lane added:
+  - runtime warnings/gates: `AA_TEMPORAL_POLICY_ACTIVE`, `AA_TEMPORAL_ENVELOPE`, `AA_TEMPORAL_ENVELOPE_BREACH`, `AA_TEMPORAL_PROMOTION_READY`
+  - typed backend-agnostic runtime diagnostics: `aaTemporalPromotionDiagnostics()`
+- GI Phase 1 contract/planner scaffold started:
+  - `VulkanGiCapabilityDescriptorV2` + `VulkanGiCapabilityPlanner` + `GI_CAPABILITY_PLAN_ACTIVE` warning
+  - backend-agnostic typed diagnostics: `giCapabilityDiagnostics()`
+  - lockdown runner + CI lane: `scripts/gi_phase1_contract_v2_lockdown.sh`, `gi-phase1-contract-v2-lockdown`
 - Added enforceable Java structure guardrails:
   - class hard limit + hotspot reporting + Vulkan root-package class-count cap via `scripts/java_structure_guardrails.sh`
   - phase checklist and verification commands tracked in `docs/structure-guardrails-phase1-checklist.md`

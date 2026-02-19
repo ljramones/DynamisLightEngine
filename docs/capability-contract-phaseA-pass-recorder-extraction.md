@@ -16,7 +16,7 @@ Extract feature-owned pass recorders with zero rendering behavior change.
   - tonemap / bloom / SSAO
   - AA resolve (TAA)
   - reflection resolve
-- Added `VulkanPostModulePlan` metadata output for active/pruned module tracking.
+- Added `VulkanPostExecutionPlan` + module-owned execution contracts for active/pruned module tracking.
 
 ## Behavior boundary
 

@@ -10,7 +10,7 @@ class VulkanPostCompositePassRecorderTest {
     @Test
     void planModulesMarksAaAndReflectionBoundaries() {
         VulkanPostCompositePassRecorder recorder = new VulkanPostCompositePassRecorder();
-        VulkanPostModulePlan plan = recorder.planModules(baseInputs(
+        VulkanPostExecutionPlan plan = recorder.planModules(baseInputs(
                 true,   // tonemap
                 true,   // bloom
                 true,   // ssao
@@ -23,12 +23,18 @@ class VulkanPostCompositePassRecorderTest {
         assertTrue(plan.activeModules().contains("post.reflections.resolve"));
         assertFalse(plan.prunedModules().stream().anyMatch(s -> s.startsWith("post.aa.taa_resolve")));
         assertFalse(plan.prunedModules().stream().anyMatch(s -> s.startsWith("post.reflections.resolve")));
+        assertTrue(plan.moduleContracts().stream().anyMatch(c ->
+                "post.aa.taa_resolve".equals(c.moduleId()) && "vulkan.aa".equals(c.ownerFeatureId())));
+        assertTrue(plan.moduleContracts().stream().anyMatch(c ->
+                "post.reflections.resolve".equals(c.moduleId()) && "vulkan.reflections".equals(c.ownerFeatureId())));
+        assertTrue(VulkanPostExecutionPlanner.readsForPass(plan).contains("history_color"));
+        assertTrue(VulkanPostExecutionPlanner.writesForPass(plan).contains("resolved_color"));
     }
 
     @Test
     void planModulesPrunesDisabledAaAndReflectionBoundaries() {
         VulkanPostCompositePassRecorder recorder = new VulkanPostCompositePassRecorder();
-        VulkanPostModulePlan plan = recorder.planModules(baseInputs(
+        VulkanPostExecutionPlan plan = recorder.planModules(baseInputs(
                 true,   // tonemap
                 false,  // bloom
                 false,  // ssao
@@ -39,6 +45,8 @@ class VulkanPostCompositePassRecorderTest {
 
         assertTrue(plan.prunedModules().stream().anyMatch(s -> s.startsWith("post.aa.taa_resolve")));
         assertTrue(plan.prunedModules().stream().anyMatch(s -> s.startsWith("post.reflections.resolve")));
+        assertFalse(VulkanPostExecutionPlanner.readsForPass(plan).contains("history_color"));
+        assertFalse(VulkanPostExecutionPlanner.readsForPass(plan).contains("planar_capture"));
     }
 
     private static VulkanRenderCommandRecorder.PostCompositeInputs baseInputs(

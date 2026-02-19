@@ -3,20 +3,15 @@ package org.dynamislight.impl.vulkan;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowFrameWarningFlow;
 import org.dynamislight.impl.vulkan.runtime.warning.VulkanRuntimeWarningResets;
 import org.dynamislight.impl.vulkan.runtime.warning.VulkanRuntimeWarningPolicy;
-
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowBackendDiagnosticsBridge;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowContextBindings;
-
 import org.dynamislight.impl.vulkan.runtime.upscale.VulkanExternalUpscalerDecider;
-
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowRuntimeTuning;
-
 import org.dynamislight.impl.vulkan.runtime.model.*;
-
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
-
 import org.dynamislight.impl.vulkan.runtime.config.AaMode;
 import org.dynamislight.impl.vulkan.runtime.config.AaPreset;
+import org.dynamislight.impl.vulkan.runtime.config.GiMode;
 import org.dynamislight.impl.vulkan.runtime.config.ReflectionProfile;
 import org.dynamislight.impl.vulkan.runtime.config.TsrControls;
 import org.dynamislight.impl.vulkan.runtime.config.UpscalerMode;
@@ -26,7 +21,6 @@ import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptions;
 import org.dynamislight.impl.vulkan.reflection.*;
 import org.dynamislight.impl.vulkan.reflection.VulkanReflectionTelemetryDefaults;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowTelemetryDefaults;
-
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.List;
@@ -45,6 +39,8 @@ import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.event.ReflectionAdaptiveTelemetryEvent;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.runtime.AaPostCapabilityDiagnostics;
+import org.dynamislight.api.runtime.AaTemporalPromotionDiagnostics;
+import org.dynamislight.api.runtime.GiCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
@@ -79,6 +75,8 @@ import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityMode;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaPostWarningEmitter;
+import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalWarningEmitter;
+import org.dynamislight.impl.vulkan.warning.gi.VulkanGiWarningEmitter;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
 import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
@@ -162,6 +160,28 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean aaPostTemporalHistoryActiveLastFrame = true;
     private List<String> aaPostActiveCapabilitiesLastFrame = List.of();
     private List<String> aaPostPrunedCapabilitiesLastFrame = List.of();
+    private boolean aaTemporalPathRequestedLastFrame;
+    private boolean aaTemporalPathActiveLastFrame;
+    private double aaTemporalRejectRateLastFrame;
+    private double aaTemporalConfidenceMeanLastFrame = 1.0;
+    private long aaTemporalConfidenceDropsLastFrame;
+    private boolean aaTemporalEnvelopeBreachedLastFrame;
+    private int aaTemporalStableStreak;
+    private int aaTemporalHighStreak;
+    private int aaTemporalWarnCooldownRemaining;
+    private int aaTemporalPromotionReadyMinFrames = 6;
+    private boolean aaTemporalPromotionReadyLastFrame;
+    private double aaTemporalRejectWarnMax = 0.24;
+    private double aaTemporalConfidenceWarnMin = 0.72;
+    private long aaTemporalDropWarnMin = 2L;
+    private int aaTemporalWarnMinFrames = 3;
+    private int aaTemporalWarnCooldownFrames = 120;
+    private GiMode giMode = GiMode.SSGI;
+    private boolean giEnabled;
+    private String giModeLastFrame = "ssgi";
+    private boolean giRtAvailableLastFrame;
+    private List<String> giActiveCapabilitiesLastFrame = List.of();
+    private List<String> giPrunedCapabilitiesLastFrame = List.of();
     private UpscalerMode upscalerMode = UpscalerMode.NONE;
     private UpscalerQuality upscalerQuality = UpscalerQuality.QUALITY;
     private ReflectionProfile reflectionProfile = ReflectionProfile.BALANCED;
@@ -648,6 +668,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionTransparencyHighStreak = 0;
         reflectionTransparencyWarnCooldownRemaining = 0;
         reflectionTransparencyBreachedLastFrame = false;
+        aaTemporalPathRequestedLastFrame = false;
+        aaTemporalPathActiveLastFrame = false;
+        aaTemporalRejectRateLastFrame = 0.0;
+        aaTemporalConfidenceMeanLastFrame = 1.0;
+        aaTemporalConfidenceDropsLastFrame = 0L;
+        aaTemporalEnvelopeBreachedLastFrame = false;
+        aaTemporalStableStreak = 0;
+        aaTemporalHighStreak = 0;
+        aaTemporalWarnCooldownRemaining = 0;
+        aaTemporalPromotionReadyLastFrame = false;
+        giModeLastFrame = giMode.name().toLowerCase(java.util.Locale.ROOT);
+        giRtAvailableLastFrame = false;
+        giActiveCapabilitiesLastFrame = List.of();
+        giPrunedCapabilitiesLastFrame = List.of();
         lastFramePlanarCaptureGpuMs = Double.NaN;
         lastFrameGpuTimingSource = "frame_estimate";
         context.configureReflectionProbeStreaming(
@@ -660,6 +694,50 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         taaLumaClipEnabledDefault = Boolean.parseBoolean(safeBackendOptions.getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = VulkanRuntimeOptionParsing.parseAaPreset(safeBackendOptions.get("vulkan.aaPreset"));
         aaMode = VulkanRuntimeOptionParsing.parseAaMode(safeBackendOptions.get("vulkan.aaMode"));
+        giMode = VulkanRuntimeOptionParsing.parseGiMode(safeBackendOptions.get("vulkan.gi.mode"));
+        giEnabled = Boolean.parseBoolean(safeBackendOptions.getOrDefault("vulkan.gi.enabled", "false"));
+        aaTemporalRejectWarnMax = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safeBackendOptions,
+                "vulkan.aa.temporalRejectWarnMax",
+                aaTemporalRejectWarnMax,
+                0.0,
+                1.0
+        );
+        aaTemporalConfidenceWarnMin = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safeBackendOptions,
+                "vulkan.aa.temporalConfidenceWarnMin",
+                aaTemporalConfidenceWarnMin,
+                0.0,
+                1.0
+        );
+        aaTemporalDropWarnMin = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safeBackendOptions,
+                "vulkan.aa.temporalDropWarnMin",
+                (int) aaTemporalDropWarnMin,
+                0,
+                Integer.MAX_VALUE
+        );
+        aaTemporalWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safeBackendOptions,
+                "vulkan.aa.temporalWarnMinFrames",
+                aaTemporalWarnMinFrames,
+                1,
+                10_000
+        );
+        aaTemporalWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safeBackendOptions,
+                "vulkan.aa.temporalWarnCooldownFrames",
+                aaTemporalWarnCooldownFrames,
+                0,
+                10_000
+        );
+        aaTemporalPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safeBackendOptions,
+                "vulkan.aa.temporalPromotionReadyMinFrames",
+                aaTemporalPromotionReadyMinFrames,
+                1,
+                10_000
+        );
         upscalerMode = VulkanRuntimeOptionParsing.parseUpscalerMode(safeBackendOptions.get("vulkan.upscalerMode"));
         upscalerQuality = VulkanRuntimeOptionParsing.parseUpscalerQuality(safeBackendOptions.get("vulkan.upscalerQuality"));
         reflectionProfile = VulkanRuntimeOptionParsing.parseReflectionProfile(safeBackendOptions.get("vulkan.reflectionsProfile"));
@@ -1037,6 +1115,38 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
+    protected AaTemporalPromotionDiagnostics backendAaTemporalPromotionDiagnostics() {
+        return new AaTemporalPromotionDiagnostics(
+                !aaPostAaModeLastFrame.isBlank(),
+                aaPostAaModeLastFrame,
+                aaTemporalPathRequestedLastFrame,
+                aaTemporalPathActiveLastFrame,
+                aaTemporalRejectRateLastFrame,
+                aaTemporalConfidenceMeanLastFrame,
+                aaTemporalConfidenceDropsLastFrame,
+                aaTemporalRejectWarnMax,
+                aaTemporalConfidenceWarnMin,
+                aaTemporalDropWarnMin,
+                aaTemporalPromotionReadyMinFrames,
+                aaTemporalStableStreak,
+                aaTemporalEnvelopeBreachedLastFrame,
+                aaTemporalPromotionReadyLastFrame
+        );
+    }
+
+    @Override
+    protected GiCapabilityDiagnostics backendGiCapabilityDiagnostics() {
+        return new GiCapabilityDiagnostics(
+                !giModeLastFrame.isBlank(),
+                giModeLastFrame,
+                giEnabled,
+                giRtAvailableLastFrame,
+                giActiveCapabilitiesLastFrame,
+                giPrunedCapabilitiesLastFrame
+        );
+    }
+
+    @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
         return VulkanShadowBackendDiagnosticsBridge.capability(this);
     }
@@ -1154,6 +1264,46 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         aaPostActiveCapabilitiesLastFrame = aaPostEmission.activeCapabilities();
         aaPostPrunedCapabilitiesLastFrame = aaPostEmission.prunedCapabilities();
         warnings.add(aaPostEmission.warning());
+        VulkanAaTemporalWarningEmitter.Result aaTemporalEmission = VulkanAaTemporalWarningEmitter.emit(
+                new VulkanAaTemporalWarningEmitter.Input(
+                        aaMode,
+                        currentPost.taaEnabled(),
+                        context.taaHistoryRejectRate(),
+                        context.taaConfidenceMean(),
+                        context.taaConfidenceDropEvents(),
+                        aaTemporalRejectWarnMax,
+                        aaTemporalConfidenceWarnMin,
+                        aaTemporalDropWarnMin,
+                        aaTemporalWarnMinFrames,
+                        aaTemporalWarnCooldownFrames,
+                        aaTemporalPromotionReadyMinFrames,
+                        aaTemporalStableStreak,
+                        aaTemporalHighStreak,
+                        aaTemporalWarnCooldownRemaining
+                )
+        );
+        warnings.addAll(aaTemporalEmission.warnings());
+        aaTemporalPathRequestedLastFrame = aaTemporalEmission.temporalPathRequested();
+        aaTemporalPathActiveLastFrame = aaTemporalEmission.temporalPathActive();
+        aaTemporalRejectRateLastFrame = aaTemporalEmission.rejectRate();
+        aaTemporalConfidenceMeanLastFrame = aaTemporalEmission.confidenceMean();
+        aaTemporalConfidenceDropsLastFrame = aaTemporalEmission.confidenceDropEvents();
+        aaTemporalStableStreak = aaTemporalEmission.stableStreak();
+        aaTemporalHighStreak = aaTemporalEmission.nextHighStreak();
+        aaTemporalWarnCooldownRemaining = aaTemporalEmission.nextCooldownRemaining();
+        aaTemporalEnvelopeBreachedLastFrame = aaTemporalEmission.envelopeBreachedLastFrame();
+        aaTemporalPromotionReadyLastFrame = aaTemporalEmission.promotionReadyLastFrame();
+        VulkanGiWarningEmitter.Result giEmission = VulkanGiWarningEmitter.emit(
+                qualityTier,
+                giMode,
+                giEnabled,
+                shadowRtTraversalSupported
+        );
+        giModeLastFrame = giEmission.plan().giModeId();
+        giRtAvailableLastFrame = giEmission.plan().rtAvailable();
+        giActiveCapabilitiesLastFrame = giEmission.plan().activeCapabilities();
+        giPrunedCapabilitiesLastFrame = giEmission.plan().prunedCapabilities();
+        warnings.add(giEmission.warning());
         VulkanReflectionRuntimeFlow.processFrameWarnings(this, context, qualityTier, warnings);
         VulkanShadowFrameWarningFlow.process(this, context, qualityTier, warnings);
         return warnings;

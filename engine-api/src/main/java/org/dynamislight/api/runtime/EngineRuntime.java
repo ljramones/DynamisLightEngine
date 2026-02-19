@@ -327,6 +327,30 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic AA temporal hardening/promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link AaTemporalPromotionDiagnostics#unavailable()}.
+     *
+     * @return current AA temporal promotion diagnostics snapshot.
+     */
+    default AaTemporalPromotionDiagnostics aaTemporalPromotionDiagnostics() {
+        return AaTemporalPromotionDiagnostics.unavailable();
+    }
+
+    /**
+     * Retrieves backend-agnostic GI capability-plan diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link GiCapabilityDiagnostics#unavailable()}.
+     *
+     * @return current GI capability-plan diagnostics snapshot.
+     */
+    default GiCapabilityDiagnostics giCapabilityDiagnostics() {
+        return GiCapabilityDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

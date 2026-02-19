@@ -190,12 +190,13 @@ public final class VulkanAaCapabilityDescriptorV2 implements RenderFeatureCapabi
         return new RenderTelemetryDeclaration(
                 List.of(
                         "AA_POLICY_ACTIVE",
-                        "AA_TEMPORAL_HISTORY_ENVELOPE",
-                        "AA_TEMPORAL_HISTORY_ENVELOPE_BREACH"
+                        "AA_TEMPORAL_ENVELOPE",
+                        "AA_TEMPORAL_ENVELOPE_BREACH",
+                        "AA_TEMPORAL_PROMOTION_READY"
                 ),
                 List.of(
                         "aaPolicyDiagnostics",
-                        "aaTemporalDiagnostics"
+                        "aaTemporalPromotionDiagnostics"
                 ),
                 List.of(),
                 List.of(

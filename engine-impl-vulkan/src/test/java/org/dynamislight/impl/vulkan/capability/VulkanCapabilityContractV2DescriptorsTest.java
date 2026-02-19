@@ -87,6 +87,22 @@ class VulkanCapabilityContractV2DescriptorsTest {
     }
 
     @Test
+    void giDescriptorProducesCompleteContract() {
+        VulkanGiCapabilityDescriptorV2 descriptor = VulkanGiCapabilityDescriptorV2.withMode(
+                VulkanGiCapabilityDescriptorV2.MODE_HYBRID_PROBE_SSGI_RT
+        );
+
+        RenderCapabilityContractV2 contract = descriptor.contractV2(QualityTier.ULTRA);
+
+        assertEqualsNonBlank(contract.featureId());
+        assertNotNull(contract.mode());
+        assertFalse(contract.passes().isEmpty());
+        assertFalse(contract.shaderContributions().isEmpty());
+        assertFalse(contract.descriptorRequirements().isEmpty());
+        assertFalse(contract.ownedResources().isEmpty());
+    }
+
+    @Test
     void combinedShadowReflectionContractsHaveNoDescriptorCollisionsPerPass() {
         List<RenderFeatureCapabilityV2> capabilities = List.of(
                 VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM),
@@ -125,7 +141,8 @@ class VulkanCapabilityContractV2DescriptorsTest {
                 VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM),
                 VulkanReflectionCapabilityDescriptorV2.withMode(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID),
                 VulkanAaCapabilityDescriptorV2.withMode(VulkanAaCapabilityDescriptorV2.MODE_TAA),
-                VulkanPostCapabilityDescriptorV2.withMode(VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE)
+                VulkanPostCapabilityDescriptorV2.withMode(VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE),
+                VulkanGiCapabilityDescriptorV2.withMode(VulkanGiCapabilityDescriptorV2.MODE_SSGI)
         );
 
         List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
@@ -153,6 +170,35 @@ class VulkanCapabilityContractV2DescriptorsTest {
 
             List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
                     List.of(shadow, reflection),
+                    QualityTier.ULTRA
+            );
+            assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),
+                    "expected zero errors for mode " + mode.id() + ", got: " + issues);
+        }
+    }
+
+    @Test
+    void everyGiModeProducesCompleteContractAndValidatesWithShadowReflectionAaAndPost() {
+        VulkanShadowCapabilityDescriptorV2 shadow =
+                VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM);
+        VulkanReflectionCapabilityDescriptorV2 reflection =
+                VulkanReflectionCapabilityDescriptorV2.withMode(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID);
+        VulkanAaCapabilityDescriptorV2 aa =
+                VulkanAaCapabilityDescriptorV2.withMode(VulkanAaCapabilityDescriptorV2.MODE_TAA);
+        VulkanPostCapabilityDescriptorV2 post =
+                VulkanPostCapabilityDescriptorV2.withMode(VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE);
+        for (RenderFeatureMode mode : VulkanGiCapabilityDescriptorV2.withMode(null).supportedModes()) {
+            VulkanGiCapabilityDescriptorV2 gi = VulkanGiCapabilityDescriptorV2.withMode(mode);
+            RenderCapabilityContractV2 contract = gi.contractV2(QualityTier.ULTRA);
+            assertEqualsNonBlank(contract.featureId());
+            assertNotNull(contract.mode());
+            assertFalse(contract.passes().isEmpty(), "mode " + mode.id() + " must declare passes");
+            assertFalse(contract.shaderContributions().isEmpty(), "mode " + mode.id() + " must declare shader contributions");
+            assertFalse(contract.descriptorRequirements().isEmpty(), "mode " + mode.id() + " must declare descriptor requirements");
+            assertFalse(contract.ownedResources().isEmpty(), "mode " + mode.id() + " must declare owned resources");
+
+            List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
+                    List.of(shadow, reflection, aa, post, gi),
                     QualityTier.ULTRA
             );
             assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),

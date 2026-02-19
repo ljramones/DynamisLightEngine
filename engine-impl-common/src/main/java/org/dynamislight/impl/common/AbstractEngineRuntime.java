@@ -22,6 +22,8 @@ import java.util.concurrent.TimeUnit;
 import org.dynamislight.api.runtime.EngineApiVersion;
 import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.runtime.AaPostCapabilityDiagnostics;
+import org.dynamislight.api.runtime.AaTemporalPromotionDiagnostics;
+import org.dynamislight.api.runtime.GiCapabilityDiagnostics;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -356,6 +358,16 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public AaTemporalPromotionDiagnostics aaTemporalPromotionDiagnostics() {
+        return backendAaTemporalPromotionDiagnostics();
+    }
+
+    @Override
+    public GiCapabilityDiagnostics giCapabilityDiagnostics() {
+        return backendGiCapabilityDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -469,6 +481,14 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected AaPostCapabilityDiagnostics backendAaPostCapabilityDiagnostics() {
         return AaPostCapabilityDiagnostics.unavailable();
+    }
+
+    protected AaTemporalPromotionDiagnostics backendAaTemporalPromotionDiagnostics() {
+        return AaTemporalPromotionDiagnostics.unavailable();
+    }
+
+    protected GiCapabilityDiagnostics backendGiCapabilityDiagnostics() {
+        return GiCapabilityDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(

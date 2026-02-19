@@ -14,6 +14,7 @@ Scope: harden Vulkan AA + post capability declarations against the extracted v2 
 - [x] Validate AA + post + shadow + reflection compositions with zero `ERROR` issues in `RenderCapabilityContractV2Validator`.
 - [x] Add lockdown runner for CI/local replay: `scripts/aa_post_contract_v2_lockdown.sh`.
 - [x] Add always-on CI lane for the lockdown bundle.
+- [x] Add AA temporal hardening envelope + promotion warnings (`AA_TEMPORAL_ENVELOPE`, `AA_TEMPORAL_ENVELOPE_BREACH`, `AA_TEMPORAL_PROMOTION_READY`) with typed diagnostics (`aaTemporalPromotionDiagnostics()`).
 
 ## Verification
 

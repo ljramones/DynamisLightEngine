@@ -1,6 +1,6 @@
 # Anti-Aliasing Testing Design
 
-Last updated: February 17, 2026
+Last updated: February 19, 2026
 
 ## 1. Goal
 Validate that AA modes remain visually stable and cross-backend consistent while preserving performance and avoiding regressions in temporal behavior.
@@ -35,6 +35,22 @@ Validate that AA modes remain visually stable and cross-backend consistent while
   - `taaRejectTrendWindow`
   - `taaConfidenceTrendWindow`
   - `taaConfidenceDropWindow`
+- temporal promotion hardening envelope:
+  - `AA_TEMPORAL_ENVELOPE`
+  - `AA_TEMPORAL_ENVELOPE_BREACH`
+  - `AA_TEMPORAL_PROMOTION_READY`
+
+## 4.1 Contract Lockdown (AA/Post + Temporal Hardening)
+
+```bash
+./scripts/aa_post_contract_v2_lockdown.sh
+```
+
+Includes:
+- v2 descriptor/validator/CI-gate checks
+- `VulkanAaPostCapabilityPlanIntegrationTest`
+- `VulkanAaTemporalWarningEmitterTest`
+- `VulkanPostCompositePassRecorderTest`
 
 ## 5. Test Layers
 

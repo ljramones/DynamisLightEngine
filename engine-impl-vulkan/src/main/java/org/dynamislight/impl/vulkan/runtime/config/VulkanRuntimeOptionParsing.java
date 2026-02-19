@@ -69,6 +69,18 @@ public final class VulkanRuntimeOptionParsing {
         }
     }
 
+    public static GiMode parseGiMode(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return GiMode.SSGI;
+        }
+        String normalized = raw.trim().toUpperCase().replace('-', '_');
+        try {
+            return GiMode.valueOf(normalized);
+        } catch (IllegalArgumentException ignored) {
+            return GiMode.SSGI;
+        }
+    }
+
     public static TsrControls parseTsrControls(Map<String, String> options, String prefix) {
         return new TsrControls(
                 parseFloatOption(options, prefix + "tsrHistoryWeight", 0.90f, 0.50f, 0.99f),
@@ -119,6 +131,28 @@ public final class VulkanRuntimeOptionParsing {
         }
         try {
             int parsed = Integer.parseInt(value.trim());
+            return Math.max(min, Math.min(max, parsed));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    public static double parseBackendDoubleOption(
+            Map<String, String> backendOptions,
+            String key,
+            double fallback,
+            double min,
+            double max
+    ) {
+        if (backendOptions == null || key == null || key.isBlank()) {
+            return fallback;
+        }
+        String value = backendOptions.get(key);
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            double parsed = Double.parseDouble(value.trim());
             return Math.max(min, Math.min(max, parsed));
         } catch (NumberFormatException ignored) {
             return fallback;

@@ -17,6 +17,7 @@ Current documents:
 - `post-process-testing.md` - post chain regression and stress validation plan.
 - `environment-ibl-testing.md` - environment/IBL parity and interaction validation plan.
 - `reflections-testing.md` - reflection mode validation and parity test plan.
+- `gi-testing.md` - GI Phase 1 contract/planner/diagnostics validation plan.
 - `resources-hot-reload-testing.md` - resource lifecycle/hot-reload validation plan.
 - `runtime-events-errors-testing.md` - runtime lifecycle/event/error validation plan.
 - `input-frame-loop-testing.md` - host input/update/render loop validation plan.
