@@ -48,8 +48,8 @@ Status summary snapshot (2026-02-18):
 - Screen-space reflections (Hi-Z marching, variable quality) — `In`
 - Planar reflections (clip-plane re-render, selective objects) — `In`
 - SSR + probe fallback (seamless blend at SSR miss) — `In`
-- RT reflections (single-bounce, multi-bounce) — `Partial`
-- RT + SSR hybrid (RT for rough, SSR for sharp, probe for miss) — `Partial`
+- RT reflections (single-bounce, multi-bounce) — `In`
+- RT + SSR hybrid (RT for rough, SSR for sharp, probe for miss) — `In`
 - Reflection probe streaming (LOD, priority-based update) — `Partial`
 - Per-material reflection override (force probe-only for specific surfaces) — `Partial`
 - Contact-hardening reflections (roughness ramp near contact) — `Partial`
@@ -115,6 +115,7 @@ Reflection notes:
 - RT reflections `Partial -> In` promotion scope is locked to Vulkan path; OpenGL RT parity is explicitly out-of-scope for this promotion cycle.
 - RT reflections now emit hybrid composition telemetry (`REFLECTION_RT_HYBRID_COMPOSITION`) with typed diagnostics (`debugReflectionRtHybridDiagnostics`) exposing normalized RT/SSR/probe share envelopes.
 - RT reflections now include configurable hybrid/denoise/AS envelope gates with cooldown-based breach signaling (`REFLECTION_RT_HYBRID_COMPOSITION_BREACH`, `REFLECTION_RT_DENOISE_ENVELOPE_BREACH`, `REFLECTION_RT_AS_BUDGET_BREACH`) and typed runtime diagnostics for CI assertions.
+- RT reflections now include a promotion-ready gate (`REFLECTION_RT_PROMOTION_READY`) and mode-bit contract (`1<<26`) after sustained dedicated/hybrid/denoise/AS/fallback stability.
 - RT `Partial -> In` promotion tasks are tracked in `docs/rt-reflections-in-checklist.md`.
 - RT reflections now include a guarded real-Vulkan signoff runner (`scripts/rt_reflections_real_gpu_signoff.sh`) for RT lane contract validation on real hardware paths.
 
@@ -259,7 +260,7 @@ Reflection notes:
 ## Ray Tracing
 
 - RT shadows (hard, soft, denoised, area light accurate) — `Partial`
-- RT reflections (single-bounce, multi-bounce, denoised) — `Partial`
+- RT reflections (single-bounce, multi-bounce, denoised) — `In`
 - RT GI (diffuse single-bounce, multi-bounce) — `Not In Yet`
 - RT AO (medium-range, denoised) — `Not In Yet`
 - RT translucency / caustics — `Not In Yet`

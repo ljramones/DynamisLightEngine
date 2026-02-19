@@ -1284,14 +1284,42 @@ class VulkanEngineRuntimeIntegrationTest {
         assertFalse(diagnostics.requireDedicatedPipelineUnmetLastFrame());
         assertTrue(diagnostics.dedicatedHardwarePipelineActive());
         var pipeline = runtime.debugReflectionRtPipelineDiagnostics();
-        assertEquals("preview_bound", pipeline.blasLifecycleState());
-        assertEquals("preview_bound", pipeline.tlasLifecycleState());
-        assertEquals("preview_bound", pipeline.sbtLifecycleState());
+        assertEquals("mock_active", pipeline.blasLifecycleState());
+        assertEquals("mock_active", pipeline.tlasLifecycleState());
+        assertEquals("mock_active", pipeline.sbtLifecycleState());
         assertTrue(pipeline.blasObjectCount() > 0);
         assertTrue(pipeline.tlasInstanceCount() > 0);
         assertTrue(pipeline.sbtRecordCount() > 0);
         var hybrid = runtime.debugReflectionRtHybridDiagnostics();
         assertEquals(1.0, hybrid.rtShare() + hybrid.ssrShare() + hybrid.probeShare(), 1e-6);
+        runtime.shutdown();
+    }
+
+    @Test
+    void rtPromotionReadyEmitsAfterMinimumStableFrames() throws Exception {
+        var runtime = new VulkanEngineRuntime();
+        runtime.initialize(validConfig(Map.ofEntries(
+                Map.entry("vulkan.mockContext", "true"),
+                Map.entry("vulkan.reflections.rtSingleBounceEnabled", "true"),
+                Map.entry("vulkan.reflections.rtDedicatedPipelineEnabled", "true"),
+                Map.entry("vulkan.reflections.rtPerfMaxGpuMsMedium", "999.0"),
+                Map.entry("vulkan.reflections.rtHybridProbeShareWarnMax", "1.0"),
+                Map.entry("vulkan.reflections.rtDenoiseSpatialVarianceWarnMax", "1.0"),
+                Map.entry("vulkan.reflections.rtDenoiseTemporalLagWarnMax", "1.0"),
+                Map.entry("vulkan.reflections.rtAsBuildGpuMsWarnMax", "999.0"),
+                Map.entry("vulkan.reflections.rtAsMemoryBudgetMb", "4096.0")
+        )), new RecordingCallbacks());
+        runtime.loadScene(validReflectionsScene("rt_hybrid"));
+
+        runtime.render();
+        runtime.render();
+        var frame = runtime.render();
+
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PROMOTION_STATUS".equals(w.code())));
+        assertTrue(frame.warnings().stream().anyMatch(w -> "REFLECTION_RT_PROMOTION_READY".equals(w.code())));
+        var diagnostics = runtime.debugReflectionRtPromotionDiagnostics();
+        assertTrue(diagnostics.readyLastFrame());
+        assertTrue(diagnostics.highStreak() >= diagnostics.minFrames());
         runtime.shutdown();
     }
 

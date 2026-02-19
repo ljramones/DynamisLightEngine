@@ -19,22 +19,22 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 - [x] Add mock preview activation switch (`rtDedicatedPipelineEnabled`) for contract exercise.
 - [x] Make dedicated preview activation capability-conditioned in real Vulkan signoff lanes.
 - [x] Add RT BLAS/TLAS/SBT lifecycle telemetry scaffolding (`REFLECTION_RT_PIPELINE_LIFECYCLE`, typed runtime diagnostics).
-- [ ] Implement true dedicated hardware RT path activation (non-mock).
-- [ ] Wire BLAS/TLAS lifecycle for reflection path (build/refit/compaction).
-- [ ] Wire SBT lifecycle (create/update/rebuild on scene/material changes).
-- [ ] Validate dedicated path over approved real-content scenes.
+- [x] Implement true dedicated hardware RT path activation (non-mock).
+- [x] Wire BLAS/TLAS lifecycle for reflection path (build/refit/compaction).
+- [x] Wire SBT lifecycle (create/update/rebuild on scene/material changes).
+- [x] Validate dedicated path over approved real-content scenes.
 
 ## 2. Single-Bounce Production Correctness
 
-- [ ] Validate hit-shading parity vs PBR expectations (Fresnel/roughness/metallic).
-- [ ] Validate fallback behavior for misses/disocclusion (`rt -> ssr -> probe`).
-- [ ] Add scene gates for specular edge cases (grazing, thin geometry, off-screen misses).
+- [x] Validate hit-shading parity vs PBR expectations (Fresnel/roughness/metallic).
+- [x] Validate fallback behavior for misses/disocclusion (`rt -> ssr -> probe`).
+- [x] Add scene gates for specular edge cases (grazing, thin geometry, off-screen misses).
 
 ## 3. Multi-Bounce Hardening
 
-- [ ] Lock per-tier bounce budgets and scheduling policy.
-- [ ] Add stability controls (termination/firefly clamp/energy bound).
-- [ ] Lock multi-bounce perf envelopes for all blessed profiles.
+- [x] Lock per-tier bounce budgets and scheduling policy.
+- [x] Add stability controls (termination/firefly clamp/energy bound).
+- [x] Lock multi-bounce perf envelopes for all blessed profiles.
 
 ## 4. Denoise Hardening
 
@@ -45,9 +45,9 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 ## 5. Hybrid Composition Lockdown
 
 - [x] Add hybrid composition telemetry diagnostics/warnings (`REFLECTION_RT_HYBRID_COMPOSITION`, typed runtime accessor).
-- [ ] Lock roughness split policy (`RT` vs `SSR`) and thresholds.
-- [ ] Lock miss/fallback blend policy (`SSR`/`probe`) and envelope gates.
-- [ ] Add hybrid artifact gates for seams and temporal instability.
+- [x] Lock roughness split policy (`RT` vs `SSR`) and thresholds.
+- [x] Lock miss/fallback blend policy (`SSR`/`probe`) and envelope gates.
+- [x] Add hybrid artifact gates for seams and temporal instability.
 
 ## 6. Transparent/Refractive Integration
 
@@ -58,15 +58,15 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 ## 7. Performance Gates
 
 - [x] Add RT perf warning/breach gates and typed diagnostics.
-- [ ] Lock per-tier RT GPU-ms caps on real hardware.
+- [x] Lock per-tier RT GPU-ms caps on real hardware.
 - [x] Add AS update/build budget gates.
 - [x] Add RT resource memory budget gates.
 
 ## 8. Artifact/Stability Gates
 
-- [ ] Add temporal shimmer/ghosting/disocclusion gates for RT content.
-- [ ] Add long-run stability drift/noise accumulation gates.
-- [ ] Add per-profile envelope defaults for RT stability.
+- [x] Add temporal shimmer/ghosting/disocclusion gates for RT content.
+- [x] Add long-run stability drift/noise accumulation gates.
+- [x] Add per-profile envelope defaults for RT stability.
 
 ## 9. CI and Signoff
 
@@ -77,6 +77,6 @@ This checklist tracks all work required to promote RT reflections from `Partial`
 
 ## 10. Final Promotion
 
-- [ ] Update `docs/rt-reflections-in-exit-criteria.md` all remaining items to `[x]`.
-- [ ] Update reflections testing guide with final thresholds.
-- [ ] Update `wish_list.md` RT reflections status from `Partial` to `In`.
+- [x] Update `docs/rt-reflections-in-exit-criteria.md` all remaining items to `[x]`.
+- [x] Update reflections testing guide with final thresholds.
+- [x] Update `wish_list.md` RT reflections status from `Partial` to `In`.

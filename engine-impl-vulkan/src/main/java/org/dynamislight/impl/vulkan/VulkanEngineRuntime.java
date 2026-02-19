@@ -122,6 +122,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_PROBE_ONLY_BIT = 1 << 22;
     private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_SSR_ONLY_BIT = 1 << 23;
     private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_OTHER_BIT = 1 << 24;
+    private static final int REFLECTION_MODE_RT_DEDICATED_ACTIVE_BIT = 1 << 25;
+    private static final int REFLECTION_MODE_RT_PROMOTION_READY_BIT = 1 << 26;
     private final VulkanContext context = new VulkanContext();
     private final VulkanRuntimeWarningPolicy warningPolicy = new VulkanRuntimeWarningPolicy();
     private final VulkanRuntimeWarningPolicy.State warningState = new VulkanRuntimeWarningPolicy.State();
@@ -366,6 +368,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean reflectionRtAsBudgetBreachedLastFrame;
     private int reflectionRtAsBudgetHighStreak;
     private int reflectionRtAsBudgetWarnCooldownRemaining;
+    private boolean reflectionRtPromotionReadyLastFrame;
+    private int reflectionRtPromotionReadyHighStreak;
+    private int reflectionRtPromotionReadyMinFrames = 3;
     private int reflectionRtPerfHighStreak;
     private int reflectionRtPerfWarnCooldownRemaining;
     private double reflectionRtPerfLastGpuMsEstimate;
@@ -579,6 +584,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionRtAsBudgetBreachedLastFrame = false;
         reflectionRtAsBuildGpuMsEstimate = 0.0;
         reflectionRtAsMemoryMbEstimate = 0.0;
+        reflectionRtPromotionReadyLastFrame = false;
+        reflectionRtPromotionReadyHighStreak = 0;
         lastFramePlanarCaptureGpuMs = Double.NaN;
         lastFrameGpuTimingSource = "frame_estimate";
         context.configureReflectionProbeStreaming(
@@ -1232,38 +1239,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionPlanarPerfLastTimestampRequirementUnmet = reflectionPlanarPerfRequireGpuTimestamp
                         && !reflectionPlanarPerfLastTimestampAvailable;
             }
-            reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
-            reflectionRtTraversalSupported = mockContext || context.isHardwareRtShadowTraversalSupported();
-            reflectionRtDedicatedCapabilitySupported = mockContext || context.isHardwareRtShadowBvhSupported();
-            reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled && reflectionRtTraversalSupported;
+            refreshReflectionRtPathState(reflectionBaseMode);
             boolean reflectionRtMultiBounceActive = reflectionRtLaneActive && reflectionRtMultiBounceEnabled;
-            // Dedicated reflection path is still preview contracting, but can be capability-gated on real Vulkan.
-            reflectionRtDedicatedHardwarePipelineActive = reflectionRtLaneActive
-                    && reflectionRtDedicatedPipelineEnabled
-                    && reflectionRtDedicatedCapabilitySupported;
-            reflectionRtFallbackChainActive = reflectionRtLaneActive ? "rt->ssr->probe" : "ssr->probe";
-            reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActive && reflectionRtLaneRequested && !reflectionRtLaneActive;
-            reflectionRtRequireMultiBounceUnmetLastFrame =
-                    reflectionRtRequireMultiBounce && reflectionRtLaneRequested && !reflectionRtMultiBounceActive;
-            reflectionRtRequireDedicatedPipelineUnmetLastFrame =
-                    reflectionRtRequireDedicatedPipeline && reflectionRtLaneRequested && !reflectionRtDedicatedHardwarePipelineActive;
             if (reflectionRtLaneRequested || reflectionBaseMode == 4) {
-                if (reflectionRtDedicatedHardwarePipelineActive) {
-                    reflectionRtBlasLifecycleState = "preview_bound";
-                    reflectionRtTlasLifecycleState = "preview_bound";
-                    reflectionRtSbtLifecycleState = "preview_bound";
-                    int sceneObjectEstimate = (int) Math.max(0L, Math.min((long) Integer.MAX_VALUE, plannedVisibleObjects));
-                    reflectionRtBlasObjectCount = sceneObjectEstimate;
-                    reflectionRtTlasInstanceCount = sceneObjectEstimate;
-                    reflectionRtSbtRecordCount = Math.max(1, sceneObjectEstimate + 2);
-                } else {
-                    reflectionRtBlasLifecycleState = "pending";
-                    reflectionRtTlasLifecycleState = "pending";
-                    reflectionRtSbtLifecycleState = "pending";
-                    reflectionRtBlasObjectCount = 0;
-                    reflectionRtTlasInstanceCount = 0;
-                    reflectionRtSbtRecordCount = 0;
-                }
                 warnings.add(new EngineWarning(
                         "REFLECTION_RT_PATH_REQUESTED",
                         "RT reflection path requested (singleBounceEnabled=" + reflectionRtSingleBounceEnabled
@@ -1547,6 +1525,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 reflectionRtAsBudgetHighStreak = 0;
                 reflectionRtAsBudgetWarnCooldownRemaining = 0;
                 reflectionRtAsBudgetBreachedLastFrame = false;
+                reflectionRtPromotionReadyLastFrame = false;
+                reflectionRtPromotionReadyHighStreak = 0;
                 reflectionRtPerfHighStreak = 0;
                 reflectionRtPerfWarnCooldownRemaining = 0;
                 reflectionRtPerfBreachedLastFrame = false;
@@ -1578,6 +1558,46 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             } else {
                 reflectionTransparencyStageGateStatus = "not_required";
                 reflectionTransparencyFallbackPath = "none";
+            }
+            boolean rtTransparencyReady = reflectionTransparentCandidateCount <= 0
+                    || "preview_enabled".equals(reflectionTransparencyStageGateStatus);
+            boolean rtPromotionDedicatedReady = reflectionRtDedicatedHardwarePipelineActive
+                    || (mockContext && reflectionRtLaneActive && reflectionRtDedicatedPipelineEnabled);
+            boolean rtPromotionCandidate = reflectionRtLaneActive
+                    && rtPromotionDedicatedReady
+                    && !reflectionRtRequireActiveUnmetLastFrame
+                    && !reflectionRtRequireMultiBounceUnmetLastFrame
+                    && !reflectionRtRequireDedicatedPipelineUnmetLastFrame
+                    && !reflectionRtPerfBreachedLastFrame
+                    && !reflectionRtHybridBreachedLastFrame
+                    && !reflectionRtDenoiseBreachedLastFrame
+                    && !reflectionRtAsBudgetBreachedLastFrame
+                    && rtTransparencyReady;
+            if (rtPromotionCandidate) {
+                reflectionRtPromotionReadyHighStreak++;
+            } else {
+                reflectionRtPromotionReadyHighStreak = 0;
+            }
+            reflectionRtPromotionReadyLastFrame = rtPromotionCandidate
+                    && reflectionRtPromotionReadyHighStreak >= reflectionRtPromotionReadyMinFrames;
+            warnings.add(new EngineWarning(
+                    "REFLECTION_RT_PROMOTION_STATUS",
+                    "RT promotion status (candidate=" + rtPromotionCandidate
+                            + ", ready=" + reflectionRtPromotionReadyLastFrame
+                            + ", highStreak=" + reflectionRtPromotionReadyHighStreak
+                            + ", minFrames=" + reflectionRtPromotionReadyMinFrames
+                            + ", dedicatedReady=" + rtPromotionDedicatedReady
+                            + ", perfBreach=" + reflectionRtPerfBreachedLastFrame
+                            + ", hybridBreach=" + reflectionRtHybridBreachedLastFrame
+                            + ", denoiseBreach=" + reflectionRtDenoiseBreachedLastFrame
+                            + ", asBudgetBreach=" + reflectionRtAsBudgetBreachedLastFrame
+                            + ", transparencyReady=" + rtTransparencyReady + ")"
+            ));
+            if (reflectionRtPromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "REFLECTION_RT_PROMOTION_READY",
+                        "RT reflection promotion-ready envelope satisfied (vulkan path)"
+                ));
             }
             warnings.add(new EngineWarning(
                     "REFLECTION_TELEMETRY_PROFILE_ACTIVE",
@@ -1654,6 +1674,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", rtDenoiseWarnCooldownFrames=" + reflectionRtDenoiseWarnCooldownFrames
                             + ", rtAsBuildGpuMsWarnMax=" + reflectionRtAsBuildGpuMsWarnMax
                             + ", rtAsMemoryBudgetMb=" + reflectionRtAsMemoryBudgetMb
+                            + ", rtPromotionReadyMinFrames=" + reflectionRtPromotionReadyMinFrames
                             + ", probeUpdateCadenceFrames=" + reflectionProbeUpdateCadenceFrames
                             + ", probeMaxVisible=" + reflectionProbeMaxVisible
                             + ", probeLodDepthScale=" + reflectionProbeLodDepthScale
@@ -1900,6 +1921,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             reflectionRtPerfLastGpuMsEstimate = 0.0;
             reflectionRtPerfLastGpuMsCap = rtPerfGpuMsCapForTier(qualityTier);
             reflectionRtPerfBreachedLastFrame = false;
+            reflectionRtPromotionReadyLastFrame = false;
+            reflectionRtPromotionReadyHighStreak = 0;
             reflectionTransparentCandidateCount = 0;
             reflectionTransparencyStageGateStatus = "not_required";
             reflectionTransparencyFallbackPath = "none";
@@ -2398,8 +2421,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         ReflectionOverrideSummary overrideSummary = summarizeReflectionOverrides(context.debugGpuMeshReflectionOverrideModes());
         int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
         reflectionTransparentCandidateCount = countReflectionTransparentCandidates(currentSceneMaterials);
-        reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
-        reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled;
+        refreshReflectionRtPathState(reflectionBaseMode);
         int reflectionModeRuntime = composeReflectionExecutionMode(
                 currentPost.reflectionsMode(),
                 reflectionRtLaneActive,
@@ -2459,6 +2481,48 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         return baseMode == 1 || baseMode == 3 || baseMode == 4;
     }
 
+    private void refreshReflectionRtPathState(int reflectionBaseMode) {
+        reflectionRtLaneRequested = (currentPost.reflectionsMode() & REFLECTION_MODE_RT_REQUEST_BIT) != 0 || reflectionBaseMode == 4;
+        reflectionRtTraversalSupported = mockContext || context.isHardwareRtShadowTraversalSupported();
+        reflectionRtDedicatedCapabilitySupported = mockContext || context.isHardwareRtShadowBvhSupported();
+        reflectionRtLaneActive = reflectionRtLaneRequested && reflectionRtSingleBounceEnabled && reflectionRtTraversalSupported;
+        boolean reflectionRtMultiBounceActive = reflectionRtLaneActive && reflectionRtMultiBounceEnabled;
+        reflectionRtDedicatedHardwarePipelineActive = reflectionRtLaneActive
+                && reflectionRtDedicatedPipelineEnabled
+                && reflectionRtDedicatedCapabilitySupported;
+        reflectionRtFallbackChainActive = reflectionRtLaneActive ? "rt->ssr->probe" : "ssr->probe";
+        reflectionRtRequireActiveUnmetLastFrame = reflectionRtRequireActive && reflectionRtLaneRequested && !reflectionRtLaneActive;
+        reflectionRtRequireMultiBounceUnmetLastFrame =
+                reflectionRtRequireMultiBounce && reflectionRtLaneRequested && !reflectionRtMultiBounceActive;
+        reflectionRtRequireDedicatedPipelineUnmetLastFrame =
+                reflectionRtRequireDedicatedPipeline && reflectionRtLaneRequested && !reflectionRtDedicatedHardwarePipelineActive;
+        if (!(reflectionRtLaneRequested || reflectionBaseMode == 4)) {
+            reflectionRtBlasLifecycleState = "disabled";
+            reflectionRtTlasLifecycleState = "disabled";
+            reflectionRtSbtLifecycleState = "disabled";
+            reflectionRtBlasObjectCount = 0;
+            reflectionRtTlasInstanceCount = 0;
+            reflectionRtSbtRecordCount = 0;
+            return;
+        }
+        if (reflectionRtDedicatedHardwarePipelineActive) {
+            reflectionRtBlasLifecycleState = mockContext ? "mock_active" : "active";
+            reflectionRtTlasLifecycleState = mockContext ? "mock_active" : "active";
+            reflectionRtSbtLifecycleState = mockContext ? "mock_active" : "active";
+            int sceneObjectEstimate = (int) Math.max(0L, Math.min((long) Integer.MAX_VALUE, plannedVisibleObjects));
+            reflectionRtBlasObjectCount = sceneObjectEstimate;
+            reflectionRtTlasInstanceCount = sceneObjectEstimate;
+            reflectionRtSbtRecordCount = Math.max(1, sceneObjectEstimate + 2);
+        } else {
+            reflectionRtBlasLifecycleState = "pending";
+            reflectionRtTlasLifecycleState = "pending";
+            reflectionRtSbtLifecycleState = "pending";
+            reflectionRtBlasObjectCount = 0;
+            reflectionRtTlasInstanceCount = 0;
+            reflectionRtSbtRecordCount = 0;
+        }
+    }
+
     private int composeReflectionExecutionMode(
             int configuredMode,
             boolean rtLaneActive,
@@ -2480,6 +2544,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             if (reflectionRtDedicatedDenoisePipelineEnabled) {
                 mode |= REFLECTION_MODE_RT_DEDICATED_DENOISE_BIT;
             }
+        }
+        if (reflectionRtDedicatedHardwarePipelineActive
+                || (mockContext && rtLaneActive && reflectionRtDedicatedPipelineEnabled)) {
+            mode |= REFLECTION_MODE_RT_DEDICATED_ACTIVE_BIT;
+        }
+        if (reflectionRtPromotionReadyLastFrame) {
+            mode |= REFLECTION_MODE_RT_PROMOTION_READY_BIT;
         }
         if (planarSelectiveEligible) {
             mode |= REFLECTION_MODE_PLANAR_SELECTIVE_EXEC_BIT;
@@ -2951,6 +3022,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
     }
 
+    ReflectionRtPromotionDiagnostics debugReflectionRtPromotionDiagnostics() {
+        return new ReflectionRtPromotionDiagnostics(
+                reflectionRtPromotionReadyLastFrame,
+                reflectionRtPromotionReadyHighStreak,
+                reflectionRtPromotionReadyMinFrames,
+                reflectionRtDedicatedHardwarePipelineActive,
+                reflectionRtPerfBreachedLastFrame,
+                reflectionRtHybridBreachedLastFrame,
+                reflectionRtDenoiseBreachedLastFrame,
+                reflectionRtAsBudgetBreachedLastFrame,
+                reflectionTransparencyStageGateStatus
+        );
+    }
+
     ReflectionTransparencyDiagnostics debugReflectionTransparencyDiagnostics() {
         return new ReflectionTransparencyDiagnostics(
                 reflectionTransparentCandidateCount,
@@ -3235,6 +3320,19 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             int warnCooldownFrames,
             int warnCooldownRemaining,
             boolean breachedLastFrame
+    ) {
+    }
+
+    record ReflectionRtPromotionDiagnostics(
+            boolean readyLastFrame,
+            int highStreak,
+            int minFrames,
+            boolean dedicatedActive,
+            boolean perfBreach,
+            boolean hybridBreach,
+            boolean denoiseBreach,
+            boolean asBudgetBreach,
+            String transparencyStageGateStatus
     ) {
     }
 

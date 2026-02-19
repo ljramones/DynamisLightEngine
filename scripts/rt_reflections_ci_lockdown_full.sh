@@ -18,6 +18,7 @@ VULKAN_TESTS=(
   "rtHybridCompositionBreachUsesConfiguredThresholdAndCooldown"
   "rtDenoiseEnvelopeBreachEmitsUnderStrictThresholds"
   "rtAsBudgetBreachEmitsUnderStrictThresholds"
+  "rtPromotionReadyEmitsAfterMinimumStableFrames"
   "transparentCandidatesEmitStageGateWarningUntilRtLaneIsActive"
   "transparentCandidatesWithRtPathEnablePreviewStageGateAndRuntimeIntegrationBit"
   "planarContractCoverageIncludesHybridAndRtHybridModes"

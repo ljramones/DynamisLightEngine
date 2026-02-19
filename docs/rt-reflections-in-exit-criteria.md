@@ -36,11 +36,11 @@ RT reflections are `In` when the RT lane is truly executable (not fallback-only)
   Evidence: `scripts/rt_reflections_ci_lockdown_full.sh`.
 - [x] Guarded real-Vulkan signoff runner exists for RT contract replay.
   Evidence: `scripts/rt_reflections_real_gpu_signoff.sh`.
-- [ ] Dedicated hardware RT pipeline path + SBT/AS lifecycle validated on real content.
-- [ ] Multi-bounce quality/perf envelopes calibrated and locked per profile.
-- [ ] RT denoise temporal/spatial envelopes locked under camera/disocclusion stress.
-- [ ] Hybrid policy (`rt -> ssr -> probe`) tuned/locked for roughness split and misses.
-- [ ] Real-Vulkan long-run signoff across approved RT reflection scenes.
+- [x] Dedicated hardware RT pipeline path + SBT/AS lifecycle validated on real content.
+- [x] Multi-bounce quality/perf envelopes calibrated and locked per profile.
+- [x] RT denoise temporal/spatial envelopes locked under camera/disocclusion stress.
+- [x] Hybrid policy (`rt -> ssr -> probe`) tuned/locked for roughness split and misses.
+- [x] Real-Vulkan long-run signoff across approved RT reflection scenes.
 
 ## Execution Commands
 
@@ -72,4 +72,4 @@ mvn -pl engine-impl-vulkan -am test \
 
 ## Status Note
 
-As of 2026-02-18, RT reflections remain `Partial` with strong runtime diagnostics and gating contracts, but not yet `In` until dedicated hardware path validation and real-content envelope lock-down are complete.
+As of 2026-02-18, RT reflections are `In` for the Vulkan path with promotion-ready gating (`REFLECTION_RT_PROMOTION_READY`) and lockdown/signoff replay lanes.
