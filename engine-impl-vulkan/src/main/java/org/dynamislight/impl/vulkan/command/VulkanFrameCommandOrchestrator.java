@@ -1,9 +1,12 @@
 package org.dynamislight.impl.vulkan.command;
 
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.impl.vulkan.graph.VulkanAaPostRenderGraphPlanner;
+import org.dynamislight.impl.vulkan.graph.VulkanExecutableRenderGraphPlan;
 import org.dynamislight.impl.vulkan.graph.VulkanExecutableRenderGraphBuilder;
 import org.dynamislight.impl.vulkan.graph.VulkanExecutableRenderGraphPlanner;
+import org.dynamislight.impl.vulkan.graph.VulkanResourceBindingTable;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -11,7 +14,16 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.IntUnaryOperator;
+
+import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_GENERAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 public final class VulkanFrameCommandOrchestrator {
     private static final VulkanShadowPassRecorder SHADOW_RECORDER = new VulkanShadowPassRecorder();
@@ -236,10 +248,27 @@ public final class VulkanFrameCommandOrchestrator {
         }
 
         // B.3.2 wiring only: compile callback-carrying declarations in parallel with linear execution.
-        EXECUTABLE_GRAPH_PLANNER.compile(
+        VulkanExecutableRenderGraphPlan executablePlan = EXECUTABLE_GRAPH_PLANNER.compile(
                 graphBuilder.build(),
                 VulkanAaPostRenderGraphPlanner.defaultImportedResources()
         );
+        VulkanResourceBindingTable bindingTable = buildResourceBindingTable(inputs, imageIndex);
+        Set<String> unboundResources = bindingTable.unboundResources(executablePlan.metadataPlan());
+        if (!unboundResources.isEmpty()) {
+            throw new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Render graph has unbound Vulkan resources: " + String.join(", ", unboundResources),
+                    false
+            );
+        }
+        Set<String> invalidBindings = bindingTable.invalidBindings(executablePlan.metadataPlan());
+        if (!invalidBindings.isEmpty()) {
+            throw new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Render graph has invalid Vulkan resource bindings: " + String.join(", ", invalidBindings),
+                    false
+            );
+        }
 
         int endResult = VulkanRenderCommandRecorder.end(commandBuffer);
         if (endResult != VK10.VK_SUCCESS) {
@@ -262,6 +291,101 @@ public final class VulkanFrameCommandOrchestrator {
         EngineException failure(String operation, int result);
     }
 
+    static VulkanResourceBindingTable buildResourceBindingTable(Inputs inputs, int imageIndex) {
+        long currentSwapchainImage = imageIndex >= 0 && imageIndex < inputs.swapchainImages().length
+                ? inputs.swapchainImages()[imageIndex]
+                : 0L;
+        long currentDepthImage = imageIndex >= 0 && imageIndex < inputs.depthImages().length
+                ? inputs.depthImages()[imageIndex]
+                : 0L;
+        long sceneColorImage = inputs.postOffscreenActive() ? inputs.offscreenColorImage() : currentSwapchainImage;
+        long resolvedColorImage = currentSwapchainImage != 0L ? currentSwapchainImage : sceneColorImage;
+
+        VulkanResourceBindingTable table = new VulkanResourceBindingTable()
+                .bind(
+                        "shadow_depth",
+                        inputs.shadowDepthImage(),
+                        inputs.depthFormat(),
+                        VK_IMAGE_ASPECT_DEPTH_BIT,
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "shadow_moment_atlas",
+                        inputs.shadowMomentImage(),
+                        inputs.shadowMomentFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                )
+                .bind(
+                        "planar_capture",
+                        inputs.planarCaptureImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                )
+                .bind(
+                        "scene_color",
+                        sceneColorImage,
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        inputs.postOffscreenActive() ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "velocity",
+                        inputs.velocityImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                )
+                .bind(
+                        "depth",
+                        currentDepthImage,
+                        inputs.depthFormat(),
+                        VK_IMAGE_ASPECT_DEPTH_BIT,
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "history_color",
+                        inputs.taaHistoryImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                )
+                .bind(
+                        "history_velocity",
+                        inputs.taaHistoryVelocityImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                )
+                .bind(
+                        "resolved_color",
+                        resolvedColorImage,
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "history_color_next",
+                        inputs.taaHistoryImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_GENERAL
+                )
+                .bind(
+                        "history_velocity_next",
+                        inputs.taaHistoryVelocityImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_GENERAL
+                );
+
+        if (!inputs.postOffscreenActive()) {
+            table.updateLayout("resolved_color", VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        }
+        return table;
+    }
+
     public record FrameHooks(
             ThrowingRunnable updateShadowMatrices,
             ThrowingRunnable prepareUniforms,
@@ -276,6 +400,8 @@ public final class VulkanFrameCommandOrchestrator {
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,
+            int swapchainImageFormat,
+            int depthFormat,
             int shadowMapResolution,
             boolean shadowEnabled,
             boolean pointShadowEnabled,
@@ -291,7 +417,9 @@ public final class VulkanFrameCommandOrchestrator {
             long shadowPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
+            long shadowDepthImage,
             long shadowMomentImage,
+            int shadowMomentFormat,
             int shadowMomentMipLevels,
             boolean shadowMomentPipelineRequested,
             boolean shadowMomentInitialized,
@@ -343,6 +471,7 @@ public final class VulkanFrameCommandOrchestrator {
             long taaHistoryVelocityImage,
             long planarCaptureImage,
             long velocityImage,
+            long[] depthImages,
             long[] swapchainImages,
             long[] postFramebuffers,
             LongByInt descriptorSetForFrame,
