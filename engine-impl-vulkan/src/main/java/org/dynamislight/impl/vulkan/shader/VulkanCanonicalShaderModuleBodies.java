@@ -19,12 +19,19 @@ public final class VulkanCanonicalShaderModuleBodies {
         boolean moment = mode != null
                 && (VulkanShadowCapabilityDescriptorV2.MODE_VSM.id().equalsIgnoreCase(mode.id())
                 || VulkanShadowCapabilityDescriptorV2.MODE_EVSM.id().equalsIgnoreCase(mode.id()));
-        List<String> names = new ArrayList<>(List.of("finalizeShadowVisibility"));
-        if (moment) {
-            names.add(0, "momentVisibilityApprox");
-            names.add(1, "evsmVisibilityApprox");
-            names.add(2, "reduceLightBleed");
-        }
+        List<String> names = moment
+                ? new ArrayList<>(List.of(
+                        "reduceLightBleed",
+                        "sampleMomentsWeighted",
+                        "sampleMomentsWideBilateral",
+                        "sampleMomentsRingBilateral",
+                        "sampleMomentBounds",
+                        "clampMomentsToBounds",
+                        "momentVarianceConfidence",
+                        "momentVisibilityApprox",
+                        "evsmVisibilityApprox"
+                ))
+                : new ArrayList<>(List.of("finalizeShadowVisibility"));
         return extractFunctions(source, names);
     }
 
@@ -86,55 +93,6 @@ public final class VulkanCanonicalShaderModuleBodies {
     }
 
     private static String extractFunctionDefinition(String source, String functionName) {
-        if (source == null || source.isBlank() || functionName == null || functionName.isBlank()) {
-            return "";
-        }
-        String marker = functionName + "(";
-        int searchFrom = 0;
-        while (true) {
-            int idx = source.indexOf(marker, searchFrom);
-            if (idx < 0) {
-                return "";
-            }
-            int openParen = source.indexOf('(', idx);
-            if (openParen < 0) {
-                return "";
-            }
-            int closeParen = matchForward(source, openParen, '(', ')');
-            if (closeParen < 0) {
-                return "";
-            }
-            int cursor = closeParen + 1;
-            while (cursor < source.length() && Character.isWhitespace(source.charAt(cursor))) {
-                cursor++;
-            }
-            if (cursor >= source.length() || source.charAt(cursor) != '{') {
-                searchFrom = idx + marker.length();
-                continue;
-            }
-            int start = source.lastIndexOf('\n', idx);
-            start = start < 0 ? 0 : start + 1;
-            int end = matchForward(source, cursor, '{', '}');
-            if (end < 0) {
-                return "";
-            }
-            return source.substring(start, end + 1);
-        }
-    }
-
-    private static int matchForward(String source, int start, char open, char close) {
-        int depth = 0;
-        for (int i = start; i < source.length(); i++) {
-            char c = source.charAt(i);
-            if (c == open) {
-                depth++;
-            } else if (c == close) {
-                depth--;
-                if (depth == 0) {
-                    return i;
-                }
-            }
-        }
-        return -1;
+        return VulkanShaderFunctionText.extractFunctionDefinition(source, functionName);
     }
 }

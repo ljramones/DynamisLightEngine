@@ -157,12 +157,14 @@ public final class VulkanShadowCapabilityDescriptorV2 implements RenderFeatureCa
                 "main_geometry",
                 RenderShaderInjectionPoint.LIGHTING_EVAL,
                 RenderShaderStage.FRAGMENT,
-                "finalizeShadowVisibility",
-                "float finalizeShadowVisibility("
-                        + "float pcfVisibility, int shadowFilterMode, bool shadowRtEnabled, int shadowRtMode, "
-                        + "int shadowRtSampleCount, float shadowRtDenoiseStrength, float shadowRtRayLength, "
-                        + "vec2 uv, float compareDepth, int layer, float ndl, float depthRatio, "
-                        + "float pcssSoftness, float shadowTemporalStability)",
+                isMomentMode(active) ? "momentVisibilityApprox" : "finalizeShadowVisibility",
+                isMomentMode(active)
+                        ? "float momentVisibilityApprox(vec2 uv, float compareDepth, int layer)"
+                        : "float finalizeShadowVisibility("
+                            + "float pcfVisibility, int shadowFilterMode, bool shadowRtEnabled, int shadowRtMode, "
+                            + "int shadowRtSampleCount, float shadowRtDenoiseStrength, float shadowRtRayLength, "
+                            + "vec2 uv, float compareDepth, int layer, float ndl, float depthRatio, "
+                            + "float pcssSoftness, float shadowTemporalStability)",
                 VulkanCanonicalShaderModuleBodies.shadowMainBody(active),
                 shadowMainModuleBindings(active),
                 uniformRequirements(active),

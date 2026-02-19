@@ -346,8 +346,8 @@ class VulkanCapabilityContractV2DescriptorsTest {
         VulkanShadowCapabilityDescriptorV2 descriptor =
                 VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM);
         List<RenderShaderModuleDeclaration> modules = descriptor.shaderModules(descriptor.activeMode());
-        assertTrue(modules.stream().anyMatch(module -> module.glslBody().contains("float finalizeShadowVisibility(")));
         assertTrue(modules.stream().anyMatch(module -> module.glslBody().contains("float momentVisibilityApprox(")));
+        assertTrue(modules.stream().anyMatch(module -> module.glslBody().contains("float reduceLightBleed(")));
     }
 
     @Test

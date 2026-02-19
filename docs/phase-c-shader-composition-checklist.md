@@ -11,7 +11,8 @@ Scope: final architecture migration for composed shaders, composed descriptor la
 - [x] C.1.4 Extract AA shader module(s) from Vulkan shader sources.
 - [x] C.1.5 Implement shader assembler (host template + module injection).
   - Canonical alignment complete: shadow/reflection/AA module bodies now extracted from Vulkan monolithic shader functions.
-- [ ] C.1.6 Parallel validation compile for blessed profiles (no runtime cutover).
+- [x] C.1.6 Parallel validation compile for blessed profiles (no runtime cutover).
+  - Added blessed profile compile/equivalence matrix test (`performance`, `balanced`, `quality`, `stability`) for monolithic vs assembled canonical shader paths.
 - [ ] C.1.7 Cutover Vulkan pipelines to assembled shader sources.
 - [ ] C.1.8 Remove legacy monolithic shader source path.
 
