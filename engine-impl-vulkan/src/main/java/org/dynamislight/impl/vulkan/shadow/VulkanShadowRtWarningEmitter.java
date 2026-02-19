@@ -1,4 +1,6 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
+
+import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowRuntimeTuning;
 
@@ -8,38 +10,38 @@ import java.util.List;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.EngineWarning;
 
-final class VulkanShadowRtWarningEmitter {
-    static final class State {
-        ShadowRenderConfig currentShadows;
-        QualityTier qualityTier;
-        double lastFrameGpuMs;
-        boolean shadowRtBvhSupported;
-        boolean shadowRtTraversalSupported;
-        float shadowRtDenoiseStrength;
-        float shadowRtProductionDenoiseStrength;
-        float shadowRtDedicatedDenoiseStrength;
-        int shadowRtSampleCount;
-        int shadowRtProductionSampleCount;
-        int shadowRtDedicatedSampleCount;
-        float shadowRtRayLength;
-        float shadowRtProductionRayLength;
-        float shadowRtDedicatedRayLength;
-        double shadowRtDenoiseWarnMin;
-        int shadowRtSampleWarnMin;
-        double shadowRtPerfMaxGpuMsLow;
-        double shadowRtPerfMaxGpuMsMedium;
-        double shadowRtPerfMaxGpuMsHigh;
-        double shadowRtPerfMaxGpuMsUltra;
-        int shadowRtWarnMinFrames;
-        int shadowRtWarnCooldownFrames;
-        int shadowRtWarnCooldownRemaining;
-        int shadowRtHighStreak;
-        boolean shadowRtEnvelopeBreachedLastFrame;
-        double shadowRtPerfGpuMsEstimateLastFrame;
-        double shadowRtPerfGpuMsWarnMaxLastFrame;
+public final class VulkanShadowRtWarningEmitter {
+    public static final class State {
+        public ShadowRenderConfig currentShadows;
+        public QualityTier qualityTier;
+        public double lastFrameGpuMs;
+        public boolean shadowRtBvhSupported;
+        public boolean shadowRtTraversalSupported;
+        public float shadowRtDenoiseStrength;
+        public float shadowRtProductionDenoiseStrength;
+        public float shadowRtDedicatedDenoiseStrength;
+        public int shadowRtSampleCount;
+        public int shadowRtProductionSampleCount;
+        public int shadowRtDedicatedSampleCount;
+        public float shadowRtRayLength;
+        public float shadowRtProductionRayLength;
+        public float shadowRtDedicatedRayLength;
+        public double shadowRtDenoiseWarnMin;
+        public int shadowRtSampleWarnMin;
+        public double shadowRtPerfMaxGpuMsLow;
+        public double shadowRtPerfMaxGpuMsMedium;
+        public double shadowRtPerfMaxGpuMsHigh;
+        public double shadowRtPerfMaxGpuMsUltra;
+        public int shadowRtWarnMinFrames;
+        public int shadowRtWarnCooldownFrames;
+        public int shadowRtWarnCooldownRemaining;
+        public int shadowRtHighStreak;
+        public boolean shadowRtEnvelopeBreachedLastFrame;
+        public double shadowRtPerfGpuMsEstimateLastFrame;
+        public double shadowRtPerfGpuMsWarnMaxLastFrame;
     }
 
-    static void emit(List<EngineWarning> warnings, State state) {
+    public static void emit(List<EngineWarning> warnings, State state) {
         if (state == null || state.currentShadows == null || "off".equals(state.currentShadows.rtShadowMode())) {
             return;
         }

@@ -1,4 +1,6 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
+
+import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
@@ -7,32 +9,32 @@ import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.LightType;
 
-final class VulkanShadowTopologyWarningEmitter {
-    static final class State {
-        List<LightDesc> currentSceneLights;
-        int shadowCadenceSelectedLocalLightsLastFrame;
-        int shadowSpotProjectedRenderedCountLastFrame;
-        int shadowPointBudgetRenderedCubemapsLastFrame;
-        int shadowTopologyCandidateSpotLightsLastFrame;
-        int shadowTopologyCandidatePointLightsLastFrame;
-        double shadowTopologyLocalCoverageLastFrame;
-        double shadowTopologySpotCoverageLastFrame;
-        double shadowTopologyPointCoverageLastFrame;
-        double shadowTopologyLocalCoverageWarnMin;
-        double shadowTopologySpotCoverageWarnMin;
-        double shadowTopologyPointCoverageWarnMin;
-        int shadowTopologyWarnMinFrames;
-        int shadowTopologyWarnCooldownFrames;
-        int shadowTopologyWarnCooldownRemaining;
-        int shadowTopologyHighStreak;
-        int shadowTopologyStableStreak;
-        int shadowTopologyPromotionReadyMinFrames;
-        boolean shadowTopologyPromotionReadyLastFrame;
-        boolean shadowTopologyEnvelopeBreachedLastFrame;
-        ShadowRenderConfig currentShadows;
+public final class VulkanShadowTopologyWarningEmitter {
+    public static final class State {
+        public List<LightDesc> currentSceneLights;
+        public int shadowCadenceSelectedLocalLightsLastFrame;
+        public int shadowSpotProjectedRenderedCountLastFrame;
+        public int shadowPointBudgetRenderedCubemapsLastFrame;
+        public int shadowTopologyCandidateSpotLightsLastFrame;
+        public int shadowTopologyCandidatePointLightsLastFrame;
+        public double shadowTopologyLocalCoverageLastFrame;
+        public double shadowTopologySpotCoverageLastFrame;
+        public double shadowTopologyPointCoverageLastFrame;
+        public double shadowTopologyLocalCoverageWarnMin;
+        public double shadowTopologySpotCoverageWarnMin;
+        public double shadowTopologyPointCoverageWarnMin;
+        public int shadowTopologyWarnMinFrames;
+        public int shadowTopologyWarnCooldownFrames;
+        public int shadowTopologyWarnCooldownRemaining;
+        public int shadowTopologyHighStreak;
+        public int shadowTopologyStableStreak;
+        public int shadowTopologyPromotionReadyMinFrames;
+        public boolean shadowTopologyPromotionReadyLastFrame;
+        public boolean shadowTopologyEnvelopeBreachedLastFrame;
+        public ShadowRenderConfig currentShadows;
     }
 
-    static void emit(List<EngineWarning> warnings, State state) {
+    public static void emit(List<EngineWarning> warnings, State state) {
         int candidateSpotLights = 0;
         int candidatePointLights = 0;
         if (state.currentSceneLights != null) {

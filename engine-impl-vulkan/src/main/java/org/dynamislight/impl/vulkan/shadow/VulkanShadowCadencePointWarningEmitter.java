@@ -1,57 +1,59 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
+
+import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import java.util.List;
 import org.dynamislight.api.event.EngineWarning;
 
-final class VulkanShadowCadencePointWarningEmitter {
-    static final class State {
-        ShadowRenderConfig currentShadows;
-        boolean shadowSpotProjectedRequestedLastFrame;
-        boolean shadowSpotProjectedActiveLastFrame;
-        int shadowSpotProjectedRenderedCountLastFrame;
-        String shadowSpotProjectedContractStatusLastFrame;
-        boolean shadowSpotProjectedContractBreachedLastFrame;
-        int shadowSpotProjectedStableStreak;
-        boolean shadowSpotProjectedPromotionReadyLastFrame;
-        int shadowSpotProjectedPromotionReadyMinFrames;
+public final class VulkanShadowCadencePointWarningEmitter {
+    public static final class State {
+        public ShadowRenderConfig currentShadows;
+        public boolean shadowSpotProjectedRequestedLastFrame;
+        public boolean shadowSpotProjectedActiveLastFrame;
+        public int shadowSpotProjectedRenderedCountLastFrame;
+        public String shadowSpotProjectedContractStatusLastFrame;
+        public boolean shadowSpotProjectedContractBreachedLastFrame;
+        public int shadowSpotProjectedStableStreak;
+        public boolean shadowSpotProjectedPromotionReadyLastFrame;
+        public int shadowSpotProjectedPromotionReadyMinFrames;
 
-        int shadowCadenceSelectedLocalLightsLastFrame;
-        int shadowCadenceDeferredLocalLightsLastFrame;
-        int shadowCadenceStaleBypassCountLastFrame;
-        double shadowCadenceDeferredRatioLastFrame;
-        double shadowCadenceWarnDeferredRatioMax;
-        int shadowCadenceHighStreak;
-        int shadowCadenceWarnMinFrames;
-        int shadowCadenceWarnCooldownFrames;
-        int shadowCadenceWarnCooldownRemaining;
-        int shadowCadenceStableStreak;
-        int shadowCadencePromotionReadyMinFrames;
-        boolean shadowCadencePromotionReadyLastFrame;
-        boolean cadenceEnvelopeNow;
+        public int shadowCadenceSelectedLocalLightsLastFrame;
+        public int shadowCadenceDeferredLocalLightsLastFrame;
+        public int shadowCadenceStaleBypassCountLastFrame;
+        public double shadowCadenceDeferredRatioLastFrame;
+        public double shadowCadenceWarnDeferredRatioMax;
+        public int shadowCadenceHighStreak;
+        public int shadowCadenceWarnMinFrames;
+        public int shadowCadenceWarnCooldownFrames;
+        public int shadowCadenceWarnCooldownRemaining;
+        public int shadowCadenceStableStreak;
+        public int shadowCadencePromotionReadyMinFrames;
+        public boolean shadowCadencePromotionReadyLastFrame;
+        public boolean cadenceEnvelopeNow;
 
-        int shadowPointBudgetRenderedCubemapsLastFrame;
-        int shadowPointBudgetRenderedFacesLastFrame;
-        int shadowPointBudgetDeferredCountLastFrame;
-        double shadowPointBudgetSaturationRatioLastFrame;
-        double shadowPointFaceBudgetWarnSaturationMin;
-        int shadowPointBudgetHighStreak;
-        int shadowPointBudgetWarnCooldownRemaining;
-        int shadowPointFaceBudgetWarnMinFrames;
-        int shadowPointFaceBudgetWarnCooldownFrames;
-        int shadowPointBudgetStableStreak;
-        int shadowPointFaceBudgetPromotionReadyMinFrames;
-        boolean shadowPointBudgetPromotionReadyLastFrame;
-        boolean shadowPointBudgetEnvelopeBreachedLastFrame;
-        int shadowMaxFacesPerFrame;
+        public int shadowPointBudgetRenderedCubemapsLastFrame;
+        public int shadowPointBudgetRenderedFacesLastFrame;
+        public int shadowPointBudgetDeferredCountLastFrame;
+        public double shadowPointBudgetSaturationRatioLastFrame;
+        public double shadowPointFaceBudgetWarnSaturationMin;
+        public int shadowPointBudgetHighStreak;
+        public int shadowPointBudgetWarnCooldownRemaining;
+        public int shadowPointFaceBudgetWarnMinFrames;
+        public int shadowPointFaceBudgetWarnCooldownFrames;
+        public int shadowPointBudgetStableStreak;
+        public int shadowPointFaceBudgetPromotionReadyMinFrames;
+        public boolean shadowPointBudgetPromotionReadyLastFrame;
+        public boolean shadowPointBudgetEnvelopeBreachedLastFrame;
+        public int shadowMaxFacesPerFrame;
 
-        int shadowPhaseAPromotionStableStreak;
-        boolean shadowPhaseAPromotionReadyLastFrame;
-        int shadowPhaseAPromotionReadyMinFrames;
+        public int shadowPhaseAPromotionStableStreak;
+        public boolean shadowPhaseAPromotionReadyLastFrame;
+        public int shadowPhaseAPromotionReadyMinFrames;
     }
 
-    static void emit(List<EngineWarning> warnings, State state) {
+    public static void emit(List<EngineWarning> warnings, State state) {
         warnings.add(new EngineWarning(
                 "SHADOW_SPOT_PROJECTED_CONTRACT",
                 "Shadow spot projected contract (requested="

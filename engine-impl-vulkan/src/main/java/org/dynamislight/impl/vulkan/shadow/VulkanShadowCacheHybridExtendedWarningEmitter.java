@@ -1,4 +1,6 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
+
+import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
@@ -6,70 +8,70 @@ import java.util.List;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.scene.MaterialDesc;
 
-final class VulkanShadowCacheHybridExtendedWarningEmitter {
-    static final class State {
-        String shadowCapabilityModeLastFrame;
-        int shadowAllocatorReusedAssignments;
-        int shadowAllocatorEvictions;
-        int shadowCadenceSelectedLocalLightsLastFrame;
-        int shadowCadenceDeferredLocalLightsLastFrame;
-        double shadowCacheChurnWarnMax;
-        int shadowCacheMissWarnMax;
-        int shadowCacheWarnMinFrames;
-        int shadowCacheWarnCooldownFrames;
-        int shadowCacheWarnCooldownRemaining;
-        int shadowCacheHighStreak;
-        boolean shadowCacheEnvelopeBreachedLastFrame;
-        int shadowCacheHitCountLastFrame;
-        int shadowCacheMissCountLastFrame;
-        int shadowCacheEvictionCountLastFrame;
-        double shadowCacheHitRatioLastFrame;
-        double shadowCacheChurnRatioLastFrame;
-        String shadowCacheInvalidationReasonLastFrame;
+public final class VulkanShadowCacheHybridExtendedWarningEmitter {
+    public static final class State {
+        public String shadowCapabilityModeLastFrame;
+        public int shadowAllocatorReusedAssignments;
+        public int shadowAllocatorEvictions;
+        public int shadowCadenceSelectedLocalLightsLastFrame;
+        public int shadowCadenceDeferredLocalLightsLastFrame;
+        public double shadowCacheChurnWarnMax;
+        public int shadowCacheMissWarnMax;
+        public int shadowCacheWarnMinFrames;
+        public int shadowCacheWarnCooldownFrames;
+        public int shadowCacheWarnCooldownRemaining;
+        public int shadowCacheHighStreak;
+        public boolean shadowCacheEnvelopeBreachedLastFrame;
+        public int shadowCacheHitCountLastFrame;
+        public int shadowCacheMissCountLastFrame;
+        public int shadowCacheEvictionCountLastFrame;
+        public double shadowCacheHitRatioLastFrame;
+        public double shadowCacheChurnRatioLastFrame;
+        public String shadowCacheInvalidationReasonLastFrame;
 
-        ShadowRenderConfig currentShadows;
-        double shadowHybridRtShareWarnMin;
-        double shadowHybridContactShareWarnMin;
-        int shadowHybridWarnMinFrames;
-        int shadowHybridWarnCooldownFrames;
-        int shadowHybridWarnCooldownRemaining;
-        int shadowHybridHighStreak;
-        boolean shadowHybridEnvelopeBreachedLastFrame;
-        double shadowHybridCascadeShareLastFrame;
-        double shadowHybridContactShareLastFrame;
-        double shadowHybridRtShareLastFrame;
+        public ShadowRenderConfig currentShadows;
+        public double shadowHybridRtShareWarnMin;
+        public double shadowHybridContactShareWarnMin;
+        public int shadowHybridWarnMinFrames;
+        public int shadowHybridWarnCooldownFrames;
+        public int shadowHybridWarnCooldownRemaining;
+        public int shadowHybridHighStreak;
+        public boolean shadowHybridEnvelopeBreachedLastFrame;
+        public double shadowHybridCascadeShareLastFrame;
+        public double shadowHybridContactShareLastFrame;
+        public double shadowHybridRtShareLastFrame;
 
-        List<MaterialDesc> currentSceneMaterials;
-        boolean shadowTransparentReceiversRequested;
-        boolean shadowTransparentReceiversSupported;
-        double shadowTransparentReceiverCandidateRatioWarnMax;
-        int shadowTransparentReceiverWarnMinFrames;
-        int shadowTransparentReceiverWarnCooldownFrames;
-        int shadowTransparentReceiverWarnCooldownRemaining;
-        int shadowTransparentReceiverHighStreak;
-        boolean shadowTransparentReceiverEnvelopeBreachedLastFrame;
-        int shadowTransparentReceiverCandidateCountLastFrame;
-        double shadowTransparentReceiverCandidateRatioLastFrame;
-        String shadowTransparentReceiverPolicyLastFrame;
+        public List<MaterialDesc> currentSceneMaterials;
+        public boolean shadowTransparentReceiversRequested;
+        public boolean shadowTransparentReceiversSupported;
+        public double shadowTransparentReceiverCandidateRatioWarnMax;
+        public int shadowTransparentReceiverWarnMinFrames;
+        public int shadowTransparentReceiverWarnCooldownFrames;
+        public int shadowTransparentReceiverWarnCooldownRemaining;
+        public int shadowTransparentReceiverHighStreak;
+        public boolean shadowTransparentReceiverEnvelopeBreachedLastFrame;
+        public int shadowTransparentReceiverCandidateCountLastFrame;
+        public double shadowTransparentReceiverCandidateRatioLastFrame;
+        public String shadowTransparentReceiverPolicyLastFrame;
 
-        boolean shadowAreaApproxRequested;
-        boolean shadowAreaApproxSupported;
-        boolean shadowAreaApproxRequireActive;
-        boolean shadowAreaApproxBreachedLastFrame;
+        public boolean shadowAreaApproxRequested;
+        public boolean shadowAreaApproxSupported;
+        public boolean shadowAreaApproxRequireActive;
+        public boolean shadowAreaApproxBreachedLastFrame;
 
-        boolean shadowDistanceFieldRequested;
-        boolean shadowDistanceFieldSupported;
-        boolean shadowDistanceFieldRequireActive;
-        boolean shadowDistanceFieldBreachedLastFrame;
+        public boolean shadowDistanceFieldRequested;
+        public boolean shadowDistanceFieldSupported;
+        public boolean shadowDistanceFieldRequireActive;
+        public boolean shadowDistanceFieldBreachedLastFrame;
 
-        boolean shadowRtEnvelopeBreachedLastFrame;
-        int shadowRtWarnCooldownRemaining;
-        int shadowPhaseDPromotionStableStreak;
-        boolean shadowPhaseDPromotionReadyLastFrame;
-        int shadowPhaseDPromotionReadyMinFrames;
+        public boolean shadowRtEnvelopeBreachedLastFrame;
+        public int shadowRtWarnCooldownRemaining;
+        public int shadowPhaseDPromotionStableStreak;
+        public boolean shadowPhaseDPromotionReadyLastFrame;
+        public int shadowPhaseDPromotionReadyMinFrames;
     }
 
-    static void emit(List<EngineWarning> warnings, State state) {
+    public static void emit(List<EngineWarning> warnings, State state) {
         state.shadowCacheHitCountLastFrame = Math.max(0, state.shadowAllocatorReusedAssignments);
         state.shadowCacheMissCountLastFrame = Math.max(0,
                 state.shadowCadenceSelectedLocalLightsLastFrame - state.shadowCacheHitCountLastFrame);

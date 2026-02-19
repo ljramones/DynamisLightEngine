@@ -1,4 +1,6 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
+
+import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowRuntimeTuning;
 
@@ -6,48 +8,48 @@ import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.api.event.EngineWarning;
 
-final class VulkanShadowPolicyWarningEmitter {
-    static final class State {
-        ShadowRenderConfig currentShadows;
-        String shadowDepthFormatTag;
-        int shadowMaxShadowedLocalLights;
-        int shadowMaxLocalLayers;
-        int shadowMaxFacesPerFrame;
-        boolean shadowSchedulerEnabled;
-        int shadowSchedulerHeroPeriod;
-        int shadowSchedulerMidPeriod;
-        int shadowSchedulerDistantPeriod;
-        boolean shadowDirectionalTexelSnapEnabled;
-        float shadowDirectionalTexelSnapScale;
-        long shadowSchedulerFrameTick;
-        int shadowAllocatorAssignedLights;
-        int shadowAllocatorReusedAssignments;
-        int shadowAllocatorEvictions;
-        float shadowPcssSoftness;
-        float shadowMomentBlend;
-        float shadowMomentBleedReduction;
-        float shadowContactStrength;
-        float shadowContactTemporalMotionScale;
-        float shadowContactTemporalMinStability;
-        boolean shadowMomentResourcesAllocated;
-        String shadowMomentFormatTag;
-        boolean shadowMomentInitialized;
-        String momentPhase;
-        boolean shadowRtTraversalSupported;
-        boolean shadowRtBvhSupported;
-        boolean shadowRtBvhStrict;
-        float shadowRtDenoiseStrength;
-        float shadowRtRayLength;
-        int shadowRtSampleCount;
-        float shadowRtDedicatedDenoiseStrength;
-        float shadowRtDedicatedRayLength;
-        int shadowRtDedicatedSampleCount;
-        float shadowRtProductionDenoiseStrength;
-        float shadowRtProductionRayLength;
-        int shadowRtProductionSampleCount;
+public final class VulkanShadowPolicyWarningEmitter {
+    public static final class State {
+        public ShadowRenderConfig currentShadows;
+        public String shadowDepthFormatTag;
+        public int shadowMaxShadowedLocalLights;
+        public int shadowMaxLocalLayers;
+        public int shadowMaxFacesPerFrame;
+        public boolean shadowSchedulerEnabled;
+        public int shadowSchedulerHeroPeriod;
+        public int shadowSchedulerMidPeriod;
+        public int shadowSchedulerDistantPeriod;
+        public boolean shadowDirectionalTexelSnapEnabled;
+        public float shadowDirectionalTexelSnapScale;
+        public long shadowSchedulerFrameTick;
+        public int shadowAllocatorAssignedLights;
+        public int shadowAllocatorReusedAssignments;
+        public int shadowAllocatorEvictions;
+        public float shadowPcssSoftness;
+        public float shadowMomentBlend;
+        public float shadowMomentBleedReduction;
+        public float shadowContactStrength;
+        public float shadowContactTemporalMotionScale;
+        public float shadowContactTemporalMinStability;
+        public boolean shadowMomentResourcesAllocated;
+        public String shadowMomentFormatTag;
+        public boolean shadowMomentInitialized;
+        public String momentPhase;
+        public boolean shadowRtTraversalSupported;
+        public boolean shadowRtBvhSupported;
+        public boolean shadowRtBvhStrict;
+        public float shadowRtDenoiseStrength;
+        public float shadowRtRayLength;
+        public int shadowRtSampleCount;
+        public float shadowRtDedicatedDenoiseStrength;
+        public float shadowRtDedicatedRayLength;
+        public int shadowRtDedicatedSampleCount;
+        public float shadowRtProductionDenoiseStrength;
+        public float shadowRtProductionRayLength;
+        public int shadowRtProductionSampleCount;
     }
 
-    static EngineWarning warning(State state) {
+    public static EngineWarning warning(State state) {
         return new EngineWarning(
                 "SHADOW_POLICY_ACTIVE",
                 "Shadow policy active: primary=" + state.currentShadows.primaryShadowLightId()

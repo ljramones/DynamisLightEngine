@@ -1,22 +1,24 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
+
+import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import java.util.List;
 import org.dynamislight.api.event.EngineWarning;
 
-final class VulkanShadowCoverageMomentWarningEmitter {
-    static final class State {
-        ShadowRenderConfig currentShadows;
-        boolean shadowSchedulerEnabled;
-        int shadowMaxFacesPerFrame;
-        int shadowPointBudgetRenderedFacesLastFrame;
-        int shadowMaxLocalLayers;
-        boolean shadowMomentResourcesAvailable;
-        boolean shadowMomentInitialized;
+public final class VulkanShadowCoverageMomentWarningEmitter {
+    public static final class State {
+        public ShadowRenderConfig currentShadows;
+        public boolean shadowSchedulerEnabled;
+        public int shadowMaxFacesPerFrame;
+        public int shadowPointBudgetRenderedFacesLastFrame;
+        public int shadowMaxLocalLayers;
+        public boolean shadowMomentResourcesAvailable;
+        public boolean shadowMomentInitialized;
     }
 
-    static void emit(List<EngineWarning> warnings, State state) {
+    public static void emit(List<EngineWarning> warnings, State state) {
         if (state == null || state.currentShadows == null) {
             return;
         }
