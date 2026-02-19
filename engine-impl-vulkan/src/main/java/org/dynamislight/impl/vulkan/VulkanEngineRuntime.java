@@ -1488,239 +1488,94 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + ", probeChurnEvents=" + churnDiagnostics.churnEvents()
                             + ")"
             ));
-            warnings.add(new EngineWarning(
-                    "REFLECTION_OVERRIDE_POLICY",
-                    "Reflection override policy (auto=" + overrideSummary.autoCount()
-                            + ", probeOnly=" + overrideSummary.probeOnlyCount()
-                            + ", ssrOnly=" + overrideSummary.ssrOnlyCount()
-                            + ", other=" + overrideSummary.otherCount()
-                            + ", planarSelectiveExcludes=probe_only|ssr_only)"
-            ));
-            int overrideTotal = Math.max(1, overrideSummary.totalCount());
-            double overrideProbeOnlyRatio = (double) overrideSummary.probeOnlyCount() / (double) overrideTotal;
-            double overrideSsrOnlyRatio = (double) overrideSummary.ssrOnlyCount() / (double) overrideTotal;
-            boolean overrideRisk = overrideProbeOnlyRatio > reflectionOverrideProbeOnlyRatioWarnMax
-                    || overrideSsrOnlyRatio > reflectionOverrideSsrOnlyRatioWarnMax
-                    || overrideSummary.otherCount() > reflectionOverrideOtherWarnMax;
-            if (overrideRisk) {
-                reflectionOverrideHighStreak++;
-            } else {
-                reflectionOverrideHighStreak = 0;
-            }
-            if (reflectionOverrideWarnCooldownRemaining > 0) {
-                reflectionOverrideWarnCooldownRemaining--;
-            }
-            boolean overrideTriggered = false;
-            if (overrideRisk
-                    && reflectionOverrideHighStreak >= reflectionOverrideWarnMinFrames
-                    && reflectionOverrideWarnCooldownRemaining <= 0) {
-                reflectionOverrideWarnCooldownRemaining = reflectionOverrideWarnCooldownFrames;
-                overrideTriggered = true;
-            }
-            reflectionOverrideBreachedLastFrame = overrideTriggered;
-            warnings.add(new EngineWarning(
-                    "REFLECTION_OVERRIDE_POLICY_ENVELOPE",
-                    "Reflection override policy envelope (probeOnlyRatio=" + overrideProbeOnlyRatio
-                            + ", ssrOnlyRatio=" + overrideSsrOnlyRatio
-                            + ", otherCount=" + overrideSummary.otherCount()
-                            + ", probeOnlyRatioWarnMax=" + reflectionOverrideProbeOnlyRatioWarnMax
-                            + ", ssrOnlyRatioWarnMax=" + reflectionOverrideSsrOnlyRatioWarnMax
-                            + ", otherWarnMax=" + reflectionOverrideOtherWarnMax
-                            + ", highStreak=" + reflectionOverrideHighStreak
-                            + ", warnMinFrames=" + reflectionOverrideWarnMinFrames
-                            + ", warnCooldownFrames=" + reflectionOverrideWarnCooldownFrames
-                            + ", warnCooldownRemaining=" + reflectionOverrideWarnCooldownRemaining
-                            + ", breached=" + reflectionOverrideBreachedLastFrame + ")"
-            ));
-            if (reflectionOverrideBreachedLastFrame) {
-                warnings.add(new EngineWarning(
-                        "REFLECTION_OVERRIDE_POLICY_ENVELOPE_BREACH",
-                        "Reflection override policy envelope breached (probeOnlyRatio=" + overrideProbeOnlyRatio
-                                + ", ssrOnlyRatio=" + overrideSsrOnlyRatio
-                                + ", otherCount=" + overrideSummary.otherCount() + ")"
-                ));
-            }
-            boolean contactHardeningActive = reflectionBaseMode > 0;
-            double contactHardeningEstimatedStrength = currentPost.reflectionsSsrStrength()
-                    * currentPost.reflectionsSsrMaxRoughness();
-            boolean contactHardeningRisk = contactHardeningActive
-                    && (currentPost.reflectionsSsrStrength() < reflectionContactHardeningMinSsrStrength
-                    || currentPost.reflectionsSsrMaxRoughness() < reflectionContactHardeningMinSsrMaxRoughness);
-            if (contactHardeningRisk) {
-                reflectionContactHardeningHighStreak++;
-            } else {
-                reflectionContactHardeningHighStreak = 0;
-            }
-            if (reflectionContactHardeningWarnCooldownRemaining > 0) {
-                reflectionContactHardeningWarnCooldownRemaining--;
-            }
-            boolean contactHardeningTriggered = false;
-            if (contactHardeningRisk
-                    && reflectionContactHardeningHighStreak >= reflectionContactHardeningWarnMinFrames
-                    && reflectionContactHardeningWarnCooldownRemaining <= 0) {
-                reflectionContactHardeningWarnCooldownRemaining = reflectionContactHardeningWarnCooldownFrames;
-                contactHardeningTriggered = true;
-            }
-            reflectionContactHardeningActiveLastFrame = contactHardeningActive;
-            reflectionContactHardeningEstimatedStrengthLastFrame = contactHardeningEstimatedStrength;
-            reflectionContactHardeningBreachedLastFrame = contactHardeningTriggered;
-            warnings.add(new EngineWarning(
-                    "REFLECTION_CONTACT_HARDENING_POLICY",
-                    "Contact-hardening policy (active=" + reflectionContactHardeningActiveLastFrame
-                            + ", estimatedStrength=" + reflectionContactHardeningEstimatedStrengthLastFrame
-                            + ", ssrStrength=" + currentPost.reflectionsSsrStrength()
-                            + ", ssrMaxRoughness=" + currentPost.reflectionsSsrMaxRoughness()
-                            + ", depthWindowMin=0.01, depthWindowMax=0.16, roughnessRampMin=0.58, ssrBoostMax=1.22, planarBoostMax=1.10"
-                            + ", minSsrStrength=" + reflectionContactHardeningMinSsrStrength
-                            + ", minSsrMaxRoughness=" + reflectionContactHardeningMinSsrMaxRoughness
-                            + ", highStreak=" + reflectionContactHardeningHighStreak
-                            + ", warnMinFrames=" + reflectionContactHardeningWarnMinFrames
-                            + ", warnCooldownFrames=" + reflectionContactHardeningWarnCooldownFrames
-                            + ", warnCooldownRemaining=" + reflectionContactHardeningWarnCooldownRemaining
-                            + ", breached=" + reflectionContactHardeningBreachedLastFrame + ")"
-            ));
-            if (reflectionContactHardeningBreachedLastFrame) {
-                warnings.add(new EngineWarning(
-                        "REFLECTION_CONTACT_HARDENING_ENVELOPE_BREACH",
-                        "Contact-hardening envelope breached (ssrStrength=" + currentPost.reflectionsSsrStrength()
-                                + ", ssrMaxRoughness=" + currentPost.reflectionsSsrMaxRoughness()
-                                + ", minSsrStrength=" + reflectionContactHardeningMinSsrStrength
-                                + ", minSsrMaxRoughness=" + reflectionContactHardeningMinSsrMaxRoughness + ")"
-                ));
-            }
-            warnings.add(new EngineWarning(
-                    "REFLECTION_PROBE_BLEND_DIAGNOSTICS",
-                    "Probe blend diagnostics (configured=" + probeDiagnostics.configuredProbeCount()
-                            + ", active=" + probeDiagnostics.activeProbeCount()
-                            + ", slots=" + probeDiagnostics.slotCount()
-                            + ", capacity=" + probeDiagnostics.metadataCapacity()
-                            + ", delta=" + churnDiagnostics.lastDelta()
-                            + ", churnEvents=" + churnDiagnostics.churnEvents()
-                            + ", meanDelta=" + churnDiagnostics.meanDelta()
-                            + ", highStreak=" + churnDiagnostics.highStreak()
-                            + ", warnMinDelta=" + reflectionProbeChurnWarnMinDelta
-                            + ", warnMinStreak=" + reflectionProbeChurnWarnMinStreak
-                            + ", warnCooldownFrames=" + reflectionProbeChurnWarnCooldownFrames
-                            + ", cooldownRemaining=" + churnDiagnostics.warnCooldownRemaining()
-                            + ")"
-            ));
-            int effectiveStreamingBudget = Math.max(1, Math.min(reflectionProbeMaxVisible, probeDiagnostics.metadataCapacity()));
-            boolean streamingBudgetPressure = probeDiagnostics.configuredProbeCount() > probeDiagnostics.activeProbeCount()
-                    && (probeDiagnostics.activeProbeCount() >= effectiveStreamingBudget || probeDiagnostics.activeProbeCount() == 0);
-            double missingSlotRatio = probeDiagnostics.visibleUniquePathCount() <= 0
-                    ? 0.0
-                    : (double) probeDiagnostics.missingSlotPathCount() / (double) probeDiagnostics.visibleUniquePathCount();
-            double deferredRatio = probeDiagnostics.frustumVisibleCount() <= 0
-                    ? 0.0
-                    : (double) probeDiagnostics.deferredProbeCount() / (double) probeDiagnostics.frustumVisibleCount();
-            int activeProbeCountSafe = Math.max(1, probeDiagnostics.activeProbeCount());
-            double lodSkewRatio = (double) probeDiagnostics.lodTier3Count() / (double) activeProbeCountSafe;
-            double memoryEstimateMb = probeDiagnostics.activeProbeCount() * 1.5;
-            boolean streamingRisk = streamingBudgetPressure
-                    || missingSlotRatio > reflectionProbeStreamingMissRatioWarnMax
-                    || deferredRatio > reflectionProbeStreamingDeferredRatioWarnMax
-                    || lodSkewRatio > reflectionProbeStreamingLodSkewWarnMax
-                    || memoryEstimateMb > reflectionProbeStreamingMemoryBudgetMb;
-            if (streamingRisk) {
-                reflectionProbeStreamingHighStreak++;
-            } else {
-                reflectionProbeStreamingHighStreak = 0;
-            }
-            if (reflectionProbeStreamingWarnCooldownRemaining > 0) {
-                reflectionProbeStreamingWarnCooldownRemaining--;
-            }
-            boolean streamingTriggered = false;
-            if (streamingRisk
-                    && reflectionProbeStreamingHighStreak >= reflectionProbeStreamingWarnMinFrames
-                    && reflectionProbeStreamingWarnCooldownRemaining <= 0) {
-                reflectionProbeStreamingWarnCooldownRemaining = reflectionProbeStreamingWarnCooldownFrames;
-                streamingTriggered = true;
-            }
-            reflectionProbeStreamingBreachedLastFrame = streamingTriggered;
-            warnings.add(new EngineWarning(
-                    "REFLECTION_PROBE_STREAMING_DIAGNOSTICS",
-                    "Probe streaming diagnostics (configured=" + probeDiagnostics.configuredProbeCount()
-                            + ", active=" + probeDiagnostics.activeProbeCount()
-                            + ", frustumVisible=" + probeDiagnostics.frustumVisibleCount()
-                            + ", deferred=" + probeDiagnostics.deferredProbeCount()
-                            + ", visibleUniquePaths=" + probeDiagnostics.visibleUniquePathCount()
-                            + ", missingSlotPaths=" + probeDiagnostics.missingSlotPathCount()
-                            + ", missingSlotRatio=" + missingSlotRatio
-                            + ", deferredRatio=" + deferredRatio
-                            + ", lodSkewRatio=" + lodSkewRatio
-                            + ", memoryEstimateMb=" + memoryEstimateMb
-                            + ", memoryBudgetMb=" + reflectionProbeStreamingMemoryBudgetMb
-                            + ", effectiveBudget=" + effectiveStreamingBudget
-                            + ", cadenceFrames=" + reflectionProbeUpdateCadenceFrames
-                            + ", maxVisible=" + reflectionProbeMaxVisible
-                            + ", lodDepthScale=" + reflectionProbeLodDepthScale
-                            + ", budgetPressure=" + streamingBudgetPressure
-                            + ", risk=" + streamingRisk
-                            + ", highStreak=" + reflectionProbeStreamingHighStreak
-                            + ", warnMinFrames=" + reflectionProbeStreamingWarnMinFrames
-                            + ", warnCooldownFrames=" + reflectionProbeStreamingWarnCooldownFrames
-                            + ", warnCooldownRemaining=" + reflectionProbeStreamingWarnCooldownRemaining
-                            + ", breached=" + reflectionProbeStreamingBreachedLastFrame + ")"
-            ));
-            if (streamingBudgetPressure) {
-                warnings.add(new EngineWarning(
-                        "REFLECTION_PROBE_STREAMING_BUDGET_PRESSURE",
-                        "Reflection probe streaming budget pressure detected "
-                                + "(configured=" + probeDiagnostics.configuredProbeCount()
-                                + ", active=" + probeDiagnostics.activeProbeCount()
-                                + ", effectiveBudget=" + effectiveStreamingBudget + ")"
-                ));
-            }
-            warnings.add(new EngineWarning(
-                    "REFLECTION_PROBE_STREAMING_ENVELOPE",
-                    "Probe streaming envelope (missRatioMax=" + reflectionProbeStreamingMissRatioWarnMax
-                            + ", deferredRatioMax=" + reflectionProbeStreamingDeferredRatioWarnMax
-                            + ", lodSkewMax=" + reflectionProbeStreamingLodSkewWarnMax
-                            + ", memoryBudgetMb=" + reflectionProbeStreamingMemoryBudgetMb
-                            + ", breached=" + reflectionProbeStreamingBreachedLastFrame + ")"
-            ));
-            if (reflectionProbeStreamingBreachedLastFrame) {
-                warnings.add(new EngineWarning(
-                        "REFLECTION_PROBE_STREAMING_ENVELOPE_BREACH",
-                        "Probe streaming envelope breached (missingSlotRatio=" + missingSlotRatio
-                                + ", deferredRatio=" + deferredRatio
-                                + ", lodSkewRatio=" + lodSkewRatio
-                                + ", memoryEstimateMb=" + memoryEstimateMb + ")"
-                ));
-            }
-            warnings.add(new EngineWarning(
-                    "REFLECTION_PROBE_QUALITY_SWEEP",
-                    "Probe quality sweep (configured=" + reflectionProbeQualityDiagnostics.configuredProbeCount()
-                            + ", boxProjected=" + reflectionProbeQualityDiagnostics.boxProjectedCount()
-                            + ", boxProjectionRatio=" + reflectionProbeQualityDiagnostics.boxProjectionRatio()
-                            + ", invalidBlendDistanceCount=" + reflectionProbeQualityDiagnostics.invalidBlendDistanceCount()
-                            + ", invalidExtentCount=" + reflectionProbeQualityDiagnostics.invalidExtentCount()
-                            + ", overlapPairs=" + reflectionProbeQualityDiagnostics.overlapPairs()
-                            + ", meanOverlapCoverage=" + reflectionProbeQualityDiagnostics.meanOverlapCoverage()
-                            + ", bleedRiskPairs=" + reflectionProbeQualityDiagnostics.bleedRiskPairs()
-                            + ", transitionPairs=" + reflectionProbeQualityDiagnostics.transitionPairs()
-                            + ", maxPriorityDelta=" + reflectionProbeQualityDiagnostics.maxPriorityDelta()
-                            + ", overlapWarnMaxPairs=" + reflectionProbeQualityOverlapWarnMaxPairs
-                            + ", bleedRiskWarnMaxPairs=" + reflectionProbeQualityBleedRiskWarnMaxPairs
-                            + ", minOverlapPairsWhenMultiple=" + reflectionProbeQualityMinOverlapPairsWhenMultiple
-                            + ", boxProjectionMinRatio=" + reflectionProbeQualityBoxProjectionMinRatio
-                            + ", invalidBlendDistanceWarnMax=" + reflectionProbeQualityInvalidBlendDistanceWarnMax
-                            + ", overlapCoverageWarnMin=" + reflectionProbeQualityOverlapCoverageWarnMin
-                            + ")"
-            ));
-            if (reflectionProbeQualityDiagnostics.envelopeBreached()) {
-                warnings.add(new EngineWarning(
-                        "REFLECTION_PROBE_QUALITY_ENVELOPE_BREACH",
-                        "Probe quality envelope breached (overlapPairs=" + reflectionProbeQualityDiagnostics.overlapPairs()
-                                + ", boxProjectionRatio=" + reflectionProbeQualityDiagnostics.boxProjectionRatio()
-                                + ", invalidBlendDistanceCount=" + reflectionProbeQualityDiagnostics.invalidBlendDistanceCount()
-                                + ", invalidExtentCount=" + reflectionProbeQualityDiagnostics.invalidExtentCount()
-                                + ", meanOverlapCoverage=" + reflectionProbeQualityDiagnostics.meanOverlapCoverage()
-                                + ", bleedRiskPairs=" + reflectionProbeQualityDiagnostics.bleedRiskPairs()
-                                + ", transitionPairs=" + reflectionProbeQualityDiagnostics.transitionPairs()
-                                + ", reason=" + reflectionProbeQualityDiagnostics.breachReason() + ")"
-                ));
-            }
+            VulkanReflectionCoreWarningEmitter.State coreState = new VulkanReflectionCoreWarningEmitter.State();
+            coreState.reflectionBaseMode = reflectionBaseMode;
+            coreState.reflectionContactHardeningActiveLastFrame = reflectionContactHardeningActiveLastFrame;
+            coreState.reflectionContactHardeningBreachedLastFrame = reflectionContactHardeningBreachedLastFrame;
+            coreState.reflectionContactHardeningEstimatedStrengthLastFrame = reflectionContactHardeningEstimatedStrengthLastFrame;
+            coreState.reflectionContactHardeningHighStreak = reflectionContactHardeningHighStreak;
+            coreState.reflectionContactHardeningMinSsrMaxRoughness = reflectionContactHardeningMinSsrMaxRoughness;
+            coreState.reflectionContactHardeningMinSsrStrength = reflectionContactHardeningMinSsrStrength;
+            coreState.reflectionContactHardeningWarnCooldownFrames = reflectionContactHardeningWarnCooldownFrames;
+            coreState.reflectionContactHardeningWarnCooldownRemaining = reflectionContactHardeningWarnCooldownRemaining;
+            coreState.reflectionContactHardeningWarnMinFrames = reflectionContactHardeningWarnMinFrames;
+            coreState.reflectionOverrideBreachedLastFrame = reflectionOverrideBreachedLastFrame;
+            coreState.reflectionOverrideHighStreak = reflectionOverrideHighStreak;
+            coreState.reflectionOverrideOtherWarnMax = reflectionOverrideOtherWarnMax;
+            coreState.reflectionOverrideProbeOnlyRatioWarnMax = reflectionOverrideProbeOnlyRatioWarnMax;
+            coreState.reflectionOverrideSsrOnlyRatioWarnMax = reflectionOverrideSsrOnlyRatioWarnMax;
+            coreState.reflectionOverrideWarnCooldownFrames = reflectionOverrideWarnCooldownFrames;
+            coreState.reflectionOverrideWarnCooldownRemaining = reflectionOverrideWarnCooldownRemaining;
+            coreState.reflectionOverrideWarnMinFrames = reflectionOverrideWarnMinFrames;
+            coreState.reflectionProbeChurnWarnCooldownFrames = reflectionProbeChurnWarnCooldownFrames;
+            coreState.reflectionProbeChurnWarnMinDelta = reflectionProbeChurnWarnMinDelta;
+            coreState.reflectionProbeChurnWarnMinStreak = reflectionProbeChurnWarnMinStreak;
+            coreState.reflectionProbeLodDepthScale = reflectionProbeLodDepthScale;
+            coreState.reflectionProbeMaxVisible = reflectionProbeMaxVisible;
+            coreState.reflectionProbeQualityBleedRiskWarnMaxPairs = reflectionProbeQualityBleedRiskWarnMaxPairs;
+            coreState.reflectionProbeQualityBoxProjectionMinRatio = reflectionProbeQualityBoxProjectionMinRatio;
+            coreState.reflectionProbeQualityDiagnostics = reflectionProbeQualityDiagnostics;
+            coreState.reflectionProbeQualityInvalidBlendDistanceWarnMax = reflectionProbeQualityInvalidBlendDistanceWarnMax;
+            coreState.reflectionProbeQualityMinOverlapPairsWhenMultiple = reflectionProbeQualityMinOverlapPairsWhenMultiple;
+            coreState.reflectionProbeQualityOverlapCoverageWarnMin = reflectionProbeQualityOverlapCoverageWarnMin;
+            coreState.reflectionProbeQualityOverlapWarnMaxPairs = reflectionProbeQualityOverlapWarnMaxPairs;
+            coreState.reflectionProbeStreamingBreachedLastFrame = reflectionProbeStreamingBreachedLastFrame;
+            coreState.reflectionProbeStreamingDeferredRatioWarnMax = reflectionProbeStreamingDeferredRatioWarnMax;
+            coreState.reflectionProbeStreamingHighStreak = reflectionProbeStreamingHighStreak;
+            coreState.reflectionProbeStreamingLodSkewWarnMax = reflectionProbeStreamingLodSkewWarnMax;
+            coreState.reflectionProbeStreamingMemoryBudgetMb = reflectionProbeStreamingMemoryBudgetMb;
+            coreState.reflectionProbeStreamingMissRatioWarnMax = reflectionProbeStreamingMissRatioWarnMax;
+            coreState.reflectionProbeStreamingWarnCooldownFrames = reflectionProbeStreamingWarnCooldownFrames;
+            coreState.reflectionProbeStreamingWarnCooldownRemaining = reflectionProbeStreamingWarnCooldownRemaining;
+            coreState.reflectionProbeStreamingWarnMinFrames = reflectionProbeStreamingWarnMinFrames;
+            coreState.reflectionProbeUpdateCadenceFrames = reflectionProbeUpdateCadenceFrames;
+            coreState.reflectionsSsrMaxRoughness = currentPost.reflectionsSsrMaxRoughness();
+            coreState.reflectionsSsrStrength = currentPost.reflectionsSsrStrength();
+            VulkanReflectionCoreWarningEmitter.emit(
+                    warnings,
+                    coreState,
+                    overrideSummary,
+                    churnDiagnostics,
+                    probeDiagnostics
+            );
+            reflectionContactHardeningActiveLastFrame = coreState.reflectionContactHardeningActiveLastFrame;
+            reflectionContactHardeningBreachedLastFrame = coreState.reflectionContactHardeningBreachedLastFrame;
+            reflectionContactHardeningEstimatedStrengthLastFrame = coreState.reflectionContactHardeningEstimatedStrengthLastFrame;
+            reflectionContactHardeningHighStreak = coreState.reflectionContactHardeningHighStreak;
+            reflectionContactHardeningMinSsrMaxRoughness = coreState.reflectionContactHardeningMinSsrMaxRoughness;
+            reflectionContactHardeningMinSsrStrength = coreState.reflectionContactHardeningMinSsrStrength;
+            reflectionContactHardeningWarnCooldownFrames = coreState.reflectionContactHardeningWarnCooldownFrames;
+            reflectionContactHardeningWarnCooldownRemaining = coreState.reflectionContactHardeningWarnCooldownRemaining;
+            reflectionContactHardeningWarnMinFrames = coreState.reflectionContactHardeningWarnMinFrames;
+            reflectionOverrideBreachedLastFrame = coreState.reflectionOverrideBreachedLastFrame;
+            reflectionOverrideHighStreak = coreState.reflectionOverrideHighStreak;
+            reflectionOverrideOtherWarnMax = coreState.reflectionOverrideOtherWarnMax;
+            reflectionOverrideProbeOnlyRatioWarnMax = coreState.reflectionOverrideProbeOnlyRatioWarnMax;
+            reflectionOverrideSsrOnlyRatioWarnMax = coreState.reflectionOverrideSsrOnlyRatioWarnMax;
+            reflectionOverrideWarnCooldownFrames = coreState.reflectionOverrideWarnCooldownFrames;
+            reflectionOverrideWarnCooldownRemaining = coreState.reflectionOverrideWarnCooldownRemaining;
+            reflectionOverrideWarnMinFrames = coreState.reflectionOverrideWarnMinFrames;
+            reflectionProbeChurnWarnCooldownFrames = coreState.reflectionProbeChurnWarnCooldownFrames;
+            reflectionProbeChurnWarnMinDelta = coreState.reflectionProbeChurnWarnMinDelta;
+            reflectionProbeChurnWarnMinStreak = coreState.reflectionProbeChurnWarnMinStreak;
+            reflectionProbeLodDepthScale = coreState.reflectionProbeLodDepthScale;
+            reflectionProbeMaxVisible = coreState.reflectionProbeMaxVisible;
+            reflectionProbeQualityBleedRiskWarnMaxPairs = coreState.reflectionProbeQualityBleedRiskWarnMaxPairs;
+            reflectionProbeQualityBoxProjectionMinRatio = coreState.reflectionProbeQualityBoxProjectionMinRatio;
+            reflectionProbeQualityInvalidBlendDistanceWarnMax = coreState.reflectionProbeQualityInvalidBlendDistanceWarnMax;
+            reflectionProbeQualityMinOverlapPairsWhenMultiple = coreState.reflectionProbeQualityMinOverlapPairsWhenMultiple;
+            reflectionProbeQualityOverlapCoverageWarnMin = coreState.reflectionProbeQualityOverlapCoverageWarnMin;
+            reflectionProbeQualityOverlapWarnMaxPairs = coreState.reflectionProbeQualityOverlapWarnMaxPairs;
+            reflectionProbeStreamingBreachedLastFrame = coreState.reflectionProbeStreamingBreachedLastFrame;
+            reflectionProbeStreamingDeferredRatioWarnMax = coreState.reflectionProbeStreamingDeferredRatioWarnMax;
+            reflectionProbeStreamingHighStreak = coreState.reflectionProbeStreamingHighStreak;
+            reflectionProbeStreamingLodSkewWarnMax = coreState.reflectionProbeStreamingLodSkewWarnMax;
+            reflectionProbeStreamingMemoryBudgetMb = coreState.reflectionProbeStreamingMemoryBudgetMb;
+            reflectionProbeStreamingMissRatioWarnMax = coreState.reflectionProbeStreamingMissRatioWarnMax;
+            reflectionProbeStreamingWarnCooldownFrames = coreState.reflectionProbeStreamingWarnCooldownFrames;
+            reflectionProbeStreamingWarnCooldownRemaining = coreState.reflectionProbeStreamingWarnCooldownRemaining;
+            reflectionProbeStreamingWarnMinFrames = coreState.reflectionProbeStreamingWarnMinFrames;
+            reflectionProbeUpdateCadenceFrames = coreState.reflectionProbeUpdateCadenceFrames;
             int planarEligible = countPlanarEligibleFromOverrideSummary(overrideSummary);
             int planarExcluded = planarScopeExclusionCountFromOverrideSummary(overrideSummary);
             int planarTotalMeshes = Math.max(0, planarEligible + planarExcluded);
