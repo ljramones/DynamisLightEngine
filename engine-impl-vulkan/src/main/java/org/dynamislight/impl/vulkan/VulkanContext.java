@@ -10,6 +10,7 @@ import org.dynamislight.api.scene.ReflectionProbeDesc;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandInputAssembler;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
 import org.dynamislight.impl.vulkan.command.VulkanFrameSubmitCoordinator;
+import org.dynamislight.impl.vulkan.command.VulkanCommandInputCoordinator;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorResources;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorLifecycleCoordinator;
 import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorSetCoordinator;
@@ -29,6 +30,7 @@ import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeRuntimeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeTextureCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneSetPlanner;
+import org.dynamislight.impl.vulkan.scene.VulkanSceneTextureRuntimeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneTextureCoordinator;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixStateCoordinator;
 import org.dynamislight.impl.vulkan.state.VulkanFrameUploadStats;
@@ -42,12 +44,11 @@ import org.dynamislight.impl.vulkan.state.VulkanBackendResources;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.dynamislight.impl.vulkan.state.VulkanTemporalAaCoordinator;
 import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainRecreateCoordinator;
-import org.dynamislight.impl.vulkan.texture.VulkanTextureResourceOps;
+import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainTimestampRuntimeHelper;
 import org.dynamislight.impl.vulkan.texture.VulkanTexturePixelLoader;
 import org.dynamislight.impl.vulkan.uniform.VulkanFrameUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneBuildRequestFactory;
 import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneUniformCoordinator;
-import org.dynamislight.impl.vulkan.uniform.VulkanUniformFrameCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUploadStateTracker;
 import org.lwjgl.system.MemoryStack;
@@ -464,8 +465,24 @@ public final class VulkanContext {
                         descriptorRingStats,
                         framesInFlight,
                         estimatedGpuMemoryBytes,
-                        this::createTextureFromPath,
-                        this::resolveOrCreateTexture,
+                        (texturePath, normalMap) -> VulkanSceneTextureRuntimeCoordinator.createTextureFromPath(
+                                texturePath,
+                                normalMap,
+                                backendResources,
+                                this::vkFailure
+                        ),
+                        (texturePath, cache, defaultTexture, normalMap) -> VulkanSceneTextureRuntimeCoordinator.resolveOrCreateTexture(
+                                texturePath,
+                                cache,
+                                defaultTexture,
+                                normalMap,
+                                (path, normal) -> VulkanSceneTextureRuntimeCoordinator.createTextureFromPath(
+                                        path,
+                                        normal,
+                                        backendResources,
+                                        this::vkFailure
+                                )
+                        ),
                         this::textureCacheKey,
                         this::markSceneStateDirty,
                         this::vkFailure
@@ -594,7 +611,14 @@ public final class VulkanContext {
                 createShadowResources(stack);
                 renderState.shadowMomentInitialized = false;
                 if (!sceneResources.gpuMeshes.isEmpty()) {
-                    createTextureDescriptorSets(stack);
+                    VulkanSceneTextureRuntimeCoordinator.createTextureDescriptorSets(
+                            backendResources,
+                            sceneResources,
+                            iblState,
+                            descriptorResources,
+                            descriptorRingStats,
+                            stack
+                    );
                 }
             }
         }
@@ -651,7 +675,14 @@ public final class VulkanContext {
                     createShadowResources(stack);
                     renderState.shadowMomentInitialized = false;
                     if (!sceneResources.gpuMeshes.isEmpty()) {
-                        createTextureDescriptorSets(stack);
+                        VulkanSceneTextureRuntimeCoordinator.createTextureDescriptorSets(
+                                backendResources,
+                                sceneResources,
+                                iblState,
+                                descriptorResources,
+                                descriptorRingStats,
+                                stack
+                        );
                     }
                 }
             }
@@ -984,7 +1015,7 @@ public final class VulkanContext {
     }
 
     void shutdown() {
-        destroyPlanarTimestampResources();
+        VulkanSwapchainTimestampRuntimeHelper.destroyPlanarTimestampResources(backendResources);
         var result = VulkanLifecycleOrchestrator.shutdown(
                 new VulkanLifecycleOrchestrator.ShutdownRequest(
                         backendResources,
@@ -1171,98 +1202,22 @@ public final class VulkanContext {
                 )
         );
         VulkanLifecycleOrchestrator.applyFrameSyncState(backendResources, state);
-        createPlanarTimestampResources(stack);
-    }
-
-    private void createPlanarTimestampResources(MemoryStack stack) throws EngineException {
-        destroyPlanarTimestampResources();
-        backendResources.planarTimestampSupported = false;
-        backendResources.timestampPeriodNs = 0.0f;
+        VulkanSwapchainTimestampRuntimeHelper.createPlanarTimestampResources(stack, backendResources, framesInFlight);
         lastGpuTimingSource = "frame_estimate";
         lastPlanarCaptureGpuMs = Double.NaN;
         lastPlanarCaptureGpuMsValid = false;
-        if (backendResources.device == null
-                || backendResources.physicalDevice == null
-                || backendResources.graphicsQueueFamilyIndex < 0) {
-            return;
-        }
-        var pQueueFamilyCount = stack.ints(0);
-        vkGetPhysicalDeviceQueueFamilyProperties(backendResources.physicalDevice, pQueueFamilyCount, null);
-        int queueFamilyCount = pQueueFamilyCount.get(0);
-        if (queueFamilyCount <= 0 || backendResources.graphicsQueueFamilyIndex >= queueFamilyCount) {
-            return;
-        }
-        var queueFamilies = VkQueueFamilyProperties.calloc(queueFamilyCount, stack);
-        vkGetPhysicalDeviceQueueFamilyProperties(backendResources.physicalDevice, pQueueFamilyCount, queueFamilies);
-        if (queueFamilies.get(backendResources.graphicsQueueFamilyIndex).timestampValidBits() <= 0) {
-            return;
-        }
-        VkPhysicalDeviceProperties properties = VkPhysicalDeviceProperties.calloc(stack);
-        vkGetPhysicalDeviceProperties(backendResources.physicalDevice, properties);
-        backendResources.timestampPeriodNs = Math.max(0.0f, properties.limits().timestampPeriod());
-        int queryCount = Math.max(1, framesInFlight) * 2;
-        var queryInfo = VkQueryPoolCreateInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO)
-                .queryType(VK_QUERY_TYPE_TIMESTAMP)
-                .queryCount(queryCount);
-        var pQueryPool = stack.mallocLong(1);
-        int createResult = vkCreateQueryPool(backendResources.device, queryInfo, null, pQueryPool);
-        if (createResult != VK_SUCCESS || pQueryPool.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateQueryPool(planar) failed: " + createResult, false);
-        }
-        backendResources.planarTimestampQueryPool = pQueryPool.get(0);
-        backendResources.planarTimestampSupported = true;
-    }
-
-    private void destroyPlanarTimestampResources() {
-        if (backendResources.device != null && backendResources.planarTimestampQueryPool != VK_NULL_HANDLE) {
-            vkDestroyQueryPool(backendResources.device, backendResources.planarTimestampQueryPool, null);
-        }
-        backendResources.planarTimestampQueryPool = VK_NULL_HANDLE;
-        backendResources.planarTimestampSupported = false;
-        backendResources.timestampPeriodNs = 0.0f;
     }
 
     private void samplePlanarCaptureTimingForFrame(MemoryStack stack, int frameIdx) throws EngineException {
-        lastPlanarCaptureGpuMs = Double.NaN;
-        lastPlanarCaptureGpuMsValid = false;
-        lastGpuTimingSource = "frame_estimate";
-        if (!backendResources.planarTimestampSupported
-                || backendResources.planarTimestampQueryPool == VK_NULL_HANDLE
-                || backendResources.device == null) {
-            return;
-        }
-        int queryStart = planarTimestampQueryStartIndex(frameIdx);
-        if (queryStart < 0) {
-            return;
-        }
-        var data = stack.mallocLong(4);
-        int queryResult = vkGetQueryPoolResults(
-                backendResources.device,
-                backendResources.planarTimestampQueryPool,
-                queryStart,
-                2,
-                data,
-                2L * Long.BYTES,
-                VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT
+        var sample = VulkanSwapchainTimestampRuntimeHelper.samplePlanarCaptureTimingForFrame(
+                stack,
+                backendResources,
+                framesInFlight,
+                frameIdx
         );
-        if (queryResult == VK_NOT_READY) {
-            return;
-        }
-        if (queryResult != VK_SUCCESS) {
-            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkGetQueryPoolResults(planar) failed: " + queryResult, false);
-        }
-        long startTimestamp = data.get(0);
-        long startAvailable = data.get(1);
-        long endTimestamp = data.get(2);
-        long endAvailable = data.get(3);
-        if (startAvailable != 0L && endAvailable != 0L && endTimestamp >= startTimestamp) {
-            double deltaTicks = (double) (endTimestamp - startTimestamp);
-            double periodNs = Math.max(0.0, backendResources.timestampPeriodNs);
-            lastPlanarCaptureGpuMs = (deltaTicks * periodNs) / 1_000_000.0;
-            lastPlanarCaptureGpuMsValid = true;
-            lastGpuTimingSource = "gpu_timestamp";
-        }
+        lastGpuTimingSource = sample.gpuTimingSource();
+        lastPlanarCaptureGpuMs = sample.planarCaptureGpuMs();
+        lastPlanarCaptureGpuMsValid = sample.planarCaptureGpuMsValid();
     }
 
     private int acquireNextImage(MemoryStack stack, int frameIdx) throws EngineException {
@@ -1302,120 +1257,34 @@ public final class VulkanContext {
     }
 
     private VulkanFrameCommandOrchestrator.Inputs buildCommandInputs(int frameIdx) {
-        return VulkanFrameCommandInputAssembler.build(
-                new VulkanFrameCommandInputAssembler.AssemblyInputs(
-                        sceneResources.gpuMeshes,
+        return VulkanCommandInputCoordinator.build(
+                new VulkanCommandInputCoordinator.BuildRequest(
+                        sceneResources,
                         maxDynamicSceneObjects,
-                        backendResources.swapchainWidth,
-                        backendResources.swapchainHeight,
-                        backendResources.swapchainImageFormat,
-                        backendResources.depthFormat,
-                        renderState.shadowMapResolution,
-                        renderState.shadowEnabled,
+                        backendResources,
+                        renderState,
+                        descriptorResources,
                         lightingState.pointShadowEnabled(),
-                        renderState.shadowCascadeCount,
+                        frameIdx,
+                        framesInFlight,
                         MAX_SHADOW_MATRICES,
                         MAX_SHADOW_CASCADES,
                         POINT_SHADOW_FACES,
-                        backendResources.renderPass,
-                        backendResources.framebuffers,
-                        backendResources.graphicsPipeline,
-                        backendResources.pipelineLayout,
-                        backendResources.shadowRenderPass,
-                        backendResources.shadowPipeline,
-                        backendResources.shadowPipelineLayout,
-                        backendResources.shadowFramebuffers,
-                        backendResources.shadowDepthImage,
-                        backendResources.shadowMomentImage,
-                        backendResources.shadowMomentFormat,
-                        backendResources.shadowMomentMipLevels,
-                        renderState.shadowMomentPipelineRequested,
-                        renderState.shadowMomentInitialized,
-                        backendResources.depthImages,
-                        backendResources.planarTimestampQueryPool,
-                        planarTimestampQueryStartIndex(frameIdx),
-                        planarTimestampQueryEndIndex(frameIdx),
-                        renderState.postOffscreenActive,
-                        renderState.postIntermediateInitialized,
-                        renderState.tonemapEnabled,
-                        renderState.tonemapExposure,
-                        renderState.tonemapGamma,
-                        renderState.ssaoEnabled,
-                        renderState.bloomEnabled,
-                        renderState.bloomThreshold,
-                        renderState.bloomStrength,
-                        renderState.ssaoStrength,
-                        renderState.ssaoRadius,
-                        renderState.ssaoBias,
-                        renderState.ssaoPower,
-                        renderState.smaaEnabled,
-                        renderState.smaaStrength,
-                        renderState.taaEnabled,
-                        renderState.taaBlend,
-                        renderState.postTaaHistoryInitialized,
-                        VulkanTemporalAaCoordinator.taaJitterUvDeltaX(renderState),
-                        VulkanTemporalAaCoordinator.taaJitterUvDeltaY(renderState),
-                        renderState.taaMotionUvX,
-                        renderState.taaMotionUvY,
-                        renderState.taaClipScale,
-                        renderState.taaRenderScale,
-                        renderState.taaLumaClipEnabled,
-                        renderState.taaSharpenStrength,
-                        renderState.reflectionsEnabled,
-                        renderState.reflectionsMode,
-                        renderState.reflectionsSsrStrength,
-                        renderState.reflectionsSsrMaxRoughness,
-                        renderState.reflectionsSsrStepScale,
-                        renderState.reflectionsTemporalWeight,
-                        renderState.reflectionsPlanarStrength,
-                        renderState.reflectionsPlanarPlaneHeight,
-                        renderState.reflectionsRtDenoiseStrength,
-                        renderState.taaDebugView,
-                        backendResources.postRenderPass,
-                        backendResources.postGraphicsPipeline,
-                        backendResources.postPipelineLayout,
-                        backendResources.postDescriptorSet,
-                        backendResources.offscreenColorImage,
-                        backendResources.postTaaHistoryImage,
-                        backendResources.postTaaHistoryVelocityImage,
-                        backendResources.postPlanarCaptureImage,
-                        backendResources.velocityImage,
-                        backendResources.swapchainImages,
-                        backendResources.postFramebuffers,
-                        frame -> VulkanUniformFrameCoordinator.descriptorSetForFrame(
-                                descriptorResources.frameDescriptorSets, descriptorResources.descriptorSet, frame
-                        ),
-                        meshIndex -> VulkanUniformFrameCoordinator.dynamicUniformOffset(descriptorResources.uniformStrideBytes, meshIndex),
                         this::vkFailure
                 )
         );
     }
 
-    private int planarTimestampQueryStartIndex(int frameIdx) {
-        if (backendResources.planarTimestampQueryPool == VK_NULL_HANDLE || framesInFlight <= 0) {
-            return -1;
-        }
-        int safeFrame = Math.max(0, Math.min(Math.max(0, framesInFlight - 1), frameIdx));
-        return safeFrame * 2;
-    }
-
-    private int planarTimestampQueryEndIndex(int frameIdx) {
-        int start = planarTimestampQueryStartIndex(frameIdx);
-        return start < 0 ? -1 : start + 1;
-    }
-
     private void recreateSwapchainFromWindow() throws EngineException {
-        VulkanSwapchainRecreateCoordinator.recreateFromWindow(
+        VulkanSwapchainTimestampRuntimeHelper.recreateSwapchainFromWindow(
                 backendResources.window,
                 this::recreateSwapchain
         );
     }
 
     private void recreateSwapchain(int width, int height) throws EngineException {
-        VulkanSwapchainRecreateCoordinator.recreate(
-                backendResources.device,
-                backendResources.physicalDevice,
-                backendResources.surface,
+        VulkanSwapchainTimestampRuntimeHelper.recreateSwapchain(
+                backendResources,
                 width,
                 height,
                 this::destroySwapchainResources,
@@ -1475,8 +1344,24 @@ public final class VulkanContext {
                         descriptorRingStats,
                         framesInFlight,
                         sceneMeshes,
-                        this::createTextureFromPath,
-                        this::resolveOrCreateTexture,
+                        (texturePath, normalMap) -> VulkanSceneTextureRuntimeCoordinator.createTextureFromPath(
+                                texturePath,
+                                normalMap,
+                                backendResources,
+                                this::vkFailure
+                        ),
+                        (texturePath, cache, defaultTexture, normalMap) -> VulkanSceneTextureRuntimeCoordinator.resolveOrCreateTexture(
+                                texturePath,
+                                cache,
+                                defaultTexture,
+                                normalMap,
+                                (path, normal) -> VulkanSceneTextureRuntimeCoordinator.createTextureFromPath(
+                                        path,
+                                        normal,
+                                        backendResources,
+                                        this::vkFailure
+                                )
+                        ),
                         this::textureCacheKey,
                         this::vkFailure,
                         estimatedGpuMemoryBytes
@@ -1512,45 +1397,8 @@ public final class VulkanContext {
         reflectionProbeLodTier3Count = 0;
     }
 
-    private VulkanGpuTexture resolveOrCreateTexture(
-            Path texturePath,
-            Map<String, VulkanGpuTexture> cache,
-            VulkanGpuTexture defaultTexture,
-            boolean normalMap
-    )
-            throws EngineException {
-        return VulkanSceneTextureCoordinator.resolveOrCreateTexture(
-                texturePath,
-                cache,
-                defaultTexture,
-                normalMap,
-                this::createTextureFromPath
-        );
-    }
-
     private String textureCacheKey(Path texturePath, boolean normalMap) {
         return VulkanSceneTextureCoordinator.textureCacheKey(texturePath, normalMap);
-    }
-
-    private void createTextureDescriptorSets(MemoryStack stack) throws EngineException {
-        VulkanSceneMeshCoordinator.createTextureDescriptorSets(
-                new VulkanSceneMeshCoordinator.TextureDescriptorRequest(
-                        backendResources,
-                        sceneResources,
-                        iblState,
-                        descriptorResources,
-                        descriptorRingStats,
-                        stack
-                )
-        );
-    }
-
-    private VulkanGpuTexture createTextureFromPath(Path texturePath, boolean normalMap) throws EngineException {
-        return VulkanTextureResourceOps.createTextureFromPath(
-                texturePath,
-                normalMap,
-                new VulkanTextureResourceOps.Context(backendResources.device, backendResources.physicalDevice, backendResources.commandPool, backendResources.graphicsQueue, this::vkFailure)
-        );
     }
 
     private void markGlobalStateDirty() { uploadState.markGlobalStateDirty(); }
@@ -1674,7 +1522,14 @@ public final class VulkanContext {
         }
         if (backendResources.device != null && !sceneResources.gpuMeshes.isEmpty()) {
             try (MemoryStack stack = stackPush()) {
-                createTextureDescriptorSets(stack);
+                VulkanSceneTextureRuntimeCoordinator.createTextureDescriptorSets(
+                        backendResources,
+                        sceneResources,
+                        iblState,
+                        descriptorResources,
+                        descriptorRingStats,
+                        stack
+                );
             }
         }
     }
