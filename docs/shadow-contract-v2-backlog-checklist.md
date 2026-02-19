@@ -32,6 +32,7 @@ Add shadow backlog capability modes to the v2 contract so each remaining shadow 
 - [x] Resource declarations are present for every mode.
 - [x] Scheduler declarations cover cadence/face/cache policy modes.
 - [x] Telemetry declarations include mode-specific warning/diagnostic/gate surface.
+- [x] Deterministic mode-resolution planner maps runtime policy signals to one active contract mode (`VulkanShadowCapabilityPlanner`).
 
 ## Cross-Capability Validation Checks
 
