@@ -2739,116 +2739,40 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                                 + " (runtime active filter path=" + currentShadows.runtimeFilterPath() + ")"
                 ));
             }
-            if (!"off".equals(currentShadows.rtShadowMode())) {
-                float rtEffectiveDenoise = VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength);
-                int rtEffectiveSamples = VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount);
-                float rtEffectiveRayLength = VulkanShadowRuntimeTuning.effectiveShadowRtRayLength(currentShadows.rtShadowMode(), shadowRtRayLength, shadowRtProductionRayLength, shadowRtDedicatedRayLength);
-                double rtLaneWeight = 0.22 + 0.06 * Math.max(0, rtEffectiveSamples - 1) + 0.004 * Math.max(0.0f, rtEffectiveRayLength);
-                shadowRtPerfGpuMsEstimateLastFrame = Math.max(0.0, lastFrameGpuMs) * rtLaneWeight;
-                shadowRtPerfGpuMsWarnMaxLastFrame = VulkanShadowRuntimeTuning.shadowRtPerfCapForTier(qualityTier, shadowRtPerfMaxGpuMsLow, shadowRtPerfMaxGpuMsMedium, shadowRtPerfMaxGpuMsHigh, shadowRtPerfMaxGpuMsUltra);
-                boolean shadowRtEnvelopeNow = rtEffectiveDenoise < shadowRtDenoiseWarnMin
-                        || rtEffectiveSamples < shadowRtSampleWarnMin
-                        || shadowRtPerfGpuMsEstimateLastFrame > shadowRtPerfGpuMsWarnMaxLastFrame;
-                if (shadowRtEnvelopeNow) {
-                    shadowRtHighStreak = Math.min(10_000, shadowRtHighStreak + 1);
-                    shadowRtEnvelopeBreachedLastFrame = true;
-                } else {
-                    shadowRtHighStreak = 0;
-                }
-                warnings.add(new EngineWarning(
-                        "SHADOW_RT_DENOISE_ENVELOPE",
-                        "Shadow RT denoise/perf envelope (mode=" + currentShadows.rtShadowMode()
-                                + ", active=" + currentShadows.rtShadowActive()
-                                + ", denoiseStrength=" + rtEffectiveDenoise
-                                + ", denoiseWarnMin=" + shadowRtDenoiseWarnMin
-                                + ", sampleCount=" + rtEffectiveSamples
-                                + ", sampleWarnMin=" + shadowRtSampleWarnMin
-                                + ", perfGpuMsEstimate=" + shadowRtPerfGpuMsEstimateLastFrame
-                                + ", perfGpuMsWarnMax=" + shadowRtPerfGpuMsWarnMaxLastFrame
-                                + ", highStreak=" + shadowRtHighStreak
-                                + ", warnMinFrames=" + shadowRtWarnMinFrames
-                                + ", cooldownRemaining=" + shadowRtWarnCooldownRemaining + ")"
-                ));
-                if (shadowRtEnvelopeNow
-                        && shadowRtHighStreak >= shadowRtWarnMinFrames
-                        && shadowRtWarnCooldownRemaining == 0) {
-                    warnings.add(new EngineWarning(
-                            "SHADOW_RT_DENOISE_ENVELOPE_BREACH",
-                            "Shadow RT denoise/perf envelope breached (mode=" + currentShadows.rtShadowMode()
-                                    + ", denoiseStrength=" + rtEffectiveDenoise
-                                    + ", denoiseWarnMin=" + shadowRtDenoiseWarnMin
-                                    + ", sampleCount=" + rtEffectiveSamples
-                                    + ", sampleWarnMin=" + shadowRtSampleWarnMin
-                                    + ", perfGpuMsEstimate=" + shadowRtPerfGpuMsEstimateLastFrame
-                                    + ", perfGpuMsWarnMax=" + shadowRtPerfGpuMsWarnMaxLastFrame
-                                    + ", highStreak=" + shadowRtHighStreak
-                                    + ", warnMinFrames=" + shadowRtWarnMinFrames
-                                    + ", cooldownFrames=" + shadowRtWarnCooldownFrames + ")"
-                    ));
-                    shadowRtWarnCooldownRemaining = shadowRtWarnCooldownFrames;
-                }
-                warnings.add(new EngineWarning(
-                        "SHADOW_RT_PATH_REQUESTED",
-                        "RT shadow mode requested: " + currentShadows.rtShadowMode()
-                                + " (active=" + currentShadows.rtShadowActive()
-                                + ", fallback stack in use"
-                                + ", denoiseStrength=" + shadowRtDenoiseStrength
-                                + ", rayLength=" + shadowRtRayLength
-                                + ", sampleCount=" + shadowRtSampleCount
-                                + ", effectiveDenoiseStrength=" + VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength)
-                                + ", effectiveRayLength=" + VulkanShadowRuntimeTuning.effectiveShadowRtRayLength(currentShadows.rtShadowMode(), shadowRtRayLength, shadowRtProductionRayLength, shadowRtDedicatedRayLength)
-                                + ", effectiveSampleCount=" + VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount)
-                                + ")"
-                ));
-                if (!currentShadows.rtShadowActive()) {
-                    warnings.add(new EngineWarning(
-                            "SHADOW_RT_PATH_FALLBACK_ACTIVE",
-                            "RT shadow traversal/denoise path unavailable; using non-RT shadow fallback stack"
-                                    + ("bvh".equals(currentShadows.rtShadowMode())
-                                    ? " (BVH mode requested but dedicated BVH traversal pipeline is not active)"
-                                    : ("bvh_production".equals(currentShadows.rtShadowMode())
-                                    ? " (Production BVH mode requested but hardware BVH traversal pipeline is not active)"
-                                    : ("bvh_dedicated".equals(currentShadows.rtShadowMode())
-                                    ? " (Dedicated BVH mode requested but dedicated BVH traversal pipeline is not active)"
-                                    : ("rt_native".equals(currentShadows.rtShadowMode()) || "rt_native_denoised".equals(currentShadows.rtShadowMode())
-                                    ? " (Native RT mode requested but hardware ray traversal support is not active)"
-                                    : "")
-                                    )
-                                    )
-                                    )
-                    ));
-                }
-                if ("bvh".equals(currentShadows.rtShadowMode())
-                        || "bvh_dedicated".equals(currentShadows.rtShadowMode())
-                        || "bvh_production".equals(currentShadows.rtShadowMode())) {
-                    String activePath = "bvh_dedicated".equals(currentShadows.rtShadowMode())
-                            ? (currentShadows.rtShadowActive() ? "dedicated-preview traversal" : "fallback")
-                            : ("bvh_production".equals(currentShadows.rtShadowMode())
-                            ? (currentShadows.rtShadowActive() ? "production-preview traversal+denoise" : "fallback")
-                            : "hybrid traversal");
-                    warnings.add(new EngineWarning(
-                            "SHADOW_RT_BVH_PIPELINE_PENDING",
-                            "BVH RT shadow mode requested, but runtime is using the "
-                                    + activePath
-                                    + " path "
-                                    + "(rtActive=" + currentShadows.rtShadowActive()
-                                    + ", rtBvhSupported=" + shadowRtBvhSupported
-                                    + "); dedicated BVH traversal/denoise pipeline remains pending"
-                    ));
-                }
-                if ("rt_native".equals(currentShadows.rtShadowMode())
-                        || "rt_native_denoised".equals(currentShadows.rtShadowMode())) {
-                    warnings.add(new EngineWarning(
-                            "SHADOW_RT_NATIVE_PATH_ACTIVE",
-                            "Native RT shadow traversal path requested "
-                                    + "(mode=" + currentShadows.rtShadowMode()
-                                    + ", active=" + currentShadows.rtShadowActive()
-                                    + ", traversalSupported=" + shadowRtTraversalSupported
-                                    + ", denoiseMode=" + ("rt_native_denoised".equals(currentShadows.rtShadowMode()) ? "dedicated" : "standard")
-                                    + ")"
-                    ));
-                }
-            }
+            VulkanShadowRtWarningEmitter.State shadowRtState = new VulkanShadowRtWarningEmitter.State();
+            shadowRtState.currentShadows = currentShadows;
+            shadowRtState.qualityTier = qualityTier;
+            shadowRtState.lastFrameGpuMs = lastFrameGpuMs;
+            shadowRtState.shadowRtBvhSupported = shadowRtBvhSupported;
+            shadowRtState.shadowRtTraversalSupported = shadowRtTraversalSupported;
+            shadowRtState.shadowRtDenoiseStrength = shadowRtDenoiseStrength;
+            shadowRtState.shadowRtProductionDenoiseStrength = shadowRtProductionDenoiseStrength;
+            shadowRtState.shadowRtDedicatedDenoiseStrength = shadowRtDedicatedDenoiseStrength;
+            shadowRtState.shadowRtSampleCount = shadowRtSampleCount;
+            shadowRtState.shadowRtProductionSampleCount = shadowRtProductionSampleCount;
+            shadowRtState.shadowRtDedicatedSampleCount = shadowRtDedicatedSampleCount;
+            shadowRtState.shadowRtRayLength = shadowRtRayLength;
+            shadowRtState.shadowRtProductionRayLength = shadowRtProductionRayLength;
+            shadowRtState.shadowRtDedicatedRayLength = shadowRtDedicatedRayLength;
+            shadowRtState.shadowRtDenoiseWarnMin = shadowRtDenoiseWarnMin;
+            shadowRtState.shadowRtSampleWarnMin = shadowRtSampleWarnMin;
+            shadowRtState.shadowRtPerfMaxGpuMsLow = shadowRtPerfMaxGpuMsLow;
+            shadowRtState.shadowRtPerfMaxGpuMsMedium = shadowRtPerfMaxGpuMsMedium;
+            shadowRtState.shadowRtPerfMaxGpuMsHigh = shadowRtPerfMaxGpuMsHigh;
+            shadowRtState.shadowRtPerfMaxGpuMsUltra = shadowRtPerfMaxGpuMsUltra;
+            shadowRtState.shadowRtWarnMinFrames = shadowRtWarnMinFrames;
+            shadowRtState.shadowRtWarnCooldownFrames = shadowRtWarnCooldownFrames;
+            shadowRtState.shadowRtWarnCooldownRemaining = shadowRtWarnCooldownRemaining;
+            shadowRtState.shadowRtHighStreak = shadowRtHighStreak;
+            shadowRtState.shadowRtEnvelopeBreachedLastFrame = shadowRtEnvelopeBreachedLastFrame;
+            shadowRtState.shadowRtPerfGpuMsEstimateLastFrame = shadowRtPerfGpuMsEstimateLastFrame;
+            shadowRtState.shadowRtPerfGpuMsWarnMaxLastFrame = shadowRtPerfGpuMsWarnMaxLastFrame;
+            VulkanShadowRtWarningEmitter.emit(warnings, shadowRtState);
+            shadowRtWarnCooldownRemaining = shadowRtState.shadowRtWarnCooldownRemaining;
+            shadowRtHighStreak = shadowRtState.shadowRtHighStreak;
+            shadowRtEnvelopeBreachedLastFrame = shadowRtState.shadowRtEnvelopeBreachedLastFrame;
+            shadowRtPerfGpuMsEstimateLastFrame = shadowRtState.shadowRtPerfGpuMsEstimateLastFrame;
+            shadowRtPerfGpuMsWarnMaxLastFrame = shadowRtState.shadowRtPerfGpuMsWarnMaxLastFrame;
         }
         return warnings;
     }
