@@ -1,6 +1,5 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.mapper;
 
-import org.dynamislight.impl.vulkan.runtime.mapper.VulkanEngineRuntimeIblMapper;
 import org.dynamislight.impl.vulkan.runtime.math.VulkanEngineRuntimeCameraMath;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
@@ -23,15 +22,15 @@ import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 
-final class VulkanEngineRuntimeSceneMapper {
+public final class VulkanEngineRuntimeSceneMapper {
     private VulkanEngineRuntimeSceneMapper() {
     }
 
-    static List<VulkanSceneMeshData> buildSceneMeshes(SceneDescriptor scene, VulkanMeshAssetLoader meshLoader, Path assetRoot) {
+    public static List<VulkanSceneMeshData> buildSceneMeshes(SceneDescriptor scene, VulkanMeshAssetLoader meshLoader, Path assetRoot) {
         return VulkanEngineRuntimeSceneAssembly.buildSceneMeshes(scene, meshLoader, assetRoot);
     }
 
-    static PostProcessRenderConfig mapPostProcess(
+    public static PostProcessRenderConfig mapPostProcess(
             PostProcessDesc desc,
             QualityTier qualityTier,
             boolean taaLumaClipEnabledDefault,
@@ -55,19 +54,19 @@ final class VulkanEngineRuntimeSceneMapper {
         );
     }
 
-    static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
+    public static IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier, Path assetRoot) {
         return VulkanEngineRuntimeIblMapper.mapIbl(environment, qualityTier, assetRoot);
     }
 
-    static CameraMatrices cameraMatricesFor(CameraDesc camera, float aspectRatio) {
+    public static CameraMatrices cameraMatricesFor(CameraDesc camera, float aspectRatio) {
         return VulkanEngineRuntimeCameraMath.cameraMatricesFor(camera, aspectRatio);
     }
 
-    static CameraDesc selectActiveCamera(SceneDescriptor scene) {
+    public static CameraDesc selectActiveCamera(SceneDescriptor scene) {
         return VulkanEngineRuntimeCameraMath.selectActiveCamera(scene);
     }
 
-    static LightingConfig mapLighting(
+    public static LightingConfig mapLighting(
             List<LightDesc> lights,
             QualityTier qualityTier,
             int shadowMaxShadowedLocalLights,
@@ -97,11 +96,11 @@ final class VulkanEngineRuntimeSceneMapper {
         );
     }
 
-    static boolean hasNonDirectionalShadowRequest(List<LightDesc> lights) {
+    public static boolean hasNonDirectionalShadowRequest(List<LightDesc> lights) {
         return VulkanEngineRuntimeLightingMapper.hasNonDirectionalShadowRequest(lights);
     }
 
-    static ShadowRenderConfig mapShadows(
+    public static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -139,19 +138,19 @@ final class VulkanEngineRuntimeSceneMapper {
         );
     }
 
-    static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
+    public static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
         return VulkanEngineRuntimeLightingMapper.mapFog(fogDesc, qualityTier);
     }
 
-    static SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
+    public static SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
         return VulkanEngineRuntimeLightingMapper.mapSmoke(emitters, qualityTier);
     }
 
-    static float safeAspect(int width, int height) {
+    public static float safeAspect(int width, int height) {
         return VulkanEngineRuntimeCameraMath.safeAspect(width, height);
     }
 
-    static List<ReflectionProbeDesc> mapReflectionProbes(SceneDescriptor scene) {
+    public static List<ReflectionProbeDesc> mapReflectionProbes(SceneDescriptor scene) {
         if (scene == null || scene.postProcess() == null || scene.postProcess().reflectionAdvanced() == null) {
             return List.of();
         }

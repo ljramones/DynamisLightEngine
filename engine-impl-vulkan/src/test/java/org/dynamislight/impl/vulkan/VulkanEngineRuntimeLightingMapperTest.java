@@ -1,6 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
+import org.dynamislight.impl.vulkan.runtime.mapper.VulkanEngineRuntimeLightingMapper;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

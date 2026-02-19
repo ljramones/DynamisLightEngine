@@ -1,8 +1,9 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.mapper;
 
 import org.dynamislight.impl.vulkan.runtime.math.VulkanEngineRuntimeCameraMath;
 
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowRuntimeTuning;
+import org.dynamislight.impl.vulkan.VulkanContext;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
@@ -26,13 +27,13 @@ import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.impl.common.shadow.ShadowAtlasPlanner;
 
-final class VulkanEngineRuntimeLightingMapper {
+public final class VulkanEngineRuntimeLightingMapper {
     private static final int VULKAN_MAX_SHADOW_MATRICES = 24;
 
     private VulkanEngineRuntimeLightingMapper() {
     }
 
-    static PostProcessRenderConfig mapPostProcess(
+    public static PostProcessRenderConfig mapPostProcess(
             PostProcessDesc desc,
             QualityTier qualityTier,
             boolean taaLumaClipEnabledDefault,
@@ -363,7 +364,7 @@ final class VulkanEngineRuntimeLightingMapper {
         return packed;
     }
 
-    static LightingConfig mapLighting(
+    public static LightingConfig mapLighting(
             List<LightDesc> lights,
             QualityTier qualityTier,
             int shadowMaxLocalLayers
@@ -371,7 +372,7 @@ final class VulkanEngineRuntimeLightingMapper {
         return mapLighting(lights, qualityTier, 0, shadowMaxLocalLayers, 0, false, 1, 2, 4, 0L, Map.of(), Map.of());
     }
 
-    static LightingConfig mapLighting(
+    public static LightingConfig mapLighting(
             List<LightDesc> lights,
             QualityTier qualityTier,
             int shadowMaxShadowedLocalLights,
@@ -626,7 +627,7 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    static boolean hasNonDirectionalShadowRequest(List<LightDesc> lights) {
+    public static boolean hasNonDirectionalShadowRequest(List<LightDesc> lights) {
         if (lights == null || lights.isEmpty()) {
             return false;
         }
@@ -653,7 +654,7 @@ final class VulkanEngineRuntimeLightingMapper {
         return intensity * (1.0f + (range * 0.08f)) * shadowBoost * spotBoost;
     }
 
-    static ShadowRenderConfig mapShadows(
+    public static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -675,7 +676,7 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    static ShadowRenderConfig mapShadows(
+    public static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -698,7 +699,7 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    static ShadowRenderConfig mapShadows(
+    public static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -729,7 +730,7 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    static ShadowRenderConfig mapShadows(
+    public static ShadowRenderConfig mapShadows(
             List<LightDesc> lights,
             QualityTier qualityTier,
             String shadowFilterPath,
@@ -1301,7 +1302,7 @@ final class VulkanEngineRuntimeLightingMapper {
         return base * ageBoost;
     }
 
-    static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
+    public static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
         if (fogDesc == null || !fogDesc.enabled() || fogDesc.mode() == FogMode.NONE) {
             return new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0, false);
         }
@@ -1329,7 +1330,7 @@ final class VulkanEngineRuntimeLightingMapper {
         );
     }
 
-    static SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
+    public static SmokeRenderConfig mapSmoke(List<SmokeEmitterDesc> emitters, QualityTier qualityTier) {
         if (emitters == null || emitters.isEmpty()) {
             return new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
         }

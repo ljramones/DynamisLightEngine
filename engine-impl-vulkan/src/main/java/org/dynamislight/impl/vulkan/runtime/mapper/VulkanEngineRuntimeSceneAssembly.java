@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.mapper;
 
 import org.dynamislight.impl.vulkan.runtime.math.VulkanEngineRuntimeCameraMath;
 
@@ -17,11 +17,11 @@ import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 
-final class VulkanEngineRuntimeSceneAssembly {
+public final class VulkanEngineRuntimeSceneAssembly {
     private VulkanEngineRuntimeSceneAssembly() {
     }
 
-    static List<VulkanSceneMeshData> buildSceneMeshes(
+    public static List<VulkanSceneMeshData> buildSceneMeshes(
             SceneDescriptor scene,
             VulkanMeshAssetLoader meshLoader,
             Path assetRoot

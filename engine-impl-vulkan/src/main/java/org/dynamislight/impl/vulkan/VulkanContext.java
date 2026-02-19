@@ -78,7 +78,7 @@ public final class VulkanContext {
     private static final int MAX_SHADOW_CASCADES = 24;
     private static final int POINT_SHADOW_FACES = 6;
     private static final int MAX_SHADOW_MATRICES = 24;
-    static final int MAX_LOCAL_LIGHTS = 8;
+    public static final int MAX_LOCAL_LIGHTS = 8;
     private static final int GLOBAL_SCENE_UNIFORM_BYTES = 2736;
     private static final int OBJECT_UNIFORM_BYTES = 176;
     private static final String SHADOW_DEPTH_FORMAT_PROPERTY = "dle.vulkan.shadow.depthFormat";
