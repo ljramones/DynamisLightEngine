@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.runtime.config.*;
+
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.impl.common.upscale.ExternalUpscalerBridge;
 import org.dynamislight.impl.common.upscale.ExternalUpscalerIntegration;

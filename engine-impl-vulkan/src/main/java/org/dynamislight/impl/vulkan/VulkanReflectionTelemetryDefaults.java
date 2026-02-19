@@ -1,5 +1,8 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.runtime.config.ReflectionProfile;
+import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
+
 import java.util.Map;
 
 final class VulkanReflectionTelemetryDefaults {

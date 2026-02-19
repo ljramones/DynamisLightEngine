@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.Map;
+import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptions;
 import org.junit.jupiter.api.Test;
 
 class VulkanRuntimeOptionsTest {

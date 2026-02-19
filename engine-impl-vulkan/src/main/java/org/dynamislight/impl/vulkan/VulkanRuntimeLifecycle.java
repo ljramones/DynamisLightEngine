@@ -1,5 +1,13 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.runtime.config.AaMode;
+import org.dynamislight.impl.vulkan.runtime.config.AaPreset;
+import org.dynamislight.impl.vulkan.runtime.config.ReflectionProfile;
+import org.dynamislight.impl.vulkan.runtime.config.TsrControls;
+import org.dynamislight.impl.vulkan.runtime.config.UpscalerMode;
+import org.dynamislight.impl.vulkan.runtime.config.UpscalerQuality;
+import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptions;
+
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;

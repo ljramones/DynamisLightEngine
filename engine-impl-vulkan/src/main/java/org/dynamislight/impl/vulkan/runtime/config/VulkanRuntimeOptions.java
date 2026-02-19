@@ -1,12 +1,12 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.config;
 
 import java.util.Map;
 
-final class VulkanRuntimeOptions {
+public final class VulkanRuntimeOptions {
     private VulkanRuntimeOptions() {
     }
 
-    static Parsed parse(Map<String, String> options, int defaultMeshGeometryCacheEntries) {
+    public static Parsed parse(Map<String, String> options, int defaultMeshGeometryCacheEntries) {
         Map<String, String> safe = options == null ? Map.of() : options;
         return new Parsed(
                 parseBoolean(safe, "vulkan.mockContext", true),
@@ -267,7 +267,7 @@ final class VulkanRuntimeOptions {
         };
     }
 
-    record Parsed(
+    public record Parsed(
             boolean mockContext,
             boolean windowVisible,
             boolean forceDeviceLostOnRender,

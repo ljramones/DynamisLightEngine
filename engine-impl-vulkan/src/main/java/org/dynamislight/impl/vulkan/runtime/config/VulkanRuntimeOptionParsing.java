@@ -1,15 +1,16 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.config;
+
 
 import java.util.Map;
 
 import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.PostProcessDesc;
 
-final class VulkanRuntimeOptionParsing {
+public final class VulkanRuntimeOptionParsing {
     private VulkanRuntimeOptionParsing() {
     }
 
-    static ReflectionProfile parseReflectionProfile(String raw) {
+    public static ReflectionProfile parseReflectionProfile(String raw) {
         if (raw == null || raw.isBlank()) {
             return ReflectionProfile.BALANCED;
         }
@@ -21,7 +22,7 @@ final class VulkanRuntimeOptionParsing {
         };
     }
 
-    static AaPreset parseAaPreset(String raw) {
+    public static AaPreset parseAaPreset(String raw) {
         if (raw == null || raw.isBlank()) {
             return AaPreset.BALANCED;
         }
@@ -32,7 +33,7 @@ final class VulkanRuntimeOptionParsing {
         }
     }
 
-    static AaMode parseAaMode(String raw) {
+    public static AaMode parseAaMode(String raw) {
         if (raw == null || raw.isBlank()) {
             return AaMode.TAA;
         }
@@ -44,7 +45,7 @@ final class VulkanRuntimeOptionParsing {
         }
     }
 
-    static UpscalerMode parseUpscalerMode(String raw) {
+    public static UpscalerMode parseUpscalerMode(String raw) {
         if (raw == null || raw.isBlank()) {
             return UpscalerMode.NONE;
         }
@@ -56,7 +57,7 @@ final class VulkanRuntimeOptionParsing {
         }
     }
 
-    static UpscalerQuality parseUpscalerQuality(String raw) {
+    public static UpscalerQuality parseUpscalerQuality(String raw) {
         if (raw == null || raw.isBlank()) {
             return UpscalerQuality.QUALITY;
         }
@@ -68,7 +69,7 @@ final class VulkanRuntimeOptionParsing {
         }
     }
 
-    static TsrControls parseTsrControls(Map<String, String> options, String prefix) {
+    public static TsrControls parseTsrControls(Map<String, String> options, String prefix) {
         return new TsrControls(
                 parseFloatOption(options, prefix + "tsrHistoryWeight", 0.90f, 0.50f, 0.99f),
                 parseFloatOption(options, prefix + "tsrResponsiveMask", 0.65f, 0.0f, 1.0f),
@@ -81,7 +82,7 @@ final class VulkanRuntimeOptionParsing {
         );
     }
 
-    static AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {
+    public static AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {
         if (postProcess == null || postProcess.antiAliasing() == null) {
             return fallback;
         }
@@ -92,7 +93,7 @@ final class VulkanRuntimeOptionParsing {
         return parseAaMode(raw);
     }
 
-    static int resolveTaaDebugView(PostProcessDesc postProcess, int fallback) {
+    public static int resolveTaaDebugView(PostProcessDesc postProcess, int fallback) {
         if (postProcess == null || postProcess.antiAliasing() == null) {
             return fallback;
         }
@@ -100,7 +101,7 @@ final class VulkanRuntimeOptionParsing {
         return Math.max(0, Math.min(5, aa.debugView()));
     }
 
-    static boolean hasBackendOption(Map<String, String> backendOptions, String key) {
+    public static boolean hasBackendOption(Map<String, String> backendOptions, String key) {
         if (backendOptions == null || key == null || key.isBlank()) {
             return false;
         }
@@ -108,7 +109,7 @@ final class VulkanRuntimeOptionParsing {
         return value != null && !value.isBlank();
     }
 
-    static int parseBackendIntOption(Map<String, String> backendOptions, String key, int fallback, int min, int max) {
+    public static int parseBackendIntOption(Map<String, String> backendOptions, String key, int fallback, int min, int max) {
         if (backendOptions == null || key == null || key.isBlank()) {
             return fallback;
         }
