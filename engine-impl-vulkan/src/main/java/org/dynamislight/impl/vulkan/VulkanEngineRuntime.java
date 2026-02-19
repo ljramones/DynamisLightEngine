@@ -960,28 +960,26 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowAllocatorEvictions = sceneState.lighting().shadowAllocatorEvictions();
         VulkanShadowRuntimeTuning.updateShadowSchedulerTicks(shadowSchedulerLastRenderedTicks, shadowSchedulerFrameTick, currentShadows.renderedShadowLightIdsCsv());
         VulkanRuntimeLifecycle.applySceneToContext(context, sceneState);
-        if (!mockContext) {
-            currentShadows = VulkanShadowRuntimeTuning.withRuntimeMomentPipelineState(currentShadows, context);
-            context.setShadowQualityModes(
-                    currentShadows.runtimeFilterPath(),
-                    currentShadows.contactShadowsRequested(),
-                    currentShadows.rtShadowMode(),
-                    currentShadows.filterPath()
-            );
-            context.setShadowQualityTuning(
-                    shadowPcssSoftness,
-                    shadowMomentBlend,
-                    shadowMomentBleedReduction,
-                    shadowContactStrength,
-                    shadowContactTemporalMotionScale,
-                    shadowContactTemporalMinStability
-            );
-            context.setShadowRtTuning(
-                    VulkanShadowRuntimeTuning.effectiveShadowRtDenoiseStrength(currentShadows.rtShadowMode(), shadowRtDenoiseStrength, shadowRtProductionDenoiseStrength, shadowRtDedicatedDenoiseStrength),
-                    VulkanShadowRuntimeTuning.effectiveShadowRtRayLength(currentShadows.rtShadowMode(), shadowRtRayLength, shadowRtProductionRayLength, shadowRtDedicatedRayLength),
-                    VulkanShadowRuntimeTuning.effectiveShadowRtSampleCount(currentShadows.rtShadowMode(), shadowRtSampleCount, shadowRtProductionSampleCount, shadowRtDedicatedSampleCount)
-            );
-        }
+        currentShadows = VulkanShadowContextBindings.applySceneLoadShadowBindings(
+                mockContext,
+                context,
+                currentShadows,
+                shadowPcssSoftness,
+                shadowMomentBlend,
+                shadowMomentBleedReduction,
+                shadowContactStrength,
+                shadowContactTemporalMotionScale,
+                shadowContactTemporalMinStability,
+                shadowRtDenoiseStrength,
+                shadowRtProductionDenoiseStrength,
+                shadowRtDedicatedDenoiseStrength,
+                shadowRtRayLength,
+                shadowRtProductionRayLength,
+                shadowRtDedicatedRayLength,
+                shadowRtSampleCount,
+                shadowRtProductionSampleCount,
+                shadowRtDedicatedSampleCount
+        );
     }
 
     @Override
