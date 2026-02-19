@@ -141,3 +141,7 @@ Begin generic capability interface extraction only when:
 - Reflections has parity depth with shadows.
 - Observation log has enough repeated patterns and documented differences.
 - Tier golden tests are stable for current blessed profiles.
+
+## Follow-on ADR
+
+- Contract extraction outcome is recorded in `docs/adr/0003-capability-contract-v1.md`.
