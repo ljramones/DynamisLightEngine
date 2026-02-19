@@ -10,7 +10,7 @@ Review metadata:
 - Latest reflection update: 2026-02-19 12:14 ET — Reflections Vulkan closeout index added (`docs/reflections-vulkan-closeout.md`) with linked checklists, exit criteria, and promotion commit ledger.
 - Latest shadow contract update: 2026-02-19 13:05 ET — Shadow v2 backlog modes/checklist added (`docs/shadow-contract-v2-backlog-checklist.md`) to track remaining shadow items through contract validation.
 - Latest structure guardrails update: 2026-02-19 16:52 ET — Class-size and package hygiene guardrails now enforced in CI (`.github/workflows/ci.yml` job `structure-guardrails`) via `scripts/java_structure_guardrails.sh`.
-- Latest AA temporal hardening update: 2026-02-19 18:25 ET — MSAA-selective/hybrid envelope/promotion gates + typed diagnostics were added (`AA_MSAA_POLICY_ACTIVE`, `AA_MSAA_ENVELOPE`, `AA_MSAA_ENVELOPE_BREACH`, `AA_MSAA_PROMOTION_READY`, `aaMsaaPromotionDiagnostics()`), with lockdown coverage.
+- Latest AA temporal hardening update: 2026-02-19 18:42 ET — DLAA/specular envelope/promotion gates + typed diagnostics were added (`AA_DLAA_*`, `AA_SPECULAR_*`, `aaQualityPromotionDiagnostics()`), with lockdown coverage.
 
 Status legend:
 
@@ -22,8 +22,8 @@ Status summary snapshot (2026-02-19):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 48 |
-| `Partial` | 37 |
+| `In` | 50 |
+| `Partial` | 35 |
 | `Not In Yet` | 107 |
 
 ## Shadows
@@ -167,10 +167,10 @@ Reflection notes:
 - Hybrid MSAA + temporal (MSAA edges, temporal fill) — `In`
 - TUUA (temporal upscaling with AA) — `In`
 - TSR (temporal super resolution, internal render scale) — `In`
-- DLAA (deep learning AA — native res, neural filter) — `Partial`
+- DLAA (deep learning AA — native res, neural filter) — `In`
 - Per-material reactive masks (alpha, emissive, specular boost) — `In`
 - Per-material history clamp control — `In`
-- Specular AA (Toksvig roughness filtering) — `Partial`
+- Specular AA (Toksvig roughness filtering) — `In`
 - Geometric AA (normal variance filtering for thin features) — `Not In Yet`
 - Alpha-to-coverage for vegetation/hair — `Not In Yet`
 
@@ -183,6 +183,7 @@ AA notes:
 - Vulkan runtime now emits AA temporal hardening warnings (`AA_TEMPORAL_POLICY_ACTIVE`, `AA_TEMPORAL_ENVELOPE`, `AA_TEMPORAL_ENVELOPE_BREACH`, `AA_TEMPORAL_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`aaTemporalPromotionDiagnostics()`).
 - Vulkan runtime now emits TUUA/TSR upscale policy + envelope + promotion warnings (`AA_UPSCALE_POLICY_ACTIVE`, `AA_UPSCALE_ENVELOPE`, `AA_UPSCALE_ENVELOPE_BREACH`, `AA_UPSCALE_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`aaUpscalePromotionDiagnostics()`).
 - Vulkan runtime now emits MSAA-selective/hybrid policy + envelope + promotion warnings (`AA_MSAA_POLICY_ACTIVE`, `AA_MSAA_ENVELOPE`, `AA_MSAA_ENVELOPE_BREACH`, `AA_MSAA_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`aaMsaaPromotionDiagnostics()`).
+- Vulkan runtime now emits DLAA/specular quality policy + envelope + promotion warnings (`AA_DLAA_POLICY_ACTIVE`, `AA_DLAA_ENVELOPE`, `AA_DLAA_ENVELOPE_BREACH`, `AA_DLAA_PROMOTION_READY`, `AA_SPECULAR_POLICY_ACTIVE`, `AA_SPECULAR_ENVELOPE`, `AA_SPECULAR_ENVELOPE_BREACH`, `AA_SPECULAR_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`aaQualityPromotionDiagnostics()`).
 
 ## Global Illumination
 

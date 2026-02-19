@@ -363,6 +363,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic AA quality-mode diagnostics (DLAA + specular AA).
+     *
+     * Backends that do not expose this snapshot return
+     * {@link AaQualityPromotionDiagnostics#unavailable()}.
+     *
+     * @return current AA quality-mode diagnostics snapshot.
+     */
+    default AaQualityPromotionDiagnostics aaQualityPromotionDiagnostics() {
+        return AaQualityPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Retrieves backend-agnostic GI capability-plan diagnostics.
      *
      * Backends that do not expose this snapshot return

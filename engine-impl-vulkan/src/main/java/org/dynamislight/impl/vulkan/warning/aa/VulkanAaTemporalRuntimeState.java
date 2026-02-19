@@ -6,6 +6,7 @@ import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.AaTemporalPromotionDiagnostics;
 import org.dynamislight.api.runtime.AaUpscalePromotionDiagnostics;
 import org.dynamislight.api.runtime.AaMsaaPromotionDiagnostics;
+import org.dynamislight.api.runtime.AaQualityPromotionDiagnostics;
 import org.dynamislight.impl.vulkan.runtime.config.UpscalerMode;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 
@@ -85,6 +86,35 @@ public final class VulkanAaTemporalRuntimeState {
     public int msaaWarnCooldownRemaining;
     public boolean msaaEnvelopeBreachedLastFrame;
     public boolean msaaPromotionReadyLastFrame;
+    public String qualityModeIdLastFrame = "";
+    public boolean dlaaModeActiveLastFrame;
+    public boolean dlaaTemporalPathActiveLastFrame;
+    public double dlaaBlendLastFrame;
+    public double dlaaRenderScaleLastFrame = 1.0;
+    public double dlaaWarnMinBlend = 0.90;
+    public double dlaaWarnMinRenderScale = 1.0;
+    public int dlaaWarnMinFrames = 3;
+    public int dlaaWarnCooldownFrames = 120;
+    public int dlaaPromotionReadyMinFrames = 6;
+    public int dlaaStableStreak;
+    public int dlaaHighStreak;
+    public int dlaaWarnCooldownRemaining;
+    public boolean dlaaEnvelopeBreachedLastFrame;
+    public boolean dlaaPromotionReadyLastFrame;
+    public boolean specularPolicyActiveLastFrame;
+    public int specularMaterialCountLastFrame;
+    public int specularNormalMappedCountLastFrame;
+    public double specularNormalMappedRatioLastFrame;
+    public double specularClipScaleLastFrame = 1.0;
+    public double specularWarnMaxClipScale = 1.1;
+    public int specularWarnMinFrames = 3;
+    public int specularWarnCooldownFrames = 120;
+    public int specularPromotionReadyMinFrames = 6;
+    public int specularStableStreak;
+    public int specularHighStreak;
+    public int specularWarnCooldownRemaining;
+    public boolean specularEnvelopeBreachedLastFrame;
+    public boolean specularPromotionReadyLastFrame;
 
     public void resetFrameState() {
         temporalPathRequestedLastFrame = false;
@@ -135,6 +165,26 @@ public final class VulkanAaTemporalRuntimeState {
         msaaWarnCooldownRemaining = 0;
         msaaEnvelopeBreachedLastFrame = false;
         msaaPromotionReadyLastFrame = false;
+        qualityModeIdLastFrame = "";
+        dlaaModeActiveLastFrame = false;
+        dlaaTemporalPathActiveLastFrame = false;
+        dlaaBlendLastFrame = 0.0;
+        dlaaRenderScaleLastFrame = 1.0;
+        dlaaStableStreak = 0;
+        dlaaHighStreak = 0;
+        dlaaWarnCooldownRemaining = 0;
+        dlaaEnvelopeBreachedLastFrame = false;
+        dlaaPromotionReadyLastFrame = false;
+        specularPolicyActiveLastFrame = false;
+        specularMaterialCountLastFrame = 0;
+        specularNormalMappedCountLastFrame = 0;
+        specularNormalMappedRatioLastFrame = 0.0;
+        specularClipScaleLastFrame = 1.0;
+        specularStableStreak = 0;
+        specularHighStreak = 0;
+        specularWarnCooldownRemaining = 0;
+        specularEnvelopeBreachedLastFrame = false;
+        specularPromotionReadyLastFrame = false;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -186,6 +236,24 @@ public final class VulkanAaTemporalRuntimeState {
                 backendOptions, "vulkan.aa.msaaWarnCooldownFrames", msaaWarnCooldownFrames, 0, 10_000);
         msaaPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
                 backendOptions, "vulkan.aa.msaaPromotionReadyMinFrames", msaaPromotionReadyMinFrames, 1, 10_000);
+        dlaaWarnMinBlend = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                backendOptions, "vulkan.aa.dlaaWarnMinBlend", dlaaWarnMinBlend, 0.0, 1.0);
+        dlaaWarnMinRenderScale = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                backendOptions, "vulkan.aa.dlaaWarnMinRenderScale", dlaaWarnMinRenderScale, 0.1, 2.0);
+        dlaaWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.dlaaWarnMinFrames", dlaaWarnMinFrames, 1, 10_000);
+        dlaaWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.dlaaWarnCooldownFrames", dlaaWarnCooldownFrames, 0, 10_000);
+        dlaaPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.dlaaPromotionReadyMinFrames", dlaaPromotionReadyMinFrames, 1, 10_000);
+        specularWarnMaxClipScale = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                backendOptions, "vulkan.aa.specularWarnMaxClipScale", specularWarnMaxClipScale, 0.1, 2.0);
+        specularWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.specularWarnMinFrames", specularWarnMinFrames, 1, 10_000);
+        specularWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.specularWarnCooldownFrames", specularWarnCooldownFrames, 0, 10_000);
+        specularPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                backendOptions, "vulkan.aa.specularPromotionReadyMinFrames", specularPromotionReadyMinFrames, 1, 10_000);
     }
 
     public void applyTemporalEmission(VulkanAaTemporalWarningEmitter.Result emission) {
@@ -393,6 +461,92 @@ public final class VulkanAaTemporalRuntimeState {
                 msaaStableStreak,
                 msaaEnvelopeBreachedLastFrame,
                 msaaPromotionReadyLastFrame
+        );
+    }
+
+    public VulkanAaQualityWarningEmitter.Result emitQuality(
+            org.dynamislight.impl.vulkan.runtime.config.AaMode aaMode,
+            java.util.List<org.dynamislight.api.scene.MaterialDesc> materials,
+            boolean temporalPathActive,
+            double taaBlend,
+            double taaRenderScale,
+            double taaClipScale
+    ) {
+        return VulkanAaQualityWarningEmitter.emit(new VulkanAaQualityWarningEmitter.Input(
+                aaMode,
+                materials,
+                temporalPathActive,
+                taaBlend,
+                taaRenderScale,
+                taaClipScale,
+                dlaaWarnMinBlend,
+                dlaaWarnMinRenderScale,
+                dlaaWarnMinFrames,
+                dlaaWarnCooldownFrames,
+                dlaaPromotionReadyMinFrames,
+                dlaaStableStreak,
+                dlaaHighStreak,
+                dlaaWarnCooldownRemaining,
+                specularWarnMaxClipScale,
+                specularWarnMinFrames,
+                specularWarnCooldownFrames,
+                specularPromotionReadyMinFrames,
+                specularStableStreak,
+                specularHighStreak,
+                specularWarnCooldownRemaining
+        ));
+    }
+
+    public void applyQualityEmission(VulkanAaQualityWarningEmitter.Result emission) {
+        qualityModeIdLastFrame = emission.aaModeId();
+        dlaaModeActiveLastFrame = emission.dlaaModeActive();
+        dlaaTemporalPathActiveLastFrame = emission.dlaaTemporalPathActive();
+        dlaaBlendLastFrame = emission.dlaaBlend();
+        dlaaRenderScaleLastFrame = emission.dlaaRenderScale();
+        dlaaWarnMinBlend = emission.dlaaWarnMinBlend();
+        dlaaWarnMinRenderScale = emission.dlaaWarnMinRenderScale();
+        dlaaStableStreak = emission.dlaaStableStreak();
+        dlaaHighStreak = emission.nextDlaaHighStreak();
+        dlaaWarnCooldownRemaining = emission.nextDlaaCooldownRemaining();
+        dlaaEnvelopeBreachedLastFrame = emission.dlaaEnvelopeBreachedLastFrame();
+        dlaaPromotionReadyLastFrame = emission.dlaaPromotionReadyLastFrame();
+        specularPolicyActiveLastFrame = emission.specularPolicyActive();
+        specularMaterialCountLastFrame = emission.materialCount();
+        specularNormalMappedCountLastFrame = emission.normalMappedMaterialCount();
+        specularNormalMappedRatioLastFrame = emission.normalMappedMaterialRatio();
+        specularClipScaleLastFrame = emission.specularClipScale();
+        specularWarnMaxClipScale = emission.specularWarnMaxClipScale();
+        specularStableStreak = emission.specularStableStreak();
+        specularHighStreak = emission.nextSpecularHighStreak();
+        specularWarnCooldownRemaining = emission.nextSpecularCooldownRemaining();
+        specularEnvelopeBreachedLastFrame = emission.specularEnvelopeBreachedLastFrame();
+        specularPromotionReadyLastFrame = emission.specularPromotionReadyLastFrame();
+    }
+
+    public AaQualityPromotionDiagnostics qualityDiagnostics() {
+        return new AaQualityPromotionDiagnostics(
+                true,
+                qualityModeIdLastFrame,
+                dlaaModeActiveLastFrame,
+                dlaaTemporalPathActiveLastFrame,
+                dlaaBlendLastFrame,
+                dlaaRenderScaleLastFrame,
+                dlaaWarnMinBlend,
+                dlaaWarnMinRenderScale,
+                dlaaPromotionReadyMinFrames,
+                dlaaStableStreak,
+                dlaaEnvelopeBreachedLastFrame,
+                dlaaPromotionReadyLastFrame,
+                specularPolicyActiveLastFrame,
+                specularMaterialCountLastFrame,
+                specularNormalMappedCountLastFrame,
+                specularNormalMappedRatioLastFrame,
+                specularClipScaleLastFrame,
+                specularWarnMaxClipScale,
+                specularPromotionReadyMinFrames,
+                specularStableStreak,
+                specularEnvelopeBreachedLastFrame,
+                specularPromotionReadyLastFrame
         );
     }
 }
