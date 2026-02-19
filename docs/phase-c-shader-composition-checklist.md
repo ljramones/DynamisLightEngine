@@ -20,7 +20,8 @@ Scope: final architecture migration for composed shaders, composed descriptor la
 
 ## C.2 Descriptor Layout Composition
 
-- [ ] C.2.1 Build descriptor layout composer from capability requirements.
+- [x] C.2.1 Build descriptor layout composer from capability requirements.
+  - Added deterministic per-pass descriptor composer with collision rejection and integration tests.
 - [ ] C.2.2 Add per-profile layout caching.
 - [ ] C.2.3 Switch descriptor allocation path to composed layouts.
 - [ ] C.2.4 Bind composed layouts in pipeline builders.
