@@ -100,6 +100,30 @@ final class VulkanRuntimeOptionParsing {
         return Math.max(0, Math.min(5, aa.debugView()));
     }
 
+    static boolean hasBackendOption(Map<String, String> backendOptions, String key) {
+        if (backendOptions == null || key == null || key.isBlank()) {
+            return false;
+        }
+        String value = backendOptions.get(key);
+        return value != null && !value.isBlank();
+    }
+
+    static int parseBackendIntOption(Map<String, String> backendOptions, String key, int fallback, int min, int max) {
+        if (backendOptions == null || key == null || key.isBlank()) {
+            return fallback;
+        }
+        String value = backendOptions.get(key);
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            return Math.max(min, Math.min(max, parsed));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
     private static float parseFloatOption(Map<String, String> options, String key, float fallback, float min, float max) {
         String raw = options == null ? null : options.get(key);
         if (raw == null || raw.isBlank()) {
