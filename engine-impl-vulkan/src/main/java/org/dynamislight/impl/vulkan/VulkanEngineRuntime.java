@@ -2541,37 +2541,25 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private ReflectionProbeChurnDiagnostics updateReflectionProbeChurnDiagnostics(VulkanContext.ReflectionProbeDiagnostics diagnostics) {
-        int active = Math.max(0, diagnostics.activeProbeCount());
-        boolean warningTriggered = false;
-        if (lastActiveReflectionProbeCount < 0) {
-            lastActiveReflectionProbeCount = active;
-            reflectionProbeLastDelta = 0;
-            if (reflectionProbeChurnWarnCooldownRemaining > 0) {
-                reflectionProbeChurnWarnCooldownRemaining--;
-            }
-            return snapshotReflectionProbeChurnDiagnostics(false);
-        }
-        int delta = Math.abs(active - lastActiveReflectionProbeCount);
-        reflectionProbeLastDelta = delta;
-        if (delta > 0) {
-            reflectionProbeActiveChurnEvents++;
-            reflectionProbeActiveDeltaAccum += delta;
-        }
-        if (delta >= reflectionProbeChurnWarnMinDelta) {
-            reflectionProbeChurnHighStreak++;
-            if (reflectionProbeChurnHighStreak >= reflectionProbeChurnWarnMinStreak
-                    && reflectionProbeChurnWarnCooldownRemaining <= 0) {
-                reflectionProbeChurnWarnCooldownRemaining = reflectionProbeChurnWarnCooldownFrames;
-                warningTriggered = true;
-            }
-        } else {
-            reflectionProbeChurnHighStreak = 0;
-        }
-        if (reflectionProbeChurnWarnCooldownRemaining > 0) {
-            reflectionProbeChurnWarnCooldownRemaining--;
-        }
-        lastActiveReflectionProbeCount = active;
-        return snapshotReflectionProbeChurnDiagnostics(warningTriggered);
+        VulkanReflectionAdaptiveDiagnostics.ProbeChurnState state = new VulkanReflectionAdaptiveDiagnostics.ProbeChurnState();
+        state.lastActiveReflectionProbeCount = lastActiveReflectionProbeCount;
+        state.reflectionProbeLastDelta = reflectionProbeLastDelta;
+        state.reflectionProbeActiveChurnEvents = reflectionProbeActiveChurnEvents;
+        state.reflectionProbeActiveDeltaAccum = reflectionProbeActiveDeltaAccum;
+        state.reflectionProbeChurnHighStreak = reflectionProbeChurnHighStreak;
+        state.reflectionProbeChurnWarnCooldownRemaining = reflectionProbeChurnWarnCooldownRemaining;
+        state.reflectionProbeChurnWarnMinDelta = reflectionProbeChurnWarnMinDelta;
+        state.reflectionProbeChurnWarnMinStreak = reflectionProbeChurnWarnMinStreak;
+        state.reflectionProbeChurnWarnCooldownFrames = reflectionProbeChurnWarnCooldownFrames;
+        VulkanReflectionAdaptiveDiagnostics.ProbeChurnUpdateResult result =
+                VulkanReflectionAdaptiveDiagnostics.updateProbeChurn(state, diagnostics.activeProbeCount());
+        lastActiveReflectionProbeCount = result.state.lastActiveReflectionProbeCount;
+        reflectionProbeLastDelta = result.state.reflectionProbeLastDelta;
+        reflectionProbeActiveChurnEvents = result.state.reflectionProbeActiveChurnEvents;
+        reflectionProbeActiveDeltaAccum = result.state.reflectionProbeActiveDeltaAccum;
+        reflectionProbeChurnHighStreak = result.state.reflectionProbeChurnHighStreak;
+        reflectionProbeChurnWarnCooldownRemaining = result.state.reflectionProbeChurnWarnCooldownRemaining;
+        return result.diagnostics;
     }
 
     private ReflectionProbeChurnDiagnostics snapshotReflectionProbeChurnDiagnostics(boolean warningTriggered) {
@@ -2590,12 +2578,14 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     private void resetReflectionProbeChurnDiagnostics() {
-        lastActiveReflectionProbeCount = -1;
-        reflectionProbeLastDelta = 0;
-        reflectionProbeActiveChurnEvents = 0;
-        reflectionProbeActiveDeltaAccum = 0L;
-        reflectionProbeChurnHighStreak = 0;
-        reflectionProbeChurnWarnCooldownRemaining = 0;
+        VulkanReflectionAdaptiveDiagnostics.ProbeChurnState state = new VulkanReflectionAdaptiveDiagnostics.ProbeChurnState();
+        VulkanReflectionAdaptiveDiagnostics.resetProbeChurn(state);
+        lastActiveReflectionProbeCount = state.lastActiveReflectionProbeCount;
+        reflectionProbeLastDelta = state.reflectionProbeLastDelta;
+        reflectionProbeActiveChurnEvents = state.reflectionProbeActiveChurnEvents;
+        reflectionProbeActiveDeltaAccum = state.reflectionProbeActiveDeltaAccum;
+        reflectionProbeChurnHighStreak = state.reflectionProbeChurnHighStreak;
+        reflectionProbeChurnWarnCooldownRemaining = state.reflectionProbeChurnWarnCooldownRemaining;
     }
 
     private ReflectionSsrTaaRiskDiagnostics updateReflectionSsrTaaRiskDiagnostics(
@@ -2603,52 +2593,42 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             double taaConfidence,
             long taaDrops
     ) {
-        reflectionSsrTaaLatestRejectRate = taaReject;
-        reflectionSsrTaaLatestConfidenceMean = taaConfidence;
-        reflectionSsrTaaLatestDropEvents = taaDrops;
-        boolean instantRisk = taaReject > reflectionSsrTaaInstabilityRejectMin
-                && taaConfidence < reflectionSsrTaaInstabilityConfidenceMax
-                && taaDrops >= reflectionSsrTaaInstabilityDropEventsMin;
-        if (reflectionSsrTaaEmaReject < 0.0 || reflectionSsrTaaEmaConfidence < 0.0) {
-            reflectionSsrTaaEmaReject = taaReject;
-            reflectionSsrTaaEmaConfidence = taaConfidence;
-        } else {
-            double alpha = Math.max(0.01, Math.min(1.0, reflectionSsrTaaRiskEmaAlpha));
-            reflectionSsrTaaEmaReject = (taaReject * alpha) + (reflectionSsrTaaEmaReject * (1.0 - alpha));
-            reflectionSsrTaaEmaConfidence = (taaConfidence * alpha) + (reflectionSsrTaaEmaConfidence * (1.0 - alpha));
-        }
-        boolean warningTriggered = false;
-        if (instantRisk) {
-            reflectionSsrTaaRiskHighStreak++;
-            if (reflectionSsrTaaRiskHighStreak >= reflectionSsrTaaInstabilityWarnMinFrames
-                    && reflectionSsrTaaRiskWarnCooldownRemaining <= 0) {
-                reflectionSsrTaaRiskWarnCooldownRemaining = reflectionSsrTaaInstabilityWarnCooldownFrames;
-                warningTriggered = true;
-            }
-        } else {
-            reflectionSsrTaaRiskHighStreak = 0;
-        }
-        if (reflectionSsrTaaRiskWarnCooldownRemaining > 0) {
-            reflectionSsrTaaRiskWarnCooldownRemaining--;
-        }
-        return new ReflectionSsrTaaRiskDiagnostics(
-                instantRisk,
-                reflectionSsrTaaRiskHighStreak,
-                reflectionSsrTaaRiskWarnCooldownRemaining,
-                reflectionSsrTaaEmaReject,
-                reflectionSsrTaaEmaConfidence,
-                warningTriggered
-        );
+        VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState state = new VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState();
+        state.reflectionSsrTaaRiskHighStreak = reflectionSsrTaaRiskHighStreak;
+        state.reflectionSsrTaaRiskWarnCooldownRemaining = reflectionSsrTaaRiskWarnCooldownRemaining;
+        state.reflectionSsrTaaEmaReject = reflectionSsrTaaEmaReject;
+        state.reflectionSsrTaaEmaConfidence = reflectionSsrTaaEmaConfidence;
+        state.reflectionSsrTaaLatestRejectRate = reflectionSsrTaaLatestRejectRate;
+        state.reflectionSsrTaaLatestConfidenceMean = reflectionSsrTaaLatestConfidenceMean;
+        state.reflectionSsrTaaLatestDropEvents = reflectionSsrTaaLatestDropEvents;
+        state.reflectionSsrTaaInstabilityRejectMin = reflectionSsrTaaInstabilityRejectMin;
+        state.reflectionSsrTaaInstabilityConfidenceMax = reflectionSsrTaaInstabilityConfidenceMax;
+        state.reflectionSsrTaaInstabilityDropEventsMin = reflectionSsrTaaInstabilityDropEventsMin;
+        state.reflectionSsrTaaInstabilityWarnMinFrames = reflectionSsrTaaInstabilityWarnMinFrames;
+        state.reflectionSsrTaaInstabilityWarnCooldownFrames = reflectionSsrTaaInstabilityWarnCooldownFrames;
+        state.reflectionSsrTaaRiskEmaAlpha = reflectionSsrTaaRiskEmaAlpha;
+        VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskUpdateResult result =
+                VulkanReflectionAdaptiveDiagnostics.updateSsrTaaRisk(state, taaReject, taaConfidence, taaDrops);
+        reflectionSsrTaaRiskHighStreak = result.state.reflectionSsrTaaRiskHighStreak;
+        reflectionSsrTaaRiskWarnCooldownRemaining = result.state.reflectionSsrTaaRiskWarnCooldownRemaining;
+        reflectionSsrTaaEmaReject = result.state.reflectionSsrTaaEmaReject;
+        reflectionSsrTaaEmaConfidence = result.state.reflectionSsrTaaEmaConfidence;
+        reflectionSsrTaaLatestRejectRate = result.state.reflectionSsrTaaLatestRejectRate;
+        reflectionSsrTaaLatestConfidenceMean = result.state.reflectionSsrTaaLatestConfidenceMean;
+        reflectionSsrTaaLatestDropEvents = result.state.reflectionSsrTaaLatestDropEvents;
+        return result.diagnostics;
     }
 
     private void resetReflectionSsrTaaRiskDiagnostics() {
-        reflectionSsrTaaRiskHighStreak = 0;
-        reflectionSsrTaaRiskWarnCooldownRemaining = 0;
-        reflectionSsrTaaEmaReject = -1.0;
-        reflectionSsrTaaEmaConfidence = -1.0;
-        reflectionSsrTaaLatestRejectRate = 0.0;
-        reflectionSsrTaaLatestConfidenceMean = 1.0;
-        reflectionSsrTaaLatestDropEvents = 0L;
+        VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState state = new VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState();
+        VulkanReflectionAdaptiveDiagnostics.resetSsrTaaRisk(state);
+        reflectionSsrTaaRiskHighStreak = state.reflectionSsrTaaRiskHighStreak;
+        reflectionSsrTaaRiskWarnCooldownRemaining = state.reflectionSsrTaaRiskWarnCooldownRemaining;
+        reflectionSsrTaaEmaReject = state.reflectionSsrTaaEmaReject;
+        reflectionSsrTaaEmaConfidence = state.reflectionSsrTaaEmaConfidence;
+        reflectionSsrTaaLatestRejectRate = state.reflectionSsrTaaLatestRejectRate;
+        reflectionSsrTaaLatestConfidenceMean = state.reflectionSsrTaaLatestConfidenceMean;
+        reflectionSsrTaaLatestDropEvents = state.reflectionSsrTaaLatestDropEvents;
     }
 
     private void applyAdaptiveReflectionPostParameters() {
