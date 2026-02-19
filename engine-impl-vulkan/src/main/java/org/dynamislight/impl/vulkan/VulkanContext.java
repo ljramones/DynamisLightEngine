@@ -45,6 +45,7 @@ import org.dynamislight.impl.vulkan.swapchain.VulkanSwapchainRecreateCoordinator
 import org.dynamislight.impl.vulkan.texture.VulkanTextureResourceOps;
 import org.dynamislight.impl.vulkan.texture.VulkanTexturePixelLoader;
 import org.dynamislight.impl.vulkan.uniform.VulkanFrameUniformCoordinator;
+import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneBuildRequestFactory;
 import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformFrameCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadCoordinator;
@@ -1563,13 +1564,28 @@ public final class VulkanContext {
 
     private void prepareFrameUniforms(int frameIdx) throws EngineException {
         updateReflectionProbeMetadataBuffer();
-        float planarHeight = renderState.reflectionsPlanarPlaneHeight;
-        float[] planeReflection = planarReflectionMatrix(planarHeight);
-        float[] planarViewMatrix = mul(viewMatrix, planeReflection);
-        float[] planarProjMatrix = projMatrix;
-        float[] planarPrevViewProj = taaPrevViewProjValid
-                ? mul(taaPrevViewProj, planeReflection)
-                : mul(planarProjMatrix, planarViewMatrix);
+        VulkanGlobalSceneUniformCoordinator.BuildRequest globalSceneRequest =
+                VulkanGlobalSceneBuildRequestFactory.build(
+                        new VulkanGlobalSceneBuildRequestFactory.Inputs(
+                                GLOBAL_SCENE_UNIFORM_BYTES,
+                                viewMatrix,
+                                projMatrix,
+                                taaPrevViewProjValid,
+                                taaPrevViewProj,
+                                lightingState,
+                                renderState,
+                                localLightCount,
+                                MAX_LOCAL_LIGHTS,
+                                localLightPosRange,
+                                localLightColorIntensity,
+                                localLightDirInner,
+                                localLightOuterTypeShadow,
+                                backendResources.shadowRtTraversalSupported,
+                                backendResources.swapchainWidth,
+                                backendResources.swapchainHeight,
+                                iblState
+                        )
+                );
         VulkanUniformUploadCoordinator.prepareFrameUniforms(
                 new VulkanUniformUploadCoordinator.PrepareInputs(
                         frameIdx,
@@ -1581,99 +1597,7 @@ public final class VulkanContext {
                         backendResources.device,
                         descriptorResources,
                         uploadState,
-                        VulkanGlobalSceneUniformCoordinator.build(
-                                new VulkanGlobalSceneUniformCoordinator.BuildRequest(
-                                        GLOBAL_SCENE_UNIFORM_BYTES,
-                                        viewMatrix,
-                                        projMatrix,
-                                        lightingState.dirLightDirX(),
-                                        lightingState.dirLightDirY(),
-                                        lightingState.dirLightDirZ(),
-                                        renderState.shadowPcssSoftness,
-                                        lightingState.dirLightColorR(),
-                                        lightingState.dirLightColorG(),
-                                        lightingState.dirLightColorB(),
-                                        renderState.shadowMomentBlend,
-                                        lightingState.pointLightPosX(),
-                                        lightingState.pointLightPosY(),
-                                        lightingState.pointLightPosZ(),
-                                        lightingState.pointShadowFarPlane(),
-                                        lightingState.pointLightColorR(),
-                                        lightingState.pointLightColorG(),
-                                        lightingState.pointLightColorB(),
-                                        renderState.shadowMomentBleedReduction,
-                                        lightingState.pointLightDirX(),
-                                        lightingState.pointLightDirY(),
-                                        lightingState.pointLightDirZ(),
-                                        renderState.shadowContactStrength,
-                                        lightingState.pointLightInnerCos(),
-                                        lightingState.pointLightOuterCos(),
-                                        lightingState.pointLightIsSpot(),
-                                        lightingState.pointShadowEnabled(),
-                                        localLightCount,
-                                        MAX_LOCAL_LIGHTS,
-                                        localLightPosRange,
-                                        localLightColorIntensity,
-                                        localLightDirInner,
-                                        localLightOuterTypeShadow,
-                                        renderState.shadowFilterMode,
-                                        renderState.shadowRtMode,
-                                        backendResources.shadowRtTraversalSupported && renderState.shadowRtMode > 0,
-                                        renderState.shadowRtDenoiseStrength,
-                                        renderState.shadowRtRayLength,
-                                        renderState.shadowRtSampleCount,
-                                        renderState.shadowContactShadows,
-                                        lightingState.dirLightIntensity(),
-                                        lightingState.pointLightIntensity(),
-                                        renderState.shadowContactTemporalMotionScale,
-                                        renderState.shadowContactTemporalMinStability,
-                                        renderState.shadowEnabled,
-                                        renderState.shadowStrength,
-                                        renderState.shadowBias,
-                                        renderState.shadowNormalBiasScale,
-                                        renderState.shadowSlopeBiasScale,
-                                        renderState.shadowPcfRadius,
-                                        renderState.shadowCascadeCount,
-                                        renderState.shadowMapResolution,
-                                        renderState.shadowCascadeSplitNdc,
-                                        renderState.fogEnabled,
-                                        renderState.fogDensity,
-                                        renderState.fogR,
-                                        renderState.fogG,
-                                        renderState.fogB,
-                                        renderState.fogSteps,
-                                        renderState.smokeEnabled,
-                                        renderState.smokeIntensity,
-                                        backendResources.swapchainWidth,
-                                        backendResources.swapchainHeight,
-                                        renderState.smokeR,
-                                        renderState.smokeG,
-                                        renderState.smokeB,
-                                        iblState.enabled,
-                                        iblState.diffuseStrength,
-                                        iblState.specularStrength,
-                                        iblState.prefilterStrength,
-                                        renderState.postOffscreenActive,
-                                        renderState.tonemapEnabled,
-                                        renderState.tonemapExposure,
-                                        renderState.tonemapGamma,
-                                        renderState.bloomEnabled,
-                                        renderState.bloomThreshold,
-                                        renderState.bloomStrength,
-                                        renderState.ssaoEnabled,
-                                        renderState.ssaoStrength,
-                                        renderState.ssaoRadius,
-                                        renderState.ssaoBias,
-                                        renderState.ssaoPower,
-                                        renderState.smaaEnabled,
-                                        renderState.smaaStrength,
-                                        taaPrevViewProjValid ? taaPrevViewProj : mul(projMatrix, viewMatrix),
-                                        renderState.shadowLightViewProjMatrices,
-                                        planarViewMatrix,
-                                        planarProjMatrix,
-                                        planarPrevViewProj
-                                )
-                        ),
+                        VulkanGlobalSceneUniformCoordinator.build(globalSceneRequest),
                         this::vkFailure
                 )
         );
@@ -1718,15 +1642,6 @@ public final class VulkanContext {
         reflectionProbeLodTier2Count = result.lodTier2Count();
         reflectionProbeLodTier3Count = result.lodTier3Count();
         reflectionProbeFrameTick = result.nextFrameTick();
-    }
-
-    private static float[] planarReflectionMatrix(float planeHeight) {
-        return new float[]{
-                1f, 0f, 0f, 0f,
-                0f, -1f, 0f, 0f,
-                0f, 0f, 1f, 0f,
-                0f, 2f * planeHeight, 0f, 1f
-        };
     }
 
     private void rebuildReflectionProbeResources() throws EngineException {
