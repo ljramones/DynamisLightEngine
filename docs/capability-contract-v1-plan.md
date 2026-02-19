@@ -37,3 +37,9 @@ Scope: post-reflections sequencing kickoff
 - Types include resource requirements with binding frequency metadata.
 - Basic test coverage exists for immutability/default contract behavior.
 - ADR documents rationale and sequencing boundary.
+
+## Phase 2 status
+
+- AA/post contract hardening artifacts are tracked in:
+  - `docs/capability-contract-phase2-aa-post.md`
+  - `docs/capability-contract-phase2-aa-post-checklist.md`
