@@ -31,9 +31,9 @@ final class VulkanReflectionSsrTaaWarningEmitter {
         long reflectionSsrTaaDisocclusionRejectDropEventsMin;
         double reflectionSsrTaaDisocclusionRejectConfidenceMax;
 
-        double reflectionAdaptiveTemporalWeightActive;
-        double reflectionAdaptiveSsrStrengthActive;
-        double reflectionAdaptiveSsrStepScaleActive;
+        float reflectionAdaptiveTemporalWeightActive;
+        float reflectionAdaptiveSsrStrengthActive;
+        float reflectionAdaptiveSsrStepScaleActive;
 
         double reflectionSsrEnvelopeRejectWarnMax;
         double reflectionSsrEnvelopeConfidenceWarnMin;
@@ -74,6 +74,10 @@ final class VulkanReflectionSsrTaaWarningEmitter {
             String trendSloReason,
             boolean trendSloFailed
     ) {
+        double activeTemporalWeight = Math.max((double) state.reflectionAdaptiveTemporalWeightActive, reflectionTemporalWeight);
+        double activeSsrStrength = Math.min((double) state.reflectionAdaptiveSsrStrengthActive, ssrStrength);
+        double activeSsrStepScale = Math.max((double) state.reflectionAdaptiveSsrStepScaleActive, ssrStepScale);
+
         warnings.add(new EngineWarning(
                 "REFLECTION_SSR_TAA_DIAGNOSTICS",
                 "SSR/TAA diagnostics (mode="
@@ -104,20 +108,20 @@ final class VulkanReflectionSsrTaaWarningEmitter {
                         + ", instabilityRiskEmaReject=" + ssrTaaRisk.emaReject()
                         + ", instabilityRiskEmaConfidence=" + ssrTaaRisk.emaConfidence()
                         + ", instabilityRiskInstant=" + ssrTaaRisk.instantRisk()
-                        + ", adaptiveTemporalWeightActive=" + state.reflectionAdaptiveTemporalWeightActive
-                        + ", adaptiveSsrStrengthActive=" + state.reflectionAdaptiveSsrStrengthActive
-                        + ", adaptiveSsrStepScaleActive=" + state.reflectionAdaptiveSsrStepScaleActive
+                        + ", adaptiveTemporalWeightActive=" + activeTemporalWeight
+                        + ", adaptiveSsrStrengthActive=" + activeSsrStrength
+                        + ", adaptiveSsrStepScaleActive=" + activeSsrStepScale
                         + ")"
         ));
         warnings.add(new EngineWarning(
                 "REFLECTION_SSR_TAA_ADAPTIVE_POLICY_ACTIVE",
                 "SSR/TAA adaptive policy (enabled=" + state.reflectionSsrTaaAdaptiveEnabled
                         + ", baseTemporalWeight=" + reflectionTemporalWeight
-                        + ", activeTemporalWeight=" + state.reflectionAdaptiveTemporalWeightActive
+                        + ", activeTemporalWeight=" + activeTemporalWeight
                         + ", baseSsrStrength=" + ssrStrength
-                        + ", activeSsrStrength=" + state.reflectionAdaptiveSsrStrengthActive
+                        + ", activeSsrStrength=" + activeSsrStrength
                         + ", baseSsrStepScale=" + ssrStepScale
-                        + ", activeSsrStepScale=" + state.reflectionAdaptiveSsrStepScaleActive
+                        + ", activeSsrStepScale=" + activeSsrStepScale
                         + ", riskHighStreak=" + ssrTaaRisk.highStreak()
                         + ", riskWarnCooldownRemaining=" + ssrTaaRisk.warnCooldownRemaining()
                         + ")"

@@ -10,6 +10,7 @@ import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
 
 import org.dynamislight.impl.vulkan.runtime.config.*;
 
+import java.util.Deque;
 import java.util.List;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.EngineWarning;
@@ -24,9 +25,10 @@ public final class VulkanReflectionRuntimeFlow {
             QualityTier qualityTier,
             List<EngineWarning> warnings
     ) {
+        QualityTier resolvedTier = safeTier(qualityTier);
         State state = snapshot(runtime);
         if (!state.currentPost.reflectionsEnabled()) {
-            resetWhenDisabled(runtime, qualityTier);
+            resetWhenDisabled(runtime, resolvedTier);
             return;
         }
         int reflectionBaseMode = state.currentPost.reflectionsMode() & REFLECTION_MODE_BASE_MASK;
@@ -67,7 +69,7 @@ public final class VulkanReflectionRuntimeFlow {
         VulkanReflectionWarningCoreFlow.process(
                 runtime,
                 context,
-                qualityTier,
+                resolvedTier,
                 warnings,
                 reflectionBaseMode,
                 overrideSummary,
@@ -83,8 +85,8 @@ public final class VulkanReflectionRuntimeFlow {
                 state.mockContext,
                 state.currentSceneMaterials,
                 state.reflectionTransparencyCandidateReactiveMin,
-                planarPerfGpuMsCapForTier(state, qualityTier),
-                rtPerfGpuMsCapForTier(state, qualityTier)
+                planarPerfGpuMsCapForTier(state, resolvedTier),
+                rtPerfGpuMsCapForTier(state, resolvedTier)
         );
 
         boolean ssrPathActive = isReflectionSsrPathActive(state.currentPost.reflectionsMode());
@@ -98,6 +100,12 @@ public final class VulkanReflectionRuntimeFlow {
             VulkanEngineRuntime.TrendSloAudit trendSloAudit = evaluateAdaptiveTrendSlo(runtime, adaptiveTrend);
             VulkanReflectionSsrTaaWarningEmitter.State ssrTaaState = new VulkanReflectionSsrTaaWarningEmitter.State();
             VulkanTelemetryStateBinder.copyMatchingFields(runtime, ssrTaaState);
+            ssrTaaState.reflectionSsrTaaInstabilityRejectMin = state.reflectionSsrTaaInstabilityRejectMin;
+            ssrTaaState.reflectionSsrTaaInstabilityConfidenceMax = state.reflectionSsrTaaInstabilityConfidenceMax;
+            ssrTaaState.reflectionSsrTaaInstabilityDropEventsMin = state.reflectionSsrTaaInstabilityDropEventsMin;
+            ssrTaaState.reflectionSsrTaaInstabilityWarnMinFrames = state.reflectionSsrTaaInstabilityWarnMinFrames;
+            ssrTaaState.reflectionSsrTaaInstabilityWarnCooldownFrames = state.reflectionSsrTaaInstabilityWarnCooldownFrames;
+            ssrTaaState.reflectionSsrTaaRiskEmaAlpha = state.reflectionSsrTaaRiskEmaAlpha;
             VulkanReflectionSsrTaaWarningEmitter.emit(
                     warnings,
                     ssrTaaState,
@@ -136,7 +144,7 @@ public final class VulkanReflectionRuntimeFlow {
                             + ", highStreak=" + churnDiagnostics.highStreak() + ")"
             ));
         }
-        if (qualityTier == QualityTier.MEDIUM) {
+        if (resolvedTier == QualityTier.MEDIUM) {
             warnings.add(new EngineWarning(
                     "REFLECTIONS_QUALITY_DEGRADED",
                     "Reflections quality is reduced at MEDIUM tier to stabilize frame time"
@@ -260,12 +268,13 @@ public final class VulkanReflectionRuntimeFlow {
     }
 
     public static void resetWhenDisabled(VulkanEngineRuntime runtime, QualityTier qualityTier) {
+        QualityTier resolvedTier = safeTier(qualityTier);
         resetProbeChurnDiagnostics(runtime);
         resetSsrTaaRiskDiagnostics(runtime);
         resetAdaptiveState(runtime);
         resetAdaptiveTelemetryMetrics(runtime);
         State state = snapshot(runtime);
-        VulkanRuntimeWarningResets.resetReflectionWhenDisabled(runtime, rtPerfGpuMsCapForTier(state, qualityTier));
+        VulkanRuntimeWarningResets.resetReflectionWhenDisabled(runtime, rtPerfGpuMsCapForTier(state, resolvedTier));
     }
 
     public static ReflectionProbeChurnDiagnostics snapshotProbeChurnDiagnostics(VulkanEngineRuntime runtime, boolean warningTriggered) {
@@ -332,6 +341,7 @@ public final class VulkanReflectionRuntimeFlow {
 
     public static void resetProbeChurnDiagnostics(VulkanEngineRuntime runtime) {
         VulkanReflectionAdaptiveDiagnostics.ProbeChurnState state = new VulkanReflectionAdaptiveDiagnostics.ProbeChurnState();
+        VulkanTelemetryStateBinder.copyMatchingFields(runtime, state);
         VulkanReflectionAdaptiveDiagnostics.resetProbeChurn(state);
         VulkanTelemetryStateBinder.copyMatchingFields(state, runtime);
     }
@@ -352,6 +362,7 @@ public final class VulkanReflectionRuntimeFlow {
 
     public static void resetSsrTaaRiskDiagnostics(VulkanEngineRuntime runtime) {
         VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState state = new VulkanReflectionAdaptiveDiagnostics.SsrTaaRiskState();
+        VulkanTelemetryStateBinder.copyMatchingFields(runtime, state);
         VulkanReflectionAdaptiveDiagnostics.resetSsrTaaRisk(state);
         VulkanTelemetryStateBinder.copyMatchingFields(state, runtime);
     }
@@ -442,7 +453,7 @@ public final class VulkanReflectionRuntimeFlow {
     }
 
     private static double planarPerfGpuMsCapForTier(State state, QualityTier tier) {
-        return switch (tier) {
+        return switch (safeTier(tier)) {
             case LOW -> state.reflectionPlanarPerfMaxGpuMsLow;
             case MEDIUM -> state.reflectionPlanarPerfMaxGpuMsMedium;
             case HIGH -> state.reflectionPlanarPerfMaxGpuMsHigh;
@@ -451,7 +462,7 @@ public final class VulkanReflectionRuntimeFlow {
     }
 
     private static double rtPerfGpuMsCapForTier(State state, QualityTier tier) {
-        return switch (tier) {
+        return switch (safeTier(tier)) {
             case LOW -> state.reflectionRtPerfMaxGpuMsLow;
             case MEDIUM -> state.reflectionRtPerfMaxGpuMsMedium;
             case HIGH -> state.reflectionRtPerfMaxGpuMsHigh;
@@ -461,6 +472,10 @@ public final class VulkanReflectionRuntimeFlow {
 
     private static float clamp(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private static QualityTier safeTier(QualityTier tier) {
+        return tier == null ? QualityTier.MEDIUM : tier;
     }
 
     private static VulkanReflectionAdaptiveTrendEngine.State createTrendState(State state) {
@@ -528,8 +543,12 @@ public final class VulkanReflectionRuntimeFlow {
         double reflectionSsrTaaEmaConfidence;
         double reflectionSsrTaaInstabilityRejectMin;
         double reflectionSsrTaaInstabilityConfidenceMax;
+        long reflectionSsrTaaInstabilityDropEventsMin;
         int reflectionSsrTaaRiskHighStreak;
         int reflectionSsrTaaInstabilityWarnMinFrames;
+        int reflectionSsrTaaInstabilityWarnCooldownFrames;
+        int reflectionSsrTaaRiskWarnCooldownRemaining;
+        double reflectionSsrTaaRiskEmaAlpha;
         double reflectionSsrTaaLatestRejectRate;
         double reflectionSsrTaaLatestConfidenceMean;
         long reflectionSsrTaaLatestDropEvents;
@@ -538,6 +557,22 @@ public final class VulkanReflectionRuntimeFlow {
         double reflectionSsrTaaHistoryRejectSeverityMin;
         int reflectionSsrTaaHistoryRejectRiskStreakMin;
         double reflectionSsrTaaHistoryConfidenceDecaySeverityMin;
+        double reflectionAdaptiveSeverityPeak;
+        double reflectionAdaptiveSeverityAccum;
+        double reflectionAdaptiveTemporalDeltaAccum;
+        double reflectionAdaptiveSsrStrengthDeltaAccum;
+        double reflectionAdaptiveSsrStepScaleDeltaAccum;
+        long reflectionAdaptiveTelemetrySamples;
+        int reflectionSsrTaaAdaptiveTrendWarnHighStreak;
+        int reflectionSsrTaaAdaptiveTrendWarnCooldownRemaining;
+        int reflectionSsrTaaAdaptiveTrendWindowFrames;
+        double reflectionSsrTaaAdaptiveTrendHighRatioWarnMin;
+        int reflectionSsrTaaAdaptiveTrendWarnMinFrames;
+        int reflectionSsrTaaAdaptiveTrendWarnCooldownFrames;
+        int reflectionSsrTaaAdaptiveTrendWarnMinSamples;
+        int reflectionSsrTaaAdaptiveTrendSloMinSamples;
+        double reflectionSsrTaaAdaptiveTrendSloMeanSeverityMax;
+        double reflectionSsrTaaAdaptiveTrendSloHighRatioMax;
 
         float reflectionAdaptiveTemporalWeightActive;
         float reflectionAdaptiveSsrStrengthActive;
@@ -548,6 +583,7 @@ public final class VulkanReflectionRuntimeFlow {
         double reflectionSsrTaaHistoryRejectBiasActive;
         double reflectionSsrTaaHistoryConfidenceDecayActive;
         double reflectionRtDenoiseStrength;
+        Deque<ReflectionAdaptiveWindowSample> reflectionAdaptiveTrendSamples;
 
         int reflectionTransparentCandidateCount;
         boolean reflectionSsrTaaAdaptiveTrendWarningTriggeredLastFrame;

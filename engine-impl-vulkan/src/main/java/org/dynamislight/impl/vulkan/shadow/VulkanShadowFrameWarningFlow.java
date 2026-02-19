@@ -79,6 +79,18 @@ public final class VulkanShadowFrameWarningFlow {
         int shadowCacheWarnCooldownFrames;
         double shadowRtDenoiseWarnMin;
         int shadowRtSampleWarnMin;
+        float shadowRtDenoiseStrength;
+        float shadowRtRayLength;
+        int shadowRtSampleCount;
+        float shadowRtDedicatedDenoiseStrength;
+        float shadowRtDedicatedRayLength;
+        int shadowRtDedicatedSampleCount;
+        float shadowRtProductionDenoiseStrength;
+        float shadowRtProductionRayLength;
+        int shadowRtProductionSampleCount;
+        boolean shadowRtTraversalSupported;
+        boolean shadowRtBvhSupported;
+        boolean shadowRtBvhStrict;
         double shadowRtPerfMaxGpuMsLow;
         double shadowRtPerfMaxGpuMsMedium;
         double shadowRtPerfMaxGpuMsHigh;
@@ -109,9 +121,26 @@ public final class VulkanShadowFrameWarningFlow {
         int shadowPhaseDPromotionReadyMinFrames;
         List<LightDesc> currentSceneLights;
         List<MaterialDesc> currentSceneMaterials;
+        QualityTier qualityTier;
+        int shadowSchedulerHeroPeriod;
+        int shadowSchedulerMidPeriod;
+        int shadowSchedulerDistantPeriod;
+        boolean shadowDirectionalTexelSnapEnabled;
+        float shadowDirectionalTexelSnapScale;
+        long shadowSchedulerFrameTick;
+        int shadowAllocatorAssignedLights;
+        int shadowAllocatorReusedAssignments;
+        int shadowAllocatorEvictions;
+        float shadowPcssSoftness;
+        float shadowMomentBlend;
+        float shadowMomentBleedReduction;
+        float shadowContactStrength;
+        float shadowContactTemporalMotionScale;
+        float shadowContactTemporalMinStability;
     }
 
     public static void process(Object runtime, VulkanContext context, QualityTier qualityTier, List<EngineWarning> warnings) {
+        QualityTier resolvedTier = qualityTier == null ? QualityTier.MEDIUM : qualityTier;
         State state = new State();
         VulkanTelemetryStateBinder.copyMatchingFields(runtime, state);
         VulkanRuntimeWarningResets.resetShadowFrameDefaults(state, state.shadowTransparentReceiversSupported);
@@ -168,7 +197,7 @@ public final class VulkanShadowFrameWarningFlow {
         }
         VulkanShadowCapabilityPlanner.Plan shadowCapabilityPlan = VulkanShadowCapabilityPlanner.plan(
                 new VulkanShadowCapabilityPlanner.PlanInput(
-                        qualityTier,
+                        resolvedTier,
                         state.currentShadows.filterPath(),
                         state.currentShadows.contactShadowsRequested(),
                         state.currentShadows.rtShadowMode(),
@@ -243,7 +272,7 @@ public final class VulkanShadowFrameWarningFlow {
         ));
         warnings.add(new EngineWarning(
                 "SHADOW_TELEMETRY_PROFILE_ACTIVE",
-                "Shadow telemetry profile active (tier=" + qualityTier.name().toLowerCase(Locale.ROOT)
+                "Shadow telemetry profile active (tier=" + resolvedTier.name().toLowerCase(Locale.ROOT)
                         + ", cadenceDeferredRatioWarnMax=" + state.shadowCadenceWarnDeferredRatioMax
                         + ", cadenceWarnMinFrames=" + state.shadowCadenceWarnMinFrames
                         + ", cadenceWarnCooldownFrames=" + state.shadowCadenceWarnCooldownFrames

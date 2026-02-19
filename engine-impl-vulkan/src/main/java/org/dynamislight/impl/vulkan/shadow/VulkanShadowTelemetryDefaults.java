@@ -51,7 +51,8 @@ public final class VulkanShadowTelemetryDefaults {
 
     public static void apply(State state, Map<String, String> backendOptions, QualityTier tier) {
         Map<String, String> safe = backendOptions == null ? Map.of() : backendOptions;
-        switch (tier) {
+        QualityTier resolvedTier = tier == null ? QualityTier.MEDIUM : tier;
+        switch (resolvedTier) {
             case LOW -> {
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) state.shadowCadenceWarnDeferredRatioMax = 0.75;
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) state.shadowCadenceWarnMinFrames = 4;

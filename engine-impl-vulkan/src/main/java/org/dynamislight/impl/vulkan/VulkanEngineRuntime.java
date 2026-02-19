@@ -698,7 +698,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 1,
                 10_000
         );
-        applyShadowTelemetryProfileDefaults(safeBackendOptions, config.qualityTier());
+        QualityTier resolvedQualityTier = config.qualityTier() == null ? QualityTier.MEDIUM : config.qualityTier();
+        applyShadowTelemetryProfileDefaults(safeBackendOptions, resolvedQualityTier);
         applyReflectionProfileTelemetryDefaults(safeBackendOptions);
         tsrControls = VulkanRuntimeOptionParsing.parseTsrControls(safeBackendOptions, "vulkan.");
         externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", safeBackendOptions);
@@ -707,7 +708,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         nativeUpscalerDetail = externalUpscaler.statusDetail();
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
-        qualityTier = config.qualityTier();
+        qualityTier = resolvedQualityTier;
         viewportWidth = config.initialWidthPx();
         viewportHeight = config.initialHeightPx();
         deviceLostRaised = false;

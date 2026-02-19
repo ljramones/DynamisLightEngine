@@ -79,6 +79,7 @@ final class VulkanReflectionPlanarWarningEmitter {
                 + "|probe_only=" + state.reflectionPlanarScopeIncludeProbeOnly
                 + "|ssr_only=" + state.reflectionPlanarScopeIncludeSsrOnly
                 + "|other=" + state.reflectionPlanarScopeIncludeOther;
+        String planeHeightText = Float.toString((float) planeHeight);
         warnings.add(new EngineWarning(
                 "REFLECTION_PLANAR_SCOPE_CONTRACT",
                 "Planar scope contract (status=" + state.reflectionPlanarPassOrderContractStatus
@@ -89,7 +90,7 @@ final class VulkanReflectionPlanarWarningEmitter {
                         + ", eligibleMeshes=" + planarEligible
                         + ", excludedMeshes=" + planarExcluded
                         + ", totalMeshes=" + planarTotalMeshes
-                        + ", planeHeight=" + planeHeight
+                        + ", planeHeight=" + planeHeightText
                         + ", requiredOrder=planar_capture_before_main_sample_before_post)"
         ));
         String captureResourceStatus = planarPathActive

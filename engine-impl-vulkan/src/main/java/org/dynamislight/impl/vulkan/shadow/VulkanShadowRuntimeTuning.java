@@ -119,7 +119,8 @@ public final class VulkanShadowRuntimeTuning {
             double high,
             double ultra
     ) {
-        return switch (tier) {
+        QualityTier resolvedTier = tier == null ? QualityTier.MEDIUM : tier;
+        return switch (resolvedTier) {
             case LOW -> low;
             case MEDIUM -> medium;
             case HIGH -> high;
