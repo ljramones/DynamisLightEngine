@@ -37,7 +37,7 @@ Status summary snapshot (2026-02-18):
 - Area light shadows (approximate or sampled) — `Partial`
 - RT shadows (hard, soft, denoised) — `Partial`
 - Hybrid combinations (cascade + contact + RT detail fill) — `Partial`
-- Transparent shadow receivers — `Not In Yet`
+- Transparent shadow receivers — `Partial`
 - Shadow caching (static geometry cache, dynamic overlay) — `Partial`
 - Distance-field soft shadows (medium-range, no map needed) — `Partial`
 
