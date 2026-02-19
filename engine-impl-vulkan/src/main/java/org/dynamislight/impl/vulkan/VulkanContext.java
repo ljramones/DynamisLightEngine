@@ -154,7 +154,7 @@ public final class VulkanContext {
         backendResources.depthFormat = resolveConfiguredDepthFormat();
     }
 
-    String shadowDepthFormatTag() {
+    public String shadowDepthFormatTag() {
         return switch (backendResources.depthFormat) {
             case VK_FORMAT_D16_UNORM -> "d16";
             case VK_FORMAT_D32_SFLOAT -> "d32";
@@ -162,7 +162,7 @@ public final class VulkanContext {
         };
     }
 
-    String shadowMomentFormatTag() {
+    public String shadowMomentFormatTag() {
         return switch (backendResources.shadowMomentFormat) {
             case VK10.VK_FORMAT_R16G16_SFLOAT -> "rg16f";
             case VK10.VK_FORMAT_R16G16B16A16_SFLOAT -> "rgba16f";
@@ -733,7 +733,7 @@ public final class VulkanContext {
                 && backendResources.shadowMomentFormat != 0;
     }
 
-    boolean hasShadowMomentResources() {
+    public boolean hasShadowMomentResources() {
         return backendResources.shadowMomentImage != VK_NULL_HANDLE
                 && backendResources.shadowMomentImageView != VK_NULL_HANDLE
                 && backendResources.shadowMomentSampler != VK_NULL_HANDLE

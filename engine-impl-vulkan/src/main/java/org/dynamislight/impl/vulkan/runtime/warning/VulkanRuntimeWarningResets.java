@@ -1,11 +1,11 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.runtime.warning;
 
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
 
 import java.util.List;
 
-final class VulkanRuntimeWarningResets {
-    static final class ReflectionDisabledState {
+public final class VulkanRuntimeWarningResets {
+    public static final class ReflectionDisabledState {
         String reflectionPlanarPassOrderContractStatus;
         int reflectionPlanarScopedMeshEligibleCount;
         int reflectionPlanarScopedMeshExcludedCount;
@@ -45,7 +45,7 @@ final class VulkanRuntimeWarningResets {
         String reflectionTransparencyFallbackPath;
     }
 
-    static final class ShadowFrameDefaultsState {
+    public static final class ShadowFrameDefaultsState {
         String shadowCapabilityFeatureIdLastFrame;
         String shadowCapabilityModeLastFrame;
         List<String> shadowCapabilitySignalsLastFrame;
@@ -98,7 +98,7 @@ final class VulkanRuntimeWarningResets {
         boolean shadowPhaseDPromotionReadyLastFrame;
     }
 
-    static void resetReflectionWhenDisabled(Object runtime, double rtPerfCapForTier) {
+    public static void resetReflectionWhenDisabled(Object runtime, double rtPerfCapForTier) {
         ReflectionDisabledState state = new ReflectionDisabledState();
         VulkanTelemetryStateBinder.copyMatchingFields(runtime, state);
         state.reflectionPlanarPassOrderContractStatus = "inactive";
@@ -141,7 +141,7 @@ final class VulkanRuntimeWarningResets {
         VulkanTelemetryStateBinder.copyMatchingFields(state, runtime);
     }
 
-    static void resetShadowFrameDefaults(Object runtime, boolean transparentReceiversSupported) {
+    public static void resetShadowFrameDefaults(Object runtime, boolean transparentReceiversSupported) {
         ShadowFrameDefaultsState state = new ShadowFrameDefaultsState();
         VulkanTelemetryStateBinder.copyMatchingFields(runtime, state);
         state.shadowCapabilityFeatureIdLastFrame = "unavailable";

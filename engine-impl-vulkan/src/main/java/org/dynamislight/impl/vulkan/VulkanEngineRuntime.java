@@ -1,5 +1,8 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.shadow.VulkanShadowFrameWarningFlow;
+import org.dynamislight.impl.vulkan.runtime.warning.VulkanRuntimeWarningResets;
+
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowBackendDiagnosticsBridge;
 
 import org.dynamislight.impl.vulkan.runtime.upscale.VulkanExternalUpscalerDecider;

@@ -1,20 +1,18 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
 
-import org.dynamislight.impl.vulkan.shadow.*;
-
+import org.dynamislight.impl.vulkan.VulkanContext;
 import org.dynamislight.impl.vulkan.runtime.model.*;
-
+import org.dynamislight.impl.vulkan.runtime.warning.VulkanRuntimeWarningResets;
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
-
-import java.util.List;
-import java.util.Locale;
+import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
-import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
+import java.util.List;
+import java.util.Locale;
 
-final class VulkanShadowFrameWarningFlow {
+public final class VulkanShadowFrameWarningFlow {
     static final class State {
         ShadowRenderConfig currentShadows;
         int shadowCadenceWarnCooldownRemaining;
@@ -113,7 +111,7 @@ final class VulkanShadowFrameWarningFlow {
         List<MaterialDesc> currentSceneMaterials;
     }
 
-    static void process(Object runtime, VulkanContext context, QualityTier qualityTier, List<EngineWarning> warnings) {
+    public static void process(Object runtime, VulkanContext context, QualityTier qualityTier, List<EngineWarning> warnings) {
         State state = new State();
         VulkanTelemetryStateBinder.copyMatchingFields(runtime, state);
         VulkanRuntimeWarningResets.resetShadowFrameDefaults(state, state.shadowTransparentReceiversSupported);
