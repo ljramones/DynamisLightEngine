@@ -1,4 +1,7 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
+
+import org.dynamislight.impl.vulkan.VulkanContext;
+import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
@@ -6,11 +9,11 @@ import java.util.Map;
 
 import org.dynamislight.api.config.QualityTier;
 
-final class VulkanShadowRuntimeTuning {
+public final class VulkanShadowRuntimeTuning {
     private VulkanShadowRuntimeTuning() {
     }
 
-    static ShadowRenderConfig withRuntimeMomentPipelineState(ShadowRenderConfig base, VulkanContext context) {
+    public static ShadowRenderConfig withRuntimeMomentPipelineState(ShadowRenderConfig base, VulkanContext context) {
         if (base == null || !base.momentPipelineRequested()) {
             return base;
         }
@@ -64,7 +67,7 @@ final class VulkanShadowRuntimeTuning {
         );
     }
 
-    static float effectiveShadowRtDenoiseStrength(
+    public static float effectiveShadowRtDenoiseStrength(
             String rtMode,
             float defaultStrength,
             float productionStrength,
@@ -79,7 +82,7 @@ final class VulkanShadowRuntimeTuning {
         return defaultStrength;
     }
 
-    static float effectiveShadowRtRayLength(
+    public static float effectiveShadowRtRayLength(
             String rtMode,
             float defaultRayLength,
             float productionRayLength,
@@ -94,7 +97,7 @@ final class VulkanShadowRuntimeTuning {
         return defaultRayLength;
     }
 
-    static int effectiveShadowRtSampleCount(
+    public static int effectiveShadowRtSampleCount(
             String rtMode,
             int defaultSamples,
             int productionSamples,
@@ -109,7 +112,7 @@ final class VulkanShadowRuntimeTuning {
         return defaultSamples;
     }
 
-    static double shadowRtPerfCapForTier(
+    public static double shadowRtPerfCapForTier(
             QualityTier tier,
             double low,
             double medium,
@@ -124,7 +127,7 @@ final class VulkanShadowRuntimeTuning {
         };
     }
 
-    static void updateShadowSchedulerTicks(Map<String, Long> lastRenderedTicks, long frameTick, String renderedShadowLightIdsCsv) {
+    public static void updateShadowSchedulerTicks(Map<String, Long> lastRenderedTicks, long frameTick, String renderedShadowLightIdsCsv) {
         if (renderedShadowLightIdsCsv == null || renderedShadowLightIdsCsv.isBlank()) {
             return;
         }

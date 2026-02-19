@@ -65,7 +65,7 @@ import static org.lwjgl.vulkan.KHRSurface.vkDestroySurfaceKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.VK10.*;
 
-final class VulkanContext {
+public final class VulkanContext {
     private static final int VERTEX_STRIDE_FLOATS = 11;
     private static final int VERTEX_STRIDE_BYTES = VERTEX_STRIDE_FLOATS * Float.BYTES;
     private static final int DEFAULT_FRAMES_IN_FLIGHT = 3;
@@ -725,7 +725,7 @@ final class VulkanContext {
         }
     }
 
-    boolean isShadowMomentPipelineActive() {
+    public boolean isShadowMomentPipelineActive() {
         return renderState.shadowMomentPipelineRequested
                 && backendResources.shadowMomentImage != VK_NULL_HANDLE
                 && backendResources.shadowMomentImageView != VK_NULL_HANDLE
@@ -740,7 +740,7 @@ final class VulkanContext {
                 && backendResources.shadowMomentFormat != 0;
     }
 
-    boolean isShadowMomentInitialized() {
+    public boolean isShadowMomentInitialized() {
         return renderState.shadowMomentInitialized;
     }
 

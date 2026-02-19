@@ -1,5 +1,9 @@
 package org.dynamislight.impl.vulkan;
 
+import org.dynamislight.impl.vulkan.shadow.VulkanShadowDiagnosticsMapper;
+
+import org.dynamislight.impl.vulkan.shadow.VulkanShadowRuntimeTuning;
+
 import org.dynamislight.impl.vulkan.runtime.model.*;
 
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;

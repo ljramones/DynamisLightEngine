@@ -1,4 +1,4 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.shadow;
 
 import java.util.List;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
@@ -14,16 +14,16 @@ import org.dynamislight.api.runtime.ShadowSpotProjectedDiagnostics;
 import org.dynamislight.api.runtime.ShadowTopologyDiagnostics;
 import org.dynamislight.api.runtime.ShadowTransparentReceiverDiagnostics;
 
-final class VulkanShadowDiagnosticsMapper {
+public final class VulkanShadowDiagnosticsMapper {
     private VulkanShadowDiagnosticsMapper() {
     }
 
-    static ShadowCapabilityDiagnostics capability(String featureId, String mode, List<String> signals) {
+    public static ShadowCapabilityDiagnostics capability(String featureId, String mode, List<String> signals) {
         boolean available = !"unavailable".equals(featureId) && !"unavailable".equals(mode);
         return new ShadowCapabilityDiagnostics(available, featureId, mode, signals);
     }
 
-    static ShadowCadenceDiagnostics cadence(
+    public static ShadowCadenceDiagnostics cadence(
             boolean available,
             int selectedLocalLights,
             int deferredLocalLights,
@@ -57,7 +57,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowPointBudgetDiagnostics pointBudget(
+    public static ShadowPointBudgetDiagnostics pointBudget(
             boolean available,
             int maxFacesPerFrame,
             int renderedCubemaps,
@@ -93,7 +93,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowSpotProjectedDiagnostics spotProjected(
+    public static ShadowSpotProjectedDiagnostics spotProjected(
             boolean available,
             boolean requested,
             boolean active,
@@ -117,7 +117,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowCacheDiagnostics cache(
+    public static ShadowCacheDiagnostics cache(
             boolean available,
             String mode,
             int missCount,
@@ -155,7 +155,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowRtDiagnostics rt(
+    public static ShadowRtDiagnostics rt(
             boolean available,
             String rtMode,
             boolean rtActive,
@@ -189,7 +189,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowHybridDiagnostics hybrid(
+    public static ShadowHybridDiagnostics hybrid(
             boolean available,
             String capabilityMode,
             double cascadeShare,
@@ -220,7 +220,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowTransparentReceiverDiagnostics transparentReceivers(
+    public static ShadowTransparentReceiverDiagnostics transparentReceivers(
             boolean available,
             boolean requested,
             boolean supported,
@@ -250,7 +250,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowExtendedModeDiagnostics extendedModes(
+    public static ShadowExtendedModeDiagnostics extendedModes(
             boolean available,
             boolean areaApproxRequested,
             boolean areaApproxSupported,
@@ -272,7 +272,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowTopologyDiagnostics topology(
+    public static ShadowTopologyDiagnostics topology(
             boolean available,
             int selectedLocalLights,
             int renderedLocalLights,
@@ -320,7 +320,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowPhaseAPromotionDiagnostics phaseA(
+    public static ShadowPhaseAPromotionDiagnostics phaseA(
             boolean available,
             boolean cadenceReady,
             boolean pointBudgetReady,
@@ -340,7 +340,7 @@ final class VulkanShadowDiagnosticsMapper {
         );
     }
 
-    static ShadowPhaseDPromotionDiagnostics phaseD(
+    public static ShadowPhaseDPromotionDiagnostics phaseD(
             boolean available,
             boolean cacheEnvelopeBreached,
             int cacheWarnCooldownRemaining,
