@@ -1,7 +1,6 @@
 package org.dynamislight.impl.vulkan;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -26,6 +25,7 @@ import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
 import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
 import org.dynamislight.impl.vulkan.profile.SceneReuseStats;
 import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
+import org.dynamislight.impl.vulkan.profile.VulkanContextDiagnosticsCoordinator;
 import org.dynamislight.impl.vulkan.profile.VulkanContextProfileCoordinator;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneRuntimeCoordinator;
@@ -34,7 +34,7 @@ import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeTextureCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneSetPlanner;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneTextureCoordinator;
-import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixCoordinator;
+import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixStateCoordinator;
 import org.dynamislight.impl.vulkan.state.VulkanFrameUploadStats;
 import org.dynamislight.impl.vulkan.state.VulkanIblState;
 import org.dynamislight.impl.vulkan.state.VulkanRenderParameterMutator;
@@ -325,39 +325,18 @@ public final class VulkanContext {
     }
 
     public List<Integer> debugGpuMeshReflectionOverrideModes() {
-        if (!sceneResources.gpuMeshes.isEmpty()) {
-            List<Integer> modes = new ArrayList<>(sceneResources.gpuMeshes.size());
-            for (VulkanGpuMesh mesh : sceneResources.gpuMeshes) {
-                if (mesh == null) {
-                    continue;
-                }
-                modes.add(Math.max(0, Math.min(3, mesh.reflectionOverrideMode)));
-            }
-            return List.copyOf(modes);
-        }
-        if (sceneResources.pendingSceneMeshes == null || sceneResources.pendingSceneMeshes.isEmpty()) {
-            return List.of();
-        }
-        List<Integer> modes = new ArrayList<>(sceneResources.pendingSceneMeshes.size());
-        for (VulkanSceneMeshData mesh : sceneResources.pendingSceneMeshes) {
-            if (mesh == null) {
-                continue;
-            }
-            modes.add(Math.max(0, Math.min(3, mesh.reflectionOverrideMode())));
-        }
-        return List.copyOf(modes);
+        return VulkanContextDiagnosticsCoordinator.reflectionOverrideModes(
+                sceneResources.gpuMeshes,
+                sceneResources.pendingSceneMeshes
+        );
     }
 
     public ReflectionProbeDiagnostics debugReflectionProbeDiagnostics() {
-        int configuredProbeCount = reflectionProbes == null ? 0 : reflectionProbes.size();
-        int activeProbeCount = Math.max(0, descriptorResources.reflectionProbeMetadataActiveCount);
-        int slotCount = Math.max(0, reflectionProbeCubemapSlotCount);
-        int metadataCapacity = Math.max(0, descriptorResources.reflectionProbeMetadataMaxCount);
-        return new ReflectionProbeDiagnostics(
-                configuredProbeCount,
-                activeProbeCount,
-                slotCount,
-                metadataCapacity,
+        return VulkanContextDiagnosticsCoordinator.reflectionProbeDiagnostics(
+                reflectionProbes == null ? 0 : reflectionProbes.size(),
+                Math.max(0, descriptorResources.reflectionProbeMetadataActiveCount),
+                Math.max(0, reflectionProbeCubemapSlotCount),
+                Math.max(0, descriptorResources.reflectionProbeMetadataMaxCount),
                 reflectionProbeFrustumVisibleCount,
                 reflectionProbeDeferredCount,
                 reflectionProbeVisibleUniquePathCount,
@@ -391,21 +370,19 @@ public final class VulkanContext {
     }
 
     public SceneReuseStats sceneReuseStats() {
-        return VulkanContextProfileCoordinator.sceneReuse(
-                new VulkanContextProfileCoordinator.SceneReuseRequest(
-                        sceneResources.sceneReuseHitCount,
-                        sceneResources.sceneReorderReuseCount,
-                        sceneResources.sceneTextureRebindCount,
-                        sceneResources.sceneFullRebuildCount,
-                        sceneResources.meshBufferRebuildCount,
-                        descriptorRingStats.descriptorPoolBuildCount,
-                        descriptorRingStats.descriptorPoolRebuildCount
-                )
+        return VulkanContextDiagnosticsCoordinator.sceneReuseStats(
+                sceneResources.sceneReuseHitCount,
+                sceneResources.sceneReorderReuseCount,
+                sceneResources.sceneTextureRebindCount,
+                sceneResources.sceneFullRebuildCount,
+                sceneResources.meshBufferRebuildCount,
+                descriptorRingStats.descriptorPoolBuildCount,
+                descriptorRingStats.descriptorPoolRebuildCount
         );
     }
 
     public FrameResourceProfile frameResourceProfile() {
-        return VulkanContextProfileCoordinator.frameResource(
+        return VulkanContextDiagnosticsCoordinator.frameResourceProfile(
                 new VulkanContextProfileCoordinator.FrameResourceRequest(
                         framesInFlight,
                         descriptorResources.frameDescriptorSets.length,
@@ -462,21 +439,20 @@ public final class VulkanContext {
     }
 
     public ShadowCascadeProfile shadowCascadeProfile() {
-        return VulkanContextProfileCoordinator.shadowCascade(
-                new VulkanContextProfileCoordinator.ShadowRequest(
-                        renderState.shadowEnabled,
-                        renderState.shadowCascadeCount,
-                        renderState.shadowMapResolution,
-                        renderState.shadowPcfRadius,
-                        renderState.shadowBias,
-                        renderState.shadowCascadeSplitNdc
-                )
+        return VulkanContextDiagnosticsCoordinator.shadowCascadeProfile(
+                renderState.shadowEnabled,
+                renderState.shadowCascadeCount,
+                renderState.shadowMapResolution,
+                renderState.shadowPcfRadius,
+                renderState.shadowBias,
+                renderState.shadowCascadeSplitNdc
         );
     }
 
     public PostProcessPipelineProfile postProcessPipelineProfile() {
-        return VulkanContextProfileCoordinator.postProcess(
-                new VulkanContextProfileCoordinator.PostRequest(renderState.postOffscreenRequested, renderState.postOffscreenActive)
+        return VulkanContextDiagnosticsCoordinator.postProcessPipelineProfile(
+                renderState.postOffscreenRequested,
+                renderState.postOffscreenActive
         );
     }
 
@@ -1456,40 +1432,9 @@ public final class VulkanContext {
     }
 
     private void updateShadowLightViewProjMatrices() {
-        long key = 17L;
-        key = 31L * key + Float.floatToIntBits(lightingState.pointLightIsSpot());
-        key = 31L * key + Float.floatToIntBits(lightingState.pointLightDirX());
-        key = 31L * key + Float.floatToIntBits(lightingState.pointLightDirY());
-        key = 31L * key + Float.floatToIntBits(lightingState.pointLightDirZ());
-        key = 31L * key + Float.floatToIntBits(lightingState.pointLightPosX());
-        key = 31L * key + Float.floatToIntBits(lightingState.pointLightPosY());
-        key = 31L * key + Float.floatToIntBits(lightingState.pointLightPosZ());
-        key = 31L * key + Float.floatToIntBits(lightingState.pointLightOuterCos());
-        key = 31L * key + Float.floatToIntBits(lightingState.pointShadowFarPlane());
-        key = 31L * key + (lightingState.pointShadowEnabled() ? 1 : 0);
-        key = 31L * key + renderState.shadowCascadeCount;
-        key = 31L * key + (renderState.shadowDirectionalTexelSnapEnabled ? 1 : 0);
-        key = 31L * key + Float.floatToIntBits(renderState.shadowDirectionalTexelSnapScale);
-        key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirX());
-        key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirY());
-        key = 31L * key + Float.floatToIntBits(lightingState.dirLightDirZ());
-        key = 31L * key + localLightCount;
-        int localFloats = Math.min(localLightCount * 4, localLightPosRange.length);
-        for (int i = 0; i < localFloats; i++) {
-            key = 31L * key + Float.floatToIntBits(localLightPosRange[i]);
-            key = 31L * key + Float.floatToIntBits(localLightDirInner[i]);
-            key = 31L * key + Float.floatToIntBits(localLightOuterTypeShadow[i]);
-        }
-        for (int i = 0; i < 16; i++) {
-            key = 31L * key + Float.floatToIntBits(viewMatrix[i]);
-            key = 31L * key + Float.floatToIntBits(projMatrix[i]);
-        }
-        if (key == shadowMatrixStateKey) {
-            return;
-        }
-        shadowMatrixStateKey = key;
-        VulkanShadowMatrixCoordinator.updateMatrices(
-                new VulkanShadowMatrixCoordinator.UpdateInputs(
+        var result = VulkanShadowMatrixStateCoordinator.updateMatricesIfDirty(
+                new VulkanShadowMatrixStateCoordinator.UpdateRequest(
+                        shadowMatrixStateKey,
                         lightingState.pointLightIsSpot(),
                         lightingState.pointLightDirX(),
                         lightingState.pointLightDirY(),
@@ -1498,21 +1443,21 @@ public final class VulkanContext {
                         lightingState.pointLightPosY(),
                         lightingState.pointLightPosZ(),
                         lightingState.pointLightOuterCos(),
-                        lightingState.pointShadowEnabled(),
                         lightingState.pointShadowFarPlane(),
+                        lightingState.pointShadowEnabled(),
                         renderState.shadowCascadeCount,
                         renderState.shadowMapResolution,
                         renderState.shadowDirectionalTexelSnapEnabled,
                         renderState.shadowDirectionalTexelSnapScale,
-                        viewMatrix,
-                        projMatrix,
+                        lightingState.dirLightDirX(),
+                        lightingState.dirLightDirY(),
+                        lightingState.dirLightDirZ(),
                         localLightCount,
                         localLightPosRange,
                         localLightDirInner,
                         localLightOuterTypeShadow,
-                        lightingState.dirLightDirX(),
-                        lightingState.dirLightDirY(),
-                        lightingState.dirLightDirZ(),
+                        viewMatrix,
+                        projMatrix,
                         MAX_SHADOW_MATRICES,
                         MAX_SHADOW_CASCADES,
                         POINT_SHADOW_FACES
@@ -1520,6 +1465,7 @@ public final class VulkanContext {
                 renderState.shadowLightViewProjMatrices,
                 renderState.shadowCascadeSplitNdc
         );
+        shadowMatrixStateKey = result.stateKey();
     }
 
     private void uploadSceneMeshes(MemoryStack stack, List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
@@ -1855,5 +1801,5 @@ public final class VulkanContext {
             default -> VK_FORMAT_D32_SFLOAT;
         };
     }
-
+    
 }
