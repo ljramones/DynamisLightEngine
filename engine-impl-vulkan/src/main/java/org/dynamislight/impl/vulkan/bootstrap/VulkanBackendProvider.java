@@ -1,4 +1,6 @@
-package org.dynamislight.impl.vulkan;
+package org.dynamislight.impl.vulkan.bootstrap;
+
+import org.dynamislight.impl.vulkan.VulkanEngineRuntime;
 
 import org.dynamislight.api.runtime.EngineApiVersion;
 import org.dynamislight.api.runtime.EngineRuntime;
