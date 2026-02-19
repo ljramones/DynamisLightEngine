@@ -207,6 +207,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic spot-projected shadow diagnostics.
+     *
+     * Backends that do not expose spot diagnostics return
+     * {@link ShadowSpotProjectedDiagnostics#unavailable()}.
+     *
+     * @return current spot-projected shadow diagnostics snapshot.
+     */
+    default ShadowSpotProjectedDiagnostics shadowSpotProjectedDiagnostics() {
+        return ShadowSpotProjectedDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

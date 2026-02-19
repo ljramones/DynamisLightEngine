@@ -108,6 +108,8 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(diagnostics.signals().isEmpty());
             var cadence = runtime.shadowCadenceDiagnostics();
             assertFalse(cadence.available());
+            var spot = runtime.shadowSpotProjectedDiagnostics();
+            assertFalse(spot.available());
         } finally {
             runtime.shutdown();
         }
@@ -130,6 +132,12 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(cadence.deferredShadowLightCount() >= 0);
             assertTrue(cadence.deferredRatio() >= 0.0);
             assertFalse(runtime.shadowPointBudgetDiagnostics().available() && runtime.shadowPointBudgetDiagnostics().configuredMaxShadowFacesPerFrame() > 0);
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_SPOT_PROJECTED_CONTRACT".equals(w.code())));
+            var spot = runtime.shadowSpotProjectedDiagnostics();
+            assertTrue(spot.available());
+            assertTrue(spot.active());
+            assertTrue(spot.renderedSpotShadowLights() > 0);
+            assertFalse(spot.contractBreachedLastFrame());
         } finally {
             runtime.shutdown();
         }

@@ -20,6 +20,7 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
 import org.dynamislight.api.runtime.ShadowPointBudgetDiagnostics;
+import org.dynamislight.api.runtime.ShadowSpotProjectedDiagnostics;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.AntiAliasingDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
@@ -235,6 +236,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private int shadowPointBudgetHighStreak;
     private int shadowPointBudgetWarnCooldownRemaining;
     private boolean shadowPointBudgetEnvelopeBreachedLastFrame;
+    private boolean shadowSpotProjectedRequestedLastFrame;
+    private boolean shadowSpotProjectedActiveLastFrame;
+    private int shadowSpotProjectedRenderedCountLastFrame;
+    private String shadowSpotProjectedContractStatusLastFrame = "unavailable";
+    private boolean shadowSpotProjectedContractBreachedLastFrame;
     private boolean shadowRtTraversalSupported;
     private boolean shadowRtBvhSupported;
     private int lastActiveReflectionProbeCount = -1;
@@ -1072,6 +1078,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 shadowPointBudgetHighStreak,
                 shadowPointBudgetWarnCooldownRemaining,
                 shadowPointBudgetEnvelopeBreachedLastFrame
+        );
+    }
+
+    @Override
+    protected ShadowSpotProjectedDiagnostics backendShadowSpotProjectedDiagnostics() {
+        return new ShadowSpotProjectedDiagnostics(
+                shadowCapabilityDiagnostics().available(),
+                shadowSpotProjectedRequestedLastFrame,
+                shadowSpotProjectedActiveLastFrame,
+                shadowSpotProjectedRenderedCountLastFrame,
+                shadowSpotProjectedContractStatusLastFrame,
+                shadowSpotProjectedContractBreachedLastFrame
         );
     }
 
@@ -2334,6 +2352,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         shadowPointBudgetDeferredCountLastFrame = 0;
         shadowPointBudgetSaturationRatioLastFrame = 0.0;
         shadowPointBudgetEnvelopeBreachedLastFrame = false;
+        shadowSpotProjectedRequestedLastFrame = false;
+        shadowSpotProjectedActiveLastFrame = false;
+        shadowSpotProjectedRenderedCountLastFrame = 0;
+        shadowSpotProjectedContractStatusLastFrame = "unavailable";
+        shadowSpotProjectedContractBreachedLastFrame = false;
         if (shadowCadenceWarnCooldownRemaining > 0) {
             shadowCadenceWarnCooldownRemaining--;
         }
@@ -2371,6 +2394,21 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
             shadowCapabilityFeatureIdLastFrame = shadowCapabilityPlan.capability().featureId();
             shadowCapabilityModeLastFrame = shadowCapabilityPlan.mode().id();
             shadowCapabilitySignalsLastFrame = shadowCapabilityPlan.signals();
+            shadowSpotProjectedRenderedCountLastFrame = currentShadows.renderedSpotShadowLights();
+            shadowSpotProjectedRequestedLastFrame = "spot_projected".equals(shadowCapabilityModeLastFrame)
+                    || shadowCapabilitySignalsLastFrame.stream().anyMatch(s -> "spotProjected=true".equals(s));
+            shadowSpotProjectedActiveLastFrame = shadowSpotProjectedRenderedCountLastFrame > 0;
+            if (shadowSpotProjectedRequestedLastFrame && shadowSpotProjectedActiveLastFrame) {
+                shadowSpotProjectedContractStatusLastFrame = "active";
+            } else if (shadowSpotProjectedRequestedLastFrame) {
+                shadowSpotProjectedContractStatusLastFrame = "requested_unavailable";
+            } else if (shadowSpotProjectedActiveLastFrame) {
+                shadowSpotProjectedContractStatusLastFrame = "active_not_selected";
+            } else {
+                shadowSpotProjectedContractStatusLastFrame = "inactive";
+            }
+            shadowSpotProjectedContractBreachedLastFrame =
+                    shadowSpotProjectedRequestedLastFrame && !shadowSpotProjectedActiveLastFrame;
             shadowCadenceSelectedLocalLightsLastFrame = currentShadows.selectedLocalShadowLights();
             shadowCadenceDeferredLocalLightsLastFrame = currentShadows.deferredShadowLightCount();
             shadowCadenceStaleBypassCountLastFrame = currentShadows.staleBypassShadowLightCount();
@@ -2392,6 +2430,22 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + " mode=" + shadowCapabilityPlan.mode().id()
                             + " signals=[" + String.join(", ", shadowCapabilityPlan.signals()) + "]"
             ));
+            warnings.add(new EngineWarning(
+                    "SHADOW_SPOT_PROJECTED_CONTRACT",
+                    "Shadow spot projected contract (requested="
+                            + shadowSpotProjectedRequestedLastFrame
+                            + ", active=" + shadowSpotProjectedActiveLastFrame
+                            + ", renderedSpotShadows=" + shadowSpotProjectedRenderedCountLastFrame
+                            + ", status=" + shadowSpotProjectedContractStatusLastFrame + ")"
+            ));
+            if (shadowSpotProjectedContractBreachedLastFrame) {
+                warnings.add(new EngineWarning(
+                        "SHADOW_SPOT_PROJECTED_CONTRACT_BREACH",
+                        "Shadow spot projected contract breached (requested=true, renderedSpotShadows="
+                                + shadowSpotProjectedRenderedCountLastFrame
+                                + ", status=" + shadowSpotProjectedContractStatusLastFrame + ")"
+                ));
+            }
             warnings.add(new EngineWarning(
                     "SHADOW_CADENCE_ENVELOPE",
                     "Shadow cadence envelope (selectedLocal="

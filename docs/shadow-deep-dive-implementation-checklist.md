@@ -42,8 +42,11 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 
 ### 3) Spot projected
 
-- [ ] Add explicit projected-spot contract diagnostics (active/inactive/reason).
-- [ ] Add projected-spot scene coverage and artifact gates.
+- [x] Add explicit projected-spot contract diagnostics (active/inactive/reason) via warning codes:
+  - `SHADOW_SPOT_PROJECTED_CONTRACT`
+  - `SHADOW_SPOT_PROJECTED_CONTRACT_BREACH`
+  and typed runtime accessor `shadowSpotProjectedDiagnostics()`.
+- [x] Add projected-spot scene coverage for contract activation/breach state (`VulkanShadowCapabilityWarningIntegrationTest#emitsCadenceEnvelopeWarningAndTypedDiagnostics`).
 
 ### 4) Shadow caching
 
