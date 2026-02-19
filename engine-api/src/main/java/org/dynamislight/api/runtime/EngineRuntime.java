@@ -291,6 +291,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic Phase A shadow promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link ShadowPhaseAPromotionDiagnostics#unavailable()}.
+     *
+     * @return current Phase A shadow promotion diagnostics snapshot.
+     */
+    default ShadowPhaseAPromotionDiagnostics shadowPhaseAPromotionDiagnostics() {
+        return ShadowPhaseAPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

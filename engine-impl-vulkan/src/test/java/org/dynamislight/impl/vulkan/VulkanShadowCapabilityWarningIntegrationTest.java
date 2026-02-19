@@ -252,6 +252,7 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("topologyWarnMinFrames=2"), profileWarning);
             assertTrue(profileWarning.contains("topologyWarnCooldownFrames=60"), profileWarning);
             assertTrue(profileWarning.contains("topologyPromotionReadyMinFrames=4"), profileWarning);
+            assertTrue(profileWarning.contains("phaseAPromotionReadyMinFrames=2"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.35, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(2, cadence.warnMinFrames());
@@ -329,7 +330,8 @@ class VulkanShadowCapabilityWarningIntegrationTest {
                     Map.entry("vulkan.shadow.topologyPointCoverageWarnMin", "0.63"),
                     Map.entry("vulkan.shadow.topologyWarnMinFrames", "4"),
                     Map.entry("vulkan.shadow.topologyWarnCooldownFrames", "99"),
-                    Map.entry("vulkan.shadow.topologyPromotionReadyMinFrames", "11")
+                    Map.entry("vulkan.shadow.topologyPromotionReadyMinFrames", "11"),
+                    Map.entry("vulkan.shadow.phaseAPromotionReadyMinFrames", "5")
             ), QualityTier.ULTRA), new NoopCallbacks());
             runtime.loadScene(validThreeSpotShadowScene());
             var frame = runtime.render();
@@ -368,6 +370,7 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(profileWarning.contains("topologyWarnMinFrames=4"), profileWarning);
             assertTrue(profileWarning.contains("topologyWarnCooldownFrames=99"), profileWarning);
             assertTrue(profileWarning.contains("topologyPromotionReadyMinFrames=11"), profileWarning);
+            assertTrue(profileWarning.contains("phaseAPromotionReadyMinFrames=5"), profileWarning);
             var cadence = runtime.shadowCadenceDiagnostics();
             assertEquals(0.22, cadence.deferredRatioWarnMax(), 1e-6);
             assertEquals(7, cadence.warnMinFrames());
@@ -522,6 +525,37 @@ class VulkanShadowCapabilityWarningIntegrationTest {
             assertTrue(spot.promotionReadyLastFrame());
             assertTrue(spot.stableStreak() >= spot.promotionReadyMinFrames());
             assertFalse(spot.contractBreachedLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void shadowPhaseAPromotionReadyWarningEmitsWhenCadencePointAndSpotAreReady() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "false"),
+                    Map.entry("vulkan.shadow.maxShadowedLocalLights", "8"),
+                    Map.entry("vulkan.shadow.maxLocalShadowLayers", "24"),
+                    Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "24"),
+                    Map.entry("vulkan.shadow.cadenceWarnDeferredRatioMax", "0.95"),
+                    Map.entry("vulkan.shadow.cadencePromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.shadow.pointFaceBudgetPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.shadow.spotProjectedPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.shadow.phaseAPromotionReadyMinFrames", "1")
+            )), new NoopCallbacks());
+            runtime.loadScene(validThreeSpotShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_PHASEA_PROMOTION_READY".equals(w.code())));
+            var phaseA = runtime.shadowPhaseAPromotionDiagnostics();
+            assertTrue(phaseA.available());
+            assertTrue(phaseA.cadencePromotionReady());
+            assertTrue(phaseA.pointFaceBudgetPromotionReady());
+            assertTrue(phaseA.spotProjectedPromotionReady());
+            assertTrue(phaseA.promotionReadyLastFrame());
+            assertTrue(phaseA.stableStreak() >= phaseA.promotionReadyMinFrames());
         } finally {
             runtime.shutdown();
         }

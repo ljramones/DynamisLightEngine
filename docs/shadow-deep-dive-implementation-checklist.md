@@ -52,6 +52,7 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
 - [x] Add projected-spot promotion-ready gate (`SHADOW_SPOT_PROJECTED_PROMOTION_READY`) with typed stability fields and profile-default window (`vulkan.shadow.spotProjectedPromotionReadyMinFrames`).
 - [x] Add strict topology contract diagnostics/gates across local/spot/point coverage (`shadowTopologyDiagnostics()`, `SHADOW_TOPOLOGY_CONTRACT`, `SHADOW_TOPOLOGY_CONTRACT_BREACH`).
 - [x] Add topology promotion-ready gate diagnostics (`stableStreak`, `topologyPromotionReadyMinFrames`) with explicit readiness warning (`SHADOW_TOPOLOGY_PROMOTION_READY`) and typed runtime fields.
+- [x] Add consolidated Phase A promotion-ready gate (`SHADOW_PHASEA_PROMOTION_READY`) requiring cadence/point/spot promotion readiness for a configured stability window (`vulkan.shadow.phaseAPromotionReadyMinFrames`) with typed diagnostics (`shadowPhaseAPromotionDiagnostics()`).
 
 ### 4) Shadow caching
 
