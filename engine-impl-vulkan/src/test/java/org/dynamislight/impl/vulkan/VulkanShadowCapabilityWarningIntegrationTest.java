@@ -12,7 +12,9 @@ import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.error.EngineErrorReport;
 import org.dynamislight.api.event.EngineEvent;
+import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.EngineHostCallbacks;
+import org.dynamislight.api.runtime.EngineFrameResult;
 import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.EnvironmentDesc;
 import org.dynamislight.api.scene.FogDesc;
@@ -28,6 +30,8 @@ import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.api.logging.LogMessage;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class VulkanShadowCapabilityWarningIntegrationTest {
     @Test
@@ -195,6 +199,104 @@ class VulkanShadowCapabilityWarningIntegrationTest {
         } finally {
             runtime.shutdown();
         }
+    }
+
+    @Test
+    void emitsShadowTelemetryProfileWarningWithUltraDefaults() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.of(
+                    "vulkan.mockContext", "true"
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validThreeSpotShadowScene());
+            var frame = runtime.render();
+            String profileWarning = warningMessageByCode(frame, "SHADOW_TELEMETRY_PROFILE_ACTIVE");
+            assertTrue(profileWarning.contains("tier=ultra"), profileWarning);
+            assertTrue(profileWarning.contains("cadenceDeferredRatioWarnMax=0.35"), profileWarning);
+            assertTrue(profileWarning.contains("cadenceWarnMinFrames=2"), profileWarning);
+            assertTrue(profileWarning.contains("cadenceWarnCooldownFrames=60"), profileWarning);
+            assertTrue(profileWarning.contains("pointFaceBudgetSaturationWarnMin=0.9"), profileWarning);
+            assertTrue(profileWarning.contains("pointFaceBudgetWarnMinFrames=2"), profileWarning);
+            assertTrue(profileWarning.contains("pointFaceBudgetWarnCooldownFrames=60"), profileWarning);
+            var cadence = runtime.shadowCadenceDiagnostics();
+            assertEquals(0.35, cadence.deferredRatioWarnMax(), 1e-6);
+            assertEquals(2, cadence.warnMinFrames());
+            assertEquals(60, cadence.warnCooldownFrames());
+            var pointBudget = runtime.shadowPointBudgetDiagnostics();
+            assertEquals(0.90, pointBudget.saturationWarnMin(), 1e-6);
+            assertEquals(2, pointBudget.warnMinFrames());
+            assertEquals(60, pointBudget.warnCooldownFrames());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void explicitShadowTelemetryOptionsOverrideTierDefaults() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.cadenceWarnDeferredRatioMax", "0.22"),
+                    Map.entry("vulkan.shadow.cadenceWarnMinFrames", "7"),
+                    Map.entry("vulkan.shadow.cadenceWarnCooldownFrames", "77"),
+                    Map.entry("vulkan.shadow.pointFaceBudgetWarnSaturationMin", "0.66"),
+                    Map.entry("vulkan.shadow.pointFaceBudgetWarnMinFrames", "6"),
+                    Map.entry("vulkan.shadow.pointFaceBudgetWarnCooldownFrames", "88")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validThreeSpotShadowScene());
+            var frame = runtime.render();
+            String profileWarning = warningMessageByCode(frame, "SHADOW_TELEMETRY_PROFILE_ACTIVE");
+            assertTrue(profileWarning.contains("cadenceDeferredRatioWarnMax=0.22"), profileWarning);
+            assertTrue(profileWarning.contains("cadenceWarnMinFrames=7"), profileWarning);
+            assertTrue(profileWarning.contains("cadenceWarnCooldownFrames=77"), profileWarning);
+            assertTrue(profileWarning.contains("pointFaceBudgetSaturationWarnMin=0.66"), profileWarning);
+            assertTrue(profileWarning.contains("pointFaceBudgetWarnMinFrames=6"), profileWarning);
+            assertTrue(profileWarning.contains("pointFaceBudgetWarnCooldownFrames=88"), profileWarning);
+            var cadence = runtime.shadowCadenceDiagnostics();
+            assertEquals(0.22, cadence.deferredRatioWarnMax(), 1e-6);
+            assertEquals(7, cadence.warnMinFrames());
+            assertEquals(77, cadence.warnCooldownFrames());
+            var pointBudget = runtime.shadowPointBudgetDiagnostics();
+            assertEquals(0.66, pointBudget.saturationWarnMin(), 1e-6);
+            assertEquals(6, pointBudget.warnMinFrames());
+            assertEquals(88, pointBudget.warnCooldownFrames());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = QualityTier.class, names = {"LOW", "MEDIUM", "HIGH", "ULTRA"})
+    void cadenceEnvelopeStaysStableAcrossBlessedTiers(QualityTier tier) throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.shadow.scheduler.enabled", "false"),
+                    Map.entry("vulkan.shadow.maxShadowedLocalLights", "8"),
+                    Map.entry("vulkan.shadow.maxLocalShadowLayers", "24"),
+                    Map.entry("vulkan.shadow.maxShadowFacesPerFrame", "24")
+            ), tier), new NoopCallbacks());
+            runtime.loadScene(validThreeSpotShadowScene());
+            var frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SHADOW_CADENCE_ENVELOPE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "SHADOW_CADENCE_ENVELOPE_BREACH".equals(w.code())));
+            var cadence = runtime.shadowCadenceDiagnostics();
+            assertTrue(cadence.available());
+            assertFalse(cadence.envelopeBreachedLastFrame());
+            assertTrue(cadence.deferredRatio() <= cadence.deferredRatioWarnMax());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    private static String warningMessageByCode(EngineFrameResult frame, String code) {
+        return frame.warnings().stream()
+                .filter(w -> code.equals(w.code()))
+                .map(EngineWarning::message)
+                .findFirst()
+                .orElse("");
     }
 
     private static EngineConfig validConfig(Map<String, String> backendOptions) {

@@ -17,6 +17,7 @@ Validate shadow stability, policy selection, and quality-tier fallback behavior 
 - Shadow-related warning stream:
   - `SHADOW_POLICY_ACTIVE`
   - `SHADOW_CAPABILITY_MODE_ACTIVE`
+  - `SHADOW_TELEMETRY_PROFILE_ACTIVE`
   - `SHADOW_CADENCE_ENVELOPE`
   - `SHADOW_CADENCE_ENVELOPE_BREACH`
   - `SHADOW_POINT_FACE_BUDGET_ENVELOPE`

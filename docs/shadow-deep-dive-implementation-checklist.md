@@ -32,13 +32,13 @@ Scope: execute remaining shadow capabilities from `Partial`/`Not In Yet` to prod
   - `vulkan.shadow.cadenceWarnDeferredRatioMax`
   - `vulkan.shadow.cadenceWarnMinFrames`
   - `vulkan.shadow.cadenceWarnCooldownFrames`
-- [ ] Add CI assertions for cadence envelope stability on blessed tiers.
+- [x] Add CI assertions for cadence envelope stability on blessed tiers (`VulkanShadowCapabilityWarningIntegrationTest#cadenceEnvelopeStaysStableAcrossBlessedTiers`).
 
 ### 2) Point cubemap + face-budget
 
 - [x] Add dedicated point-face budget diagnostics + envelope gates (`SHADOW_POINT_FACE_BUDGET_ENVELOPE`, `SHADOW_POINT_FACE_BUDGET_ENVELOPE_BREACH`) + typed runtime accessor `shadowPointBudgetDiagnostics()`.
 - [x] Add scene coverage for multi-point budget saturation/breach behavior (`VulkanShadowCapabilityWarningIntegrationTest#pointFaceBudgetBreachGateTriggersOnSaturatedDeferredPointWork`).
-- [ ] Lock point face-budget thresholds per profile.
+- [x] Lock point face-budget thresholds per tier profile in runtime defaults with explicit override precedence and warning telemetry (`SHADOW_TELEMETRY_PROFILE_ACTIVE`).
 
 ### 3) Spot projected
 

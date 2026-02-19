@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Locale;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
@@ -718,6 +719,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         upscalerMode = parseUpscalerMode(config.backendOptions().get("vulkan.upscalerMode"));
         upscalerQuality = parseUpscalerQuality(config.backendOptions().get("vulkan.upscalerQuality"));
         reflectionProfile = parseReflectionProfile(config.backendOptions().get("vulkan.reflectionsProfile"));
+        applyShadowTelemetryProfileDefaults(config.backendOptions(), config.qualityTier());
         applyReflectionProfileTelemetryDefaults(config.backendOptions());
         tsrControls = parseTsrControls(config.backendOptions(), "vulkan.");
         externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", config.backendOptions());
@@ -2429,6 +2431,17 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                             + shadowCapabilityPlan.capability().featureId()
                             + " mode=" + shadowCapabilityPlan.mode().id()
                             + " signals=[" + String.join(", ", shadowCapabilityPlan.signals()) + "]"
+            ));
+            warnings.add(new EngineWarning(
+                    "SHADOW_TELEMETRY_PROFILE_ACTIVE",
+                    "Shadow telemetry profile active (tier=" + qualityTier.name().toLowerCase(Locale.ROOT)
+                            + ", cadenceDeferredRatioWarnMax=" + shadowCadenceWarnDeferredRatioMax
+                            + ", cadenceWarnMinFrames=" + shadowCadenceWarnMinFrames
+                            + ", cadenceWarnCooldownFrames=" + shadowCadenceWarnCooldownFrames
+                            + ", pointFaceBudgetSaturationWarnMin=" + shadowPointFaceBudgetWarnSaturationMin
+                            + ", pointFaceBudgetWarnMinFrames=" + shadowPointFaceBudgetWarnMinFrames
+                            + ", pointFaceBudgetWarnCooldownFrames=" + shadowPointFaceBudgetWarnCooldownFrames
+                            + ")"
             ));
             warnings.add(new EngineWarning(
                     "SHADOW_SPOT_PROJECTED_CONTRACT",
@@ -4581,6 +4594,44 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 if (!hasBackendOption(safe, "vulkan.reflections.transparencyWarnCooldownFrames")) reflectionTransparencyWarnCooldownFrames = 90;
             }
             default -> {
+            }
+        }
+    }
+
+    private void applyShadowTelemetryProfileDefaults(Map<String, String> backendOptions, QualityTier tier) {
+        Map<String, String> safe = backendOptions == null ? Map.of() : backendOptions;
+        switch (tier) {
+            case LOW -> {
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.75;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 180;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 1.0;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 4;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 180;
+            }
+            case MEDIUM -> {
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.55;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 120;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 1.0;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 3;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 120;
+            }
+            case HIGH -> {
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.45;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 90;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 0.95;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 90;
+            }
+            case ULTRA -> {
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnDeferredRatioMax")) shadowCadenceWarnDeferredRatioMax = 0.35;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnMinFrames")) shadowCadenceWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.cadenceWarnCooldownFrames")) shadowCadenceWarnCooldownFrames = 60;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnSaturationMin")) shadowPointFaceBudgetWarnSaturationMin = 0.90;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnMinFrames")) shadowPointFaceBudgetWarnMinFrames = 2;
+                if (!hasBackendOption(safe, "vulkan.shadow.pointFaceBudgetWarnCooldownFrames")) shadowPointFaceBudgetWarnCooldownFrames = 60;
             }
         }
     }
