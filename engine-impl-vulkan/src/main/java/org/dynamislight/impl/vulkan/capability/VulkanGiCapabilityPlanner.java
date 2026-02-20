@@ -54,6 +54,9 @@ public final class VulkanGiCapabilityPlanner {
             case EMISSIVE_GI -> active.add("vulkan.gi.emissive");
             case DYNAMIC_SKY_GI -> active.add("vulkan.gi.dynamic_sky");
             case INDIRECT_SPECULAR_GI -> active.add("vulkan.gi.indirect_specular");
+            case STATIC_LIGHTMAPS -> active.add("vulkan.gi.static_lightmaps");
+            case LIGHT_PROBES_SH -> active.add("vulkan.gi.light_probes_sh");
+            case IRRADIANCE_VOLUMES -> active.add("vulkan.gi.irradiance_volumes");
         }
         return new VulkanGiCapabilityPlan(giModeId, true, safe.rtAvailable(), active, pruned);
     }

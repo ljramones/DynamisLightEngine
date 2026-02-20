@@ -426,6 +426,60 @@ class VulkanGiCapabilityPlanIntegrationTest {
         }
     }
 
+    @Test
+    void staticLightmapsModeEmitsPolicyAndActivatesCapability() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "static_lightmaps")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_STATIC_LIGHTMAPS_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.static_lightmaps"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void lightProbesModeEmitsPolicyAndActivatesCapability() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "light_probes_sh")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_LIGHT_PROBES_SH_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.light_probes_sh"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void irradianceVolumesModeEmitsPolicyAndActivatesCapability() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "irradiance_volumes")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_IRRADIANCE_VOLUMES_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.irradiance_volumes"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier tier) {
         return new EngineConfig(
                 "vulkan",

@@ -645,6 +645,30 @@ public final class VulkanGiCapabilityRuntimeState {
                                 + ", expected=" + configuredEnabled + ")"
                 ));
             }
+            if (configuredMode == GiMode.STATIC_LIGHTMAPS) {
+                warnings.add(new EngineWarning(
+                        "GI_STATIC_LIGHTMAPS_POLICY_ACTIVE",
+                        "GI static-lightmaps policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.static_lightmaps")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.LIGHT_PROBES_SH) {
+                warnings.add(new EngineWarning(
+                        "GI_LIGHT_PROBES_SH_POLICY_ACTIVE",
+                        "GI light-probes-SH policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.light_probes_sh")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.IRRADIANCE_VOLUMES) {
+                warnings.add(new EngineWarning(
+                        "GI_IRRADIANCE_VOLUMES_POLICY_ACTIVE",
+                        "GI irradiance-volumes policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.irradiance_volumes")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
             if (configuredMode == GiMode.RTGI_MULTI) {
                 warnings.add(new EngineWarning(
                         "GI_RT_MULTI_POLICY_ACTIVE",

@@ -34,6 +34,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
     public static final RenderFeatureMode MODE_EMISSIVE_GI = new RenderFeatureMode("emissive_gi");
     public static final RenderFeatureMode MODE_DYNAMIC_SKY_GI = new RenderFeatureMode("dynamic_sky_gi");
     public static final RenderFeatureMode MODE_INDIRECT_SPECULAR_GI = new RenderFeatureMode("indirect_specular_gi");
+    public static final RenderFeatureMode MODE_STATIC_LIGHTMAPS = new RenderFeatureMode("static_lightmaps");
+    public static final RenderFeatureMode MODE_LIGHT_PROBES_SH = new RenderFeatureMode("light_probes_sh");
+    public static final RenderFeatureMode MODE_IRRADIANCE_VOLUMES = new RenderFeatureMode("irradiance_volumes");
 
     private static final List<RenderFeatureMode> SUPPORTED = List.of(
             MODE_SSGI,
@@ -43,7 +46,10 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             MODE_HYBRID_PROBE_SSGI_RT,
             MODE_EMISSIVE_GI,
             MODE_DYNAMIC_SKY_GI,
-            MODE_INDIRECT_SPECULAR_GI
+            MODE_INDIRECT_SPECULAR_GI,
+            MODE_STATIC_LIGHTMAPS,
+            MODE_LIGHT_PROBES_SH,
+            MODE_IRRADIANCE_VOLUMES
     );
 
     private final RenderFeatureMode activeMode;
@@ -99,6 +105,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "emissive_gi" -> 222;
             case "dynamic_sky_gi" -> 224;
             case "indirect_specular_gi" -> 226;
+            case "static_lightmaps" -> 228;
+            case "light_probes_sh" -> 230;
+            case "irradiance_volumes" -> 232;
             default -> 210;
         };
         return List.of(new RenderShaderContribution(
@@ -157,6 +166,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                     case "emissive_gi" -> 222;
                     case "dynamic_sky_gi" -> 224;
                     case "indirect_specular_gi" -> 226;
+                    case "static_lightmaps" -> 228;
+                    case "light_probes_sh" -> 230;
+                    case "irradiance_volumes" -> 232;
                     default -> 210;
                 },
                 false
@@ -197,6 +209,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "emissive_gi" -> List.of(new RenderUniformRequirement("global_scene", "giEmissive", 0, 0));
             case "dynamic_sky_gi" -> List.of(new RenderUniformRequirement("global_scene", "giDynamicSky", 0, 0));
             case "indirect_specular_gi" -> List.of(new RenderUniformRequirement("global_scene", "giIndirectSpecular", 0, 0));
+            case "static_lightmaps" -> List.of(new RenderUniformRequirement("global_scene", "giStaticLightmaps", 0, 0));
+            case "light_probes_sh" -> List.of(new RenderUniformRequirement("global_scene", "giLightProbesSh", 0, 0));
+            case "irradiance_volumes" -> List.of(new RenderUniformRequirement("global_scene", "giIrradianceVolumes", 0, 0));
             case "hybrid_probe_ssgi_rt" -> List.of(
                     new RenderUniformRequirement("global_scene", "giProbeGrid", 0, 0),
                     new RenderUniformRequirement("global_scene", "giSsgi", 0, 0),
@@ -289,6 +304,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         "GI_EMISSIVE_POLICY_ACTIVE",
                         "GI_DYNAMIC_SKY_POLICY_ACTIVE",
                         "GI_INDIRECT_SPECULAR_POLICY_ACTIVE",
+                        "GI_STATIC_LIGHTMAPS_POLICY_ACTIVE",
+                        "GI_LIGHT_PROBES_SH_POLICY_ACTIVE",
+                        "GI_IRRADIANCE_VOLUMES_POLICY_ACTIVE",
                         "GI_PROMOTION_READY",
                         "GI_PHASE2_PROMOTION_READY"
                 ),
@@ -322,7 +340,8 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "rtgi_single" -> List.of("scene_color", "scene_depth", "scene_normal", "rt_scene");
             case "rtgi_multi" -> List.of("scene_color", "scene_depth", "scene_normal", "rt_scene", "velocity");
             case "hybrid_probe_ssgi_rt" -> List.of("scene_color", "scene_depth", "scene_normal", "probe_grid", "velocity", "rt_scene");
-            case "emissive_gi", "dynamic_sky_gi", "indirect_specular_gi" -> List.of("scene_color", "scene_depth", "scene_normal");
+            case "emissive_gi", "dynamic_sky_gi", "indirect_specular_gi", "light_probes_sh", "irradiance_volumes" -> List.of("scene_color", "scene_depth", "scene_normal");
+            case "static_lightmaps" -> List.of("scene_color", "scene_depth", "scene_normal", "velocity");
             default -> List.of("scene_color", "scene_depth");
         };
     }
@@ -436,6 +455,35 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
                         vec3 specTap = textureLod(uSceneColor, clamp(uv + vec2(texel.x, -texel.y) * 6.0, vec2(0.0), vec2(1.0)), 1.1).rgb;
                         vec3 lifted = mix(baseColor.rgb, specTap, 0.22);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "static_lightmaps" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec2 bakedUv = fract(uv * vec2(2.0, 2.0));
+                        float bakedMask = smoothstep(0.15, 0.85, bakedUv.x) * smoothstep(0.15, 0.85, bakedUv.y);
+                        vec3 baked = baseColor.rgb * (0.90 + bakedMask * 0.20);
+                        return vec4(clamp(baked, vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "light_probes_sh" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec3 sh = vec3(
+                            0.55 + 0.25 * sin(uv.x * 6.28318),
+                            0.60 + 0.20 * sin(uv.y * 6.28318),
+                            0.58 + 0.18 * sin((uv.x + uv.y) * 6.28318)
+                        );
+                        vec3 lifted = mix(baseColor.rgb, baseColor.rgb * sh, 0.22);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "irradiance_volumes" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec2 gridUv = floor(uv * 12.0) / 12.0;
+                        vec3 sampleA = textureLod(uSceneColor, clamp(gridUv, vec2(0.0), vec2(1.0)), 1.5).rgb;
+                        vec3 sampleB = textureLod(uSceneColor, clamp(gridUv + vec2(0.08, 0.05), vec2(0.0), vec2(1.0)), 1.9).rgb;
+                        vec3 irradiance = mix(sampleA, sampleB, 0.45);
+                        vec3 lifted = mix(baseColor.rgb, irradiance, 0.24);
                         return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;

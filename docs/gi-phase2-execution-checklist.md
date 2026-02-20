@@ -39,6 +39,12 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 - [x] Add runtime policy diagnostics warnings (`GI_EMISSIVE_POLICY_ACTIVE`, `GI_DYNAMIC_SKY_POLICY_ACTIVE`, `GI_INDIRECT_SPECULAR_POLICY_ACTIVE`).
 - [x] Add integration coverage asserting mode-specific capability activation/warnings.
 
+## Phase 2F: Foundational GI Mode Scaffolding
+
+- [x] Add foundational GI capability modes for `static_lightmaps`, `light_probes_sh`, and `irradiance_volumes` with deterministic planner activation.
+- [x] Add runtime policy diagnostics warnings (`GI_STATIC_LIGHTMAPS_POLICY_ACTIVE`, `GI_LIGHT_PROBES_SH_POLICY_ACTIVE`, `GI_IRRADIANCE_VOLUMES_POLICY_ACTIVE`).
+- [x] Add integration coverage asserting capability activation/warning emissions for all three modes.
+
 ## Phase 2D: Promotion + CI
 
 - [x] Add consolidated GI phase-2 promotion warning (`GI_PHASE2_PROMOTION_READY`) for SSGI/probe/RT-hybrid.

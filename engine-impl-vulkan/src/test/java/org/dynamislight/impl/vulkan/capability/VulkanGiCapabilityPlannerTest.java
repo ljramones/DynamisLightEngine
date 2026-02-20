@@ -52,9 +52,21 @@ class VulkanGiCapabilityPlannerTest {
         VulkanGiCapabilityPlan indirectSpecular = VulkanGiCapabilityPlanner.plan(
                 new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.INDIRECT_SPECULAR_GI, true, false)
         );
+        VulkanGiCapabilityPlan staticLightmaps = VulkanGiCapabilityPlanner.plan(
+                new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.STATIC_LIGHTMAPS, true, false)
+        );
+        VulkanGiCapabilityPlan lightProbes = VulkanGiCapabilityPlanner.plan(
+                new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.LIGHT_PROBES_SH, true, false)
+        );
+        VulkanGiCapabilityPlan irradianceVolumes = VulkanGiCapabilityPlanner.plan(
+                new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.IRRADIANCE_VOLUMES, true, false)
+        );
 
         assertTrue(emissive.activeCapabilities().contains("vulkan.gi.emissive"));
         assertTrue(dynamicSky.activeCapabilities().contains("vulkan.gi.dynamic_sky"));
         assertTrue(indirectSpecular.activeCapabilities().contains("vulkan.gi.indirect_specular"));
+        assertTrue(staticLightmaps.activeCapabilities().contains("vulkan.gi.static_lightmaps"));
+        assertTrue(lightProbes.activeCapabilities().contains("vulkan.gi.light_probes_sh"));
+        assertTrue(irradianceVolumes.activeCapabilities().contains("vulkan.gi.irradiance_volumes"));
     }
 }
