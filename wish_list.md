@@ -220,6 +220,8 @@ GI notes:
 - GI phase-2A now has dedicated lockdown replay (`scripts/gi_phase2_ssgi_lockdown.sh`) and integration coverage for SSGI tier-default vs backend-override envelope/promotion thresholds.
 - GI phase-2A SSGI lockdown is now wired into CI as `gi-phase2-ssgi-lockdown` (plus workflow-dispatch toggle `run_gi_phase2_ssgi_lockdown`).
 - GI phase-2A now includes GI shader-module realization in composition (`resolveGiIndirect`) with mode-specific module declarations + descriptor-aligned bindings for `ssgi`, `probe_grid`, `rtgi_single`, and `hybrid_probe_ssgi_rt`.
+- GI runtime now emits probe-grid policy/envelope/promotion telemetry (`GI_PROBE_GRID_POLICY_ACTIVE`, `GI_PROBE_GRID_ENVELOPE`, `GI_PROBE_GRID_ENVELOPE_BREACH`, `GI_PROBE_GRID_PROMOTION_READY`) with tier-default/override thresholds.
+- Typed GI promotion diagnostics now expose probe-grid expected/active ratio, cooldown/streak envelope state, and probe-grid promotion readiness for parser-free CI assertions.
 
 ## Lighting
 

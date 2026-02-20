@@ -16,8 +16,8 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 
 - [ ] Add probe-grid resource lifecycle (persistent probe volume texture/buffer + update cadence).
 - [ ] Add probe-grid shading hook integration for indirect diffuse.
-- [ ] Add probe-grid streaming/update envelope diagnostics and breach warnings.
-- [ ] Add typed probe-grid diagnostics for parser-free CI assertions.
+- [x] Add probe-grid streaming/update envelope diagnostics and breach warnings (`GI_PROBE_GRID_ENVELOPE`, `GI_PROBE_GRID_ENVELOPE_BREACH`, `GI_PROBE_GRID_PROMOTION_READY`).
+- [x] Add typed probe-grid diagnostics for parser-free CI assertions (extended `GiPromotionDiagnostics` probe-grid fields).
 - [ ] Add lockdown lane for probe-grid promotion (`scripts/gi_phase2_probe_lockdown.sh`).
 
 ## Phase 2C: RT Detail Lane

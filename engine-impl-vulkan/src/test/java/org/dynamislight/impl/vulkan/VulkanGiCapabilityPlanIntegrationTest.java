@@ -37,7 +37,8 @@ class VulkanGiCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.gi.enabled", "true"),
                     Map.entry("vulkan.gi.mode", "hybrid_probe_ssgi_rt"),
                     Map.entry("vulkan.gi.promotionReadyMinFrames", "1"),
-                    Map.entry("vulkan.gi.ssgiPromotionReadyMinFrames", "1")
+                    Map.entry("vulkan.gi.ssgiPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.gi.probePromotionReadyMinFrames", "1")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
@@ -46,6 +47,9 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_PROMOTION_READY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.giCapabilityDiagnostics();
             assertTrue(diagnostics.available());
@@ -60,6 +64,9 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertFalse(promotion.ssgiEnvelopeBreachedLastFrame());
             assertTrue(promotion.ssgiPromotionReady());
             assertTrue(promotion.probeGridActive());
+            assertTrue(promotion.probeGridExpected());
+            assertFalse(promotion.probeGridEnvelopeBreachedLastFrame());
+            assertTrue(promotion.probeGridPromotionReady());
             assertFalse(promotion.rtDetailActive());
         } finally {
             runtime.shutdown();
@@ -131,6 +138,10 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertEquals(1, promotion.ssgiWarnMinFrames());
             assertEquals(90, promotion.ssgiWarnCooldownFrames());
             assertEquals(4, promotion.ssgiPromotionReadyMinFrames());
+            assertEquals(1.0, promotion.probeGridWarnMinActiveRatio(), 1e-9);
+            assertEquals(1, promotion.probeGridWarnMinFrames());
+            assertEquals(90, promotion.probeGridWarnCooldownFrames());
+            assertEquals(4, promotion.probeGridPromotionReadyMinFrames());
         } finally {
             runtime.shutdown();
         }
@@ -147,7 +158,11 @@ class VulkanGiCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.gi.ssgiWarnMinActiveRatio", "0.75"),
                     Map.entry("vulkan.gi.ssgiWarnMinFrames", "7"),
                     Map.entry("vulkan.gi.ssgiWarnCooldownFrames", "33"),
-                    Map.entry("vulkan.gi.ssgiPromotionReadyMinFrames", "6")
+                    Map.entry("vulkan.gi.ssgiPromotionReadyMinFrames", "6"),
+                    Map.entry("vulkan.gi.probeWarnMinActiveRatio", "0.80"),
+                    Map.entry("vulkan.gi.probeWarnMinFrames", "8"),
+                    Map.entry("vulkan.gi.probeWarnCooldownFrames", "44"),
+                    Map.entry("vulkan.gi.probePromotionReadyMinFrames", "7")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene());
             runtime.render();
@@ -157,6 +172,10 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertEquals(7, promotion.ssgiWarnMinFrames());
             assertEquals(33, promotion.ssgiWarnCooldownFrames());
             assertEquals(6, promotion.ssgiPromotionReadyMinFrames());
+            assertEquals(0.80, promotion.probeGridWarnMinActiveRatio(), 1e-9);
+            assertEquals(8, promotion.probeGridWarnMinFrames());
+            assertEquals(44, promotion.probeGridWarnCooldownFrames());
+            assertEquals(7, promotion.probeGridPromotionReadyMinFrames());
         } finally {
             runtime.shutdown();
         }

@@ -242,6 +242,10 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         "GI_SSGI_ENVELOPE",
                         "GI_SSGI_ENVELOPE_BREACH",
                         "GI_SSGI_PROMOTION_READY",
+                        "GI_PROBE_GRID_POLICY_ACTIVE",
+                        "GI_PROBE_GRID_ENVELOPE",
+                        "GI_PROBE_GRID_ENVELOPE_BREACH",
+                        "GI_PROBE_GRID_PROMOTION_READY",
                         "GI_PROMOTION_READY"
                 ),
                 List.of(
