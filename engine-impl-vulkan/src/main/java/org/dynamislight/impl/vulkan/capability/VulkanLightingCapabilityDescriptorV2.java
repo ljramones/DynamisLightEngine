@@ -120,6 +120,47 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
     @Override
     public List<RenderShaderModuleDeclaration> shaderModules(RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
+        String body = switch (active.id()) {
+            case "physically_based_units" -> """
+                vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
+                    float unitScale = clamp(ubo.exposure, 0.25, 4.0);
+                    return litColor * unitScale;
+                }
+                """;
+            case "light_budget_priority" -> """
+                vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
+                    float budgetScale = clamp(1.0 - (localLightLoad * 0.06), 0.60, 1.0);
+                    return litColor * budgetScale;
+                }
+                """;
+            case "emissive_mesh" -> """
+                vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
+                    float emissiveScale = clamp(ubo.emissiveReactiveGain, 0.5, 2.5);
+                    return litColor * emissiveScale;
+                }
+                """;
+            case "phys_units_budget_emissive", "phys_units_budget_emissive_advanced" -> """
+                vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
+                    float unitScale = clamp(ubo.exposure, 0.25, 4.0);
+                    float budgetScale = clamp(1.0 - (localLightLoad * 0.04), 0.65, 1.0);
+                    float emissiveScale = clamp(ubo.emissiveReactiveGain, 0.5, 2.5);
+                    return litColor * unitScale * budgetScale * emissiveScale;
+                }
+                """;
+            case "advanced_policy_stack" -> """
+                vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
+                    float budgetScale = clamp(1.0 - (localLightLoad * 0.03), 0.70, 1.0);
+                    float advancedScale = 0.98;
+                    return litColor * budgetScale * advancedScale;
+                }
+                """;
+            default -> """
+                vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
+                    float budgetScale = clamp(1.0 - (localLightLoad * 0.04), 0.65, 1.0);
+                    return litColor * budgetScale;
+                }
+                """;
+        };
         return List.of(new RenderShaderModuleDeclaration(
                 "lighting.main.eval." + active.id(),
                 featureId(),
@@ -128,12 +169,7 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                 RenderShaderStage.FRAGMENT,
                 "evaluateLightingMode",
                 "vec3 evaluateLightingMode(vec3 litColor, float localLightLoad)",
-                """
-                vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
-                    float budgetScale = clamp(1.0 - (localLightLoad * 0.04), 0.65, 1.0);
-                    return litColor * budgetScale;
-                }
-                """,
+                body,
                 List.of(
                         new RenderShaderModuleBinding("uLightingPolicy", descriptorFor("main_geometry", 0, 80)),
                         new RenderShaderModuleBinding("uLightingBudget", descriptorFor("main_geometry", 0, 81))
@@ -160,12 +196,32 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                 descriptorFor("main_geometry", 0, 80),
                 descriptorFor("main_geometry", 0, 81)
         ));
-        if (MODE_EMISSIVE_MESH.id().equals(active.id()) || MODE_PHYS_UNITS_BUDGET_EMISSIVE.id().equals(active.id())) {
+        if (MODE_EMISSIVE_MESH.id().equals(active.id())
+                || MODE_PHYS_UNITS_BUDGET_EMISSIVE.id().equals(active.id())
+                || MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED.id().equals(active.id())) {
             requirements.add(new RenderDescriptorRequirement(
                     "main_geometry",
                     0,
                     82,
                     RenderDescriptorType.STORAGE_BUFFER,
+                    RenderBindingFrequency.PER_FRAME,
+                    true
+            ));
+        }
+        if (isAdvancedMode(active)) {
+            requirements.add(new RenderDescriptorRequirement(
+                    "main_geometry",
+                    0,
+                    83,
+                    RenderDescriptorType.STORAGE_BUFFER,
+                    RenderBindingFrequency.PER_FRAME,
+                    true
+            ));
+            requirements.add(new RenderDescriptorRequirement(
+                    "main_geometry",
+                    1,
+                    14,
+                    RenderDescriptorType.COMBINED_IMAGE_SAMPLER,
                     RenderBindingFrequency.PER_FRAME,
                     true
             ));
@@ -180,11 +236,19 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                 new RenderUniformRequirement("global_scene", "lightingExposure", 0, 0),
                 new RenderUniformRequirement("global_scene", "lightingUnitScale", 0, 0)
         ));
-        if (MODE_LIGHT_BUDGET_PRIORITY.id().equals(active.id()) || MODE_PHYS_UNITS_BUDGET_EMISSIVE.id().equals(active.id())) {
+        if (MODE_LIGHT_BUDGET_PRIORITY.id().equals(active.id())
+                || MODE_PHYS_UNITS_BUDGET_EMISSIVE.id().equals(active.id())
+                || MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED.id().equals(active.id())) {
             requirements.add(new RenderUniformRequirement("global_scene", "lightingBudget", 0, 0));
         }
-        if (MODE_EMISSIVE_MESH.id().equals(active.id()) || MODE_PHYS_UNITS_BUDGET_EMISSIVE.id().equals(active.id())) {
+        if (MODE_EMISSIVE_MESH.id().equals(active.id())
+                || MODE_PHYS_UNITS_BUDGET_EMISSIVE.id().equals(active.id())
+                || MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED.id().equals(active.id())) {
             requirements.add(new RenderUniformRequirement("global_scene", "emissiveLightScale", 0, 0));
+        }
+        if (isAdvancedMode(active)) {
+            requirements.add(new RenderUniformRequirement("global_scene", "lightingCookieStrength", 0, 0));
+            requirements.add(new RenderUniformRequirement("global_scene", "lightingLayerMaskEnable", 0, 0));
         }
         return List.copyOf(requirements);
     }
@@ -206,13 +270,45 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                         List.of("qualityTierChanged", "sceneLightsChanged")
                 )
         ));
-        if (MODE_EMISSIVE_MESH.id().equals(active.id()) || MODE_PHYS_UNITS_BUDGET_EMISSIVE.id().equals(active.id())) {
+        if (MODE_EMISSIVE_MESH.id().equals(active.id())
+                || MODE_PHYS_UNITS_BUDGET_EMISSIVE.id().equals(active.id())
+                || MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED.id().equals(active.id())) {
             resources.add(new RenderResourceDeclaration(
                     "lighting_emissive_candidates",
                     RenderResourceType.STORAGE_BUFFER,
                     RenderResourceLifecycle.PERSISTENT_PARTIAL_UPDATE,
                     true,
                     List.of("sceneMaterialsChanged", "sceneMeshesChanged")
+            ));
+        }
+        if (isAdvancedMode(active)) {
+            resources.add(new RenderResourceDeclaration(
+                    "lighting_cluster_grid",
+                    RenderResourceType.STORAGE_BUFFER,
+                    RenderResourceLifecycle.PERSISTENT_PARTIAL_UPDATE,
+                    true,
+                    List.of("qualityTierChanged", "sceneLightsChanged", "viewportResized")
+            ));
+            resources.add(new RenderResourceDeclaration(
+                    "lighting_ies_profile_buffer",
+                    RenderResourceType.STORAGE_BUFFER,
+                    RenderResourceLifecycle.PERSISTENT,
+                    true,
+                    List.of("sceneLightsChanged")
+            ));
+            resources.add(new RenderResourceDeclaration(
+                    "lighting_cookie_atlas",
+                    RenderResourceType.SAMPLED_IMAGE,
+                    RenderResourceLifecycle.PERSISTENT_PARTIAL_UPDATE,
+                    true,
+                    List.of("sceneLightsChanged", "textureSetChanged")
+            ));
+            resources.add(new RenderResourceDeclaration(
+                    "lighting_layer_mask_buffer",
+                    RenderResourceType.STORAGE_BUFFER,
+                    RenderResourceLifecycle.PERSISTENT_PARTIAL_UPDATE,
+                    true,
+                    List.of("sceneMeshesChanged", "sceneMaterialsChanged")
             ));
         }
         return List.copyOf(resources);
@@ -285,5 +381,11 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                 .filter(candidate -> candidate.id().equalsIgnoreCase(mode.id()))
                 .findFirst()
                 .orElse(MODE_BASELINE_DIRECTIONAL_POINT_SPOT);
+    }
+
+    private static boolean isAdvancedMode(RenderFeatureMode mode) {
+        String id = mode == null ? "" : mode.id();
+        return MODE_ADVANCED_POLICY_STACK.id().equalsIgnoreCase(id)
+                || MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED.id().equalsIgnoreCase(id);
     }
 }

@@ -30,3 +30,4 @@ Status: In Progress (Vulkan-first)
 - [~] Volumetric shafts planner/tier-gating telemetry scaffold landed (runtime realization pending).
 - [~] Clustering planner/tier-gating telemetry scaffold landed (runtime realization pending).
 - [~] Light layers/channels planner/tier-gating telemetry scaffold landed (runtime realization pending).
+- [x] Advanced-stack contract realization now declares concrete descriptor/uniform/resource requirements for area/IES/cookies/volumetric/clustering/layers modes.

@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.capability;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
@@ -118,6 +119,23 @@ class VulkanCapabilityContractV2DescriptorsTest {
         assertFalse(contract.shaderContributions().isEmpty());
         assertFalse(contract.descriptorRequirements().isEmpty());
         assertFalse(contract.ownedResources().isEmpty());
+    }
+
+    @Test
+    void lightingAdvancedModeDeclaresAdvancedBindingsAndResources() {
+        VulkanLightingCapabilityDescriptorV2 descriptor = VulkanLightingCapabilityDescriptorV2.withMode(
+                VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED
+        );
+        RenderCapabilityContractV2 contract = descriptor.contractV2(QualityTier.ULTRA);
+
+        long advancedDescriptorCount = contract.descriptorRequirements().stream()
+                .filter(req -> req.bindingIndex() == 83 || (req.setIndex() == 1 && req.bindingIndex() == 14))
+                .count();
+        assertEquals(2, advancedDescriptorCount);
+        assertTrue(contract.ownedResources().stream().anyMatch(r -> "lighting_cluster_grid".equals(r.resourceName())));
+        assertTrue(contract.ownedResources().stream().anyMatch(r -> "lighting_ies_profile_buffer".equals(r.resourceName())));
+        assertTrue(contract.ownedResources().stream().anyMatch(r -> "lighting_cookie_atlas".equals(r.resourceName())));
+        assertTrue(contract.ownedResources().stream().anyMatch(r -> "lighting_layer_mask_buffer".equals(r.resourceName())));
     }
 
     @Test
