@@ -495,6 +495,30 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic RT capability diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link RtCapabilityDiagnostics#unavailable()}.
+     *
+     * @return current RT capability diagnostics snapshot.
+     */
+    default RtCapabilityDiagnostics rtCapabilityDiagnostics() {
+        return RtCapabilityDiagnostics.unavailable();
+    }
+
+    /**
+     * Retrieves backend-agnostic RT capability promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link RtCapabilityPromotionDiagnostics#unavailable()}.
+     *
+     * @return current RT capability promotion diagnostics snapshot.
+     */
+    default RtCapabilityPromotionDiagnostics rtCapabilityPromotionDiagnostics() {
+        return RtCapabilityPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Retrieves backend-agnostic PBR/shading capability-plan diagnostics.
      *
      * Backends that do not expose this snapshot return

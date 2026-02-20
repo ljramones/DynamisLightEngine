@@ -427,14 +427,20 @@ Water notes:
 - RT shadows (hard, soft, denoised, area light accurate) — `In`
 - RT reflections (single-bounce, multi-bounce, denoised) — `In`
 - RT GI (diffuse single-bounce, multi-bounce) — `In`
-- RT AO (medium-range, denoised) — `Not In Yet`
-- RT translucency / caustics — `Not In Yet`
+- RT AO (medium-range, denoised) — `Partial`
+- RT translucency / caustics — `Partial`
 - BVH management (build, refit, compaction) — `Partial`
 - Denoiser framework (temporal, spatial, bilateral) — `Partial`
 - Hybrid RT + rasterized composition (RT for hero surfaces, raster for fill) — `Partial`
 - RT quality tiers (ray count, bounce count, denoise strength) — `Partial`
 - Inline / ray query support (forward pass ray queries) — `Partial`
-- Dedicated ray generation shaders — `Not In Yet`
+- Dedicated ray generation shaders — `Partial`
+
+RT notes:
+
+- Vulkan now emits RT capability/promotion telemetry (`RT_CAPABILITY_MODE_ACTIVE`, `RT_CAPABILITY_POLICY_ACTIVE`, `RT_CAPABILITY_ENVELOPE`, `RT_CAPABILITY_ENVELOPE_BREACH`, `RT_CAPABILITY_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`rtCapabilityDiagnostics()`, `rtCapabilityPromotionDiagnostics()`).
+- RT capability coverage includes expected/active/pruned contract tracking for RT AO, RT translucency/caustics, BVH compaction, denoiser framework, hybrid composition, quality tiers, inline ray query, and dedicated raygen path.
+- RT capability checklist/runner are in place (`docs/rt-capability-checklist.md`, `scripts/rt_capability_lockdown.sh`) with CI lane `rt-capability-lockdown`, and the full RT bundle now includes capability gating (`scripts/rt_lockdown_full.sh`).
 
 ## Sky / Atmosphere
 

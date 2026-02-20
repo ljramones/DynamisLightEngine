@@ -123,6 +123,10 @@ on:
         description: 'Run strict RT cross-cut lockdown gate'
         required: false
         default: 'false'
+      run_rt_capability_lockdown:
+        description: 'Run strict RT capability lockdown gate'
+        required: false
+        default: 'false'
       run_rt_lockdown_full:
         description: 'Run full RT lockdown bundle (reflections + GI RT lanes + cross-cut)'
         required: false
@@ -895,6 +899,26 @@ jobs:
 
       - name: Run RT cross-cut lockdown
         run: ./scripts/rt_crosscut_lockdown.sh
+
+  rt-capability-lockdown:
+    name: RT Capability Lockdown (JDK 25, macos-latest)
+    if: >
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_rt_capability_lockdown == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run RT capability lockdown
+        run: ./scripts/rt_capability_lockdown.sh
 
   rt-lockdown-full:
     name: RT Lockdown Full (JDK 25, macos-latest)

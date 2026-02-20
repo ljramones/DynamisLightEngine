@@ -14,4 +14,7 @@ bash "${ROOT_DIR}/scripts/gi_phase2_rt_multi_lockdown.sh"
 echo "[rt-lockdown-full] Running RT cross-cut lockdown..."
 bash "${ROOT_DIR}/scripts/rt_crosscut_lockdown.sh"
 
-echo "[rt-lockdown-full] PASS (reflections + GI RT lanes + cross-cut gate)"
+echo "[rt-lockdown-full] Running RT capability lockdown..."
+bash "${ROOT_DIR}/scripts/rt_capability_lockdown.sh"
+
+echo "[rt-lockdown-full] PASS (reflections + GI RT lanes + cross-cut + capability gates)"

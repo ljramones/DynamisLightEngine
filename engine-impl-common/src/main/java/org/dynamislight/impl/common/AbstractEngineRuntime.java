@@ -39,6 +39,8 @@ import org.dynamislight.api.runtime.PbrCapabilityDiagnostics;
 import org.dynamislight.api.runtime.PbrPromotionDiagnostics;
 import org.dynamislight.api.runtime.PostCorePromotionDiagnostics;
 import org.dynamislight.api.runtime.PostCinematicPromotionDiagnostics;
+import org.dynamislight.api.runtime.RtCapabilityDiagnostics;
+import org.dynamislight.api.runtime.RtCapabilityPromotionDiagnostics;
 import org.dynamislight.api.runtime.RtCrossCutDiagnostics;
 import org.dynamislight.api.runtime.SkyCapabilityDiagnostics;
 import org.dynamislight.api.runtime.SkyPromotionDiagnostics;
@@ -452,6 +454,16 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public RtCapabilityDiagnostics rtCapabilityDiagnostics() {
+        return backendRtCapabilityDiagnostics();
+    }
+
+    @Override
+    public RtCapabilityPromotionDiagnostics rtCapabilityPromotionDiagnostics() {
+        return backendRtCapabilityPromotionDiagnostics();
+    }
+
+    @Override
     public PbrCapabilityDiagnostics pbrCapabilityDiagnostics() {
         return backendPbrCapabilityDiagnostics();
     }
@@ -681,6 +693,14 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected RtCrossCutDiagnostics backendRtCrossCutDiagnostics() {
         return RtCrossCutDiagnostics.unavailable();
+    }
+
+    protected RtCapabilityDiagnostics backendRtCapabilityDiagnostics() {
+        return RtCapabilityDiagnostics.unavailable();
+    }
+
+    protected RtCapabilityPromotionDiagnostics backendRtCapabilityPromotionDiagnostics() {
+        return RtCapabilityPromotionDiagnostics.unavailable();
     }
 
     protected PbrCapabilityDiagnostics backendPbrCapabilityDiagnostics() {
