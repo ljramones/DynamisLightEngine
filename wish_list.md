@@ -413,6 +413,11 @@ VFX notes:
 - Water depth fog (color absorption by depth) — `Not In Yet`
 - Dynamic buoyancy (physics feedback from wave height) — `Not In Yet`
 
+Water notes:
+
+- Vulkan now emits water capability/promotion telemetry (`WATER_CAPABILITY_MODE_ACTIVE`, `WATER_POLICY_ACTIVE`, `WATER_PROMOTION_ENVELOPE`, `WATER_PROMOTION_ENVELOPE_BREACH`, `WATER_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`waterCapabilityDiagnostics()`, `waterPromotionDiagnostics()`).
+- Water Phase-1 Vulkan scaffold checklist/runner are in place (`docs/water-phase1-checklist.md`, `scripts/water_phase1_lockdown.sh`) with CI lane `water-phase1-lockdown`.
+
 ## Ray Tracing
 
 - RT shadows (hard, soft, denoised, area light accurate) — `Partial`

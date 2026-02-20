@@ -67,6 +67,8 @@ import org.dynamislight.api.runtime.ShadowPhaseAPromotionDiagnostics;
 import org.dynamislight.api.runtime.ShadowPhaseDPromotionDiagnostics;
 import org.dynamislight.api.runtime.VfxCapabilityDiagnostics;
 import org.dynamislight.api.runtime.VfxPromotionDiagnostics;
+import org.dynamislight.api.runtime.WaterCapabilityDiagnostics;
+import org.dynamislight.api.runtime.WaterPromotionDiagnostics;
 import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.EngineEvent;
@@ -488,6 +490,16 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public WaterCapabilityDiagnostics waterCapabilityDiagnostics() {
+        return backendWaterCapabilityDiagnostics();
+    }
+
+    @Override
+    public WaterPromotionDiagnostics waterPromotionDiagnostics() {
+        return backendWaterPromotionDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -689,6 +701,14 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected VfxPromotionDiagnostics backendVfxPromotionDiagnostics() {
         return VfxPromotionDiagnostics.unavailable();
+    }
+
+    protected WaterCapabilityDiagnostics backendWaterCapabilityDiagnostics() {
+        return WaterCapabilityDiagnostics.unavailable();
+    }
+
+    protected WaterPromotionDiagnostics backendWaterPromotionDiagnostics() {
+        return WaterPromotionDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(

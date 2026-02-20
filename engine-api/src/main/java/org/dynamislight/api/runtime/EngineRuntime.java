@@ -591,6 +591,30 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic water/ocean capability diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link WaterCapabilityDiagnostics#unavailable()}.
+     *
+     * @return current water/ocean capability diagnostics snapshot.
+     */
+    default WaterCapabilityDiagnostics waterCapabilityDiagnostics() {
+        return WaterCapabilityDiagnostics.unavailable();
+    }
+
+    /**
+     * Retrieves backend-agnostic water/ocean promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link WaterPromotionDiagnostics#unavailable()}.
+     *
+     * @return current water/ocean promotion diagnostics snapshot.
+     */
+    default WaterPromotionDiagnostics waterPromotionDiagnostics() {
+        return WaterPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release
