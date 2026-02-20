@@ -23,6 +23,12 @@ class VulkanLightingCapabilityPlannerTest {
                         false,
                         false,
                         false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
+                        false,
                         8,
                         1.0
                 )
@@ -48,6 +54,12 @@ class VulkanLightingCapabilityPlannerTest {
                         true,
                         true,
                         true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
                         2,
                         1.0
                 )
@@ -57,6 +69,12 @@ class VulkanLightingCapabilityPlannerTest {
         assertTrue(plan.activeCapabilities().contains("vulkan.lighting.light_budget_priority"));
         assertTrue(plan.activeCapabilities().contains("vulkan.lighting.physically_based_units"));
         assertTrue(plan.activeCapabilities().contains("vulkan.lighting.emissive_mesh"));
+        assertTrue(plan.activeCapabilities().contains("vulkan.lighting.area_approx"));
+        assertTrue(plan.activeCapabilities().contains("vulkan.lighting.ies_profiles"));
+        assertTrue(plan.activeCapabilities().contains("vulkan.lighting.cookies"));
+        assertTrue(plan.activeCapabilities().contains("vulkan.lighting.volumetric_shafts"));
+        assertTrue(plan.activeCapabilities().contains("vulkan.lighting.clustering"));
+        assertTrue(plan.activeCapabilities().contains("vulkan.lighting.light_layers"));
         assertTrue(plan.signals().stream().anyMatch(signal -> signal.equals("resolvedMode=phys_units_budget_emissive")));
     }
 
@@ -69,12 +87,21 @@ class VulkanLightingCapabilityPlannerTest {
                         false,
                         true,
                         true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
+                        true,
                         8,
                         1.0
                 )
         );
         assertEquals(VulkanLightingCapabilityDescriptorV2.MODE_LIGHT_BUDGET_PRIORITY.id(), plan.modeId());
         assertTrue(plan.prunedCapabilities().stream().anyMatch(value -> value.contains("quality tier too low")));
+        assertTrue(plan.prunedCapabilities().stream().anyMatch(value -> value.contains("vulkan.lighting.area_approx")));
+        assertTrue(plan.prunedCapabilities().stream().anyMatch(value -> value.contains("vulkan.lighting.ies_profiles")));
+        assertTrue(plan.prunedCapabilities().stream().anyMatch(value -> value.contains("vulkan.lighting.volumetric_shafts")));
     }
 
     private static LightDesc light(String id, LightType type) {

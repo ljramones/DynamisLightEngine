@@ -230,6 +230,7 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                         "LIGHTING_BUDGET_POLICY",
                         "LIGHTING_BUDGET_ENVELOPE",
                         "LIGHTING_BUDGET_ENVELOPE_BREACH",
+                        "LIGHTING_ADVANCED_POLICY",
                         "LIGHTING_BUDGET_PROMOTION_READY",
                         "LIGHTING_PHYS_UNITS_POLICY",
                         "LIGHTING_PHYS_UNITS_PROMOTION_READY",

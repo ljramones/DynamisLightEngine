@@ -21,9 +21,9 @@ Status: In Progress (Vulkan-first)
 - [x] Consolidated phase-2 promotion gate (`LIGHTING_PHASE2_PROMOTION_READY`) when budget + phys-units + emissive (if enabled) are jointly stable.
 
 ## Phase 3: Advanced Lighting Modes (Backlog)
-- [ ] Area lights (approximate/sampled).
-- [ ] IES profiles.
-- [ ] Cookies/projectors.
-- [ ] Volumetric shafts.
-- [ ] Clustering.
-- [ ] Light layers/channels.
+- [~] Area lights (approximate/sampled) planner/tier-gating telemetry scaffold landed (runtime realization pending).
+- [~] IES profiles planner/tier-gating telemetry scaffold landed (runtime realization pending).
+- [~] Cookies/projectors planner/tier-gating telemetry scaffold landed (runtime realization pending).
+- [~] Volumetric shafts planner/tier-gating telemetry scaffold landed (runtime realization pending).
+- [~] Clustering planner/tier-gating telemetry scaffold landed (runtime realization pending).
+- [~] Light layers/channels planner/tier-gating telemetry scaffold landed (runtime realization pending).

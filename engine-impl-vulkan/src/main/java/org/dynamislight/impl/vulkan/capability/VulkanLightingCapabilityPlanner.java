@@ -36,6 +36,12 @@ public final class VulkanLightingCapabilityPlanner {
         boolean budgetEnvelopeBreached = loadRatio > safe.budgetWarnRatioThreshold();
         boolean physUnitsActive = safe.physicallyBasedUnitsEnabled();
         boolean emissiveActive = safe.emissiveMeshEnabled() && safe.qualityTier().ordinal() >= QualityTier.HIGH.ordinal();
+        boolean areaApproxActive = safe.areaApproxEnabled() && safe.qualityTier().ordinal() >= QualityTier.HIGH.ordinal();
+        boolean iesActive = safe.iesProfilesEnabled() && safe.qualityTier().ordinal() >= QualityTier.HIGH.ordinal();
+        boolean cookiesActive = safe.cookiesEnabled() && safe.qualityTier().ordinal() >= QualityTier.MEDIUM.ordinal();
+        boolean volumetricShaftsActive = safe.volumetricShaftsEnabled() && safe.qualityTier().ordinal() >= QualityTier.HIGH.ordinal();
+        boolean clusteringActive = safe.clusteringEnabled() && safe.qualityTier().ordinal() >= QualityTier.HIGH.ordinal();
+        boolean lightLayersActive = safe.lightLayersEnabled() && safe.qualityTier().ordinal() >= QualityTier.MEDIUM.ordinal();
 
         List<String> active = new ArrayList<>();
         active.add("vulkan.lighting.directional_point_spot");
@@ -47,6 +53,24 @@ public final class VulkanLightingCapabilityPlanner {
         }
         if (emissiveActive) {
             active.add("vulkan.lighting.emissive_mesh");
+        }
+        if (areaApproxActive) {
+            active.add("vulkan.lighting.area_approx");
+        }
+        if (iesActive) {
+            active.add("vulkan.lighting.ies_profiles");
+        }
+        if (cookiesActive) {
+            active.add("vulkan.lighting.cookies");
+        }
+        if (volumetricShaftsActive) {
+            active.add("vulkan.lighting.volumetric_shafts");
+        }
+        if (clusteringActive) {
+            active.add("vulkan.lighting.clustering");
+        }
+        if (lightLayersActive) {
+            active.add("vulkan.lighting.light_layers");
         }
 
         List<String> pruned = new ArrayList<>();
@@ -61,6 +85,36 @@ public final class VulkanLightingCapabilityPlanner {
         } else if (!emissiveActive) {
             pruned.add("vulkan.lighting.emissive_mesh (quality tier too low)");
         }
+        if (!safe.areaApproxEnabled()) {
+            pruned.add("vulkan.lighting.area_approx (disabled)");
+        } else if (!areaApproxActive) {
+            pruned.add("vulkan.lighting.area_approx (quality tier too low)");
+        }
+        if (!safe.iesProfilesEnabled()) {
+            pruned.add("vulkan.lighting.ies_profiles (disabled)");
+        } else if (!iesActive) {
+            pruned.add("vulkan.lighting.ies_profiles (quality tier too low)");
+        }
+        if (!safe.cookiesEnabled()) {
+            pruned.add("vulkan.lighting.cookies (disabled)");
+        } else if (!cookiesActive) {
+            pruned.add("vulkan.lighting.cookies (quality tier too low)");
+        }
+        if (!safe.volumetricShaftsEnabled()) {
+            pruned.add("vulkan.lighting.volumetric_shafts (disabled)");
+        } else if (!volumetricShaftsActive) {
+            pruned.add("vulkan.lighting.volumetric_shafts (quality tier too low)");
+        }
+        if (!safe.clusteringEnabled()) {
+            pruned.add("vulkan.lighting.clustering (disabled)");
+        } else if (!clusteringActive) {
+            pruned.add("vulkan.lighting.clustering (quality tier too low)");
+        }
+        if (!safe.lightLayersEnabled()) {
+            pruned.add("vulkan.lighting.light_layers (disabled)");
+        } else if (!lightLayersActive) {
+            pruned.add("vulkan.lighting.light_layers (quality tier too low)");
+        }
 
         String mode = resolveMode(budgetActive, physUnitsActive, emissiveActive);
         List<String> signals = List.of(
@@ -74,7 +128,13 @@ public final class VulkanLightingCapabilityPlanner {
                 "budgetActive=" + budgetActive,
                 "budgetEnvelopeBreached=" + budgetEnvelopeBreached,
                 "physicallyBasedUnitsEnabled=" + physUnitsActive,
-                "emissiveMeshEnabled=" + emissiveActive
+                "emissiveMeshEnabled=" + emissiveActive,
+                "areaApproxEnabled=" + areaApproxActive,
+                "iesProfilesEnabled=" + iesActive,
+                "cookiesEnabled=" + cookiesActive,
+                "volumetricShaftsEnabled=" + volumetricShaftsActive,
+                "clusteringEnabled=" + clusteringActive,
+                "lightLayersEnabled=" + lightLayersActive
         );
         return new VulkanLightingCapabilityPlan(
                 mode,
@@ -116,6 +176,12 @@ public final class VulkanLightingCapabilityPlanner {
             boolean physicallyBasedUnitsEnabled,
             boolean prioritizationEnabled,
             boolean emissiveMeshEnabled,
+            boolean areaApproxEnabled,
+            boolean iesProfilesEnabled,
+            boolean cookiesEnabled,
+            boolean volumetricShaftsEnabled,
+            boolean clusteringEnabled,
+            boolean lightLayersEnabled,
             int localLightBudget,
             double budgetWarnRatioThreshold
     ) {
@@ -132,6 +198,12 @@ public final class VulkanLightingCapabilityPlanner {
                     List.of(),
                     false,
                     true,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
                     false,
                     8,
                     1.0

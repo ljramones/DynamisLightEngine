@@ -20,6 +20,12 @@ public final class VulkanLightingCapabilityRuntimeState {
     private boolean physicallyBasedUnitsEnabled = true;
     private boolean prioritizationEnabled = true;
     private boolean emissiveMeshEnabled;
+    private boolean areaApproxEnabled;
+    private boolean iesProfilesEnabled;
+    private boolean cookiesEnabled;
+    private boolean volumetricShaftsEnabled;
+    private boolean clusteringEnabled;
+    private boolean lightLayersEnabled;
     private int localLightBudget = 8;
     private double budgetWarnRatioThreshold = 1.0;
     private String modeLastFrame = "baseline_directional_point_spot";
@@ -90,6 +96,24 @@ public final class VulkanLightingCapabilityRuntimeState {
         );
         emissiveMeshEnabled = Boolean.parseBoolean(
                 safe.getOrDefault("vulkan.lighting.emissiveMeshEnabled", "false")
+        );
+        areaApproxEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.lighting.areaApproxEnabled", "false")
+        );
+        iesProfilesEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.lighting.iesProfilesEnabled", "false")
+        );
+        cookiesEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.lighting.cookiesEnabled", "false")
+        );
+        volumetricShaftsEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.lighting.volumetricShaftsEnabled", "false")
+        );
+        clusteringEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.lighting.clusteringEnabled", "false")
+        );
+        lightLayersEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.lighting.lightLayersEnabled", "false")
         );
         localLightBudget = VulkanRuntimeOptionParsing.parseBackendIntOption(
                 safe,
@@ -260,6 +284,12 @@ public final class VulkanLightingCapabilityRuntimeState {
                 physicallyBasedUnitsEnabled,
                 prioritizationEnabled,
                 emissiveMeshEnabled,
+                areaApproxEnabled,
+                iesProfilesEnabled,
+                cookiesEnabled,
+                volumetricShaftsEnabled,
+                clusteringEnabled,
+                lightLayersEnabled,
                 localLightBudget,
                 budgetWarnRatioThreshold
         );

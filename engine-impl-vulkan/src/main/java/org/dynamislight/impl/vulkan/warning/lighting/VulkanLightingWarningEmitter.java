@@ -20,6 +20,12 @@ public final class VulkanLightingWarningEmitter {
             boolean physicallyBasedUnitsEnabled,
             boolean prioritizationEnabled,
             boolean emissiveMeshEnabled,
+            boolean areaApproxEnabled,
+            boolean iesProfilesEnabled,
+            boolean cookiesEnabled,
+            boolean volumetricShaftsEnabled,
+            boolean clusteringEnabled,
+            boolean lightLayersEnabled,
             int localLightBudget,
             double budgetWarnRatioThreshold
     ) {
@@ -30,6 +36,12 @@ public final class VulkanLightingWarningEmitter {
                         physicallyBasedUnitsEnabled,
                         prioritizationEnabled,
                         emissiveMeshEnabled,
+                        areaApproxEnabled,
+                        iesProfilesEnabled,
+                        cookiesEnabled,
+                        volumetricShaftsEnabled,
+                        clusteringEnabled,
+                        lightLayersEnabled,
                         localLightBudget,
                         budgetWarnRatioThreshold
                 )
@@ -67,6 +79,15 @@ public final class VulkanLightingWarningEmitter {
                             + ", threshold=" + budgetWarnRatioThreshold + ")"
             ));
         }
+        warnings.add(new EngineWarning(
+                "LIGHTING_ADVANCED_POLICY",
+                "Lighting advanced policy (areaApprox=" + plan.signals().contains("areaApproxEnabled=true")
+                        + ", iesProfiles=" + plan.signals().contains("iesProfilesEnabled=true")
+                        + ", cookies=" + plan.signals().contains("cookiesEnabled=true")
+                        + ", volumetricShafts=" + plan.signals().contains("volumetricShaftsEnabled=true")
+                        + ", clustering=" + plan.signals().contains("clusteringEnabled=true")
+                        + ", lightLayers=" + plan.signals().contains("lightLayersEnabled=true") + ")"
+        ));
         return new Result(warnings, plan);
     }
 

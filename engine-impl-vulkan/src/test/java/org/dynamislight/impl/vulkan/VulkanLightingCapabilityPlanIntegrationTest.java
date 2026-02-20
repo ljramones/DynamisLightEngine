@@ -37,6 +37,12 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.physicallyBasedUnitsEnabled", "true"),
                     Map.entry("vulkan.lighting.prioritizationEnabled", "true"),
                     Map.entry("vulkan.lighting.emissiveMeshEnabled", "true"),
+                    Map.entry("vulkan.lighting.areaApproxEnabled", "true"),
+                    Map.entry("vulkan.lighting.iesProfilesEnabled", "true"),
+                    Map.entry("vulkan.lighting.cookiesEnabled", "true"),
+                    Map.entry("vulkan.lighting.volumetricShaftsEnabled", "true"),
+                    Map.entry("vulkan.lighting.clusteringEnabled", "true"),
+                    Map.entry("vulkan.lighting.lightLayersEnabled", "true"),
                     Map.entry("vulkan.lighting.localLightBudget", "2"),
                     Map.entry("vulkan.lighting.budgetWarnMinFrames", "1"),
                     Map.entry("vulkan.lighting.budgetWarnCooldownFrames", "0")
@@ -48,12 +54,19 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_PHYS_UNITS_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_EMISSIVE_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_EMISSIVE_ENVELOPE_BREACH".equals(w.code())));
             var diagnostics = runtime.lightingCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertTrue(diagnostics.activeCapabilities().stream().anyMatch(s -> s.contains("vulkan.lighting")));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.lighting.area_approx"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.lighting.ies_profiles"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.lighting.cookies"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.lighting.volumetric_shafts"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.lighting.clustering"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.lighting.light_layers"));
             assertTrue(diagnostics.signals().stream().anyMatch(s -> s.startsWith("resolvedMode=")));
             var budget = runtime.lightingBudgetDiagnostics();
             assertTrue(budget.available());
