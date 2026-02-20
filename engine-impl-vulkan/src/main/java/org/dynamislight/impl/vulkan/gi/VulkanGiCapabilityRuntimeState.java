@@ -26,12 +26,18 @@ public final class VulkanGiCapabilityRuntimeState {
     private int probeGridWarnMinFrames = 2;
     private int probeGridWarnCooldownFrames = 120;
     private int probeGridPromotionReadyMinFrames = 4;
+    private double rtDetailWarnMinActiveRatio = 1.0;
+    private int rtDetailWarnMinFrames = 2;
+    private int rtDetailWarnCooldownFrames = 120;
+    private int rtDetailPromotionReadyMinFrames = 4;
     private int stableStreak;
     private int ssgiStableStreak;
     private int probeGridStableStreak;
+    private int rtDetailStableStreak;
     private boolean promotionReadyLastFrame;
     private boolean ssgiPromotionReadyLastFrame;
     private boolean probeGridPromotionReadyLastFrame;
+    private boolean rtDetailPromotionReadyLastFrame;
     private boolean rtFallbackActiveLastFrame;
     private boolean ssgiActiveLastFrame;
     private boolean ssgiExpectedLastFrame;
@@ -45,7 +51,12 @@ public final class VulkanGiCapabilityRuntimeState {
     private boolean probeGridEnvelopeBreachedLastFrame;
     private int probeGridHighStreak;
     private int probeGridWarnCooldownRemaining;
+    private boolean rtDetailExpectedLastFrame;
     private boolean rtDetailActiveLastFrame;
+    private double rtDetailActiveRatioLastFrame;
+    private boolean rtDetailEnvelopeBreachedLastFrame;
+    private int rtDetailHighStreak;
+    private int rtDetailWarnCooldownRemaining;
     private String modeLastFrame = "ssgi";
     private boolean rtAvailableLastFrame;
     private List<String> activeCapabilitiesLastFrame = List.of();
@@ -55,9 +66,11 @@ public final class VulkanGiCapabilityRuntimeState {
         stableStreak = 0;
         ssgiStableStreak = 0;
         probeGridStableStreak = 0;
+        rtDetailStableStreak = 0;
         promotionReadyLastFrame = false;
         ssgiPromotionReadyLastFrame = false;
         probeGridPromotionReadyLastFrame = false;
+        rtDetailPromotionReadyLastFrame = false;
         rtFallbackActiveLastFrame = false;
         ssgiActiveLastFrame = false;
         ssgiExpectedLastFrame = false;
@@ -71,7 +84,12 @@ public final class VulkanGiCapabilityRuntimeState {
         probeGridEnvelopeBreachedLastFrame = false;
         probeGridHighStreak = 0;
         probeGridWarnCooldownRemaining = 0;
+        rtDetailExpectedLastFrame = false;
         rtDetailActiveLastFrame = false;
+        rtDetailActiveRatioLastFrame = 0.0;
+        rtDetailEnvelopeBreachedLastFrame = false;
+        rtDetailHighStreak = 0;
+        rtDetailWarnCooldownRemaining = 0;
         modeLastFrame = configuredMode.name().toLowerCase(java.util.Locale.ROOT);
         rtAvailableLastFrame = false;
         activeCapabilitiesLastFrame = List.of();
@@ -145,6 +163,34 @@ public final class VulkanGiCapabilityRuntimeState {
                 1,
                 100000
         );
+        rtDetailWarnMinActiveRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe,
+                "vulkan.gi.rtWarnMinActiveRatio",
+                rtDetailWarnMinActiveRatio,
+                0.0,
+                1.0
+        );
+        rtDetailWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.rtWarnMinFrames",
+                rtDetailWarnMinFrames,
+                1,
+                100000
+        );
+        rtDetailWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.rtWarnCooldownFrames",
+                rtDetailWarnCooldownFrames,
+                0,
+                100000
+        );
+        rtDetailPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.rtPromotionReadyMinFrames",
+                rtDetailPromotionReadyMinFrames,
+                1,
+                100000
+        );
     }
 
     public void applyProfileDefaults(Map<String, String> backendOptions, QualityTier tier) {
@@ -198,6 +244,29 @@ public final class VulkanGiCapabilityRuntimeState {
         }
         if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probePromotionReadyMinFrames")) {
             probeGridPromotionReadyMinFrames = switch (resolved) {
+                case LOW -> 6;
+                case MEDIUM -> 5;
+                case HIGH -> 4;
+                case ULTRA -> 3;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.rtWarnMinFrames")) {
+            rtDetailWarnMinFrames = switch (resolved) {
+                case LOW -> 3;
+                case MEDIUM -> 2;
+                case HIGH, ULTRA -> 1;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.rtWarnCooldownFrames")) {
+            rtDetailWarnCooldownFrames = switch (resolved) {
+                case LOW -> 180;
+                case MEDIUM -> 120;
+                case HIGH -> 90;
+                case ULTRA -> 75;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.rtPromotionReadyMinFrames")) {
+            rtDetailPromotionReadyMinFrames = switch (resolved) {
                 case LOW -> 6;
                 case MEDIUM -> 5;
                 case HIGH -> 4;
@@ -260,8 +329,27 @@ public final class VulkanGiCapabilityRuntimeState {
         if (probeGridWarnCooldownRemaining > 0) {
             probeGridWarnCooldownRemaining--;
         }
+        rtDetailExpectedLastFrame = configuredEnabled
+                && (configuredMode == GiMode.RTGI_SINGLE || configuredMode == GiMode.HYBRID_PROBE_SSGI_RT);
         rtDetailActiveLastFrame = activeCapabilitiesLastFrame.contains("vulkan.gi.rtgi_single")
                 || activeCapabilitiesLastFrame.contains("vulkan.gi.rt_detail");
+        rtDetailActiveRatioLastFrame = rtDetailActiveLastFrame ? 1.0 : 0.0;
+        rtDetailEnvelopeBreachedLastFrame = rtDetailExpectedLastFrame
+                && rtDetailActiveRatioLastFrame < rtDetailWarnMinActiveRatio;
+        if (rtDetailEnvelopeBreachedLastFrame) {
+            rtDetailHighStreak++;
+            rtDetailStableStreak = 0;
+        } else {
+            rtDetailHighStreak = 0;
+            if (rtDetailExpectedLastFrame) {
+                rtDetailStableStreak++;
+            } else {
+                rtDetailStableStreak = 0;
+            }
+        }
+        if (rtDetailWarnCooldownRemaining > 0) {
+            rtDetailWarnCooldownRemaining--;
+        }
 
         boolean stableThisFrame = configuredEnabled && !activeCapabilitiesLastFrame.isEmpty();
         stableStreak = stableThisFrame ? stableStreak + 1 : 0;
@@ -272,6 +360,9 @@ public final class VulkanGiCapabilityRuntimeState {
         probeGridPromotionReadyLastFrame = probeGridExpectedLastFrame
                 && !probeGridEnvelopeBreachedLastFrame
                 && probeGridStableStreak >= probeGridPromotionReadyMinFrames;
+        rtDetailPromotionReadyLastFrame = rtDetailExpectedLastFrame
+                && !rtDetailEnvelopeBreachedLastFrame
+                && rtDetailStableStreak >= rtDetailPromotionReadyMinFrames;
 
         if (warnings != null) {
             warnings.add(emission.warning());
@@ -317,12 +408,28 @@ public final class VulkanGiCapabilityRuntimeState {
                             + ", probeGridStableStreak=" + probeGridStableStreak
                             + ", probeGridPromotionReadyMinFrames=" + probeGridPromotionReadyMinFrames + ")"
             ));
+            warnings.add(new EngineWarning(
+                    "GI_RT_DETAIL_POLICY_ACTIVE",
+                    "GI RT-detail policy active (mode=" + modeLastFrame
+                            + ", rtDetailActive=" + rtDetailActiveLastFrame
+                            + ", rtDetailExpected=" + rtDetailExpectedLastFrame
+                            + ", rtDetailActiveRatio=" + rtDetailActiveRatioLastFrame
+                            + ", rtDetailWarnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                            + ", rtDetailWarnMinFrames=" + rtDetailWarnMinFrames
+                            + ", rtDetailWarnCooldownFrames=" + rtDetailWarnCooldownFrames
+                            + ", rtDetailWarnCooldownRemaining=" + rtDetailWarnCooldownRemaining
+                            + ", rtDetailStableStreak=" + rtDetailStableStreak
+                            + ", rtDetailPromotionReadyMinFrames=" + rtDetailPromotionReadyMinFrames + ")"
+            ));
             boolean emitSsgiBreach = ssgiEnvelopeBreachedLastFrame
                     && ssgiHighStreak >= ssgiWarnMinFrames
                     && ssgiWarnCooldownRemaining <= 0;
             boolean emitProbeGridBreach = probeGridEnvelopeBreachedLastFrame
                     && probeGridHighStreak >= probeGridWarnMinFrames
                     && probeGridWarnCooldownRemaining <= 0;
+            boolean emitRtDetailBreach = rtDetailEnvelopeBreachedLastFrame
+                    && rtDetailHighStreak >= rtDetailWarnMinFrames
+                    && rtDetailWarnCooldownRemaining <= 0;
             warnings.add(new EngineWarning(
                     "GI_SSGI_ENVELOPE",
                     "GI SSGI envelope (mode=" + modeLastFrame
@@ -346,6 +453,18 @@ public final class VulkanGiCapabilityRuntimeState {
                             + ", highStreak=" + probeGridHighStreak
                             + ", warnMinFrames=" + probeGridWarnMinFrames
                             + ", cooldownRemaining=" + probeGridWarnCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_RT_DETAIL_ENVELOPE",
+                    "GI RT-detail envelope (mode=" + modeLastFrame
+                            + ", expected=" + rtDetailExpectedLastFrame
+                            + ", active=" + rtDetailActiveLastFrame
+                            + ", activeRatio=" + rtDetailActiveRatioLastFrame
+                            + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                            + ", breached=" + rtDetailEnvelopeBreachedLastFrame
+                            + ", highStreak=" + rtDetailHighStreak
+                            + ", warnMinFrames=" + rtDetailWarnMinFrames
+                            + ", cooldownRemaining=" + rtDetailWarnCooldownRemaining + ")"
             ));
             if (emitSsgiBreach) {
                 ssgiWarnCooldownRemaining = ssgiWarnCooldownFrames;
@@ -379,12 +498,32 @@ public final class VulkanGiCapabilityRuntimeState {
                                 + ", cooldownFrames=" + probeGridWarnCooldownFrames + ")"
                 ));
             }
+            if (emitRtDetailBreach) {
+                rtDetailWarnCooldownRemaining = rtDetailWarnCooldownFrames;
+                warnings.add(new EngineWarning(
+                        "GI_RT_DETAIL_ENVELOPE_BREACH",
+                        "GI RT-detail envelope breach (mode=" + modeLastFrame
+                                + ", expected=" + rtDetailExpectedLastFrame
+                                + ", activeRatio=" + rtDetailActiveRatioLastFrame
+                                + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                                + ", highStreak=" + rtDetailHighStreak
+                                + ", cooldownFrames=" + rtDetailWarnCooldownFrames + ")"
+                ));
+            }
             if (probeGridPromotionReadyLastFrame) {
                 warnings.add(new EngineWarning(
                         "GI_PROBE_GRID_PROMOTION_READY",
                         "GI probe-grid promotion ready (mode=" + modeLastFrame
                                 + ", stableStreak=" + probeGridStableStreak
                                 + ", minFrames=" + probeGridPromotionReadyMinFrames + ")"
+                ));
+            }
+            if (rtDetailPromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "GI_RT_DETAIL_PROMOTION_READY",
+                        "GI RT-detail promotion ready (mode=" + modeLastFrame
+                                + ", stableStreak=" + rtDetailStableStreak
+                                + ", minFrames=" + rtDetailPromotionReadyMinFrames + ")"
                 ));
             }
             if (promotionReadyLastFrame) {
@@ -434,12 +573,22 @@ public final class VulkanGiCapabilityRuntimeState {
                 probeGridWarnCooldownRemaining,
                 probeGridEnvelopeBreachedLastFrame,
                 rtDetailActiveLastFrame,
+                rtDetailExpectedLastFrame,
+                rtDetailActiveRatioLastFrame,
+                rtDetailWarnMinActiveRatio,
+                rtDetailWarnMinFrames,
+                rtDetailWarnCooldownFrames,
+                rtDetailWarnCooldownRemaining,
+                rtDetailEnvelopeBreachedLastFrame,
                 stableStreak,
                 promotionReadyMinFrames,
                 promotionReadyLastFrame,
                 ssgiStableStreak,
                 ssgiPromotionReadyMinFrames,
                 ssgiPromotionReadyLastFrame,
+                rtDetailStableStreak,
+                rtDetailPromotionReadyMinFrames,
+                rtDetailPromotionReadyLastFrame,
                 probeGridStableStreak,
                 probeGridPromotionReadyMinFrames,
                 probeGridPromotionReadyLastFrame

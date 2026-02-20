@@ -26,12 +26,22 @@ public record GiPromotionDiagnostics(
         int probeGridWarnCooldownRemaining,
         boolean probeGridEnvelopeBreachedLastFrame,
         boolean rtDetailActive,
+        boolean rtDetailExpected,
+        double rtDetailActiveRatio,
+        double rtDetailWarnMinActiveRatio,
+        int rtDetailWarnMinFrames,
+        int rtDetailWarnCooldownFrames,
+        int rtDetailWarnCooldownRemaining,
+        boolean rtDetailEnvelopeBreachedLastFrame,
         int stableStreak,
         int promotionReadyMinFrames,
         boolean promotionReady,
         int ssgiStableStreak,
         int ssgiPromotionReadyMinFrames,
         boolean ssgiPromotionReady,
+        int rtDetailStableStreak,
+        int rtDetailPromotionReadyMinFrames,
+        boolean rtDetailPromotionReady,
         int probeGridStableStreak,
         int probeGridPromotionReadyMinFrames,
         boolean probeGridPromotionReady
@@ -48,10 +58,17 @@ public record GiPromotionDiagnostics(
         probeGridWarnMinFrames = Math.max(1, probeGridWarnMinFrames);
         probeGridWarnCooldownFrames = Math.max(0, probeGridWarnCooldownFrames);
         probeGridWarnCooldownRemaining = Math.max(0, probeGridWarnCooldownRemaining);
+        rtDetailActiveRatio = clamp01(rtDetailActiveRatio);
+        rtDetailWarnMinActiveRatio = clamp01(rtDetailWarnMinActiveRatio);
+        rtDetailWarnMinFrames = Math.max(1, rtDetailWarnMinFrames);
+        rtDetailWarnCooldownFrames = Math.max(0, rtDetailWarnCooldownFrames);
+        rtDetailWarnCooldownRemaining = Math.max(0, rtDetailWarnCooldownRemaining);
         stableStreak = Math.max(0, stableStreak);
         promotionReadyMinFrames = Math.max(1, promotionReadyMinFrames);
         ssgiStableStreak = Math.max(0, ssgiStableStreak);
         ssgiPromotionReadyMinFrames = Math.max(1, ssgiPromotionReadyMinFrames);
+        rtDetailStableStreak = Math.max(0, rtDetailStableStreak);
+        rtDetailPromotionReadyMinFrames = Math.max(1, rtDetailPromotionReadyMinFrames);
         probeGridStableStreak = Math.max(0, probeGridStableStreak);
         probeGridPromotionReadyMinFrames = Math.max(1, probeGridPromotionReadyMinFrames);
     }
@@ -79,6 +96,16 @@ public record GiPromotionDiagnostics(
                 0,
                 0,
                 false,
+                false,
+                false,
+                0.0,
+                1.0,
+                1,
+                0,
+                0,
+                false,
+                0,
+                1,
                 false,
                 0,
                 1,

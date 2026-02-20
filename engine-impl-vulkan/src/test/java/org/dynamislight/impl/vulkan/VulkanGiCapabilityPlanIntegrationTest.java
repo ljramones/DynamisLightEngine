@@ -50,6 +50,9 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_ENVELOPE_BREACH".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.giCapabilityDiagnostics();
             assertTrue(diagnostics.available());
@@ -67,6 +70,10 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(promotion.probeGridExpected());
             assertFalse(promotion.probeGridEnvelopeBreachedLastFrame());
             assertTrue(promotion.probeGridPromotionReady());
+            assertTrue(promotion.rtDetailExpected());
+            assertFalse(promotion.rtDetailActive());
+            assertTrue(promotion.rtDetailEnvelopeBreachedLastFrame());
+            assertFalse(promotion.rtDetailPromotionReady());
             assertFalse(promotion.rtDetailActive());
         } finally {
             runtime.shutdown();
@@ -142,6 +149,10 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertEquals(1, promotion.probeGridWarnMinFrames());
             assertEquals(90, promotion.probeGridWarnCooldownFrames());
             assertEquals(4, promotion.probeGridPromotionReadyMinFrames());
+            assertEquals(1.0, promotion.rtDetailWarnMinActiveRatio(), 1e-9);
+            assertEquals(1, promotion.rtDetailWarnMinFrames());
+            assertEquals(90, promotion.rtDetailWarnCooldownFrames());
+            assertEquals(4, promotion.rtDetailPromotionReadyMinFrames());
         } finally {
             runtime.shutdown();
         }
@@ -162,7 +173,11 @@ class VulkanGiCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.gi.probeWarnMinActiveRatio", "0.80"),
                     Map.entry("vulkan.gi.probeWarnMinFrames", "8"),
                     Map.entry("vulkan.gi.probeWarnCooldownFrames", "44"),
-                    Map.entry("vulkan.gi.probePromotionReadyMinFrames", "7")
+                    Map.entry("vulkan.gi.probePromotionReadyMinFrames", "7"),
+                    Map.entry("vulkan.gi.rtWarnMinActiveRatio", "0.82"),
+                    Map.entry("vulkan.gi.rtWarnMinFrames", "9"),
+                    Map.entry("vulkan.gi.rtWarnCooldownFrames", "45"),
+                    Map.entry("vulkan.gi.rtPromotionReadyMinFrames", "8")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene());
             runtime.render();
@@ -176,6 +191,10 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertEquals(8, promotion.probeGridWarnMinFrames());
             assertEquals(44, promotion.probeGridWarnCooldownFrames());
             assertEquals(7, promotion.probeGridPromotionReadyMinFrames());
+            assertEquals(0.82, promotion.rtDetailWarnMinActiveRatio(), 1e-9);
+            assertEquals(9, promotion.rtDetailWarnMinFrames());
+            assertEquals(45, promotion.rtDetailWarnCooldownFrames());
+            assertEquals(8, promotion.rtDetailPromotionReadyMinFrames());
         } finally {
             runtime.shutdown();
         }
