@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanGiCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanReflectionCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityDescriptorV2;
 import org.dynamislight.spi.render.RenderFeatureMode;
@@ -65,10 +66,14 @@ class VulkanShaderPhaseCParallelValidationTest {
                 VulkanReflectionCapabilityDescriptorV2.withMode(reflectionMode).shaderModules(reflectionMode);
         List<RenderShaderModuleDeclaration> aaModules =
                 VulkanAaCapabilityDescriptorV2.withMode(aaMode).shaderModules(aaMode);
+        List<RenderShaderModuleDeclaration> giModules =
+                VulkanGiCapabilityDescriptorV2.withMode(VulkanGiCapabilityDescriptorV2.MODE_SSGI)
+                        .shaderModules(VulkanGiCapabilityDescriptorV2.MODE_SSGI);
         java.util.ArrayList<RenderShaderModuleDeclaration> all = new java.util.ArrayList<>();
         all.addAll(shadowModules);
         all.addAll(reflectionModules);
         all.addAll(aaModules);
+        all.addAll(giModules);
         return List.copyOf(all);
     }
 

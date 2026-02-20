@@ -309,17 +309,37 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         return fract((p3.x + p3.y) * p3.z);
                     }
                     vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec3 c0 = texture(uSceneColor, uv).rgb;
+                        vec3 c1 = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 c2 = texture(uSceneColor, clamp(uv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 c3 = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 c4 = texture(uSceneColor, clamp(uv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 probeInterp = (c0 * 0.40) + ((c1 + c2 + c3 + c4) * 0.15);
                         float probeBand = smoothstep(0.15, 0.85, giHash12(uv * 64.0));
-                        float probeContribution = mix(0.06, 0.16, probeBand);
-                        vec3 lifted = baseColor.rgb * (1.0 + probeContribution);
+                        float probeContribution = mix(0.05, 0.14, probeBand);
+                        vec3 lifted = mix(baseColor.rgb, probeInterp, 0.18 + probeContribution);
                         return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;
             case "rtgi_single" -> """
                     vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec2 ray = normalize((uv - vec2(0.5)) + vec2(0.0001));
+                        vec3 rtAccum = vec3(0.0);
+                        float rtWeight = 0.0;
+                        for (int i = 0; i < 8; i++) {
+                            float t = (float(i) + 1.0) / 8.0;
+                            vec2 sampleUv = clamp(uv + ray * texel * (3.0 + t * 14.0), vec2(0.0), vec2(1.0));
+                            vec3 c = textureLod(uSceneColor, sampleUv, 0.6 + t * 1.4).rgb;
+                            float w = 1.0 - (t * 0.65);
+                            rtAccum += c * w;
+                            rtWeight += w;
+                        }
+                        vec3 rtColor = rtWeight > 0.0001 ? rtAccum / rtWeight : baseColor.rgb;
                         float centerWeight = 1.0 - clamp(length((uv - vec2(0.5)) * 1.6), 0.0, 1.0);
-                        float rtContribution = mix(0.08, 0.20, centerWeight);
-                        vec3 lifted = baseColor.rgb * (1.0 + rtContribution);
+                        float rtContribution = mix(0.08, 0.18, centerWeight);
+                        vec3 lifted = mix(baseColor.rgb, rtColor, 0.18 + rtContribution * 0.35);
                         return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;
@@ -330,21 +350,36 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         return fract((p3.x + p3.y) * p3.z);
                     }
                     vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec3 center = texture(uSceneColor, uv).rgb;
+                        vec3 neighX = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 neighY = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 ssgiInterp = (center * 0.55) + ((neighX + neighY) * 0.225);
+                        vec2 ray = normalize((uv - vec2(0.5)) + vec2(0.0001));
+                        vec3 rtTap = textureLod(uSceneColor, clamp(uv + ray * texel * 9.0, vec2(0.0), vec2(1.0)), 1.2).rgb;
                         float probeBand = smoothstep(0.10, 0.90, giHash12(uv * 48.0));
                         float centerWeight = 1.0 - clamp(length((uv - vec2(0.5)) * 1.5), 0.0, 1.0);
                         float ssgiContribution = 0.07;
                         float probeContribution = mix(0.04, 0.10, probeBand);
                         float rtContribution = mix(0.03, 0.09, centerWeight);
                         float hybridContribution = ssgiContribution + probeContribution + rtContribution;
-                        vec3 lifted = baseColor.rgb * (1.0 + hybridContribution);
+                        vec3 hybrid = mix(ssgiInterp, rtTap, 0.35 + rtContribution);
+                        vec3 lifted = mix(baseColor.rgb, hybrid, 0.20 + hybridContribution * 0.45);
                         return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;
             default -> """
                     vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec3 c = texture(uSceneColor, uv).rgb;
+                        vec3 cx = texture(uSceneColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 cy = texture(uSceneColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        float depth = texture(uVelocityColor, uv).b;
                         float horizon = clamp(1.0 - abs(uv.y - 0.5) * 2.0, 0.0, 1.0);
-                        float ssgiContribution = mix(0.05, 0.14, horizon);
-                        vec3 lifted = baseColor.rgb * (1.0 + ssgiContribution);
+                        float depthAtten = clamp(1.0 - depth * 0.65, 0.15, 1.0);
+                        float ssgiContribution = mix(0.05, 0.14, horizon) * depthAtten;
+                        vec3 ssgiColor = (c * 0.6) + ((cx + cy) * 0.2);
+                        vec3 lifted = mix(baseColor.rgb, ssgiColor, 0.16 + ssgiContribution * 0.50);
                         return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;

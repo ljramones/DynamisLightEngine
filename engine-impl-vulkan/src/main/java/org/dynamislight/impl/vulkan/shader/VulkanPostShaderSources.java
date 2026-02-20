@@ -469,6 +469,9 @@ public final class VulkanPostShaderSources {
                         centerMaterialReactive,
                         reflectionDisocclusionSignal
                     );
+                    vec4 giResolved = resolveGiIndirect(vec4(clamp(color, 0.0, 1.0), historyConfidenceOut), vUv);
+                    color = giResolved.rgb;
+                    historyConfidenceOut = clamp(max(historyConfidenceOut, giResolved.a), 0.0, 1.0);
                     outColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);
                 }
                 """;

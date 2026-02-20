@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.shader;
 
 import java.util.List;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanGiCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanReflectionCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityDescriptorV2;
 import org.dynamislight.spi.render.RenderShaderModuleDeclaration;
@@ -88,6 +89,8 @@ public final class VulkanShaderSources {
                 .shaderModules(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID));
         modules.addAll(VulkanAaCapabilityDescriptorV2.withMode(VulkanAaCapabilityDescriptorV2.MODE_TAA)
                 .shaderModules(VulkanAaCapabilityDescriptorV2.MODE_TAA));
+        modules.addAll(VulkanGiCapabilityDescriptorV2.withMode(VulkanGiCapabilityDescriptorV2.MODE_SSGI)
+                .shaderModules(VulkanGiCapabilityDescriptorV2.MODE_SSGI));
         return List.copyOf(modules);
     }
 }

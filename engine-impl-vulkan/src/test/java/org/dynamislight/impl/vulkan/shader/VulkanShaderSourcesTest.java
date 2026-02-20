@@ -112,5 +112,8 @@ class VulkanShaderSourcesTest {
         assertTrue(shader.contains("bool transparentCandidate = materialReactive >= 0.30;"));
         assertTrue(shader.contains("if (probeOnlyOverride) {"));
         assertTrue(shader.contains("int mode = reflectionOverrideMode == 2 ? 1 : (packedMode & 7);"));
+        assertTrue(shader.contains("vec4 resolveGiIndirect(vec4 baseColor, vec2 uv)"));
+        assertTrue(shader.contains("vec4 giResolved = resolveGiIndirect(vec4(clamp(color, 0.0, 1.0), historyConfidenceOut), vUv);"));
+        assertTrue(shader.contains("historyConfidenceOut = clamp(max(historyConfidenceOut, giResolved.a), 0.0, 1.0);"));
     }
 }
