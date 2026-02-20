@@ -122,6 +122,22 @@ class VulkanCapabilityContractV2DescriptorsTest {
     }
 
     @Test
+    void pbrDescriptorProducesCompleteContract() {
+        VulkanPbrCapabilityDescriptorV2 descriptor = VulkanPbrCapabilityDescriptorV2.withMode(
+                VulkanPbrCapabilityDescriptorV2.MODE_SPECULAR_GLOSSINESS_DETAIL_LAYERING
+        );
+
+        RenderCapabilityContractV2 contract = descriptor.contractV2(QualityTier.ULTRA);
+
+        assertEqualsNonBlank(contract.featureId());
+        assertNotNull(contract.mode());
+        assertFalse(contract.passes().isEmpty());
+        assertFalse(contract.shaderContributions().isEmpty());
+        assertFalse(contract.descriptorRequirements().isEmpty());
+        assertFalse(contract.ownedResources().isEmpty());
+    }
+
+    @Test
     void lightingAdvancedModeDeclaresAdvancedBindingsAndResources() {
         VulkanLightingCapabilityDescriptorV2 descriptor = VulkanLightingCapabilityDescriptorV2.withMode(
                 VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED
@@ -172,14 +188,15 @@ class VulkanCapabilityContractV2DescriptorsTest {
     }
 
     @Test
-    void crossCapabilityValidatorReportsNoErrorsForShadowReflectionAaAndPostDescriptors() {
+    void crossCapabilityValidatorReportsNoErrorsForShadowReflectionAaPostGiLightingAndPbrDescriptors() {
         List<RenderFeatureCapabilityV2> capabilities = List.of(
                 VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM),
                 VulkanReflectionCapabilityDescriptorV2.withMode(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID),
                 VulkanAaCapabilityDescriptorV2.withMode(VulkanAaCapabilityDescriptorV2.MODE_TAA),
                 VulkanPostCapabilityDescriptorV2.withMode(VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE),
                 VulkanGiCapabilityDescriptorV2.withMode(VulkanGiCapabilityDescriptorV2.MODE_SSGI),
-                VulkanLightingCapabilityDescriptorV2.withMode(VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT)
+                VulkanLightingCapabilityDescriptorV2.withMode(VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT),
+                VulkanPbrCapabilityDescriptorV2.withMode(VulkanPbrCapabilityDescriptorV2.MODE_METALLIC_ROUGHNESS_BASELINE)
         );
 
         List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
@@ -526,6 +543,40 @@ class VulkanCapabilityContractV2DescriptorsTest {
 
             List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
                     List.of(shadow, reflection, aa, post),
+                    QualityTier.ULTRA
+            );
+            assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),
+                    "expected zero errors for mode " + mode.id() + ", got: " + issues);
+        }
+    }
+
+    @Test
+    void everyPbrModeProducesCompleteContractAndValidatesWithShadowReflectionAaPostGiAndLighting() {
+        VulkanShadowCapabilityDescriptorV2 shadow =
+                VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM);
+        VulkanReflectionCapabilityDescriptorV2 reflection =
+                VulkanReflectionCapabilityDescriptorV2.withMode(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID);
+        VulkanAaCapabilityDescriptorV2 aa =
+                VulkanAaCapabilityDescriptorV2.withMode(VulkanAaCapabilityDescriptorV2.MODE_TAA);
+        VulkanPostCapabilityDescriptorV2 post =
+                VulkanPostCapabilityDescriptorV2.withMode(VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE);
+        VulkanGiCapabilityDescriptorV2 gi =
+                VulkanGiCapabilityDescriptorV2.withMode(VulkanGiCapabilityDescriptorV2.MODE_SSGI);
+        VulkanLightingCapabilityDescriptorV2 lighting =
+                VulkanLightingCapabilityDescriptorV2.withMode(VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT);
+
+        for (RenderFeatureMode mode : VulkanPbrCapabilityDescriptorV2.withMode(null).supportedModes()) {
+            VulkanPbrCapabilityDescriptorV2 pbr = VulkanPbrCapabilityDescriptorV2.withMode(mode);
+            RenderCapabilityContractV2 contract = pbr.contractV2(QualityTier.ULTRA);
+            assertEqualsNonBlank(contract.featureId());
+            assertNotNull(contract.mode());
+            assertFalse(contract.passes().isEmpty(), "mode " + mode.id() + " must declare passes");
+            assertFalse(contract.shaderContributions().isEmpty(), "mode " + mode.id() + " must declare shader contributions");
+            assertFalse(contract.descriptorRequirements().isEmpty(), "mode " + mode.id() + " must declare descriptor requirements");
+            assertFalse(contract.ownedResources().isEmpty(), "mode " + mode.id() + " must declare owned resources");
+
+            List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
+                    List.of(shadow, reflection, aa, post, gi, lighting, pbr),
                     QualityTier.ULTRA
             );
             assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),

@@ -49,6 +49,7 @@ import org.dynamislight.api.runtime.LightingCapabilityDiagnostics;
 import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
 import org.dynamislight.api.runtime.LightingPromotionDiagnostics;
 import org.dynamislight.api.runtime.LightingAdvancedDiagnostics;
+import org.dynamislight.api.runtime.PbrCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
@@ -91,6 +92,7 @@ import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalWarningEmitter;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaUpscaleWarningEmitter;
 import org.dynamislight.impl.vulkan.gi.VulkanGiCapabilityRuntimeState;
 import org.dynamislight.impl.vulkan.lighting.VulkanLightingCapabilityRuntimeState;
+import org.dynamislight.impl.vulkan.pbr.VulkanPbrCapabilityRuntimeState;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
 import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
@@ -178,6 +180,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private final VulkanAaTemporalRuntimeState aaTemporalState = new VulkanAaTemporalRuntimeState();
     private final VulkanGiCapabilityRuntimeState giCapabilityState = new VulkanGiCapabilityRuntimeState();
     private final VulkanLightingCapabilityRuntimeState lightingCapabilityState = new VulkanLightingCapabilityRuntimeState();
+    private final VulkanPbrCapabilityRuntimeState pbrCapabilityState = new VulkanPbrCapabilityRuntimeState();
     private UpscalerMode upscalerMode = UpscalerMode.NONE;
     private UpscalerQuality upscalerQuality = UpscalerQuality.QUALITY;
     private ReflectionProfile reflectionProfile = ReflectionProfile.BALANCED;
@@ -667,6 +670,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         aaTemporalState.resetFrameState();
         giCapabilityState.reset();
         lightingCapabilityState.reset();
+        pbrCapabilityState.reset();
         lastFramePlanarCaptureGpuMs = Double.NaN;
         lastFrameGpuTimingSource = "frame_estimate";
         context.configureReflectionProbeStreaming(
@@ -682,6 +686,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         aaMode = VulkanRuntimeOptionParsing.parseAaMode(safeBackendOptions.get("vulkan.aaMode"));
         giCapabilityState.applyBackendOptions(safeBackendOptions);
         lightingCapabilityState.applyBackendOptions(safeBackendOptions);
+        pbrCapabilityState.applyBackendOptions(safeBackendOptions);
         aaTemporalState.applyBackendOptions(safeBackendOptions);
         upscalerMode = VulkanRuntimeOptionParsing.parseUpscalerMode(safeBackendOptions.get("vulkan.upscalerMode"));
         upscalerQuality = VulkanRuntimeOptionParsing.parseUpscalerQuality(safeBackendOptions.get("vulkan.upscalerQuality"));
@@ -726,6 +731,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         applyReflectionProfileTelemetryDefaults(safeBackendOptions);
         giCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         lightingCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
+        pbrCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         tsrControls = VulkanRuntimeOptionParsing.parseTsrControls(safeBackendOptions, "vulkan.");
         externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", safeBackendOptions);
         nativeUpscalerActive = false;
@@ -1100,6 +1106,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     @Override
     protected LightingAdvancedDiagnostics backendLightingAdvancedDiagnostics() { return lightingCapabilityState.advancedDiagnostics(); }
     @Override
+    protected PbrCapabilityDiagnostics backendPbrCapabilityDiagnostics() { return pbrCapabilityState.diagnostics(); }
+    @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
         return VulkanShadowBackendDiagnosticsBridge.capability(this);
     }
@@ -1299,8 +1307,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         aaTemporalState.updateCorePromotion(aaTemporalEmission, aaMaterialEmission, warnings, aaPostAaModeLastFrame);
         giCapabilityState.emitFrameWarnings(qualityTier, shadowRtTraversalSupported, warnings);
         lightingCapabilityState.emitFrameWarning(qualityTier, currentSceneLights, currentSceneMaterials, warnings);
+        pbrCapabilityState.emitFrameWarning(qualityTier, warnings);
         context.setPipelineGiModeOverride(giCapabilityState.diagnostics().giMode());
         context.setPipelineLightingModeOverride(lightingCapabilityState.diagnostics().mode());
+        context.setPipelinePbrModeOverride(pbrCapabilityState.diagnostics().mode());
         VulkanReflectionRuntimeFlow.processFrameWarnings(this, context, qualityTier, warnings);
         VulkanShadowFrameWarningFlow.process(this, context, qualityTier, warnings);
         return warnings;

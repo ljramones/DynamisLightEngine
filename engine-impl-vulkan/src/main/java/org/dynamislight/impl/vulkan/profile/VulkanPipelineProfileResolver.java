@@ -4,6 +4,7 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanGiCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanLightingCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanPbrCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanPostCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanReflectionCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
@@ -22,6 +23,7 @@ public final class VulkanPipelineProfileResolver {
             VulkanRenderState renderState,
             int selectedLocalShadowLights,
             RenderFeatureMode lightingModeOverride,
+            RenderFeatureMode pbrModeOverride,
             RenderFeatureMode giModeOverride,
             int deferredShadowLightCount,
             int renderedSpotShadowLights,
@@ -72,6 +74,10 @@ public final class VulkanPipelineProfileResolver {
                 lightingModeOverride,
                 localLightCountToMode(selectedLocalShadowLights + deferredShadowLightCount)
         );
+        RenderFeatureMode pbrMode = sanitizePbrMode(
+                pbrModeOverride,
+                VulkanPbrCapabilityDescriptorV2.MODE_METALLIC_ROUGHNESS_BASELINE
+        );
         RenderFeatureMode giMode = sanitizeGiMode(giModeOverride, VulkanGiCapabilityDescriptorV2.MODE_SSGI);
 
         return new VulkanPipelineProfileKey(
@@ -81,6 +87,7 @@ public final class VulkanPipelineProfileResolver {
                 aaMode,
                 postMode,
                 lightingMode,
+                pbrMode,
                 giMode
         );
     }
@@ -107,6 +114,14 @@ public final class VulkanPipelineProfileResolver {
         }
         String requested = overrideMode.id();
         return VulkanGiCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
+    }
+
+    private static RenderFeatureMode sanitizePbrMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {
+        if (overrideMode == null || overrideMode.id() == null || overrideMode.id().isBlank()) {
+            return fallback;
+        }
+        String requested = overrideMode.id();
+        return VulkanPbrCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
     }
 
     private static String shadowFilterModeId(int mode) {

@@ -13,6 +13,7 @@ public record VulkanPipelineProfileKey(
         RenderFeatureMode aaMode,
         RenderFeatureMode postMode,
         RenderFeatureMode lightingMode,
+        RenderFeatureMode pbrMode,
         RenderFeatureMode giMode
 ) {
     public VulkanPipelineProfileKey {
@@ -22,6 +23,7 @@ public record VulkanPipelineProfileKey(
         aaMode = normalize(aaMode, "taa");
         postMode = normalize(postMode, "taa_resolve");
         lightingMode = normalize(lightingMode, "baseline_directional_point_spot");
+        pbrMode = normalize(pbrMode, "metallic_roughness_baseline");
         giMode = normalize(giMode, "ssgi");
     }
 
@@ -33,6 +35,7 @@ public record VulkanPipelineProfileKey(
                 new RenderFeatureMode("taa"),
                 new RenderFeatureMode("taa_resolve"),
                 new RenderFeatureMode("baseline_directional_point_spot"),
+                new RenderFeatureMode("metallic_roughness_baseline"),
                 new RenderFeatureMode("ssgi")
         );
     }
@@ -43,6 +46,7 @@ public record VulkanPipelineProfileKey(
                 + "|aa=" + aaMode.id()
                 + "|post=" + postMode.id()
                 + "|lighting=" + lightingMode.id()
+                + "|pbr=" + pbrMode.id()
                 + "|gi=" + giMode.id();
     }
 

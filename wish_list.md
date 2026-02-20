@@ -321,7 +321,7 @@ Post notes:
 ## PBR / Shading
 
 - Standard metallic-roughness (GGX/Smith) — `In`
-- Specular-glossiness workflow — `Not In Yet`
+- Specular-glossiness workflow — `Partial`
 - Clear coat (automotive paint, wet surfaces) — `Partial`
 - Anisotropic specular (brushed metal, hair highlights) — `Partial`
 - Subsurface scattering (skin, wax, marble — preintegrated or separable) — `Not In Yet`
@@ -329,17 +329,24 @@ Post notes:
 - Sheen (fabric, velvet — Charlie distribution) — `Not In Yet`
 - Transmission / thin translucency (leaves, paper, curtains) — `Partial`
 - Refraction (thick glass, water surface, per-material IOR) — `Partial`
-- Detail maps (tiled micro-detail overlay) — `Not In Yet`
+- Detail maps (tiled micro-detail overlay) — `Partial`
 - Parallax occlusion mapping (height-based depth) — `Not In Yet`
 - Tessellation (displacement mapping, adaptive) — `Not In Yet`
 - Decals (deferred or forward-projected, PBR-full) — `Not In Yet`
 - Vertex color blending (terrain, weathering) — `Partial`
-- Material layering (blend multiple PBR stacks by mask) — `Not In Yet`
+- Material layering (blend multiple PBR stacks by mask) — `Partial`
 - Emissive with bloom contribution control — `Partial`
 - Eye shader (refraction, caustic, iris depth) — `Not In Yet`
 - Hair shader (Marschner or dual-lobe specular) — `Not In Yet`
 - Cloth shader (subsurface + sheen combination) — `Not In Yet`
 - Energy conservation validation (diffuse + specular ≤ 1) — `Partial`
+
+PBR notes:
+
+- Vulkan PBR now has v2 capability descriptors for `metallic_roughness_baseline`, `specular_glossiness`, `specular_glossiness_detail`, `specular_glossiness_detail_layering`, and `advanced_surface_stack`.
+- Vulkan runtime now emits `PBR_CAPABILITY_MODE_ACTIVE`, `PBR_POLICY`, and `PBR_PROMOTION_READY` warnings and exposes typed backend-agnostic diagnostics (`pbrCapabilityDiagnostics()`).
+- Phase-C profile resolution now consumes runtime PBR mode overrides so compiled profile identity includes `pbr=...` and main-fragment shader module composition can vary by active PBR capability mode.
+- Checklist + lockdown runner: `docs/pbr-contract-v2-checklist.md`, `scripts/pbr_contract_v2_lockdown.sh`.
 
 ## Geometry / Detail
 

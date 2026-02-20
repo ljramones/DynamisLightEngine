@@ -152,6 +152,7 @@ public final class VulkanContext {
     private int reflectionProbeLodTier3Count;
     private QualityTier pipelineProfileTier = QualityTier.MEDIUM;
     private RenderFeatureMode pipelineLightingModeOverride;
+    private RenderFeatureMode pipelinePbrModeOverride;
     private RenderFeatureMode pipelineGiModeOverride;
     private final VulkanPipelineProfileCache pipelineProfileCache = new VulkanPipelineProfileCache();
     private VulkanPipelineProfileKey activePipelineProfileKey = VulkanPipelineProfileKey.defaults();
@@ -216,6 +217,7 @@ public final class VulkanContext {
     int configuredDescriptorRingMaxSetCapacity() { return descriptorRingStats.descriptorRingMaxSetCapacity; }
     void setPipelineProfileTier(QualityTier tier) { pipelineProfileTier = tier == null ? QualityTier.MEDIUM : tier; }
     void setPipelineLightingModeOverride(String modeId) { pipelineLightingModeOverride = (modeId == null || modeId.isBlank()) ? null : new RenderFeatureMode(modeId); }
+    void setPipelinePbrModeOverride(String modeId) { pipelinePbrModeOverride = (modeId == null || modeId.isBlank()) ? null : new RenderFeatureMode(modeId); }
     void setPipelineGiModeOverride(String modeId) { pipelineGiModeOverride = (modeId == null || modeId.isBlank()) ? null : new RenderFeatureMode(modeId); }
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
         VulkanLifecycleOrchestrator.initializeRuntime(
@@ -1458,6 +1460,7 @@ public final class VulkanContext {
                         renderState,
                         localLightCount,
                         pipelineLightingModeOverride,
+                        pipelinePbrModeOverride,
                         pipelineGiModeOverride,
                         pipelineProfileCache,
                         activePipelineProfileKey

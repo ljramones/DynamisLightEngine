@@ -459,6 +459,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic PBR/shading capability-plan diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link PbrCapabilityDiagnostics#unavailable()}.
+     *
+     * @return current PBR/shading capability-plan diagnostics snapshot.
+     */
+    default PbrCapabilityDiagnostics pbrCapabilityDiagnostics() {
+        return PbrCapabilityDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

@@ -18,6 +18,7 @@ class VulkanPipelineProfileResolverTest {
                 0,
                 null,
                 null,
+                null,
                 0,
                 0,
                 0,
@@ -33,6 +34,7 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("fxaa_low", key.aaMode().id());
         assertEquals("tonemap", key.postMode().id());
         assertEquals("baseline_directional_point_spot", key.lightingMode().id());
+        assertEquals("metallic_roughness_baseline", key.pbrMode().id());
         assertEquals("ssgi", key.giMode().id());
     }
 
@@ -46,6 +48,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 state,
                 3,
+                null,
                 null,
                 null,
                 2,
@@ -63,6 +66,7 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("fxaa_low", key.aaMode().id());
         assertEquals("tonemap", key.postMode().id());
         assertEquals("baseline_directional_point_spot", key.lightingMode().id());
+        assertEquals("metallic_roughness_baseline", key.pbrMode().id());
         assertEquals("ssgi", key.giMode().id());
     }
 
@@ -72,6 +76,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 new VulkanRenderState(),
                 7,
+                null,
                 null,
                 null,
                 4,
@@ -95,6 +100,7 @@ class VulkanPipelineProfileResolverTest {
                 0,
                 VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED,
                 null,
+                null,
                 0,
                 0,
                 0,
@@ -114,6 +120,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 new VulkanRenderState(),
                 0,
+                null,
                 null,
                 VulkanGiCapabilityDescriptorV2.MODE_HYBRID_PROBE_SSGI_RT,
                 0,

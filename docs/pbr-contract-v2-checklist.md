@@ -1,0 +1,23 @@
+# PBR Contract V2 Checklist
+
+- [x] Add Vulkan PBR capability descriptor v2 with explicit modes:
+  - `metallic_roughness_baseline`
+  - `specular_glossiness`
+  - `specular_glossiness_detail`
+  - `specular_glossiness_detail_layering`
+  - `advanced_surface_stack`
+- [x] Add deterministic Vulkan PBR capability planner and plan payload.
+- [x] Add Vulkan runtime PBR capability state with:
+  - backend-option ingestion,
+  - profile defaults,
+  - frame warning emission,
+  - typed diagnostics snapshot.
+- [x] Expose backend-agnostic typed PBR diagnostics in engine API/runtime.
+- [x] Feed planner-resolved PBR mode into Vulkan pipeline profile override identity.
+- [x] Include Vulkan PBR descriptor in Phase C profile compiler module composition.
+- [x] Add contract/planner/runtime tests:
+  - `VulkanPbrCapabilityPlannerTest`
+  - `VulkanPbrCapabilityPlanIntegrationTest`
+  - descriptor composition coverage in `VulkanCapabilityContractV2DescriptorsTest`
+  - resolver/profile key coverage updates for PBR profile identity.
+- [x] Add lockdown runner for CI/local validation (`scripts/pbr_contract_v2_lockdown.sh`).
