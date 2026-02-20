@@ -13,6 +13,7 @@ import org.dynamislight.impl.vulkan.state.VulkanDescriptorRingStats;
 import org.dynamislight.impl.vulkan.state.VulkanIblState;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.dynamislight.impl.vulkan.state.VulkanSceneResourceState;
+import org.dynamislight.spi.render.RenderFeatureMode;
 import org.lwjgl.system.MemoryStack;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -27,6 +28,7 @@ final class VulkanContextPipelineProfileRuntimeHelper {
             QualityTier tier,
             VulkanRenderState renderState,
             int localLightCount,
+            RenderFeatureMode lightingModeOverride,
             VulkanPipelineProfileCache cache,
             VulkanPipelineProfileKey currentKey
     ) {
@@ -34,6 +36,7 @@ final class VulkanContextPipelineProfileRuntimeHelper {
                 tier,
                 renderState,
                 localLightCount,
+                lightingModeOverride,
                 0,
                 0,
                 0,

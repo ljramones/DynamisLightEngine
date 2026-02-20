@@ -23,6 +23,7 @@ Status: In Progress (Vulkan-first)
 - [x] Add strict advanced-stack lockdown runner (`scripts/lighting_advanced_lockdown.sh`) and CI lane (`lighting-advanced-lockdown`).
 - [x] Add advanced-stack promotion gate (`LIGHTING_ADVANCED_PROMOTION_READY`) with tier-profile defaults, override precedence, and integration coverage.
 - [x] Add typed advanced-policy diagnostics fields (`areaApproxEnabled`, `iesProfilesEnabled`, `cookiesEnabled`, `volumetricShaftsEnabled`, `clusteringEnabled`, `lightLayersEnabled`) to backend-agnostic lighting capability diagnostics.
+- [x] Wire planner-resolved lighting mode into Phase-C profile resolution (`VulkanPipelineProfileResolver`) via runtime override so compiled profile keys follow active lighting capability mode.
 
 ## Phase 3: Advanced Lighting Modes (Backlog)
 - [~] Area lights (approximate/sampled) planner/tier-gating telemetry scaffold landed (runtime realization pending).

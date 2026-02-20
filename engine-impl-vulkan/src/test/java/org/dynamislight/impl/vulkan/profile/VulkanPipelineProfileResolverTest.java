@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan.profile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.impl.vulkan.capability.VulkanLightingCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +15,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.MEDIUM,
                 state,
                 0,
+                null,
                 0,
                 0,
                 0,
@@ -41,6 +43,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 state,
                 3,
+                null,
                 2,
                 1,
                 1,
@@ -64,6 +67,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 new VulkanRenderState(),
                 7,
+                null,
                 4,
                 0,
                 0,
@@ -75,5 +79,25 @@ class VulkanPipelineProfileResolverTest {
                 false
         );
         assertEquals("light_budget_priority", key.lightingMode().id());
+    }
+
+    @Test
+    void resolveUsesLightingModeOverrideWhenProvided() {
+        VulkanPipelineProfileKey key = VulkanPipelineProfileResolver.resolve(
+                QualityTier.HIGH,
+                new VulkanRenderState(),
+                0,
+                VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED,
+                0,
+                0,
+                0,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false
+        );
+        assertEquals("phys_units_budget_emissive_advanced", key.lightingMode().id());
     }
 }

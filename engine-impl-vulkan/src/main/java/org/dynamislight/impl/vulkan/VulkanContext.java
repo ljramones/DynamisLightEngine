@@ -54,6 +54,7 @@ import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneBuildRequestFactory
 import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUploadStateTracker;
+import org.dynamislight.spi.render.RenderFeatureMode;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
@@ -150,6 +151,7 @@ public final class VulkanContext {
     private int reflectionProbeLodTier2Count;
     private int reflectionProbeLodTier3Count;
     private QualityTier pipelineProfileTier = QualityTier.MEDIUM;
+    private RenderFeatureMode pipelineLightingModeOverride;
     private final VulkanPipelineProfileCache pipelineProfileCache = new VulkanPipelineProfileCache();
     private VulkanPipelineProfileKey activePipelineProfileKey = VulkanPipelineProfileKey.defaults();
     private VulkanPipelineProfileCompilation activePipelineProfile = pipelineProfileCache.getOrCompile(activePipelineProfileKey);
@@ -213,6 +215,7 @@ public final class VulkanContext {
     int configuredDescriptorRingMaxSetCapacity() { return descriptorRingStats.descriptorRingMaxSetCapacity; }
 
     void setPipelineProfileTier(QualityTier tier) { pipelineProfileTier = tier == null ? QualityTier.MEDIUM : tier; }
+    void setPipelineLightingModeOverride(String modeId) { pipelineLightingModeOverride = (modeId == null || modeId.isBlank()) ? null : new RenderFeatureMode(modeId); }
 
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
         VulkanLifecycleOrchestrator.initializeRuntime(
@@ -1454,6 +1457,7 @@ public final class VulkanContext {
                         pipelineProfileTier,
                         renderState,
                         localLightCount,
+                        pipelineLightingModeOverride,
                         pipelineProfileCache,
                         activePipelineProfileKey
                 );

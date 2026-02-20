@@ -20,6 +20,7 @@ public final class VulkanPipelineProfileResolver {
             QualityTier tier,
             VulkanRenderState renderState,
             int selectedLocalShadowLights,
+            RenderFeatureMode lightingModeOverride,
             int deferredShadowLightCount,
             int renderedSpotShadowLights,
             int renderedPointShadowCubemaps,
@@ -65,7 +66,10 @@ public final class VulkanPipelineProfileResolver {
         RenderFeatureMode postMode = state.taaEnabled
                 ? VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE
                 : VulkanPostCapabilityDescriptorV2.MODE_TONEMAP;
-        RenderFeatureMode lightingMode = localLightCountToMode(selectedLocalShadowLights + deferredShadowLightCount);
+        RenderFeatureMode lightingMode = sanitizeLightingMode(
+                lightingModeOverride,
+                localLightCountToMode(selectedLocalShadowLights + deferredShadowLightCount)
+        );
 
         return new VulkanPipelineProfileKey(
                 tier == null ? QualityTier.MEDIUM : tier,
@@ -83,6 +87,14 @@ public final class VulkanPipelineProfileResolver {
             return VulkanLightingCapabilityDescriptorV2.MODE_LIGHT_BUDGET_PRIORITY;
         }
         return VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT;
+    }
+
+    private static RenderFeatureMode sanitizeLightingMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {
+        if (overrideMode == null || overrideMode.id() == null || overrideMode.id().isBlank()) {
+            return fallback;
+        }
+        String requested = overrideMode.id();
+        return VulkanLightingCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
     }
 
     private static String shadowFilterModeId(int mode) {

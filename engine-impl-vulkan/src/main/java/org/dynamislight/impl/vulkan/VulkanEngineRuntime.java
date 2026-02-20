@@ -1304,11 +1304,11 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         giPrunedCapabilitiesLastFrame = giEmission.plan().prunedCapabilities();
         warnings.add(giEmission.warning());
         lightingCapabilityState.emitFrameWarning(qualityTier, currentSceneLights, currentSceneMaterials, warnings);
+        context.setPipelineLightingModeOverride(lightingCapabilityState.diagnostics().mode());
         VulkanReflectionRuntimeFlow.processFrameWarnings(this, context, qualityTier, warnings);
         VulkanShadowFrameWarningFlow.process(this, context, qualityTier, warnings);
         return warnings;
     }
-
     SceneReuseStats debugSceneReuseStats() {
         return context.sceneReuseStats();
     }
