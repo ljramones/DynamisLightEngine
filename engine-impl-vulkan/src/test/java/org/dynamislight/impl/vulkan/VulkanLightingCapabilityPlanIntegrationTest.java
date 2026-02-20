@@ -45,6 +45,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.clusteringEnabled", "true"),
                     Map.entry("vulkan.lighting.lightLayersEnabled", "true"),
                     Map.entry("vulkan.lighting.localLightBudget", "2"),
+                    Map.entry("vulkan.lighting.advancedFeaturePromotionReadyMinFrames", "1"),
                     Map.entry("vulkan.lighting.budgetWarnMinFrames", "1"),
                     Map.entry("vulkan.lighting.budgetWarnCooldownFrames", "0")
             ), QualityTier.ULTRA), new NoopCallbacks());
@@ -57,6 +58,18 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE_BREACH".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_AREA_APPROX_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_IES_PROFILES_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_COOKIES_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_VOLUMETRIC_SHAFTS_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_CLUSTERING_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_LIGHT_LAYERS_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_AREA_APPROX_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_IES_PROFILES_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_COOKIES_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_VOLUMETRIC_SHAFTS_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_CLUSTERING_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_LIGHT_LAYERS_PROMOTION_READY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_PHYS_UNITS_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_EMISSIVE_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_EMISSIVE_ENVELOPE_BREACH".equals(w.code())));
@@ -169,6 +182,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.volumetricShaftsEnabled", "true"),
                     Map.entry("vulkan.lighting.clusteringEnabled", "true"),
                     Map.entry("vulkan.lighting.lightLayersEnabled", "true"),
+                    Map.entry("vulkan.lighting.advancedFeaturePromotionReadyMinFrames", "1"),
                     Map.entry("vulkan.lighting.advancedPromotionReadyMinFrames", "1")
             ), QualityTier.ULTRA), new NoopCallbacks());
             runtime.loadScene(validSceneStableBudget());
@@ -180,6 +194,14 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(advanced.expectedAdvancedCapabilityCount() >= 1);
             assertEquals(advanced.expectedAdvancedCapabilityCount(), advanced.activeAdvancedCapabilityCount());
             assertFalse(advanced.advancedEnvelopeBreached());
+            assertTrue(advanced.expectedFeatures().contains("area_approx"));
+            assertTrue(advanced.expectedFeatures().contains("ies_profiles"));
+            assertTrue(advanced.expectedFeatures().contains("cookies"));
+            assertTrue(advanced.expectedFeatures().contains("volumetric_shafts"));
+            assertTrue(advanced.expectedFeatures().contains("clustering"));
+            assertTrue(advanced.expectedFeatures().contains("light_layers"));
+            assertTrue(advanced.activeFeatures().contains("area_approx"));
+            assertTrue(advanced.promotionReadyFeatures().contains("area_approx"));
         } finally {
             runtime.shutdown();
         }

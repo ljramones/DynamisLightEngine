@@ -49,6 +49,9 @@ public final class VulkanLightingCapabilityRuntimeState {
     private int advancedRequireCooldownFrames = 120;
     private int advancedEnvelopeWarnMinFrames = 2;
     private int advancedEnvelopeCooldownFrames = 120;
+    private int advancedFeatureWarnMinFrames = 2;
+    private int advancedFeatureCooldownFrames = 120;
+    private int advancedFeaturePromotionReadyMinFrames = 4;
     private int budgetHighStreak;
     private int baselineStableStreak;
     private int budgetStableStreak;
@@ -85,6 +88,22 @@ public final class VulkanLightingCapabilityRuntimeState {
     private int advancedExpectedCountLastFrame;
     private int advancedActiveCountLastFrame;
     private int advancedRequiredCountLastFrame;
+    private List<String> advancedExpectedFeaturesLastFrame = List.of();
+    private List<String> advancedActiveFeaturesLastFrame = List.of();
+    private List<String> advancedBreachedFeaturesLastFrame = List.of();
+    private List<String> advancedPromotionReadyFeaturesLastFrame = List.of();
+    private final VulkanLightingFeatureGateState areaFeatureGate =
+            new VulkanLightingFeatureGateState("area_approx", "AREA_APPROX");
+    private final VulkanLightingFeatureGateState iesFeatureGate =
+            new VulkanLightingFeatureGateState("ies_profiles", "IES_PROFILES");
+    private final VulkanLightingFeatureGateState cookiesFeatureGate =
+            new VulkanLightingFeatureGateState("cookies", "COOKIES");
+    private final VulkanLightingFeatureGateState volumetricFeatureGate =
+            new VulkanLightingFeatureGateState("volumetric_shafts", "VOLUMETRIC_SHAFTS");
+    private final VulkanLightingFeatureGateState clusteringFeatureGate =
+            new VulkanLightingFeatureGateState("clustering", "CLUSTERING");
+    private final VulkanLightingFeatureGateState lightLayersFeatureGate =
+            new VulkanLightingFeatureGateState("light_layers", "LIGHT_LAYERS");
 
     public void reset() {
         modeLastFrame = "baseline_directional_point_spot";
@@ -130,6 +149,16 @@ public final class VulkanLightingCapabilityRuntimeState {
         advancedExpectedCountLastFrame = 0;
         advancedActiveCountLastFrame = 0;
         advancedRequiredCountLastFrame = 0;
+        advancedExpectedFeaturesLastFrame = List.of();
+        advancedActiveFeaturesLastFrame = List.of();
+        advancedBreachedFeaturesLastFrame = List.of();
+        advancedPromotionReadyFeaturesLastFrame = List.of();
+        areaFeatureGate.reset();
+        iesFeatureGate.reset();
+        cookiesFeatureGate.reset();
+        volumetricFeatureGate.reset();
+        clusteringFeatureGate.reset();
+        lightLayersFeatureGate.reset();
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -255,6 +284,27 @@ public final class VulkanLightingCapabilityRuntimeState {
                 0,
                 100000
         );
+        advancedFeatureWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.lighting.advancedFeatureWarnMinFrames",
+                advancedFeatureWarnMinFrames,
+                1,
+                100000
+        );
+        advancedFeatureCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.lighting.advancedFeatureCooldownFrames",
+                advancedFeatureCooldownFrames,
+                0,
+                100000
+        );
+        advancedFeaturePromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.lighting.advancedFeaturePromotionReadyMinFrames",
+                advancedFeaturePromotionReadyMinFrames,
+                1,
+                100000
+        );
         emissiveWarnMinCandidateRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
                 safe,
                 "vulkan.lighting.emissiveWarnMinCandidateRatio",
@@ -299,6 +349,15 @@ public final class VulkanLightingCapabilityRuntimeState {
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeCooldownFrames")) {
                     advancedEnvelopeCooldownFrames = 180;
                 }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeatureWarnMinFrames")) {
+                    advancedFeatureWarnMinFrames = 4;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeatureCooldownFrames")) {
+                    advancedFeatureCooldownFrames = 180;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeaturePromotionReadyMinFrames")) {
+                    advancedFeaturePromotionReadyMinFrames = 6;
+                }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
                     emissiveWarnMinCandidateRatio = 0.02;
                 }
@@ -333,6 +392,15 @@ public final class VulkanLightingCapabilityRuntimeState {
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeCooldownFrames")) {
                     advancedEnvelopeCooldownFrames = 120;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeatureWarnMinFrames")) {
+                    advancedFeatureWarnMinFrames = 3;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeatureCooldownFrames")) {
+                    advancedFeatureCooldownFrames = 120;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeaturePromotionReadyMinFrames")) {
+                    advancedFeaturePromotionReadyMinFrames = 5;
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
                     emissiveWarnMinCandidateRatio = 0.05;
@@ -369,6 +437,15 @@ public final class VulkanLightingCapabilityRuntimeState {
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeCooldownFrames")) {
                     advancedEnvelopeCooldownFrames = 90;
                 }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeatureWarnMinFrames")) {
+                    advancedFeatureWarnMinFrames = 2;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeatureCooldownFrames")) {
+                    advancedFeatureCooldownFrames = 90;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeaturePromotionReadyMinFrames")) {
+                    advancedFeaturePromotionReadyMinFrames = 4;
+                }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
                     emissiveWarnMinCandidateRatio = 0.08;
                 }
@@ -403,6 +480,15 @@ public final class VulkanLightingCapabilityRuntimeState {
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeCooldownFrames")) {
                     advancedEnvelopeCooldownFrames = 75;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeatureWarnMinFrames")) {
+                    advancedFeatureWarnMinFrames = 2;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeatureCooldownFrames")) {
+                    advancedFeatureCooldownFrames = 75;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedFeaturePromotionReadyMinFrames")) {
+                    advancedFeaturePromotionReadyMinFrames = 3;
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
                     emissiveWarnMinCandidateRatio = 0.10;
@@ -458,6 +544,46 @@ public final class VulkanLightingCapabilityRuntimeState {
         volumetricShaftsActiveLastFrame = emission.plan().volumetricShaftsEnabled();
         clusteringActiveLastFrame = emission.plan().clusteringEnabled();
         lightLayersActiveLastFrame = emission.plan().lightLayersEnabled();
+        boolean areaExpected = areaApproxEnabled && qualityTier != null && qualityTier.ordinal() >= QualityTier.HIGH.ordinal();
+        boolean iesExpected = iesProfilesEnabled && qualityTier != null && qualityTier.ordinal() >= QualityTier.HIGH.ordinal();
+        boolean cookiesExpected = cookiesEnabled && qualityTier != null && qualityTier.ordinal() >= QualityTier.MEDIUM.ordinal();
+        boolean volumetricExpected = volumetricShaftsEnabled && qualityTier != null && qualityTier.ordinal() >= QualityTier.HIGH.ordinal();
+        boolean clusteringExpected = clusteringEnabled && qualityTier != null && qualityTier.ordinal() >= QualityTier.HIGH.ordinal();
+        boolean layersExpected = lightLayersEnabled && qualityTier != null && qualityTier.ordinal() >= QualityTier.MEDIUM.ordinal();
+        if (qualityTier == null) {
+            areaExpected = areaApproxEnabled && QualityTier.MEDIUM.ordinal() >= QualityTier.HIGH.ordinal();
+            iesExpected = iesProfilesEnabled && QualityTier.MEDIUM.ordinal() >= QualityTier.HIGH.ordinal();
+            cookiesExpected = cookiesEnabled && QualityTier.MEDIUM.ordinal() >= QualityTier.MEDIUM.ordinal();
+            volumetricExpected = volumetricShaftsEnabled && QualityTier.MEDIUM.ordinal() >= QualityTier.HIGH.ordinal();
+            clusteringExpected = clusteringEnabled && QualityTier.MEDIUM.ordinal() >= QualityTier.HIGH.ordinal();
+            layersExpected = lightLayersEnabled && QualityTier.MEDIUM.ordinal() >= QualityTier.MEDIUM.ordinal();
+        }
+        areaFeatureGate.update(areaExpected, areaApproxActiveLastFrame, advancedFeatureWarnMinFrames,
+                advancedFeatureCooldownFrames, advancedFeaturePromotionReadyMinFrames);
+        iesFeatureGate.update(iesExpected, iesProfilesActiveLastFrame, advancedFeatureWarnMinFrames,
+                advancedFeatureCooldownFrames, advancedFeaturePromotionReadyMinFrames);
+        cookiesFeatureGate.update(cookiesExpected, cookiesActiveLastFrame, advancedFeatureWarnMinFrames,
+                advancedFeatureCooldownFrames, advancedFeaturePromotionReadyMinFrames);
+        volumetricFeatureGate.update(volumetricExpected, volumetricShaftsActiveLastFrame, advancedFeatureWarnMinFrames,
+                advancedFeatureCooldownFrames, advancedFeaturePromotionReadyMinFrames);
+        clusteringFeatureGate.update(clusteringExpected, clusteringActiveLastFrame, advancedFeatureWarnMinFrames,
+                advancedFeatureCooldownFrames, advancedFeaturePromotionReadyMinFrames);
+        lightLayersFeatureGate.update(layersExpected, lightLayersActiveLastFrame, advancedFeatureWarnMinFrames,
+                advancedFeatureCooldownFrames, advancedFeaturePromotionReadyMinFrames);
+        java.util.ArrayList<String> expectedFeatures = new java.util.ArrayList<>();
+        java.util.ArrayList<String> activeFeatures = new java.util.ArrayList<>();
+        java.util.ArrayList<String> breachedFeatures = new java.util.ArrayList<>();
+        java.util.ArrayList<String> readyFeatures = new java.util.ArrayList<>();
+        collectFeatureGateLists(areaFeatureGate, expectedFeatures, activeFeatures, breachedFeatures, readyFeatures);
+        collectFeatureGateLists(iesFeatureGate, expectedFeatures, activeFeatures, breachedFeatures, readyFeatures);
+        collectFeatureGateLists(cookiesFeatureGate, expectedFeatures, activeFeatures, breachedFeatures, readyFeatures);
+        collectFeatureGateLists(volumetricFeatureGate, expectedFeatures, activeFeatures, breachedFeatures, readyFeatures);
+        collectFeatureGateLists(clusteringFeatureGate, expectedFeatures, activeFeatures, breachedFeatures, readyFeatures);
+        collectFeatureGateLists(lightLayersFeatureGate, expectedFeatures, activeFeatures, breachedFeatures, readyFeatures);
+        advancedExpectedFeaturesLastFrame = List.copyOf(expectedFeatures);
+        advancedActiveFeaturesLastFrame = List.copyOf(activeFeatures);
+        advancedBreachedFeaturesLastFrame = List.copyOf(breachedFeatures);
+        advancedPromotionReadyFeaturesLastFrame = List.copyOf(readyFeatures);
         if (budgetEnvelopeBreachedLastFrame) {
             budgetHighStreak++;
             baselineStableStreak = 0;
@@ -565,6 +691,9 @@ public final class VulkanLightingCapabilityRuntimeState {
                             + ", advancedRequireCooldownFrames=" + advancedRequireCooldownFrames
                             + ", advancedEnvelopeWarnMinFrames=" + advancedEnvelopeWarnMinFrames
                             + ", advancedEnvelopeCooldownFrames=" + advancedEnvelopeCooldownFrames
+                            + ", advancedFeatureWarnMinFrames=" + advancedFeatureWarnMinFrames
+                            + ", advancedFeatureCooldownFrames=" + advancedFeatureCooldownFrames
+                            + ", advancedFeaturePromotionReadyMinFrames=" + advancedFeaturePromotionReadyMinFrames
                             + ", emissiveWarnMinCandidateRatio=" + emissiveWarnMinCandidateRatio + ")"
             ));
             warnings.add(new EngineWarning(
@@ -609,6 +738,12 @@ public final class VulkanLightingCapabilityRuntimeState {
                             + ", cooldownFrames=" + advancedEnvelopeCooldownFrames
                             + ", cooldownRemaining=" + advancedEnvelopeCooldownRemaining + ")"
             ));
+            emitFeatureGateWarnings(warnings, areaFeatureGate);
+            emitFeatureGateWarnings(warnings, iesFeatureGate);
+            emitFeatureGateWarnings(warnings, cookiesFeatureGate);
+            emitFeatureGateWarnings(warnings, volumetricFeatureGate);
+            emitFeatureGateWarnings(warnings, clusteringFeatureGate);
+            emitFeatureGateWarnings(warnings, lightLayersFeatureGate);
             if (emitBreach) {
                 warnings.add(new EngineWarning(
                         "LIGHTING_BUDGET_ENVELOPE_BREACH",
@@ -775,6 +910,59 @@ public final class VulkanLightingCapabilityRuntimeState {
         return required;
     }
 
+    private static void collectFeatureGateLists(
+            VulkanLightingFeatureGateState gate,
+            java.util.List<String> expected,
+            java.util.List<String> active,
+            java.util.List<String> breached,
+            java.util.List<String> ready
+    ) {
+        if (gate.expectedLastFrame()) {
+            expected.add(gate.key());
+        }
+        if (gate.activeLastFrame()) {
+            active.add(gate.key());
+        }
+        if (gate.breachedLastFrame()) {
+            breached.add(gate.key());
+        }
+        if (gate.promotionReadyLastFrame()) {
+            ready.add(gate.key());
+        }
+    }
+
+    private void emitFeatureGateWarnings(java.util.List<EngineWarning> warnings, VulkanLightingFeatureGateState gate) {
+        warnings.add(new EngineWarning(
+                gate.policyCode(),
+                "Lighting feature policy (" + gate.key()
+                        + ", expected=" + gate.expectedLastFrame()
+                        + ", active=" + gate.activeLastFrame()
+                        + ", mismatchStreak=" + gate.mismatchStreak()
+                        + ", stableStreak=" + gate.stableStreak()
+                        + ", warnMinFrames=" + advancedFeatureWarnMinFrames
+                        + ", cooldownFrames=" + advancedFeatureCooldownFrames
+                        + ", promotionReadyMinFrames=" + advancedFeaturePromotionReadyMinFrames
+                        + ", cooldownRemaining=" + gate.cooldownRemaining() + ")"
+        ));
+        if (gate.breachedLastFrame()) {
+            warnings.add(new EngineWarning(
+                    gate.breachCode(),
+                    "Lighting feature envelope breach (" + gate.key()
+                            + ", mismatchStreak=" + gate.mismatchStreak()
+                            + ", warnMinFrames=" + advancedFeatureWarnMinFrames
+                            + ", cooldownFrames=" + advancedFeatureCooldownFrames + ")"
+            ));
+        }
+        if (gate.promotionReadyLastFrame()) {
+            warnings.add(new EngineWarning(
+                    gate.promotionCode(),
+                    "Lighting feature promotion ready (" + gate.key()
+                            + ", stableStreak=" + gate.stableStreak()
+                            + ", minFrames=" + advancedFeaturePromotionReadyMinFrames + ")"
+            ));
+        }
+    }
+
     public LightingCapabilityDiagnostics diagnostics() {
         return new LightingCapabilityDiagnostics(
                 !modeLastFrame.isBlank(),
@@ -873,7 +1061,11 @@ public final class VulkanLightingCapabilityRuntimeState {
                 cookiesActiveLastFrame,
                 volumetricShaftsActiveLastFrame,
                 clusteringActiveLastFrame,
-                lightLayersActiveLastFrame
+                lightLayersActiveLastFrame,
+                advancedExpectedFeaturesLastFrame,
+                advancedActiveFeaturesLastFrame,
+                advancedBreachedFeaturesLastFrame,
+                advancedPromotionReadyFeaturesLastFrame
         );
     }
 }

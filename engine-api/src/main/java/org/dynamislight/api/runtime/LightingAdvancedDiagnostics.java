@@ -1,5 +1,7 @@
 package org.dynamislight.api.runtime;
 
+import java.util.List;
+
 /**
  * Backend-agnostic advanced-lighting diagnostics snapshot.
  */
@@ -27,8 +29,19 @@ public record LightingAdvancedDiagnostics(
         boolean cookiesEnabled,
         boolean volumetricShaftsEnabled,
         boolean clusteringEnabled,
-        boolean lightLayersEnabled
+        boolean lightLayersEnabled,
+        List<String> expectedFeatures,
+        List<String> activeFeatures,
+        List<String> breachedFeatures,
+        List<String> promotionReadyFeatures
 ) {
+    public LightingAdvancedDiagnostics {
+        expectedFeatures = expectedFeatures == null ? List.of() : List.copyOf(expectedFeatures);
+        activeFeatures = activeFeatures == null ? List.of() : List.copyOf(activeFeatures);
+        breachedFeatures = breachedFeatures == null ? List.of() : List.copyOf(breachedFeatures);
+        promotionReadyFeatures = promotionReadyFeatures == null ? List.of() : List.copyOf(promotionReadyFeatures);
+    }
+
     public static LightingAdvancedDiagnostics unavailable() {
         return new LightingAdvancedDiagnostics(
                 false,
@@ -54,7 +67,11 @@ public record LightingAdvancedDiagnostics(
                 false,
                 false,
                 false,
-                false
+                false,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()
         );
     }
 }

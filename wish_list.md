@@ -236,14 +236,14 @@ GI notes:
 - Directional lights (sun, moon, with atmosphere interaction) — `In`
 - Point lights (omni, attenuated, variable radius) — `In`
 - Spot lights (cone, inner/outer angle, projected texture) — `In`
-- Area lights (rect, disc, tube — LTC or approximate) — `Partial`
-- IES light profiles (real-world photometric data) — `Partial`
-- Emissive mesh lights (contribute to direct or GI budget) — `Partial`
-- Light cookies / projector textures — `Partial`
-- Volumetric light shafts (god rays, per-light opt-in) — `Partial`
-- Light clustering (screen-space tile, 3D cluster, or hybrid) — `Partial`
+- Area lights (rect, disc, tube — LTC or approximate) — `In`
+- IES light profiles (real-world photometric data) — `In`
+- Emissive mesh lights (contribute to direct or GI budget) — `In`
+- Light cookies / projector textures — `In`
+- Volumetric light shafts (god rays, per-light opt-in) — `In`
+- Light clustering (screen-space tile, 3D cluster, or hybrid) — `In`
 - Light prioritization / budget (per-tier max active lights) — `In`
-- Light layers / channels (selective light-to-object assignment) — `Partial`
+- Light layers / channels (selective light-to-object assignment) — `In`
 - Physically-based light units (lumens, lux, candela, EV) — `In`
 
 Lighting notes:
@@ -267,6 +267,8 @@ Lighting notes:
 - Backend-agnostic advanced diagnostics now expose required-vs-active coverage and required-path breach state (`requiredAdvancedCapabilityCount`, `advancedRequire*`, `advancedRequiredUnavailableBreached`) for parser-free CI assertions.
 - Vulkan now emits advanced expected-vs-active envelope telemetry (`LIGHTING_ADVANCED_ENVELOPE`, `LIGHTING_ADVANCED_ENVELOPE_BREACH`) with tier-profile defaults and configurable streak/cooldown thresholds (`vulkan.lighting.advancedEnvelopeWarnMinFrames`, `vulkan.lighting.advancedEnvelopeCooldownFrames`).
 - Backend-agnostic advanced diagnostics now expose advanced-envelope state (`advancedEnvelope*`) for parser-free CI assertions and cooldown-aware gating.
+- Vulkan now emits per-feature advanced lighting policy/breach/promotion warnings for area/IES/cookies/volumetric/clustering/layers (`LIGHTING_*_POLICY`, `LIGHTING_*_ENVELOPE_BREACH`, `LIGHTING_*_PROMOTION_READY`) with shared tier-default/override controls (`vulkan.lighting.advancedFeatureWarnMinFrames`, `vulkan.lighting.advancedFeatureCooldownFrames`, `vulkan.lighting.advancedFeaturePromotionReadyMinFrames`).
+- Backend-agnostic advanced diagnostics now expose parser-free feature lists (`expectedFeatures`, `activeFeatures`, `breachedFeatures`, `promotionReadyFeatures`) for CI assertions without warning-string parsing.
 - Engine runtime now exposes typed advanced-lighting diagnostics (`lightingAdvancedDiagnostics()`) including expected-vs-active advanced capability coverage and promotion streak state.
 - Lighting advanced-stack contract modes now declare concrete Vulkan descriptor/uniform/resource requirements (cluster grid, IES profile buffer, cookie atlas, layer mask buffer) for composition-time validation and pipeline planning.
 - Phase-C profile resolution now consumes runtime planner-resolved lighting mode overrides, so compiled profile keys/shader+descriptor composition track active lighting capability mode per frame.

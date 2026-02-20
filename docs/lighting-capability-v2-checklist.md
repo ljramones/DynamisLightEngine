@@ -1,6 +1,6 @@
 # Lighting Capability V2 Checklist
 
-Status: Phase 2 Complete; Phase 3 In Progress (Vulkan-first)
+Status: Phase 3 Complete (Vulkan-first)
 
 ## Phase 1: Contract + Planner + Telemetry
 - [x] Add `vulkan.lighting` v2 descriptor with baseline and expansion modes.
@@ -26,13 +26,14 @@ Status: Phase 2 Complete; Phase 3 In Progress (Vulkan-first)
 - [x] Wire planner-resolved lighting mode into Phase-C profile resolution (`VulkanPipelineProfileResolver`) via runtime override so compiled profile keys follow active lighting capability mode.
 - [x] Expose typed advanced diagnostics accessor (`lightingAdvancedDiagnostics()`) for parser-free CI assertions on advanced expected/active capability coverage.
 
-## Phase 3: Advanced Lighting Modes (Backlog)
-- [~] Area lights (approximate/sampled) planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
-- [~] IES profiles planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
-- [~] Cookies/projectors planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
-- [~] Volumetric shafts planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
-- [~] Clustering planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
-- [~] Light layers/channels planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
+## Phase 3: Advanced Lighting Modes
+- [x] Area lights (approximate/sampled) feature-level policy/breach/promotion gates are active (`LIGHTING_AREA_APPROX_*`) with typed diagnostics and lockdown coverage.
+- [x] IES profiles feature-level policy/breach/promotion gates are active (`LIGHTING_IES_PROFILES_*`) with typed diagnostics and lockdown coverage.
+- [x] Cookies/projectors feature-level policy/breach/promotion gates are active (`LIGHTING_COOKIES_*`) with typed diagnostics and lockdown coverage.
+- [x] Volumetric shafts feature-level policy/breach/promotion gates are active (`LIGHTING_VOLUMETRIC_SHAFTS_*`) with typed diagnostics and lockdown coverage.
+- [x] Clustering feature-level policy/breach/promotion gates are active (`LIGHTING_CLUSTERING_*`) with typed diagnostics and lockdown coverage.
+- [x] Light layers/channels feature-level policy/breach/promotion gates are active (`LIGHTING_LIGHT_LAYERS_*`) with typed diagnostics and lockdown coverage.
 - [x] Advanced-stack contract realization now declares concrete descriptor/uniform/resource requirements for area/IES/cookies/volumetric/clustering/layers modes.
 - [x] Add strict advanced required-path policy + breach gate (`LIGHTING_ADVANCED_REQUIRED_PATH_POLICY`, `LIGHTING_ADVANCED_REQUIRED_UNAVAILABLE_BREACH`) with cooldown/streak controls and typed diagnostics fields.
 - [x] Add advanced expected-vs-active envelope gate (`LIGHTING_ADVANCED_ENVELOPE`, `LIGHTING_ADVANCED_ENVELOPE_BREACH`) with tier-profile defaults, backend override precedence, cooldown/streak behavior, and typed diagnostics fields.
+- [x] Extend typed advanced diagnostics with parser-free feature lists (`expectedFeatures`, `activeFeatures`, `breachedFeatures`, `promotionReadyFeatures`).
