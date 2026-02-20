@@ -29,7 +29,7 @@ Execution checklist:
 - [ ] Promote SSAO quality envelopes (radius/bias/power + temporal accumulation stability).
 - [ ] Promote volumetric fog policy/envelope (density/noise/stability/perf budget).
 - [ ] Add/extend integration tests for each promoted lane and assert promotion-ready transitions.
-- [ ] Add a dedicated core-post lockdown script and CI lane for Phase A.
+- [x] Add a dedicated core-post lockdown script and CI lane for Phase A (`scripts/post_phaseA_core_lockdown.sh`, CI lane `post-phasea-core-lockdown`).
 
 Exit gate:
 - [ ] All Phase A lanes emit production policy + envelope + promotion-ready telemetry and pass lockdown.

@@ -459,6 +459,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic core post-pipeline promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link PostCorePromotionDiagnostics#unavailable()}.
+     *
+     * @return current core post promotion diagnostics snapshot.
+     */
+    default PostCorePromotionDiagnostics postCorePromotionDiagnostics() {
+        return PostCorePromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Retrieves backend-agnostic PBR/shading capability-plan diagnostics.
      *
      * Backends that do not expose this snapshot return

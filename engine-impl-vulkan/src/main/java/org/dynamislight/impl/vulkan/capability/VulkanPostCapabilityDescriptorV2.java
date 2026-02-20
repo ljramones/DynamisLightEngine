@@ -207,16 +207,22 @@ public final class VulkanPostCapabilityDescriptorV2 implements RenderFeatureCapa
         return new RenderTelemetryDeclaration(
                 List.of(
                         "POST_POLICY_ACTIVE",
-                        "POST_STACK_ORDER_ACTIVE"
+                        "POST_STACK_ORDER_ACTIVE",
+                        "POST_CORE_POLICY_ACTIVE",
+                        "POST_CORE_ENVELOPE",
+                        "POST_CORE_ENVELOPE_BREACH",
+                        "POST_CORE_PROMOTION_READY"
                 ),
                 List.of(
                         "postPolicyDiagnostics",
-                        "postStackDiagnostics"
+                        "postStackDiagnostics",
+                        "postCorePromotionDiagnostics"
                 ),
                 List.of(),
                 List.of(
                         "post.stack.contract",
-                        "post.resolve.order"
+                        "post.resolve.order",
+                        "post.core.phaseA"
                 )
         );
     }
