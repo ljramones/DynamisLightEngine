@@ -19,6 +19,7 @@ Status: In Progress (Vulkan-first)
 - [x] Physically-based units realization and promotion gate (`LIGHTING_PHYS_UNITS_PROMOTION_READY` + typed promotion diagnostics fields + default/override thresholds).
 - [x] Emissive mesh lights realization and promotion gate (`LIGHTING_EMISSIVE_PROMOTION_READY` + typed promotion diagnostics fields + default/override thresholds).
 - [x] Consolidated phase-2 promotion gate (`LIGHTING_PHASE2_PROMOTION_READY`) when budget + phys-units + emissive (if enabled) are jointly stable.
+- [x] Add strict phase-2 lockdown runner (`scripts/lighting_phase2_lockdown.sh`) and CI lane (`lighting-phase2-lockdown`).
 
 ## Phase 3: Advanced Lighting Modes (Backlog)
 - [~] Area lights (approximate/sampled) planner/tier-gating telemetry scaffold landed (runtime realization pending).

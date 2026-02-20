@@ -59,6 +59,10 @@ on:
         description: 'Run strict lighting contract v2 lockdown gate'
         required: false
         default: 'false'
+      run_lighting_phase2_lockdown:
+        description: 'Run strict lighting phase2 promotion lockdown gate'
+        required: false
+        default: 'false'
       run_aa_upscaler_vendor_matrix:
         description: 'Run AA upscaler vendor matrix lane'
         required: false
@@ -476,6 +480,27 @@ jobs:
 
       - name: Run lighting contract v2 lockdown
         run: ./scripts/lighting_contract_v2_lockdown.sh
+
+  lighting-phase2-lockdown:
+    name: Lighting Phase2 Lockdown (JDK 25, macos-latest)
+    if: github.event_name == 'schedule'
+      || github.event_name == 'push'
+      || github.event_name == 'pull_request'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_lighting_phase2_lockdown == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run lighting phase2 lockdown
+        run: ./scripts/lighting_phase2_lockdown.sh
 
   shadow-stable-promote-real:
     name: Shadow Stable Promote Real (JDK 25, macos-latest)

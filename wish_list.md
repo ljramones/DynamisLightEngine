@@ -238,6 +238,7 @@ Lighting notes:
 - Vulkan now emits physically-based-unit and emissive promotion readiness (`LIGHTING_PHYS_UNITS_PROMOTION_READY`, `LIGHTING_EMISSIVE_PROMOTION_READY`) with tier-profile defaults, backend override precedence, and typed promotion diagnostics fields.
 - Vulkan now emits consolidated lighting phase-2 readiness (`LIGHTING_PHASE2_PROMOTION_READY`) when budget, physically-based units, and emissive policy (if enabled) are jointly stable.
 - Vulkan lighting planner/runtime telemetry now includes advanced-mode policy signals for area-approx, IES, cookies, volumetric shafts, clustering, and light layers (`LIGHTING_ADVANCED_POLICY`) with tier-gated active/pruned capability reporting.
+- Lighting phase-2 promotion now has a strict lockdown runner (`scripts/lighting_phase2_lockdown.sh`) and always-on CI lane (`lighting-phase2-lockdown`).
 - Lighting telemetry now applies tier-profile defaults with backend-option override precedence and emits compact profile summary telemetry (`LIGHTING_TELEMETRY_PROFILE_ACTIVE`).
 - Lighting integration coverage now explicitly asserts backend-option precedence over tier defaults for budget/emissive thresholds.
 - Lighting v2 contract coverage is tracked in `docs/lighting-capability-v2-checklist.md` and validated in composition with shadow/reflection/aa/post/gi descriptors.
