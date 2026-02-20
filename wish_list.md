@@ -317,6 +317,7 @@ Post notes:
 - Vulkan post stack now has v2 capability descriptors for core modules (`tonemap`, `bloom`, `ssao`, `smaa`, `taa_resolve`, `fog_composite`) with explicit pass/read-write/resource declarations.
 - Post v2 contracts are validated in composition with AA + shadow + reflection and are enforced by the always-on CI lane `aa-post-contract-v2-lockdown`.
 - Vulkan AA/post planner now supports cinematic post option toggles (`vulkan.post.depthOfField`, `motionBlur`, `chromaticAberration`, `filmGrain`, `vignette`, `colorGrading`, `sharpening`, `volumetricFog`, `cloudShadows`, `screenSpaceBentNormals`, `lensFlare`, `panini`, `lensDistortion`) and exposes active/pruned capability IDs in `AA_POST_CAPABILITY_PLAN_ACTIVE` / `aaPostCapabilityDiagnostics()`.
+- Post vertical In-promotion sequencing/gates are tracked in `docs/post-processing-in-checklist.md`.
 
 ## PBR / Shading
 
