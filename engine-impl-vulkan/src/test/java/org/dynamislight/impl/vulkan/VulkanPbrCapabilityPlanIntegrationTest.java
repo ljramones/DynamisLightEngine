@@ -52,6 +52,9 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_OPTICS_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_OPTICS_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_OPTICS_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_GEOMETRY_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_GEOMETRY_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_GEOMETRY_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.pbrCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertTrue(diagnostics.specularGlossinessEnabled());
@@ -68,6 +71,8 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(promotion.cinematicPromotionReadyLastFrame());
             assertFalse(promotion.surfaceOpticsEnvelopeBreachedLastFrame());
             assertTrue(promotion.surfaceOpticsPromotionReadyLastFrame());
+            assertFalse(promotion.surfaceGeometryEnvelopeBreachedLastFrame());
+            assertTrue(promotion.surfaceGeometryPromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -105,6 +110,8 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(promotion.cinematicPromotionReadyLastFrame());
             assertFalse(promotion.surfaceOpticsEnvelopeBreachedLastFrame());
             assertTrue(promotion.surfaceOpticsPromotionReadyLastFrame());
+            assertFalse(promotion.surfaceGeometryEnvelopeBreachedLastFrame());
+            assertTrue(promotion.surfaceGeometryPromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -142,6 +149,10 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(promotion.activeSurfaceOpticsFeatureCount() < promotion.expectedSurfaceOpticsFeatureCount());
             assertTrue(promotion.surfaceOpticsEnvelopeBreachedLastFrame());
             assertFalse(promotion.surfaceOpticsPromotionReadyLastFrame());
+            assertTrue(promotion.expectedSurfaceGeometryFeatureCount() > 0);
+            assertTrue(promotion.activeSurfaceGeometryFeatureCount() < promotion.expectedSurfaceGeometryFeatureCount());
+            assertTrue(promotion.surfaceGeometryEnvelopeBreachedLastFrame());
+            assertFalse(promotion.surfaceGeometryPromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -206,6 +217,35 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertFalse(promotion.surfaceOpticsEnvelopeBreachedLastFrame());
             assertTrue(promotion.surfaceOpticsPromotionReadyLastFrame());
             assertTrue(promotion.activeSurfaceOpticsFeatureCount() >= 3);
+            assertFalse(promotion.surfaceGeometryEnvelopeBreachedLastFrame());
+            assertTrue(promotion.surfaceGeometryPromotionReadyLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsPbrSurfaceGeometryEnvelopeBreachWhenGeometryFeaturesRequestedOnLowTier() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.pbr.parallaxOcclusionEnabled", "true"),
+                    Map.entry("vulkan.pbr.tessellationEnabled", "true"),
+                    Map.entry("vulkan.pbr.decalsEnabled", "true"),
+                    Map.entry("vulkan.pbr.warnMinFrames", "1"),
+                    Map.entry("vulkan.pbr.warnCooldownFrames", "0"),
+                    Map.entry("vulkan.pbr.promotionReadyMinFrames", "1")
+            ), QualityTier.LOW), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_GEOMETRY_ENVELOPE_BREACH".equals(w.code())));
+            var promotion = runtime.pbrPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.expectedSurfaceGeometryFeatureCount() > 0);
+            assertTrue(promotion.activeSurfaceGeometryFeatureCount() < promotion.expectedSurfaceGeometryFeatureCount());
+            assertTrue(promotion.surfaceGeometryEnvelopeBreachedLastFrame());
+            assertFalse(promotion.surfaceGeometryPromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }

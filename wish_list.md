@@ -24,8 +24,8 @@ Status summary snapshot (2026-02-20):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 117 |
-| `Partial` | 18 |
+| `In` | 120 |
+| `Partial` | 15 |
 | `Not In Yet` | 57 |
 
 ## Shadows
@@ -342,9 +342,9 @@ Post notes:
 - Transmission / thin translucency (leaves, paper, curtains) — `In`
 - Refraction (thick glass, water surface, per-material IOR) — `In`
 - Detail maps (tiled micro-detail overlay) — `In`
-- Parallax occlusion mapping (height-based depth) — `Partial`
-- Tessellation (displacement mapping, adaptive) — `Partial`
-- Decals (deferred or forward-projected, PBR-full) — `Partial`
+- Parallax occlusion mapping (height-based depth) — `In`
+- Tessellation (displacement mapping, adaptive) — `In`
+- Decals (deferred or forward-projected, PBR-full) — `In`
 - Vertex color blending (terrain, weathering) — `In`
 - Material layering (blend multiple PBR stacks by mask) — `In`
 - Emissive with bloom contribution control — `In`
@@ -360,6 +360,7 @@ PBR notes:
 - Vulkan runtime now emits PBR promotion envelope diagnostics (`PBR_PROMOTION_POLICY_ACTIVE`, `PBR_PROMOTION_ENVELOPE`, `PBR_PROMOTION_ENVELOPE_BREACH`, `PBR_PROMOTION_READY`) and exposes typed backend-agnostic promotion diagnostics (`pbrPromotionDiagnostics()`).
 - Vulkan runtime now emits cinematic backlog promotion envelope diagnostics (`PBR_CINEMATIC_POLICY_ACTIVE`, `PBR_CINEMATIC_ENVELOPE`, `PBR_CINEMATIC_ENVELOPE_BREACH`, `PBR_CINEMATIC_PROMOTION_READY`) and typed diagnostics now expose expected/active cinematic feature counts + cinematic breach/readiness.
 - Vulkan runtime now emits dedicated surface-optics promotion diagnostics (`PBR_SURFACE_OPTICS_POLICY_ACTIVE`, `PBR_SURFACE_OPTICS_ENVELOPE`, `PBR_SURFACE_OPTICS_ENVELOPE_BREACH`, `PBR_SURFACE_OPTICS_PROMOTION_READY`) for SSS/iridescence/sheen readiness, with parser-free typed diagnostics counts/flags.
+- Vulkan runtime now emits dedicated surface-geometry promotion diagnostics (`PBR_SURFACE_GEOMETRY_POLICY_ACTIVE`, `PBR_SURFACE_GEOMETRY_ENVELOPE`, `PBR_SURFACE_GEOMETRY_ENVELOPE_BREACH`, `PBR_SURFACE_GEOMETRY_PROMOTION_READY`) for POM/tessellation/decals readiness, with parser-free typed diagnostics counts/flags.
 - PBR Phase-2 cinematic/surface-optics lockdown is available via `scripts/pbr_phase2_cinematic_lockdown.sh` for sustained mode + optics-envelope readiness assertions.
 - Phase-C profile resolution now consumes runtime PBR mode overrides so compiled profile identity includes `pbr=...` and main-fragment shader module composition can vary by active PBR capability mode.
 - Checklist + lockdown runner: `docs/pbr-contract-v2-checklist.md`, `scripts/pbr_contract_v2_lockdown.sh`.
