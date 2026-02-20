@@ -190,6 +190,7 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             runtime.initialize(validConfig(Map.ofEntries(
                     Map.entry("vulkan.mockContext", "true"),
                     Map.entry("vulkan.aaMode", "taa"),
+                    Map.entry("vulkan.post.cinematicPromotionReadyMinFrames", "1"),
                     Map.entry("vulkan.post.depthOfField", "true"),
                     Map.entry("vulkan.post.motionBlur", "true"),
                     Map.entry("vulkan.post.chromaticAberration", "true"),
@@ -205,7 +206,10 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.post.lensDistortion", "true")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene(true, false, false));
-            runtime.render();
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "POST_CINEMATIC_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "POST_CINEMATIC_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "POST_CINEMATIC_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.aaPostCapabilityDiagnostics();
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.depth_of_field"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.motion_blur"));
@@ -220,6 +224,38 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.lens_flare"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.panini"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.lens_distortion"));
+            var cinematic = runtime.postCinematicPromotionDiagnostics();
+            assertTrue(cinematic.available());
+            assertTrue(cinematic.expectedCapabilityCount() >= 1);
+            assertTrue(cinematic.activeCapabilityCount() >= 1);
+            assertTrue(cinematic.activeRatio() >= 1.0);
+            assertTrue(cinematic.promotionReadyLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void cinematicEnvelopeCanBeForcedForCiGateValidation() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.aaMode", "taa"),
+                    Map.entry("vulkan.post.depthOfField", "true"),
+                    Map.entry("vulkan.post.cinematicWarnMinActiveRatio", "1.1"),
+                    Map.entry("vulkan.post.cinematicWarnMinFrames", "1"),
+                    Map.entry("vulkan.post.cinematicWarnCooldownFrames", "0")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene(true, false, false));
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "POST_CINEMATIC_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "POST_CINEMATIC_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "POST_CINEMATIC_ENVELOPE_BREACH".equals(w.code())));
+            var cinematic = runtime.postCinematicPromotionDiagnostics();
+            assertTrue(cinematic.available());
+            assertTrue(cinematic.envelopeBreachedLastFrame());
+            assertFalse(cinematic.promotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }

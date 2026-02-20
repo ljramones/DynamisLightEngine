@@ -52,9 +52,9 @@ Targets:
 Execution checklist:
 - [ ] Add/finish production shader realization per effect in post composite path.
 - [ ] Add per-effect policy/envelope/promotion warning families.
-- [ ] Expose typed diagnostics (parser-free assertions) for cinematic effect activation/health.
-- [ ] Add per-effect or grouped lockdown tests for artifact/perf envelopes.
-- [ ] Add CI lane for cinematic post lockdown (or fold into full post bundle once stable).
+- [x] Expose typed diagnostics (parser-free assertions) for cinematic effect activation/health (`postCinematicPromotionDiagnostics()`).
+- [x] Add per-effect or grouped lockdown tests for artifact/perf envelopes (grouped cinematic envelope gating in `VulkanAaPostCapabilityPlanIntegrationTest`).
+- [x] Add CI lane for cinematic post lockdown (`scripts/post_phaseB_cinematic_lockdown.sh`, CI lane `post-phaseb-cinematic-lockdown`).
 
 Exit gate:
 - [ ] All Phase B lanes have explicit production policy + envelope + promotion-ready coverage and pass CI lockdown.

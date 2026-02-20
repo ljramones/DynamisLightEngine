@@ -320,6 +320,8 @@ Post notes:
 - Post vertical In-promotion sequencing/gates are tracked in `docs/post-processing-in-checklist.md`.
 - Vulkan now emits core post promotion telemetry (`POST_CORE_POLICY_ACTIVE`, `POST_CORE_ENVELOPE`, `POST_CORE_ENVELOPE_BREACH`, `POST_CORE_PROMOTION_READY`) and exposes typed diagnostics (`postCorePromotionDiagnostics()`) for parser-free CI assertions.
 - Post Phase A core lockdown is now available via `scripts/post_phaseA_core_lockdown.sh` and CI lane `post-phasea-core-lockdown`.
+- Vulkan now emits cinematic post promotion telemetry (`POST_CINEMATIC_POLICY_ACTIVE`, `POST_CINEMATIC_ENVELOPE`, `POST_CINEMATIC_ENVELOPE_BREACH`, `POST_CINEMATIC_PROMOTION_READY`) with typed diagnostics (`postCinematicPromotionDiagnostics()`).
+- Post Phase B cinematic lockdown is now available via `scripts/post_phaseB_cinematic_lockdown.sh` and CI lane `post-phaseb-cinematic-lockdown`.
 
 ## PBR / Shading
 

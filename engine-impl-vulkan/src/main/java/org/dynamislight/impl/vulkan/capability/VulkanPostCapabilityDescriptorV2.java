@@ -211,12 +211,17 @@ public final class VulkanPostCapabilityDescriptorV2 implements RenderFeatureCapa
                         "POST_CORE_POLICY_ACTIVE",
                         "POST_CORE_ENVELOPE",
                         "POST_CORE_ENVELOPE_BREACH",
-                        "POST_CORE_PROMOTION_READY"
+                        "POST_CORE_PROMOTION_READY",
+                        "POST_CINEMATIC_POLICY_ACTIVE",
+                        "POST_CINEMATIC_ENVELOPE",
+                        "POST_CINEMATIC_ENVELOPE_BREACH",
+                        "POST_CINEMATIC_PROMOTION_READY"
                 ),
                 List.of(
                         "postPolicyDiagnostics",
                         "postStackDiagnostics",
-                        "postCorePromotionDiagnostics"
+                        "postCorePromotionDiagnostics",
+                        "postCinematicPromotionDiagnostics"
                 ),
                 List.of(),
                 List.of(
