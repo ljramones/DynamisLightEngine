@@ -9,6 +9,7 @@ Status: In Progress (Vulkan-first)
 - [x] Expose backend-agnostic typed runtime diagnostics: `lightingCapabilityDiagnostics()`.
 - [x] Add planner unit tests.
 - [x] Add cross-capability contract validation coverage with shadow/reflection/aa/post/gi.
+- [x] Add contract lockdown runner (`scripts/lighting_contract_v2_lockdown.sh`) and CI lane (`lighting-contract-v2-lockdown`).
 
 ## Phase 2: Capability Realization (Next)
 - [ ] Directional/point/spot baseline hardening and promotion gate.

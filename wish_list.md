@@ -234,6 +234,7 @@ Lighting notes:
 - Engine runtime API now exposes backend-agnostic typed lighting diagnostics (`lightingCapabilityDiagnostics()`) so hosts/CI can validate planner-resolved mode/signals without warning-string parsing.
 - Lighting v2 contract coverage is tracked in `docs/lighting-capability-v2-checklist.md` and validated in composition with shadow/reflection/aa/post/gi descriptors.
 - Phase C profile compilation now includes lighting mode in profile identity (`lighting=...`) and composes lighting shader/descriptor requirements from the resolved mode.
+- Lighting contract gating is now automated via `scripts/lighting_contract_v2_lockdown.sh` and CI lane `lighting-contract-v2-lockdown`.
 
 ## Post-Processing
 
