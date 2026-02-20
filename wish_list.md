@@ -239,6 +239,7 @@ Lighting notes:
 - Vulkan now emits consolidated lighting phase-2 readiness (`LIGHTING_PHASE2_PROMOTION_READY`) when budget, physically-based units, and emissive policy (if enabled) are jointly stable.
 - Vulkan lighting planner/runtime telemetry now includes advanced-mode policy signals for area-approx, IES, cookies, volumetric shafts, clustering, and light layers (`LIGHTING_ADVANCED_POLICY`) with tier-gated active/pruned capability reporting.
 - Lighting phase-2 promotion now has a strict lockdown runner (`scripts/lighting_phase2_lockdown.sh`) and always-on CI lane (`lighting-phase2-lockdown`).
+- Lighting advanced-stack gating now has a strict lockdown runner (`scripts/lighting_advanced_lockdown.sh`) and always-on CI lane (`lighting-advanced-lockdown`).
 - Vulkan now emits advanced-stack promotion readiness (`LIGHTING_ADVANCED_PROMOTION_READY`) with typed diagnostics (`lightingPromotionDiagnostics()`) and configurable min-frame thresholds (`vulkan.lighting.advancedPromotionReadyMinFrames`).
 - Backend-agnostic lighting capability diagnostics now expose typed advanced-policy activation flags (`areaApproxEnabled`, `iesProfilesEnabled`, `cookiesEnabled`, `volumetricShaftsEnabled`, `clusteringEnabled`, `lightLayersEnabled`) without warning-string parsing.
 - Lighting advanced-stack contract modes now declare concrete Vulkan descriptor/uniform/resource requirements (cluster grid, IES profile buffer, cookie atlas, layer mask buffer) for composition-time validation and pipeline planning.
