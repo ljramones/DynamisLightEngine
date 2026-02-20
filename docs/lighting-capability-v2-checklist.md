@@ -15,8 +15,9 @@ Status: In Progress (Vulkan-first)
 - [ ] Directional/point/spot baseline hardening and promotion gate.
 - [~] Light prioritization/budget realization and promotion gate (envelope + typed diagnostics + cooldown/streak/promotion-ready warnings landed, lockdown + tier envelope tuning pending).
 - [~] Light prioritization/budget realization and promotion gate (tier-profile defaults + profile-active telemetry landed; lockdown/tier tuning hardening pending).
-- [~] Physically-based units realization and promotion gate (runtime policy warning + typed diagnostics integration landed; promotion gate pending).
-- [~] Emissive mesh lights realization and promotion gate (policy/envelope warning + typed diagnostics landed; promotion gate pending).
+- [x] Profile-default override precedence is covered in integration tests (backend options override tier defaults).
+- [x] Physically-based units realization and promotion gate (`LIGHTING_PHYS_UNITS_PROMOTION_READY` + typed promotion diagnostics fields + default/override thresholds).
+- [x] Emissive mesh lights realization and promotion gate (`LIGHTING_EMISSIVE_PROMOTION_READY` + typed promotion diagnostics fields + default/override thresholds).
 
 ## Phase 3: Advanced Lighting Modes (Backlog)
 - [ ] Area lights (approximate/sampled).

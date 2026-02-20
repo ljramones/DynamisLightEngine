@@ -78,12 +78,34 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             runtime.initialize(validConfig(Map.ofEntries(
                     Map.entry("vulkan.mockContext", "true"),
                     Map.entry("vulkan.lighting.localLightBudget", "8"),
-                    Map.entry("vulkan.lighting.budgetPromotionReadyMinFrames", "1")
+                    Map.entry("vulkan.lighting.budgetPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.lighting.physUnitsPromotionReadyMinFrames", "1")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validSceneStableBudget());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_PHYS_UNITS_PROMOTION_READY".equals(w.code())));
             assertTrue(runtime.lightingPromotionDiagnostics().promotionReady());
+            assertTrue(runtime.lightingPromotionDiagnostics().physUnitsPromotionReady());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsEmissivePromotionReadyWhenEmissivePolicyIsStable() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.lighting.emissiveMeshEnabled", "true"),
+                    Map.entry("vulkan.lighting.emissiveWarnMinCandidateRatio", "0.20"),
+                    Map.entry("vulkan.lighting.emissivePromotionReadyMinFrames", "1")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validSceneStableEmissivePolicy());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_EMISSIVE_PROMOTION_READY".equals(w.code())));
+            assertTrue(runtime.lightingPromotionDiagnostics().emissivePromotionReady());
         } finally {
             runtime.shutdown();
         }
@@ -106,6 +128,8 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertEquals(2, promotion.warnMinFrames());
             assertEquals(90, promotion.warnCooldownFrames());
             assertEquals(5, promotion.promotionReadyMinFrames());
+            assertEquals(5, promotion.physUnitsPromotionReadyMinFrames());
+            assertEquals(6, promotion.emissivePromotionReadyMinFrames());
             var emissive = runtime.lightingEmissiveDiagnostics();
             assertTrue(emissive.available());
             assertEquals(0.08, emissive.warnMinCandidateRatio(), 1e-9);
@@ -124,6 +148,8 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.budgetWarnMinFrames", "7"),
                     Map.entry("vulkan.lighting.budgetWarnCooldownFrames", "33"),
                     Map.entry("vulkan.lighting.budgetPromotionReadyMinFrames", "11"),
+                    Map.entry("vulkan.lighting.physUnitsPromotionReadyMinFrames", "9"),
+                    Map.entry("vulkan.lighting.emissivePromotionReadyMinFrames", "13"),
                     Map.entry("vulkan.lighting.emissiveWarnMinCandidateRatio", "0.20")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validSceneStableBudget());
@@ -136,6 +162,8 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertEquals(7, promotion.warnMinFrames());
             assertEquals(33, promotion.warnCooldownFrames());
             assertEquals(11, promotion.promotionReadyMinFrames());
+            assertEquals(9, promotion.physUnitsPromotionReadyMinFrames());
+            assertEquals(13, promotion.emissivePromotionReadyMinFrames());
             var emissive = runtime.lightingEmissiveDiagnostics();
             assertTrue(emissive.available());
             assertEquals(0.20, emissive.warnMinCandidateRatio(), 1e-9);
@@ -256,6 +284,57 @@ class VulkanLightingCapabilityPlanIntegrationTest {
         FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
         return new SceneDescriptor(
                 "lighting-plan-scene-stable",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(material),
+                List.of(directional),
+                environment,
+                fog,
+                List.of(),
+                null
+        );
+    }
+
+    private static SceneDescriptor validSceneStableEmissivePolicy() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
+        MaterialDesc material = new MaterialDesc(
+                "mat",
+                new Vec3(1, 1, 1),
+                0.0f,
+                0.5f,
+                null,
+                null,
+                null,
+                null,
+                0.0f,
+                false,
+                false,
+                1.0f,
+                1.0f,
+                2.0f,
+                org.dynamislight.api.scene.ReactivePreset.AUTO
+        );
+        LightDesc directional = new LightDesc(
+                "sun",
+                new Vec3(0, 6, 0),
+                new Vec3(1, 1, 1),
+                3.0f,
+                50f,
+                true,
+                new ShadowDesc(2048, 0.0015f, 1, 4),
+                LightType.DIRECTIONAL,
+                new Vec3(0, -1, 0),
+                15f,
+                30f
+        );
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        return new SceneDescriptor(
+                "lighting-plan-scene-stable-emissive",
                 List.of(camera),
                 "cam",
                 List.of(transform),

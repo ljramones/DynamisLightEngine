@@ -12,6 +12,12 @@ public record LightingPromotionDiagnostics(
         int warnCooldownFrames,
         int warnCooldownRemaining,
         int promotionReadyMinFrames,
+        int physUnitsStableStreak,
+        int physUnitsPromotionReadyMinFrames,
+        boolean physUnitsPromotionReady,
+        int emissiveStableStreak,
+        int emissivePromotionReadyMinFrames,
+        boolean emissivePromotionReady,
         boolean envelopeBreached,
         boolean promotionReady
 ) {
@@ -29,6 +35,12 @@ public record LightingPromotionDiagnostics(
                 0,
                 0,
                 0,
+                0,
+                0,
+                false,
+                0,
+                0,
+                false,
                 false,
                 false
         );
