@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.impl.vulkan.capability.VulkanGiCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanLightingCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanPbrCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.junit.jupiter.api.Test;
 
@@ -134,5 +135,27 @@ class VulkanPipelineProfileResolverTest {
                 false
         );
         assertEquals("hybrid_probe_ssgi_rt", key.giMode().id());
+    }
+
+    @Test
+    void resolveUsesPbrModeOverrideWhenProvided() {
+        VulkanPipelineProfileKey key = VulkanPipelineProfileResolver.resolve(
+                QualityTier.ULTRA,
+                new VulkanRenderState(),
+                0,
+                null,
+                VulkanPbrCapabilityDescriptorV2.MODE_SPECULAR_GLOSSINESS_DETAIL_LAYERING,
+                null,
+                0,
+                0,
+                0,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false
+        );
+        assertEquals("specular_glossiness_detail_layering", key.pbrMode().id());
     }
 }
