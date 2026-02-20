@@ -6,8 +6,10 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.LightingBudgetDiagnostics;
 import org.dynamislight.api.runtime.LightingCapabilityDiagnostics;
+import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
 import org.dynamislight.api.runtime.LightingPromotionDiagnostics;
 import org.dynamislight.api.scene.LightDesc;
+import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 import org.dynamislight.impl.vulkan.warning.lighting.VulkanLightingWarningEmitter;
 
@@ -35,6 +37,11 @@ public final class VulkanLightingCapabilityRuntimeState {
     private int budgetStableStreak;
     private int budgetWarnCooldownRemaining;
     private boolean budgetPromotionReadyLastFrame;
+    private double emissiveWarnMinCandidateRatio = 0.05;
+    private int emissiveCandidateCountLastFrame;
+    private int emissiveMaterialCountLastFrame;
+    private double emissiveCandidateRatioLastFrame;
+    private boolean emissiveEnvelopeBreachedLastFrame;
     private List<String> activeCapabilitiesLastFrame = List.of();
     private List<String> prunedCapabilitiesLastFrame = List.of();
     private List<String> signalsLastFrame = List.of();
@@ -52,6 +59,10 @@ public final class VulkanLightingCapabilityRuntimeState {
         budgetStableStreak = 0;
         budgetWarnCooldownRemaining = 0;
         budgetPromotionReadyLastFrame = false;
+        emissiveCandidateCountLastFrame = 0;
+        emissiveMaterialCountLastFrame = 0;
+        emissiveCandidateRatioLastFrame = 0.0;
+        emissiveEnvelopeBreachedLastFrame = false;
         activeCapabilitiesLastFrame = List.of();
         prunedCapabilitiesLastFrame = List.of();
         signalsLastFrame = List.of();
@@ -103,9 +114,21 @@ public final class VulkanLightingCapabilityRuntimeState {
                 1,
                 100000
         );
+        emissiveWarnMinCandidateRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe,
+                "vulkan.lighting.emissiveWarnMinCandidateRatio",
+                emissiveWarnMinCandidateRatio,
+                0.0,
+                1.0
+        );
     }
 
-    public void emitFrameWarning(QualityTier qualityTier, List<LightDesc> lights, List<EngineWarning> warnings) {
+    public void emitFrameWarning(
+            QualityTier qualityTier,
+            List<LightDesc> lights,
+            List<MaterialDesc> materials,
+            List<EngineWarning> warnings
+    ) {
         VulkanLightingWarningEmitter.Result emission = VulkanLightingWarningEmitter.emit(
                 qualityTier,
                 lights == null ? List.of() : lights,
@@ -119,6 +142,15 @@ public final class VulkanLightingCapabilityRuntimeState {
         localLightBudgetLastFrame = emission.plan().localLightBudget();
         localLightLoadRatioLastFrame = emission.plan().localLightLoadRatio();
         budgetEnvelopeBreachedLastFrame = emission.plan().budgetEnvelopeBreached();
+        emissiveMaterialCountLastFrame = materials == null ? 0 : materials.size();
+        emissiveCandidateCountLastFrame = materials == null ? 0 : (int) materials.stream()
+                .filter(m -> m != null && m.emissiveReactiveBoost() > 1.0f)
+                .count();
+        emissiveCandidateRatioLastFrame = emissiveMaterialCountLastFrame <= 0
+                ? 0.0
+                : (double) emissiveCandidateCountLastFrame / (double) emissiveMaterialCountLastFrame;
+        emissiveEnvelopeBreachedLastFrame = emissiveMeshEnabled
+                && emissiveCandidateRatioLastFrame < emissiveWarnMinCandidateRatio;
         modeLastFrame = emission.plan().modeId();
         directionalCountLastFrame = emission.plan().directionalLights();
         pointCountLastFrame = emission.plan().pointLights();
@@ -158,6 +190,19 @@ public final class VulkanLightingCapabilityRuntimeState {
                             + ", stableStreak=" + budgetStableStreak
                             + ", cooldownRemaining=" + budgetWarnCooldownRemaining + ")"
             ));
+            warnings.add(new EngineWarning(
+                    "LIGHTING_PHYS_UNITS_POLICY",
+                    "Lighting physically-based units policy (enabled=" + physicallyBasedUnitsEnabled
+                            + ", mode=" + modeLastFrame + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "LIGHTING_EMISSIVE_POLICY",
+                    "Lighting emissive policy (enabled=" + emissiveMeshEnabled
+                            + ", candidateCount=" + emissiveCandidateCountLastFrame
+                            + ", totalMaterials=" + emissiveMaterialCountLastFrame
+                            + ", candidateRatio=" + emissiveCandidateRatioLastFrame
+                            + ", minCandidateRatio=" + emissiveWarnMinCandidateRatio + ")"
+            ));
             if (emitBreach) {
                 warnings.add(new EngineWarning(
                         "LIGHTING_BUDGET_ENVELOPE_BREACH",
@@ -167,6 +212,15 @@ public final class VulkanLightingCapabilityRuntimeState {
                                 + ", threshold=" + budgetWarnRatioThreshold
                                 + ", highStreak=" + budgetHighStreak
                                 + ", cooldownFrames=" + budgetWarnCooldownFrames + ")"
+                ));
+            }
+            if (emissiveEnvelopeBreachedLastFrame) {
+                warnings.add(new EngineWarning(
+                        "LIGHTING_EMISSIVE_ENVELOPE_BREACH",
+                        "Lighting emissive envelope breached (candidateCount=" + emissiveCandidateCountLastFrame
+                                + ", totalMaterials=" + emissiveMaterialCountLastFrame
+                                + ", candidateRatio=" + emissiveCandidateRatioLastFrame
+                                + ", minCandidateRatio=" + emissiveWarnMinCandidateRatio + ")"
                 ));
             }
             if (budgetPromotionReadyLastFrame) {
@@ -219,6 +273,18 @@ public final class VulkanLightingCapabilityRuntimeState {
                 budgetPromotionReadyMinFrames,
                 budgetEnvelopeBreachedLastFrame,
                 budgetPromotionReadyLastFrame
+        );
+    }
+
+    public LightingEmissiveDiagnostics emissiveDiagnostics() {
+        return new LightingEmissiveDiagnostics(
+                !modeLastFrame.isBlank(),
+                emissiveMeshEnabled,
+                emissiveCandidateCountLastFrame,
+                emissiveMaterialCountLastFrame,
+                emissiveCandidateRatioLastFrame,
+                emissiveWarnMinCandidateRatio,
+                emissiveEnvelopeBreachedLastFrame
         );
     }
 }

@@ -46,6 +46,7 @@ import org.dynamislight.api.runtime.AaQualityPromotionDiagnostics;
 import org.dynamislight.api.runtime.GiCapabilityDiagnostics;
 import org.dynamislight.api.runtime.LightingBudgetDiagnostics;
 import org.dynamislight.api.runtime.LightingCapabilityDiagnostics;
+import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
 import org.dynamislight.api.runtime.LightingPromotionDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
@@ -1099,12 +1100,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
 
     @Override
     protected LightingCapabilityDiagnostics backendLightingCapabilityDiagnostics() { return lightingCapabilityState.diagnostics(); }
-
     @Override
     protected LightingBudgetDiagnostics backendLightingBudgetDiagnostics() { return lightingCapabilityState.budgetDiagnostics(); }
-
     @Override
     protected LightingPromotionDiagnostics backendLightingPromotionDiagnostics() { return lightingCapabilityState.promotionDiagnostics(); }
+    @Override
+    protected LightingEmissiveDiagnostics backendLightingEmissiveDiagnostics() { return lightingCapabilityState.emissiveDiagnostics(); }
 
     @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
@@ -1302,7 +1303,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         giActiveCapabilitiesLastFrame = giEmission.plan().activeCapabilities();
         giPrunedCapabilitiesLastFrame = giEmission.plan().prunedCapabilities();
         warnings.add(giEmission.warning());
-        lightingCapabilityState.emitFrameWarning(qualityTier, currentSceneLights, warnings);
+        lightingCapabilityState.emitFrameWarning(qualityTier, currentSceneLights, currentSceneMaterials, warnings);
         VulkanReflectionRuntimeFlow.processFrameWarnings(this, context, qualityTier, warnings);
         VulkanShadowFrameWarningFlow.process(this, context, qualityTier, warnings);
         return warnings;

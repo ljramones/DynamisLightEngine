@@ -14,8 +14,8 @@ Status: In Progress (Vulkan-first)
 ## Phase 2: Capability Realization (Next)
 - [ ] Directional/point/spot baseline hardening and promotion gate.
 - [~] Light prioritization/budget realization and promotion gate (envelope + typed diagnostics + cooldown/streak/promotion-ready warnings landed, lockdown + tier envelope tuning pending).
-- [ ] Physically-based units realization and promotion gate.
-- [ ] Emissive mesh lights realization and promotion gate.
+- [~] Physically-based units realization and promotion gate (runtime policy warning + typed diagnostics integration landed; promotion gate pending).
+- [~] Emissive mesh lights realization and promotion gate (policy/envelope warning + typed diagnostics landed; promotion gate pending).
 
 ## Phase 3: Advanced Lighting Modes (Backlog)
 - [ ] Area lights (approximate/sampled).

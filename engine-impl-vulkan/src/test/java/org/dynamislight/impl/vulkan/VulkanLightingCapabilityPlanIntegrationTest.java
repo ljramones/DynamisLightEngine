@@ -46,6 +46,9 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_PHYS_UNITS_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_EMISSIVE_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_EMISSIVE_ENVELOPE_BREACH".equals(w.code())));
             var diagnostics = runtime.lightingCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertTrue(diagnostics.activeCapabilities().stream().anyMatch(s -> s.contains("vulkan.lighting")));
@@ -57,6 +60,10 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             var promotion = runtime.lightingPromotionDiagnostics();
             assertTrue(promotion.available());
             assertTrue(promotion.highStreak() >= 1);
+            var emissive = runtime.lightingEmissiveDiagnostics();
+            assertTrue(emissive.available());
+            assertTrue(emissive.emissiveEnabled());
+            assertTrue(emissive.envelopeBreached());
         } finally {
             runtime.shutdown();
         }

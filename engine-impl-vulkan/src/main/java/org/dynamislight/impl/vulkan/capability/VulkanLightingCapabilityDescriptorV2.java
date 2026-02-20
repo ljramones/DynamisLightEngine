@@ -229,18 +229,23 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                         "LIGHTING_BUDGET_POLICY",
                         "LIGHTING_BUDGET_ENVELOPE",
                         "LIGHTING_BUDGET_ENVELOPE_BREACH",
-                        "LIGHTING_BUDGET_PROMOTION_READY"
+                        "LIGHTING_BUDGET_PROMOTION_READY",
+                        "LIGHTING_PHYS_UNITS_POLICY",
+                        "LIGHTING_EMISSIVE_POLICY",
+                        "LIGHTING_EMISSIVE_ENVELOPE_BREACH"
                 ),
                 List.of(
                         "lightingCapabilityDiagnostics",
                         "lightingBudgetDiagnostics",
-                        "lightingPromotionDiagnostics"
+                        "lightingPromotionDiagnostics",
+                        "lightingEmissiveDiagnostics"
                 ),
                 List.of(),
                 List.of(
                         "lighting.mode.contract",
                         "lighting.mode.telemetry",
-                        "lighting.budget.envelope"
+                        "lighting.budget.envelope",
+                        "lighting.emissive.envelope"
                 )
         );
     }

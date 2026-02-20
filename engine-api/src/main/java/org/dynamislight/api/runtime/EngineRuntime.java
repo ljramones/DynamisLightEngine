@@ -423,6 +423,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic lighting emissive-policy diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link LightingEmissiveDiagnostics#unavailable()}.
+     *
+     * @return current lighting emissive diagnostics snapshot.
+     */
+    default LightingEmissiveDiagnostics lightingEmissiveDiagnostics() {
+        return LightingEmissiveDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release
