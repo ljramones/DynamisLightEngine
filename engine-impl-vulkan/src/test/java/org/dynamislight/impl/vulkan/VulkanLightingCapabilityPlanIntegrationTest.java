@@ -112,6 +112,28 @@ class VulkanLightingCapabilityPlanIntegrationTest {
     }
 
     @Test
+    void emitsPhase2PromotionReadyWhenBudgetPhysAndEmissiveAreStable() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.lighting.localLightBudget", "8"),
+                    Map.entry("vulkan.lighting.budgetPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.lighting.physUnitsPromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.lighting.emissiveMeshEnabled", "true"),
+                    Map.entry("vulkan.lighting.emissiveWarnMinCandidateRatio", "0.20"),
+                    Map.entry("vulkan.lighting.emissivePromotionReadyMinFrames", "1")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validSceneStableEmissivePolicy());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_PHASE2_PROMOTION_READY".equals(w.code())));
+            assertTrue(runtime.lightingPromotionDiagnostics().phase2PromotionReady());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
     void appliesTierProfileDefaultsWhenOverridesAbsent() throws Exception {
         VulkanEngineRuntime runtime = new VulkanEngineRuntime();
         try {

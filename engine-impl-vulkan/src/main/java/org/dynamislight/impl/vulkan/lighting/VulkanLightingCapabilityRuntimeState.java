@@ -43,6 +43,7 @@ public final class VulkanLightingCapabilityRuntimeState {
     private boolean budgetPromotionReadyLastFrame;
     private boolean physUnitsPromotionReadyLastFrame;
     private boolean emissivePromotionReadyLastFrame;
+    private boolean phase2PromotionReadyLastFrame;
     private double emissiveWarnMinCandidateRatio = 0.05;
     private int emissiveCandidateCountLastFrame;
     private int emissiveMaterialCountLastFrame;
@@ -69,6 +70,7 @@ public final class VulkanLightingCapabilityRuntimeState {
         emissiveStableStreak = 0;
         physUnitsPromotionReadyLastFrame = false;
         emissivePromotionReadyLastFrame = false;
+        phase2PromotionReadyLastFrame = false;
         emissiveCandidateCountLastFrame = 0;
         emissiveMaterialCountLastFrame = 0;
         emissiveCandidateRatioLastFrame = 0.0;
@@ -309,6 +311,9 @@ public final class VulkanLightingCapabilityRuntimeState {
         emissivePromotionReadyLastFrame = emissiveMeshEnabled
                 && emissiveStableStreak >= emissivePromotionReadyMinFrames
                 && !emissiveEnvelopeBreachedLastFrame;
+        phase2PromotionReadyLastFrame = budgetPromotionReadyLastFrame
+                && physUnitsPromotionReadyLastFrame
+                && (!emissiveMeshEnabled || emissivePromotionReadyLastFrame);
         boolean emitBreach = budgetEnvelopeBreachedLastFrame
                 && budgetHighStreak >= budgetWarnMinFrames
                 && budgetWarnCooldownRemaining <= 0;
@@ -397,6 +402,16 @@ public final class VulkanLightingCapabilityRuntimeState {
                                 + ", mode=" + modeLastFrame + ")"
                 ));
             }
+            if (phase2PromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "LIGHTING_PHASE2_PROMOTION_READY",
+                        "Lighting phase2 promotion ready (budgetReady=" + budgetPromotionReadyLastFrame
+                                + ", physUnitsReady=" + physUnitsPromotionReadyLastFrame
+                                + ", emissiveReady=" + emissivePromotionReadyLastFrame
+                                + ", emissiveEnabled=" + emissiveMeshEnabled
+                                + ", mode=" + modeLastFrame + ")"
+                ));
+            }
         }
     }
 
@@ -443,6 +458,7 @@ public final class VulkanLightingCapabilityRuntimeState {
                 emissiveStableStreak,
                 emissivePromotionReadyMinFrames,
                 emissivePromotionReadyLastFrame,
+                phase2PromotionReadyLastFrame,
                 budgetEnvelopeBreachedLastFrame,
                 budgetPromotionReadyLastFrame
         );

@@ -18,6 +18,7 @@ public record LightingPromotionDiagnostics(
         int emissiveStableStreak,
         int emissivePromotionReadyMinFrames,
         boolean emissivePromotionReady,
+        boolean phase2PromotionReady,
         boolean envelopeBreached,
         boolean promotionReady
 ) {
@@ -40,6 +41,7 @@ public record LightingPromotionDiagnostics(
                 false,
                 0,
                 0,
+                false,
                 false,
                 false,
                 false

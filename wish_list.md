@@ -236,6 +236,7 @@ Lighting notes:
 - Vulkan now emits lighting budget policy/promoted stability telemetry (`LIGHTING_BUDGET_POLICY`, `LIGHTING_BUDGET_PROMOTION_READY`) with cooldown-gated breach behavior and typed runtime promotion diagnostics (`lightingPromotionDiagnostics()`).
 - Vulkan now emits physically-based-unit and emissive policy telemetry (`LIGHTING_PHYS_UNITS_POLICY`, `LIGHTING_EMISSIVE_POLICY`, `LIGHTING_EMISSIVE_ENVELOPE_BREACH`) and exposes typed runtime emissive diagnostics (`lightingEmissiveDiagnostics()`).
 - Vulkan now emits physically-based-unit and emissive promotion readiness (`LIGHTING_PHYS_UNITS_PROMOTION_READY`, `LIGHTING_EMISSIVE_PROMOTION_READY`) with tier-profile defaults, backend override precedence, and typed promotion diagnostics fields.
+- Vulkan now emits consolidated lighting phase-2 readiness (`LIGHTING_PHASE2_PROMOTION_READY`) when budget, physically-based units, and emissive policy (if enabled) are jointly stable.
 - Lighting telemetry now applies tier-profile defaults with backend-option override precedence and emits compact profile summary telemetry (`LIGHTING_TELEMETRY_PROFILE_ACTIVE`).
 - Lighting integration coverage now explicitly asserts backend-option precedence over tier defaults for budget/emissive thresholds.
 - Lighting v2 contract coverage is tracked in `docs/lighting-capability-v2-checklist.md` and validated in composition with shadow/reflection/aa/post/gi descriptors.

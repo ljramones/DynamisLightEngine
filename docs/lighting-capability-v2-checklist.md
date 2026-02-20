@@ -18,6 +18,7 @@ Status: In Progress (Vulkan-first)
 - [x] Profile-default override precedence is covered in integration tests (backend options override tier defaults).
 - [x] Physically-based units realization and promotion gate (`LIGHTING_PHYS_UNITS_PROMOTION_READY` + typed promotion diagnostics fields + default/override thresholds).
 - [x] Emissive mesh lights realization and promotion gate (`LIGHTING_EMISSIVE_PROMOTION_READY` + typed promotion diagnostics fields + default/override thresholds).
+- [x] Consolidated phase-2 promotion gate (`LIGHTING_PHASE2_PROMOTION_READY`) when budget + phys-units + emissive (if enabled) are jointly stable.
 
 ## Phase 3: Advanced Lighting Modes (Backlog)
 - [ ] Area lights (approximate/sampled).
