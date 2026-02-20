@@ -40,12 +40,17 @@ public final class VulkanPbrCapabilityRuntimeState {
     private int stableStreak;
     private int highStreak;
     private int warnCooldownRemaining;
+    private int cinematicStableStreak;
+    private int cinematicHighStreak;
+    private int cinematicWarnCooldownRemaining;
     private boolean envelopeBreachedLastFrame;
+    private boolean cinematicEnvelopeBreachedLastFrame;
     private String modeLastFrame = "metallic_roughness_baseline";
     private List<String> activeCapabilitiesLastFrame = List.of();
     private List<String> prunedCapabilitiesLastFrame = List.of();
     private List<String> signalsLastFrame = List.of();
     private boolean promotionReadyLastFrame;
+    private boolean cinematicPromotionReadyLastFrame;
 
     public void reset() {
         stableStreak = 0;
@@ -56,7 +61,12 @@ public final class VulkanPbrCapabilityRuntimeState {
         promotionReadyLastFrame = false;
         highStreak = 0;
         warnCooldownRemaining = 0;
+        cinematicStableStreak = 0;
+        cinematicHighStreak = 0;
+        cinematicWarnCooldownRemaining = 0;
         envelopeBreachedLastFrame = false;
+        cinematicEnvelopeBreachedLastFrame = false;
+        cinematicPromotionReadyLastFrame = false;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -258,6 +268,76 @@ public final class VulkanPbrCapabilityRuntimeState {
                         + ", highStreak=" + highStreak
                         + ", stableStreak=" + stableStreak + ")"
         ));
+
+        int expectedCinematicFeatureCount = 0;
+        if (subsurfaceScatteringEnabled) expectedCinematicFeatureCount += 1;
+        if (thinFilmIridescenceEnabled) expectedCinematicFeatureCount += 1;
+        if (sheenEnabled) expectedCinematicFeatureCount += 1;
+        if (parallaxOcclusionEnabled) expectedCinematicFeatureCount += 1;
+        if (tessellationEnabled) expectedCinematicFeatureCount += 1;
+        if (decalsEnabled) expectedCinematicFeatureCount += 1;
+        if (eyeShaderEnabled) expectedCinematicFeatureCount += 1;
+        if (hairShaderEnabled) expectedCinematicFeatureCount += 1;
+        if (clothShaderEnabled) expectedCinematicFeatureCount += 1;
+        int activeCinematicFeatureCount = 0;
+        if (plan.subsurfaceScatteringEnabled()) activeCinematicFeatureCount += 1;
+        if (plan.thinFilmIridescenceEnabled()) activeCinematicFeatureCount += 1;
+        if (plan.sheenEnabled()) activeCinematicFeatureCount += 1;
+        if (plan.parallaxOcclusionEnabled()) activeCinematicFeatureCount += 1;
+        if (plan.tessellationEnabled()) activeCinematicFeatureCount += 1;
+        if (plan.decalsEnabled()) activeCinematicFeatureCount += 1;
+        if (plan.eyeShaderEnabled()) activeCinematicFeatureCount += 1;
+        if (plan.hairShaderEnabled()) activeCinematicFeatureCount += 1;
+        if (plan.clothShaderEnabled()) activeCinematicFeatureCount += 1;
+        boolean cinematicRisk = expectedCinematicFeatureCount > 0
+                && activeCinematicFeatureCount < expectedCinematicFeatureCount;
+        if (cinematicRisk) {
+            cinematicHighStreak += 1;
+            cinematicStableStreak = 0;
+            if (cinematicWarnCooldownRemaining > 0) {
+                cinematicWarnCooldownRemaining -= 1;
+            }
+        } else {
+            cinematicHighStreak = 0;
+            cinematicStableStreak += 1;
+            if (cinematicWarnCooldownRemaining > 0) {
+                cinematicWarnCooldownRemaining -= 1;
+            }
+        }
+        cinematicEnvelopeBreachedLastFrame = cinematicRisk && cinematicHighStreak >= warnMinFrames;
+        cinematicPromotionReadyLastFrame = !cinematicRisk && cinematicStableStreak >= promotionReadyMinFrames;
+        warnings.add(new EngineWarning(
+                "PBR_CINEMATIC_POLICY_ACTIVE",
+                "PBR cinematic policy (expectedCount=" + expectedCinematicFeatureCount
+                        + ", warnMinFrames=" + warnMinFrames
+                        + ", warnCooldownFrames=" + warnCooldownFrames
+                        + ", promotionReadyMinFrames=" + promotionReadyMinFrames + ")"
+        ));
+        warnings.add(new EngineWarning(
+                "PBR_CINEMATIC_ENVELOPE",
+                "PBR cinematic envelope (risk=" + cinematicRisk
+                        + ", expectedCount=" + expectedCinematicFeatureCount
+                        + ", activeCount=" + activeCinematicFeatureCount
+                        + ", highStreak=" + cinematicHighStreak
+                        + ", stableStreak=" + cinematicStableStreak + ")"
+        ));
+        if (cinematicEnvelopeBreachedLastFrame && cinematicWarnCooldownRemaining <= 0) {
+            warnings.add(new EngineWarning(
+                    "PBR_CINEMATIC_ENVELOPE_BREACH",
+                    "PBR cinematic envelope breach (highStreak=" + cinematicHighStreak
+                            + ", cooldown=" + cinematicWarnCooldownRemaining + ")"
+            ));
+            cinematicWarnCooldownRemaining = warnCooldownFrames;
+        }
+        if (cinematicPromotionReadyLastFrame) {
+            warnings.add(new EngineWarning(
+                    "PBR_CINEMATIC_PROMOTION_READY",
+                    "PBR cinematic promotion-ready envelope satisfied (mode=" + plan.modeId()
+                            + ", stableStreak=" + cinematicStableStreak
+                            + ", minFrames=" + promotionReadyMinFrames + ")"
+            ));
+        }
+
         if (envelopeBreachedLastFrame && warnCooldownRemaining <= 0) {
             warnings.add(new EngineWarning(
                     "PBR_PROMOTION_ENVELOPE_BREACH",
@@ -325,6 +405,26 @@ public final class VulkanPbrCapabilityRuntimeState {
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.cloth_shader")) activeAdvancedFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.vertex_color_blend")) activeAdvancedFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.emissive_bloom_control")) activeAdvancedFeatureCount += 1;
+        int expectedCinematicFeatureCount = 0;
+        if (subsurfaceScatteringEnabled) expectedCinematicFeatureCount += 1;
+        if (thinFilmIridescenceEnabled) expectedCinematicFeatureCount += 1;
+        if (sheenEnabled) expectedCinematicFeatureCount += 1;
+        if (parallaxOcclusionEnabled) expectedCinematicFeatureCount += 1;
+        if (tessellationEnabled) expectedCinematicFeatureCount += 1;
+        if (decalsEnabled) expectedCinematicFeatureCount += 1;
+        if (eyeShaderEnabled) expectedCinematicFeatureCount += 1;
+        if (hairShaderEnabled) expectedCinematicFeatureCount += 1;
+        if (clothShaderEnabled) expectedCinematicFeatureCount += 1;
+        int activeCinematicFeatureCount = 0;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.subsurface_scattering")) activeCinematicFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.thin_film_iridescence")) activeCinematicFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.sheen")) activeCinematicFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.parallax_occlusion")) activeCinematicFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.tessellation")) activeCinematicFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.decals")) activeCinematicFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.eye_shader")) activeCinematicFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.hair_shader")) activeCinematicFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.cloth_shader")) activeCinematicFeatureCount += 1;
         boolean energyConservationValidationEnabled =
                 activeCapabilitiesLastFrame.contains("vulkan.pbr.energy_conservation_validation");
         return new PbrPromotionDiagnostics(
@@ -332,12 +432,19 @@ public final class VulkanPbrCapabilityRuntimeState {
                 modeLastFrame,
                 activeAdvancedFeatureCount,
                 advancedWarnMinFeatureCount,
+                expectedCinematicFeatureCount,
+                activeCinematicFeatureCount,
                 energyConservationValidationEnabled,
                 envelopeBreachedLastFrame,
                 promotionReadyLastFrame,
+                cinematicEnvelopeBreachedLastFrame,
+                cinematicPromotionReadyLastFrame,
                 stableStreak,
                 highStreak,
+                cinematicStableStreak,
+                cinematicHighStreak,
                 warnCooldownRemaining,
+                cinematicWarnCooldownRemaining,
                 warnMinFrames,
                 warnCooldownFrames,
                 promotionReadyMinFrames

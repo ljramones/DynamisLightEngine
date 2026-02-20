@@ -46,6 +46,9 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_PROMOTION_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_PROMOTION_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CINEMATIC_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CINEMATIC_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CINEMATIC_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.pbrCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertTrue(diagnostics.specularGlossinessEnabled());
@@ -58,6 +61,8 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(promotion.available());
             assertFalse(promotion.envelopeBreachedLastFrame());
             assertTrue(promotion.promotionReadyLastFrame());
+            assertFalse(promotion.cinematicEnvelopeBreachedLastFrame());
+            assertTrue(promotion.cinematicPromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -91,6 +96,41 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(promotion.available());
             assertTrue(promotion.envelopeBreachedLastFrame());
             assertFalse(promotion.promotionReadyLastFrame());
+            assertFalse(promotion.cinematicEnvelopeBreachedLastFrame());
+            assertTrue(promotion.cinematicPromotionReadyLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsPbrCinematicEnvelopeBreachWhenRequestedCinematicFeaturesArePruned() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.pbr.subsurfaceScatteringEnabled", "true"),
+                    Map.entry("vulkan.pbr.thinFilmIridescenceEnabled", "true"),
+                    Map.entry("vulkan.pbr.sheenEnabled", "true"),
+                    Map.entry("vulkan.pbr.parallaxOcclusionEnabled", "true"),
+                    Map.entry("vulkan.pbr.tessellationEnabled", "true"),
+                    Map.entry("vulkan.pbr.decalsEnabled", "true"),
+                    Map.entry("vulkan.pbr.eyeShaderEnabled", "true"),
+                    Map.entry("vulkan.pbr.hairShaderEnabled", "true"),
+                    Map.entry("vulkan.pbr.clothShaderEnabled", "true"),
+                    Map.entry("vulkan.pbr.warnMinFrames", "1"),
+                    Map.entry("vulkan.pbr.warnCooldownFrames", "0"),
+                    Map.entry("vulkan.pbr.promotionReadyMinFrames", "1")
+            ), QualityTier.LOW), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CINEMATIC_ENVELOPE_BREACH".equals(w.code())));
+            var promotion = runtime.pbrPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.expectedCinematicFeatureCount() > 0);
+            assertTrue(promotion.activeCinematicFeatureCount() < promotion.expectedCinematicFeatureCount());
+            assertTrue(promotion.cinematicEnvelopeBreachedLastFrame());
+            assertFalse(promotion.cinematicPromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
