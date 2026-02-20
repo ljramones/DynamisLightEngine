@@ -17,6 +17,12 @@ public record VulkanLightingCapabilityPlan(
         boolean physicallyBasedUnitsEnabled,
         boolean prioritizationEnabled,
         boolean emissiveMeshEnabled,
+        boolean areaApproxEnabled,
+        boolean iesProfilesEnabled,
+        boolean cookiesEnabled,
+        boolean volumetricShaftsEnabled,
+        boolean clusteringEnabled,
+        boolean lightLayersEnabled,
         List<String> activeCapabilities,
         List<String> prunedCapabilities,
         List<String> signals

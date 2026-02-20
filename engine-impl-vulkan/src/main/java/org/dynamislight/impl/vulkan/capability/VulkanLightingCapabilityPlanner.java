@@ -154,6 +154,12 @@ public final class VulkanLightingCapabilityPlanner {
                 physUnitsActive,
                 budgetActive,
                 emissiveActive,
+                areaApproxActive,
+                iesActive,
+                cookiesActive,
+                volumetricShaftsActive,
+                clusteringActive,
+                lightLayersActive,
                 active,
                 pruned,
                 signals

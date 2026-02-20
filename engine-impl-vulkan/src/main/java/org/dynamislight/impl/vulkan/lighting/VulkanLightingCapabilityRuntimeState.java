@@ -61,6 +61,12 @@ public final class VulkanLightingCapabilityRuntimeState {
     private List<String> activeCapabilitiesLastFrame = List.of();
     private List<String> prunedCapabilitiesLastFrame = List.of();
     private List<String> signalsLastFrame = List.of();
+    private boolean areaApproxActiveLastFrame;
+    private boolean iesProfilesActiveLastFrame;
+    private boolean cookiesActiveLastFrame;
+    private boolean volumetricShaftsActiveLastFrame;
+    private boolean clusteringActiveLastFrame;
+    private boolean lightLayersActiveLastFrame;
 
     public void reset() {
         modeLastFrame = "baseline_directional_point_spot";
@@ -89,6 +95,12 @@ public final class VulkanLightingCapabilityRuntimeState {
         activeCapabilitiesLastFrame = List.of();
         prunedCapabilitiesLastFrame = List.of();
         signalsLastFrame = List.of();
+        areaApproxActiveLastFrame = false;
+        iesProfilesActiveLastFrame = false;
+        cookiesActiveLastFrame = false;
+        volumetricShaftsActiveLastFrame = false;
+        clusteringActiveLastFrame = false;
+        lightLayersActiveLastFrame = false;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -337,6 +349,12 @@ public final class VulkanLightingCapabilityRuntimeState {
         activeCapabilitiesLastFrame = emission.plan().activeCapabilities();
         prunedCapabilitiesLastFrame = emission.plan().prunedCapabilities();
         signalsLastFrame = emission.plan().signals();
+        areaApproxActiveLastFrame = emission.plan().areaApproxEnabled();
+        iesProfilesActiveLastFrame = emission.plan().iesProfilesEnabled();
+        cookiesActiveLastFrame = emission.plan().cookiesEnabled();
+        volumetricShaftsActiveLastFrame = emission.plan().volumetricShaftsEnabled();
+        clusteringActiveLastFrame = emission.plan().clusteringEnabled();
+        lightLayersActiveLastFrame = emission.plan().lightLayersEnabled();
         if (budgetEnvelopeBreachedLastFrame) {
             budgetHighStreak++;
             budgetStableStreak = 0;
@@ -545,6 +563,12 @@ public final class VulkanLightingCapabilityRuntimeState {
                 physicallyBasedUnitsEnabled,
                 prioritizationEnabled,
                 emissiveMeshEnabled,
+                areaApproxActiveLastFrame,
+                iesProfilesActiveLastFrame,
+                cookiesActiveLastFrame,
+                volumetricShaftsActiveLastFrame,
+                clusteringActiveLastFrame,
+                lightLayersActiveLastFrame,
                 activeCapabilitiesLastFrame,
                 prunedCapabilitiesLastFrame,
                 signalsLastFrame

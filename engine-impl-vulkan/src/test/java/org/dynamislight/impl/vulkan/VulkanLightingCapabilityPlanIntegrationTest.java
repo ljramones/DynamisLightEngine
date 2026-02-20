@@ -67,6 +67,12 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.lighting.volumetric_shafts"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.lighting.clustering"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.lighting.light_layers"));
+            assertTrue(diagnostics.areaApproxEnabled());
+            assertTrue(diagnostics.iesProfilesEnabled());
+            assertTrue(diagnostics.cookiesEnabled());
+            assertTrue(diagnostics.volumetricShaftsEnabled());
+            assertTrue(diagnostics.clusteringEnabled());
+            assertTrue(diagnostics.lightLayersEnabled());
             assertTrue(diagnostics.signals().stream().anyMatch(s -> s.startsWith("resolvedMode=")));
             var budget = runtime.lightingBudgetDiagnostics();
             assertTrue(budget.available());

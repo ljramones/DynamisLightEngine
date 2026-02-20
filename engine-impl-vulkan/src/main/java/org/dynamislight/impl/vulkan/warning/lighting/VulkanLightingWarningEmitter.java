@@ -81,12 +81,12 @@ public final class VulkanLightingWarningEmitter {
         }
         warnings.add(new EngineWarning(
                 "LIGHTING_ADVANCED_POLICY",
-                "Lighting advanced policy (areaApprox=" + plan.signals().contains("areaApproxEnabled=true")
-                        + ", iesProfiles=" + plan.signals().contains("iesProfilesEnabled=true")
-                        + ", cookies=" + plan.signals().contains("cookiesEnabled=true")
-                        + ", volumetricShafts=" + plan.signals().contains("volumetricShaftsEnabled=true")
-                        + ", clustering=" + plan.signals().contains("clusteringEnabled=true")
-                        + ", lightLayers=" + plan.signals().contains("lightLayersEnabled=true") + ")"
+                "Lighting advanced policy (areaApprox=" + plan.areaApproxEnabled()
+                        + ", iesProfiles=" + plan.iesProfilesEnabled()
+                        + ", cookies=" + plan.cookiesEnabled()
+                        + ", volumetricShafts=" + plan.volumetricShaftsEnabled()
+                        + ", clustering=" + plan.clusteringEnabled()
+                        + ", lightLayers=" + plan.lightLayersEnabled() + ")"
         ));
         return new Result(warnings, plan);
     }
