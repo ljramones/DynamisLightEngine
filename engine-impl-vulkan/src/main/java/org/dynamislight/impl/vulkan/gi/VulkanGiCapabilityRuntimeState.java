@@ -26,6 +26,11 @@ public final class VulkanGiCapabilityRuntimeState {
     private int probeGridWarnMinFrames = 2;
     private int probeGridWarnCooldownFrames = 120;
     private int probeGridPromotionReadyMinFrames = 4;
+    private int probeGridConfiguredCount = 8;
+    private int probeGridUpdateBudgetPerFrame = 4;
+    private double probeGridStreamingWarnMinCoverageRatio = 0.25;
+    private int probeGridStreamingWarnMinFrames = 2;
+    private int probeGridStreamingWarnCooldownFrames = 120;
     private double rtDetailWarnMinActiveRatio = 1.0;
     private int rtDetailWarnMinFrames = 2;
     private int rtDetailWarnCooldownFrames = 120;
@@ -54,6 +59,13 @@ public final class VulkanGiCapabilityRuntimeState {
     private boolean probeGridEnvelopeBreachedLastFrame;
     private int probeGridHighStreak;
     private int probeGridWarnCooldownRemaining;
+    private int probeGridConfiguredCountLastFrame;
+    private int probeGridActiveCountLastFrame;
+    private int probeGridUpdatesLastFrame;
+    private double probeGridUpdateCoverageRatioLastFrame;
+    private boolean probeGridStreamingEnvelopeBreachedLastFrame;
+    private int probeGridStreamingHighStreak;
+    private int probeGridStreamingWarnCooldownRemaining;
     private boolean hybridExpectedLastFrame;
     private int hybridExpectedComponentCountLastFrame;
     private int hybridActiveComponentCountLastFrame;
@@ -94,6 +106,13 @@ public final class VulkanGiCapabilityRuntimeState {
         probeGridEnvelopeBreachedLastFrame = false;
         probeGridHighStreak = 0;
         probeGridWarnCooldownRemaining = 0;
+        probeGridConfiguredCountLastFrame = 0;
+        probeGridActiveCountLastFrame = 0;
+        probeGridUpdatesLastFrame = 0;
+        probeGridUpdateCoverageRatioLastFrame = 0.0;
+        probeGridStreamingEnvelopeBreachedLastFrame = false;
+        probeGridStreamingHighStreak = 0;
+        probeGridStreamingWarnCooldownRemaining = 0;
         hybridExpectedLastFrame = false;
         hybridExpectedComponentCountLastFrame = 0;
         hybridActiveComponentCountLastFrame = 0;
@@ -177,6 +196,41 @@ public final class VulkanGiCapabilityRuntimeState {
                 "vulkan.gi.probePromotionReadyMinFrames",
                 probeGridPromotionReadyMinFrames,
                 1,
+                100000
+        );
+        probeGridConfiguredCount = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeConfiguredCount",
+                probeGridConfiguredCount,
+                0,
+                100000
+        );
+        probeGridUpdateBudgetPerFrame = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeUpdateBudgetPerFrame",
+                probeGridUpdateBudgetPerFrame,
+                0,
+                100000
+        );
+        probeGridStreamingWarnMinCoverageRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe,
+                "vulkan.gi.probeStreamingWarnMinCoverageRatio",
+                probeGridStreamingWarnMinCoverageRatio,
+                0.0,
+                1.0
+        );
+        probeGridStreamingWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeStreamingWarnMinFrames",
+                probeGridStreamingWarnMinFrames,
+                1,
+                100000
+        );
+        probeGridStreamingWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeStreamingWarnCooldownFrames",
+                probeGridStreamingWarnCooldownFrames,
+                0,
                 100000
         );
         rtDetailWarnMinActiveRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
@@ -280,6 +334,45 @@ public final class VulkanGiCapabilityRuntimeState {
                 case ULTRA -> 3;
             };
         }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeConfiguredCount")) {
+            probeGridConfiguredCount = switch (resolved) {
+                case LOW -> 4;
+                case MEDIUM -> 8;
+                case HIGH -> 12;
+                case ULTRA -> 16;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeUpdateBudgetPerFrame")) {
+            probeGridUpdateBudgetPerFrame = switch (resolved) {
+                case LOW -> 1;
+                case MEDIUM -> 2;
+                case HIGH -> 4;
+                case ULTRA -> 6;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeStreamingWarnMinCoverageRatio")) {
+            probeGridStreamingWarnMinCoverageRatio = switch (resolved) {
+                case LOW -> 0.20;
+                case MEDIUM -> 0.25;
+                case HIGH -> 0.30;
+                case ULTRA -> 0.35;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeStreamingWarnMinFrames")) {
+            probeGridStreamingWarnMinFrames = switch (resolved) {
+                case LOW -> 3;
+                case MEDIUM -> 2;
+                case HIGH, ULTRA -> 1;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeStreamingWarnCooldownFrames")) {
+            probeGridStreamingWarnCooldownFrames = switch (resolved) {
+                case LOW -> 180;
+                case MEDIUM -> 120;
+                case HIGH -> 90;
+                case ULTRA -> 75;
+            };
+        }
         if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.rtWarnMinFrames")) {
             rtDetailWarnMinFrames = switch (resolved) {
                 case LOW -> 3;
@@ -358,8 +451,18 @@ public final class VulkanGiCapabilityRuntimeState {
                 && (configuredMode == GiMode.PROBE_GRID || configuredMode == GiMode.HYBRID_PROBE_SSGI_RT);
         probeGridActiveLastFrame = activeCapabilitiesLastFrame.contains("vulkan.gi.probe_grid");
         probeGridActiveRatioLastFrame = probeGridActiveLastFrame ? 1.0 : 0.0;
+        probeGridConfiguredCountLastFrame = probeGridExpectedLastFrame ? Math.max(0, probeGridConfiguredCount) : 0;
+        probeGridActiveCountLastFrame = probeGridActiveLastFrame ? probeGridConfiguredCountLastFrame : 0;
+        probeGridUpdatesLastFrame = probeGridActiveCountLastFrame > 0
+                ? Math.min(Math.max(0, probeGridUpdateBudgetPerFrame), probeGridActiveCountLastFrame)
+                : 0;
+        probeGridUpdateCoverageRatioLastFrame = probeGridActiveCountLastFrame > 0
+                ? ((double) probeGridUpdatesLastFrame / (double) probeGridActiveCountLastFrame)
+                : 1.0;
         probeGridEnvelopeBreachedLastFrame = probeGridExpectedLastFrame
                 && probeGridActiveRatioLastFrame < probeGridWarnMinActiveRatio;
+        probeGridStreamingEnvelopeBreachedLastFrame = probeGridExpectedLastFrame
+                && probeGridUpdateCoverageRatioLastFrame < probeGridStreamingWarnMinCoverageRatio;
         if (probeGridEnvelopeBreachedLastFrame) {
             probeGridHighStreak++;
             probeGridStableStreak = 0;
@@ -371,8 +474,16 @@ public final class VulkanGiCapabilityRuntimeState {
                 probeGridStableStreak = 0;
             }
         }
+        if (probeGridStreamingEnvelopeBreachedLastFrame) {
+            probeGridStreamingHighStreak++;
+        } else {
+            probeGridStreamingHighStreak = 0;
+        }
         if (probeGridWarnCooldownRemaining > 0) {
             probeGridWarnCooldownRemaining--;
+        }
+        if (probeGridStreamingWarnCooldownRemaining > 0) {
+            probeGridStreamingWarnCooldownRemaining--;
         }
         rtDetailExpectedLastFrame = configuredEnabled
                 && (configuredMode == GiMode.RTGI_SINGLE || configuredMode == GiMode.HYBRID_PROBE_SSGI_RT);
@@ -470,7 +581,29 @@ public final class VulkanGiCapabilityRuntimeState {
                             + ", probeGridWarnCooldownFrames=" + probeGridWarnCooldownFrames
                             + ", probeGridWarnCooldownRemaining=" + probeGridWarnCooldownRemaining
                             + ", probeGridStableStreak=" + probeGridStableStreak
-                            + ", probeGridPromotionReadyMinFrames=" + probeGridPromotionReadyMinFrames + ")"
+                            + ", probeGridPromotionReadyMinFrames=" + probeGridPromotionReadyMinFrames
+                            + ", probeConfiguredCount=" + probeGridConfiguredCountLastFrame
+                            + ", probeActiveCount=" + probeGridActiveCountLastFrame
+                            + ", probeUpdateBudgetPerFrame=" + probeGridUpdateBudgetPerFrame
+                            + ", probeUpdatesLastFrame=" + probeGridUpdatesLastFrame
+                            + ", probeUpdateCoverageRatio=" + probeGridUpdateCoverageRatioLastFrame
+                            + ", probeStreamingWarnMinCoverageRatio=" + probeGridStreamingWarnMinCoverageRatio
+                            + ", probeStreamingWarnMinFrames=" + probeGridStreamingWarnMinFrames
+                            + ", probeStreamingWarnCooldownFrames=" + probeGridStreamingWarnCooldownFrames
+                            + ", probeStreamingWarnCooldownRemaining=" + probeGridStreamingWarnCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_PROBE_GRID_STREAMING_POLICY_ACTIVE",
+                    "GI probe-grid streaming policy active (mode=" + modeLastFrame
+                            + ", probeConfiguredCount=" + probeGridConfiguredCountLastFrame
+                            + ", probeActiveCount=" + probeGridActiveCountLastFrame
+                            + ", probeUpdateBudgetPerFrame=" + probeGridUpdateBudgetPerFrame
+                            + ", probeUpdatesLastFrame=" + probeGridUpdatesLastFrame
+                            + ", probeUpdateCoverageRatio=" + probeGridUpdateCoverageRatioLastFrame
+                            + ", probeStreamingWarnMinCoverageRatio=" + probeGridStreamingWarnMinCoverageRatio
+                            + ", probeStreamingWarnMinFrames=" + probeGridStreamingWarnMinFrames
+                            + ", probeStreamingWarnCooldownFrames=" + probeGridStreamingWarnCooldownFrames
+                            + ", probeStreamingWarnCooldownRemaining=" + probeGridStreamingWarnCooldownRemaining + ")"
             ));
             warnings.add(new EngineWarning(
                     "GI_RT_DETAIL_POLICY_ACTIVE",
@@ -501,6 +634,9 @@ public final class VulkanGiCapabilityRuntimeState {
             boolean emitProbeGridBreach = probeGridEnvelopeBreachedLastFrame
                     && probeGridHighStreak >= probeGridWarnMinFrames
                     && probeGridWarnCooldownRemaining <= 0;
+            boolean emitProbeGridStreamingBreach = probeGridStreamingEnvelopeBreachedLastFrame
+                    && probeGridStreamingHighStreak >= probeGridStreamingWarnMinFrames
+                    && probeGridStreamingWarnCooldownRemaining <= 0;
             boolean emitRtDetailBreach = rtDetailEnvelopeBreachedLastFrame
                     && rtDetailHighStreak >= rtDetailWarnMinFrames
                     && rtDetailWarnCooldownRemaining <= 0;
@@ -530,6 +666,21 @@ public final class VulkanGiCapabilityRuntimeState {
                             + ", highStreak=" + probeGridHighStreak
                             + ", warnMinFrames=" + probeGridWarnMinFrames
                             + ", cooldownRemaining=" + probeGridWarnCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_PROBE_GRID_STREAMING_ENVELOPE",
+                    "GI probe-grid streaming envelope (mode=" + modeLastFrame
+                            + ", expected=" + probeGridExpectedLastFrame
+                            + ", configuredCount=" + probeGridConfiguredCountLastFrame
+                            + ", activeCount=" + probeGridActiveCountLastFrame
+                            + ", updateBudgetPerFrame=" + probeGridUpdateBudgetPerFrame
+                            + ", updatesLastFrame=" + probeGridUpdatesLastFrame
+                            + ", updateCoverageRatio=" + probeGridUpdateCoverageRatioLastFrame
+                            + ", warnMinCoverageRatio=" + probeGridStreamingWarnMinCoverageRatio
+                            + ", breached=" + probeGridStreamingEnvelopeBreachedLastFrame
+                            + ", highStreak=" + probeGridStreamingHighStreak
+                            + ", warnMinFrames=" + probeGridStreamingWarnMinFrames
+                            + ", cooldownRemaining=" + probeGridStreamingWarnCooldownRemaining + ")"
             ));
             warnings.add(new EngineWarning(
                     "GI_RT_DETAIL_ENVELOPE",
@@ -584,6 +735,18 @@ public final class VulkanGiCapabilityRuntimeState {
                                 + ", warnMinActiveRatio=" + probeGridWarnMinActiveRatio
                                 + ", highStreak=" + probeGridHighStreak
                                 + ", cooldownFrames=" + probeGridWarnCooldownFrames + ")"
+                ));
+            }
+            if (emitProbeGridStreamingBreach) {
+                probeGridStreamingWarnCooldownRemaining = probeGridStreamingWarnCooldownFrames;
+                warnings.add(new EngineWarning(
+                        "GI_PROBE_GRID_STREAMING_ENVELOPE_BREACH",
+                        "GI probe-grid streaming envelope breach (mode=" + modeLastFrame
+                                + ", expected=" + probeGridExpectedLastFrame
+                                + ", updateCoverageRatio=" + probeGridUpdateCoverageRatioLastFrame
+                                + ", warnMinCoverageRatio=" + probeGridStreamingWarnMinCoverageRatio
+                                + ", highStreak=" + probeGridStreamingHighStreak
+                                + ", cooldownFrames=" + probeGridStreamingWarnCooldownFrames + ")"
                 ));
             }
             if (emitRtDetailBreach) {
@@ -705,7 +868,17 @@ public final class VulkanGiCapabilityRuntimeState {
                 rtDetailPromotionReadyLastFrame,
                 probeGridStableStreak,
                 probeGridPromotionReadyMinFrames,
-                probeGridPromotionReadyLastFrame
+                probeGridPromotionReadyLastFrame,
+                probeGridConfiguredCountLastFrame,
+                probeGridActiveCountLastFrame,
+                probeGridUpdateBudgetPerFrame,
+                probeGridUpdatesLastFrame,
+                probeGridUpdateCoverageRatioLastFrame,
+                probeGridStreamingWarnMinCoverageRatio,
+                probeGridStreamingWarnMinFrames,
+                probeGridStreamingWarnCooldownFrames,
+                probeGridStreamingWarnCooldownRemaining,
+                probeGridStreamingEnvelopeBreachedLastFrame
         );
     }
 }

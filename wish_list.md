@@ -222,6 +222,7 @@ GI notes:
 - GI phase-2A now includes GI shader-module realization in composition (`resolveGiIndirect`) with mode-specific module declarations + descriptor-aligned bindings for `ssgi`, `probe_grid`, `rtgi_single`, and `hybrid_probe_ssgi_rt`.
 - GI runtime now emits probe-grid policy/envelope/promotion telemetry (`GI_PROBE_GRID_POLICY_ACTIVE`, `GI_PROBE_GRID_ENVELOPE`, `GI_PROBE_GRID_ENVELOPE_BREACH`, `GI_PROBE_GRID_PROMOTION_READY`) with tier-default/override thresholds.
 - Typed GI promotion diagnostics now expose probe-grid expected/active ratio, cooldown/streak envelope state, and probe-grid promotion readiness for parser-free CI assertions.
+- GI runtime now emits probe-grid streaming/update cadence telemetry (`GI_PROBE_GRID_STREAMING_POLICY_ACTIVE`, `GI_PROBE_GRID_STREAMING_ENVELOPE`, `GI_PROBE_GRID_STREAMING_ENVELOPE_BREACH`) with configurable coverage/streak/cooldown thresholds and typed diagnostics fields (`probeGridConfiguredCount`, `probeGridActiveCount`, `probeGridUpdateBudgetPerFrame`, `probeGridUpdatesLastFrame`, `probeGridUpdateCoverageRatio`).
 - GI phase-2B probe-grid gating now has a dedicated lockdown runner (`scripts/gi_phase2_probe_lockdown.sh`) and CI lane (`gi-phase2-probe-lockdown`).
 - GI runtime now emits RT-detail policy/envelope/promotion telemetry (`GI_RT_DETAIL_POLICY_ACTIVE`, `GI_RT_DETAIL_ENVELOPE`, `GI_RT_DETAIL_ENVELOPE_BREACH`, `GI_RT_DETAIL_PROMOTION_READY`) with tier-default/override thresholds.
 - GI runtime now emits explicit RT-detail fallback-chain telemetry (`GI_RT_DETAIL_FALLBACK_CHAIN`) for RT-active vs SSGI-fallback visibility in mode diagnostics.
@@ -230,6 +231,7 @@ GI notes:
 - GI phase-2C RT-detail gating now has a dedicated lockdown runner (`scripts/gi_phase2_rt_lockdown.sh`) and CI lane (`gi-phase2-rt-lockdown`).
 - GI phase-2 now emits consolidated readiness telemetry (`GI_PHASE2_PROMOTION_READY`) with typed diagnostics state (`phase2PromotionReady`) derived from expected SSGI/probe/RT lane readiness.
 - GI phase-2 now has a full lockdown bundle runner (`scripts/gi_phase2_lockdown_full.sh`) and CI lane (`gi-phase2-lockdown-full`) covering SSGI + probe-grid + RT-detail gates.
+- GI phase-2A integration coverage now includes disocclusion, thin-geometry, and camera-motion stability scenes in `VulkanGiCapabilityPlanIntegrationTest`.
 
 ## Lighting
 

@@ -9,13 +9,13 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 - [x] Add SSGI envelope warnings (quality/perf) + cooldown/streak gating (`GI_SSGI_ENVELOPE`, `GI_SSGI_ENVELOPE_BREACH`, `GI_SSGI_PROMOTION_READY`).
 - [x] Add typed SSGI diagnostics accessor fields under `GiPromotionDiagnostics` (expected/active ratio, thresholds, cooldown/streak, promotion state).
 - [x] Add dedicated SSGI lockdown runner (`scripts/gi_phase2_ssgi_lockdown.sh`) and CI lane (`gi-phase2-ssgi-lockdown`) for phase-2A gating tests.
-- [ ] Add integration scenes for disocclusion, thin geometry, and camera-motion stability.
+- [x] Add integration scenes for disocclusion, thin geometry, and camera-motion stability.
 - [x] Add lockdown lane for SSGI promotion (`scripts/gi_phase2_ssgi_lockdown.sh`).
 
 ## Phase 2B: Probe Grid Path
 
-- [ ] Add probe-grid resource lifecycle (persistent probe volume texture/buffer + update cadence).
-- [ ] Add probe-grid shading hook integration for indirect diffuse.
+- [x] Add probe-grid resource lifecycle (persistent probe volume buffer + runtime update cadence telemetry/envelope policy).
+- [x] Add probe-grid shading hook integration for indirect diffuse.
 - [x] Add probe-grid streaming/update envelope diagnostics and breach warnings (`GI_PROBE_GRID_ENVELOPE`, `GI_PROBE_GRID_ENVELOPE_BREACH`, `GI_PROBE_GRID_PROMOTION_READY`).
 - [x] Add typed probe-grid diagnostics for parser-free CI assertions (extended `GiPromotionDiagnostics` probe-grid fields).
 - [x] Add lockdown lane for probe-grid promotion (`scripts/gi_phase2_probe_lockdown.sh`) + CI lane (`gi-phase2-probe-lockdown`).
@@ -36,6 +36,6 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 
 ## Exit Criteria
 
-- [ ] All GI phase-2 lockdown scripts pass in CI.
-- [ ] No structure guardrail violations.
-- [ ] `wish_list.md` GI rows updated with Vulkan-scope status and caveats.
+- [x] All GI phase-2 lockdown scripts pass in CI (lanes wired) and in local replay (`scripts/gi_phase2_lockdown_full.sh`).
+- [x] No structure guardrail violations.
+- [x] `wish_list.md` GI rows updated with Vulkan-scope status and caveats.

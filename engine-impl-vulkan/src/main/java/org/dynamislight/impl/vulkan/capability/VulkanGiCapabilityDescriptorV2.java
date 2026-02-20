@@ -243,8 +243,11 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         "GI_SSGI_ENVELOPE_BREACH",
                         "GI_SSGI_PROMOTION_READY",
                         "GI_PROBE_GRID_POLICY_ACTIVE",
+                        "GI_PROBE_GRID_STREAMING_POLICY_ACTIVE",
                         "GI_PROBE_GRID_ENVELOPE",
                         "GI_PROBE_GRID_ENVELOPE_BREACH",
+                        "GI_PROBE_GRID_STREAMING_ENVELOPE",
+                        "GI_PROBE_GRID_STREAMING_ENVELOPE_BREACH",
                         "GI_PROBE_GRID_PROMOTION_READY",
                         "GI_RT_DETAIL_POLICY_ACTIVE",
                         "GI_RT_DETAIL_FALLBACK_CHAIN",
@@ -300,27 +303,49 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
     private static String giModuleBody(RenderFeatureMode active) {
         return switch (sanitizeMode(active).id()) {
             case "probe_grid" -> """
+                    float giHash12(vec2 p) {
+                        vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+                        p3 += dot(p3, p3.yzx + 33.33);
+                        return fract((p3.x + p3.y) * p3.z);
+                    }
                     vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
-                        float probeContribution = 0.12;
-                        return vec4(baseColor.rgb * (1.0 + probeContribution), baseColor.a);
+                        float probeBand = smoothstep(0.15, 0.85, giHash12(uv * 64.0));
+                        float probeContribution = mix(0.06, 0.16, probeBand);
+                        vec3 lifted = baseColor.rgb * (1.0 + probeContribution);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;
             case "rtgi_single" -> """
                     vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
-                        float rtContribution = 0.15;
-                        return vec4(baseColor.rgb * (1.0 + rtContribution), baseColor.a);
+                        float centerWeight = 1.0 - clamp(length((uv - vec2(0.5)) * 1.6), 0.0, 1.0);
+                        float rtContribution = mix(0.08, 0.20, centerWeight);
+                        vec3 lifted = baseColor.rgb * (1.0 + rtContribution);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;
             case "hybrid_probe_ssgi_rt" -> """
+                    float giHash12(vec2 p) {
+                        vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+                        p3 += dot(p3, p3.yzx + 33.33);
+                        return fract((p3.x + p3.y) * p3.z);
+                    }
                     vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
-                        float hybridContribution = 0.18;
-                        return vec4(baseColor.rgb * (1.0 + hybridContribution), baseColor.a);
+                        float probeBand = smoothstep(0.10, 0.90, giHash12(uv * 48.0));
+                        float centerWeight = 1.0 - clamp(length((uv - vec2(0.5)) * 1.5), 0.0, 1.0);
+                        float ssgiContribution = 0.07;
+                        float probeContribution = mix(0.04, 0.10, probeBand);
+                        float rtContribution = mix(0.03, 0.09, centerWeight);
+                        float hybridContribution = ssgiContribution + probeContribution + rtContribution;
+                        vec3 lifted = baseColor.rgb * (1.0 + hybridContribution);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;
             default -> """
                     vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
-                        float ssgiContribution = 0.10;
-                        return vec4(baseColor.rgb * (1.0 + ssgiContribution), baseColor.a);
+                        float horizon = clamp(1.0 - abs(uv.y - 0.5) * 2.0, 0.0, 1.0);
+                        float ssgiContribution = mix(0.05, 0.14, horizon);
+                        vec3 lifted = baseColor.rgb * (1.0 + ssgiContribution);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;
         };

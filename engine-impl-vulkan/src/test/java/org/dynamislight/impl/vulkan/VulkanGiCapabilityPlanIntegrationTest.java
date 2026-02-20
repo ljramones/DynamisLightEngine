@@ -50,8 +50,10 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_PROMOTION_READY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_STREAMING_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_STREAMING_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_FALLBACK_CHAIN".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_ENVELOPE".equals(w.code())));
@@ -75,6 +77,9 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(promotion.probeGridExpected());
             assertFalse(promotion.probeGridEnvelopeBreachedLastFrame());
             assertTrue(promotion.probeGridPromotionReady());
+            assertTrue(promotion.probeGridConfiguredCount() > 0);
+            assertTrue(promotion.probeGridUpdateBudgetPerFrame() >= 0);
+            assertTrue(promotion.probeGridUpdateCoverageRatio() >= 0.0);
             assertTrue(promotion.rtDetailExpected());
             assertFalse(promotion.rtDetailActive());
             assertTrue(promotion.rtDetailEnvelopeBreachedLastFrame());
@@ -210,7 +215,12 @@ class VulkanGiCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.gi.rtWarnMinActiveRatio", "0.82"),
                     Map.entry("vulkan.gi.rtWarnMinFrames", "9"),
                     Map.entry("vulkan.gi.rtWarnCooldownFrames", "45"),
-                    Map.entry("vulkan.gi.rtPromotionReadyMinFrames", "8")
+                    Map.entry("vulkan.gi.rtPromotionReadyMinFrames", "8"),
+                    Map.entry("vulkan.gi.probeStreamingWarnMinCoverageRatio", "0.66"),
+                    Map.entry("vulkan.gi.probeStreamingWarnMinFrames", "5"),
+                    Map.entry("vulkan.gi.probeStreamingWarnCooldownFrames", "55"),
+                    Map.entry("vulkan.gi.probeUpdateBudgetPerFrame", "7"),
+                    Map.entry("vulkan.gi.probeConfiguredCount", "13")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene());
             runtime.render();
@@ -228,6 +238,108 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertEquals(9, promotion.rtDetailWarnMinFrames());
             assertEquals(45, promotion.rtDetailWarnCooldownFrames());
             assertEquals(8, promotion.rtDetailPromotionReadyMinFrames());
+            assertEquals(0.66, promotion.probeGridStreamingWarnMinCoverageRatio(), 1e-9);
+            assertEquals(5, promotion.probeGridStreamingWarnMinFrames());
+            assertEquals(55, promotion.probeGridStreamingWarnCooldownFrames());
+            assertEquals(7, promotion.probeGridUpdateBudgetPerFrame());
+            assertEquals(0, promotion.probeGridConfiguredCount());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void ssgiDisocclusionSceneMaintainsEnvelopeUnderRelaxedThresholds() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "ssgi"),
+                    Map.entry("vulkan.gi.ssgiWarnMinFrames", "1"),
+                    Map.entry("vulkan.gi.ssgiWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.gi.ssgiWarnMinActiveRatio", "1.0")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(disocclusionScene());
+            EngineFrameResult frameA = runtime.render();
+            EngineFrameResult frameB = runtime.render();
+            assertTrue(frameA.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE".equals(w.code())));
+            assertFalse(frameB.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE_BREACH".equals(w.code())));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void ssgiThinGeometrySceneMaintainsEnvelopeUnderRelaxedThresholds() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "ssgi"),
+                    Map.entry("vulkan.gi.ssgiWarnMinFrames", "1"),
+                    Map.entry("vulkan.gi.ssgiWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.gi.ssgiWarnMinActiveRatio", "1.0")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(thinGeometryScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE_BREACH".equals(w.code())));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void ssgiCameraMotionSceneMaintainsEnvelopeAcrossSceneReloads() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "ssgi"),
+                    Map.entry("vulkan.gi.ssgiWarnMinFrames", "1"),
+                    Map.entry("vulkan.gi.ssgiWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.gi.ssgiWarnMinActiveRatio", "1.0")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(cameraMotionScene(0.0f));
+            EngineFrameResult frameA = runtime.render();
+            runtime.loadScene(cameraMotionScene(1.5f));
+            EngineFrameResult frameB = runtime.render();
+            runtime.loadScene(cameraMotionScene(3.0f));
+            EngineFrameResult frameC = runtime.render();
+            assertTrue(frameA.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE".equals(w.code())));
+            assertTrue(frameB.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE".equals(w.code())));
+            assertTrue(frameC.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE".equals(w.code())));
+            assertFalse(frameC.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE_BREACH".equals(w.code())));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void probeGridStreamingEnvelopeBreachesWhenUpdateCoverageTooLow() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "probe_grid"),
+                    Map.entry("vulkan.gi.probeConfiguredCount", "24"),
+                    Map.entry("vulkan.gi.probeUpdateBudgetPerFrame", "1"),
+                    Map.entry("vulkan.gi.probeStreamingWarnMinCoverageRatio", "0.40"),
+                    Map.entry("vulkan.gi.probeStreamingWarnMinFrames", "1"),
+                    Map.entry("vulkan.gi.probeStreamingWarnCooldownFrames", "0")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_STREAMING_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_STREAMING_ENVELOPE_BREACH".equals(w.code())));
+            var promotion = runtime.giPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.probeGridExpected());
+            assertTrue(promotion.probeGridStreamingEnvelopeBreachedLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -249,10 +361,51 @@ class VulkanGiCapabilityPlanIntegrationTest {
     }
 
     private static SceneDescriptor validScene() {
-        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
-        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
-        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
-        MaterialDesc material = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        return sceneWithCameraXOffset("gi-plan-scene", 0.0f, List.of(
+                new MeshDesc("mesh", "xform", "mat", "mesh.glb")
+        ));
+    }
+
+    private static SceneDescriptor disocclusionScene() {
+        return sceneWithCameraXOffset("gi-disocclusion-scene", -0.8f, List.of(
+                new MeshDesc("mesh_fg", "xform_fg", "mat_fg", "mesh_fg.glb"),
+                new MeshDesc("mesh_bg", "xform_bg", "mat_bg", "mesh_bg.glb")
+        ));
+    }
+
+    private static SceneDescriptor thinGeometryScene() {
+        return sceneWithCameraXOffset("gi-thin-geometry-scene", 0.2f, List.of(
+                new MeshDesc("mesh_thin_a", "xform_thin_a", "mat_thin", "thin_a.glb"),
+                new MeshDesc("mesh_thin_b", "xform_thin_b", "mat_thin", "thin_b.glb"),
+                new MeshDesc("mesh_fill", "xform_fill", "mat_fill", "fill.glb")
+        ));
+    }
+
+    private static SceneDescriptor cameraMotionScene(float cameraX) {
+        return sceneWithCameraXOffset("gi-camera-motion-scene-" + cameraX, cameraX, List.of(
+                new MeshDesc("mesh_motion", "xform_motion", "mat_motion", "motion.glb")
+        ));
+    }
+
+    private static SceneDescriptor sceneWithCameraXOffset(String sceneId, float cameraX, List<MeshDesc> meshes) {
+        CameraDesc movedCamera = new CameraDesc("cam", new Vec3(cameraX, 0, 5), new Vec3(cameraX, 0, 0), 60f, 0.1f, 100f);
+        List<TransformDesc> transforms = List.of(
+                new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1)),
+                new TransformDesc("xform_fg", new Vec3(-0.7f, 0, -0.4f), new Vec3(0, 0, 0), new Vec3(1, 1, 1)),
+                new TransformDesc("xform_bg", new Vec3(0.7f, 0, -1.8f), new Vec3(0, 0, 0), new Vec3(1, 1, 1)),
+                new TransformDesc("xform_thin_a", new Vec3(-0.3f, 0, -0.9f), new Vec3(0, 0, 0), new Vec3(0.08f, 1.0f, 1.0f)),
+                new TransformDesc("xform_thin_b", new Vec3(0.35f, 0, -1.1f), new Vec3(0, 0, 0), new Vec3(0.08f, 1.0f, 1.0f)),
+                new TransformDesc("xform_fill", new Vec3(0.0f, -0.2f, -2.0f), new Vec3(0, 0, 0), new Vec3(2.0f, 0.4f, 2.0f)),
+                new TransformDesc("xform_motion", new Vec3(0.0f, 0, -1.3f), new Vec3(0, 0, 0), new Vec3(1, 1, 1))
+        );
+        List<MaterialDesc> materials = List.of(
+                new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null),
+                new MaterialDesc("mat_fg", new Vec3(0.8f, 0.9f, 1.0f), 0.0f, 0.45f, null, null),
+                new MaterialDesc("mat_bg", new Vec3(0.9f, 0.85f, 0.8f), 0.0f, 0.55f, null, null),
+                new MaterialDesc("mat_thin", new Vec3(0.75f, 0.95f, 0.75f), 0.0f, 0.35f, null, null),
+                new MaterialDesc("mat_fill", new Vec3(0.7f, 0.7f, 0.75f), 0.0f, 0.6f, null, null),
+                new MaterialDesc("mat_motion", new Vec3(0.95f, 0.8f, 0.75f), 0.0f, 0.5f, null, null)
+        );
         LightDesc light = new LightDesc(
                 "light",
                 new Vec3(0, 2, 0),
@@ -266,12 +419,12 @@ class VulkanGiCapabilityPlanIntegrationTest {
         FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
 
         return new SceneDescriptor(
-                "gi-plan-scene",
-                List.of(camera),
+                sceneId,
+                List.of(movedCamera),
                 "cam",
-                List.of(transform),
-                List.of(mesh),
-                List.of(material),
+                transforms,
+                meshes,
+                materials,
                 List.of(light),
                 environment,
                 fog,

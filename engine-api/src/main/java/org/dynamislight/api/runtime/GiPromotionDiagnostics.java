@@ -45,7 +45,17 @@ public record GiPromotionDiagnostics(
         boolean rtDetailPromotionReady,
         int probeGridStableStreak,
         int probeGridPromotionReadyMinFrames,
-        boolean probeGridPromotionReady
+        boolean probeGridPromotionReady,
+        int probeGridConfiguredCount,
+        int probeGridActiveCount,
+        int probeGridUpdateBudgetPerFrame,
+        int probeGridUpdatesLastFrame,
+        double probeGridUpdateCoverageRatio,
+        double probeGridStreamingWarnMinCoverageRatio,
+        int probeGridStreamingWarnMinFrames,
+        int probeGridStreamingWarnCooldownFrames,
+        int probeGridStreamingWarnCooldownRemaining,
+        boolean probeGridStreamingEnvelopeBreachedLastFrame
 ) {
     public GiPromotionDiagnostics {
         giMode = giMode == null ? "" : giMode;
@@ -72,6 +82,15 @@ public record GiPromotionDiagnostics(
         rtDetailPromotionReadyMinFrames = Math.max(1, rtDetailPromotionReadyMinFrames);
         probeGridStableStreak = Math.max(0, probeGridStableStreak);
         probeGridPromotionReadyMinFrames = Math.max(1, probeGridPromotionReadyMinFrames);
+        probeGridConfiguredCount = Math.max(0, probeGridConfiguredCount);
+        probeGridActiveCount = Math.max(0, probeGridActiveCount);
+        probeGridUpdateBudgetPerFrame = Math.max(0, probeGridUpdateBudgetPerFrame);
+        probeGridUpdatesLastFrame = Math.max(0, probeGridUpdatesLastFrame);
+        probeGridUpdateCoverageRatio = clamp01(probeGridUpdateCoverageRatio);
+        probeGridStreamingWarnMinCoverageRatio = clamp01(probeGridStreamingWarnMinCoverageRatio);
+        probeGridStreamingWarnMinFrames = Math.max(1, probeGridStreamingWarnMinFrames);
+        probeGridStreamingWarnCooldownFrames = Math.max(0, probeGridStreamingWarnCooldownFrames);
+        probeGridStreamingWarnCooldownRemaining = Math.max(0, probeGridStreamingWarnCooldownRemaining);
     }
 
     public static GiPromotionDiagnostics unavailable() {
@@ -117,6 +136,16 @@ public record GiPromotionDiagnostics(
                 false,
                 0,
                 1,
+                false,
+                0,
+                0,
+                0,
+                0,
+                0.0,
+                1.0,
+                1,
+                0,
+                0,
                 false
         );
     }
