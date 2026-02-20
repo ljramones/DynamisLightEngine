@@ -217,14 +217,14 @@ GI notes:
 - Directional lights (sun, moon, with atmosphere interaction) — `In`
 - Point lights (omni, attenuated, variable radius) — `In`
 - Spot lights (cone, inner/outer angle, projected texture) — `In`
-- Area lights (rect, disc, tube — LTC or approximate) — `Not In Yet`
-- IES light profiles (real-world photometric data) — `Not In Yet`
+- Area lights (rect, disc, tube — LTC or approximate) — `Partial`
+- IES light profiles (real-world photometric data) — `Partial`
 - Emissive mesh lights (contribute to direct or GI budget) — `Partial`
-- Light cookies / projector textures — `Not In Yet`
-- Volumetric light shafts (god rays, per-light opt-in) — `Not In Yet`
-- Light clustering (screen-space tile, 3D cluster, or hybrid) — `Not In Yet`
+- Light cookies / projector textures — `Partial`
+- Volumetric light shafts (god rays, per-light opt-in) — `Partial`
+- Light clustering (screen-space tile, 3D cluster, or hybrid) — `Partial`
 - Light prioritization / budget (per-tier max active lights) — `Partial`
-- Light layers / channels (selective light-to-object assignment) — `Not In Yet`
+- Light layers / channels (selective light-to-object assignment) — `Partial`
 - Physically-based light units (lumens, lux, candela, EV) — `Partial`
 
 Lighting notes:
