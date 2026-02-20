@@ -27,11 +27,17 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 - [x] Add hybrid composition lane (probe + SSGI + RT detail) envelope diagnostics (`GI_HYBRID_COMPOSITION`, `GI_HYBRID_COMPOSITION_BREACH`).
 - [x] Add lockdown lane for RT/hybrid GI promotion (`scripts/gi_phase2_rt_lockdown.sh`) + CI lane (`gi-phase2-rt-lockdown`).
 
+## Phase 2D: RT Multi Lane
+
+- [x] Add RT GI multi-bounce capability mode (`rtgi_multi`) with planner/runtime fallback behavior.
+- [x] Add RT-multi policy/envelope/promotion warnings (`GI_RT_MULTI_POLICY_ACTIVE`, `GI_RT_MULTI_ENVELOPE`, `GI_RT_MULTI_ENVELOPE_BREACH`, `GI_RT_MULTI_PROMOTION_READY`).
+- [x] Add lockdown lane for RT-multi GI promotion (`scripts/gi_phase2_rt_multi_lockdown.sh`) + CI lane (`gi-phase2-rt-multi-lockdown`).
+
 ## Phase 2D: Promotion + CI
 
 - [x] Add consolidated GI phase-2 promotion warning (`GI_PHASE2_PROMOTION_READY`) for SSGI/probe/RT-hybrid.
 - [x] Expose typed consolidated GI promotion diagnostics (`phase2PromotionReady` in `GiPromotionDiagnostics`).
-- [x] Add full GI phase-2 lockdown bundle (`scripts/gi_phase2_lockdown_full.sh`).
+- [x] Add full GI phase-2 lockdown bundle (`scripts/gi_phase2_lockdown_full.sh`) including RT-multi lane.
 - [x] Add CI lanes for SSGI, probe, RT, and full GI phase-2 bundle.
 
 ## Exit Criteria

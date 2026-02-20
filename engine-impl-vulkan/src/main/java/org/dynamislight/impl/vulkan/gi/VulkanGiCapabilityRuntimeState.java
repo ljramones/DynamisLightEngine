@@ -621,6 +621,21 @@ public final class VulkanGiCapabilityRuntimeState {
                             + ", rtDetailStableStreak=" + rtDetailStableStreak
                             + ", rtDetailPromotionReadyMinFrames=" + rtDetailPromotionReadyMinFrames + ")"
             ));
+            if (configuredMode == GiMode.RTGI_MULTI) {
+                warnings.add(new EngineWarning(
+                        "GI_RT_MULTI_POLICY_ACTIVE",
+                        "GI RT-multi policy active (mode=" + modeLastFrame
+                                + ", rtDetailActive=" + rtDetailActiveLastFrame
+                                + ", rtDetailExpected=" + rtDetailExpectedLastFrame
+                                + ", rtDetailActiveRatio=" + rtDetailActiveRatioLastFrame
+                                + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                                + ", warnMinFrames=" + rtDetailWarnMinFrames
+                                + ", warnCooldownFrames=" + rtDetailWarnCooldownFrames
+                                + ", warnCooldownRemaining=" + rtDetailWarnCooldownRemaining
+                                + ", stableStreak=" + rtDetailStableStreak
+                                + ", promotionReadyMinFrames=" + rtDetailPromotionReadyMinFrames + ")"
+                ));
+            }
             String rtFallbackChain = rtDetailActiveLastFrame
                     ? "rt_detail_active"
                     : (rtFallbackActiveLastFrame ? "ssgi_fallback" : "disabled");
@@ -697,6 +712,20 @@ public final class VulkanGiCapabilityRuntimeState {
                             + ", warnMinFrames=" + rtDetailWarnMinFrames
                             + ", cooldownRemaining=" + rtDetailWarnCooldownRemaining + ")"
             ));
+            if (configuredMode == GiMode.RTGI_MULTI) {
+                warnings.add(new EngineWarning(
+                        "GI_RT_MULTI_ENVELOPE",
+                        "GI RT-multi envelope (mode=" + modeLastFrame
+                                + ", expected=" + rtDetailExpectedLastFrame
+                                + ", active=" + rtDetailActiveLastFrame
+                                + ", activeRatio=" + rtDetailActiveRatioLastFrame
+                                + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                                + ", breached=" + rtDetailEnvelopeBreachedLastFrame
+                                + ", highStreak=" + rtDetailHighStreak
+                                + ", warnMinFrames=" + rtDetailWarnMinFrames
+                                + ", cooldownRemaining=" + rtDetailWarnCooldownRemaining + ")"
+                ));
+            }
             warnings.add(new EngineWarning(
                     "GI_HYBRID_COMPOSITION",
                     "GI hybrid composition (mode=" + modeLastFrame
@@ -763,6 +792,17 @@ public final class VulkanGiCapabilityRuntimeState {
                                 + ", highStreak=" + rtDetailHighStreak
                                 + ", cooldownFrames=" + rtDetailWarnCooldownFrames + ")"
                 ));
+                if (configuredMode == GiMode.RTGI_MULTI) {
+                    warnings.add(new EngineWarning(
+                            "GI_RT_MULTI_ENVELOPE_BREACH",
+                            "GI RT-multi envelope breach (mode=" + modeLastFrame
+                                    + ", expected=" + rtDetailExpectedLastFrame
+                                    + ", activeRatio=" + rtDetailActiveRatioLastFrame
+                                    + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                                    + ", highStreak=" + rtDetailHighStreak
+                                    + ", cooldownFrames=" + rtDetailWarnCooldownFrames + ")"
+                    ));
+                }
             }
             if (emitHybridBreach) {
                 hybridWarnCooldownRemaining = hybridWarnCooldownFrames;
@@ -791,6 +831,14 @@ public final class VulkanGiCapabilityRuntimeState {
                                 + ", stableStreak=" + rtDetailStableStreak
                                 + ", minFrames=" + rtDetailPromotionReadyMinFrames + ")"
                 ));
+                if (configuredMode == GiMode.RTGI_MULTI) {
+                    warnings.add(new EngineWarning(
+                            "GI_RT_MULTI_PROMOTION_READY",
+                            "GI RT-multi promotion ready (mode=" + modeLastFrame
+                                    + ", stableStreak=" + rtDetailStableStreak
+                                    + ", minFrames=" + rtDetailPromotionReadyMinFrames + ")"
+                    ));
+                }
             }
             if (promotionReadyLastFrame) {
                 warnings.add(new EngineWarning(

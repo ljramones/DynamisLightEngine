@@ -228,11 +228,13 @@ GI notes:
 - GI runtime now emits RT-detail policy/envelope/promotion telemetry (`GI_RT_DETAIL_POLICY_ACTIVE`, `GI_RT_DETAIL_ENVELOPE`, `GI_RT_DETAIL_ENVELOPE_BREACH`, `GI_RT_DETAIL_PROMOTION_READY`) with tier-default/override thresholds.
 - GI runtime now emits explicit RT-detail fallback-chain telemetry (`GI_RT_DETAIL_FALLBACK_CHAIN`) for RT-active vs SSGI-fallback visibility in mode diagnostics.
 - GI now supports explicit `rtgi_multi` mode in contract/planner/runtime diagnostics, with ULTRA+RT gating and deterministic fallback to `ssgi` when unavailable.
+- GI runtime now emits RT-multi-specific policy/envelope/promotion telemetry (`GI_RT_MULTI_POLICY_ACTIVE`, `GI_RT_MULTI_ENVELOPE`, `GI_RT_MULTI_ENVELOPE_BREACH`, `GI_RT_MULTI_PROMOTION_READY`) when `rtgi_multi` is active.
 - GI runtime now emits hybrid composition envelope telemetry (`GI_HYBRID_COMPOSITION`, `GI_HYBRID_COMPOSITION_BREACH`) for expected-vs-active SSGI/probe/RT component coverage in hybrid mode.
 - Typed GI promotion diagnostics now expose RT-detail expected/active ratio, cooldown/streak envelope state, and RT-detail promotion readiness for parser-free CI assertions.
 - GI phase-2C RT-detail gating now has a dedicated lockdown runner (`scripts/gi_phase2_rt_lockdown.sh`) and CI lane (`gi-phase2-rt-lockdown`).
+- GI phase-2D RT-multi gating now has a dedicated lockdown runner (`scripts/gi_phase2_rt_multi_lockdown.sh`) and CI lane (`gi-phase2-rt-multi-lockdown`).
 - GI phase-2 now emits consolidated readiness telemetry (`GI_PHASE2_PROMOTION_READY`) with typed diagnostics state (`phase2PromotionReady`) derived from expected SSGI/probe/RT lane readiness.
-- GI phase-2 now has a full lockdown bundle runner (`scripts/gi_phase2_lockdown_full.sh`) and CI lane (`gi-phase2-lockdown-full`) covering SSGI + probe-grid + RT-detail gates.
+- GI phase-2 now has a full lockdown bundle runner (`scripts/gi_phase2_lockdown_full.sh`) and CI lane (`gi-phase2-lockdown-full`) covering SSGI + probe-grid + RT-detail + RT-multi gates.
 - GI phase-2A integration coverage now includes disocclusion, thin-geometry, and camera-motion stability scenes in `VulkanGiCapabilityPlanIntegrationTest`.
 
 ## Lighting

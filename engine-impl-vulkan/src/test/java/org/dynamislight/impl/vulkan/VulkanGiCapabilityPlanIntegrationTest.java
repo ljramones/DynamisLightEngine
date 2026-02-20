@@ -179,6 +179,9 @@ class VulkanGiCapabilityPlanIntegrationTest {
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_FALLBACK_CHAIN".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_MULTI_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_MULTI_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_MULTI_ENVELOPE_BREACH".equals(w.code())));
             var promotion = runtime.giPromotionDiagnostics();
             assertTrue(promotion.available());
             assertTrue(promotion.rtFallbackActive());
