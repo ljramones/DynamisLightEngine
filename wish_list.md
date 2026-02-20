@@ -322,6 +322,7 @@ Post notes:
 - Post Phase A core lockdown is now available via `scripts/post_phaseA_core_lockdown.sh` and CI lane `post-phasea-core-lockdown`.
 - Vulkan now emits cinematic post promotion telemetry (`POST_CINEMATIC_POLICY_ACTIVE`, `POST_CINEMATIC_ENVELOPE`, `POST_CINEMATIC_ENVELOPE_BREACH`, `POST_CINEMATIC_PROMOTION_READY`) with typed diagnostics (`postCinematicPromotionDiagnostics()`).
 - Post Phase B cinematic lockdown is now available via `scripts/post_phaseB_cinematic_lockdown.sh` and CI lane `post-phaseb-cinematic-lockdown`.
+- Post full-lockdown bundle is now available via `scripts/post_lockdown_full.sh` and CI lane `post-lockdown-full`.
 
 ## PBR / Shading
 

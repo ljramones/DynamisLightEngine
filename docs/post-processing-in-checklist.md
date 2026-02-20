@@ -61,8 +61,8 @@ Exit gate:
 
 ## Phase C: Full Post Bundle Promotion
 
-- [ ] Add full-post lockdown bundle script (core + cinematic + stress/replay gates).
-- [ ] Add CI lane `post-lockdown-full` (workflow-dispatch + schedule coverage).
+- [x] Add full-post lockdown bundle script (core + cinematic + stress/replay gates) (`scripts/post_lockdown_full.sh`).
+- [x] Add CI lane `post-lockdown-full` (workflow-dispatch + schedule coverage).
 - [ ] Run bundle in strict mode and capture promotion artifacts.
 - [ ] Update `wish_list.md` post rows from `Partial` to `In` where gates pass.
 - [ ] Document Vulkan-scope caveat where backend parity is pending.
