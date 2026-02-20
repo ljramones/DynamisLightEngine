@@ -222,6 +222,7 @@ GI notes:
 - GI phase-2A now includes GI shader-module realization in composition (`resolveGiIndirect`) with mode-specific module declarations + descriptor-aligned bindings for `ssgi`, `probe_grid`, `rtgi_single`, and `hybrid_probe_ssgi_rt`.
 - GI runtime now emits probe-grid policy/envelope/promotion telemetry (`GI_PROBE_GRID_POLICY_ACTIVE`, `GI_PROBE_GRID_ENVELOPE`, `GI_PROBE_GRID_ENVELOPE_BREACH`, `GI_PROBE_GRID_PROMOTION_READY`) with tier-default/override thresholds.
 - Typed GI promotion diagnostics now expose probe-grid expected/active ratio, cooldown/streak envelope state, and probe-grid promotion readiness for parser-free CI assertions.
+- GI phase-2B probe-grid gating now has a dedicated lockdown runner (`scripts/gi_phase2_probe_lockdown.sh`) and CI lane (`gi-phase2-probe-lockdown`).
 
 ## Lighting
 
