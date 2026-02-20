@@ -74,7 +74,34 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertFalse(promotion.rtDetailActive());
             assertTrue(promotion.rtDetailEnvelopeBreachedLastFrame());
             assertFalse(promotion.rtDetailPromotionReady());
+            assertFalse(promotion.phase2PromotionReady());
             assertFalse(promotion.rtDetailActive());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsPhase2PromotionReadyWhenExpectedGiLanesAreStable() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "ssgi"),
+                    Map.entry("vulkan.gi.promotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.gi.ssgiPromotionReadyMinFrames", "1")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PHASE2_PROMOTION_READY".equals(w.code())));
+            var promotion = runtime.giPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.promotionReady());
+            assertTrue(promotion.ssgiPromotionReady());
+            assertFalse(promotion.probeGridExpected());
+            assertFalse(promotion.rtDetailExpected());
+            assertTrue(promotion.phase2PromotionReady());
         } finally {
             runtime.shutdown();
         }

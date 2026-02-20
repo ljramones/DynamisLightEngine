@@ -226,6 +226,8 @@ GI notes:
 - GI runtime now emits RT-detail policy/envelope/promotion telemetry (`GI_RT_DETAIL_POLICY_ACTIVE`, `GI_RT_DETAIL_ENVELOPE`, `GI_RT_DETAIL_ENVELOPE_BREACH`, `GI_RT_DETAIL_PROMOTION_READY`) with tier-default/override thresholds.
 - Typed GI promotion diagnostics now expose RT-detail expected/active ratio, cooldown/streak envelope state, and RT-detail promotion readiness for parser-free CI assertions.
 - GI phase-2C RT-detail gating now has a dedicated lockdown runner (`scripts/gi_phase2_rt_lockdown.sh`) and CI lane (`gi-phase2-rt-lockdown`).
+- GI phase-2 now emits consolidated readiness telemetry (`GI_PHASE2_PROMOTION_READY`) with typed diagnostics state (`phase2PromotionReady`) derived from expected SSGI/probe/RT lane readiness.
+- GI phase-2 now has a full lockdown bundle runner (`scripts/gi_phase2_lockdown_full.sh`) and CI lane (`gi-phase2-lockdown-full`) covering SSGI + probe-grid + RT-detail gates.
 
 ## Lighting
 

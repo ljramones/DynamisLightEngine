@@ -29,10 +29,10 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 
 ## Phase 2D: Promotion + CI
 
-- [ ] Add consolidated GI phase-2 promotion warning (`GI_PHASE2_PROMOTION_READY`) for SSGI/probe/RT-hybrid.
-- [ ] Expose typed consolidated GI promotion diagnostics.
-- [ ] Add full GI phase-2 lockdown bundle (`scripts/gi_phase2_lockdown_full.sh`).
-- [ ] Add CI lanes for SSGI, probe, RT, and full GI phase-2 bundle.
+- [x] Add consolidated GI phase-2 promotion warning (`GI_PHASE2_PROMOTION_READY`) for SSGI/probe/RT-hybrid.
+- [x] Expose typed consolidated GI promotion diagnostics (`phase2PromotionReady` in `GiPromotionDiagnostics`).
+- [x] Add full GI phase-2 lockdown bundle (`scripts/gi_phase2_lockdown_full.sh`).
+- [x] Add CI lanes for SSGI, probe, RT, and full GI phase-2 bundle.
 
 ## Exit Criteria
 

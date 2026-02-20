@@ -35,6 +35,7 @@ public final class VulkanGiCapabilityRuntimeState {
     private int probeGridStableStreak;
     private int rtDetailStableStreak;
     private boolean promotionReadyLastFrame;
+    private boolean phase2PromotionReadyLastFrame;
     private boolean ssgiPromotionReadyLastFrame;
     private boolean probeGridPromotionReadyLastFrame;
     private boolean rtDetailPromotionReadyLastFrame;
@@ -68,6 +69,7 @@ public final class VulkanGiCapabilityRuntimeState {
         probeGridStableStreak = 0;
         rtDetailStableStreak = 0;
         promotionReadyLastFrame = false;
+        phase2PromotionReadyLastFrame = false;
         ssgiPromotionReadyLastFrame = false;
         probeGridPromotionReadyLastFrame = false;
         rtDetailPromotionReadyLastFrame = false;
@@ -363,6 +365,10 @@ public final class VulkanGiCapabilityRuntimeState {
         rtDetailPromotionReadyLastFrame = rtDetailExpectedLastFrame
                 && !rtDetailEnvelopeBreachedLastFrame
                 && rtDetailStableStreak >= rtDetailPromotionReadyMinFrames;
+        phase2PromotionReadyLastFrame = promotionReadyLastFrame
+                && (!ssgiExpectedLastFrame || ssgiPromotionReadyLastFrame)
+                && (!probeGridExpectedLastFrame || probeGridPromotionReadyLastFrame)
+                && (!rtDetailExpectedLastFrame || rtDetailPromotionReadyLastFrame);
 
         if (warnings != null) {
             warnings.add(emission.warning());
@@ -535,6 +541,19 @@ public final class VulkanGiCapabilityRuntimeState {
                                 + ", rtFallbackActive=" + rtFallbackActiveLastFrame + ")"
                 ));
             }
+            if (phase2PromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "GI_PHASE2_PROMOTION_READY",
+                        "GI phase2 promotion ready (mode=" + modeLastFrame
+                                + ", promotionReady=" + promotionReadyLastFrame
+                                + ", ssgiExpected=" + ssgiExpectedLastFrame
+                                + ", ssgiReady=" + ssgiPromotionReadyLastFrame
+                                + ", probeExpected=" + probeGridExpectedLastFrame
+                                + ", probeReady=" + probeGridPromotionReadyLastFrame
+                                + ", rtExpected=" + rtDetailExpectedLastFrame
+                                + ", rtReady=" + rtDetailPromotionReadyLastFrame + ")"
+                ));
+            }
         }
     }
 
@@ -583,6 +602,7 @@ public final class VulkanGiCapabilityRuntimeState {
                 stableStreak,
                 promotionReadyMinFrames,
                 promotionReadyLastFrame,
+                phase2PromotionReadyLastFrame,
                 ssgiStableStreak,
                 ssgiPromotionReadyMinFrames,
                 ssgiPromotionReadyLastFrame,

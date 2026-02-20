@@ -250,7 +250,8 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         "GI_RT_DETAIL_ENVELOPE",
                         "GI_RT_DETAIL_ENVELOPE_BREACH",
                         "GI_RT_DETAIL_PROMOTION_READY",
-                        "GI_PROMOTION_READY"
+                        "GI_PROMOTION_READY",
+                        "GI_PHASE2_PROMOTION_READY"
                 ),
                 List.of(
                         "giCapabilityDiagnostics",
