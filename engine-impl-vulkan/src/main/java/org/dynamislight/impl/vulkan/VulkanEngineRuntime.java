@@ -46,6 +46,7 @@ import org.dynamislight.api.runtime.AaQualityPromotionDiagnostics;
 import org.dynamislight.api.runtime.GiCapabilityDiagnostics;
 import org.dynamislight.api.runtime.LightingBudgetDiagnostics;
 import org.dynamislight.api.runtime.LightingCapabilityDiagnostics;
+import org.dynamislight.api.runtime.LightingPromotionDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
@@ -1097,14 +1098,13 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
-    protected LightingCapabilityDiagnostics backendLightingCapabilityDiagnostics() {
-        return lightingCapabilityState.diagnostics();
-    }
+    protected LightingCapabilityDiagnostics backendLightingCapabilityDiagnostics() { return lightingCapabilityState.diagnostics(); }
 
     @Override
-    protected LightingBudgetDiagnostics backendLightingBudgetDiagnostics() {
-        return lightingCapabilityState.budgetDiagnostics();
-    }
+    protected LightingBudgetDiagnostics backendLightingBudgetDiagnostics() { return lightingCapabilityState.budgetDiagnostics(); }
+
+    @Override
+    protected LightingPromotionDiagnostics backendLightingPromotionDiagnostics() { return lightingCapabilityState.promotionDiagnostics(); }
 
     @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {

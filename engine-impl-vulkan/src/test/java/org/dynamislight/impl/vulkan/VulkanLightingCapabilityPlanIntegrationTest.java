@@ -36,11 +36,14 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.physicallyBasedUnitsEnabled", "true"),
                     Map.entry("vulkan.lighting.prioritizationEnabled", "true"),
                     Map.entry("vulkan.lighting.emissiveMeshEnabled", "true"),
-                    Map.entry("vulkan.lighting.localLightBudget", "2")
+                    Map.entry("vulkan.lighting.localLightBudget", "2"),
+                    Map.entry("vulkan.lighting.budgetWarnMinFrames", "1"),
+                    Map.entry("vulkan.lighting.budgetWarnCooldownFrames", "0")
             ), QualityTier.ULTRA), new NoopCallbacks());
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_CAPABILITY_MODE_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE_BREACH".equals(w.code())));
             var diagnostics = runtime.lightingCapabilityDiagnostics();
@@ -51,6 +54,27 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(budget.available());
             assertTrue(budget.envelopeBreached());
             assertTrue(budget.loadRatio() > 1.0);
+            var promotion = runtime.lightingPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.highStreak() >= 1);
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsPromotionReadyWhenBudgetIsStable() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.lighting.localLightBudget", "8"),
+                    Map.entry("vulkan.lighting.budgetPromotionReadyMinFrames", "1")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validSceneStableBudget());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_PROMOTION_READY".equals(w.code())));
+            assertTrue(runtime.lightingPromotionDiagnostics().promotionReady());
         } finally {
             runtime.shutdown();
         }
@@ -139,6 +163,41 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                 List.of(mesh),
                 List.of(material),
                 List.of(directional, pointA, pointB, spot),
+                environment,
+                fog,
+                List.of(),
+                null
+        );
+    }
+
+    private static SceneDescriptor validSceneStableBudget() {
+        CameraDesc camera = new CameraDesc("cam", new Vec3(0, 0, 5), new Vec3(0, 0, 0), 60f, 0.1f, 100f);
+        TransformDesc transform = new TransformDesc("xform", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
+        MeshDesc mesh = new MeshDesc("mesh", "xform", "mat", "mesh.glb");
+        MaterialDesc material = new MaterialDesc("mat", new Vec3(1, 1, 1), 0.0f, 0.5f, null, null);
+        LightDesc directional = new LightDesc(
+                "sun",
+                new Vec3(0, 6, 0),
+                new Vec3(1, 1, 1),
+                3.0f,
+                50f,
+                true,
+                new ShadowDesc(2048, 0.0015f, 1, 4),
+                LightType.DIRECTIONAL,
+                new Vec3(0, -1, 0),
+                15f,
+                30f
+        );
+        EnvironmentDesc environment = new EnvironmentDesc(new Vec3(0.1f, 0.1f, 0.1f), 0.2f, null);
+        FogDesc fog = new FogDesc(false, FogMode.NONE, new Vec3(0.5f, 0.5f, 0.5f), 0f, 0f, 0f, 0f, 0f, 0f);
+        return new SceneDescriptor(
+                "lighting-plan-scene-stable",
+                List.of(camera),
+                "cam",
+                List.of(transform),
+                List.of(mesh),
+                List.of(material),
+                List.of(directional),
                 environment,
                 fog,
                 List.of(),
