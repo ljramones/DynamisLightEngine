@@ -64,11 +64,12 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
     @Override
     public List<RenderPassDeclaration> declarePasses(QualityTier tier, RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
+        List<String> writes = writesFor(active);
         return List.of(new RenderPassDeclaration(
                 "gi_resolve",
                 RenderPassPhase.POST_MAIN,
                 readsFor(active),
-                List.of("gi_indirect"),
+                writes,
                 false,
                 false,
                 false,
@@ -148,6 +149,15 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         List.of("swapchainRecreated", "renderScaleChanged")
                 )
         ));
+        if ("ssgi".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
+            resources.add(new RenderResourceDeclaration(
+                    "gi_ssgi_buffer",
+                    RenderResourceType.ATTACHMENT,
+                    RenderResourceLifecycle.TRANSIENT,
+                    false,
+                    List.of("swapchainRecreated", "renderScaleChanged", "giModeChanged")
+            ));
+        }
         if ("probe_grid".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
             resources.add(new RenderResourceDeclaration(
                     "gi_probe_grid",
@@ -208,11 +218,19 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
     private static List<String> readsFor(RenderFeatureMode mode) {
         String id = sanitizeMode(mode).id();
         return switch (id) {
-            case "ssgi" -> List.of("scene_color", "scene_depth", "velocity");
-            case "probe_grid" -> List.of("scene_color", "scene_depth", "probe_grid");
-            case "rtgi_single" -> List.of("scene_color", "scene_depth", "rt_scene");
-            case "hybrid_probe_ssgi_rt" -> List.of("scene_color", "scene_depth", "probe_grid", "velocity", "rt_scene");
+            case "ssgi" -> List.of("scene_color", "scene_depth", "scene_normal", "velocity");
+            case "probe_grid" -> List.of("scene_color", "scene_depth", "scene_normal", "probe_grid");
+            case "rtgi_single" -> List.of("scene_color", "scene_depth", "scene_normal", "rt_scene");
+            case "hybrid_probe_ssgi_rt" -> List.of("scene_color", "scene_depth", "scene_normal", "probe_grid", "velocity", "rt_scene");
             default -> List.of("scene_color", "scene_depth");
+        };
+    }
+
+    private static List<String> writesFor(RenderFeatureMode mode) {
+        String id = sanitizeMode(mode).id();
+        return switch (id) {
+            case "ssgi", "hybrid_probe_ssgi_rt" -> List.of("gi_ssgi_buffer", "gi_indirect");
+            default -> List.of("gi_indirect");
         };
     }
 }

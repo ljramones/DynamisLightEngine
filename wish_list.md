@@ -215,6 +215,7 @@ GI notes:
   - checklists + lockdown runner: `docs/gi-phase1-contract-v2-checklist.md`, `docs/gi-phase2-execution-checklist.md`, `scripts/gi_phase1_contract_v2_lockdown.sh`
 - GI `Partial` rows currently represent Vulkan contract/planner/telemetry realization with promotion gating; production GI shading/denoise execution paths are the next phase.
 - Phase-C profile resolution now consumes runtime GI mode overrides so compiled profile identity includes `gi=...` and GI shader/descriptor composition can vary by active GI capability mode.
+- GI phase-2A contract scaffolding now declares explicit SSGI graph IO/resources (`scene_normal` input, `gi_ssgi_buffer` transient output) for `ssgi` and `hybrid_probe_ssgi_rt` modes.
 
 ## Lighting
 

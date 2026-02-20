@@ -4,7 +4,7 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 
 ## Phase 2A: SSGI Path
 
-- [ ] Add SSGI pass contribution with explicit graph IO contract (`scene_depth`, `scene_normal`, `scene_color` -> `gi_ssgi_buffer`).
+- [x] Add SSGI pass contribution with explicit graph IO contract (`scene_depth`, `scene_normal`, `scene_color` -> `gi_ssgi_buffer`) in GI v2 descriptor declarations.
 - [ ] Add SSGI shader module realization in post/lighting composition path.
 - [ ] Add SSGI envelope warnings (quality/perf) + cooldown/streak gating.
 - [ ] Add typed SSGI diagnostics accessor fields under `GiPromotionDiagnostics` or dedicated GI diagnostics record.
