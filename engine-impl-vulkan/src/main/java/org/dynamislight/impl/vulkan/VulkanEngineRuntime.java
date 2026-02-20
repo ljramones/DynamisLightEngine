@@ -1219,6 +1219,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.sharpening", "false")),
                 Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.volumetricFog", "false")),
                 Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.cloudShadows", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.screenSpaceBentNormals", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.lensFlare", "false")),
                 Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.panini", "false")),
                 Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.lensDistortion", "false"))
         );

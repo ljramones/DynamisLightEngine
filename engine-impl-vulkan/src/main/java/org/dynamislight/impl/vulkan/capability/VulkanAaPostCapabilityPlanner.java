@@ -74,6 +74,12 @@ public final class VulkanAaPostCapabilityPlanner {
         addPostModule(active, pruned, VulkanPostCapabilityId.CLOUD_SHADOWS,
                 safe.cloudShadowsEnabled(),
                 "cloud shadows disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.SCREEN_SPACE_BENT_NORMALS,
+                safe.screenSpaceBentNormalsEnabled(),
+                "screen-space bent normals disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.LENS_FLARE,
+                safe.lensFlareEnabled(),
+                "lens flare disabled");
         addPostModule(active, pruned, VulkanPostCapabilityId.PANINI,
                 safe.paniniEnabled(),
                 "panini projection disabled");
@@ -132,6 +138,8 @@ public final class VulkanAaPostCapabilityPlanner {
             boolean sharpeningEnabled,
             boolean volumetricFogEnabled,
             boolean cloudShadowsEnabled,
+            boolean screenSpaceBentNormalsEnabled,
+            boolean lensFlareEnabled,
             boolean paniniEnabled,
             boolean lensDistortionEnabled
     ) {
@@ -151,6 +159,8 @@ public final class VulkanAaPostCapabilityPlanner {
                     true,
                     true,
                     true,
+                    false,
+                    false,
                     false,
                     false,
                     false,

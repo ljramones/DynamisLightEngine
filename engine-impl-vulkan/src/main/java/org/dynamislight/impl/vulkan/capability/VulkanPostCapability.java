@@ -78,6 +78,8 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
                  SHARPENING,
                  VOLUMETRIC_FOG,
                  CLOUD_SHADOWS,
+                 SCREEN_SPACE_BENT_NORMALS,
+                 LENS_FLARE,
                  PANINI,
                  LENS_DISTORTION -> List.of("scene_color", "depth");
         };
@@ -107,6 +109,8 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
             case SHARPENING -> "applySharpening";
             case VOLUMETRIC_FOG -> "applyVolumetricFog";
             case CLOUD_SHADOWS -> "applyCloudShadows";
+            case SCREEN_SPACE_BENT_NORMALS -> "applyBentNormals";
+            case LENS_FLARE -> "applyLensFlare";
             case PANINI -> "applyPaniniProjection";
             case LENS_DISTORTION -> "applyLensDistortion";
         };
@@ -129,6 +133,8 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
             case SHARPENING -> "sharpening_unsharp";
             case VOLUMETRIC_FOG -> "volumetric_fog_froxel";
             case CLOUD_SHADOWS -> "cloud_shadows_projected";
+            case SCREEN_SPACE_BENT_NORMALS -> "bent_normals_ss";
+            case LENS_FLARE -> "lens_flare_screen_space";
             case PANINI -> "panini_projection";
             case LENS_DISTORTION -> "lens_distortion_barrel";
         };
@@ -186,7 +192,9 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
                     new RenderResourceRequirement("post_fx_uniforms", RenderResourceType.PUSH_CONSTANTS, RenderBindingFrequency.PER_PASS, 0, 0, true)
             );
             case VOLUMETRIC_FOG,
-                 CLOUD_SHADOWS -> List.of(
+                 CLOUD_SHADOWS,
+                 SCREEN_SPACE_BENT_NORMALS,
+                 LENS_FLARE -> List.of(
                     new RenderResourceRequirement("scene_color", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 0, true),
                     new RenderResourceRequirement("depth", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 2, true),
                     new RenderResourceRequirement("volumetric_uniforms", RenderResourceType.PUSH_CONSTANTS, RenderBindingFrequency.PER_PASS, 0, 0, true)
@@ -214,6 +222,8 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
                  SHARPENING,
                  VOLUMETRIC_FOG,
                  CLOUD_SHADOWS,
+                 SCREEN_SPACE_BENT_NORMALS,
+                 LENS_FLARE,
                  PANINI,
                  LENS_DISTORTION -> List.of(new RenderCapabilityDependency("vulkan.main", "scene_color", true));
         };

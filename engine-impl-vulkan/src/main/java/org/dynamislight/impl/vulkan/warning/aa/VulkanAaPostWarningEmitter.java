@@ -32,6 +32,8 @@ public final class VulkanAaPostWarningEmitter {
             boolean sharpeningEnabled,
             boolean volumetricFogEnabled,
             boolean cloudShadowsEnabled,
+            boolean screenSpaceBentNormalsEnabled,
+            boolean lensFlareEnabled,
             boolean paniniEnabled,
             boolean lensDistortionEnabled
     ) {
@@ -56,6 +58,8 @@ public final class VulkanAaPostWarningEmitter {
                         sharpeningEnabled,
                         volumetricFogEnabled,
                         cloudShadowsEnabled,
+                        screenSpaceBentNormalsEnabled,
+                        lensFlareEnabled,
                         paniniEnabled,
                         lensDistortionEnabled
                 )

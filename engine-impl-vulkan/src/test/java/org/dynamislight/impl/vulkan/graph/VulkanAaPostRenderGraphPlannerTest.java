@@ -41,7 +41,7 @@ class VulkanAaPostRenderGraphPlannerTest {
                 true,
                 true,
                 true,
-                false, false, false, false, false, false, false, false, false, false, false
+                false, false, false, false, false, false, false, false, false, false, false, false, false
         );
 
         VulkanAaPostRenderGraphPlanner.VulkanAaPostRenderGraphCompilation compilation = planner.compile(input);
@@ -63,7 +63,7 @@ class VulkanAaPostRenderGraphPlannerTest {
                 true,
                 false,
                 true,
-                false, false, false, false, false, false, false, false, false, false, false
+                false, false, false, false, false, false, false, false, false, false, false, false, false
         );
 
         VulkanAaPostRenderGraphPlanner.VulkanAaPostRenderGraphCompilation compilation = planner.compile(

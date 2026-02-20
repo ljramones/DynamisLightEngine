@@ -199,6 +199,8 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.post.sharpening", "true"),
                     Map.entry("vulkan.post.volumetricFog", "true"),
                     Map.entry("vulkan.post.cloudShadows", "true"),
+                    Map.entry("vulkan.post.screenSpaceBentNormals", "true"),
+                    Map.entry("vulkan.post.lensFlare", "true"),
                     Map.entry("vulkan.post.panini", "true"),
                     Map.entry("vulkan.post.lensDistortion", "true")
             ), QualityTier.HIGH), new NoopCallbacks());
@@ -214,6 +216,8 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.sharpening"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.volumetric_fog"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.cloud_shadows"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.screen_space_bent_normals"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.lens_flare"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.panini"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.lens_distortion"));
         } finally {

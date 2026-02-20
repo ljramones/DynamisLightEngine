@@ -39,6 +39,8 @@ public final class VulkanPostCapabilityDescriptorV2 implements RenderFeatureCapa
     public static final RenderFeatureMode MODE_SHARPENING = new RenderFeatureMode("sharpening");
     public static final RenderFeatureMode MODE_VOLUMETRIC_FOG = new RenderFeatureMode("volumetric_fog");
     public static final RenderFeatureMode MODE_CLOUD_SHADOWS = new RenderFeatureMode("cloud_shadows");
+    public static final RenderFeatureMode MODE_SCREEN_SPACE_BENT_NORMALS = new RenderFeatureMode("screen_space_bent_normals");
+    public static final RenderFeatureMode MODE_LENS_FLARE = new RenderFeatureMode("lens_flare");
     public static final RenderFeatureMode MODE_PANINI = new RenderFeatureMode("panini");
     public static final RenderFeatureMode MODE_LENS_DISTORTION = new RenderFeatureMode("lens_distortion");
 
@@ -58,6 +60,8 @@ public final class VulkanPostCapabilityDescriptorV2 implements RenderFeatureCapa
             MODE_SHARPENING,
             MODE_VOLUMETRIC_FOG,
             MODE_CLOUD_SHADOWS,
+            MODE_SCREEN_SPACE_BENT_NORMALS,
+            MODE_LENS_FLARE,
             MODE_PANINI,
             MODE_LENS_DISTORTION
     );
@@ -156,6 +160,8 @@ public final class VulkanPostCapabilityDescriptorV2 implements RenderFeatureCapa
             case "sharpening" -> List.of(new RenderUniformRequirement("global_scene", "postSharpening", 0, 0));
             case "volumetric_fog" -> List.of(new RenderUniformRequirement("global_scene", "postVolumetricFog", 0, 0));
             case "cloud_shadows" -> List.of(new RenderUniformRequirement("global_scene", "postCloudShadows", 0, 0));
+            case "screen_space_bent_normals" -> List.of(new RenderUniformRequirement("global_scene", "postBentNormals", 0, 0));
+            case "lens_flare" -> List.of(new RenderUniformRequirement("global_scene", "postLensFlare", 0, 0));
             case "panini" -> List.of(new RenderUniformRequirement("global_scene", "postPanini", 0, 0));
             case "lens_distortion" -> List.of(new RenderUniformRequirement("global_scene", "postLensDistortion", 0, 0));
             default -> List.of();
@@ -232,7 +238,7 @@ public final class VulkanPostCapabilityDescriptorV2 implements RenderFeatureCapa
             case "ssao" -> List.of("scene_color", "scene_depth");
             case "taa_resolve" -> List.of("scene_color", "velocity", "history_color", "history_velocity");
             case "fog_composite" -> List.of("scene_color", "scene_depth");
-            case "depth_of_field", "motion_blur", "chromatic_aberration", "film_grain", "vignette", "color_grading", "sharpening", "volumetric_fog", "cloud_shadows", "panini", "lens_distortion" -> List.of("scene_color", "scene_depth");
+            case "depth_of_field", "motion_blur", "chromatic_aberration", "film_grain", "vignette", "color_grading", "sharpening", "volumetric_fog", "cloud_shadows", "screen_space_bent_normals", "lens_flare", "panini", "lens_distortion" -> List.of("scene_color", "scene_depth");
             default -> List.of("scene_color");
         };
     }
@@ -263,6 +269,8 @@ public final class VulkanPostCapabilityDescriptorV2 implements RenderFeatureCapa
             case "sharpening" -> 291;
             case "volumetric_fog" -> 292;
             case "cloud_shadows" -> 293;
+            case "screen_space_bent_normals" -> 293;
+            case "lens_flare" -> 294;
             case "panini" -> 294;
             case "lens_distortion" -> 295;
             default -> 260;

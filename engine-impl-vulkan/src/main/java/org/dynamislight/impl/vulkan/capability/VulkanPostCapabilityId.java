@@ -19,6 +19,8 @@ public enum VulkanPostCapabilityId {
     SHARPENING,
     VOLUMETRIC_FOG,
     CLOUD_SHADOWS,
+    SCREEN_SPACE_BENT_NORMALS,
+    LENS_FLARE,
     PANINI,
     LENS_DISTORTION
 }

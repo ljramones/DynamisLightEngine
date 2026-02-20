@@ -21,7 +21,7 @@ class VulkanAaPostCapabilityPlannerTest {
                 true,
                 true,
                 true,
-                false, false, false, false, false, false, false, false, false, false, false
+                false, false, false, false, false, false, false, false, false, false, false, false, false
         ));
         Set<String> active = plan.activeCapabilities().stream()
                 .map(c -> c.contract().featureId())
@@ -44,7 +44,7 @@ class VulkanAaPostCapabilityPlannerTest {
                 false,
                 false,
                 false,
-                false, false, false, false, false, false, false, false, false, false, false
+                false, false, false, false, false, false, false, false, false, false, false, false, false
         ));
         Set<String> active = plan.activeCapabilities().stream()
                 .map(c -> c.contract().featureId())
@@ -66,7 +66,7 @@ class VulkanAaPostCapabilityPlannerTest {
                 true,
                 true,
                 true,
-                false, false, false, false, false, false, false, false, false, false, false
+                false, false, false, false, false, false, false, false, false, false, false, false, false
         ));
         Set<String> active = plan.activeCapabilities().stream()
                 .map(c -> c.contract().featureId())
