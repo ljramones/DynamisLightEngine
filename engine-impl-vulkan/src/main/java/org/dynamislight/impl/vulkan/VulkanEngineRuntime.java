@@ -161,6 +161,9 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static final int POST_FLAG_SCREEN_SPACE_BENT_NORMALS = 1 << 13;
     private static final int POST_FLAG_PANINI = 1 << 14;
     private static final int POST_FLAG_LENS_DISTORTION = 1 << 15;
+    private static final int POST_FLAG_DEPTH_OF_FIELD = 1 << 16;
+    private static final int POST_FLAG_MOTION_BLUR = 1 << 17;
+    private static final int POST_FLAG_LENS_FLARE = 1 << 18;
     private final VulkanContext context = new VulkanContext();
     private final VulkanRuntimeWarningPolicy warningPolicy = new VulkanRuntimeWarningPolicy();
     private final VulkanRuntimeWarningPolicy.State warningState = new VulkanRuntimeWarningPolicy.State();
@@ -1455,6 +1458,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         }
         if (activeCapabilities.contains("vulkan.post.lens_distortion")) {
             packed |= POST_FLAG_LENS_DISTORTION;
+        }
+        if (activeCapabilities.contains("vulkan.post.depth_of_field")) {
+            packed |= POST_FLAG_DEPTH_OF_FIELD;
+        }
+        if (activeCapabilities.contains("vulkan.post.motion_blur")) {
+            packed |= POST_FLAG_MOTION_BLUR;
+        }
+        if (activeCapabilities.contains("vulkan.post.lens_flare")) {
+            packed |= POST_FLAG_LENS_FLARE;
         }
         return packed;
     }

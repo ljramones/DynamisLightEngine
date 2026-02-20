@@ -298,12 +298,12 @@ Lighting notes:
 - HDR tonemap (ACES, filmic, Khronos PBR Neutral, AgX, custom curve) — `In`
 - Exposure (fixed, auto with histogram, auto with center-weighted) — `In`
 - Bloom (threshold, multi-pass blur, energy-conserving) — `In`
-- Depth of field (bokeh, circle of confusion, near/far) — `Partial`
-- Motion blur (per-object velocity, camera velocity, tile-based) — `Partial`
+- Depth of field (bokeh, circle of confusion, near/far) — `In`
+- Motion blur (per-object velocity, camera velocity, tile-based) — `In`
 - Chromatic aberration — `In`
 - Film grain — `In`
 - Vignette — `In`
-- Lens flare (screen-space, data-driven) — `Partial`
+- Lens flare (screen-space, data-driven) — `In`
 - Color grading (LUT, lift/gamma/gain, channel mixer) — `In`
 - Sharpening (CAS, RCAS, unsharp mask) — `In`
 - SSAO (GTAO, HBAO-style, multi-scale) — `In`
@@ -327,6 +327,7 @@ Post notes:
 - Post Phase B cinematic lockdown is now available via `scripts/post_phaseB_cinematic_lockdown.sh` and CI lane `post-phaseb-cinematic-lockdown`.
 - Post full-lockdown bundle is now available via `scripts/post_lockdown_full.sh` and CI lane `post-lockdown-full`.
 - Vulkan post composite now applies runtime-executed cinematic effects for chromatic aberration, film grain, vignette, color grading, cloud shadows, screen-space bent normals, panini projection, and lens distortion through packed post flags in the existing post push constants.
+- Vulkan post composite now also applies runtime-executed depth-of-field, motion blur, and lens flare through the same packed post-flag path.
 - OpenGL parity for these cinematic post execution paths is pending; current promotion status is Vulkan-path scoped.
 
 ## PBR / Shading

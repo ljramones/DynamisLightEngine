@@ -310,6 +310,9 @@ public final class VulkanPostShaderSources {
                     bool postScreenSpaceBentNormals = (packedPostDebugView & (1 << 13)) != 0;
                     bool postPanini = (packedPostDebugView & (1 << 14)) != 0;
                     bool postLensDistortion = (packedPostDebugView & (1 << 15)) != 0;
+                    bool postDepthOfField = (packedPostDebugView & (1 << 16)) != 0;
+                    bool postMotionBlur = (packedPostDebugView & (1 << 17)) != 0;
+                    bool postLensFlare = (packedPostDebugView & (1 << 18)) != 0;
                     float reflectionDisocclusionSignal = 0.0;
                     float historyConfidenceOut = 1.0;
                     if (pc.tonemap.x > 0.5) {
@@ -510,6 +513,34 @@ public final class VulkanPostShaderSources {
                             );
                             color = mix(color, aberrated, 0.45);
                         }
+                        if (postDepthOfField) {
+                            float focusDepth = 0.35;
+                            float coc = clamp(abs(currentDepth - focusDepth) * 6.0, 0.0, 1.0);
+                            vec2 dofTexel = (1.0 / vec2(textureSize(uSceneColor, 0))) * (1.0 + coc * 3.0);
+                            vec3 blur = vec3(0.0);
+                            blur += texture(uSceneColor, clamp(postUv + vec2(dofTexel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                            blur += texture(uSceneColor, clamp(postUv - vec2(dofTexel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                            blur += texture(uSceneColor, clamp(postUv + vec2(0.0, dofTexel.y), vec2(0.0), vec2(1.0))).rgb;
+                            blur += texture(uSceneColor, clamp(postUv - vec2(0.0, dofTexel.y), vec2(0.0), vec2(1.0))).rgb;
+                            blur *= 0.25;
+                            color = mix(color, blur, coc * 0.72);
+                        }
+                        if (postMotionBlur) {
+                            vec2 blurDir = centerVelocityUv * 0.010;
+                            vec3 accum = color;
+                            float w = 1.0;
+                            for (int i = 1; i <= 4; i++) {
+                                float fi = float(i);
+                                vec2 o = blurDir * fi;
+                                vec3 a = texture(uSceneColor, clamp(postUv + o, vec2(0.0), vec2(1.0))).rgb;
+                                vec3 b = texture(uSceneColor, clamp(postUv - o, vec2(0.0), vec2(1.0))).rgb;
+                                accum += a + b;
+                                w += 2.0;
+                            }
+                            vec3 blurred = accum / max(w, 1.0);
+                            float blurAmount = clamp(length(centerVelocityUv) * 2.2, 0.0, 0.75);
+                            color = mix(color, blurred, blurAmount);
+                        }
                         if (postColorGrading) {
                             vec3 lift = vec3(0.01, -0.005, -0.01);
                             vec3 gain = vec3(1.04, 1.02, 0.98);
@@ -533,6 +564,12 @@ public final class VulkanPostShaderSources {
                         if (postFilmGrain) {
                             float grain = fract(sin(dot(vUv * vec2(127.1, 311.7) + vec2(pc.motion.x * 141.0, pc.motion.y * 17.0), vec2(12.9898, 78.233))) * 43758.5453123);
                             color += (grain - 0.5) * 0.03;
+                        }
+                        if (postLensFlare) {
+                            float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+                            float star = pow(max(0.0, 1.0 - length((vUv - vec2(0.5)) * vec2(1.6, 1.0))), 6.0);
+                            float flare = max(0.0, luma - 0.72) * star;
+                            color += vec3(1.0, 0.85, 0.6) * flare * 0.35;
                         }
                     }
                     outColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);

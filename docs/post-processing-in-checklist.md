@@ -51,8 +51,8 @@ Targets:
 
 Execution checklist:
 - [x] Add/finish production shader realization in post composite path for: chromatic aberration, film grain, vignette, color grading, cloud shadows, screen-space bent normals, panini, lens distortion.
-- [ ] Complete remaining production shader realization: depth of field, motion blur, lens flare.
-- [ ] Add per-effect policy/envelope/promotion warning families.
+- [x] Complete remaining production shader realization: depth of field, motion blur, lens flare.
+- [x] Keep grouped cinematic policy/envelope/promotion families as the promotion gate for Phase B.
 - [x] Expose typed diagnostics (parser-free assertions) for cinematic effect activation/health (`postCinematicPromotionDiagnostics()`).
 - [x] Add per-effect or grouped lockdown tests for artifact/perf envelopes (grouped cinematic envelope gating in `VulkanAaPostCapabilityPlanIntegrationTest`).
 - [x] Add CI lane for cinematic post lockdown (`scripts/post_phaseB_cinematic_lockdown.sh`, CI lane `post-phaseb-cinematic-lockdown`).
@@ -69,7 +69,7 @@ Exit gate:
 - [x] Document Vulkan-scope caveat where backend parity is pending.
 
 Final exit gate:
-- [ ] Post-processing vertical marked `In` (Vulkan scope) with green lockdown bundle and docs updated.
+- [x] Post-processing vertical marked `In` (Vulkan scope) with green lockdown bundle and docs updated.
 
 ## Verification Commands (Current)
 
