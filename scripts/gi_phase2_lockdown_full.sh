@@ -13,6 +13,7 @@ bash "${ROOT_DIR}/scripts/gi_phase2_ssgi_lockdown.sh"
 bash "${ROOT_DIR}/scripts/gi_phase2_probe_lockdown.sh"
 bash "${ROOT_DIR}/scripts/gi_phase2_rt_lockdown.sh"
 bash "${ROOT_DIR}/scripts/gi_phase2_rt_multi_lockdown.sh"
+bash "${ROOT_DIR}/scripts/gi_phase2_dedicated_lockdown.sh"
 bash "${ROOT_DIR}/scripts/gi_phase2_voxel_sdf_lockdown.sh"
 
 echo "GI Phase 2 full lockdown complete."

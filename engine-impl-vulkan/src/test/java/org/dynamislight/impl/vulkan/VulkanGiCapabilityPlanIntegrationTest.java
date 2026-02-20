@@ -379,11 +379,18 @@ class VulkanGiCapabilityPlanIntegrationTest {
             runtime.initialize(validConfig(Map.ofEntries(
                     Map.entry("vulkan.mockContext", "true"),
                     Map.entry("vulkan.gi.enabled", "true"),
-                    Map.entry("vulkan.gi.mode", "emissive_gi")
+                    Map.entry("vulkan.gi.mode", "emissive_gi"),
+                    Map.entry("vulkan.gi.dedicatedWarnMinFrames", "1"),
+                    Map.entry("vulkan.gi.dedicatedWarnCooldownFrames", "0"),
+                    Map.entry("vulkan.gi.dedicatedPromotionReadyMinFrames", "1")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_EMISSIVE_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_DEDICATED_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_DEDICATED_ENVELOPE".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "GI_DEDICATED_ENVELOPE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_DEDICATED_PROMOTION_READY".equals(w.code())));
             assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.emissive"));
         } finally {
             runtime.shutdown();

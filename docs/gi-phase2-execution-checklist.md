@@ -51,6 +51,12 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 - [x] Add runtime policy diagnostics warnings (`GI_VOXEL_POLICY_ACTIVE`, `GI_SDF_POLICY_ACTIVE`).
 - [x] Add integration coverage asserting capability activation/warning emissions for both modes.
 
+## Phase 2H: Dedicated-Mode Promotion Hardening
+
+- [x] Add dedicated-mode envelope/promotion diagnostics (`GI_DEDICATED_POLICY_ACTIVE`, `GI_DEDICATED_ENVELOPE`, `GI_DEDICATED_ENVELOPE_BREACH`, `GI_DEDICATED_PROMOTION_READY`) for non-RT dedicated modes.
+- [x] Add integration coverage for dedicated-mode policy/envelope/promotion emissions.
+- [x] Add dedicated lockdown lane (`scripts/gi_phase2_dedicated_lockdown.sh`) and include it in full GI phase-2 lockdown bundle.
+
 ## Phase 2D: Promotion + CI
 
 - [x] Add consolidated GI phase-2 promotion warning (`GI_PHASE2_PROMOTION_READY`) for SSGI/probe/RT-hybrid.
