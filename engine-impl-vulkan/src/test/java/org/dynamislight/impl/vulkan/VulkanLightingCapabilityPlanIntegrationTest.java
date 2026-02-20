@@ -56,6 +56,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE_BREACH".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_PHYS_UNITS_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_EMISSIVE_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_EMISSIVE_ENVELOPE_BREACH".equals(w.code())));
@@ -178,6 +179,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(advanced.available());
             assertTrue(advanced.expectedAdvancedCapabilityCount() >= 1);
             assertEquals(advanced.expectedAdvancedCapabilityCount(), advanced.activeAdvancedCapabilityCount());
+            assertFalse(advanced.advancedEnvelopeBreached());
         } finally {
             runtime.shutdown();
         }
@@ -192,11 +194,15 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.areaApproxEnabled", "true"),
                     Map.entry("vulkan.lighting.advancedRequireActive", "true"),
                     Map.entry("vulkan.lighting.advancedRequireMinFrames", "1"),
-                    Map.entry("vulkan.lighting.advancedRequireCooldownFrames", "0")
+                    Map.entry("vulkan.lighting.advancedRequireCooldownFrames", "0"),
+                    Map.entry("vulkan.lighting.advancedEnvelopeWarnMinFrames", "1"),
+                    Map.entry("vulkan.lighting.advancedEnvelopeCooldownFrames", "0")
             ), QualityTier.MEDIUM), new NoopCallbacks());
             runtime.loadScene(validSceneStableBudget());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_REQUIRED_PATH_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_ENVELOPE_BREACH".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
             var advanced = runtime.lightingAdvancedDiagnostics();
             assertTrue(advanced.available());
@@ -204,6 +210,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertEquals(1, advanced.requiredAdvancedCapabilityCount());
             assertEquals(0, advanced.activeAdvancedCapabilityCount());
             assertTrue(advanced.advancedRequiredUnavailableBreached());
+            assertTrue(advanced.advancedEnvelopeBreached());
         } finally {
             runtime.shutdown();
         }
@@ -218,16 +225,45 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.areaApproxEnabled", "true"),
                     Map.entry("vulkan.lighting.advancedRequireActive", "false"),
                     Map.entry("vulkan.lighting.advancedRequireMinFrames", "1"),
-                    Map.entry("vulkan.lighting.advancedRequireCooldownFrames", "0")
+                    Map.entry("vulkan.lighting.advancedRequireCooldownFrames", "0"),
+                    Map.entry("vulkan.lighting.advancedEnvelopeWarnMinFrames", "1"),
+                    Map.entry("vulkan.lighting.advancedEnvelopeCooldownFrames", "0")
             ), QualityTier.MEDIUM), new NoopCallbacks());
             runtime.loadScene(validSceneStableBudget());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_REQUIRED_PATH_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_ENVELOPE_BREACH".equals(w.code())));
             assertFalse(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
             var advanced = runtime.lightingAdvancedDiagnostics();
             assertTrue(advanced.available());
             assertFalse(advanced.advancedRequireActive());
             assertFalse(advanced.advancedRequiredUnavailableBreached());
+            assertTrue(advanced.advancedEnvelopeBreached());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void advancedEnvelopeCooldownSuppressesRepeatedBreachWarnings() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.lighting.areaApproxEnabled", "true"),
+                    Map.entry("vulkan.lighting.advancedEnvelopeWarnMinFrames", "1"),
+                    Map.entry("vulkan.lighting.advancedEnvelopeCooldownFrames", "3")
+            ), QualityTier.MEDIUM), new NoopCallbacks());
+            runtime.loadScene(validSceneStableBudget());
+            EngineFrameResult frame1 = runtime.render();
+            EngineFrameResult frame2 = runtime.render();
+            assertTrue(frame1.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_ENVELOPE_BREACH".equals(w.code())));
+            assertFalse(frame2.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_ENVELOPE_BREACH".equals(w.code())));
+            var advanced = runtime.lightingAdvancedDiagnostics();
+            assertTrue(advanced.available());
+            assertTrue(advanced.advancedEnvelopeCooldownRemaining() >= 1);
+            assertTrue(advanced.advancedEnvelopeMismatchStreak() >= 1);
         } finally {
             runtime.shutdown();
         }
@@ -257,6 +293,10 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             var emissive = runtime.lightingEmissiveDiagnostics();
             assertTrue(emissive.available());
             assertEquals(0.08, emissive.warnMinCandidateRatio(), 1e-9);
+            var advanced = runtime.lightingAdvancedDiagnostics();
+            assertTrue(advanced.available());
+            assertEquals(2, advanced.advancedEnvelopeWarnMinFrames());
+            assertEquals(90, advanced.advancedEnvelopeCooldownFrames());
         } finally {
             runtime.shutdown();
         }
@@ -276,6 +316,8 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.physUnitsPromotionReadyMinFrames", "9"),
                     Map.entry("vulkan.lighting.emissivePromotionReadyMinFrames", "13"),
                     Map.entry("vulkan.lighting.advancedPromotionReadyMinFrames", "17"),
+                    Map.entry("vulkan.lighting.advancedEnvelopeWarnMinFrames", "9"),
+                    Map.entry("vulkan.lighting.advancedEnvelopeCooldownFrames", "44"),
                     Map.entry("vulkan.lighting.emissiveWarnMinCandidateRatio", "0.20")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validSceneStableBudget());
@@ -295,6 +337,11 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             var emissive = runtime.lightingEmissiveDiagnostics();
             assertTrue(emissive.available());
             assertEquals(0.20, emissive.warnMinCandidateRatio(), 1e-9);
+            var advanced = runtime.lightingAdvancedDiagnostics();
+            assertTrue(advanced.available());
+            assertEquals(17, advanced.advancedPromotionReadyMinFrames());
+            assertEquals(9, advanced.advancedEnvelopeWarnMinFrames());
+            assertEquals(44, advanced.advancedEnvelopeCooldownFrames());
         } finally {
             runtime.shutdown();
         }

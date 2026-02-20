@@ -47,6 +47,8 @@ public final class VulkanLightingCapabilityRuntimeState {
     private boolean advancedRequireActive;
     private int advancedRequireMinFrames = 2;
     private int advancedRequireCooldownFrames = 120;
+    private int advancedEnvelopeWarnMinFrames = 2;
+    private int advancedEnvelopeCooldownFrames = 120;
     private int budgetHighStreak;
     private int baselineStableStreak;
     private int budgetStableStreak;
@@ -54,8 +56,10 @@ public final class VulkanLightingCapabilityRuntimeState {
     private int emissiveStableStreak;
     private int advancedStableStreak;
     private int advancedRequireUnavailableStreak;
+    private int advancedEnvelopeMismatchStreak;
     private int budgetWarnCooldownRemaining;
     private int advancedRequireCooldownRemaining;
+    private int advancedEnvelopeCooldownRemaining;
     private boolean baselinePromotionReadyLastFrame;
     private boolean budgetPromotionReadyLastFrame;
     private boolean physUnitsPromotionReadyLastFrame;
@@ -63,6 +67,7 @@ public final class VulkanLightingCapabilityRuntimeState {
     private boolean phase2PromotionReadyLastFrame;
     private boolean advancedPromotionReadyLastFrame;
     private boolean advancedRequiredUnavailableBreachedLastFrame;
+    private boolean advancedEnvelopeBreachedLastFrame;
     private double emissiveWarnMinCandidateRatio = 0.05;
     private int emissiveCandidateCountLastFrame;
     private int emissiveMaterialCountLastFrame;
@@ -100,12 +105,15 @@ public final class VulkanLightingCapabilityRuntimeState {
         emissiveStableStreak = 0;
         advancedStableStreak = 0;
         advancedRequireUnavailableStreak = 0;
+        advancedEnvelopeMismatchStreak = 0;
         physUnitsPromotionReadyLastFrame = false;
         emissivePromotionReadyLastFrame = false;
         phase2PromotionReadyLastFrame = false;
         advancedPromotionReadyLastFrame = false;
         advancedRequiredUnavailableBreachedLastFrame = false;
+        advancedEnvelopeBreachedLastFrame = false;
         advancedRequireCooldownRemaining = 0;
+        advancedEnvelopeCooldownRemaining = 0;
         emissiveCandidateCountLastFrame = 0;
         emissiveMaterialCountLastFrame = 0;
         emissiveCandidateRatioLastFrame = 0.0;
@@ -233,6 +241,20 @@ public final class VulkanLightingCapabilityRuntimeState {
                 0,
                 100000
         );
+        advancedEnvelopeWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.lighting.advancedEnvelopeWarnMinFrames",
+                advancedEnvelopeWarnMinFrames,
+                1,
+                100000
+        );
+        advancedEnvelopeCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.lighting.advancedEnvelopeCooldownFrames",
+                advancedEnvelopeCooldownFrames,
+                0,
+                100000
+        );
         emissiveWarnMinCandidateRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
                 safe,
                 "vulkan.lighting.emissiveWarnMinCandidateRatio",
@@ -271,6 +293,12 @@ public final class VulkanLightingCapabilityRuntimeState {
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedPromotionReadyMinFrames")) {
                     advancedPromotionReadyMinFrames = 6;
                 }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeWarnMinFrames")) {
+                    advancedEnvelopeWarnMinFrames = 4;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeCooldownFrames")) {
+                    advancedEnvelopeCooldownFrames = 180;
+                }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
                     emissiveWarnMinCandidateRatio = 0.02;
                 }
@@ -299,6 +327,12 @@ public final class VulkanLightingCapabilityRuntimeState {
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedPromotionReadyMinFrames")) {
                     advancedPromotionReadyMinFrames = 5;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeWarnMinFrames")) {
+                    advancedEnvelopeWarnMinFrames = 3;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeCooldownFrames")) {
+                    advancedEnvelopeCooldownFrames = 120;
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
                     emissiveWarnMinCandidateRatio = 0.05;
@@ -329,6 +363,12 @@ public final class VulkanLightingCapabilityRuntimeState {
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedPromotionReadyMinFrames")) {
                     advancedPromotionReadyMinFrames = 4;
                 }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeWarnMinFrames")) {
+                    advancedEnvelopeWarnMinFrames = 2;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeCooldownFrames")) {
+                    advancedEnvelopeCooldownFrames = 90;
+                }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
                     emissiveWarnMinCandidateRatio = 0.08;
                 }
@@ -357,6 +397,12 @@ public final class VulkanLightingCapabilityRuntimeState {
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedPromotionReadyMinFrames")) {
                     advancedPromotionReadyMinFrames = 3;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeWarnMinFrames")) {
+                    advancedEnvelopeWarnMinFrames = 2;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.advancedEnvelopeCooldownFrames")) {
+                    advancedEnvelopeCooldownFrames = 75;
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
                     emissiveWarnMinCandidateRatio = 0.10;
@@ -446,9 +492,7 @@ public final class VulkanLightingCapabilityRuntimeState {
                 && !emissiveEnvelopeBreachedLastFrame;
         int expectedAdvancedCount = expectedAdvancedCapabilityCount(qualityTier);
         int activeAdvancedCount = activeAdvancedCapabilityCount();
-        int requiredAdvancedCount = advancedRequireActive
-                ? requiredAdvancedCapabilityCount()
-                : expectedAdvancedCount;
+        int requiredAdvancedCount = requiredAdvancedCapabilityCount();
         advancedExpectedCountLastFrame = expectedAdvancedCount;
         advancedActiveCountLastFrame = activeAdvancedCount;
         advancedRequiredCountLastFrame = requiredAdvancedCount;
@@ -475,6 +519,21 @@ public final class VulkanLightingCapabilityRuntimeState {
         advancedRequiredUnavailableBreachedLastFrame = emitAdvancedRequireBreach;
         if (emitAdvancedRequireBreach) {
             advancedRequireCooldownRemaining = advancedRequireCooldownFrames;
+        }
+        if (requiredAdvancedCount > activeAdvancedCount) {
+            advancedEnvelopeMismatchStreak++;
+        } else {
+            advancedEnvelopeMismatchStreak = 0;
+        }
+        if (advancedEnvelopeCooldownRemaining > 0) {
+            advancedEnvelopeCooldownRemaining--;
+        }
+        boolean emitAdvancedEnvelopeBreach = requiredAdvancedCount > activeAdvancedCount
+                && advancedEnvelopeMismatchStreak >= advancedEnvelopeWarnMinFrames
+                && advancedEnvelopeCooldownRemaining <= 0;
+        advancedEnvelopeBreachedLastFrame = emitAdvancedEnvelopeBreach;
+        if (emitAdvancedEnvelopeBreach) {
+            advancedEnvelopeCooldownRemaining = advancedEnvelopeCooldownFrames;
         }
         phase2PromotionReadyLastFrame = budgetPromotionReadyLastFrame
                 && physUnitsPromotionReadyLastFrame
@@ -504,6 +563,8 @@ public final class VulkanLightingCapabilityRuntimeState {
                             + ", advancedRequireActive=" + advancedRequireActive
                             + ", advancedRequireMinFrames=" + advancedRequireMinFrames
                             + ", advancedRequireCooldownFrames=" + advancedRequireCooldownFrames
+                            + ", advancedEnvelopeWarnMinFrames=" + advancedEnvelopeWarnMinFrames
+                            + ", advancedEnvelopeCooldownFrames=" + advancedEnvelopeCooldownFrames
                             + ", emissiveWarnMinCandidateRatio=" + emissiveWarnMinCandidateRatio + ")"
             ));
             warnings.add(new EngineWarning(
@@ -537,6 +598,16 @@ public final class VulkanLightingCapabilityRuntimeState {
                             + ", minFrames=" + advancedRequireMinFrames
                             + ", cooldownFrames=" + advancedRequireCooldownFrames
                             + ", cooldownRemaining=" + advancedRequireCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "LIGHTING_ADVANCED_ENVELOPE",
+                    "Lighting advanced envelope (requestedCount=" + advancedRequiredCountLastFrame
+                            + ", expectedCount=" + advancedExpectedCountLastFrame
+                            + ", activeCount=" + advancedActiveCountLastFrame
+                            + ", mismatchStreak=" + advancedEnvelopeMismatchStreak
+                            + ", warnMinFrames=" + advancedEnvelopeWarnMinFrames
+                            + ", cooldownFrames=" + advancedEnvelopeCooldownFrames
+                            + ", cooldownRemaining=" + advancedEnvelopeCooldownRemaining + ")"
             ));
             if (emitBreach) {
                 warnings.add(new EngineWarning(
@@ -616,6 +687,18 @@ public final class VulkanLightingCapabilityRuntimeState {
                                 + ", unavailableStreak=" + advancedRequireUnavailableStreak
                                 + ", minFrames=" + advancedRequireMinFrames
                                 + ", cooldownFrames=" + advancedRequireCooldownFrames
+                                + ", mode=" + modeLastFrame + ")"
+                ));
+            }
+            if (emitAdvancedEnvelopeBreach) {
+                warnings.add(new EngineWarning(
+                        "LIGHTING_ADVANCED_ENVELOPE_BREACH",
+                        "Lighting advanced envelope breached (requestedCount=" + advancedRequiredCountLastFrame
+                                + ", expectedCount=" + advancedExpectedCountLastFrame
+                                + ", activeCount=" + advancedActiveCountLastFrame
+                                + ", mismatchStreak=" + advancedEnvelopeMismatchStreak
+                                + ", warnMinFrames=" + advancedEnvelopeWarnMinFrames
+                                + ", cooldownFrames=" + advancedEnvelopeCooldownFrames
                                 + ", mode=" + modeLastFrame + ")"
                 ));
             }
@@ -780,6 +863,11 @@ public final class VulkanLightingCapabilityRuntimeState {
                 advancedRequireCooldownRemaining,
                 advancedRequireUnavailableStreak,
                 advancedRequiredUnavailableBreachedLastFrame,
+                advancedEnvelopeWarnMinFrames,
+                advancedEnvelopeCooldownFrames,
+                advancedEnvelopeCooldownRemaining,
+                advancedEnvelopeMismatchStreak,
+                advancedEnvelopeBreachedLastFrame,
                 areaApproxActiveLastFrame,
                 iesProfilesActiveLastFrame,
                 cookiesActiveLastFrame,
