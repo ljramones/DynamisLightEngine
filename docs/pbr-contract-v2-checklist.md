@@ -46,6 +46,12 @@
   - `PBR_SURFACE_GEOMETRY_ENVELOPE_BREACH`
   - `PBR_SURFACE_GEOMETRY_PROMOTION_READY`
   - typed snapshot now includes expected/active surface-geometry feature counts and geometry breach/readiness.
+- [x] Add character-surface envelope warnings + typed diagnostics:
+  - `PBR_CHARACTER_SURFACES_POLICY_ACTIVE`
+  - `PBR_CHARACTER_SURFACES_ENVELOPE`
+  - `PBR_CHARACTER_SURFACES_ENVELOPE_BREACH`
+  - `PBR_CHARACTER_SURFACES_PROMOTION_READY`
+  - typed snapshot now includes expected/active character-surface feature counts and character breach/readiness.
 - [x] Add dedicated Phase-2 cinematic lockdown runner:
   - `scripts/pbr_phase2_cinematic_lockdown.sh`
   - covers cinematic mode activation + surface-optics envelope/promotion assertions.

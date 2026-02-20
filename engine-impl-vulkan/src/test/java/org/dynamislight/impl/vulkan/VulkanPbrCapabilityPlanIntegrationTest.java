@@ -55,6 +55,9 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_GEOMETRY_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_GEOMETRY_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_GEOMETRY_PROMOTION_READY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CHARACTER_SURFACES_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CHARACTER_SURFACES_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CHARACTER_SURFACES_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.pbrCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertTrue(diagnostics.specularGlossinessEnabled());
@@ -73,6 +76,8 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(promotion.surfaceOpticsPromotionReadyLastFrame());
             assertFalse(promotion.surfaceGeometryEnvelopeBreachedLastFrame());
             assertTrue(promotion.surfaceGeometryPromotionReadyLastFrame());
+            assertFalse(promotion.characterSurfaceEnvelopeBreachedLastFrame());
+            assertTrue(promotion.characterSurfacePromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -112,6 +117,8 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(promotion.surfaceOpticsPromotionReadyLastFrame());
             assertFalse(promotion.surfaceGeometryEnvelopeBreachedLastFrame());
             assertTrue(promotion.surfaceGeometryPromotionReadyLastFrame());
+            assertFalse(promotion.characterSurfaceEnvelopeBreachedLastFrame());
+            assertTrue(promotion.characterSurfacePromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -219,6 +226,8 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(promotion.activeSurfaceOpticsFeatureCount() >= 3);
             assertFalse(promotion.surfaceGeometryEnvelopeBreachedLastFrame());
             assertTrue(promotion.surfaceGeometryPromotionReadyLastFrame());
+            assertFalse(promotion.characterSurfaceEnvelopeBreachedLastFrame());
+            assertTrue(promotion.characterSurfacePromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -246,6 +255,63 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(promotion.activeSurfaceGeometryFeatureCount() < promotion.expectedSurfaceGeometryFeatureCount());
             assertTrue(promotion.surfaceGeometryEnvelopeBreachedLastFrame());
             assertFalse(promotion.surfaceGeometryPromotionReadyLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsPbrCharacterSurfaceEnvelopeBreachWhenCharacterFeaturesRequestedOnLowTier() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.pbr.eyeShaderEnabled", "true"),
+                    Map.entry("vulkan.pbr.hairShaderEnabled", "true"),
+                    Map.entry("vulkan.pbr.clothShaderEnabled", "true"),
+                    Map.entry("vulkan.pbr.warnMinFrames", "1"),
+                    Map.entry("vulkan.pbr.warnCooldownFrames", "0"),
+                    Map.entry("vulkan.pbr.promotionReadyMinFrames", "1")
+            ), QualityTier.LOW), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CHARACTER_SURFACES_ENVELOPE_BREACH".equals(w.code())));
+            var promotion = runtime.pbrPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.expectedCharacterSurfaceFeatureCount() > 0);
+            assertTrue(promotion.activeCharacterSurfaceFeatureCount() < promotion.expectedCharacterSurfaceFeatureCount());
+            assertTrue(promotion.characterSurfaceEnvelopeBreachedLastFrame());
+            assertFalse(promotion.characterSurfacePromotionReadyLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void activatesCharacterSurfacesOnHighTierWithReadyGate() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.pbr.eyeShaderEnabled", "true"),
+                    Map.entry("vulkan.pbr.hairShaderEnabled", "true"),
+                    Map.entry("vulkan.pbr.clothShaderEnabled", "true"),
+                    Map.entry("vulkan.pbr.warnMinFrames", "1"),
+                    Map.entry("vulkan.pbr.warnCooldownFrames", "0"),
+                    Map.entry("vulkan.pbr.promotionReadyMinFrames", "1")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CHARACTER_SURFACES_PROMOTION_READY".equals(w.code())));
+            var diagnostics = runtime.pbrCapabilityDiagnostics();
+            assertTrue(diagnostics.available());
+            assertTrue(diagnostics.eyeShaderEnabled());
+            assertTrue(diagnostics.hairShaderEnabled());
+            assertTrue(diagnostics.clothShaderEnabled());
+            var promotion = runtime.pbrPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertFalse(promotion.characterSurfaceEnvelopeBreachedLastFrame());
+            assertTrue(promotion.characterSurfacePromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }

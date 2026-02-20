@@ -14,6 +14,8 @@ public record PbrPromotionDiagnostics(
         int activeSurfaceOpticsFeatureCount,
         int expectedSurfaceGeometryFeatureCount,
         int activeSurfaceGeometryFeatureCount,
+        int expectedCharacterSurfaceFeatureCount,
+        int activeCharacterSurfaceFeatureCount,
         boolean energyConservationValidationEnabled,
         boolean envelopeBreachedLastFrame,
         boolean promotionReadyLastFrame,
@@ -23,6 +25,8 @@ public record PbrPromotionDiagnostics(
         boolean surfaceOpticsPromotionReadyLastFrame,
         boolean surfaceGeometryEnvelopeBreachedLastFrame,
         boolean surfaceGeometryPromotionReadyLastFrame,
+        boolean characterSurfaceEnvelopeBreachedLastFrame,
+        boolean characterSurfacePromotionReadyLastFrame,
         int stableStreak,
         int highStreak,
         int cinematicStableStreak,
@@ -31,10 +35,13 @@ public record PbrPromotionDiagnostics(
         int surfaceOpticsHighStreak,
         int surfaceGeometryStableStreak,
         int surfaceGeometryHighStreak,
+        int characterSurfaceStableStreak,
+        int characterSurfaceHighStreak,
         int warnCooldownRemaining,
         int cinematicWarnCooldownRemaining,
         int surfaceOpticsWarnCooldownRemaining,
         int surfaceGeometryWarnCooldownRemaining,
+        int characterSurfaceWarnCooldownRemaining,
         int warnMinFrames,
         int warnCooldownFrames,
         int promotionReadyMinFrames
@@ -49,6 +56,8 @@ public record PbrPromotionDiagnostics(
         activeSurfaceOpticsFeatureCount = Math.max(0, activeSurfaceOpticsFeatureCount);
         expectedSurfaceGeometryFeatureCount = Math.max(0, expectedSurfaceGeometryFeatureCount);
         activeSurfaceGeometryFeatureCount = Math.max(0, activeSurfaceGeometryFeatureCount);
+        expectedCharacterSurfaceFeatureCount = Math.max(0, expectedCharacterSurfaceFeatureCount);
+        activeCharacterSurfaceFeatureCount = Math.max(0, activeCharacterSurfaceFeatureCount);
         stableStreak = Math.max(0, stableStreak);
         highStreak = Math.max(0, highStreak);
         cinematicStableStreak = Math.max(0, cinematicStableStreak);
@@ -57,10 +66,13 @@ public record PbrPromotionDiagnostics(
         surfaceOpticsHighStreak = Math.max(0, surfaceOpticsHighStreak);
         surfaceGeometryStableStreak = Math.max(0, surfaceGeometryStableStreak);
         surfaceGeometryHighStreak = Math.max(0, surfaceGeometryHighStreak);
+        characterSurfaceStableStreak = Math.max(0, characterSurfaceStableStreak);
+        characterSurfaceHighStreak = Math.max(0, characterSurfaceHighStreak);
         warnCooldownRemaining = Math.max(0, warnCooldownRemaining);
         cinematicWarnCooldownRemaining = Math.max(0, cinematicWarnCooldownRemaining);
         surfaceOpticsWarnCooldownRemaining = Math.max(0, surfaceOpticsWarnCooldownRemaining);
         surfaceGeometryWarnCooldownRemaining = Math.max(0, surfaceGeometryWarnCooldownRemaining);
+        characterSurfaceWarnCooldownRemaining = Math.max(0, characterSurfaceWarnCooldownRemaining);
         warnMinFrames = Math.max(1, warnMinFrames);
         warnCooldownFrames = Math.max(0, warnCooldownFrames);
         promotionReadyMinFrames = Math.max(1, promotionReadyMinFrames);
@@ -78,6 +90,8 @@ public record PbrPromotionDiagnostics(
                 0,
                 0,
                 0,
+                0,
+                0,
                 false,
                 false,
                 false,
@@ -87,6 +101,11 @@ public record PbrPromotionDiagnostics(
                 false,
                 false,
                 false,
+                false,
+                false,
+                0,
+                0,
+                0,
                 0,
                 0,
                 0,

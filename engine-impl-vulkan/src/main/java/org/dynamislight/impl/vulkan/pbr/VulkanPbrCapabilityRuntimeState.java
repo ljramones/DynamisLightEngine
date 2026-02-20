@@ -50,10 +50,14 @@ public final class VulkanPbrCapabilityRuntimeState {
     private int surfaceGeometryStableStreak;
     private int surfaceGeometryHighStreak;
     private int surfaceGeometryWarnCooldownRemaining;
+    private int characterSurfaceStableStreak;
+    private int characterSurfaceHighStreak;
+    private int characterSurfaceWarnCooldownRemaining;
     private boolean envelopeBreachedLastFrame;
     private boolean cinematicEnvelopeBreachedLastFrame;
     private boolean surfaceOpticsEnvelopeBreachedLastFrame;
     private boolean surfaceGeometryEnvelopeBreachedLastFrame;
+    private boolean characterSurfaceEnvelopeBreachedLastFrame;
     private String modeLastFrame = "metallic_roughness_baseline";
     private List<String> activeCapabilitiesLastFrame = List.of();
     private List<String> prunedCapabilitiesLastFrame = List.of();
@@ -62,6 +66,7 @@ public final class VulkanPbrCapabilityRuntimeState {
     private boolean cinematicPromotionReadyLastFrame;
     private boolean surfaceOpticsPromotionReadyLastFrame;
     private boolean surfaceGeometryPromotionReadyLastFrame;
+    private boolean characterSurfacePromotionReadyLastFrame;
 
     public void reset() {
         stableStreak = 0;
@@ -81,13 +86,18 @@ public final class VulkanPbrCapabilityRuntimeState {
         surfaceGeometryStableStreak = 0;
         surfaceGeometryHighStreak = 0;
         surfaceGeometryWarnCooldownRemaining = 0;
+        characterSurfaceStableStreak = 0;
+        characterSurfaceHighStreak = 0;
+        characterSurfaceWarnCooldownRemaining = 0;
         envelopeBreachedLastFrame = false;
         cinematicEnvelopeBreachedLastFrame = false;
         surfaceOpticsEnvelopeBreachedLastFrame = false;
         surfaceGeometryEnvelopeBreachedLastFrame = false;
+        characterSurfaceEnvelopeBreachedLastFrame = false;
         cinematicPromotionReadyLastFrame = false;
         surfaceOpticsPromotionReadyLastFrame = false;
         surfaceGeometryPromotionReadyLastFrame = false;
+        characterSurfacePromotionReadyLastFrame = false;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -459,6 +469,62 @@ public final class VulkanPbrCapabilityRuntimeState {
                             + ", minFrames=" + promotionReadyMinFrames + ")"
             ));
         }
+        int expectedCharacterSurfaceFeatureCount = 0;
+        if (eyeShaderEnabled) expectedCharacterSurfaceFeatureCount += 1;
+        if (hairShaderEnabled) expectedCharacterSurfaceFeatureCount += 1;
+        if (clothShaderEnabled) expectedCharacterSurfaceFeatureCount += 1;
+        int activeCharacterSurfaceFeatureCount = 0;
+        if (plan.eyeShaderEnabled()) activeCharacterSurfaceFeatureCount += 1;
+        if (plan.hairShaderEnabled()) activeCharacterSurfaceFeatureCount += 1;
+        if (plan.clothShaderEnabled()) activeCharacterSurfaceFeatureCount += 1;
+        boolean characterSurfaceRisk = expectedCharacterSurfaceFeatureCount > 0
+                && activeCharacterSurfaceFeatureCount < expectedCharacterSurfaceFeatureCount;
+        if (characterSurfaceRisk) {
+            characterSurfaceHighStreak += 1;
+            characterSurfaceStableStreak = 0;
+            if (characterSurfaceWarnCooldownRemaining > 0) {
+                characterSurfaceWarnCooldownRemaining -= 1;
+            }
+        } else {
+            characterSurfaceHighStreak = 0;
+            characterSurfaceStableStreak += 1;
+            if (characterSurfaceWarnCooldownRemaining > 0) {
+                characterSurfaceWarnCooldownRemaining -= 1;
+            }
+        }
+        characterSurfaceEnvelopeBreachedLastFrame = characterSurfaceRisk && characterSurfaceHighStreak >= warnMinFrames;
+        characterSurfacePromotionReadyLastFrame = !characterSurfaceRisk && characterSurfaceStableStreak >= promotionReadyMinFrames;
+        warnings.add(new EngineWarning(
+                "PBR_CHARACTER_SURFACES_POLICY_ACTIVE",
+                "PBR character-surfaces policy (expectedCount=" + expectedCharacterSurfaceFeatureCount
+                        + ", warnMinFrames=" + warnMinFrames
+                        + ", warnCooldownFrames=" + warnCooldownFrames
+                        + ", promotionReadyMinFrames=" + promotionReadyMinFrames + ")"
+        ));
+        warnings.add(new EngineWarning(
+                "PBR_CHARACTER_SURFACES_ENVELOPE",
+                "PBR character-surfaces envelope (risk=" + characterSurfaceRisk
+                        + ", expectedCount=" + expectedCharacterSurfaceFeatureCount
+                        + ", activeCount=" + activeCharacterSurfaceFeatureCount
+                        + ", highStreak=" + characterSurfaceHighStreak
+                        + ", stableStreak=" + characterSurfaceStableStreak + ")"
+        ));
+        if (characterSurfaceEnvelopeBreachedLastFrame && characterSurfaceWarnCooldownRemaining <= 0) {
+            warnings.add(new EngineWarning(
+                    "PBR_CHARACTER_SURFACES_ENVELOPE_BREACH",
+                    "PBR character-surfaces envelope breach (highStreak=" + characterSurfaceHighStreak
+                            + ", cooldown=" + characterSurfaceWarnCooldownRemaining + ")"
+            ));
+            characterSurfaceWarnCooldownRemaining = warnCooldownFrames;
+        }
+        if (characterSurfacePromotionReadyLastFrame) {
+            warnings.add(new EngineWarning(
+                    "PBR_CHARACTER_SURFACES_PROMOTION_READY",
+                    "PBR character-surfaces promotion-ready envelope satisfied (mode=" + plan.modeId()
+                            + ", stableStreak=" + characterSurfaceStableStreak
+                            + ", minFrames=" + promotionReadyMinFrames + ")"
+            ));
+        }
         if (cinematicEnvelopeBreachedLastFrame && cinematicWarnCooldownRemaining <= 0) {
             warnings.add(new EngineWarning(
                     "PBR_CINEMATIC_ENVELOPE_BREACH",
@@ -579,6 +645,14 @@ public final class VulkanPbrCapabilityRuntimeState {
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.parallax_occlusion")) activeSurfaceGeometryFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.tessellation")) activeSurfaceGeometryFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.decals")) activeSurfaceGeometryFeatureCount += 1;
+        int expectedCharacterSurfaceFeatureCount = 0;
+        if (eyeShaderEnabled) expectedCharacterSurfaceFeatureCount += 1;
+        if (hairShaderEnabled) expectedCharacterSurfaceFeatureCount += 1;
+        if (clothShaderEnabled) expectedCharacterSurfaceFeatureCount += 1;
+        int activeCharacterSurfaceFeatureCount = 0;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.eye_shader")) activeCharacterSurfaceFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.hair_shader")) activeCharacterSurfaceFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.cloth_shader")) activeCharacterSurfaceFeatureCount += 1;
         boolean energyConservationValidationEnabled =
                 activeCapabilitiesLastFrame.contains("vulkan.pbr.energy_conservation_validation");
         return new PbrPromotionDiagnostics(
@@ -592,6 +666,8 @@ public final class VulkanPbrCapabilityRuntimeState {
                 activeSurfaceOpticsFeatureCount,
                 expectedSurfaceGeometryFeatureCount,
                 activeSurfaceGeometryFeatureCount,
+                expectedCharacterSurfaceFeatureCount,
+                activeCharacterSurfaceFeatureCount,
                 energyConservationValidationEnabled,
                 envelopeBreachedLastFrame,
                 promotionReadyLastFrame,
@@ -601,6 +677,8 @@ public final class VulkanPbrCapabilityRuntimeState {
                 surfaceOpticsPromotionReadyLastFrame,
                 surfaceGeometryEnvelopeBreachedLastFrame,
                 surfaceGeometryPromotionReadyLastFrame,
+                characterSurfaceEnvelopeBreachedLastFrame,
+                characterSurfacePromotionReadyLastFrame,
                 stableStreak,
                 highStreak,
                 cinematicStableStreak,
@@ -609,10 +687,13 @@ public final class VulkanPbrCapabilityRuntimeState {
                 surfaceOpticsHighStreak,
                 surfaceGeometryStableStreak,
                 surfaceGeometryHighStreak,
+                characterSurfaceStableStreak,
+                characterSurfaceHighStreak,
                 warnCooldownRemaining,
                 cinematicWarnCooldownRemaining,
                 surfaceOpticsWarnCooldownRemaining,
                 surfaceGeometryWarnCooldownRemaining,
+                characterSurfaceWarnCooldownRemaining,
                 warnMinFrames,
                 warnCooldownFrames,
                 promotionReadyMinFrames
