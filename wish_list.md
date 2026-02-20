@@ -478,6 +478,7 @@ Sky notes:
 - Sky Phase-1 Vulkan scaffold checklist/runner are in place (`docs/sky-phase1-checklist.md`, `scripts/sky_phase1_lockdown.sh`) with CI lane `sky-phase1-lockdown`.
 - Vulkan sky now has v2 capability descriptor coverage (`VulkanSkyCapabilityDescriptorV2`) with explicit modes (`hdri`, `procedural`, `atmosphere`) and post-composite shader module declarations for composition-time contract validation.
 - Vulkan sky runtime now uses deterministic planner output (`VulkanSkyCapabilityPlanner`) and emits parser-friendly per-frame plan telemetry (`SKY_CAPABILITY_PLAN_ACTIVE`) with expected/active/pruned signal payloads.
+- Phase-C profile resolution now consumes runtime sky mode overrides so compiled profile identity includes `sky=...` and post shader module composition can vary by active sky capability mode.
 - Sky contract v2 checklist/runner are in place (`docs/sky-contract-v2-checklist.md`, `scripts/sky_contract_v2_lockdown.sh`) with CI lane `sky-contract-v2-lockdown`.
 
 ## Terrain

@@ -31,6 +31,7 @@ final class VulkanContextPipelineProfileRuntimeHelper {
             RenderFeatureMode lightingModeOverride,
             RenderFeatureMode pbrModeOverride,
             RenderFeatureMode giModeOverride,
+            RenderFeatureMode skyModeOverride,
             RenderFeatureMode rtModeOverride,
             VulkanPipelineProfileCache cache,
             VulkanPipelineProfileKey currentKey
@@ -42,6 +43,7 @@ final class VulkanContextPipelineProfileRuntimeHelper {
                 lightingModeOverride,
                 pbrModeOverride,
                 giModeOverride,
+                skyModeOverride,
                 rtModeOverride,
                 0,
                 0,

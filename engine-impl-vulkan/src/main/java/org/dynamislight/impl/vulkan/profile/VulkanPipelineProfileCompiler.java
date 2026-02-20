@@ -10,6 +10,7 @@ import org.dynamislight.impl.vulkan.capability.VulkanPbrCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanPostCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanReflectionCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanRtCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanSkyCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorLayoutPlan;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorLayoutComposer;
@@ -35,9 +36,10 @@ public final class VulkanPipelineProfileCompiler {
         RenderFeatureCapabilityV2 lighting = VulkanLightingCapabilityDescriptorV2.withMode(effective.lightingMode());
         RenderFeatureCapabilityV2 pbr = VulkanPbrCapabilityDescriptorV2.withMode(effective.pbrMode());
         RenderFeatureCapabilityV2 gi = VulkanGiCapabilityDescriptorV2.withMode(effective.giMode());
+        RenderFeatureCapabilityV2 sky = VulkanSkyCapabilityDescriptorV2.withMode(effective.skyMode());
         RenderFeatureCapabilityV2 rt = VulkanRtCapabilityDescriptorV2.withMode(effective.rtMode());
 
-        List<RenderFeatureCapabilityV2> capabilities = List.of(core, shadow, reflection, lighting, pbr, gi, rt, aa, post);
+        List<RenderFeatureCapabilityV2> capabilities = List.of(core, shadow, reflection, lighting, pbr, gi, sky, rt, aa, post);
         VulkanComposedDescriptorLayoutPlan mainPlan = VulkanDescriptorLayoutComposer.composeForPass(
                 "main_geometry",
                 effective.tier(),
@@ -58,6 +60,7 @@ public final class VulkanPipelineProfileCompiler {
         List<RenderShaderModuleDeclaration> postModules = new ArrayList<>();
         postModules.addAll(reflection.shaderModules(effective.reflectionMode()));
         postModules.addAll(gi.shaderModules(effective.giMode()));
+        postModules.addAll(sky.shaderModules(effective.skyMode()));
         postModules.addAll(rt.shaderModules(effective.rtMode()));
         postModules.addAll(aa.shaderModules(effective.aaMode()));
 

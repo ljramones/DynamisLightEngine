@@ -8,6 +8,7 @@ import org.dynamislight.impl.vulkan.capability.VulkanPbrCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanPostCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanReflectionCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanRtCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanSkyCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.dynamislight.spi.render.RenderFeatureMode;
@@ -26,6 +27,7 @@ public final class VulkanPipelineProfileResolver {
             RenderFeatureMode lightingModeOverride,
             RenderFeatureMode pbrModeOverride,
             RenderFeatureMode giModeOverride,
+            RenderFeatureMode skyModeOverride,
             RenderFeatureMode rtModeOverride,
             int deferredShadowLightCount,
             int renderedSpotShadowLights,
@@ -85,6 +87,7 @@ public final class VulkanPipelineProfileResolver {
                 VulkanPbrCapabilityDescriptorV2.MODE_METALLIC_ROUGHNESS_BASELINE
         );
         RenderFeatureMode giMode = sanitizeGiMode(giModeOverride, VulkanGiCapabilityDescriptorV2.MODE_SSGI);
+        RenderFeatureMode skyMode = sanitizeSkyMode(skyModeOverride, VulkanSkyCapabilityDescriptorV2.MODE_HDRI);
 
         return new VulkanPipelineProfileKey(
                 tier == null ? QualityTier.MEDIUM : tier,
@@ -95,7 +98,8 @@ public final class VulkanPipelineProfileResolver {
                 rtMode,
                 lightingMode,
                 pbrMode,
-                giMode
+                giMode,
+                skyMode
         );
     }
 
@@ -129,6 +133,14 @@ public final class VulkanPipelineProfileResolver {
         }
         String requested = overrideMode.id();
         return VulkanPbrCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
+    }
+
+    private static RenderFeatureMode sanitizeSkyMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {
+        if (overrideMode == null || overrideMode.id() == null || overrideMode.id().isBlank()) {
+            return fallback;
+        }
+        String requested = overrideMode.id();
+        return VulkanSkyCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
     }
 
     private static RenderFeatureMode sanitizeRtMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {

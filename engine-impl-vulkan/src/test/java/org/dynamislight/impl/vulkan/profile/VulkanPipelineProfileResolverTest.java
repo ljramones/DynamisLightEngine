@@ -7,6 +7,7 @@ import org.dynamislight.impl.vulkan.capability.VulkanGiCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanLightingCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanPbrCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanRtCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanSkyCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +19,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.MEDIUM,
                 state,
                 0,
+                null,
                 null,
                 null,
                 null,
@@ -40,6 +42,7 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("baseline_directional_point_spot", key.lightingMode().id());
         assertEquals("metallic_roughness_baseline", key.pbrMode().id());
         assertEquals("ssgi", key.giMode().id());
+        assertEquals("hdri", key.skyMode().id());
     }
 
     @Test
@@ -52,6 +55,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 state,
                 3,
+                null,
                 null,
                 null,
                 null,
@@ -74,6 +78,7 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("baseline_directional_point_spot", key.lightingMode().id());
         assertEquals("metallic_roughness_baseline", key.pbrMode().id());
         assertEquals("ssgi", key.giMode().id());
+        assertEquals("hdri", key.skyMode().id());
     }
 
     @Test
@@ -82,6 +87,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 new VulkanRenderState(),
                 7,
+                null,
                 null,
                 null,
                 null,
@@ -109,6 +115,7 @@ class VulkanPipelineProfileResolverTest {
                 null,
                 null,
                 null,
+                null,
                 0,
                 0,
                 0,
@@ -131,6 +138,7 @@ class VulkanPipelineProfileResolverTest {
                 null,
                 null,
                 VulkanGiCapabilityDescriptorV2.MODE_HYBRID_PROBE_SSGI_RT,
+                null,
                 null,
                 0,
                 0,
@@ -155,6 +163,7 @@ class VulkanPipelineProfileResolverTest {
                 VulkanPbrCapabilityDescriptorV2.MODE_SPECULAR_GLOSSINESS_DETAIL_LAYERING,
                 null,
                 null,
+                null,
                 0,
                 0,
                 0,
@@ -177,6 +186,7 @@ class VulkanPipelineProfileResolverTest {
                 null,
                 null,
                 null,
+                null,
                 VulkanRtCapabilityDescriptorV2.MODE_FULL_STACK,
                 0,
                 0,
@@ -189,5 +199,29 @@ class VulkanPipelineProfileResolverTest {
                 false
         );
         assertEquals("rt_full_stack", key.rtMode().id());
+    }
+
+    @Test
+    void resolveUsesSkyModeOverrideWhenProvided() {
+        VulkanPipelineProfileKey key = VulkanPipelineProfileResolver.resolve(
+                QualityTier.HIGH,
+                new VulkanRenderState(),
+                0,
+                null,
+                null,
+                null,
+                VulkanSkyCapabilityDescriptorV2.MODE_ATMOSPHERE,
+                null,
+                0,
+                0,
+                0,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false
+        );
+        assertEquals("atmosphere", key.skyMode().id());
     }
 }
