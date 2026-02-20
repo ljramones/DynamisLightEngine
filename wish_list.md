@@ -193,13 +193,13 @@ AA notes:
 - Static lightmaps (baked, UV2-based) — `Not In Yet`
 - Light probes (SH, placed or auto-generated grid) — `Not In Yet`
 - Irradiance volumes (3D grid, interpolated) — `Not In Yet`
-- Adaptive probe volumes (dynamic density, streaming) — `Not In Yet`
-- SSGI (screen-space global illumination) — `Not In Yet`
+- Adaptive probe volumes (dynamic density, streaming) — `Partial`
+- SSGI (screen-space global illumination) — `Partial`
 - Voxel GI (voxel cone tracing, real-time) — `Not In Yet`
 - SDF GI (signed distance field tracing) — `Not In Yet`
-- RT GI (single-bounce diffuse, denoised) — `Not In Yet`
+- RT GI (single-bounce diffuse, denoised) — `Partial`
 - RT GI multi-bounce (recursive, accumulation-based) — `Not In Yet`
-- Hybrid GI (probes + SSGI fill + RT detail) — `Not In Yet`
+- Hybrid GI (probes + SSGI fill + RT detail) — `Partial`
 - Emissive GI contribution (emissive surfaces as light sources) — `Not In Yet`
 - Dynamic sky GI (environment drives indirect lighting, time-of-day responsive) — `Not In Yet`
 - Indirect specular from GI (feeds reflection probes or direct sample) — `Not In Yet`
@@ -212,7 +212,8 @@ GI notes:
   - typed backend-agnostic diagnostics (`giCapabilityDiagnostics()`)
   - promotion policy + ready warnings (`GI_PROMOTION_POLICY_ACTIVE`, `GI_PROMOTION_READY`) with tier/default + backend override thresholds (`vulkan.gi.promotionReadyMinFrames`)
   - typed backend-agnostic promotion diagnostics (`giPromotionDiagnostics()`)
-  - checklist and lockdown runner: `docs/gi-phase1-contract-v2-checklist.md`, `scripts/gi_phase1_contract_v2_lockdown.sh`
+  - checklists + lockdown runner: `docs/gi-phase1-contract-v2-checklist.md`, `docs/gi-phase2-execution-checklist.md`, `scripts/gi_phase1_contract_v2_lockdown.sh`
+- GI `Partial` rows currently represent Vulkan contract/planner/telemetry realization with promotion gating; production GI shading/denoise execution paths are the next phase.
 
 ## Lighting
 
