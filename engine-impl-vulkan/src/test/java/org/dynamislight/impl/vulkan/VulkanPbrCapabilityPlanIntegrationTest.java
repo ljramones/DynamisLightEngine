@@ -175,6 +175,42 @@ class VulkanPbrCapabilityPlanIntegrationTest {
         }
     }
 
+    @Test
+    void activatesPbrSurfaceOpticsOnHighTierWithCinematicModeAndReadyGates() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.pbr.subsurfaceScatteringEnabled", "true"),
+                    Map.entry("vulkan.pbr.thinFilmIridescenceEnabled", "true"),
+                    Map.entry("vulkan.pbr.sheenEnabled", "true"),
+                    Map.entry("vulkan.pbr.warnMinFrames", "1"),
+                    Map.entry("vulkan.pbr.warnCooldownFrames", "0"),
+                    Map.entry("vulkan.pbr.surfaceOpticsWarnMinFeatureCount", "2"),
+                    Map.entry("vulkan.pbr.promotionReadyMinFrames", "1")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_SURFACE_OPTICS_PROMOTION_READY".equals(w.code())));
+            var diagnostics = runtime.pbrCapabilityDiagnostics();
+            assertTrue(diagnostics.available());
+            assertTrue("cinematic_surface_stack".equals(diagnostics.mode()));
+            assertTrue(diagnostics.subsurfaceScatteringEnabled());
+            assertTrue(diagnostics.thinFilmIridescenceEnabled());
+            assertTrue(diagnostics.sheenEnabled());
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.pbr.subsurface_scattering"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.pbr.thin_film_iridescence"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.pbr.sheen"));
+            var promotion = runtime.pbrPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertFalse(promotion.surfaceOpticsEnvelopeBreachedLastFrame());
+            assertTrue(promotion.surfaceOpticsPromotionReadyLastFrame());
+            assertTrue(promotion.activeSurfaceOpticsFeatureCount() >= 3);
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier tier) {
         return new EngineConfig(
                 "vulkan",

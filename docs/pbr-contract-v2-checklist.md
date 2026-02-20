@@ -40,6 +40,9 @@
   - `PBR_SURFACE_OPTICS_ENVELOPE_BREACH`
   - `PBR_SURFACE_OPTICS_PROMOTION_READY`
   - typed snapshot now includes expected/active surface-optics feature counts and optics breach/readiness.
+- [x] Add dedicated Phase-2 cinematic lockdown runner:
+  - `scripts/pbr_phase2_cinematic_lockdown.sh`
+  - covers cinematic mode activation + surface-optics envelope/promotion assertions.
 - [x] Extend planner/runtime policy coverage for cinematic backlog toggles:
   - `vulkan.pbr.subsurfaceScatteringEnabled`
   - `vulkan.pbr.thinFilmIridescenceEnabled`
