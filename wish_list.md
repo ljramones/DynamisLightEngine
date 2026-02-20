@@ -333,25 +333,25 @@ Post notes:
 ## PBR / Shading
 
 - Standard metallic-roughness (GGX/Smith) — `In`
-- Specular-glossiness workflow — `Partial`
-- Clear coat (automotive paint, wet surfaces) — `Partial`
-- Anisotropic specular (brushed metal, hair highlights) — `Partial`
+- Specular-glossiness workflow — `In`
+- Clear coat (automotive paint, wet surfaces) — `In`
+- Anisotropic specular (brushed metal, hair highlights) — `In`
 - Subsurface scattering (skin, wax, marble — preintegrated or separable) — `Not In Yet`
 - Thin-film iridescence (soap bubbles, beetle shells) — `Not In Yet`
 - Sheen (fabric, velvet — Charlie distribution) — `Not In Yet`
-- Transmission / thin translucency (leaves, paper, curtains) — `Partial`
-- Refraction (thick glass, water surface, per-material IOR) — `Partial`
-- Detail maps (tiled micro-detail overlay) — `Partial`
+- Transmission / thin translucency (leaves, paper, curtains) — `In`
+- Refraction (thick glass, water surface, per-material IOR) — `In`
+- Detail maps (tiled micro-detail overlay) — `In`
 - Parallax occlusion mapping (height-based depth) — `Not In Yet`
 - Tessellation (displacement mapping, adaptive) — `Not In Yet`
 - Decals (deferred or forward-projected, PBR-full) — `Not In Yet`
-- Vertex color blending (terrain, weathering) — `Partial`
-- Material layering (blend multiple PBR stacks by mask) — `Partial`
-- Emissive with bloom contribution control — `Partial`
+- Vertex color blending (terrain, weathering) — `In`
+- Material layering (blend multiple PBR stacks by mask) — `In`
+- Emissive with bloom contribution control — `In`
 - Eye shader (refraction, caustic, iris depth) — `Not In Yet`
 - Hair shader (Marschner or dual-lobe specular) — `Not In Yet`
 - Cloth shader (subsurface + sheen combination) — `Not In Yet`
-- Energy conservation validation (diffuse + specular ≤ 1) — `Partial`
+- Energy conservation validation (diffuse + specular ≤ 1) — `In`
 
 PBR notes:
 
@@ -360,6 +360,7 @@ PBR notes:
 - Vulkan runtime now emits PBR promotion envelope diagnostics (`PBR_PROMOTION_POLICY_ACTIVE`, `PBR_PROMOTION_ENVELOPE`, `PBR_PROMOTION_ENVELOPE_BREACH`, `PBR_PROMOTION_READY`) and exposes typed backend-agnostic promotion diagnostics (`pbrPromotionDiagnostics()`).
 - Phase-C profile resolution now consumes runtime PBR mode overrides so compiled profile identity includes `pbr=...` and main-fragment shader module composition can vary by active PBR capability mode.
 - Checklist + lockdown runner: `docs/pbr-contract-v2-checklist.md`, `scripts/pbr_contract_v2_lockdown.sh`.
+- Vulkan shader-module realization now executes mode-specific PBR evaluation hooks (`specular_glossiness`, `specular_glossiness_detail`, `specular_glossiness_detail_layering`, `advanced_surface_stack`) through composed main-fragment modules.
 
 ## Geometry / Detail
 
