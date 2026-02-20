@@ -225,15 +225,19 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
     public RenderTelemetryDeclaration telemetry(RenderFeatureMode mode) {
         return new RenderTelemetryDeclaration(
                 List.of(
-                        "LIGHTING_CAPABILITY_MODE_ACTIVE"
+                        "LIGHTING_CAPABILITY_MODE_ACTIVE",
+                        "LIGHTING_BUDGET_ENVELOPE",
+                        "LIGHTING_BUDGET_ENVELOPE_BREACH"
                 ),
                 List.of(
-                        "lightingCapabilityDiagnostics"
+                        "lightingCapabilityDiagnostics",
+                        "lightingBudgetDiagnostics"
                 ),
                 List.of(),
                 List.of(
                         "lighting.mode.contract",
-                        "lighting.mode.telemetry"
+                        "lighting.mode.telemetry",
+                        "lighting.budget.envelope"
                 )
         );
     }

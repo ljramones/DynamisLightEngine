@@ -13,7 +13,7 @@ Status: In Progress (Vulkan-first)
 
 ## Phase 2: Capability Realization (Next)
 - [ ] Directional/point/spot baseline hardening and promotion gate.
-- [ ] Light prioritization/budget realization and promotion gate.
+- [~] Light prioritization/budget realization and promotion gate (envelope + typed diagnostics landed, promotion gates pending).
 - [ ] Physically-based units realization and promotion gate.
 - [ ] Emissive mesh lights realization and promotion gate.
 

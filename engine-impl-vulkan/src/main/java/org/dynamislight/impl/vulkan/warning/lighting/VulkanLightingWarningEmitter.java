@@ -20,7 +20,8 @@ public final class VulkanLightingWarningEmitter {
             boolean physicallyBasedUnitsEnabled,
             boolean prioritizationEnabled,
             boolean emissiveMeshEnabled,
-            int localLightBudget
+            int localLightBudget,
+            double budgetWarnRatioThreshold
     ) {
         VulkanLightingCapabilityPlan plan = VulkanLightingCapabilityPlanner.plan(
                 new VulkanLightingCapabilityPlanner.PlanInput(
@@ -29,28 +30,52 @@ public final class VulkanLightingWarningEmitter {
                         physicallyBasedUnitsEnabled,
                         prioritizationEnabled,
                         emissiveMeshEnabled,
-                        localLightBudget
+                        localLightBudget,
+                        budgetWarnRatioThreshold
                 )
         );
-        EngineWarning warning = new EngineWarning(
+        java.util.List<EngineWarning> warnings = new java.util.ArrayList<>();
+        warnings.add(new EngineWarning(
                 "LIGHTING_CAPABILITY_MODE_ACTIVE",
                 "Lighting capability mode active (mode=" + plan.modeId()
                         + ", directionalLights=" + plan.directionalLights()
                         + ", pointLights=" + plan.pointLights()
                         + ", spotLights=" + plan.spotLights()
+                        + ", localLightCount=" + plan.localLightCount()
+                        + ", localLightBudget=" + plan.localLightBudget()
+                        + ", localLightLoadRatio=" + plan.localLightLoadRatio()
                         + ", physicallyBasedUnitsEnabled=" + plan.physicallyBasedUnitsEnabled()
                         + ", prioritizationEnabled=" + plan.prioritizationEnabled()
                         + ", emissiveMeshEnabled=" + plan.emissiveMeshEnabled()
                         + ", active=[" + String.join(", ", plan.activeCapabilities()) + "]"
                         + ", pruned=[" + String.join(", ", plan.prunedCapabilities()) + "]"
                         + ", signals=[" + String.join(", ", plan.signals()) + "])"
-        );
-        return new Result(warning, plan);
+        ));
+        warnings.add(new EngineWarning(
+                "LIGHTING_BUDGET_ENVELOPE",
+                "Lighting budget envelope (localLights=" + plan.localLightCount()
+                        + ", budget=" + plan.localLightBudget()
+                        + ", ratio=" + plan.localLightLoadRatio()
+                        + ", threshold=" + budgetWarnRatioThreshold + ")"
+        ));
+        if (plan.budgetEnvelopeBreached()) {
+            warnings.add(new EngineWarning(
+                    "LIGHTING_BUDGET_ENVELOPE_BREACH",
+                    "Lighting budget envelope breached (localLights=" + plan.localLightCount()
+                            + ", budget=" + plan.localLightBudget()
+                            + ", ratio=" + plan.localLightLoadRatio()
+                            + ", threshold=" + budgetWarnRatioThreshold + ")"
+            ));
+        }
+        return new Result(warnings, plan);
     }
 
     public record Result(
-            EngineWarning warning,
+            List<EngineWarning> warnings,
             VulkanLightingCapabilityPlan plan
     ) {
+        public Result {
+            warnings = warnings == null ? List.of() : List.copyOf(warnings);
+        }
     }
 }

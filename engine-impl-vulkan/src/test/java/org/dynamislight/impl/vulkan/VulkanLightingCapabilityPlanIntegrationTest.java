@@ -41,10 +41,16 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_CAPABILITY_MODE_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE_BREACH".equals(w.code())));
             var diagnostics = runtime.lightingCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertTrue(diagnostics.activeCapabilities().stream().anyMatch(s -> s.contains("vulkan.lighting")));
             assertTrue(diagnostics.signals().stream().anyMatch(s -> s.startsWith("resolvedMode=")));
+            var budget = runtime.lightingBudgetDiagnostics();
+            assertTrue(budget.available());
+            assertTrue(budget.envelopeBreached());
+            assertTrue(budget.loadRatio() > 1.0);
         } finally {
             runtime.shutdown();
         }

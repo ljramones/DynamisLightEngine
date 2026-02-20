@@ -32,6 +32,8 @@ public final class VulkanLightingCapabilityPlanner {
 
         int localLightCount = point + spot;
         boolean budgetActive = safe.prioritizationEnabled() || localLightCount > safe.localLightBudget();
+        double loadRatio = (double) localLightCount / (double) Math.max(1, safe.localLightBudget());
+        boolean budgetEnvelopeBreached = loadRatio > safe.budgetWarnRatioThreshold();
         boolean physUnitsActive = safe.physicallyBasedUnitsEnabled();
         boolean emissiveActive = safe.emissiveMeshEnabled() && safe.qualityTier().ordinal() >= QualityTier.HIGH.ordinal();
 
@@ -68,7 +70,9 @@ public final class VulkanLightingCapabilityPlanner {
                 "spot=" + spot,
                 "localLights=" + localLightCount,
                 "localLightBudget=" + safe.localLightBudget(),
+                "localLightLoadRatio=" + loadRatio,
                 "budgetActive=" + budgetActive,
+                "budgetEnvelopeBreached=" + budgetEnvelopeBreached,
                 "physicallyBasedUnitsEnabled=" + physUnitsActive,
                 "emissiveMeshEnabled=" + emissiveActive
         );
@@ -77,6 +81,10 @@ public final class VulkanLightingCapabilityPlanner {
                 directional,
                 point,
                 spot,
+                localLightCount,
+                safe.localLightBudget(),
+                loadRatio,
+                budgetEnvelopeBreached,
                 physUnitsActive,
                 budgetActive,
                 emissiveActive,
@@ -108,12 +116,14 @@ public final class VulkanLightingCapabilityPlanner {
             boolean physicallyBasedUnitsEnabled,
             boolean prioritizationEnabled,
             boolean emissiveMeshEnabled,
-            int localLightBudget
+            int localLightBudget,
+            double budgetWarnRatioThreshold
     ) {
         public PlanInput {
             qualityTier = qualityTier == null ? QualityTier.MEDIUM : qualityTier;
             lights = lights == null ? List.of() : List.copyOf(lights);
             localLightBudget = Math.max(1, localLightBudget);
+            budgetWarnRatioThreshold = Math.max(1.0, budgetWarnRatioThreshold);
         }
 
         public static PlanInput defaults() {
@@ -123,7 +133,8 @@ public final class VulkanLightingCapabilityPlanner {
                     false,
                     true,
                     false,
-                    8
+                    8,
+                    1.0
             );
         }
     }

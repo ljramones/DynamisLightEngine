@@ -23,7 +23,8 @@ class VulkanLightingCapabilityPlannerTest {
                         false,
                         false,
                         false,
-                        8
+                        8,
+                        1.0
                 )
         );
         assertEquals(VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT.id(), plan.modeId());
@@ -47,7 +48,8 @@ class VulkanLightingCapabilityPlannerTest {
                         true,
                         true,
                         true,
-                        2
+                        2,
+                        1.0
                 )
         );
         assertEquals(VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE.id(), plan.modeId());
@@ -67,7 +69,8 @@ class VulkanLightingCapabilityPlannerTest {
                         false,
                         true,
                         true,
-                        8
+                        8,
+                        1.0
                 )
         );
         assertEquals(VulkanLightingCapabilityDescriptorV2.MODE_LIGHT_BUDGET_PRIORITY.id(), plan.modeId());

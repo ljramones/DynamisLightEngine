@@ -232,6 +232,7 @@ Lighting notes:
 - Vulkan lighting now has a v2 capability descriptor scaffold (`vulkan.lighting`) with explicit modes: `baseline_directional_point_spot`, `light_budget_priority`, `physically_based_units`, `emissive_mesh`, `phys_units_budget_emissive`.
 - Vulkan now emits per-frame lighting capability-plan telemetry (`LIGHTING_CAPABILITY_MODE_ACTIVE`) with parser-friendly active/pruned/signal payload for CI and host inspection.
 - Engine runtime API now exposes backend-agnostic typed lighting diagnostics (`lightingCapabilityDiagnostics()`) so hosts/CI can validate planner-resolved mode/signals without warning-string parsing.
+- Vulkan now emits lighting budget envelope telemetry (`LIGHTING_BUDGET_ENVELOPE`, `LIGHTING_BUDGET_ENVELOPE_BREACH`) and exposes typed runtime budget diagnostics (`lightingBudgetDiagnostics()`).
 - Lighting v2 contract coverage is tracked in `docs/lighting-capability-v2-checklist.md` and validated in composition with shadow/reflection/aa/post/gi descriptors.
 - Phase C profile compilation now includes lighting mode in profile identity (`lighting=...`) and composes lighting shader/descriptor requirements from the resolved mode.
 - Lighting contract gating is now automated via `scripts/lighting_contract_v2_lockdown.sh` and CI lane `lighting-contract-v2-lockdown`.
