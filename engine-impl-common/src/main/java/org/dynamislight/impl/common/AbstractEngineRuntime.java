@@ -31,6 +31,7 @@ import org.dynamislight.api.runtime.LightingBudgetDiagnostics;
 import org.dynamislight.api.runtime.LightingCapabilityDiagnostics;
 import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
 import org.dynamislight.api.runtime.LightingPromotionDiagnostics;
+import org.dynamislight.api.runtime.LightingAdvancedDiagnostics;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -410,6 +411,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public LightingAdvancedDiagnostics lightingAdvancedDiagnostics() {
+        return backendLightingAdvancedDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -559,6 +565,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected LightingEmissiveDiagnostics backendLightingEmissiveDiagnostics() {
         return LightingEmissiveDiagnostics.unavailable();
+    }
+
+    protected LightingAdvancedDiagnostics backendLightingAdvancedDiagnostics() {
+        return LightingAdvancedDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(

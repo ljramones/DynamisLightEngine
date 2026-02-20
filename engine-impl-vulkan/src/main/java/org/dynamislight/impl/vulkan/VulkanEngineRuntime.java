@@ -48,6 +48,7 @@ import org.dynamislight.api.runtime.LightingBudgetDiagnostics;
 import org.dynamislight.api.runtime.LightingCapabilityDiagnostics;
 import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
 import org.dynamislight.api.runtime.LightingPromotionDiagnostics;
+import org.dynamislight.api.runtime.LightingAdvancedDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
@@ -1081,12 +1082,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     protected AaMsaaPromotionDiagnostics backendAaMsaaPromotionDiagnostics() {
         return aaTemporalState.msaaDiagnostics();
     }
-
     @Override
     protected AaQualityPromotionDiagnostics backendAaQualityPromotionDiagnostics() {
         return aaTemporalState.qualityDiagnostics();
     }
-
     @Override
     protected GiCapabilityDiagnostics backendGiCapabilityDiagnostics() {
         return new GiCapabilityDiagnostics(
@@ -1106,7 +1105,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     protected LightingPromotionDiagnostics backendLightingPromotionDiagnostics() { return lightingCapabilityState.promotionDiagnostics(); }
     @Override
     protected LightingEmissiveDiagnostics backendLightingEmissiveDiagnostics() { return lightingCapabilityState.emissiveDiagnostics(); }
-
+    @Override
+    protected LightingAdvancedDiagnostics backendLightingAdvancedDiagnostics() { return lightingCapabilityState.advancedDiagnostics(); }
     @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
         return VulkanShadowBackendDiagnosticsBridge.capability(this);

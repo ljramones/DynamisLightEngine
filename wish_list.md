@@ -243,6 +243,7 @@ Lighting notes:
 - Lighting now has a full lockdown bundle runner (`scripts/lighting_lockdown_full.sh`) and always-on CI lane (`lighting-lockdown-full`) for contract + phase2 + advanced gating.
 - Vulkan now emits advanced-stack promotion readiness (`LIGHTING_ADVANCED_PROMOTION_READY`) with typed diagnostics (`lightingPromotionDiagnostics()`) and configurable min-frame thresholds (`vulkan.lighting.advancedPromotionReadyMinFrames`).
 - Backend-agnostic lighting capability diagnostics now expose typed advanced-policy activation flags (`areaApproxEnabled`, `iesProfilesEnabled`, `cookiesEnabled`, `volumetricShaftsEnabled`, `clusteringEnabled`, `lightLayersEnabled`) without warning-string parsing.
+- Engine runtime now exposes typed advanced-lighting diagnostics (`lightingAdvancedDiagnostics()`) including expected-vs-active advanced capability coverage and promotion streak state.
 - Lighting advanced-stack contract modes now declare concrete Vulkan descriptor/uniform/resource requirements (cluster grid, IES profile buffer, cookie atlas, layer mask buffer) for composition-time validation and pipeline planning.
 - Phase-C profile resolution now consumes runtime planner-resolved lighting mode overrides, so compiled profile keys/shader+descriptor composition track active lighting capability mode per frame.
 - Lighting telemetry now applies tier-profile defaults with backend-option override precedence and emits compact profile summary telemetry (`LIGHTING_TELEMETRY_PROFILE_ACTIVE`).

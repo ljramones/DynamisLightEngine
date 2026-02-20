@@ -350,7 +350,8 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                         "lightingCapabilityDiagnostics",
                         "lightingBudgetDiagnostics",
                         "lightingPromotionDiagnostics",
-                        "lightingEmissiveDiagnostics"
+                        "lightingEmissiveDiagnostics",
+                        "lightingAdvancedDiagnostics"
                 ),
                 List.of(),
                 List.of(

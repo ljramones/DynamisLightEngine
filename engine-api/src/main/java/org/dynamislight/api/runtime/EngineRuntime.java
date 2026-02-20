@@ -435,6 +435,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic advanced-lighting diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link LightingAdvancedDiagnostics#unavailable()}.
+     *
+     * @return current advanced-lighting diagnostics snapshot.
+     */
+    default LightingAdvancedDiagnostics lightingAdvancedDiagnostics() {
+        return LightingAdvancedDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

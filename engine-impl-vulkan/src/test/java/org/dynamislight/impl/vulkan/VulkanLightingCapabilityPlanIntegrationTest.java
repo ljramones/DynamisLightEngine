@@ -170,6 +170,10 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_PROMOTION_READY".equals(w.code())));
             assertTrue(runtime.lightingPromotionDiagnostics().advancedPromotionReady());
+            var advanced = runtime.lightingAdvancedDiagnostics();
+            assertTrue(advanced.available());
+            assertTrue(advanced.expectedAdvancedCapabilityCount() >= 1);
+            assertEquals(advanced.expectedAdvancedCapabilityCount(), advanced.activeAdvancedCapabilityCount());
         } finally {
             runtime.shutdown();
         }

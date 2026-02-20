@@ -8,6 +8,7 @@ import org.dynamislight.api.runtime.LightingBudgetDiagnostics;
 import org.dynamislight.api.runtime.LightingCapabilityDiagnostics;
 import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
 import org.dynamislight.api.runtime.LightingPromotionDiagnostics;
+import org.dynamislight.api.runtime.LightingAdvancedDiagnostics;
 import org.dynamislight.api.scene.LightDesc;
 import org.dynamislight.api.scene.MaterialDesc;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
@@ -67,6 +68,8 @@ public final class VulkanLightingCapabilityRuntimeState {
     private boolean volumetricShaftsActiveLastFrame;
     private boolean clusteringActiveLastFrame;
     private boolean lightLayersActiveLastFrame;
+    private int advancedExpectedCountLastFrame;
+    private int advancedActiveCountLastFrame;
 
     public void reset() {
         modeLastFrame = "baseline_directional_point_spot";
@@ -101,6 +104,8 @@ public final class VulkanLightingCapabilityRuntimeState {
         volumetricShaftsActiveLastFrame = false;
         clusteringActiveLastFrame = false;
         lightLayersActiveLastFrame = false;
+        advancedExpectedCountLastFrame = 0;
+        advancedActiveCountLastFrame = 0;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -385,6 +390,8 @@ public final class VulkanLightingCapabilityRuntimeState {
                 && !emissiveEnvelopeBreachedLastFrame;
         int expectedAdvancedCount = expectedAdvancedCapabilityCount(qualityTier);
         int activeAdvancedCount = activeAdvancedCapabilityCount();
+        advancedExpectedCountLastFrame = expectedAdvancedCount;
+        advancedActiveCountLastFrame = activeAdvancedCount;
         boolean advancedStableThisFrame = expectedAdvancedCount > 0 && activeAdvancedCount >= expectedAdvancedCount;
         if (advancedStableThisFrame) {
             advancedStableStreak++;
@@ -620,6 +627,23 @@ public final class VulkanLightingCapabilityRuntimeState {
                 emissiveCandidateRatioLastFrame,
                 emissiveWarnMinCandidateRatio,
                 emissiveEnvelopeBreachedLastFrame
+        );
+    }
+
+    public LightingAdvancedDiagnostics advancedDiagnostics() {
+        return new LightingAdvancedDiagnostics(
+                !modeLastFrame.isBlank(),
+                advancedExpectedCountLastFrame,
+                advancedActiveCountLastFrame,
+                advancedStableStreak,
+                advancedPromotionReadyMinFrames,
+                advancedPromotionReadyLastFrame,
+                areaApproxActiveLastFrame,
+                iesProfilesActiveLastFrame,
+                cookiesActiveLastFrame,
+                volumetricShaftsActiveLastFrame,
+                clusteringActiveLastFrame,
+                lightLayersActiveLastFrame
         );
     }
 }
