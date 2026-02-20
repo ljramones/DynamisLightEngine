@@ -35,13 +35,16 @@ class VulkanGiCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.mockContext", "true"),
                     Map.entry("vulkan.gi.enabled", "true"),
                     Map.entry("vulkan.gi.mode", "hybrid_probe_ssgi_rt"),
-                    Map.entry("vulkan.gi.promotionReadyMinFrames", "1")
+                    Map.entry("vulkan.gi.promotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.gi.ssgiPromotionReadyMinFrames", "1")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_CAPABILITY_PLAN_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROMOTION_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_ENVELOPE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_PROMOTION_READY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.giCapabilityDiagnostics();
             assertTrue(diagnostics.available());
@@ -52,6 +55,9 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(promotion.promotionReady());
             assertTrue(promotion.rtFallbackActive());
             assertTrue(promotion.ssgiActive());
+            assertTrue(promotion.ssgiExpected());
+            assertFalse(promotion.ssgiEnvelopeBreachedLastFrame());
+            assertTrue(promotion.ssgiPromotionReady());
             assertTrue(promotion.probeGridActive());
             assertFalse(promotion.rtDetailActive());
         } finally {
@@ -78,6 +84,7 @@ class VulkanGiCapabilityPlanIntegrationTest {
             var promotion = runtime.giPromotionDiagnostics();
             assertTrue(promotion.available());
             assertFalse(promotion.promotionReady());
+            assertFalse(promotion.ssgiPromotionReady());
         } finally {
             runtime.shutdown();
         }

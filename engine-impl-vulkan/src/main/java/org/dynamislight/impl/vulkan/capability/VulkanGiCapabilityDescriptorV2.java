@@ -191,6 +191,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         "GI_PHASE1_POLICY",
                         "GI_PROMOTION_POLICY_ACTIVE",
                         "GI_SSGI_POLICY_ACTIVE",
+                        "GI_SSGI_ENVELOPE",
+                        "GI_SSGI_ENVELOPE_BREACH",
+                        "GI_SSGI_PROMOTION_READY",
                         "GI_PROMOTION_READY"
                 ),
                 List.of(

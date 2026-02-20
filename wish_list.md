@@ -211,7 +211,8 @@ GI notes:
   - deterministic planner + warning emission (`GI_CAPABILITY_PLAN_ACTIVE`)
   - typed backend-agnostic diagnostics (`giCapabilityDiagnostics()`)
   - promotion policy + ready warnings (`GI_PROMOTION_POLICY_ACTIVE`, `GI_PROMOTION_READY`) with tier/default + backend override thresholds (`vulkan.gi.promotionReadyMinFrames`)
-  - typed backend-agnostic promotion diagnostics (`giPromotionDiagnostics()`) now include active path flags (`ssgiActive`, `probeGridActive`, `rtDetailActive`) plus `GI_SSGI_POLICY_ACTIVE` warning telemetry
+  - typed backend-agnostic promotion diagnostics (`giPromotionDiagnostics()`) now include active path flags (`ssgiActive`, `probeGridActive`, `rtDetailActive`) plus SSGI envelope thresholds/streak/cooldown/promotion fields
+  - GI now emits SSGI envelope/promotion warnings (`GI_SSGI_POLICY_ACTIVE`, `GI_SSGI_ENVELOPE`, `GI_SSGI_ENVELOPE_BREACH`, `GI_SSGI_PROMOTION_READY`) for CI-gated phase-2A integrity checks
   - checklists + lockdown runner: `docs/gi-phase1-contract-v2-checklist.md`, `docs/gi-phase2-execution-checklist.md`, `scripts/gi_phase1_contract_v2_lockdown.sh`
 - GI `Partial` rows currently represent Vulkan contract/planner/telemetry realization with promotion gating; production GI shading/denoise execution paths are the next phase.
 - Phase-C profile resolution now consumes runtime GI mode overrides so compiled profile identity includes `gi=...` and GI shader/descriptor composition can vary by active GI capability mode.
