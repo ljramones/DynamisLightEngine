@@ -28,6 +28,8 @@ import org.dynamislight.api.runtime.AaMsaaPromotionDiagnostics;
 import org.dynamislight.api.runtime.AaQualityPromotionDiagnostics;
 import org.dynamislight.api.runtime.GiCapabilityDiagnostics;
 import org.dynamislight.api.runtime.GiPromotionDiagnostics;
+import org.dynamislight.api.runtime.GeometryCapabilityDiagnostics;
+import org.dynamislight.api.runtime.GeometryPromotionDiagnostics;
 import org.dynamislight.api.runtime.LightingBudgetDiagnostics;
 import org.dynamislight.api.runtime.LightingCapabilityDiagnostics;
 import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
@@ -464,6 +466,16 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public GeometryCapabilityDiagnostics geometryCapabilityDiagnostics() {
+        return backendGeometryCapabilityDiagnostics();
+    }
+
+    @Override
+    public GeometryPromotionDiagnostics geometryPromotionDiagnostics() {
+        return backendGeometryPromotionDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -649,6 +661,14 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected SkyPromotionDiagnostics backendSkyPromotionDiagnostics() {
         return SkyPromotionDiagnostics.unavailable();
+    }
+
+    protected GeometryCapabilityDiagnostics backendGeometryCapabilityDiagnostics() {
+        return GeometryCapabilityDiagnostics.unavailable();
+    }
+
+    protected GeometryPromotionDiagnostics backendGeometryPromotionDiagnostics() {
+        return GeometryPromotionDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(

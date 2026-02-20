@@ -375,6 +375,11 @@ PBR notes:
 - Morph targets / blend shapes — `Not In Yet`
 - Vegetation (wind animation, alpha-tested, two-sided) — `Partial`
 
+Geometry notes:
+
+- Vulkan now emits geometry capability/promotion telemetry (`GEOMETRY_CAPABILITY_MODE_ACTIVE`, `GEOMETRY_POLICY_ACTIVE`, `GEOMETRY_PROMOTION_ENVELOPE`, `GEOMETRY_PROMOTION_ENVELOPE_BREACH`, `GEOMETRY_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`geometryCapabilityDiagnostics()`, `geometryPromotionDiagnostics()`).
+- Geometry Phase-1 Vulkan scaffold checklist/runner are in place (`docs/geometry-phase1-checklist.md`, `scripts/geometry_phase1_lockdown.sh`) with CI lane `geometry-phase1-lockdown`.
+
 ## VFX / Particles
 
 - CPU particle system (small-scale, simple emitters) — `Not In Yet`

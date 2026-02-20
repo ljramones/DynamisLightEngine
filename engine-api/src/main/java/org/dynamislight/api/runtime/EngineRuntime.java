@@ -543,6 +543,30 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic geometry/detail capability diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link GeometryCapabilityDiagnostics#unavailable()}.
+     *
+     * @return current geometry/detail capability diagnostics snapshot.
+     */
+    default GeometryCapabilityDiagnostics geometryCapabilityDiagnostics() {
+        return GeometryCapabilityDiagnostics.unavailable();
+    }
+
+    /**
+     * Retrieves backend-agnostic geometry/detail promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link GeometryPromotionDiagnostics#unavailable()}.
+     *
+     * @return current geometry/detail promotion diagnostics snapshot.
+     */
+    default GeometryPromotionDiagnostics geometryPromotionDiagnostics() {
+        return GeometryPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release
