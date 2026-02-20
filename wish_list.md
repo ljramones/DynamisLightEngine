@@ -24,8 +24,8 @@ Status summary snapshot (2026-02-20):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 123 |
-| `Partial` | 12 |
+| `In` | 125 |
+| `Partial` | 10 |
 | `Not In Yet` | 57 |
 
 ## Shadows
@@ -377,8 +377,8 @@ PBR notes:
 - Continuous LOD (tessellation-driven) — `Not In Yet`
 - Virtual geometry (Nanite-class mesh streaming, cluster culling) — `Not In Yet`
 - Occlusion culling (Hi-Z, software rasterized, GPU-readback) — `Not In Yet`
-- Frustum culling (CPU, GPU compute) — `Partial`
-- Mesh streaming (progressive load, distance-prioritized) — `Partial`
+- Frustum culling (CPU, GPU compute) — `In`
+- Mesh streaming (progressive load, distance-prioritized) — `In`
 - Impostor/billboard (far-distance LOD replacement) — `Not In Yet`
 - Procedural geometry (runtime mesh generation, compute-driven) — `Not In Yet`
 - Skinned mesh / skeletal animation — `Not In Yet`
@@ -389,6 +389,7 @@ Geometry notes:
 
 - Vulkan now emits geometry capability/promotion telemetry (`GEOMETRY_CAPABILITY_MODE_ACTIVE`, `GEOMETRY_POLICY_ACTIVE`, `GEOMETRY_PROMOTION_ENVELOPE`, `GEOMETRY_PROMOTION_ENVELOPE_BREACH`, `GEOMETRY_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`geometryCapabilityDiagnostics()`, `geometryPromotionDiagnostics()`).
 - Geometry Phase-1 Vulkan scaffold checklist/runner are in place (`docs/geometry-phase1-checklist.md`, `scripts/geometry_phase1_lockdown.sh`) with CI lane `geometry-phase1-lockdown`.
+- Frustum culling and mesh streaming are now treated as `In` for Vulkan scope via active-path diagnostics + promotion-ready lockdown coverage; instanced rendering remains `Partial` pending full runtime execution enablement.
 
 ## VFX / Particles
 
