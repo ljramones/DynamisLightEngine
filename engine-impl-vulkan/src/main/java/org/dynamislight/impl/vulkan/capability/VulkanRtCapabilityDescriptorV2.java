@@ -418,6 +418,76 @@ public final class VulkanRtCapabilityDescriptorV2 implements RenderFeatureCapabi
                         return vec4(clamp(hybrid, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;
+            case "bvh_management" -> """
+                    vec4 resolveRtCrossCut(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        float d0 = texture(uSceneDepth, uv).r;
+                        float d1 = texture(uSceneDepth, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).r;
+                        float d2 = texture(uSceneDepth, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).r;
+                        float edge = clamp(abs(d1 - d0) + abs(d2 - d0), 0.0, 1.0);
+                        float bvhConfidence = 1.0 - smoothstep(0.01, 0.18, edge);
+                        vec3 stabilized = mix(baseColor.rgb * 0.94, baseColor.rgb, bvhConfidence);
+                        return vec4(clamp(stabilized, vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "denoiser_framework" -> """
+                    vec4 resolveRtCrossCut(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec3 center = texture(uSceneColor, uv).rgb;
+                        vec3 h0 = texture(uHistoryColor, clamp(uv + vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 h1 = texture(uHistoryColor, clamp(uv - vec2(texel.x, 0.0), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 v0 = texture(uHistoryColor, clamp(uv + vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 v1 = texture(uHistoryColor, clamp(uv - vec2(0.0, texel.y), vec2(0.0), vec2(1.0))).rgb;
+                        vec3 neighborhood = (h0 + h1 + v0 + v1) * 0.25;
+                        float denoiseStrength = clamp(pc.reflectionsB.w, 0.0, 1.0);
+                        vec3 denoised = mix(center, neighborhood, 0.25 + denoiseStrength * 0.45);
+                        vec3 temporal = mix(denoised, texture(uHistoryColor, uv).rgb, 0.22 + denoiseStrength * 0.25);
+                        return vec4(clamp(mix(baseColor.rgb, temporal, 0.28), vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "rt_hybrid_raster" -> """
+                    vec4 resolveRtCrossCut(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec2 ray = normalize((uv - vec2(0.5)) + vec2(0.0001));
+                        vec3 rtLike = textureLod(uSceneColor, clamp(uv + ray * texel * 10.0, vec2(0.0), vec2(1.0)), 1.0).rgb;
+                        vec3 rasterLike = texture(uSceneColor, clamp(uv - ray * texel * 6.0, vec2(0.0), vec2(1.0))).rgb;
+                        float hybridBias = clamp(0.40 + (1.0 - texture(uSceneDepth, uv).r) * 0.35, 0.0, 1.0);
+                        vec3 hybrid = mix(rasterLike, rtLike, hybridBias);
+                        return vec4(clamp(mix(baseColor.rgb, hybrid, 0.30), vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "rt_quality_tiers" -> """
+                    vec4 resolveRtCrossCut(vec4 baseColor, vec2 uv) {
+                        float tierSignal = clamp(pc.ssao.w, 0.5, 1.0);
+                        float qualityScale = smoothstep(0.5, 1.0, tierSignal);
+                        vec3 history = texture(uHistoryColor, uv).rgb;
+                        vec3 refined = mix(baseColor.rgb, history, 0.12 + qualityScale * 0.24);
+                        return vec4(clamp(refined, vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "inline_ray_query" -> """
+                    vec4 resolveRtCrossCut(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec2 dir = normalize(vec2(uv.x - 0.5, 0.5 - uv.y) + vec2(0.0001));
+                        vec3 q0 = textureLod(uSceneColor, clamp(uv + dir * texel * 4.0, vec2(0.0), vec2(1.0)), 0.9).rgb;
+                        vec3 q1 = textureLod(uSceneColor, clamp(uv + dir * texel * 9.0, vec2(0.0), vec2(1.0)), 1.3).rgb;
+                        vec3 queryResult = mix(q0, q1, 0.45);
+                        return vec4(clamp(mix(baseColor.rgb, queryResult, 0.22), vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "dedicated_raygen" -> """
+                    vec4 resolveRtCrossCut(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec2 dirA = normalize(vec2(uv.x - 0.5, 0.5 - uv.y) + vec2(0.0001));
+                        vec2 dirB = vec2(-dirA.y, dirA.x);
+                        vec3 a0 = textureLod(uSceneColor, clamp(uv + dirA * texel * 7.0, vec2(0.0), vec2(1.0)), 1.0).rgb;
+                        vec3 a1 = textureLod(uSceneColor, clamp(uv - dirA * texel * 6.0, vec2(0.0), vec2(1.0)), 1.2).rgb;
+                        vec3 b0 = textureLod(uSceneColor, clamp(uv + dirB * texel * 8.0, vec2(0.0), vec2(1.0)), 1.4).rgb;
+                        vec3 raygen = (a0 * 0.4) + (a1 * 0.3) + (b0 * 0.3);
+                        vec3 denoised = mix(raygen, texture(uHistoryColor, uv).rgb, 0.25 + clamp(pc.reflectionsB.w, 0.0, 1.0) * 0.25);
+                        return vec4(clamp(mix(baseColor.rgb, denoised, 0.35), vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
             default -> """
                     vec4 resolveRtCrossCut(vec4 baseColor, vec2 uv) {
                         return baseColor;

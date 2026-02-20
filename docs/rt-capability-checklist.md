@@ -33,6 +33,13 @@
 - [x] Add planner test coverage (`VulkanRtCapabilityPlannerTest`) and include RT descriptor coverage in cross-capability contract validation (`VulkanCapabilityContractV2DescriptorsTest`).
 - [x] Wire RT v2 descriptor into Phase-C profile compilation so composed post shader/descriptors include RT capability bindings/modules (`VulkanPipelineProfileCompiler` + `VulkanPipelineProfileCompilerTest`).
 - [x] Include resolved RT mode in runtime profile identity (`VulkanPipelineProfileKey`) and runtime override flow (`VulkanEngineRuntime` -> `VulkanContext`) so profile cache keys track RT mode transitions.
+- [x] Replace RT descriptor stub shader bodies with mode-specific post resolve behavior for:
+  - bvh_management
+  - denoiser_framework
+  - rt_hybrid_raster
+  - rt_quality_tiers
+  - inline_ray_query
+  - dedicated_raygen
 
 Scope note:
 - This checklist is Vulkan-path scoped and establishes capability/promotion contracts for remaining RT rows; full dedicated execution hardening remains the next phase.
