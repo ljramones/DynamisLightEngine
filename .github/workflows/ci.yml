@@ -55,6 +55,10 @@ on:
         description: 'Run strict GI Phase 1 contract v2 lockdown gate'
         required: false
         default: 'false'
+      run_gi_phase2_ssgi_lockdown:
+        description: 'Run strict GI Phase 2A SSGI lockdown gate'
+        required: false
+        default: 'false'
       run_lighting_contract_v2_lockdown:
         description: 'Run strict lighting contract v2 lockdown gate'
         required: false
@@ -467,6 +471,27 @@ jobs:
 
       - name: Run GI Phase 1 contract v2 lockdown
         run: ./scripts/gi_phase1_contract_v2_lockdown.sh
+
+  gi-phase2-ssgi-lockdown:
+    name: GI Phase2A SSGI Lockdown (JDK 25, macos-latest)
+    if: github.event_name == 'schedule'
+      || github.event_name == 'push'
+      || github.event_name == 'pull_request'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_gi_phase2_ssgi_lockdown == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run GI Phase 2A SSGI lockdown
+        run: ./scripts/gi_phase2_ssgi_lockdown.sh
 
   lighting-contract-v2-lockdown:
     name: Lighting Contract V2 Lockdown (JDK 25, macos-latest)

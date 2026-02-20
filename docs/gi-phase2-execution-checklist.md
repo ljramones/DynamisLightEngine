@@ -8,7 +8,7 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 - [ ] Add SSGI shader module realization in post/lighting composition path.
 - [x] Add SSGI envelope warnings (quality/perf) + cooldown/streak gating (`GI_SSGI_ENVELOPE`, `GI_SSGI_ENVELOPE_BREACH`, `GI_SSGI_PROMOTION_READY`).
 - [x] Add typed SSGI diagnostics accessor fields under `GiPromotionDiagnostics` (expected/active ratio, thresholds, cooldown/streak, promotion state).
-- [x] Add dedicated SSGI lockdown runner (`scripts/gi_phase2_ssgi_lockdown.sh`) for CI-friendly replay of SSGI phase-2A gating tests.
+- [x] Add dedicated SSGI lockdown runner (`scripts/gi_phase2_ssgi_lockdown.sh`) and CI lane (`gi-phase2-ssgi-lockdown`) for phase-2A gating tests.
 - [ ] Add integration scenes for disocclusion, thin geometry, and camera-motion stability.
 - [ ] Add lockdown lane for SSGI promotion (`scripts/gi_phase2_ssgi_lockdown.sh`).
 
