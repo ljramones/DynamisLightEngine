@@ -83,6 +83,10 @@ on:
         description: 'Run full GI Phase 2 lockdown sequence (ssgi + probe + rt + rt-multi + dedicated + voxel+sdf)'
         required: false
         default: 'false'
+      run_gi_in_promotion_bundle:
+        description: 'Run GI In promotion bundle (Phase1+Phase2 lockdowns)'
+        required: false
+        default: 'false'
       run_lighting_contract_v2_lockdown:
         description: 'Run strict lighting contract v2 lockdown gate'
         required: false
@@ -642,6 +646,27 @@ jobs:
 
       - name: Run full GI Phase 2 lockdown
         run: ./scripts/gi_phase2_lockdown_full.sh
+
+  gi-in-promotion-bundle:
+    name: GI In Promotion Bundle (JDK 25, macos-latest)
+    if: github.event_name == 'schedule'
+      || github.event_name == 'push'
+      || github.event_name == 'pull_request'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_gi_in_promotion_bundle == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run GI In promotion bundle
+        run: ./scripts/gi_in_promotion_bundle.sh
 
   lighting-contract-v2-lockdown:
     name: Lighting Contract V2 Lockdown (JDK 25, macos-latest)

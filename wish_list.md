@@ -190,19 +190,19 @@ AA notes:
 
 ## Global Illumination
 
-- Static lightmaps (baked, UV2-based) — `Partial`
-- Light probes (SH, placed or auto-generated grid) — `Partial`
-- Irradiance volumes (3D grid, interpolated) — `Partial`
-- Adaptive probe volumes (dynamic density, streaming) — `Partial`
-- SSGI (screen-space global illumination) — `Partial`
-- Voxel GI (voxel cone tracing, real-time) — `Partial`
-- SDF GI (signed distance field tracing) — `Partial`
-- RT GI (single-bounce diffuse, denoised) — `Partial`
-- RT GI multi-bounce (recursive, accumulation-based) — `Partial`
-- Hybrid GI (probes + SSGI fill + RT detail) — `Partial`
-- Emissive GI contribution (emissive surfaces as light sources) — `Partial`
-- Dynamic sky GI (environment drives indirect lighting, time-of-day responsive) — `Partial`
-- Indirect specular from GI (feeds reflection probes or direct sample) — `Partial`
+- Static lightmaps (baked, UV2-based) — `In`
+- Light probes (SH, placed or auto-generated grid) — `In`
+- Irradiance volumes (3D grid, interpolated) — `In`
+- Adaptive probe volumes (dynamic density, streaming) — `In`
+- SSGI (screen-space global illumination) — `In`
+- Voxel GI (voxel cone tracing, real-time) — `In`
+- SDF GI (signed distance field tracing) — `In`
+- RT GI (single-bounce diffuse, denoised) — `In`
+- RT GI multi-bounce (recursive, accumulation-based) — `In`
+- Hybrid GI (probes + SSGI fill + RT detail) — `In`
+- Emissive GI contribution (emissive surfaces as light sources) — `In`
+- Dynamic sky GI (environment drives indirect lighting, time-of-day responsive) — `In`
+- Indirect specular from GI (feeds reflection probes or direct sample) — `In`
 
 GI notes:
 
@@ -240,6 +240,8 @@ GI notes:
 - GI phase-2 now emits consolidated readiness telemetry (`GI_PHASE2_PROMOTION_READY`) with typed diagnostics state (`phase2PromotionReady`) derived from expected SSGI/probe/RT lane readiness.
 - GI phase-2 now has a full lockdown bundle runner (`scripts/gi_phase2_lockdown_full.sh`) and CI lane (`gi-phase2-lockdown-full`) covering SSGI + probe-grid + RT-detail + RT-multi gates.
 - GI phase-2A integration coverage now includes disocclusion, thin-geometry, and camera-motion stability scenes in `VulkanGiCapabilityPlanIntegrationTest`.
+- GI In promotion bundle is now available (`scripts/gi_in_promotion_bundle.sh`) and treats GI rows as Vulkan-scope In with lockdown-gated signoff.
+- OpenGL GI parity is not implemented; GI In status should be interpreted as Vulkan-path scoped.
 
 ## Lighting
 

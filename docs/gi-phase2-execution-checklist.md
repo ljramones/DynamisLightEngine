@@ -69,3 +69,4 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 - [x] All GI phase-2 lockdown scripts pass in CI (lanes wired) and in local replay (`scripts/gi_phase2_lockdown_full.sh`).
 - [x] No structure guardrail violations.
 - [x] `wish_list.md` GI rows updated with Vulkan-scope status and caveats.
+- [x] GI promotion bundle runner available and passing (`scripts/gi_in_promotion_bundle.sh`) for Vulkan-scope In signoff.
