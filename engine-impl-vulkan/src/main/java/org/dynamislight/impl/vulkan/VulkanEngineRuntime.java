@@ -62,6 +62,8 @@ import org.dynamislight.api.runtime.VfxCapabilityDiagnostics;
 import org.dynamislight.api.runtime.VfxPromotionDiagnostics;
 import org.dynamislight.api.runtime.WaterCapabilityDiagnostics;
 import org.dynamislight.api.runtime.WaterPromotionDiagnostics;
+import org.dynamislight.api.runtime.TerrainCapabilityDiagnostics;
+import org.dynamislight.api.runtime.TerrainPromotionDiagnostics;
 import org.dynamislight.api.runtime.ShadowCapabilityDiagnostics;
 import org.dynamislight.api.runtime.ShadowCacheDiagnostics;
 import org.dynamislight.api.runtime.ShadowCadenceDiagnostics;
@@ -112,6 +114,7 @@ import org.dynamislight.impl.vulkan.rt.VulkanRtCrossCutRuntimeState;
 import org.dynamislight.impl.vulkan.sky.VulkanSkyCapabilityRuntimeState;
 import org.dynamislight.impl.vulkan.vfx.VulkanVfxCapabilityRuntimeState;
 import org.dynamislight.impl.vulkan.water.VulkanWaterCapabilityRuntimeState;
+import org.dynamislight.impl.vulkan.terrain.VulkanTerrainCapabilityRuntimeState;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
 import org.dynamislight.impl.vulkan.profile.PostProcessPipelineProfile;
@@ -204,6 +207,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private final VulkanSkyCapabilityRuntimeState skyCapabilityState = new VulkanSkyCapabilityRuntimeState();
     private final VulkanVfxCapabilityRuntimeState vfxCapabilityState = new VulkanVfxCapabilityRuntimeState();
     private final VulkanWaterCapabilityRuntimeState waterCapabilityState = new VulkanWaterCapabilityRuntimeState();
+    private final VulkanTerrainCapabilityRuntimeState terrainCapabilityState = new VulkanTerrainCapabilityRuntimeState();
     private final VulkanPostCoreRuntimeState postCoreState = new VulkanPostCoreRuntimeState();
     private final VulkanPostCinematicRuntimeState postCinematicState = new VulkanPostCinematicRuntimeState();
     private final VulkanRtCrossCutRuntimeState rtCrossCutState = new VulkanRtCrossCutRuntimeState();
@@ -701,6 +705,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         skyCapabilityState.reset();
         vfxCapabilityState.reset();
         waterCapabilityState.reset();
+        terrainCapabilityState.reset();
         postCoreState.reset();
         postCinematicState.reset();
         rtCrossCutState.reset();
@@ -723,6 +728,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         skyCapabilityState.applyBackendOptions(safeBackendOptions);
         vfxCapabilityState.applyBackendOptions(safeBackendOptions);
         waterCapabilityState.applyBackendOptions(safeBackendOptions);
+        terrainCapabilityState.applyBackendOptions(safeBackendOptions);
         postCoreState.applyBackendOptions(safeBackendOptions);
         postCinematicState.applyBackendOptions(safeBackendOptions);
         rtCrossCutState.applyBackendOptions(safeBackendOptions);
@@ -775,6 +781,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         skyCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         vfxCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         waterCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
+        terrainCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         postCoreState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         rtCrossCutState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         geometryCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
@@ -1178,6 +1185,10 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     @Override
     protected WaterPromotionDiagnostics backendWaterPromotionDiagnostics() { return waterCapabilityState.promotionDiagnostics(); }
     @Override
+    protected TerrainCapabilityDiagnostics backendTerrainCapabilityDiagnostics() { return terrainCapabilityState.diagnostics(); }
+    @Override
+    protected TerrainPromotionDiagnostics backendTerrainPromotionDiagnostics() { return terrainCapabilityState.promotionDiagnostics(); }
+    @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
         return VulkanShadowBackendDiagnosticsBridge.capability(this);
     }
@@ -1389,6 +1400,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         skyCapabilityState.emitFrameWarnings(currentIbl, warnings);
         vfxCapabilityState.emitFrameWarnings(warnings);
         waterCapabilityState.emitFrameWarnings(warnings);
+        terrainCapabilityState.emitFrameWarnings(warnings);
         postCoreState.emitFrameWarnings(
                 currentPost,
                 currentFog,

@@ -615,6 +615,30 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic terrain capability diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link TerrainCapabilityDiagnostics#unavailable()}.
+     *
+     * @return current terrain capability diagnostics snapshot.
+     */
+    default TerrainCapabilityDiagnostics terrainCapabilityDiagnostics() {
+        return TerrainCapabilityDiagnostics.unavailable();
+    }
+
+    /**
+     * Retrieves backend-agnostic terrain promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link TerrainPromotionDiagnostics#unavailable()}.
+     *
+     * @return current terrain promotion diagnostics snapshot.
+     */
+    default TerrainPromotionDiagnostics terrainPromotionDiagnostics() {
+        return TerrainPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

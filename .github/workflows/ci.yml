@@ -143,6 +143,10 @@ on:
         description: 'Run strict water/ocean phase1 lockdown gate'
         required: false
         default: 'false'
+      run_terrain_phase1_lockdown:
+        description: 'Run strict terrain phase1 lockdown gate'
+        required: false
+        default: 'false'
       run_aa_upscaler_vendor_matrix:
         description: 'Run AA upscaler vendor matrix lane'
         required: false
@@ -991,6 +995,26 @@ jobs:
 
       - name: Run water phase1 lockdown
         run: ./scripts/water_phase1_lockdown.sh
+
+  terrain-phase1-lockdown:
+    name: Terrain Phase1 Lockdown (JDK 25, macos-latest)
+    if: >
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_terrain_phase1_lockdown == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run terrain phase1 lockdown
+        run: ./scripts/terrain_phase1_lockdown.sh
 
   shadow-stable-promote-real:
     name: Shadow Stable Promote Real (JDK 25, macos-latest)

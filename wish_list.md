@@ -463,6 +463,11 @@ Sky notes:
 - Erosion simulation (hydraulic, thermal — offline or runtime) — `Not In Yet`
 - Terrain streaming (paged, distance-prioritized) — `Not In Yet`
 
+Terrain notes:
+
+- Vulkan now emits terrain capability/promotion telemetry (`TERRAIN_CAPABILITY_MODE_ACTIVE`, `TERRAIN_POLICY_ACTIVE`, `TERRAIN_PROMOTION_ENVELOPE`, `TERRAIN_PROMOTION_ENVELOPE_BREACH`, `TERRAIN_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`terrainCapabilityDiagnostics()`, `terrainPromotionDiagnostics()`).
+- Terrain Phase-1 Vulkan scaffold checklist/runner are in place (`docs/terrain-phase1-checklist.md`, `scripts/terrain_phase1_lockdown.sh`) with CI lane `terrain-phase1-lockdown`.
+
 ## Graphics API / Backend
 
 - OpenGL 4.x (compatibility, broad reach) — `In`
