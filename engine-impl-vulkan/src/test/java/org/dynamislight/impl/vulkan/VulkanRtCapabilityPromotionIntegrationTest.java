@@ -41,6 +41,7 @@ class VulkanRtCapabilityPromotionIntegrationTest {
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_MODE_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "RT_QUALITY_TIERS_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.rtCapabilityDiagnostics();

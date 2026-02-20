@@ -25,6 +25,18 @@ public final class VulkanRtCapabilityRuntimeState {
     private int warnMinFrames = 2;
     private int warnCooldownFrames = 120;
     private int promotionReadyMinFrames = 4;
+    private int raysPerPixelLow = 1;
+    private int raysPerPixelMedium = 2;
+    private int raysPerPixelHigh = 4;
+    private int raysPerPixelUltra = 6;
+    private int bounceCountLow = 1;
+    private int bounceCountMedium = 1;
+    private int bounceCountHigh = 2;
+    private int bounceCountUltra = 3;
+    private float denoiseStrengthLow = 0.45f;
+    private float denoiseStrengthMedium = 0.55f;
+    private float denoiseStrengthHigh = 0.65f;
+    private float denoiseStrengthUltra = 0.75f;
 
     private int stableStreak;
     private int highStreak;
@@ -65,6 +77,30 @@ public final class VulkanRtCapabilityRuntimeState {
                 safe, "vulkan.rt.capabilityWarnCooldownFrames", warnCooldownFrames, 0, 100_000);
         promotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
                 safe, "vulkan.rt.capabilityPromotionReadyMinFrames", promotionReadyMinFrames, 1, 100_000);
+        raysPerPixelLow = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.rt.quality.raysPerPixelLow", raysPerPixelLow, 1, 64);
+        raysPerPixelMedium = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.rt.quality.raysPerPixelMedium", raysPerPixelMedium, 1, 64);
+        raysPerPixelHigh = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.rt.quality.raysPerPixelHigh", raysPerPixelHigh, 1, 64);
+        raysPerPixelUltra = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.rt.quality.raysPerPixelUltra", raysPerPixelUltra, 1, 64);
+        bounceCountLow = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.rt.quality.bounceCountLow", bounceCountLow, 1, 16);
+        bounceCountMedium = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.rt.quality.bounceCountMedium", bounceCountMedium, 1, 16);
+        bounceCountHigh = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.rt.quality.bounceCountHigh", bounceCountHigh, 1, 16);
+        bounceCountUltra = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.rt.quality.bounceCountUltra", bounceCountUltra, 1, 16);
+        denoiseStrengthLow = (float) VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe, "vulkan.rt.quality.denoiseStrengthLow", denoiseStrengthLow, 0.0, 1.0);
+        denoiseStrengthMedium = (float) VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe, "vulkan.rt.quality.denoiseStrengthMedium", denoiseStrengthMedium, 0.0, 1.0);
+        denoiseStrengthHigh = (float) VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe, "vulkan.rt.quality.denoiseStrengthHigh", denoiseStrengthHigh, 0.0, 1.0);
+        denoiseStrengthUltra = (float) VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe, "vulkan.rt.quality.denoiseStrengthUltra", denoiseStrengthUltra, 0.0, 1.0);
     }
 
     public void applyProfileDefaults(Map<String, String> backendOptions, QualityTier tier) {
@@ -104,11 +140,31 @@ public final class VulkanRtCapabilityRuntimeState {
                 dedicatedRaygenRequested
         );
         var plan = VulkanRtCapabilityPlanner.plan(planInput);
+        QualityTier safeTier = tier == null ? QualityTier.MEDIUM : tier;
+        int activeRaysPerPixel = switch (safeTier) {
+            case LOW -> raysPerPixelLow;
+            case MEDIUM -> raysPerPixelMedium;
+            case HIGH -> raysPerPixelHigh;
+            case ULTRA -> raysPerPixelUltra;
+        };
+        int activeBounceCount = switch (safeTier) {
+            case LOW -> bounceCountLow;
+            case MEDIUM -> bounceCountMedium;
+            case HIGH -> bounceCountHigh;
+            case ULTRA -> bounceCountUltra;
+        };
+        float activeDenoiseStrength = switch (safeTier) {
+            case LOW -> denoiseStrengthLow;
+            case MEDIUM -> denoiseStrengthMedium;
+            case HIGH -> denoiseStrengthHigh;
+            case ULTRA -> denoiseStrengthUltra;
+        };
 
         expectedFeaturesLastFrame = expectedFeatureList();
         activeFeaturesLastFrame = plan.activeCapabilities();
         prunedFeaturesLastFrame = plan.prunedCapabilities();
         modeIdLastFrame = plan.modeId();
+        boolean qualityTiersActive = activeFeaturesLastFrame.contains("vulkan.rt.quality_tiers");
 
         boolean risk = !prunedFeaturesLastFrame.isEmpty();
         if (risk) {
@@ -147,6 +203,15 @@ public final class VulkanRtCapabilityRuntimeState {
                         + ", inlineRayQueryExpected=" + inlineRayQueryRequested
                         + ", dedicatedRaygenExpected=" + dedicatedRaygenRequested + ")"
         ));
+        if (qualityTiersRequested || qualityTiersActive) {
+            warnings.add(new EngineWarning(
+                    "RT_QUALITY_TIERS_ACTIVE",
+                    "RT quality tiers active (tier=" + safeTier.name().toLowerCase(java.util.Locale.ROOT)
+                            + ", raysPerPixel=" + activeRaysPerPixel
+                            + ", bounceCount=" + activeBounceCount
+                            + ", denoiseStrength=" + activeDenoiseStrength + ")"
+            ));
+        }
         warnings.add(new EngineWarning(
                 "RT_CAPABILITY_ENVELOPE",
                 "RT capability envelope (risk=" + risk

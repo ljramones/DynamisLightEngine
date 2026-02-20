@@ -44,6 +44,10 @@
   - `vulkan.rt.mockTraversalSupported`
   - `vulkan.rt.mockBvhSupported`
 - [x] Add full-stack integration coverage in mock context (`VulkanRtCapabilityPromotionIntegrationTest`) to validate active/pruned/ready behavior when all RT capability features are requested.
+- [x] Add explicit RT quality-tier policy warning emission (`RT_QUALITY_TIERS_ACTIVE`) with per-tier rays/bounces/denoise controls:
+  - `vulkan.rt.quality.raysPerPixel{Low|Medium|High|Ultra}`
+  - `vulkan.rt.quality.bounceCount{Low|Medium|High|Ultra}`
+  - `vulkan.rt.quality.denoiseStrength{Low|Medium|High|Ultra}`
 
 Scope note:
 - This checklist is Vulkan-path scoped and establishes capability/promotion contracts for remaining RT rows; full dedicated execution hardening remains the next phase.
