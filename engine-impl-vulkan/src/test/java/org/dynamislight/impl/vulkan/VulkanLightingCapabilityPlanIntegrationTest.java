@@ -147,6 +147,29 @@ class VulkanLightingCapabilityPlanIntegrationTest {
     }
 
     @Test
+    void emitsAdvancedPromotionReadyWhenAdvancedPolicyIsStable() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.lighting.areaApproxEnabled", "true"),
+                    Map.entry("vulkan.lighting.iesProfilesEnabled", "true"),
+                    Map.entry("vulkan.lighting.cookiesEnabled", "true"),
+                    Map.entry("vulkan.lighting.volumetricShaftsEnabled", "true"),
+                    Map.entry("vulkan.lighting.clusteringEnabled", "true"),
+                    Map.entry("vulkan.lighting.lightLayersEnabled", "true"),
+                    Map.entry("vulkan.lighting.advancedPromotionReadyMinFrames", "1")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validSceneStableBudget());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_PROMOTION_READY".equals(w.code())));
+            assertTrue(runtime.lightingPromotionDiagnostics().advancedPromotionReady());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
     void appliesTierProfileDefaultsWhenOverridesAbsent() throws Exception {
         VulkanEngineRuntime runtime = new VulkanEngineRuntime();
         try {
@@ -165,6 +188,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertEquals(5, promotion.promotionReadyMinFrames());
             assertEquals(5, promotion.physUnitsPromotionReadyMinFrames());
             assertEquals(6, promotion.emissivePromotionReadyMinFrames());
+            assertEquals(4, promotion.advancedPromotionReadyMinFrames());
             var emissive = runtime.lightingEmissiveDiagnostics();
             assertTrue(emissive.available());
             assertEquals(0.08, emissive.warnMinCandidateRatio(), 1e-9);
@@ -185,6 +209,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.budgetPromotionReadyMinFrames", "11"),
                     Map.entry("vulkan.lighting.physUnitsPromotionReadyMinFrames", "9"),
                     Map.entry("vulkan.lighting.emissivePromotionReadyMinFrames", "13"),
+                    Map.entry("vulkan.lighting.advancedPromotionReadyMinFrames", "17"),
                     Map.entry("vulkan.lighting.emissiveWarnMinCandidateRatio", "0.20")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validSceneStableBudget());
@@ -199,6 +224,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertEquals(11, promotion.promotionReadyMinFrames());
             assertEquals(9, promotion.physUnitsPromotionReadyMinFrames());
             assertEquals(13, promotion.emissivePromotionReadyMinFrames());
+            assertEquals(17, promotion.advancedPromotionReadyMinFrames());
             var emissive = runtime.lightingEmissiveDiagnostics();
             assertTrue(emissive.available());
             assertEquals(0.20, emissive.warnMinCandidateRatio(), 1e-9);

@@ -247,6 +247,7 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                         "LIGHTING_EMISSIVE_POLICY",
                         "LIGHTING_EMISSIVE_ENVELOPE_BREACH",
                         "LIGHTING_EMISSIVE_PROMOTION_READY",
+                        "LIGHTING_ADVANCED_PROMOTION_READY",
                         "LIGHTING_PHASE2_PROMOTION_READY"
                 ),
                 List.of(
