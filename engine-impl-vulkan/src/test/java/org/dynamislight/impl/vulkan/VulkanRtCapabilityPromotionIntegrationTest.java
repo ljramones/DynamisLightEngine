@@ -41,6 +41,8 @@ class VulkanRtCapabilityPromotionIntegrationTest {
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_MODE_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "RT_AO_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "RT_TRANSLUCENCY_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_QUALITY_TIERS_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_PROMOTION_READY".equals(w.code())));
@@ -52,6 +54,10 @@ class VulkanRtCapabilityPromotionIntegrationTest {
             assertTrue(promotion.available());
             assertFalse(promotion.envelopeBreachedLastFrame());
             assertTrue(promotion.promotionReadyLastFrame());
+            assertFalse(promotion.aoEnvelopeBreachedLastFrame());
+            assertTrue(promotion.aoPromotionReadyLastFrame());
+            assertFalse(promotion.translucencyEnvelopeBreachedLastFrame());
+            assertTrue(promotion.translucencyPromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }
@@ -72,6 +78,8 @@ class VulkanRtCapabilityPromotionIntegrationTest {
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_ENVELOPE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "RT_AO_ENVELOPE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "RT_TRANSLUCENCY_ENVELOPE_BREACH".equals(w.code())));
             var diagnostics = runtime.rtCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertFalse(diagnostics.modeId().isBlank());
@@ -81,6 +89,10 @@ class VulkanRtCapabilityPromotionIntegrationTest {
             assertTrue(promotion.available());
             assertTrue(promotion.envelopeBreachedLastFrame());
             assertFalse(promotion.promotionReadyLastFrame());
+            assertTrue(promotion.aoEnvelopeBreachedLastFrame());
+            assertFalse(promotion.aoPromotionReadyLastFrame());
+            assertTrue(promotion.translucencyEnvelopeBreachedLastFrame());
+            assertFalse(promotion.translucencyPromotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }

@@ -427,14 +427,14 @@ Water notes:
 - RT shadows (hard, soft, denoised, area light accurate) — `In`
 - RT reflections (single-bounce, multi-bounce, denoised) — `In`
 - RT GI (diffuse single-bounce, multi-bounce) — `In`
-- RT AO (medium-range, denoised) — `Partial`
-- RT translucency / caustics — `Partial`
-- BVH management (build, refit, compaction) — `Partial`
-- Denoiser framework (temporal, spatial, bilateral) — `Partial`
-- Hybrid RT + rasterized composition (RT for hero surfaces, raster for fill) — `Partial`
-- RT quality tiers (ray count, bounce count, denoise strength) — `Partial`
-- Inline / ray query support (forward pass ray queries) — `Partial`
-- Dedicated ray generation shaders — `Partial`
+- RT AO (medium-range, denoised) — `In`
+- RT translucency / caustics — `In`
+- BVH management (build, refit, compaction) — `In`
+- Denoiser framework (temporal, spatial, bilateral) — `In`
+- Hybrid RT + rasterized composition (RT for hero surfaces, raster for fill) — `In`
+- RT quality tiers (ray count, bounce count, denoise strength) — `In`
+- Inline / ray query support (forward pass ray queries) — `In`
+- Dedicated ray generation shaders — `In`
 
 RT notes:
 
@@ -446,7 +446,9 @@ RT notes:
 - RT cross-cut shader module realization now includes mode-specific post resolve bodies for BVH management, denoiser framework, hybrid RT+raster composition, quality tiers, inline ray query, and dedicated raygen lanes.
 - Vulkan runtime now supports mock-context RT capability simulation flags (`vulkan.rt.mockTraversalSupported`, `vulkan.rt.mockBvhSupported`) so full RT capability mode composition can be exercised in CI without requiring real RT hardware.
 - RT capability runtime now emits explicit quality-tier policy telemetry (`RT_QUALITY_TIERS_ACTIVE`) with configurable per-tier rays/bounces/denoise controls (`vulkan.rt.quality.*`) for CI-visible RT quality-tier hardening.
+- RT capability runtime now emits lane-level AO/translucency policy + envelope + breach + promotion telemetry (`RT_AO_*`, `RT_TRANSLUCENCY_*`), and typed promotion diagnostics expose lane breach/readiness for parser-free CI gating.
 - RT capability checklist/runner are in place (`docs/rt-capability-checklist.md`, `scripts/rt_capability_lockdown.sh`) with CI lane `rt-capability-lockdown`, and the full RT bundle now includes capability gating (`scripts/rt_lockdown_full.sh`).
+- RT cross-cut promotion is now considered `In` for Vulkan scope via contract + planner + composed shader modules + mode-aware profile resolution + lane-level promotion telemetry + lockdown bundle coverage.
 
 ## Sky / Atmosphere
 

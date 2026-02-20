@@ -48,6 +48,10 @@
   - `vulkan.rt.quality.raysPerPixel{Low|Medium|High|Ultra}`
   - `vulkan.rt.quality.bounceCount{Low|Medium|High|Ultra}`
   - `vulkan.rt.quality.denoiseStrength{Low|Medium|High|Ultra}`
+- [x] Add lane-level AO/translucency envelope + promotion telemetry:
+  - `RT_AO_POLICY_ACTIVE`, `RT_AO_ENVELOPE`, `RT_AO_ENVELOPE_BREACH`, `RT_AO_PROMOTION_READY`
+  - `RT_TRANSLUCENCY_POLICY_ACTIVE`, `RT_TRANSLUCENCY_ENVELOPE`, `RT_TRANSLUCENCY_ENVELOPE_BREACH`, `RT_TRANSLUCENCY_PROMOTION_READY`
+  - typed promotion diagnostics now include AO/translucency breach/ready booleans for parser-free assertions
 
 Scope note:
 - This checklist is Vulkan-path scoped and establishes capability/promotion contracts for remaining RT rows; full dedicated execution hardening remains the next phase.

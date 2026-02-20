@@ -43,6 +43,16 @@ public final class VulkanRtCapabilityRuntimeState {
     private int warnCooldownRemaining;
     private boolean envelopeBreachedLastFrame;
     private boolean promotionReadyLastFrame;
+    private int aoStableStreak;
+    private int aoHighStreak;
+    private int aoWarnCooldownRemaining;
+    private boolean aoEnvelopeBreachedLastFrame;
+    private boolean aoPromotionReadyLastFrame;
+    private int translucencyStableStreak;
+    private int translucencyHighStreak;
+    private int translucencyWarnCooldownRemaining;
+    private boolean translucencyEnvelopeBreachedLastFrame;
+    private boolean translucencyPromotionReadyLastFrame;
     private String modeIdLastFrame = "";
     private List<String> expectedFeaturesLastFrame = List.of();
     private List<String> activeFeaturesLastFrame = List.of();
@@ -54,6 +64,16 @@ public final class VulkanRtCapabilityRuntimeState {
         warnCooldownRemaining = 0;
         envelopeBreachedLastFrame = false;
         promotionReadyLastFrame = false;
+        aoStableStreak = 0;
+        aoHighStreak = 0;
+        aoWarnCooldownRemaining = 0;
+        aoEnvelopeBreachedLastFrame = false;
+        aoPromotionReadyLastFrame = false;
+        translucencyStableStreak = 0;
+        translucencyHighStreak = 0;
+        translucencyWarnCooldownRemaining = 0;
+        translucencyEnvelopeBreachedLastFrame = false;
+        translucencyPromotionReadyLastFrame = false;
         modeIdLastFrame = "";
         expectedFeaturesLastFrame = List.of();
         activeFeaturesLastFrame = List.of();
@@ -203,6 +223,36 @@ public final class VulkanRtCapabilityRuntimeState {
                         + ", inlineRayQueryExpected=" + inlineRayQueryRequested
                         + ", dedicatedRaygenExpected=" + dedicatedRaygenRequested + ")"
         ));
+        emitLaneWarnings(
+                warnings,
+                "RT_AO",
+                rtAoRequested,
+                activeFeaturesLastFrame.contains("vulkan.rt.ao"),
+                aoHighStreak,
+                aoStableStreak,
+                aoWarnCooldownRemaining
+        );
+        aoHighStreak = laneHighStreakNext;
+        aoStableStreak = laneStableStreakNext;
+        aoWarnCooldownRemaining = laneWarnCooldownRemainingNext;
+        aoEnvelopeBreachedLastFrame = laneEnvelopeBreachedLastFrameNext;
+        aoPromotionReadyLastFrame = lanePromotionReadyLastFrameNext;
+
+        emitLaneWarnings(
+                warnings,
+                "RT_TRANSLUCENCY",
+                rtTranslucencyCausticsRequested,
+                activeFeaturesLastFrame.contains("vulkan.rt.translucency_caustics"),
+                translucencyHighStreak,
+                translucencyStableStreak,
+                translucencyWarnCooldownRemaining
+        );
+        translucencyHighStreak = laneHighStreakNext;
+        translucencyStableStreak = laneStableStreakNext;
+        translucencyWarnCooldownRemaining = laneWarnCooldownRemainingNext;
+        translucencyEnvelopeBreachedLastFrame = laneEnvelopeBreachedLastFrameNext;
+        translucencyPromotionReadyLastFrame = lanePromotionReadyLastFrameNext;
+
         if (qualityTiersRequested || qualityTiersActive) {
             warnings.add(new EngineWarning(
                     "RT_QUALITY_TIERS_ACTIVE",
@@ -276,7 +326,11 @@ public final class VulkanRtCapabilityRuntimeState {
                 stableStreak,
                 highStreak,
                 envelopeBreachedLastFrame,
-                promotionReadyLastFrame
+                promotionReadyLastFrame,
+                aoEnvelopeBreachedLastFrame,
+                aoPromotionReadyLastFrame,
+                translucencyEnvelopeBreachedLastFrame,
+                translucencyPromotionReadyLastFrame
         );
     }
 
@@ -291,6 +345,64 @@ public final class VulkanRtCapabilityRuntimeState {
         if (inlineRayQueryRequested) out.add("vulkan.rt.inline_ray_query");
         if (dedicatedRaygenRequested) out.add("vulkan.rt.dedicated_raygen");
         return List.copyOf(out);
+    }
+
+    private int laneHighStreakNext;
+    private int laneStableStreakNext;
+    private int laneWarnCooldownRemainingNext;
+    private boolean laneEnvelopeBreachedLastFrameNext;
+    private boolean lanePromotionReadyLastFrameNext;
+
+    private void emitLaneWarnings(
+            List<EngineWarning> warnings,
+            String prefix,
+            boolean expected,
+            boolean active,
+            int currentHighStreak,
+            int currentStableStreak,
+            int currentWarnCooldownRemaining
+    ) {
+        warnings.add(new EngineWarning(
+                prefix + "_POLICY_ACTIVE",
+                prefix + " policy (expected=" + expected + ", active=" + active + ")"
+        ));
+        boolean risk = expected && !active;
+        int nextHigh = risk ? currentHighStreak + 1 : 0;
+        int nextStable = risk ? 0 : currentStableStreak + 1;
+        int nextCooldown = currentWarnCooldownRemaining > 0 ? currentWarnCooldownRemaining - 1 : 0;
+        boolean breached = risk && nextHigh >= warnMinFrames;
+        boolean promotionReady = !risk && nextStable >= promotionReadyMinFrames;
+        warnings.add(new EngineWarning(
+                prefix + "_ENVELOPE",
+                prefix + " envelope (risk=" + risk
+                        + ", expected=" + expected
+                        + ", active=" + active
+                        + ", highStreak=" + nextHigh
+                        + ", stableStreak=" + nextStable
+                        + ", warnMinFrames=" + warnMinFrames
+                        + ", warnCooldownFrames=" + warnCooldownFrames
+                        + ", promotionReadyMinFrames=" + promotionReadyMinFrames + ")"
+        ));
+        if (breached && nextCooldown <= 0) {
+            warnings.add(new EngineWarning(
+                    prefix + "_ENVELOPE_BREACH",
+                    prefix + " envelope breach (highStreak=" + nextHigh
+                            + ", cooldown=" + nextCooldown + ")"
+            ));
+            nextCooldown = warnCooldownFrames;
+        }
+        if (promotionReady) {
+            warnings.add(new EngineWarning(
+                    prefix + "_PROMOTION_READY",
+                    prefix + " promotion-ready envelope satisfied (stableStreak=" + nextStable
+                            + ", minFrames=" + promotionReadyMinFrames + ")"
+            ));
+        }
+        laneHighStreakNext = nextHigh;
+        laneStableStreakNext = nextStable;
+        laneWarnCooldownRemainingNext = nextCooldown;
+        laneEnvelopeBreachedLastFrameNext = breached;
+        lanePromotionReadyLastFrameNext = promotionReady;
     }
 
 }

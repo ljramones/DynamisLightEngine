@@ -14,7 +14,11 @@ public record RtCapabilityPromotionDiagnostics(
         int stableStreak,
         int highStreak,
         boolean envelopeBreachedLastFrame,
-        boolean promotionReadyLastFrame
+        boolean promotionReadyLastFrame,
+        boolean aoEnvelopeBreachedLastFrame,
+        boolean aoPromotionReadyLastFrame,
+        boolean translucencyEnvelopeBreachedLastFrame,
+        boolean translucencyPromotionReadyLastFrame
 ) {
     public RtCapabilityPromotionDiagnostics {
         expectedFeatureCount = Math.max(0, expectedFeatureCount);
@@ -39,8 +43,11 @@ public record RtCapabilityPromotionDiagnostics(
                 0,
                 0,
                 false,
+                false,
+                false,
+                false,
+                false,
                 false
         );
     }
 }
-
