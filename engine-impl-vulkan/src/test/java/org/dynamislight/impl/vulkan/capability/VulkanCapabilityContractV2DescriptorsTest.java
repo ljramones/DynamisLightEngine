@@ -105,6 +105,22 @@ class VulkanCapabilityContractV2DescriptorsTest {
     }
 
     @Test
+    void lightingDescriptorProducesCompleteContract() {
+        VulkanLightingCapabilityDescriptorV2 descriptor = VulkanLightingCapabilityDescriptorV2.withMode(
+                VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE
+        );
+
+        RenderCapabilityContractV2 contract = descriptor.contractV2(QualityTier.ULTRA);
+
+        assertEqualsNonBlank(contract.featureId());
+        assertNotNull(contract.mode());
+        assertFalse(contract.passes().isEmpty());
+        assertFalse(contract.shaderContributions().isEmpty());
+        assertFalse(contract.descriptorRequirements().isEmpty());
+        assertFalse(contract.ownedResources().isEmpty());
+    }
+
+    @Test
     void combinedShadowReflectionContractsHaveNoDescriptorCollisionsPerPass() {
         List<RenderFeatureCapabilityV2> capabilities = List.of(
                 VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM),
@@ -144,7 +160,8 @@ class VulkanCapabilityContractV2DescriptorsTest {
                 VulkanReflectionCapabilityDescriptorV2.withMode(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID),
                 VulkanAaCapabilityDescriptorV2.withMode(VulkanAaCapabilityDescriptorV2.MODE_TAA),
                 VulkanPostCapabilityDescriptorV2.withMode(VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE),
-                VulkanGiCapabilityDescriptorV2.withMode(VulkanGiCapabilityDescriptorV2.MODE_SSGI)
+                VulkanGiCapabilityDescriptorV2.withMode(VulkanGiCapabilityDescriptorV2.MODE_SSGI),
+                VulkanLightingCapabilityDescriptorV2.withMode(VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT)
         );
 
         List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
@@ -172,6 +189,38 @@ class VulkanCapabilityContractV2DescriptorsTest {
 
             List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
                     List.of(shadow, reflection),
+                    QualityTier.ULTRA
+            );
+            assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),
+                    "expected zero errors for mode " + mode.id() + ", got: " + issues);
+        }
+    }
+
+    @Test
+    void everyLightingModeProducesCompleteContractAndValidatesWithShadowReflectionAaPostAndGi() {
+        VulkanShadowCapabilityDescriptorV2 shadow =
+                VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM);
+        VulkanReflectionCapabilityDescriptorV2 reflection =
+                VulkanReflectionCapabilityDescriptorV2.withMode(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID);
+        VulkanAaCapabilityDescriptorV2 aa =
+                VulkanAaCapabilityDescriptorV2.withMode(VulkanAaCapabilityDescriptorV2.MODE_TAA);
+        VulkanPostCapabilityDescriptorV2 post =
+                VulkanPostCapabilityDescriptorV2.withMode(VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE);
+        VulkanGiCapabilityDescriptorV2 gi =
+                VulkanGiCapabilityDescriptorV2.withMode(VulkanGiCapabilityDescriptorV2.MODE_SSGI);
+
+        for (RenderFeatureMode mode : VulkanLightingCapabilityDescriptorV2.withMode(null).supportedModes()) {
+            VulkanLightingCapabilityDescriptorV2 lighting = VulkanLightingCapabilityDescriptorV2.withMode(mode);
+            RenderCapabilityContractV2 contract = lighting.contractV2(QualityTier.ULTRA);
+            assertEqualsNonBlank(contract.featureId());
+            assertNotNull(contract.mode());
+            assertFalse(contract.passes().isEmpty(), "mode " + mode.id() + " must declare passes");
+            assertFalse(contract.shaderContributions().isEmpty(), "mode " + mode.id() + " must declare shader contributions");
+            assertFalse(contract.descriptorRequirements().isEmpty(), "mode " + mode.id() + " must declare descriptor requirements");
+            assertFalse(contract.ownedResources().isEmpty(), "mode " + mode.id() + " must declare owned resources");
+
+            List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
+                    List.of(shadow, reflection, aa, post, gi, lighting),
                     QualityTier.ULTRA
             );
             assertTrue(issues.stream().noneMatch(issue -> issue.severity() == RenderCapabilityValidationIssue.Severity.ERROR),
@@ -310,6 +359,41 @@ class VulkanCapabilityContractV2DescriptorsTest {
     void everyAaModeProducesShaderModulesWithDescriptorAlignedBindings() {
         for (RenderFeatureMode mode : VulkanAaCapabilityDescriptorV2.withMode(null).supportedModes()) {
             VulkanAaCapabilityDescriptorV2 descriptor = VulkanAaCapabilityDescriptorV2.withMode(mode);
+            List<RenderShaderModuleDeclaration> modules = descriptor.shaderModules(mode);
+            assertFalse(modules.isEmpty(), "mode " + mode.id() + " must declare at least one shader module");
+
+            List<RenderDescriptorRequirement> descriptorRequirements = descriptor.descriptorRequirements(mode);
+            for (RenderShaderModuleDeclaration module : modules) {
+                assertEqualsNonBlank(module.moduleId());
+                assertEqualsNonBlank(module.providerFeatureId());
+                assertEqualsNonBlank(module.targetPassId());
+                assertEqualsNonBlank(module.hookFunction());
+                assertEqualsNonBlank(module.functionSignature());
+                assertTrue(module.functionSignature().contains(module.hookFunction()),
+                        "signature must contain hook function for module " + module.moduleId());
+                assertEqualsNonBlank(module.glslBody());
+                assertFalse(module.bindings().isEmpty(),
+                        "module " + module.moduleId() + " must declare at least one binding");
+                for (RenderShaderModuleBinding binding : module.bindings()) {
+                    assertEqualsNonBlank(binding.symbolName());
+                    RenderDescriptorRequirement descriptorReq = binding.descriptor();
+                    boolean descriptorExists = descriptorRequirements.stream().anyMatch(req ->
+                            req.targetPassId().equals(descriptorReq.targetPassId())
+                                    && req.setIndex() == descriptorReq.setIndex()
+                                    && req.bindingIndex() == descriptorReq.bindingIndex()
+                    );
+                    assertTrue(descriptorExists,
+                            "module binding must map to declared descriptor requirement for mode "
+                                    + mode.id() + ": " + binding);
+                }
+            }
+        }
+    }
+
+    @Test
+    void everyLightingModeProducesShaderModulesWithDescriptorAlignedBindings() {
+        for (RenderFeatureMode mode : VulkanLightingCapabilityDescriptorV2.withMode(null).supportedModes()) {
+            VulkanLightingCapabilityDescriptorV2 descriptor = VulkanLightingCapabilityDescriptorV2.withMode(mode);
             List<RenderShaderModuleDeclaration> modules = descriptor.shaderModules(mode);
             assertFalse(modules.isEmpty(), "mode " + mode.id() + " must declare at least one shader module");
 

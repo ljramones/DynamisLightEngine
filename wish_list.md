@@ -12,6 +12,7 @@ Review metadata:
 - Latest structure guardrails update: 2026-02-19 16:52 ET — Class-size and package hygiene guardrails now enforced in CI (`.github/workflows/ci.yml` job `structure-guardrails`) via `scripts/java_structure_guardrails.sh`.
 - Latest AA temporal hardening update: 2026-02-19 18:57 ET — geometric AA + alpha-to-coverage envelope/promotion gates were added (`AA_GEOMETRIC_*`, `AA_A2C_*`) through the quality diagnostics path (`aaQualityPromotionDiagnostics()`), with lockdown coverage.
 - Latest Phase C composition update: 2026-02-19 19:13 ET — Phase C shader/descriptor/profile composition completed in Vulkan (`docs/phase-c-shader-composition-checklist.md`), including composed layout runtime wiring and profile compile/cache/switch path.
+- Latest lighting contract update: 2026-02-20 09:41 ET — Lighting capability v2 descriptor/planner/telemetry scaffold added (`docs/lighting-capability-v2-checklist.md`) with typed runtime diagnostics (`lightingCapabilityDiagnostics()`).
 
 Status legend:
 
@@ -225,6 +226,13 @@ GI notes:
 - Light prioritization / budget (per-tier max active lights) — `Partial`
 - Light layers / channels (selective light-to-object assignment) — `Not In Yet`
 - Physically-based light units (lumens, lux, candela, EV) — `Partial`
+
+Lighting notes:
+
+- Vulkan lighting now has a v2 capability descriptor scaffold (`vulkan.lighting`) with explicit modes: `baseline_directional_point_spot`, `light_budget_priority`, `physically_based_units`, `emissive_mesh`, `phys_units_budget_emissive`.
+- Vulkan now emits per-frame lighting capability-plan telemetry (`LIGHTING_CAPABILITY_MODE_ACTIVE`) with parser-friendly active/pruned/signal payload for CI and host inspection.
+- Engine runtime API now exposes backend-agnostic typed lighting diagnostics (`lightingCapabilityDiagnostics()`) so hosts/CI can validate planner-resolved mode/signals without warning-string parsing.
+- Lighting v2 contract coverage is tracked in `docs/lighting-capability-v2-checklist.md` and validated in composition with shadow/reflection/aa/post/gi descriptors.
 
 ## Post-Processing
 
