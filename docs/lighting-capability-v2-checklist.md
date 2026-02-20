@@ -1,6 +1,6 @@
 # Lighting Capability V2 Checklist
 
-Status: In Progress (Vulkan-first)
+Status: Phase 2 Complete; Phase 3 In Progress (Vulkan-first)
 
 ## Phase 1: Contract + Planner + Telemetry
 - [x] Add `vulkan.lighting` v2 descriptor with baseline and expansion modes.

@@ -387,6 +387,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic GI promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link GiPromotionDiagnostics#unavailable()}.
+     *
+     * @return current GI promotion diagnostics snapshot.
+     */
+    default GiPromotionDiagnostics giPromotionDiagnostics() {
+        return GiPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Retrieves backend-agnostic lighting capability-plan diagnostics.
      *
      * Backends that do not expose this snapshot return

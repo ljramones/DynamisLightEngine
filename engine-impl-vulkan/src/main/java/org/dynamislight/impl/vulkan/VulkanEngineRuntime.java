@@ -11,7 +11,6 @@ import org.dynamislight.impl.vulkan.runtime.model.*;
 import org.dynamislight.impl.vulkan.state.VulkanTelemetryStateBinder;
 import org.dynamislight.impl.vulkan.runtime.config.AaMode;
 import org.dynamislight.impl.vulkan.runtime.config.AaPreset;
-import org.dynamislight.impl.vulkan.runtime.config.GiMode;
 import org.dynamislight.impl.vulkan.runtime.config.ReflectionProfile;
 import org.dynamislight.impl.vulkan.runtime.config.TsrControls;
 import org.dynamislight.impl.vulkan.runtime.config.UpscalerMode;
@@ -44,6 +43,7 @@ import org.dynamislight.api.runtime.AaUpscalePromotionDiagnostics;
 import org.dynamislight.api.runtime.AaMsaaPromotionDiagnostics;
 import org.dynamislight.api.runtime.AaQualityPromotionDiagnostics;
 import org.dynamislight.api.runtime.GiCapabilityDiagnostics;
+import org.dynamislight.api.runtime.GiPromotionDiagnostics;
 import org.dynamislight.api.runtime.LightingBudgetDiagnostics;
 import org.dynamislight.api.runtime.LightingCapabilityDiagnostics;
 import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
@@ -89,7 +89,7 @@ import org.dynamislight.impl.vulkan.warning.aa.VulkanAaQualityWarningEmitter;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalRuntimeState;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaTemporalWarningEmitter;
 import org.dynamislight.impl.vulkan.warning.aa.VulkanAaUpscaleWarningEmitter;
-import org.dynamislight.impl.vulkan.warning.gi.VulkanGiWarningEmitter;
+import org.dynamislight.impl.vulkan.gi.VulkanGiCapabilityRuntimeState;
 import org.dynamislight.impl.vulkan.lighting.VulkanLightingCapabilityRuntimeState;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.profile.FrameResourceProfile;
@@ -175,12 +175,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private List<String> aaPostActiveCapabilitiesLastFrame = List.of();
     private List<String> aaPostPrunedCapabilitiesLastFrame = List.of();
     private final VulkanAaTemporalRuntimeState aaTemporalState = new VulkanAaTemporalRuntimeState();
-    private GiMode giMode = GiMode.SSGI;
-    private boolean giEnabled;
-    private String giModeLastFrame = "ssgi";
-    private boolean giRtAvailableLastFrame;
-    private List<String> giActiveCapabilitiesLastFrame = List.of();
-    private List<String> giPrunedCapabilitiesLastFrame = List.of();
+    private final VulkanGiCapabilityRuntimeState giCapabilityState = new VulkanGiCapabilityRuntimeState();
     private final VulkanLightingCapabilityRuntimeState lightingCapabilityState = new VulkanLightingCapabilityRuntimeState();
     private UpscalerMode upscalerMode = UpscalerMode.NONE;
     private UpscalerQuality upscalerQuality = UpscalerQuality.QUALITY;
@@ -669,10 +664,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         reflectionTransparencyWarnCooldownRemaining = 0;
         reflectionTransparencyBreachedLastFrame = false;
         aaTemporalState.resetFrameState();
-        giModeLastFrame = giMode.name().toLowerCase(java.util.Locale.ROOT);
-        giRtAvailableLastFrame = false;
-        giActiveCapabilitiesLastFrame = List.of();
-        giPrunedCapabilitiesLastFrame = List.of();
+        giCapabilityState.reset();
         lightingCapabilityState.reset();
         lastFramePlanarCaptureGpuMs = Double.NaN;
         lastFrameGpuTimingSource = "frame_estimate";
@@ -686,8 +678,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         taaLumaClipEnabledDefault = Boolean.parseBoolean(safeBackendOptions.getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = VulkanRuntimeOptionParsing.parseAaPreset(safeBackendOptions.get("vulkan.aaPreset"));
         aaMode = VulkanRuntimeOptionParsing.parseAaMode(safeBackendOptions.get("vulkan.aaMode"));
-        giMode = VulkanRuntimeOptionParsing.parseGiMode(safeBackendOptions.get("vulkan.gi.mode"));
-        giEnabled = Boolean.parseBoolean(safeBackendOptions.getOrDefault("vulkan.gi.enabled", "false"));
+        giCapabilityState.applyBackendOptions(safeBackendOptions);
         lightingCapabilityState.applyBackendOptions(safeBackendOptions);
         aaTemporalState.applyBackendOptions(safeBackendOptions);
         upscalerMode = VulkanRuntimeOptionParsing.parseUpscalerMode(safeBackendOptions.get("vulkan.upscalerMode"));
@@ -731,6 +722,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         QualityTier resolvedQualityTier = config.qualityTier() == null ? QualityTier.MEDIUM : config.qualityTier();
         applyShadowTelemetryProfileDefaults(safeBackendOptions, resolvedQualityTier);
         applyReflectionProfileTelemetryDefaults(safeBackendOptions);
+        giCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         lightingCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         tsrControls = VulkanRuntimeOptionParsing.parseTsrControls(safeBackendOptions, "vulkan.");
         externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", safeBackendOptions);
@@ -1088,14 +1080,12 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
     @Override
     protected GiCapabilityDiagnostics backendGiCapabilityDiagnostics() {
-        return new GiCapabilityDiagnostics(
-                !giModeLastFrame.isBlank(),
-                giModeLastFrame,
-                giEnabled,
-                giRtAvailableLastFrame,
-                giActiveCapabilitiesLastFrame,
-                giPrunedCapabilitiesLastFrame
-        );
+        return giCapabilityState.diagnostics();
+    }
+
+    @Override
+    protected GiPromotionDiagnostics backendGiPromotionDiagnostics() {
+        return giCapabilityState.promotionDiagnostics();
     }
     @Override
     protected LightingCapabilityDiagnostics backendLightingCapabilityDiagnostics() { return lightingCapabilityState.diagnostics(); }
@@ -1292,17 +1282,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         warnings.addAll(aaMaterialEmission.warnings());
         aaTemporalState.applyMaterialEmission(aaMaterialEmission);
         aaTemporalState.updateCorePromotion(aaTemporalEmission, aaMaterialEmission, warnings, aaPostAaModeLastFrame);
-        VulkanGiWarningEmitter.Result giEmission = VulkanGiWarningEmitter.emit(
-                qualityTier,
-                giMode,
-                giEnabled,
-                shadowRtTraversalSupported
-        );
-        giModeLastFrame = giEmission.plan().giModeId();
-        giRtAvailableLastFrame = giEmission.plan().rtAvailable();
-        giActiveCapabilitiesLastFrame = giEmission.plan().activeCapabilities();
-        giPrunedCapabilitiesLastFrame = giEmission.plan().prunedCapabilities();
-        warnings.add(giEmission.warning());
+        giCapabilityState.emitFrameWarnings(qualityTier, shadowRtTraversalSupported, warnings);
         lightingCapabilityState.emitFrameWarning(qualityTier, currentSceneLights, currentSceneMaterials, warnings);
         context.setPipelineLightingModeOverride(lightingCapabilityState.diagnostics().mode());
         VulkanReflectionRuntimeFlow.processFrameWarnings(this, context, qualityTier, warnings);

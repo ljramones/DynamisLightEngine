@@ -34,15 +34,22 @@ class VulkanGiCapabilityPlanIntegrationTest {
             runtime.initialize(validConfig(Map.ofEntries(
                     Map.entry("vulkan.mockContext", "true"),
                     Map.entry("vulkan.gi.enabled", "true"),
-                    Map.entry("vulkan.gi.mode", "hybrid_probe_ssgi_rt")
+                    Map.entry("vulkan.gi.mode", "hybrid_probe_ssgi_rt"),
+                    Map.entry("vulkan.gi.promotionReadyMinFrames", "1")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_CAPABILITY_PLAN_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROMOTION_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.giCapabilityDiagnostics();
             assertTrue(diagnostics.available());
             assertTrue(diagnostics.giEnabled());
             assertTrue(diagnostics.activeCapabilities().stream().anyMatch(s -> s.contains("vulkan.gi")));
+            var promotion = runtime.giPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.promotionReady());
+            assertTrue(promotion.rtFallbackActive());
         } finally {
             runtime.shutdown();
         }
@@ -64,6 +71,30 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertFalse(diagnostics.giEnabled());
             assertTrue(diagnostics.activeCapabilities().isEmpty());
             assertTrue(diagnostics.prunedCapabilities().stream().anyMatch(s -> s.contains("gi disabled")));
+            var promotion = runtime.giPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertFalse(promotion.promotionReady());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsRtFallbackInPromotionDiagnosticsWhenRtUnavailable() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "rtgi_single"),
+                    Map.entry("vulkan.gi.promotionReadyMinFrames", "1")
+            ), QualityTier.MEDIUM), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            runtime.render();
+            var promotion = runtime.giPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.rtFallbackActive());
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.ssgi"));
         } finally {
             runtime.shutdown();
         }

@@ -210,6 +210,8 @@ GI notes:
   - `VulkanGiCapabilityDescriptorV2` modes: `ssgi`, `probe_grid`, `rtgi_single`, `hybrid_probe_ssgi_rt`
   - deterministic planner + warning emission (`GI_CAPABILITY_PLAN_ACTIVE`)
   - typed backend-agnostic diagnostics (`giCapabilityDiagnostics()`)
+  - promotion policy + ready warnings (`GI_PROMOTION_POLICY_ACTIVE`, `GI_PROMOTION_READY`) with tier/default + backend override thresholds (`vulkan.gi.promotionReadyMinFrames`)
+  - typed backend-agnostic promotion diagnostics (`giPromotionDiagnostics()`)
   - checklist and lockdown runner: `docs/gi-phase1-contract-v2-checklist.md`, `scripts/gi_phase1_contract_v2_lockdown.sh`
 
 ## Lighting
@@ -223,9 +225,9 @@ GI notes:
 - Light cookies / projector textures — `Partial`
 - Volumetric light shafts (god rays, per-light opt-in) — `Partial`
 - Light clustering (screen-space tile, 3D cluster, or hybrid) — `Partial`
-- Light prioritization / budget (per-tier max active lights) — `Partial`
+- Light prioritization / budget (per-tier max active lights) — `In`
 - Light layers / channels (selective light-to-object assignment) — `Partial`
-- Physically-based light units (lumens, lux, candela, EV) — `Partial`
+- Physically-based light units (lumens, lux, candela, EV) — `In`
 
 Lighting notes:
 

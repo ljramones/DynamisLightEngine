@@ -7,6 +7,8 @@ Scope: establish GI composition contract/planner scaffolding using the existing 
 - Add Vulkan GI v2 descriptor modes for Phase 1 planning.
 - Add deterministic GI planner with explicit active/pruned outputs.
 - Expose typed runtime GI diagnostics without warning-string parsing.
+- Add GI promotion policy + promotion-ready warning gates with tier/default + backend override thresholds.
+- Expose typed GI promotion diagnostics without warning-string parsing.
 - Add lockdown script for local/CI contract + integration replay.
 
 ## Contract Surface
@@ -21,15 +23,21 @@ Scope: establish GI composition contract/planner scaffolding using the existing 
   - `VulkanGiCapabilityPlan`
 - [x] Add runtime warning emission:
   - `GI_CAPABILITY_PLAN_ACTIVE`
+- [x] Add runtime promotion warning emission:
+  - `GI_PROMOTION_POLICY_ACTIVE`
+  - `GI_PROMOTION_READY`
 - [x] Add backend-agnostic typed diagnostics:
   - `EngineRuntime.giCapabilityDiagnostics()`
   - `GiCapabilityDiagnostics`
+- [x] Add backend-agnostic typed promotion diagnostics:
+  - `EngineRuntime.giPromotionDiagnostics()`
+  - `GiPromotionDiagnostics`
 
 ## Validation
 
 - [x] Descriptor-level validator coverage includes GI modes with shadow/reflection/AA/post.
 - [x] Planner unit tests cover disabled + fallback pruning paths.
-- [x] Integration tests validate warning + typed diagnostics contract.
+- [x] Integration tests validate capability + promotion warnings and typed diagnostics contracts.
 - [x] Add lockdown runner: `scripts/gi_phase1_contract_v2_lockdown.sh`.
 
 ## Verification Commands
