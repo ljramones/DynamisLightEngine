@@ -97,13 +97,16 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             runtime.initialize(validConfig(Map.ofEntries(
                     Map.entry("vulkan.mockContext", "true"),
                     Map.entry("vulkan.lighting.localLightBudget", "8"),
+                    Map.entry("vulkan.lighting.baselinePromotionReadyMinFrames", "1"),
                     Map.entry("vulkan.lighting.budgetPromotionReadyMinFrames", "1"),
                     Map.entry("vulkan.lighting.physUnitsPromotionReadyMinFrames", "1")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validSceneStableBudget());
             EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BASELINE_PROMOTION_READY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_PROMOTION_READY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_PHYS_UNITS_PROMOTION_READY".equals(w.code())));
+            assertTrue(runtime.lightingPromotionDiagnostics().baselinePromotionReady());
             assertTrue(runtime.lightingPromotionDiagnostics().promotionReady());
             assertTrue(runtime.lightingPromotionDiagnostics().physUnitsPromotionReady());
         } finally {
@@ -195,6 +198,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(promotion.available());
             assertEquals(2, promotion.warnMinFrames());
             assertEquals(90, promotion.warnCooldownFrames());
+            assertEquals(3, promotion.baselinePromotionReadyMinFrames());
             assertEquals(5, promotion.promotionReadyMinFrames());
             assertEquals(5, promotion.physUnitsPromotionReadyMinFrames());
             assertEquals(6, promotion.emissivePromotionReadyMinFrames());
@@ -216,6 +220,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.lighting.budgetWarnRatioThreshold", "2.25"),
                     Map.entry("vulkan.lighting.budgetWarnMinFrames", "7"),
                     Map.entry("vulkan.lighting.budgetWarnCooldownFrames", "33"),
+                    Map.entry("vulkan.lighting.baselinePromotionReadyMinFrames", "6"),
                     Map.entry("vulkan.lighting.budgetPromotionReadyMinFrames", "11"),
                     Map.entry("vulkan.lighting.physUnitsPromotionReadyMinFrames", "9"),
                     Map.entry("vulkan.lighting.emissivePromotionReadyMinFrames", "13"),
@@ -231,6 +236,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(promotion.available());
             assertEquals(7, promotion.warnMinFrames());
             assertEquals(33, promotion.warnCooldownFrames());
+            assertEquals(6, promotion.baselinePromotionReadyMinFrames());
             assertEquals(11, promotion.promotionReadyMinFrames());
             assertEquals(9, promotion.physUnitsPromotionReadyMinFrames());
             assertEquals(13, promotion.emissivePromotionReadyMinFrames());

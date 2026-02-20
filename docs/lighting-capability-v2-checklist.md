@@ -12,9 +12,8 @@ Status: In Progress (Vulkan-first)
 - [x] Add contract lockdown runner (`scripts/lighting_contract_v2_lockdown.sh`) and CI lane (`lighting-contract-v2-lockdown`).
 
 ## Phase 2: Capability Realization (Next)
-- [ ] Directional/point/spot baseline hardening and promotion gate.
-- [~] Light prioritization/budget realization and promotion gate (envelope + typed diagnostics + cooldown/streak/promotion-ready warnings landed, lockdown + tier envelope tuning pending).
-- [~] Light prioritization/budget realization and promotion gate (tier-profile defaults + profile-active telemetry landed; lockdown/tier tuning hardening pending).
+- [x] Directional/point/spot baseline hardening and promotion gate (`LIGHTING_BASELINE_PROMOTION_READY` + typed promotion diagnostics fields + default/override thresholds).
+- [x] Light prioritization/budget realization and promotion gate (envelope + typed diagnostics + cooldown/streak/promotion-ready warnings + tier-profile defaults + lockdown lanes).
 - [x] Profile-default override precedence is covered in integration tests (backend options override tier defaults).
 - [x] Physically-based units realization and promotion gate (`LIGHTING_PHYS_UNITS_PROMOTION_READY` + typed promotion diagnostics fields + default/override thresholds).
 - [x] Emissive mesh lights realization and promotion gate (`LIGHTING_EMISSIVE_PROMOTION_READY` + typed promotion diagnostics fields + default/override thresholds).
@@ -28,10 +27,10 @@ Status: In Progress (Vulkan-first)
 - [x] Expose typed advanced diagnostics accessor (`lightingAdvancedDiagnostics()`) for parser-free CI assertions on advanced expected/active capability coverage.
 
 ## Phase 3: Advanced Lighting Modes (Backlog)
-- [~] Area lights (approximate/sampled) planner/tier-gating telemetry scaffold landed (runtime realization pending).
-- [~] IES profiles planner/tier-gating telemetry scaffold landed (runtime realization pending).
-- [~] Cookies/projectors planner/tier-gating telemetry scaffold landed (runtime realization pending).
-- [~] Volumetric shafts planner/tier-gating telemetry scaffold landed (runtime realization pending).
-- [~] Clustering planner/tier-gating telemetry scaffold landed (runtime realization pending).
-- [~] Light layers/channels planner/tier-gating telemetry scaffold landed (runtime realization pending).
+- [~] Area lights (approximate/sampled) planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
+- [~] IES profiles planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
+- [~] Cookies/projectors planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
+- [~] Volumetric shafts planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
+- [~] Clustering planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
+- [~] Light layers/channels planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
 - [x] Advanced-stack contract realization now declares concrete descriptor/uniform/resource requirements for area/IES/cookies/volumetric/clustering/layers modes.

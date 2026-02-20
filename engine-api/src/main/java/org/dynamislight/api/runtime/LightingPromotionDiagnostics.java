@@ -6,6 +6,9 @@ package org.dynamislight.api.runtime;
 public record LightingPromotionDiagnostics(
         boolean available,
         String mode,
+        int baselineStableStreak,
+        int baselinePromotionReadyMinFrames,
+        boolean baselinePromotionReady,
         int highStreak,
         int stableStreak,
         int warnMinFrames,
@@ -33,6 +36,9 @@ public record LightingPromotionDiagnostics(
         return new LightingPromotionDiagnostics(
                 false,
                 "",
+                0,
+                0,
+                false,
                 0,
                 0,
                 0,

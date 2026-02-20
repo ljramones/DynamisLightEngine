@@ -39,16 +39,19 @@ public final class VulkanLightingCapabilityRuntimeState {
     private boolean budgetEnvelopeBreachedLastFrame;
     private int budgetWarnMinFrames = 3;
     private int budgetWarnCooldownFrames = 120;
+    private int baselinePromotionReadyMinFrames = 4;
     private int budgetPromotionReadyMinFrames = 6;
     private int physUnitsPromotionReadyMinFrames = 6;
     private int emissivePromotionReadyMinFrames = 8;
     private int advancedPromotionReadyMinFrames = 4;
     private int budgetHighStreak;
+    private int baselineStableStreak;
     private int budgetStableStreak;
     private int physUnitsStableStreak;
     private int emissiveStableStreak;
     private int advancedStableStreak;
     private int budgetWarnCooldownRemaining;
+    private boolean baselinePromotionReadyLastFrame;
     private boolean budgetPromotionReadyLastFrame;
     private boolean physUnitsPromotionReadyLastFrame;
     private boolean emissivePromotionReadyLastFrame;
@@ -81,8 +84,10 @@ public final class VulkanLightingCapabilityRuntimeState {
         localLightLoadRatioLastFrame = 0.0;
         budgetEnvelopeBreachedLastFrame = false;
         budgetHighStreak = 0;
+        baselineStableStreak = 0;
         budgetStableStreak = 0;
         budgetWarnCooldownRemaining = 0;
+        baselinePromotionReadyLastFrame = false;
         budgetPromotionReadyLastFrame = false;
         physUnitsStableStreak = 0;
         emissiveStableStreak = 0;
@@ -165,6 +170,13 @@ public final class VulkanLightingCapabilityRuntimeState {
                 0,
                 100000
         );
+        baselinePromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.lighting.baselinePromotionReadyMinFrames",
+                baselinePromotionReadyMinFrames,
+                1,
+                100000
+        );
         budgetPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
                 safe,
                 "vulkan.lighting.budgetPromotionReadyMinFrames",
@@ -216,6 +228,9 @@ public final class VulkanLightingCapabilityRuntimeState {
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnCooldownFrames")) {
                     budgetWarnCooldownFrames = 180;
                 }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.baselinePromotionReadyMinFrames")) {
+                    baselinePromotionReadyMinFrames = 5;
+                }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetPromotionReadyMinFrames")) {
                     budgetPromotionReadyMinFrames = 8;
                 }
@@ -241,6 +256,9 @@ public final class VulkanLightingCapabilityRuntimeState {
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnCooldownFrames")) {
                     budgetWarnCooldownFrames = 120;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.baselinePromotionReadyMinFrames")) {
+                    baselinePromotionReadyMinFrames = 4;
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetPromotionReadyMinFrames")) {
                     budgetPromotionReadyMinFrames = 6;
@@ -268,6 +286,9 @@ public final class VulkanLightingCapabilityRuntimeState {
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnCooldownFrames")) {
                     budgetWarnCooldownFrames = 90;
                 }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.baselinePromotionReadyMinFrames")) {
+                    baselinePromotionReadyMinFrames = 3;
+                }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetPromotionReadyMinFrames")) {
                     budgetPromotionReadyMinFrames = 5;
                 }
@@ -293,6 +314,9 @@ public final class VulkanLightingCapabilityRuntimeState {
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnCooldownFrames")) {
                     budgetWarnCooldownFrames = 75;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.baselinePromotionReadyMinFrames")) {
+                    baselinePromotionReadyMinFrames = 2;
                 }
                 if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetPromotionReadyMinFrames")) {
                     budgetPromotionReadyMinFrames = 4;
@@ -362,14 +386,18 @@ public final class VulkanLightingCapabilityRuntimeState {
         lightLayersActiveLastFrame = emission.plan().lightLayersEnabled();
         if (budgetEnvelopeBreachedLastFrame) {
             budgetHighStreak++;
+            baselineStableStreak = 0;
             budgetStableStreak = 0;
         } else {
+            baselineStableStreak++;
             budgetStableStreak++;
             budgetHighStreak = 0;
         }
         if (budgetWarnCooldownRemaining > 0) {
             budgetWarnCooldownRemaining--;
         }
+        baselinePromotionReadyLastFrame = baselineStableStreak >= baselinePromotionReadyMinFrames
+                && !budgetEnvelopeBreachedLastFrame;
         budgetPromotionReadyLastFrame = budgetStableStreak >= budgetPromotionReadyMinFrames
                 && !budgetEnvelopeBreachedLastFrame;
         if (physicallyBasedUnitsEnabled && !budgetEnvelopeBreachedLastFrame) {
@@ -420,6 +448,7 @@ public final class VulkanLightingCapabilityRuntimeState {
                             + ", budgetWarnRatioThreshold=" + budgetWarnRatioThreshold
                             + ", budgetWarnMinFrames=" + budgetWarnMinFrames
                             + ", budgetWarnCooldownFrames=" + budgetWarnCooldownFrames
+                            + ", baselinePromotionReadyMinFrames=" + baselinePromotionReadyMinFrames
                             + ", budgetPromotionReadyMinFrames=" + budgetPromotionReadyMinFrames
                             + ", physUnitsPromotionReadyMinFrames=" + physUnitsPromotionReadyMinFrames
                             + ", emissivePromotionReadyMinFrames=" + emissivePromotionReadyMinFrames
@@ -466,6 +495,14 @@ public final class VulkanLightingCapabilityRuntimeState {
                                 + ", totalMaterials=" + emissiveMaterialCountLastFrame
                                 + ", candidateRatio=" + emissiveCandidateRatioLastFrame
                                 + ", minCandidateRatio=" + emissiveWarnMinCandidateRatio + ")"
+                ));
+            }
+            if (baselinePromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "LIGHTING_BASELINE_PROMOTION_READY",
+                        "Lighting baseline promotion ready (stableStreak=" + baselineStableStreak
+                                + ", minFrames=" + baselinePromotionReadyMinFrames
+                                + ", mode=" + modeLastFrame + ")"
                 ));
             }
             if (budgetPromotionReadyLastFrame) {
@@ -597,6 +634,9 @@ public final class VulkanLightingCapabilityRuntimeState {
         return new LightingPromotionDiagnostics(
                 !modeLastFrame.isBlank(),
                 modeLastFrame,
+                baselineStableStreak,
+                baselinePromotionReadyMinFrames,
+                baselinePromotionReadyLastFrame,
                 budgetHighStreak,
                 budgetStableStreak,
                 budgetWarnMinFrames,
