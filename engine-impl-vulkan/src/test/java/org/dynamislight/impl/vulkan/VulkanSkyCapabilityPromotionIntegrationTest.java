@@ -38,6 +38,7 @@ class VulkanSkyCapabilityPromotionIntegrationTest {
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene(true));
             EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "SKY_CAPABILITY_PLAN_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "SKY_CAPABILITY_MODE_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "SKY_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "SKY_PROMOTION_ENVELOPE".equals(w.code())));

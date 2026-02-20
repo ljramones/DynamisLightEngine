@@ -135,6 +135,10 @@ on:
         description: 'Run strict sky/atmosphere phase1 lockdown gate'
         required: false
         default: 'false'
+      run_sky_contract_v2_lockdown:
+        description: 'Run strict sky contract v2 lockdown gate'
+        required: false
+        default: 'false'
       run_geometry_phase1_lockdown:
         description: 'Run strict geometry/detail phase1 lockdown gate'
         required: false
@@ -959,6 +963,26 @@ jobs:
 
       - name: Run sky phase1 lockdown
         run: ./scripts/sky_phase1_lockdown.sh
+
+  sky-contract-v2-lockdown:
+    name: Sky Contract v2 Lockdown (JDK 25, macos-latest)
+    if: >
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_sky_contract_v2_lockdown == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run sky contract v2 lockdown
+        run: ./scripts/sky_contract_v2_lockdown.sh
 
   geometry-phase1-lockdown:
     name: Geometry Phase1 Lockdown (JDK 25, macos-latest)

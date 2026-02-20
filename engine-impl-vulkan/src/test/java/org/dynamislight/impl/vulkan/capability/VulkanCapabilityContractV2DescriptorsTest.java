@@ -154,6 +154,22 @@ class VulkanCapabilityContractV2DescriptorsTest {
     }
 
     @Test
+    void skyDescriptorProducesCompleteContract() {
+        VulkanSkyCapabilityDescriptorV2 descriptor = VulkanSkyCapabilityDescriptorV2.withMode(
+                VulkanSkyCapabilityDescriptorV2.MODE_HDRI
+        );
+
+        RenderCapabilityContractV2 contract = descriptor.contractV2(QualityTier.HIGH);
+
+        assertEqualsNonBlank(contract.featureId());
+        assertNotNull(contract.mode());
+        assertFalse(contract.passes().isEmpty());
+        assertFalse(contract.shaderContributions().isEmpty());
+        assertFalse(contract.descriptorRequirements().isEmpty());
+        assertFalse(contract.ownedResources().isEmpty());
+    }
+
+    @Test
     void lightingAdvancedModeDeclaresAdvancedBindingsAndResources() {
         VulkanLightingCapabilityDescriptorV2 descriptor = VulkanLightingCapabilityDescriptorV2.withMode(
                 VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED
@@ -204,7 +220,7 @@ class VulkanCapabilityContractV2DescriptorsTest {
     }
 
     @Test
-    void crossCapabilityValidatorReportsNoErrorsForShadowReflectionAaPostGiLightingAndPbrDescriptors() {
+    void crossCapabilityValidatorReportsNoErrorsForShadowReflectionAaPostGiLightingPbrAndSkyDescriptors() {
         List<RenderFeatureCapabilityV2> capabilities = List.of(
                 VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM),
                 VulkanReflectionCapabilityDescriptorV2.withMode(VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID),
@@ -213,6 +229,7 @@ class VulkanCapabilityContractV2DescriptorsTest {
                 VulkanGiCapabilityDescriptorV2.withMode(VulkanGiCapabilityDescriptorV2.MODE_SSGI),
                 VulkanLightingCapabilityDescriptorV2.withMode(VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT),
                 VulkanPbrCapabilityDescriptorV2.withMode(VulkanPbrCapabilityDescriptorV2.MODE_METALLIC_ROUGHNESS_BASELINE),
+                VulkanSkyCapabilityDescriptorV2.withMode(VulkanSkyCapabilityDescriptorV2.MODE_HDRI),
                 VulkanRtCapabilityDescriptorV2.withMode(VulkanRtCapabilityDescriptorV2.MODE_QUALITY_TIERS)
         );
 

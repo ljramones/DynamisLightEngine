@@ -13,6 +13,7 @@ Review metadata:
 - Latest AA temporal hardening update: 2026-02-19 18:57 ET — geometric AA + alpha-to-coverage envelope/promotion gates were added (`AA_GEOMETRIC_*`, `AA_A2C_*`) through the quality diagnostics path (`aaQualityPromotionDiagnostics()`), with lockdown coverage.
 - Latest Phase C composition update: 2026-02-19 19:13 ET — Phase C shader/descriptor/profile composition completed in Vulkan (`docs/phase-c-shader-composition-checklist.md`), including composed layout runtime wiring and profile compile/cache/switch path.
 - Latest lighting contract update: 2026-02-20 09:41 ET — Lighting capability v2 descriptor/planner/telemetry scaffold added (`docs/lighting-capability-v2-checklist.md`) with typed runtime diagnostics (`lightingCapabilityDiagnostics()`).
+- Latest sky contract update: 2026-02-20 12:26 ET — Sky capability v2 descriptor/planner scaffold added (`docs/sky-contract-v2-checklist.md`) with deterministic plan warning emission (`SKY_CAPABILITY_PLAN_ACTIVE`) and lockdown coverage.
 
 Status legend:
 
@@ -475,6 +476,9 @@ Sky notes:
 
 - Vulkan now emits sky capability/promotion telemetry (`SKY_CAPABILITY_MODE_ACTIVE`, `SKY_POLICY_ACTIVE`, `SKY_PROMOTION_ENVELOPE`, `SKY_PROMOTION_ENVELOPE_BREACH`, `SKY_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`skyCapabilityDiagnostics()`, `skyPromotionDiagnostics()`).
 - Sky Phase-1 Vulkan scaffold checklist/runner are in place (`docs/sky-phase1-checklist.md`, `scripts/sky_phase1_lockdown.sh`) with CI lane `sky-phase1-lockdown`.
+- Vulkan sky now has v2 capability descriptor coverage (`VulkanSkyCapabilityDescriptorV2`) with explicit modes (`hdri`, `procedural`, `atmosphere`) and post-composite shader module declarations for composition-time contract validation.
+- Vulkan sky runtime now uses deterministic planner output (`VulkanSkyCapabilityPlanner`) and emits parser-friendly per-frame plan telemetry (`SKY_CAPABILITY_PLAN_ACTIVE`) with expected/active/pruned signal payloads.
+- Sky contract v2 checklist/runner are in place (`docs/sky-contract-v2-checklist.md`, `scripts/sky_contract_v2_lockdown.sh`) with CI lane `sky-contract-v2-lockdown`.
 
 ## Terrain
 

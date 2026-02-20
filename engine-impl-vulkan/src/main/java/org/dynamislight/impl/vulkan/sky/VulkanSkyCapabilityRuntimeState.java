@@ -7,6 +7,8 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.SkyCapabilityDiagnostics;
 import org.dynamislight.api.runtime.SkyPromotionDiagnostics;
+import org.dynamislight.impl.vulkan.capability.VulkanSkyCapabilityPlan;
+import org.dynamislight.impl.vulkan.capability.VulkanSkyCapabilityPlanner;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 import org.dynamislight.impl.vulkan.runtime.model.IblRenderConfig;
 
@@ -14,6 +16,7 @@ import org.dynamislight.impl.vulkan.runtime.model.IblRenderConfig;
  * Runtime sky/atmosphere capability and promotion state (Phase 1 scaffold).
  */
 public final class VulkanSkyCapabilityRuntimeState {
+    private QualityTier qualityTier = QualityTier.MEDIUM;
     private String configuredMode = "hdri";
     private boolean proceduralRequested;
     private boolean atmosphereRequested;
@@ -34,6 +37,7 @@ public final class VulkanSkyCapabilityRuntimeState {
     private List<String> expectedFeaturesLastFrame = List.of();
     private List<String> activeFeaturesLastFrame = List.of();
     private List<String> prunedFeaturesLastFrame = List.of();
+    private List<String> signalsLastFrame = List.of();
 
     public void reset() {
         stableStreak = 0;
@@ -45,6 +49,7 @@ public final class VulkanSkyCapabilityRuntimeState {
         expectedFeaturesLastFrame = List.of();
         activeFeaturesLastFrame = List.of();
         prunedFeaturesLastFrame = List.of();
+        signalsLastFrame = List.of();
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -66,6 +71,7 @@ public final class VulkanSkyCapabilityRuntimeState {
     }
 
     public void applyProfileDefaults(Map<String, String> backendOptions, QualityTier tier) {
+        qualityTier = tier == null ? QualityTier.MEDIUM : tier;
         if (backendOptions != null && backendOptions.containsKey("vulkan.sky.promotionReadyMinFrames")) {
             return;
         }
@@ -82,44 +88,40 @@ public final class VulkanSkyCapabilityRuntimeState {
         IblRenderConfig safeIbl = ibl == null
                 ? new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null)
                 : ibl;
-        boolean hdriExpected = safeIbl.enabled();
-        boolean hdriActive = safeIbl.enabled();
+        VulkanSkyCapabilityPlan plan = VulkanSkyCapabilityPlanner.plan(new VulkanSkyCapabilityPlanner.PlanInput(
+                qualityTier,
+                configuredMode,
+                safeIbl.enabled(),
+                proceduralRequested,
+                atmosphereRequested,
+                dynamicTimeOfDayRequested,
+                volumetricCloudsRequested,
+                cloudShadowProjectionRequested,
+                aerialPerspectiveRequested
+        ));
 
-        boolean proceduralExpected = proceduralRequested;
-        boolean atmosphereExpected = atmosphereRequested;
-        boolean todExpected = dynamicTimeOfDayRequested;
-        boolean volumetricCloudsExpected = volumetricCloudsRequested;
-        boolean cloudShadowProjectionExpected = cloudShadowProjectionRequested;
-        boolean aerialPerspectiveExpected = aerialPerspectiveRequested;
+        boolean hdriExpected = plan.hdriExpected();
+        boolean hdriActive = plan.hdriActive();
+        boolean proceduralExpected = plan.proceduralExpected();
+        boolean atmosphereExpected = plan.atmosphereExpected();
+        boolean todExpected = plan.dynamicTimeOfDayExpected();
+        boolean volumetricCloudsExpected = plan.volumetricCloudsExpected();
+        boolean cloudShadowProjectionExpected = plan.cloudShadowProjectionExpected();
+        boolean aerialPerspectiveExpected = plan.aerialPerspectiveExpected();
 
-        // Phase 1: HDRI path is active; advanced sky features are scaffolded and currently inactive.
-        boolean proceduralActive = false;
-        boolean atmosphereActive = false;
-        boolean todActive = false;
-        boolean volumetricCloudsActive = false;
-        boolean cloudShadowProjectionActive = false;
-        boolean aerialPerspectiveActive = false;
-
-        modeLastFrame = normalizeMode(configuredMode, hdriExpected, proceduralExpected, atmosphereExpected);
+        modeLastFrame = plan.modeId();
         expectedFeaturesLastFrame = expectedFeatureList(
-                hdriExpected,
-                proceduralExpected,
-                atmosphereExpected,
-                todExpected,
-                volumetricCloudsExpected,
-                cloudShadowProjectionExpected,
-                aerialPerspectiveExpected
+                plan.hdriExpected(),
+                plan.proceduralExpected(),
+                plan.atmosphereExpected(),
+                plan.dynamicTimeOfDayExpected(),
+                plan.volumetricCloudsExpected(),
+                plan.cloudShadowProjectionExpected(),
+                plan.aerialPerspectiveExpected()
         );
-        activeFeaturesLastFrame = activeFeatureList(
-                hdriActive,
-                proceduralActive,
-                atmosphereActive,
-                todActive,
-                volumetricCloudsActive,
-                cloudShadowProjectionActive,
-                aerialPerspectiveActive
-        );
-        prunedFeaturesLastFrame = diff(expectedFeaturesLastFrame, activeFeaturesLastFrame);
+        activeFeaturesLastFrame = plan.activeCapabilities();
+        prunedFeaturesLastFrame = plan.prunedCapabilities();
+        signalsLastFrame = plan.signals();
 
         boolean risk = !prunedFeaturesLastFrame.isEmpty();
         if (risk) {
@@ -139,6 +141,13 @@ public final class VulkanSkyCapabilityRuntimeState {
         envelopeBreachedLastFrame = risk && highStreak >= warnMinFrames;
         promotionReadyLastFrame = !risk && stableStreak >= promotionReadyMinFrames;
 
+        warnings.add(new EngineWarning(
+                "SKY_CAPABILITY_PLAN_ACTIVE",
+                "Sky capability plan active (mode=" + modeLastFrame
+                        + ", active=[" + String.join(", ", activeFeaturesLastFrame) + "]"
+                        + ", pruned=[" + String.join(", ", prunedFeaturesLastFrame) + "]"
+                        + ", signals=[" + String.join(", ", signalsLastFrame) + "])"
+        ));
         warnings.add(new EngineWarning(
                 "SKY_CAPABILITY_MODE_ACTIVE",
                 "Sky capability mode active (mode=" + modeLastFrame
@@ -215,16 +224,6 @@ public final class VulkanSkyCapabilityRuntimeState {
         );
     }
 
-    private static String normalizeMode(String configured, boolean hdriExpected, boolean proceduralExpected, boolean atmosphereExpected) {
-        if (configured == null || configured.isBlank()) {
-            if (atmosphereExpected) return "atmosphere";
-            if (proceduralExpected) return "procedural";
-            if (hdriExpected) return "hdri";
-            return "off";
-        }
-        return configured.toLowerCase(java.util.Locale.ROOT);
-    }
-
     private static List<String> expectedFeatureList(
             boolean hdri,
             boolean procedural,
@@ -245,36 +244,4 @@ public final class VulkanSkyCapabilityRuntimeState {
         return List.copyOf(out);
     }
 
-    private static List<String> activeFeatureList(
-            boolean hdri,
-            boolean procedural,
-            boolean atmosphere,
-            boolean tod,
-            boolean clouds,
-            boolean cloudShadows,
-            boolean aerial
-    ) {
-        List<String> out = new ArrayList<>();
-        if (hdri) out.add("vulkan.sky.hdri_skybox");
-        if (procedural) out.add("vulkan.sky.procedural_sky");
-        if (atmosphere) out.add("vulkan.sky.atmosphere");
-        if (tod) out.add("vulkan.sky.dynamic_time_of_day");
-        if (clouds) out.add("vulkan.sky.volumetric_clouds");
-        if (cloudShadows) out.add("vulkan.sky.cloud_shadow_projection");
-        if (aerial) out.add("vulkan.sky.aerial_perspective");
-        return List.copyOf(out);
-    }
-
-    private static List<String> diff(List<String> expected, List<String> active) {
-        if (expected == null || expected.isEmpty()) {
-            return List.of();
-        }
-        List<String> out = new ArrayList<>();
-        for (String f : expected) {
-            if (!active.contains(f)) {
-                out.add(f);
-            }
-        }
-        return List.copyOf(out);
-    }
 }
