@@ -95,7 +95,7 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
             default -> 115;
         };
         return List.of(new RenderShaderContribution(
-                "main",
+                "main_geometry",
                 RenderShaderInjectionPoint.LIGHTING_EVAL,
                 RenderShaderStage.FRAGMENT,
                 "lighting_" + active.id(),
@@ -115,7 +115,7 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
         return List.of(new RenderShaderModuleDeclaration(
                 "lighting.main.eval." + active.id(),
                 featureId(),
-                "main",
+                "main_geometry",
                 RenderShaderInjectionPoint.LIGHTING_EVAL,
                 RenderShaderStage.FRAGMENT,
                 "evaluateLightingMode",
@@ -127,8 +127,8 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                 }
                 """,
                 List.of(
-                        new RenderShaderModuleBinding("uLightingPolicy", descriptorFor("main", 0, 80)),
-                        new RenderShaderModuleBinding("uLightingBudget", descriptorFor("main", 0, 81))
+                        new RenderShaderModuleBinding("uLightingPolicy", descriptorFor("main_geometry", 0, 80)),
+                        new RenderShaderModuleBinding("uLightingBudget", descriptorFor("main_geometry", 0, 81))
                 ),
                 uniformRequirements(active),
                 List.of(),
@@ -147,12 +147,12 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
     public List<RenderDescriptorRequirement> descriptorRequirements(RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
         java.util.ArrayList<RenderDescriptorRequirement> requirements = new java.util.ArrayList<>(List.of(
-                descriptorFor("main", 0, 80),
-                descriptorFor("main", 0, 81)
+                descriptorFor("main_geometry", 0, 80),
+                descriptorFor("main_geometry", 0, 81)
         ));
         if (MODE_EMISSIVE_MESH.id().equals(active.id()) || MODE_PHYS_UNITS_BUDGET_EMISSIVE.id().equals(active.id())) {
             requirements.add(new RenderDescriptorRequirement(
-                    "main",
+                    "main_geometry",
                     0,
                     82,
                     RenderDescriptorType.STORAGE_BUFFER,

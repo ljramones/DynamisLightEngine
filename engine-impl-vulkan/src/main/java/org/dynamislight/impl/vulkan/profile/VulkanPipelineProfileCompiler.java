@@ -29,9 +29,7 @@ public final class VulkanPipelineProfileCompiler {
         RenderFeatureCapabilityV2 reflection = VulkanReflectionCapabilityDescriptorV2.withMode(effective.reflectionMode());
         RenderFeatureCapabilityV2 aa = VulkanAaCapabilityDescriptorV2.withMode(effective.aaMode());
         RenderFeatureCapabilityV2 post = VulkanPostCapabilityDescriptorV2.withMode(effective.postMode());
-        RenderFeatureCapabilityV2 lighting = VulkanLightingCapabilityDescriptorV2.withMode(
-                VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT
-        );
+        RenderFeatureCapabilityV2 lighting = VulkanLightingCapabilityDescriptorV2.withMode(effective.lightingMode());
 
         List<RenderFeatureCapabilityV2> capabilities = List.of(core, shadow, reflection, lighting, aa, post);
         VulkanComposedDescriptorLayoutPlan mainPlan = VulkanDescriptorLayoutComposer.composeForPass(
@@ -48,7 +46,7 @@ public final class VulkanPipelineProfileCompiler {
         List<RenderShaderModuleDeclaration> mainModules = new ArrayList<>();
         mainModules.addAll(shadow.shaderModules(effective.shadowMode()));
         mainModules.addAll(reflection.shaderModules(effective.reflectionMode()));
-        mainModules.addAll(lighting.shaderModules(lighting.activeMode()));
+        mainModules.addAll(lighting.shaderModules(effective.lightingMode()));
 
         List<RenderShaderModuleDeclaration> postModules = new ArrayList<>();
         postModules.addAll(reflection.shaderModules(effective.reflectionMode()));

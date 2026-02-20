@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.profile;
 
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanLightingCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanPostCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanReflectionCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
@@ -64,14 +65,24 @@ public final class VulkanPipelineProfileResolver {
         RenderFeatureMode postMode = state.taaEnabled
                 ? VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE
                 : VulkanPostCapabilityDescriptorV2.MODE_TONEMAP;
+        RenderFeatureMode lightingMode = localLightCountToMode(selectedLocalShadowLights + deferredShadowLightCount);
 
         return new VulkanPipelineProfileKey(
                 tier == null ? QualityTier.MEDIUM : tier,
                 shadowMode,
                 reflectionMode,
                 aaMode,
-                postMode
+                postMode,
+                lightingMode
         );
+    }
+
+    private static RenderFeatureMode localLightCountToMode(int localLightCount) {
+        int safe = Math.max(0, localLightCount);
+        if (safe > 8) {
+            return VulkanLightingCapabilityDescriptorV2.MODE_LIGHT_BUDGET_PRIORITY;
+        }
+        return VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT;
     }
 
     private static String shadowFilterModeId(int mode) {

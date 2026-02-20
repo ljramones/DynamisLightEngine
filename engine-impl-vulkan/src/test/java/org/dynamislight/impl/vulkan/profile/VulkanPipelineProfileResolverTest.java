@@ -28,6 +28,7 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("ibl_only", key.reflectionMode().id());
         assertEquals("fxaa_low", key.aaMode().id());
         assertEquals("tonemap", key.postMode().id());
+        assertEquals("baseline_directional_point_spot", key.lightingMode().id());
     }
 
     @Test
@@ -54,5 +55,25 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("rt_hybrid", key.reflectionMode().id());
         assertEquals("fxaa_low", key.aaMode().id());
         assertEquals("tonemap", key.postMode().id());
+        assertEquals("baseline_directional_point_spot", key.lightingMode().id());
+    }
+
+    @Test
+    void resolvePromotesLightingBudgetModeForHighLocalLightLoad() {
+        VulkanPipelineProfileKey key = VulkanPipelineProfileResolver.resolve(
+                QualityTier.HIGH,
+                new VulkanRenderState(),
+                7,
+                4,
+                0,
+                0,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false
+        );
+        assertEquals("light_budget_priority", key.lightingMode().id());
     }
 }
