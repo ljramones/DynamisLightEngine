@@ -395,6 +395,11 @@ Geometry notes:
 - Sub-UV blending — `Not In Yet`
 - GPU simulation graph (node-based, data-driven — Niagara/VFX-Graph class) — `Not In Yet`
 
+VFX notes:
+
+- Vulkan now emits VFX capability/promotion telemetry (`VFX_CAPABILITY_MODE_ACTIVE`, `VFX_POLICY_ACTIVE`, `VFX_PROMOTION_ENVELOPE`, `VFX_PROMOTION_ENVELOPE_BREACH`, `VFX_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`vfxCapabilityDiagnostics()`, `vfxPromotionDiagnostics()`).
+- VFX Phase-1 Vulkan scaffold checklist/runner are in place (`docs/vfx-phase1-checklist.md`, `scripts/vfx_phase1_lockdown.sh`) with CI lane `vfx-phase1-lockdown`.
+
 ## Water / Ocean
 
 - Flat water plane (reflective, refractive, PBR) — `Not In Yet`

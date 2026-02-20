@@ -65,6 +65,8 @@ import org.dynamislight.api.runtime.ShadowExtendedModeDiagnostics;
 import org.dynamislight.api.runtime.ShadowTopologyDiagnostics;
 import org.dynamislight.api.runtime.ShadowPhaseAPromotionDiagnostics;
 import org.dynamislight.api.runtime.ShadowPhaseDPromotionDiagnostics;
+import org.dynamislight.api.runtime.VfxCapabilityDiagnostics;
+import org.dynamislight.api.runtime.VfxPromotionDiagnostics;
 import org.dynamislight.api.event.AaTelemetryEvent;
 import org.dynamislight.api.event.DeviceLostEvent;
 import org.dynamislight.api.event.EngineEvent;
@@ -476,6 +478,16 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public VfxCapabilityDiagnostics vfxCapabilityDiagnostics() {
+        return backendVfxCapabilityDiagnostics();
+    }
+
+    @Override
+    public VfxPromotionDiagnostics vfxPromotionDiagnostics() {
+        return backendVfxPromotionDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -669,6 +681,14 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected GeometryPromotionDiagnostics backendGeometryPromotionDiagnostics() {
         return GeometryPromotionDiagnostics.unavailable();
+    }
+
+    protected VfxCapabilityDiagnostics backendVfxCapabilityDiagnostics() {
+        return VfxCapabilityDiagnostics.unavailable();
+    }
+
+    protected VfxPromotionDiagnostics backendVfxPromotionDiagnostics() {
+        return VfxPromotionDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(

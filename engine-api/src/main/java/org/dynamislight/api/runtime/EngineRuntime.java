@@ -567,6 +567,30 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic VFX/particles capability diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link VfxCapabilityDiagnostics#unavailable()}.
+     *
+     * @return current VFX/particles capability diagnostics snapshot.
+     */
+    default VfxCapabilityDiagnostics vfxCapabilityDiagnostics() {
+        return VfxCapabilityDiagnostics.unavailable();
+    }
+
+    /**
+     * Retrieves backend-agnostic VFX/particles promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link VfxPromotionDiagnostics#unavailable()}.
+     *
+     * @return current VFX/particles promotion diagnostics snapshot.
+     */
+    default VfxPromotionDiagnostics vfxPromotionDiagnostics() {
+        return VfxPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

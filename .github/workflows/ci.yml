@@ -135,6 +135,10 @@ on:
         description: 'Run strict geometry/detail phase1 lockdown gate'
         required: false
         default: 'false'
+      run_vfx_phase1_lockdown:
+        description: 'Run strict VFX/particles phase1 lockdown gate'
+        required: false
+        default: 'false'
       run_aa_upscaler_vendor_matrix:
         description: 'Run AA upscaler vendor matrix lane'
         required: false
@@ -943,6 +947,26 @@ jobs:
 
       - name: Run geometry phase1 lockdown
         run: ./scripts/geometry_phase1_lockdown.sh
+
+  vfx-phase1-lockdown:
+    name: VFX Phase1 Lockdown (JDK 25, macos-latest)
+    if: >
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_vfx_phase1_lockdown == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run VFX phase1 lockdown
+        run: ./scripts/vfx_phase1_lockdown.sh
 
   shadow-stable-promote-real:
     name: Shadow Stable Promote Real (JDK 25, macos-latest)
