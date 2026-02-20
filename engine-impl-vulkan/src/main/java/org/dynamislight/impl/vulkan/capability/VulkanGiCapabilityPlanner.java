@@ -57,6 +57,8 @@ public final class VulkanGiCapabilityPlanner {
             case STATIC_LIGHTMAPS -> active.add("vulkan.gi.static_lightmaps");
             case LIGHT_PROBES_SH -> active.add("vulkan.gi.light_probes_sh");
             case IRRADIANCE_VOLUMES -> active.add("vulkan.gi.irradiance_volumes");
+            case VOXEL_GI -> active.add("vulkan.gi.voxel");
+            case SDF_GI -> active.add("vulkan.gi.sdf");
         }
         return new VulkanGiCapabilityPlan(giModeId, true, safe.rtAvailable(), active, pruned);
     }

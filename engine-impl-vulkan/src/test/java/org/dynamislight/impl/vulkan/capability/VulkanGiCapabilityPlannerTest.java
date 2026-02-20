@@ -61,6 +61,12 @@ class VulkanGiCapabilityPlannerTest {
         VulkanGiCapabilityPlan irradianceVolumes = VulkanGiCapabilityPlanner.plan(
                 new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.IRRADIANCE_VOLUMES, true, false)
         );
+        VulkanGiCapabilityPlan voxel = VulkanGiCapabilityPlanner.plan(
+                new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.VOXEL_GI, true, false)
+        );
+        VulkanGiCapabilityPlan sdf = VulkanGiCapabilityPlanner.plan(
+                new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.SDF_GI, true, false)
+        );
 
         assertTrue(emissive.activeCapabilities().contains("vulkan.gi.emissive"));
         assertTrue(dynamicSky.activeCapabilities().contains("vulkan.gi.dynamic_sky"));
@@ -68,5 +74,7 @@ class VulkanGiCapabilityPlannerTest {
         assertTrue(staticLightmaps.activeCapabilities().contains("vulkan.gi.static_lightmaps"));
         assertTrue(lightProbes.activeCapabilities().contains("vulkan.gi.light_probes_sh"));
         assertTrue(irradianceVolumes.activeCapabilities().contains("vulkan.gi.irradiance_volumes"));
+        assertTrue(voxel.activeCapabilities().contains("vulkan.gi.voxel"));
+        assertTrue(sdf.activeCapabilities().contains("vulkan.gi.sdf"));
     }
 }

@@ -480,6 +480,42 @@ class VulkanGiCapabilityPlanIntegrationTest {
         }
     }
 
+    @Test
+    void voxelModeEmitsPolicyAndActivatesCapability() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "voxel_gi")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_VOXEL_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.voxel"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void sdfModeEmitsPolicyAndActivatesCapability() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "sdf_gi")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SDF_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.sdf"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier tier) {
         return new EngineConfig(
                 "vulkan",

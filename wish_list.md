@@ -195,8 +195,8 @@ AA notes:
 - Irradiance volumes (3D grid, interpolated) — `Partial`
 - Adaptive probe volumes (dynamic density, streaming) — `Partial`
 - SSGI (screen-space global illumination) — `Partial`
-- Voxel GI (voxel cone tracing, real-time) — `Not In Yet`
-- SDF GI (signed distance field tracing) — `Not In Yet`
+- Voxel GI (voxel cone tracing, real-time) — `Partial`
+- SDF GI (signed distance field tracing) — `Partial`
 - RT GI (single-bounce diffuse, denoised) — `Partial`
 - RT GI multi-bounce (recursive, accumulation-based) — `Partial`
 - Hybrid GI (probes + SSGI fill + RT detail) — `Partial`
@@ -231,6 +231,7 @@ GI notes:
 - GI runtime now emits RT-multi-specific policy/envelope/promotion telemetry (`GI_RT_MULTI_POLICY_ACTIVE`, `GI_RT_MULTI_ENVELOPE`, `GI_RT_MULTI_ENVELOPE_BREACH`, `GI_RT_MULTI_PROMOTION_READY`) when `rtgi_multi` is active.
 - GI now supports dedicated non-RT execution modes (`emissive_gi`, `dynamic_sky_gi`, `indirect_specular_gi`) with deterministic planner activation and mode-specific policy warnings (`GI_EMISSIVE_POLICY_ACTIVE`, `GI_DYNAMIC_SKY_POLICY_ACTIVE`, `GI_INDIRECT_SPECULAR_POLICY_ACTIVE`).
 - GI now supports additional execution modes (`static_lightmaps`, `light_probes_sh`, `irradiance_volumes`) with deterministic planner activation and mode-specific policy warnings (`GI_STATIC_LIGHTMAPS_POLICY_ACTIVE`, `GI_LIGHT_PROBES_SH_POLICY_ACTIVE`, `GI_IRRADIANCE_VOLUMES_POLICY_ACTIVE`).
+- GI now supports spatial execution modes (`voxel_gi`, `sdf_gi`) with deterministic planner activation and mode-specific policy warnings (`GI_VOXEL_POLICY_ACTIVE`, `GI_SDF_POLICY_ACTIVE`).
 - GI runtime now emits hybrid composition envelope telemetry (`GI_HYBRID_COMPOSITION`, `GI_HYBRID_COMPOSITION_BREACH`) for expected-vs-active SSGI/probe/RT component coverage in hybrid mode.
 - Typed GI promotion diagnostics now expose RT-detail expected/active ratio, cooldown/streak envelope state, and RT-detail promotion readiness for parser-free CI assertions.
 - GI phase-2C RT-detail gating now has a dedicated lockdown runner (`scripts/gi_phase2_rt_lockdown.sh`) and CI lane (`gi-phase2-rt-lockdown`).

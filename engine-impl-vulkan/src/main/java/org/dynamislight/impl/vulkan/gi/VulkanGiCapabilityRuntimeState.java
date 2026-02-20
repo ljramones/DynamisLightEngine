@@ -669,6 +669,22 @@ public final class VulkanGiCapabilityRuntimeState {
                                 + ", expected=" + configuredEnabled + ")"
                 ));
             }
+            if (configuredMode == GiMode.VOXEL_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_VOXEL_POLICY_ACTIVE",
+                        "GI voxel policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.voxel")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.SDF_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_SDF_POLICY_ACTIVE",
+                        "GI sdf policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.sdf")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
             if (configuredMode == GiMode.RTGI_MULTI) {
                 warnings.add(new EngineWarning(
                         "GI_RT_MULTI_POLICY_ACTIVE",
