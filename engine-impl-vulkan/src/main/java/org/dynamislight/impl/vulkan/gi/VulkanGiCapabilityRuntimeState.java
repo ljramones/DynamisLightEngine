@@ -21,6 +21,9 @@ public final class VulkanGiCapabilityRuntimeState {
     private int stableStreak;
     private boolean promotionReadyLastFrame;
     private boolean rtFallbackActiveLastFrame;
+    private boolean ssgiActiveLastFrame;
+    private boolean probeGridActiveLastFrame;
+    private boolean rtDetailActiveLastFrame;
     private String modeLastFrame = "ssgi";
     private boolean rtAvailableLastFrame;
     private List<String> activeCapabilitiesLastFrame = List.of();
@@ -30,6 +33,9 @@ public final class VulkanGiCapabilityRuntimeState {
         stableStreak = 0;
         promotionReadyLastFrame = false;
         rtFallbackActiveLastFrame = false;
+        ssgiActiveLastFrame = false;
+        probeGridActiveLastFrame = false;
+        rtDetailActiveLastFrame = false;
         modeLastFrame = configuredMode.name().toLowerCase(java.util.Locale.ROOT);
         rtAvailableLastFrame = false;
         activeCapabilitiesLastFrame = List.of();
@@ -76,6 +82,10 @@ public final class VulkanGiCapabilityRuntimeState {
         activeCapabilitiesLastFrame = plan.activeCapabilities();
         prunedCapabilitiesLastFrame = plan.prunedCapabilities();
         rtFallbackActiveLastFrame = prunedCapabilitiesLastFrame.stream().anyMatch(s -> s.contains("rt"));
+        ssgiActiveLastFrame = activeCapabilitiesLastFrame.contains("vulkan.gi.ssgi");
+        probeGridActiveLastFrame = activeCapabilitiesLastFrame.contains("vulkan.gi.probe_grid");
+        rtDetailActiveLastFrame = activeCapabilitiesLastFrame.contains("vulkan.gi.rtgi_single")
+                || activeCapabilitiesLastFrame.contains("vulkan.gi.rt_detail");
 
         boolean stableThisFrame = configuredEnabled && !activeCapabilitiesLastFrame.isEmpty();
         stableStreak = stableThisFrame ? stableStreak + 1 : 0;
@@ -89,8 +99,18 @@ public final class VulkanGiCapabilityRuntimeState {
                             + ", enabled=" + configuredEnabled
                             + ", rtAvailable=" + rtAvailableLastFrame
                             + ", rtFallbackActive=" + rtFallbackActiveLastFrame
+                            + ", ssgiActive=" + ssgiActiveLastFrame
+                            + ", probeGridActive=" + probeGridActiveLastFrame
+                            + ", rtDetailActive=" + rtDetailActiveLastFrame
                             + ", stableStreak=" + stableStreak
                             + ", minFrames=" + promotionReadyMinFrames + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_SSGI_POLICY_ACTIVE",
+                    "GI SSGI policy active (mode=" + modeLastFrame
+                            + ", ssgiActive=" + ssgiActiveLastFrame
+                            + ", probeGridActive=" + probeGridActiveLastFrame
+                            + ", rtDetailActive=" + rtDetailActiveLastFrame + ")"
             ));
             if (promotionReadyLastFrame) {
                 warnings.add(new EngineWarning(
@@ -122,6 +142,9 @@ public final class VulkanGiCapabilityRuntimeState {
                 configuredEnabled,
                 rtAvailableLastFrame,
                 rtFallbackActiveLastFrame,
+                ssgiActiveLastFrame,
+                probeGridActiveLastFrame,
+                rtDetailActiveLastFrame,
                 stableStreak,
                 promotionReadyMinFrames,
                 promotionReadyLastFrame

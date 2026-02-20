@@ -41,6 +41,7 @@ class VulkanGiCapabilityPlanIntegrationTest {
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_CAPABILITY_PLAN_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROMOTION_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_SSGI_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.giCapabilityDiagnostics();
             assertTrue(diagnostics.available());
@@ -50,6 +51,9 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(promotion.available());
             assertTrue(promotion.promotionReady());
             assertTrue(promotion.rtFallbackActive());
+            assertTrue(promotion.ssgiActive());
+            assertTrue(promotion.probeGridActive());
+            assertFalse(promotion.rtDetailActive());
         } finally {
             runtime.shutdown();
         }
@@ -94,6 +98,8 @@ class VulkanGiCapabilityPlanIntegrationTest {
             var promotion = runtime.giPromotionDiagnostics();
             assertTrue(promotion.available());
             assertTrue(promotion.rtFallbackActive());
+            assertTrue(promotion.ssgiActive());
+            assertFalse(promotion.rtDetailActive());
             assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.ssgi"));
         } finally {
             runtime.shutdown();

@@ -9,6 +9,9 @@ public record GiPromotionDiagnostics(
         boolean giEnabled,
         boolean rtAvailable,
         boolean rtFallbackActive,
+        boolean ssgiActive,
+        boolean probeGridActive,
+        boolean rtDetailActive,
         int stableStreak,
         int promotionReadyMinFrames,
         boolean promotionReady
@@ -23,6 +26,9 @@ public record GiPromotionDiagnostics(
         return new GiPromotionDiagnostics(
                 false,
                 "",
+                false,
+                false,
+                false,
                 false,
                 false,
                 false,
