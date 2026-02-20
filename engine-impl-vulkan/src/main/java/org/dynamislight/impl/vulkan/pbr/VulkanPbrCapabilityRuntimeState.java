@@ -37,20 +37,26 @@ public final class VulkanPbrCapabilityRuntimeState {
     private int warnMinFrames = 3;
     private int warnCooldownFrames = 120;
     private int advancedWarnMinFeatureCount = 2;
+    private int surfaceOpticsWarnMinFeatureCount = 2;
     private int stableStreak;
     private int highStreak;
     private int warnCooldownRemaining;
     private int cinematicStableStreak;
     private int cinematicHighStreak;
     private int cinematicWarnCooldownRemaining;
+    private int surfaceOpticsStableStreak;
+    private int surfaceOpticsHighStreak;
+    private int surfaceOpticsWarnCooldownRemaining;
     private boolean envelopeBreachedLastFrame;
     private boolean cinematicEnvelopeBreachedLastFrame;
+    private boolean surfaceOpticsEnvelopeBreachedLastFrame;
     private String modeLastFrame = "metallic_roughness_baseline";
     private List<String> activeCapabilitiesLastFrame = List.of();
     private List<String> prunedCapabilitiesLastFrame = List.of();
     private List<String> signalsLastFrame = List.of();
     private boolean promotionReadyLastFrame;
     private boolean cinematicPromotionReadyLastFrame;
+    private boolean surfaceOpticsPromotionReadyLastFrame;
 
     public void reset() {
         stableStreak = 0;
@@ -64,9 +70,14 @@ public final class VulkanPbrCapabilityRuntimeState {
         cinematicStableStreak = 0;
         cinematicHighStreak = 0;
         cinematicWarnCooldownRemaining = 0;
+        surfaceOpticsStableStreak = 0;
+        surfaceOpticsHighStreak = 0;
+        surfaceOpticsWarnCooldownRemaining = 0;
         envelopeBreachedLastFrame = false;
         cinematicEnvelopeBreachedLastFrame = false;
+        surfaceOpticsEnvelopeBreachedLastFrame = false;
         cinematicPromotionReadyLastFrame = false;
+        surfaceOpticsPromotionReadyLastFrame = false;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -140,6 +151,8 @@ public final class VulkanPbrCapabilityRuntimeState {
                 safe, "vulkan.pbr.warnCooldownFrames", warnCooldownFrames, 0, 100_000);
         advancedWarnMinFeatureCount = VulkanRuntimeOptionParsing.parseBackendIntOption(
                 safe, "vulkan.pbr.advancedWarnMinFeatureCount", advancedWarnMinFeatureCount, 0, 100_000);
+        surfaceOpticsWarnMinFeatureCount = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.pbr.surfaceOpticsWarnMinFeatureCount", surfaceOpticsWarnMinFeatureCount, 0, 3);
     }
 
     public void applyProfileDefaults(Map<String, String> backendOptions, QualityTier tier) {
@@ -321,6 +334,64 @@ public final class VulkanPbrCapabilityRuntimeState {
                         + ", highStreak=" + cinematicHighStreak
                         + ", stableStreak=" + cinematicStableStreak + ")"
         ));
+
+        int expectedSurfaceOpticsFeatureCount = 0;
+        if (subsurfaceScatteringEnabled) expectedSurfaceOpticsFeatureCount += 1;
+        if (thinFilmIridescenceEnabled) expectedSurfaceOpticsFeatureCount += 1;
+        if (sheenEnabled) expectedSurfaceOpticsFeatureCount += 1;
+        int activeSurfaceOpticsFeatureCount = 0;
+        if (plan.subsurfaceScatteringEnabled()) activeSurfaceOpticsFeatureCount += 1;
+        if (plan.thinFilmIridescenceEnabled()) activeSurfaceOpticsFeatureCount += 1;
+        if (plan.sheenEnabled()) activeSurfaceOpticsFeatureCount += 1;
+        boolean surfaceOpticsRisk = expectedSurfaceOpticsFeatureCount > 0
+                && activeSurfaceOpticsFeatureCount < Math.min(expectedSurfaceOpticsFeatureCount, surfaceOpticsWarnMinFeatureCount);
+        if (surfaceOpticsRisk) {
+            surfaceOpticsHighStreak += 1;
+            surfaceOpticsStableStreak = 0;
+            if (surfaceOpticsWarnCooldownRemaining > 0) {
+                surfaceOpticsWarnCooldownRemaining -= 1;
+            }
+        } else {
+            surfaceOpticsHighStreak = 0;
+            surfaceOpticsStableStreak += 1;
+            if (surfaceOpticsWarnCooldownRemaining > 0) {
+                surfaceOpticsWarnCooldownRemaining -= 1;
+            }
+        }
+        surfaceOpticsEnvelopeBreachedLastFrame = surfaceOpticsRisk && surfaceOpticsHighStreak >= warnMinFrames;
+        surfaceOpticsPromotionReadyLastFrame = !surfaceOpticsRisk && surfaceOpticsStableStreak >= promotionReadyMinFrames;
+        warnings.add(new EngineWarning(
+                "PBR_SURFACE_OPTICS_POLICY_ACTIVE",
+                "PBR surface-optics policy (expectedCount=" + expectedSurfaceOpticsFeatureCount
+                        + ", warnMinFeatureCount=" + surfaceOpticsWarnMinFeatureCount
+                        + ", warnMinFrames=" + warnMinFrames
+                        + ", warnCooldownFrames=" + warnCooldownFrames
+                        + ", promotionReadyMinFrames=" + promotionReadyMinFrames + ")"
+        ));
+        warnings.add(new EngineWarning(
+                "PBR_SURFACE_OPTICS_ENVELOPE",
+                "PBR surface-optics envelope (risk=" + surfaceOpticsRisk
+                        + ", expectedCount=" + expectedSurfaceOpticsFeatureCount
+                        + ", activeCount=" + activeSurfaceOpticsFeatureCount
+                        + ", highStreak=" + surfaceOpticsHighStreak
+                        + ", stableStreak=" + surfaceOpticsStableStreak + ")"
+        ));
+        if (surfaceOpticsEnvelopeBreachedLastFrame && surfaceOpticsWarnCooldownRemaining <= 0) {
+            warnings.add(new EngineWarning(
+                    "PBR_SURFACE_OPTICS_ENVELOPE_BREACH",
+                    "PBR surface-optics envelope breach (highStreak=" + surfaceOpticsHighStreak
+                            + ", cooldown=" + surfaceOpticsWarnCooldownRemaining + ")"
+            ));
+            surfaceOpticsWarnCooldownRemaining = warnCooldownFrames;
+        }
+        if (surfaceOpticsPromotionReadyLastFrame) {
+            warnings.add(new EngineWarning(
+                    "PBR_SURFACE_OPTICS_PROMOTION_READY",
+                    "PBR surface-optics promotion-ready envelope satisfied (mode=" + plan.modeId()
+                            + ", stableStreak=" + surfaceOpticsStableStreak
+                            + ", minFrames=" + promotionReadyMinFrames + ")"
+            ));
+        }
         if (cinematicEnvelopeBreachedLastFrame && cinematicWarnCooldownRemaining <= 0) {
             warnings.add(new EngineWarning(
                     "PBR_CINEMATIC_ENVELOPE_BREACH",
@@ -425,6 +496,14 @@ public final class VulkanPbrCapabilityRuntimeState {
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.eye_shader")) activeCinematicFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.hair_shader")) activeCinematicFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.cloth_shader")) activeCinematicFeatureCount += 1;
+        int expectedSurfaceOpticsFeatureCount = 0;
+        if (subsurfaceScatteringEnabled) expectedSurfaceOpticsFeatureCount += 1;
+        if (thinFilmIridescenceEnabled) expectedSurfaceOpticsFeatureCount += 1;
+        if (sheenEnabled) expectedSurfaceOpticsFeatureCount += 1;
+        int activeSurfaceOpticsFeatureCount = 0;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.subsurface_scattering")) activeSurfaceOpticsFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.thin_film_iridescence")) activeSurfaceOpticsFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.sheen")) activeSurfaceOpticsFeatureCount += 1;
         boolean energyConservationValidationEnabled =
                 activeCapabilitiesLastFrame.contains("vulkan.pbr.energy_conservation_validation");
         return new PbrPromotionDiagnostics(
@@ -434,17 +513,24 @@ public final class VulkanPbrCapabilityRuntimeState {
                 advancedWarnMinFeatureCount,
                 expectedCinematicFeatureCount,
                 activeCinematicFeatureCount,
+                expectedSurfaceOpticsFeatureCount,
+                activeSurfaceOpticsFeatureCount,
                 energyConservationValidationEnabled,
                 envelopeBreachedLastFrame,
                 promotionReadyLastFrame,
                 cinematicEnvelopeBreachedLastFrame,
                 cinematicPromotionReadyLastFrame,
+                surfaceOpticsEnvelopeBreachedLastFrame,
+                surfaceOpticsPromotionReadyLastFrame,
                 stableStreak,
                 highStreak,
                 cinematicStableStreak,
                 cinematicHighStreak,
+                surfaceOpticsStableStreak,
+                surfaceOpticsHighStreak,
                 warnCooldownRemaining,
                 cinematicWarnCooldownRemaining,
+                surfaceOpticsWarnCooldownRemaining,
                 warnMinFrames,
                 warnCooldownFrames,
                 promotionReadyMinFrames

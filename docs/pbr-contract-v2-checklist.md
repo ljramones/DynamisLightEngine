@@ -34,6 +34,12 @@
   - `PBR_CINEMATIC_ENVELOPE_BREACH`
   - `PBR_CINEMATIC_PROMOTION_READY`
   - typed snapshot now includes expected/active cinematic feature counts and cinematic breach/readiness.
+- [x] Add surface-optics envelope warnings + typed diagnostics:
+  - `PBR_SURFACE_OPTICS_POLICY_ACTIVE`
+  - `PBR_SURFACE_OPTICS_ENVELOPE`
+  - `PBR_SURFACE_OPTICS_ENVELOPE_BREACH`
+  - `PBR_SURFACE_OPTICS_PROMOTION_READY`
+  - typed snapshot now includes expected/active surface-optics feature counts and optics breach/readiness.
 - [x] Extend planner/runtime policy coverage for cinematic backlog toggles:
   - `vulkan.pbr.subsurfaceScatteringEnabled`
   - `vulkan.pbr.thinFilmIridescenceEnabled`
