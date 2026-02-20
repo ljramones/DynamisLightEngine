@@ -35,7 +35,7 @@ public final class VulkanPipelineProfileCompiler {
         RenderFeatureCapabilityV2 lighting = VulkanLightingCapabilityDescriptorV2.withMode(effective.lightingMode());
         RenderFeatureCapabilityV2 pbr = VulkanPbrCapabilityDescriptorV2.withMode(effective.pbrMode());
         RenderFeatureCapabilityV2 gi = VulkanGiCapabilityDescriptorV2.withMode(effective.giMode());
-        RenderFeatureCapabilityV2 rt = VulkanRtCapabilityDescriptorV2.withMode(VulkanRtCapabilityDescriptorV2.MODE_QUALITY_TIERS);
+        RenderFeatureCapabilityV2 rt = VulkanRtCapabilityDescriptorV2.withMode(effective.rtMode());
 
         List<RenderFeatureCapabilityV2> capabilities = List.of(core, shadow, reflection, lighting, pbr, gi, rt, aa, post);
         VulkanComposedDescriptorLayoutPlan mainPlan = VulkanDescriptorLayoutComposer.composeForPass(
@@ -58,7 +58,7 @@ public final class VulkanPipelineProfileCompiler {
         List<RenderShaderModuleDeclaration> postModules = new ArrayList<>();
         postModules.addAll(reflection.shaderModules(effective.reflectionMode()));
         postModules.addAll(gi.shaderModules(effective.giMode()));
-        postModules.addAll(rt.shaderModules(VulkanRtCapabilityDescriptorV2.MODE_QUALITY_TIERS));
+        postModules.addAll(rt.shaderModules(effective.rtMode()));
         postModules.addAll(aa.shaderModules(effective.aaMode()));
 
         String mainFragmentSource = VulkanShaderProfileAssembler.assembleMainFragmentCanonical(mainModules).source();

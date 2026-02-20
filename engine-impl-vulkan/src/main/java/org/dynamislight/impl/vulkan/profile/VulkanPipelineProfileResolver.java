@@ -7,6 +7,7 @@ import org.dynamislight.impl.vulkan.capability.VulkanLightingCapabilityDescripto
 import org.dynamislight.impl.vulkan.capability.VulkanPbrCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanPostCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanReflectionCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanRtCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.dynamislight.spi.render.RenderFeatureMode;
@@ -25,6 +26,7 @@ public final class VulkanPipelineProfileResolver {
             RenderFeatureMode lightingModeOverride,
             RenderFeatureMode pbrModeOverride,
             RenderFeatureMode giModeOverride,
+            RenderFeatureMode rtModeOverride,
             int deferredShadowLightCount,
             int renderedSpotShadowLights,
             int renderedPointShadowCubemaps,
@@ -70,6 +72,10 @@ public final class VulkanPipelineProfileResolver {
         RenderFeatureMode postMode = state.taaEnabled
                 ? VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE
                 : VulkanPostCapabilityDescriptorV2.MODE_TONEMAP;
+        RenderFeatureMode rtMode = sanitizeRtMode(
+                rtModeOverride,
+                VulkanRtCapabilityDescriptorV2.MODE_QUALITY_TIERS
+        );
         RenderFeatureMode lightingMode = sanitizeLightingMode(
                 lightingModeOverride,
                 localLightCountToMode(selectedLocalShadowLights + deferredShadowLightCount)
@@ -86,6 +92,7 @@ public final class VulkanPipelineProfileResolver {
                 reflectionMode,
                 aaMode,
                 postMode,
+                rtMode,
                 lightingMode,
                 pbrMode,
                 giMode
@@ -122,6 +129,14 @@ public final class VulkanPipelineProfileResolver {
         }
         String requested = overrideMode.id();
         return VulkanPbrCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
+    }
+
+    private static RenderFeatureMode sanitizeRtMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {
+        if (overrideMode == null || overrideMode.id() == null || overrideMode.id().isBlank()) {
+            return fallback;
+        }
+        String requested = overrideMode.id();
+        return VulkanRtCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
     }
 
     private static String shadowFilterModeId(int mode) {

@@ -12,6 +12,7 @@ public record VulkanPipelineProfileKey(
         RenderFeatureMode reflectionMode,
         RenderFeatureMode aaMode,
         RenderFeatureMode postMode,
+        RenderFeatureMode rtMode,
         RenderFeatureMode lightingMode,
         RenderFeatureMode pbrMode,
         RenderFeatureMode giMode
@@ -22,6 +23,7 @@ public record VulkanPipelineProfileKey(
         reflectionMode = normalize(reflectionMode, "hybrid");
         aaMode = normalize(aaMode, "taa");
         postMode = normalize(postMode, "taa_resolve");
+        rtMode = normalize(rtMode, "rt_quality_tiers");
         lightingMode = normalize(lightingMode, "baseline_directional_point_spot");
         pbrMode = normalize(pbrMode, "metallic_roughness_baseline");
         giMode = normalize(giMode, "ssgi");
@@ -34,6 +36,7 @@ public record VulkanPipelineProfileKey(
                 new RenderFeatureMode("hybrid"),
                 new RenderFeatureMode("taa"),
                 new RenderFeatureMode("taa_resolve"),
+                new RenderFeatureMode("rt_quality_tiers"),
                 new RenderFeatureMode("baseline_directional_point_spot"),
                 new RenderFeatureMode("metallic_roughness_baseline"),
                 new RenderFeatureMode("ssgi")
@@ -45,6 +48,7 @@ public record VulkanPipelineProfileKey(
                 + "|refl=" + reflectionMode.id()
                 + "|aa=" + aaMode.id()
                 + "|post=" + postMode.id()
+                + "|rt=" + rtMode.id()
                 + "|lighting=" + lightingMode.id()
                 + "|pbr=" + pbrMode.id()
                 + "|gi=" + giMode.id();

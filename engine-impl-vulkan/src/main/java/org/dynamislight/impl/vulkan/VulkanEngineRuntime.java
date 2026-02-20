@@ -1448,6 +1448,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
         postCinematicState.emitFrameWarnings(backendOptionsLastConfig, aaPostActiveCapabilitiesLastFrame, warnings);
         context.setPipelineGiModeOverride(giCapabilityState.diagnostics().giMode());
+        context.setPipelineRtModeOverride(rtCapabilityState.diagnostics().modeId());
         context.setPipelineLightingModeOverride(lightingCapabilityState.diagnostics().mode());
         context.setPipelinePbrModeOverride(pbrCapabilityState.diagnostics().mode());
         VulkanReflectionRuntimeFlow.processFrameWarnings(this, context, qualityTier, warnings);

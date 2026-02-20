@@ -154,6 +154,7 @@ public final class VulkanContext {
     private RenderFeatureMode pipelineLightingModeOverride;
     private RenderFeatureMode pipelinePbrModeOverride;
     private RenderFeatureMode pipelineGiModeOverride;
+    private RenderFeatureMode pipelineRtModeOverride;
     private final VulkanPipelineProfileCache pipelineProfileCache = new VulkanPipelineProfileCache();
     private VulkanPipelineProfileKey activePipelineProfileKey = VulkanPipelineProfileKey.defaults();
     private VulkanPipelineProfileCompilation activePipelineProfile = pipelineProfileCache.getOrCompile(activePipelineProfileKey);
@@ -219,6 +220,7 @@ public final class VulkanContext {
     void setPipelineLightingModeOverride(String modeId) { pipelineLightingModeOverride = (modeId == null || modeId.isBlank()) ? null : new RenderFeatureMode(modeId); }
     void setPipelinePbrModeOverride(String modeId) { pipelinePbrModeOverride = (modeId == null || modeId.isBlank()) ? null : new RenderFeatureMode(modeId); }
     void setPipelineGiModeOverride(String modeId) { pipelineGiModeOverride = (modeId == null || modeId.isBlank()) ? null : new RenderFeatureMode(modeId); }
+    void setPipelineRtModeOverride(String modeId) { pipelineRtModeOverride = (modeId == null || modeId.isBlank()) ? null : new RenderFeatureMode(modeId); }
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
         VulkanLifecycleOrchestrator.initializeRuntime(
                 new VulkanLifecycleOrchestrator.InitializeRequest(
@@ -1462,6 +1464,7 @@ public final class VulkanContext {
                         pipelineLightingModeOverride,
                         pipelinePbrModeOverride,
                         pipelineGiModeOverride,
+                        pipelineRtModeOverride,
                         pipelineProfileCache,
                         activePipelineProfileKey
                 );

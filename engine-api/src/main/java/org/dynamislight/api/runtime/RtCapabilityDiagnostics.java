@@ -7,6 +7,7 @@ import java.util.List;
  */
 public record RtCapabilityDiagnostics(
         boolean available,
+        String modeId,
         boolean rtAoExpected,
         boolean rtAoActive,
         boolean rtTranslucencyCausticsExpected,
@@ -28,6 +29,7 @@ public record RtCapabilityDiagnostics(
         List<String> prunedFeatures
 ) {
     public RtCapabilityDiagnostics {
+        modeId = modeId == null ? "" : modeId.trim();
         expectedFeatures = expectedFeatures == null ? List.of() : List.copyOf(expectedFeatures);
         activeFeatures = activeFeatures == null ? List.of() : List.copyOf(activeFeatures);
         prunedFeatures = prunedFeatures == null ? List.of() : List.copyOf(prunedFeatures);
@@ -36,6 +38,7 @@ public record RtCapabilityDiagnostics(
     public static RtCapabilityDiagnostics unavailable() {
         return new RtCapabilityDiagnostics(
                 false,
+                "",
                 false,
                 false,
                 false,
@@ -58,4 +61,3 @@ public record RtCapabilityDiagnostics(
         );
     }
 }
-

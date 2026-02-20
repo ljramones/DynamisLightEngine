@@ -31,6 +31,7 @@ public final class VulkanRtCapabilityRuntimeState {
     private int warnCooldownRemaining;
     private boolean envelopeBreachedLastFrame;
     private boolean promotionReadyLastFrame;
+    private String modeIdLastFrame = "";
     private List<String> expectedFeaturesLastFrame = List.of();
     private List<String> activeFeaturesLastFrame = List.of();
     private List<String> prunedFeaturesLastFrame = List.of();
@@ -41,6 +42,7 @@ public final class VulkanRtCapabilityRuntimeState {
         warnCooldownRemaining = 0;
         envelopeBreachedLastFrame = false;
         promotionReadyLastFrame = false;
+        modeIdLastFrame = "";
         expectedFeaturesLastFrame = List.of();
         activeFeaturesLastFrame = List.of();
         prunedFeaturesLastFrame = List.of();
@@ -106,6 +108,7 @@ public final class VulkanRtCapabilityRuntimeState {
         expectedFeaturesLastFrame = expectedFeatureList();
         activeFeaturesLastFrame = plan.activeCapabilities();
         prunedFeaturesLastFrame = plan.prunedCapabilities();
+        modeIdLastFrame = plan.modeId();
 
         boolean risk = !prunedFeaturesLastFrame.isEmpty();
         if (risk) {
@@ -127,7 +130,7 @@ public final class VulkanRtCapabilityRuntimeState {
 
         warnings.add(new EngineWarning(
                 "RT_CAPABILITY_MODE_ACTIVE",
-                "RT capability mode active (resolvedMode=" + plan.modeId()
+                "RT capability mode active (resolvedMode=" + modeIdLastFrame
                         + ", expected=[" + String.join(", ", expectedFeaturesLastFrame)
                         + "], active=[" + String.join(", ", activeFeaturesLastFrame)
                         + "], pruned=[" + String.join(", ", prunedFeaturesLastFrame)
@@ -173,6 +176,7 @@ public final class VulkanRtCapabilityRuntimeState {
     public RtCapabilityDiagnostics diagnostics() {
         return new RtCapabilityDiagnostics(
                 true,
+                modeIdLastFrame,
                 rtAoRequested,
                 activeFeaturesLastFrame.contains("vulkan.rt.ao"),
                 rtTranslucencyCausticsRequested,

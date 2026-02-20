@@ -6,6 +6,7 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.impl.vulkan.capability.VulkanGiCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanLightingCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanPbrCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanRtCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.junit.jupiter.api.Test;
 
@@ -17,6 +18,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.MEDIUM,
                 state,
                 0,
+                null,
                 null,
                 null,
                 null,
@@ -34,6 +36,7 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("ibl_only", key.reflectionMode().id());
         assertEquals("fxaa_low", key.aaMode().id());
         assertEquals("tonemap", key.postMode().id());
+        assertEquals("rt_quality_tiers", key.rtMode().id());
         assertEquals("baseline_directional_point_spot", key.lightingMode().id());
         assertEquals("metallic_roughness_baseline", key.pbrMode().id());
         assertEquals("ssgi", key.giMode().id());
@@ -52,6 +55,7 @@ class VulkanPipelineProfileResolverTest {
                 null,
                 null,
                 null,
+                null,
                 2,
                 1,
                 1,
@@ -66,6 +70,7 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("rt_hybrid", key.reflectionMode().id());
         assertEquals("fxaa_low", key.aaMode().id());
         assertEquals("tonemap", key.postMode().id());
+        assertEquals("rt_quality_tiers", key.rtMode().id());
         assertEquals("baseline_directional_point_spot", key.lightingMode().id());
         assertEquals("metallic_roughness_baseline", key.pbrMode().id());
         assertEquals("ssgi", key.giMode().id());
@@ -77,6 +82,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 new VulkanRenderState(),
                 7,
+                null,
                 null,
                 null,
                 null,
@@ -102,6 +108,7 @@ class VulkanPipelineProfileResolverTest {
                 VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED,
                 null,
                 null,
+                null,
                 0,
                 0,
                 0,
@@ -124,6 +131,7 @@ class VulkanPipelineProfileResolverTest {
                 null,
                 null,
                 VulkanGiCapabilityDescriptorV2.MODE_HYBRID_PROBE_SSGI_RT,
+                null,
                 0,
                 0,
                 0,
@@ -146,6 +154,7 @@ class VulkanPipelineProfileResolverTest {
                 null,
                 VulkanPbrCapabilityDescriptorV2.MODE_SPECULAR_GLOSSINESS_DETAIL_LAYERING,
                 null,
+                null,
                 0,
                 0,
                 0,
@@ -157,5 +166,28 @@ class VulkanPipelineProfileResolverTest {
                 false
         );
         assertEquals("specular_glossiness_detail_layering", key.pbrMode().id());
+    }
+
+    @Test
+    void resolveUsesRtModeOverrideWhenProvided() {
+        VulkanPipelineProfileKey key = VulkanPipelineProfileResolver.resolve(
+                QualityTier.ULTRA,
+                new VulkanRenderState(),
+                0,
+                null,
+                null,
+                null,
+                VulkanRtCapabilityDescriptorV2.MODE_FULL_STACK,
+                0,
+                0,
+                0,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false
+        );
+        assertEquals("rt_full_stack", key.rtMode().id());
     }
 }
