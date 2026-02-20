@@ -64,7 +64,7 @@ class VulkanLightingCapabilityPlannerTest {
                         1.0
                 )
         );
-        assertEquals(VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE.id(), plan.modeId());
+        assertEquals(VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED.id(), plan.modeId());
         assertTrue(plan.activeCapabilities().contains("vulkan.lighting.directional_point_spot"));
         assertTrue(plan.activeCapabilities().contains("vulkan.lighting.light_budget_priority"));
         assertTrue(plan.activeCapabilities().contains("vulkan.lighting.physically_based_units"));
@@ -75,7 +75,7 @@ class VulkanLightingCapabilityPlannerTest {
         assertTrue(plan.activeCapabilities().contains("vulkan.lighting.volumetric_shafts"));
         assertTrue(plan.activeCapabilities().contains("vulkan.lighting.clustering"));
         assertTrue(plan.activeCapabilities().contains("vulkan.lighting.light_layers"));
-        assertTrue(plan.signals().stream().anyMatch(signal -> signal.equals("resolvedMode=phys_units_budget_emissive")));
+        assertTrue(plan.signals().stream().anyMatch(signal -> signal.equals("resolvedMode=phys_units_budget_emissive_advanced")));
     }
 
     @Test
@@ -97,7 +97,7 @@ class VulkanLightingCapabilityPlannerTest {
                         1.0
                 )
         );
-        assertEquals(VulkanLightingCapabilityDescriptorV2.MODE_LIGHT_BUDGET_PRIORITY.id(), plan.modeId());
+        assertEquals(VulkanLightingCapabilityDescriptorV2.MODE_ADVANCED_POLICY_STACK.id(), plan.modeId());
         assertTrue(plan.prunedCapabilities().stream().anyMatch(value -> value.contains("quality tier too low")));
         assertTrue(plan.prunedCapabilities().stream().anyMatch(value -> value.contains("vulkan.lighting.area_approx")));
         assertTrue(plan.prunedCapabilities().stream().anyMatch(value -> value.contains("vulkan.lighting.ies_profiles")));

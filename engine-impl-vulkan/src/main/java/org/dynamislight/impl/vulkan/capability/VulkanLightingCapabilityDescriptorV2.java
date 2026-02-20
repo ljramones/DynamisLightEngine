@@ -36,13 +36,19 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
             new RenderFeatureMode("emissive_mesh");
     public static final RenderFeatureMode MODE_PHYS_UNITS_BUDGET_EMISSIVE =
             new RenderFeatureMode("phys_units_budget_emissive");
+    public static final RenderFeatureMode MODE_ADVANCED_POLICY_STACK =
+            new RenderFeatureMode("advanced_policy_stack");
+    public static final RenderFeatureMode MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED =
+            new RenderFeatureMode("phys_units_budget_emissive_advanced");
 
     private static final List<RenderFeatureMode> SUPPORTED = List.of(
             MODE_BASELINE_DIRECTIONAL_POINT_SPOT,
             MODE_LIGHT_BUDGET_PRIORITY,
             MODE_PHYSICALLY_BASED_UNITS,
             MODE_EMISSIVE_MESH,
-            MODE_PHYS_UNITS_BUDGET_EMISSIVE
+            MODE_PHYS_UNITS_BUDGET_EMISSIVE,
+            MODE_ADVANCED_POLICY_STACK,
+            MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED
     );
 
     private final RenderFeatureMode activeMode;
@@ -92,6 +98,8 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
             case "physically_based_units" -> 120;
             case "emissive_mesh" -> 122;
             case "phys_units_budget_emissive" -> 124;
+            case "advanced_policy_stack" -> 126;
+            case "phys_units_budget_emissive_advanced" -> 128;
             default -> 115;
         };
         return List.of(new RenderShaderContribution(
@@ -137,6 +145,8 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                     case "physically_based_units" -> 120;
                     case "emissive_mesh" -> 122;
                     case "phys_units_budget_emissive" -> 124;
+                    case "advanced_policy_stack" -> 126;
+                    case "phys_units_budget_emissive_advanced" -> 128;
                     default -> 115;
                 },
                 false

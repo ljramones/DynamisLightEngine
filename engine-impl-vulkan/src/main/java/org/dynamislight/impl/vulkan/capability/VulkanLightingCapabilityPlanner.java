@@ -116,7 +116,13 @@ public final class VulkanLightingCapabilityPlanner {
             pruned.add("vulkan.lighting.light_layers (quality tier too low)");
         }
 
-        String mode = resolveMode(budgetActive, physUnitsActive, emissiveActive);
+        boolean anyAdvancedActive = areaApproxActive
+                || iesActive
+                || cookiesActive
+                || volumetricShaftsActive
+                || clusteringActive
+                || lightLayersActive;
+        String mode = resolveMode(budgetActive, physUnitsActive, emissiveActive, anyAdvancedActive);
         List<String> signals = List.of(
                 "resolvedMode=" + mode,
                 "directional=" + directional,
@@ -154,9 +160,20 @@ public final class VulkanLightingCapabilityPlanner {
         );
     }
 
-    private static String resolveMode(boolean budgetActive, boolean physUnitsActive, boolean emissiveActive) {
+    private static String resolveMode(
+            boolean budgetActive,
+            boolean physUnitsActive,
+            boolean emissiveActive,
+            boolean anyAdvancedActive
+    ) {
+        if (emissiveActive && physUnitsActive && budgetActive && anyAdvancedActive) {
+            return VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED.id();
+        }
         if (emissiveActive && physUnitsActive && budgetActive) {
             return VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE.id();
+        }
+        if (anyAdvancedActive) {
+            return VulkanLightingCapabilityDescriptorV2.MODE_ADVANCED_POLICY_STACK.id();
         }
         if (emissiveActive) {
             return VulkanLightingCapabilityDescriptorV2.MODE_EMISSIVE_MESH.id();
