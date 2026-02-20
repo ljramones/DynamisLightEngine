@@ -50,6 +50,7 @@ import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
 import org.dynamislight.api.runtime.LightingPromotionDiagnostics;
 import org.dynamislight.api.runtime.LightingAdvancedDiagnostics;
 import org.dynamislight.api.runtime.PbrCapabilityDiagnostics;
+import org.dynamislight.api.runtime.PbrPromotionDiagnostics;
 import org.dynamislight.api.runtime.PostCorePromotionDiagnostics;
 import org.dynamislight.api.runtime.PostCinematicPromotionDiagnostics;
 import org.dynamislight.api.runtime.RtCrossCutDiagnostics;
@@ -1130,6 +1131,8 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     protected RtCrossCutDiagnostics backendRtCrossCutDiagnostics() { return rtCrossCutState.diagnostics(); }
     @Override
     protected PbrCapabilityDiagnostics backendPbrCapabilityDiagnostics() { return pbrCapabilityState.diagnostics(); }
+    @Override
+    protected PbrPromotionDiagnostics backendPbrPromotionDiagnostics() { return pbrCapabilityState.promotionDiagnostics(); }
     @Override
     protected ShadowCapabilityDiagnostics backendShadowCapabilityDiagnostics() {
         return VulkanShadowBackendDiagnosticsBridge.capability(this);

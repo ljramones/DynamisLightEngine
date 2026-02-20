@@ -353,6 +353,7 @@ PBR notes:
 
 - Vulkan PBR now has v2 capability descriptors for `metallic_roughness_baseline`, `specular_glossiness`, `specular_glossiness_detail`, `specular_glossiness_detail_layering`, and `advanced_surface_stack`.
 - Vulkan runtime now emits `PBR_CAPABILITY_MODE_ACTIVE`, `PBR_POLICY`, and `PBR_PROMOTION_READY` warnings and exposes typed backend-agnostic diagnostics (`pbrCapabilityDiagnostics()`).
+- Vulkan runtime now emits PBR promotion envelope diagnostics (`PBR_PROMOTION_POLICY_ACTIVE`, `PBR_PROMOTION_ENVELOPE`, `PBR_PROMOTION_ENVELOPE_BREACH`, `PBR_PROMOTION_READY`) and exposes typed backend-agnostic promotion diagnostics (`pbrPromotionDiagnostics()`).
 - Phase-C profile resolution now consumes runtime PBR mode overrides so compiled profile identity includes `pbr=...` and main-fragment shader module composition can vary by active PBR capability mode.
 - Checklist + lockdown runner: `docs/pbr-contract-v2-checklist.md`, `scripts/pbr_contract_v2_lockdown.sh`.
 

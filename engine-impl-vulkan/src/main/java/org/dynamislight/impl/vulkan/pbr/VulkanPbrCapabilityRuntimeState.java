@@ -5,6 +5,8 @@ import java.util.Map;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.PbrCapabilityDiagnostics;
+import org.dynamislight.api.runtime.PbrPromotionDiagnostics;
+import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 import org.dynamislight.impl.vulkan.capability.VulkanPbrCapabilityPlan;
 import org.dynamislight.impl.vulkan.capability.VulkanPbrCapabilityPlanner;
 
@@ -23,7 +25,13 @@ public final class VulkanPbrCapabilityRuntimeState {
     private boolean emissiveBloomControlEnabled;
     private boolean energyConservationValidationEnabled;
     private int promotionReadyMinFrames = 6;
+    private int warnMinFrames = 3;
+    private int warnCooldownFrames = 120;
+    private int advancedWarnMinFeatureCount = 2;
     private int stableStreak;
+    private int highStreak;
+    private int warnCooldownRemaining;
+    private boolean envelopeBreachedLastFrame;
     private String modeLastFrame = "metallic_roughness_baseline";
     private List<String> activeCapabilitiesLastFrame = List.of();
     private List<String> prunedCapabilitiesLastFrame = List.of();
@@ -37,6 +45,9 @@ public final class VulkanPbrCapabilityRuntimeState {
         prunedCapabilitiesLastFrame = List.of();
         signalsLastFrame = List.of();
         promotionReadyLastFrame = false;
+        highStreak = 0;
+        warnCooldownRemaining = 0;
+        envelopeBreachedLastFrame = false;
     }
 
     public void applyBackendOptions(Map<String, String> backendOptions) {
@@ -77,6 +88,12 @@ public final class VulkanPbrCapabilityRuntimeState {
                 1,
                 100_000
         );
+        warnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.pbr.warnMinFrames", warnMinFrames, 1, 100_000);
+        warnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.pbr.warnCooldownFrames", warnCooldownFrames, 0, 100_000);
+        advancedWarnMinFeatureCount = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe, "vulkan.pbr.advancedWarnMinFeatureCount", advancedWarnMinFeatureCount, 0, 100_000);
     }
 
     public void applyProfileDefaults(Map<String, String> backendOptions, QualityTier tier) {
@@ -134,9 +151,58 @@ public final class VulkanPbrCapabilityRuntimeState {
                         + ", energyConservationValidation=" + plan.energyConservationValidationEnabled() + ")"
         ));
 
-        boolean stable = plan.specularGlossinessEnabled() || plan.detailMapsEnabled() || plan.materialLayeringEnabled();
-        stableStreak = stable ? (stableStreak + 1) : 0;
-        promotionReadyLastFrame = stableStreak >= promotionReadyMinFrames;
+        int activeAdvancedFeatureCount = 0;
+        if (plan.specularGlossinessEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.detailMapsEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.materialLayeringEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.clearCoatEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.anisotropicEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.transmissionEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.refractionEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.vertexColorBlendEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.emissiveBloomControlEnabled()) activeAdvancedFeatureCount += 1;
+
+        boolean risk = activeAdvancedFeatureCount < advancedWarnMinFeatureCount
+                || !plan.energyConservationValidationEnabled();
+        if (risk) {
+            highStreak += 1;
+            stableStreak = 0;
+            if (warnCooldownRemaining > 0) {
+                warnCooldownRemaining -= 1;
+            }
+        } else {
+            highStreak = 0;
+            stableStreak += 1;
+            if (warnCooldownRemaining > 0) {
+                warnCooldownRemaining -= 1;
+            }
+        }
+        envelopeBreachedLastFrame = risk && highStreak >= warnMinFrames;
+        promotionReadyLastFrame = !risk && stableStreak >= promotionReadyMinFrames;
+
+        warnings.add(new EngineWarning(
+                "PBR_PROMOTION_POLICY_ACTIVE",
+                "PBR promotion policy (advancedWarnMinFeatureCount=" + advancedWarnMinFeatureCount
+                        + ", warnMinFrames=" + warnMinFrames
+                        + ", warnCooldownFrames=" + warnCooldownFrames
+                        + ", promotionReadyMinFrames=" + promotionReadyMinFrames + ")"
+        ));
+        warnings.add(new EngineWarning(
+                "PBR_PROMOTION_ENVELOPE",
+                "PBR promotion envelope (risk=" + risk
+                        + ", activeAdvancedFeatureCount=" + activeAdvancedFeatureCount
+                        + ", energyConservationValidation=" + plan.energyConservationValidationEnabled()
+                        + ", highStreak=" + highStreak
+                        + ", stableStreak=" + stableStreak + ")"
+        ));
+        if (envelopeBreachedLastFrame && warnCooldownRemaining <= 0) {
+            warnings.add(new EngineWarning(
+                    "PBR_PROMOTION_ENVELOPE_BREACH",
+                    "PBR promotion envelope breach (highStreak=" + highStreak
+                            + ", cooldown=" + warnCooldownRemaining + ")"
+            ));
+            warnCooldownRemaining = warnCooldownFrames;
+        }
         if (promotionReadyLastFrame) {
             warnings.add(new EngineWarning(
                     "PBR_PROMOTION_READY",
@@ -164,6 +230,36 @@ public final class VulkanPbrCapabilityRuntimeState {
                 activeCapabilitiesLastFrame,
                 prunedCapabilitiesLastFrame,
                 signalsLastFrame
+        );
+    }
+
+    public PbrPromotionDiagnostics promotionDiagnostics() {
+        int activeAdvancedFeatureCount = 0;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.specular_glossiness")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.detail_maps")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.material_layering")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.clear_coat")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.anisotropic")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.transmission")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.refraction")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.vertex_color_blend")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.emissive_bloom_control")) activeAdvancedFeatureCount += 1;
+        boolean energyConservationValidationEnabled =
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.energy_conservation_validation");
+        return new PbrPromotionDiagnostics(
+                true,
+                modeLastFrame,
+                activeAdvancedFeatureCount,
+                advancedWarnMinFeatureCount,
+                energyConservationValidationEnabled,
+                envelopeBreachedLastFrame,
+                promotionReadyLastFrame,
+                stableStreak,
+                highStreak,
+                warnCooldownRemaining,
+                warnMinFrames,
+                warnCooldownFrames,
+                promotionReadyMinFrames
         );
     }
 

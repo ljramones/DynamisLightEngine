@@ -1,6 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -42,6 +43,8 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_CAPABILITY_MODE_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_PROMOTION_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_PROMOTION_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.pbrCapabilityDiagnostics();
             assertTrue(diagnostics.available());
@@ -51,6 +54,43 @@ class VulkanPbrCapabilityPlanIntegrationTest {
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.pbr.specular_glossiness"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.pbr.detail_maps"));
             assertTrue(diagnostics.activeCapabilities().contains("vulkan.pbr.material_layering"));
+            var promotion = runtime.pbrPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertFalse(promotion.envelopeBreachedLastFrame());
+            assertTrue(promotion.promotionReadyLastFrame());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsPbrPromotionBreachWhenAdvancedAndEnergyValidationThresholdsMiss() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.pbr.specularGlossinessEnabled", "false"),
+                    Map.entry("vulkan.pbr.detailMapsEnabled", "false"),
+                    Map.entry("vulkan.pbr.materialLayeringEnabled", "false"),
+                    Map.entry("vulkan.pbr.clearCoatEnabled", "false"),
+                    Map.entry("vulkan.pbr.anisotropicEnabled", "false"),
+                    Map.entry("vulkan.pbr.transmissionEnabled", "false"),
+                    Map.entry("vulkan.pbr.refractionEnabled", "false"),
+                    Map.entry("vulkan.pbr.vertexColorBlendEnabled", "false"),
+                    Map.entry("vulkan.pbr.emissiveBloomControlEnabled", "false"),
+                    Map.entry("vulkan.pbr.energyConservationValidationEnabled", "false"),
+                    Map.entry("vulkan.pbr.advancedWarnMinFeatureCount", "1"),
+                    Map.entry("vulkan.pbr.warnMinFrames", "1"),
+                    Map.entry("vulkan.pbr.warnCooldownFrames", "0"),
+                    Map.entry("vulkan.pbr.promotionReadyMinFrames", "1")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "PBR_PROMOTION_ENVELOPE_BREACH".equals(w.code())));
+            var promotion = runtime.pbrPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.envelopeBreachedLastFrame());
+            assertFalse(promotion.promotionReadyLastFrame());
         } finally {
             runtime.shutdown();
         }

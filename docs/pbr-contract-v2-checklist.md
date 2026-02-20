@@ -21,3 +21,9 @@
   - descriptor composition coverage in `VulkanCapabilityContractV2DescriptorsTest`
   - resolver/profile key coverage updates for PBR profile identity.
 - [x] Add lockdown runner for CI/local validation (`scripts/pbr_contract_v2_lockdown.sh`).
+- [x] Add PBR promotion envelope warnings + typed diagnostics:
+  - `PBR_PROMOTION_POLICY_ACTIVE`
+  - `PBR_PROMOTION_ENVELOPE`
+  - `PBR_PROMOTION_ENVELOPE_BREACH`
+  - `PBR_PROMOTION_READY`
+  - backend-agnostic typed snapshot: `pbrPromotionDiagnostics()`

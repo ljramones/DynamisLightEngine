@@ -34,6 +34,7 @@ import org.dynamislight.api.runtime.LightingEmissiveDiagnostics;
 import org.dynamislight.api.runtime.LightingPromotionDiagnostics;
 import org.dynamislight.api.runtime.LightingAdvancedDiagnostics;
 import org.dynamislight.api.runtime.PbrCapabilityDiagnostics;
+import org.dynamislight.api.runtime.PbrPromotionDiagnostics;
 import org.dynamislight.api.runtime.PostCorePromotionDiagnostics;
 import org.dynamislight.api.runtime.PostCinematicPromotionDiagnostics;
 import org.dynamislight.api.runtime.RtCrossCutDiagnostics;
@@ -446,6 +447,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public PbrPromotionDiagnostics pbrPromotionDiagnostics() {
+        return backendPbrPromotionDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -619,6 +625,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected PbrCapabilityDiagnostics backendPbrCapabilityDiagnostics() {
         return PbrCapabilityDiagnostics.unavailable();
+    }
+
+    protected PbrPromotionDiagnostics backendPbrPromotionDiagnostics() {
+        return PbrPromotionDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(

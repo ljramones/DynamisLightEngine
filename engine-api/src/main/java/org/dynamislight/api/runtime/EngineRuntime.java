@@ -507,6 +507,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic PBR promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link PbrPromotionDiagnostics#unavailable()}.
+     *
+     * @return current PBR promotion diagnostics snapshot.
+     */
+    default PbrPromotionDiagnostics pbrPromotionDiagnostics() {
+        return PbrPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release
