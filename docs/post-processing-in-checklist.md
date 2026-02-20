@@ -22,17 +22,17 @@ Targets:
 - volumetric fog
 
 Execution checklist:
-- [ ] Promote tonemap policy from scaffold/partial to production execution path + typed diagnostics envelope.
-- [ ] Promote exposure policy (fixed/auto) with thresholded stability envelope + promotion-ready signal.
-- [ ] Promote bloom quality/power envelope (threshold/strength/stability) with cooldown-gated breach warnings.
-- [ ] Promote sharpening policy with mode-strength envelope and artifact guard thresholds.
-- [ ] Promote SSAO quality envelopes (radius/bias/power + temporal accumulation stability).
-- [ ] Promote volumetric fog policy/envelope (density/noise/stability/perf budget).
-- [ ] Add/extend integration tests for each promoted lane and assert promotion-ready transitions.
+- [x] Promote tonemap policy from scaffold/partial to production execution path + typed diagnostics envelope.
+- [x] Promote exposure policy (fixed/auto) with thresholded stability envelope + promotion-ready signal.
+- [x] Promote bloom quality/power envelope (threshold/strength/stability) with cooldown-gated breach warnings.
+- [x] Promote sharpening policy with mode-strength envelope and artifact guard thresholds.
+- [x] Promote SSAO quality envelopes (radius/bias/power + temporal accumulation stability).
+- [x] Promote volumetric fog policy/envelope (density/noise/stability/perf budget).
+- [x] Add/extend integration tests for each promoted lane and assert promotion-ready transitions.
 - [x] Add a dedicated core-post lockdown script and CI lane for Phase A (`scripts/post_phaseA_core_lockdown.sh`, CI lane `post-phasea-core-lockdown`).
 
 Exit gate:
-- [ ] All Phase A lanes emit production policy + envelope + promotion-ready telemetry and pass lockdown.
+- [x] All Phase A lanes emit production policy + envelope + promotion-ready telemetry and pass lockdown.
 
 ## Phase B: Close Remaining Cinematic/Utility Post Gaps (Not In Yet -> Partial/In)
 
@@ -73,4 +73,5 @@ Final exit gate:
 ## Verification Commands (Current)
 
 - `bash scripts/aa_post_contract_v2_lockdown.sh`
+- `bash scripts/post_phaseA_core_lockdown.sh`
 - `mvn -pl engine-impl-vulkan -am -Dtest=VulkanPostCompositePassRecorderTest,VulkanAaPostCapabilityPlanIntegrationTest -Dsurefire.failIfNoSpecifiedTests=false test`

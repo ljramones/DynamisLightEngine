@@ -292,9 +292,9 @@ Lighting notes:
 
 ## Post-Processing
 
-- HDR tonemap (ACES, filmic, Khronos PBR Neutral, AgX, custom curve) — `Partial`
-- Exposure (fixed, auto with histogram, auto with center-weighted) — `Partial`
-- Bloom (threshold, multi-pass blur, energy-conserving) — `Partial`
+- HDR tonemap (ACES, filmic, Khronos PBR Neutral, AgX, custom curve) — `In`
+- Exposure (fixed, auto with histogram, auto with center-weighted) — `In`
+- Bloom (threshold, multi-pass blur, energy-conserving) — `In`
 - Depth of field (bokeh, circle of confusion, near/far) — `Partial`
 - Motion blur (per-object velocity, camera velocity, tile-based) — `Partial`
 - Chromatic aberration — `Partial`
@@ -302,12 +302,12 @@ Lighting notes:
 - Vignette — `Partial`
 - Lens flare (screen-space, data-driven) — `Partial`
 - Color grading (LUT, lift/gamma/gain, channel mixer) — `Partial`
-- Sharpening (CAS, RCAS, unsharp mask) — `Partial`
-- SSAO (GTAO, HBAO-style, multi-scale) — `Partial`
-- SSAO with temporal accumulation — `Partial`
+- Sharpening (CAS, RCAS, unsharp mask) — `In`
+- SSAO (GTAO, HBAO-style, multi-scale) — `In`
+- SSAO with temporal accumulation — `In`
 - Screen-space bent normals (indirect occlusion direction) — `Partial`
 - Fog (linear, exponential, height-based, volumetric) — `In`
-- Volumetric fog (froxel-based, light-participating, density noise) — `Partial`
+- Volumetric fog (froxel-based, light-participating, density noise) — `In`
 - Cloud shadows (projected noise, animated) — `Partial`
 - Panini projection (wide FOV correction) — `Partial`
 - Lens distortion — `Partial`
