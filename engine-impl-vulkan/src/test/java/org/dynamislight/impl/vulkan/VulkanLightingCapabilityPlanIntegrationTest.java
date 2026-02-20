@@ -1,6 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -177,6 +178,56 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             assertTrue(advanced.available());
             assertTrue(advanced.expectedAdvancedCapabilityCount() >= 1);
             assertEquals(advanced.expectedAdvancedCapabilityCount(), advanced.activeAdvancedCapabilityCount());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void emitsAdvancedRequiredUnavailableBreachWhenStrictRequiredPathIsMissing() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.lighting.areaApproxEnabled", "true"),
+                    Map.entry("vulkan.lighting.advancedRequireActive", "true"),
+                    Map.entry("vulkan.lighting.advancedRequireMinFrames", "1"),
+                    Map.entry("vulkan.lighting.advancedRequireCooldownFrames", "0")
+            ), QualityTier.MEDIUM), new NoopCallbacks());
+            runtime.loadScene(validSceneStableBudget());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_REQUIRED_PATH_POLICY".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            var advanced = runtime.lightingAdvancedDiagnostics();
+            assertTrue(advanced.available());
+            assertTrue(advanced.advancedRequireActive());
+            assertEquals(1, advanced.requiredAdvancedCapabilityCount());
+            assertEquals(0, advanced.activeAdvancedCapabilityCount());
+            assertTrue(advanced.advancedRequiredUnavailableBreached());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void doesNotEmitAdvancedRequiredUnavailableBreachWhenStrictRequiredPathDisabled() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.lighting.areaApproxEnabled", "true"),
+                    Map.entry("vulkan.lighting.advancedRequireActive", "false"),
+                    Map.entry("vulkan.lighting.advancedRequireMinFrames", "1"),
+                    Map.entry("vulkan.lighting.advancedRequireCooldownFrames", "0")
+            ), QualityTier.MEDIUM), new NoopCallbacks());
+            runtime.loadScene(validSceneStableBudget());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_REQUIRED_PATH_POLICY".equals(w.code())));
+            assertFalse(frame.warnings().stream().anyMatch(w -> "LIGHTING_ADVANCED_REQUIRED_UNAVAILABLE_BREACH".equals(w.code())));
+            var advanced = runtime.lightingAdvancedDiagnostics();
+            assertTrue(advanced.available());
+            assertFalse(advanced.advancedRequireActive());
+            assertFalse(advanced.advancedRequiredUnavailableBreached());
         } finally {
             runtime.shutdown();
         }

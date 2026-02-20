@@ -343,6 +343,8 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                         "LIGHTING_EMISSIVE_POLICY",
                         "LIGHTING_EMISSIVE_ENVELOPE_BREACH",
                         "LIGHTING_EMISSIVE_PROMOTION_READY",
+                        "LIGHTING_ADVANCED_REQUIRED_PATH_POLICY",
+                        "LIGHTING_ADVANCED_REQUIRED_UNAVAILABLE_BREACH",
                         "LIGHTING_ADVANCED_PROMOTION_READY",
                         "LIGHTING_PHASE2_PROMOTION_READY"
                 ),
@@ -358,7 +360,8 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                         "lighting.mode.contract",
                         "lighting.mode.telemetry",
                         "lighting.budget.envelope",
-                        "lighting.emissive.envelope"
+                        "lighting.emissive.envelope",
+                        "lighting.advanced.required-path"
                 )
         );
     }

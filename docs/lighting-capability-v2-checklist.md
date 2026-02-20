@@ -34,3 +34,4 @@ Status: Phase 2 Complete; Phase 3 In Progress (Vulkan-first)
 - [~] Clustering planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
 - [~] Light layers/channels planner/tier-gating telemetry + contract resources landed (full production shader realization pending).
 - [x] Advanced-stack contract realization now declares concrete descriptor/uniform/resource requirements for area/IES/cookies/volumetric/clustering/layers modes.
+- [x] Add strict advanced required-path policy + breach gate (`LIGHTING_ADVANCED_REQUIRED_PATH_POLICY`, `LIGHTING_ADVANCED_REQUIRED_UNAVAILABLE_BREACH`) with cooldown/streak controls and typed diagnostics fields.
