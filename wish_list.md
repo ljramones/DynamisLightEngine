@@ -423,9 +423,9 @@ Water notes:
 
 ## Ray Tracing
 
-- RT shadows (hard, soft, denoised, area light accurate) — `Partial`
+- RT shadows (hard, soft, denoised, area light accurate) — `In`
 - RT reflections (single-bounce, multi-bounce, denoised) — `In`
-- RT GI (diffuse single-bounce, multi-bounce) — `Not In Yet`
+- RT GI (diffuse single-bounce, multi-bounce) — `In`
 - RT AO (medium-range, denoised) — `Not In Yet`
 - RT translucency / caustics — `Not In Yet`
 - BVH management (build, refit, compaction) — `Partial`
