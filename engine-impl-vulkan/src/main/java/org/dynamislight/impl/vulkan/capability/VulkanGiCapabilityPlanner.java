@@ -51,6 +51,9 @@ public final class VulkanGiCapabilityPlanner {
                     pruned.add("vulkan.gi.rt_detail (rt unavailable or quality tier too low)");
                 }
             }
+            case EMISSIVE_GI -> active.add("vulkan.gi.emissive");
+            case DYNAMIC_SKY_GI -> active.add("vulkan.gi.dynamic_sky");
+            case INDIRECT_SPECULAR_GI -> active.add("vulkan.gi.indirect_specular");
         }
         return new VulkanGiCapabilityPlan(giModeId, true, safe.rtAvailable(), active, pruned);
     }

@@ -200,9 +200,9 @@ AA notes:
 - RT GI (single-bounce diffuse, denoised) — `Partial`
 - RT GI multi-bounce (recursive, accumulation-based) — `Partial`
 - Hybrid GI (probes + SSGI fill + RT detail) — `Partial`
-- Emissive GI contribution (emissive surfaces as light sources) — `Not In Yet`
-- Dynamic sky GI (environment drives indirect lighting, time-of-day responsive) — `Not In Yet`
-- Indirect specular from GI (feeds reflection probes or direct sample) — `Not In Yet`
+- Emissive GI contribution (emissive surfaces as light sources) — `Partial`
+- Dynamic sky GI (environment drives indirect lighting, time-of-day responsive) — `Partial`
+- Indirect specular from GI (feeds reflection probes or direct sample) — `Partial`
 
 GI notes:
 
@@ -229,6 +229,7 @@ GI notes:
 - GI runtime now emits explicit RT-detail fallback-chain telemetry (`GI_RT_DETAIL_FALLBACK_CHAIN`) for RT-active vs SSGI-fallback visibility in mode diagnostics.
 - GI now supports explicit `rtgi_multi` mode in contract/planner/runtime diagnostics, with ULTRA+RT gating and deterministic fallback to `ssgi` when unavailable.
 - GI runtime now emits RT-multi-specific policy/envelope/promotion telemetry (`GI_RT_MULTI_POLICY_ACTIVE`, `GI_RT_MULTI_ENVELOPE`, `GI_RT_MULTI_ENVELOPE_BREACH`, `GI_RT_MULTI_PROMOTION_READY`) when `rtgi_multi` is active.
+- GI now supports dedicated non-RT execution modes (`emissive_gi`, `dynamic_sky_gi`, `indirect_specular_gi`) with deterministic planner activation and mode-specific policy warnings (`GI_EMISSIVE_POLICY_ACTIVE`, `GI_DYNAMIC_SKY_POLICY_ACTIVE`, `GI_INDIRECT_SPECULAR_POLICY_ACTIVE`).
 - GI runtime now emits hybrid composition envelope telemetry (`GI_HYBRID_COMPOSITION`, `GI_HYBRID_COMPOSITION_BREACH`) for expected-vs-active SSGI/probe/RT component coverage in hybrid mode.
 - Typed GI promotion diagnostics now expose RT-detail expected/active ratio, cooldown/streak envelope state, and RT-detail promotion readiness for parser-free CI assertions.
 - GI phase-2C RT-detail gating now has a dedicated lockdown runner (`scripts/gi_phase2_rt_lockdown.sh`) and CI lane (`gi-phase2-rt-lockdown`).

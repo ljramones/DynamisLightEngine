@@ -33,6 +33,12 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 - [x] Add RT-multi policy/envelope/promotion warnings (`GI_RT_MULTI_POLICY_ACTIVE`, `GI_RT_MULTI_ENVELOPE`, `GI_RT_MULTI_ENVELOPE_BREACH`, `GI_RT_MULTI_PROMOTION_READY`).
 - [x] Add lockdown lane for RT-multi GI promotion (`scripts/gi_phase2_rt_multi_lockdown.sh`) + CI lane (`gi-phase2-rt-multi-lockdown`).
 
+## Phase 2E: Dedicated GI Policy Modes
+
+- [x] Add dedicated GI capability modes for `emissive_gi`, `dynamic_sky_gi`, and `indirect_specular_gi` with deterministic planner activation.
+- [x] Add runtime policy diagnostics warnings (`GI_EMISSIVE_POLICY_ACTIVE`, `GI_DYNAMIC_SKY_POLICY_ACTIVE`, `GI_INDIRECT_SPECULAR_POLICY_ACTIVE`).
+- [x] Add integration coverage asserting mode-specific capability activation/warnings.
+
 ## Phase 2D: Promotion + CI
 
 - [x] Add consolidated GI phase-2 promotion warning (`GI_PHASE2_PROMOTION_READY`) for SSGI/probe/RT-hybrid.

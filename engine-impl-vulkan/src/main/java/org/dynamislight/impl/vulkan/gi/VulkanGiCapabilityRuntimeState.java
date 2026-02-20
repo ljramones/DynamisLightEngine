@@ -621,6 +621,30 @@ public final class VulkanGiCapabilityRuntimeState {
                             + ", rtDetailStableStreak=" + rtDetailStableStreak
                             + ", rtDetailPromotionReadyMinFrames=" + rtDetailPromotionReadyMinFrames + ")"
             ));
+            if (configuredMode == GiMode.EMISSIVE_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_EMISSIVE_POLICY_ACTIVE",
+                        "GI emissive policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.emissive")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.DYNAMIC_SKY_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_DYNAMIC_SKY_POLICY_ACTIVE",
+                        "GI dynamic-sky policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.dynamic_sky")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.INDIRECT_SPECULAR_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_INDIRECT_SPECULAR_POLICY_ACTIVE",
+                        "GI indirect-specular policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.indirect_specular")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
             if (configuredMode == GiMode.RTGI_MULTI) {
                 warnings.add(new EngineWarning(
                         "GI_RT_MULTI_POLICY_ACTIVE",

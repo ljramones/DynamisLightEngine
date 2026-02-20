@@ -31,13 +31,19 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
     public static final RenderFeatureMode MODE_RTGI_SINGLE = new RenderFeatureMode("rtgi_single");
     public static final RenderFeatureMode MODE_RTGI_MULTI = new RenderFeatureMode("rtgi_multi");
     public static final RenderFeatureMode MODE_HYBRID_PROBE_SSGI_RT = new RenderFeatureMode("hybrid_probe_ssgi_rt");
+    public static final RenderFeatureMode MODE_EMISSIVE_GI = new RenderFeatureMode("emissive_gi");
+    public static final RenderFeatureMode MODE_DYNAMIC_SKY_GI = new RenderFeatureMode("dynamic_sky_gi");
+    public static final RenderFeatureMode MODE_INDIRECT_SPECULAR_GI = new RenderFeatureMode("indirect_specular_gi");
 
     private static final List<RenderFeatureMode> SUPPORTED = List.of(
             MODE_SSGI,
             MODE_PROBE_GRID,
             MODE_RTGI_SINGLE,
             MODE_RTGI_MULTI,
-            MODE_HYBRID_PROBE_SSGI_RT
+            MODE_HYBRID_PROBE_SSGI_RT,
+            MODE_EMISSIVE_GI,
+            MODE_DYNAMIC_SKY_GI,
+            MODE_INDIRECT_SPECULAR_GI
     );
 
     private final RenderFeatureMode activeMode;
@@ -90,6 +96,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "rtgi_single" -> 215;
             case "rtgi_multi" -> 218;
             case "hybrid_probe_ssgi_rt" -> 220;
+            case "emissive_gi" -> 222;
+            case "dynamic_sky_gi" -> 224;
+            case "indirect_specular_gi" -> 226;
             default -> 210;
         };
         return List.of(new RenderShaderContribution(
@@ -145,6 +154,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                     case "rtgi_single" -> 215;
                     case "rtgi_multi" -> 218;
                     case "hybrid_probe_ssgi_rt" -> 220;
+                    case "emissive_gi" -> 222;
+                    case "dynamic_sky_gi" -> 224;
+                    case "indirect_specular_gi" -> 226;
                     default -> 210;
                 },
                 false
@@ -182,6 +194,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "probe_grid" -> List.of(new RenderUniformRequirement("global_scene", "giProbeGrid", 0, 0));
             case "rtgi_single" -> List.of(new RenderUniformRequirement("global_scene", "giRt", 0, 0));
             case "rtgi_multi" -> List.of(new RenderUniformRequirement("global_scene", "giRtMulti", 0, 0));
+            case "emissive_gi" -> List.of(new RenderUniformRequirement("global_scene", "giEmissive", 0, 0));
+            case "dynamic_sky_gi" -> List.of(new RenderUniformRequirement("global_scene", "giDynamicSky", 0, 0));
+            case "indirect_specular_gi" -> List.of(new RenderUniformRequirement("global_scene", "giIndirectSpecular", 0, 0));
             case "hybrid_probe_ssgi_rt" -> List.of(
                     new RenderUniformRequirement("global_scene", "giProbeGrid", 0, 0),
                     new RenderUniformRequirement("global_scene", "giSsgi", 0, 0),
@@ -271,6 +286,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         "GI_RT_MULTI_PROMOTION_READY",
                         "GI_HYBRID_COMPOSITION",
                         "GI_HYBRID_COMPOSITION_BREACH",
+                        "GI_EMISSIVE_POLICY_ACTIVE",
+                        "GI_DYNAMIC_SKY_POLICY_ACTIVE",
+                        "GI_INDIRECT_SPECULAR_POLICY_ACTIVE",
                         "GI_PROMOTION_READY",
                         "GI_PHASE2_PROMOTION_READY"
                 ),
@@ -304,6 +322,7 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "rtgi_single" -> List.of("scene_color", "scene_depth", "scene_normal", "rt_scene");
             case "rtgi_multi" -> List.of("scene_color", "scene_depth", "scene_normal", "rt_scene", "velocity");
             case "hybrid_probe_ssgi_rt" -> List.of("scene_color", "scene_depth", "scene_normal", "probe_grid", "velocity", "rt_scene");
+            case "emissive_gi", "dynamic_sky_gi", "indirect_specular_gi" -> List.of("scene_color", "scene_depth", "scene_normal");
             default -> List.of("scene_color", "scene_depth");
         };
     }
@@ -395,6 +414,28 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         float hybridContribution = ssgiContribution + probeContribution + rtContribution;
                         vec3 hybrid = mix(ssgiInterp, rtTap, 0.35 + rtContribution);
                         vec3 lifted = mix(baseColor.rgb, hybrid, 0.20 + hybridContribution * 0.45);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "emissive_gi" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        float emissiveMask = smoothstep(0.45, 1.0, dot(baseColor.rgb, vec3(0.2126, 0.7152, 0.0722)));
+                        vec3 lifted = baseColor.rgb + (baseColor.rgb * emissiveMask * 0.12);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "dynamic_sky_gi" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec3 skyTint = mix(vec3(0.10, 0.15, 0.20), vec3(0.35, 0.42, 0.55), clamp(1.0 - uv.y, 0.0, 1.0));
+                        vec3 lifted = mix(baseColor.rgb, baseColor.rgb + skyTint * 0.18, 0.28);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "indirect_specular_gi" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec3 specTap = textureLod(uSceneColor, clamp(uv + vec2(texel.x, -texel.y) * 6.0, vec2(0.0), vec2(1.0)), 1.1).rgb;
+                        vec3 lifted = mix(baseColor.rgb, specTap, 0.22);
                         return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;

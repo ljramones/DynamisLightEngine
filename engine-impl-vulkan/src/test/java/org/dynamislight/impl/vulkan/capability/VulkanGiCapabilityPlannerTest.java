@@ -40,4 +40,21 @@ class VulkanGiCapabilityPlannerTest {
         assertFalse(plan.activeCapabilities().contains("vulkan.gi.rtgi_multi"));
         assertTrue(plan.prunedCapabilities().stream().anyMatch(s -> s.contains("vulkan.gi.rtgi_multi")));
     }
+
+    @Test
+    void dedicatedNonRtModesActivateExpectedCapability() {
+        VulkanGiCapabilityPlan emissive = VulkanGiCapabilityPlanner.plan(
+                new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.EMISSIVE_GI, true, false)
+        );
+        VulkanGiCapabilityPlan dynamicSky = VulkanGiCapabilityPlanner.plan(
+                new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.DYNAMIC_SKY_GI, true, false)
+        );
+        VulkanGiCapabilityPlan indirectSpecular = VulkanGiCapabilityPlanner.plan(
+                new VulkanGiCapabilityPlanner.PlanInput(QualityTier.HIGH, GiMode.INDIRECT_SPECULAR_GI, true, false)
+        );
+
+        assertTrue(emissive.activeCapabilities().contains("vulkan.gi.emissive"));
+        assertTrue(dynamicSky.activeCapabilities().contains("vulkan.gi.dynamic_sky"));
+        assertTrue(indirectSpecular.activeCapabilities().contains("vulkan.gi.indirect_specular"));
+    }
 }

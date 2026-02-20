@@ -372,6 +372,60 @@ class VulkanGiCapabilityPlanIntegrationTest {
         }
     }
 
+    @Test
+    void emissiveModeEmitsPolicyAndActivatesCapability() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "emissive_gi")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_EMISSIVE_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.emissive"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void dynamicSkyModeEmitsPolicyAndActivatesCapability() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "dynamic_sky_gi")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_DYNAMIC_SKY_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.dynamic_sky"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void indirectSpecularModeEmitsPolicyAndActivatesCapability() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "indirect_specular_gi")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_INDIRECT_SPECULAR_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.indirect_specular"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier tier) {
         return new EngineConfig(
                 "vulkan",
