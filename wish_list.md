@@ -444,6 +444,7 @@ RT notes:
 - RT v2 descriptor is now included in Phase-C profile compilation, so composed post shader/module assembly and descriptor layout composition include RT capability bindings in compiled profile tuples.
 - Vulkan runtime/profile cache now includes resolved RT capability mode in pipeline profile identity (`...|rt=...`) via typed diagnostics -> context override flow, so compiled profile switching is mode-aware for RT capability transitions.
 - RT cross-cut shader module realization now includes mode-specific post resolve bodies for BVH management, denoiser framework, hybrid RT+raster composition, quality tiers, inline ray query, and dedicated raygen lanes.
+- Vulkan runtime now supports mock-context RT capability simulation flags (`vulkan.rt.mockTraversalSupported`, `vulkan.rt.mockBvhSupported`) so full RT capability mode composition can be exercised in CI without requiring real RT hardware.
 - RT capability checklist/runner are in place (`docs/rt-capability-checklist.md`, `scripts/rt_capability_lockdown.sh`) with CI lane `rt-capability-lockdown`, and the full RT bundle now includes capability gating (`scripts/rt_lockdown_full.sh`).
 
 ## Sky / Atmosphere

@@ -40,6 +40,10 @@
   - rt_quality_tiers
   - inline_ray_query
   - dedicated_raygen
+- [x] Add mock-context RT capability simulation flags for CI/runtime validation:
+  - `vulkan.rt.mockTraversalSupported`
+  - `vulkan.rt.mockBvhSupported`
+- [x] Add full-stack integration coverage in mock context (`VulkanRtCapabilityPromotionIntegrationTest`) to validate active/pruned/ready behavior when all RT capability features are requested.
 
 Scope note:
 - This checklist is Vulkan-path scoped and establishes capability/promotion contracts for remaining RT rows; full dedicated execution hardening remains the next phase.

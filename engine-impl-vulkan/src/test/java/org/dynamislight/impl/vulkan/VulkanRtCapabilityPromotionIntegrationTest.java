@@ -85,6 +85,45 @@ class VulkanRtCapabilityPromotionIntegrationTest {
         }
     }
 
+    @Test
+    void resolvesRtCapabilityFullStackModeWhenMockRtSupportAndAllFeaturesEnabled() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.rt.mockTraversalSupported", "true"),
+                    Map.entry("vulkan.rt.mockBvhSupported", "true"),
+                    Map.entry("vulkan.rt.aoEnabled", "true"),
+                    Map.entry("vulkan.rt.translucencyCausticsEnabled", "true"),
+                    Map.entry("vulkan.rt.bvhCompactionEnabled", "true"),
+                    Map.entry("vulkan.rt.denoiserFrameworkEnabled", "true"),
+                    Map.entry("vulkan.rt.hybridCompositionEnabled", "true"),
+                    Map.entry("vulkan.rt.qualityTiersEnabled", "true"),
+                    Map.entry("vulkan.rt.inlineRayQueryEnabled", "true"),
+                    Map.entry("vulkan.rt.dedicatedRaygenEnabled", "true"),
+                    Map.entry("vulkan.rt.capabilityPromotionReadyMinFrames", "1")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_PROMOTION_READY".equals(w.code())));
+            var diagnostics = runtime.rtCapabilityDiagnostics();
+            assertTrue(diagnostics.available());
+            assertTrue(diagnostics.prunedFeatures().isEmpty());
+            assertTrue(diagnostics.activeFeatures().contains("vulkan.rt.ao"));
+            assertTrue(diagnostics.activeFeatures().contains("vulkan.rt.translucency_caustics"));
+            assertTrue(diagnostics.activeFeatures().contains("vulkan.rt.bvh_compaction"));
+            assertTrue(diagnostics.activeFeatures().contains("vulkan.rt.denoiser_framework"));
+            assertTrue(diagnostics.activeFeatures().contains("vulkan.rt.hybrid_composition"));
+            assertTrue(diagnostics.activeFeatures().contains("vulkan.rt.quality_tiers"));
+            assertTrue(diagnostics.activeFeatures().contains("vulkan.rt.inline_ray_query"));
+            assertTrue(diagnostics.activeFeatures().contains("vulkan.rt.dedicated_raygen"));
+            assertTrue("rt_full_stack".equals(diagnostics.modeId())
+                    || "rt_translucency_caustics".equals(diagnostics.modeId()));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier tier) {
         return new EngineConfig(
                 "vulkan",

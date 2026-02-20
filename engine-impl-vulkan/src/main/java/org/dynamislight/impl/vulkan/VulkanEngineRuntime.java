@@ -820,6 +820,20 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         VulkanRuntimeLifecycle.initialize(context, config, options, plannedDrawCalls, plannedTriangles, plannedVisibleObjects);
         shadowRtTraversalSupported = !mockContext && context.isHardwareRtShadowTraversalSupported();
         shadowRtBvhSupported = !mockContext && context.isHardwareRtShadowBvhSupported();
+        if (mockContext) {
+            boolean mockTraversalSupported = Boolean.parseBoolean(
+                    safeBackendOptions.getOrDefault("vulkan.rt.mockTraversalSupported", "false")
+            );
+            boolean mockBvhSupported = Boolean.parseBoolean(
+                    safeBackendOptions.getOrDefault("vulkan.rt.mockBvhSupported", "false")
+            );
+            if (mockTraversalSupported) {
+                shadowRtTraversalSupported = true;
+            }
+            if (mockBvhSupported) {
+                shadowRtBvhSupported = true;
+            }
+        }
         if (shadowRtBvhStrict) {
             if ("bvh".equals(shadowRtMode) && !shadowRtBvhSupported) {
                 throw new EngineException(
