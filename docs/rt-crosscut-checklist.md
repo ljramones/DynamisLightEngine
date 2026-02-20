@@ -10,6 +10,7 @@
 - [x] Add integration coverage for promotion/breach paths (`VulkanRtCrossCutPromotionIntegrationTest`).
 - [x] Add lockdown runner (`scripts/rt_crosscut_lockdown.sh`).
 - [x] Add CI lane (`rt-crosscut-lockdown`).
+- [x] Add full RT lockdown bundle runner/lane across reflections + GI RT lanes + cross-cut gate (`scripts/rt_lockdown_full.sh`, `rt-lockdown-full`).
 
 Scope note:
 - This checklist is Vulkan-path scoped for current promotion and does not imply OpenGL RT parity.

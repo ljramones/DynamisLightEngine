@@ -160,6 +160,7 @@ Reflection notes:
 - RT reflections now include a guarded real-Vulkan signoff runner (`scripts/rt_reflections_real_gpu_signoff.sh`) for RT lane contract validation on real hardware paths.
 - Vulkan runtime now emits RT cross-cut policy/envelope/promotion warnings (`RT_CROSSCUT_POLICY_ACTIVE`, `RT_CROSSCUT_ENVELOPE`, `RT_CROSSCUT_ENVELOPE_BREACH`, `RT_CROSSCUT_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`rtCrossCutDiagnostics()`).
 - RT cross-cut lockdown checklist/runner are in place (`docs/rt-crosscut-checklist.md`, `scripts/rt_crosscut_lockdown.sh`) with CI lane `rt-crosscut-lockdown`.
+- Full RT cross-cut bundle lockdown is available (`scripts/rt_lockdown_full.sh`) with CI lane `rt-lockdown-full` (reflections + GI RT lanes + cross-cut gate).
 
 ## Anti-Aliasing
 
