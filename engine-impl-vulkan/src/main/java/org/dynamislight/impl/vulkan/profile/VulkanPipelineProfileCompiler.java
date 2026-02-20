@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.dynamislight.impl.vulkan.capability.VulkanAaCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanCoreCapabilityDescriptorV2;
+import org.dynamislight.impl.vulkan.capability.VulkanGiCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanLightingCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanPostCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanReflectionCapabilityDescriptorV2;
@@ -30,8 +31,9 @@ public final class VulkanPipelineProfileCompiler {
         RenderFeatureCapabilityV2 aa = VulkanAaCapabilityDescriptorV2.withMode(effective.aaMode());
         RenderFeatureCapabilityV2 post = VulkanPostCapabilityDescriptorV2.withMode(effective.postMode());
         RenderFeatureCapabilityV2 lighting = VulkanLightingCapabilityDescriptorV2.withMode(effective.lightingMode());
+        RenderFeatureCapabilityV2 gi = VulkanGiCapabilityDescriptorV2.withMode(effective.giMode());
 
-        List<RenderFeatureCapabilityV2> capabilities = List.of(core, shadow, reflection, lighting, aa, post);
+        List<RenderFeatureCapabilityV2> capabilities = List.of(core, shadow, reflection, lighting, gi, aa, post);
         VulkanComposedDescriptorLayoutPlan mainPlan = VulkanDescriptorLayoutComposer.composeForPass(
                 "main_geometry",
                 effective.tier(),
@@ -50,6 +52,7 @@ public final class VulkanPipelineProfileCompiler {
 
         List<RenderShaderModuleDeclaration> postModules = new ArrayList<>();
         postModules.addAll(reflection.shaderModules(effective.reflectionMode()));
+        postModules.addAll(gi.shaderModules(effective.giMode()));
         postModules.addAll(aa.shaderModules(effective.aaMode()));
 
         String mainFragmentSource = VulkanShaderProfileAssembler.assembleMainFragmentCanonical(mainModules).source();

@@ -1284,6 +1284,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         aaTemporalState.updateCorePromotion(aaTemporalEmission, aaMaterialEmission, warnings, aaPostAaModeLastFrame);
         giCapabilityState.emitFrameWarnings(qualityTier, shadowRtTraversalSupported, warnings);
         lightingCapabilityState.emitFrameWarning(qualityTier, currentSceneLights, currentSceneMaterials, warnings);
+        context.setPipelineGiModeOverride(giCapabilityState.diagnostics().giMode());
         context.setPipelineLightingModeOverride(lightingCapabilityState.diagnostics().mode());
         VulkanReflectionRuntimeFlow.processFrameWarnings(this, context, qualityTier, warnings);
         VulkanShadowFrameWarningFlow.process(this, context, qualityTier, warnings);

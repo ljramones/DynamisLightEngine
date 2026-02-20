@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan.profile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.dynamislight.api.config.QualityTier;
+import org.dynamislight.impl.vulkan.capability.VulkanGiCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.capability.VulkanLightingCapabilityDescriptorV2;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.MEDIUM,
                 state,
                 0,
+                null,
                 null,
                 0,
                 0,
@@ -31,6 +33,7 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("fxaa_low", key.aaMode().id());
         assertEquals("tonemap", key.postMode().id());
         assertEquals("baseline_directional_point_spot", key.lightingMode().id());
+        assertEquals("ssgi", key.giMode().id());
     }
 
     @Test
@@ -43,6 +46,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 state,
                 3,
+                null,
                 null,
                 2,
                 1,
@@ -59,6 +63,7 @@ class VulkanPipelineProfileResolverTest {
         assertEquals("fxaa_low", key.aaMode().id());
         assertEquals("tonemap", key.postMode().id());
         assertEquals("baseline_directional_point_spot", key.lightingMode().id());
+        assertEquals("ssgi", key.giMode().id());
     }
 
     @Test
@@ -67,6 +72,7 @@ class VulkanPipelineProfileResolverTest {
                 QualityTier.HIGH,
                 new VulkanRenderState(),
                 7,
+                null,
                 null,
                 4,
                 0,
@@ -88,6 +94,7 @@ class VulkanPipelineProfileResolverTest {
                 new VulkanRenderState(),
                 0,
                 VulkanLightingCapabilityDescriptorV2.MODE_PHYS_UNITS_BUDGET_EMISSIVE_ADVANCED,
+                null,
                 0,
                 0,
                 0,
@@ -99,5 +106,26 @@ class VulkanPipelineProfileResolverTest {
                 false
         );
         assertEquals("phys_units_budget_emissive_advanced", key.lightingMode().id());
+    }
+
+    @Test
+    void resolveUsesGiModeOverrideWhenProvided() {
+        VulkanPipelineProfileKey key = VulkanPipelineProfileResolver.resolve(
+                QualityTier.HIGH,
+                new VulkanRenderState(),
+                0,
+                null,
+                VulkanGiCapabilityDescriptorV2.MODE_HYBRID_PROBE_SSGI_RT,
+                0,
+                0,
+                0,
+                true,
+                false,
+                false,
+                false,
+                false,
+                false
+        );
+        assertEquals("hybrid_probe_ssgi_rt", key.giMode().id());
     }
 }

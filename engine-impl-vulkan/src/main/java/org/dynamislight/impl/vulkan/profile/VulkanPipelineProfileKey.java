@@ -12,7 +12,8 @@ public record VulkanPipelineProfileKey(
         RenderFeatureMode reflectionMode,
         RenderFeatureMode aaMode,
         RenderFeatureMode postMode,
-        RenderFeatureMode lightingMode
+        RenderFeatureMode lightingMode,
+        RenderFeatureMode giMode
 ) {
     public VulkanPipelineProfileKey {
         tier = tier == null ? QualityTier.MEDIUM : tier;
@@ -21,6 +22,7 @@ public record VulkanPipelineProfileKey(
         aaMode = normalize(aaMode, "taa");
         postMode = normalize(postMode, "taa_resolve");
         lightingMode = normalize(lightingMode, "baseline_directional_point_spot");
+        giMode = normalize(giMode, "ssgi");
     }
 
     public static VulkanPipelineProfileKey defaults() {
@@ -30,7 +32,8 @@ public record VulkanPipelineProfileKey(
                 new RenderFeatureMode("hybrid"),
                 new RenderFeatureMode("taa"),
                 new RenderFeatureMode("taa_resolve"),
-                new RenderFeatureMode("baseline_directional_point_spot")
+                new RenderFeatureMode("baseline_directional_point_spot"),
+                new RenderFeatureMode("ssgi")
         );
     }
 
@@ -39,7 +42,8 @@ public record VulkanPipelineProfileKey(
                 + "|refl=" + reflectionMode.id()
                 + "|aa=" + aaMode.id()
                 + "|post=" + postMode.id()
-                + "|lighting=" + lightingMode.id();
+                + "|lighting=" + lightingMode.id()
+                + "|gi=" + giMode.id();
     }
 
     private static RenderFeatureMode normalize(RenderFeatureMode mode, String fallback) {

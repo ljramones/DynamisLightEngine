@@ -29,6 +29,7 @@ final class VulkanContextPipelineProfileRuntimeHelper {
             VulkanRenderState renderState,
             int localLightCount,
             RenderFeatureMode lightingModeOverride,
+            RenderFeatureMode giModeOverride,
             VulkanPipelineProfileCache cache,
             VulkanPipelineProfileKey currentKey
     ) {
@@ -37,6 +38,7 @@ final class VulkanContextPipelineProfileRuntimeHelper {
                 renderState,
                 localLightCount,
                 lightingModeOverride,
+                giModeOverride,
                 0,
                 0,
                 0,
