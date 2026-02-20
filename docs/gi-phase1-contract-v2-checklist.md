@@ -25,6 +25,7 @@ Scope: establish GI composition contract/planner scaffolding using the existing 
   - `GI_CAPABILITY_PLAN_ACTIVE`
 - [x] Add runtime promotion warning emission:
   - `GI_PROMOTION_POLICY_ACTIVE`
+  - `GI_SSGI_POLICY_ACTIVE`
   - `GI_PROMOTION_READY`
 - [x] Add backend-agnostic typed diagnostics:
   - `EngineRuntime.giCapabilityDiagnostics()`
@@ -32,6 +33,7 @@ Scope: establish GI composition contract/planner scaffolding using the existing 
 - [x] Add backend-agnostic typed promotion diagnostics:
   - `EngineRuntime.giPromotionDiagnostics()`
   - `GiPromotionDiagnostics`
+  - includes active path flags: `ssgiActive`, `probeGridActive`, `rtDetailActive`
 
 ## Validation
 

@@ -178,10 +178,14 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
         return new RenderTelemetryDeclaration(
                 List.of(
                         "GI_CAPABILITY_PLAN_ACTIVE",
-                        "GI_PHASE1_POLICY"
+                        "GI_PHASE1_POLICY",
+                        "GI_PROMOTION_POLICY_ACTIVE",
+                        "GI_SSGI_POLICY_ACTIVE",
+                        "GI_PROMOTION_READY"
                 ),
                 List.of(
-                        "giCapabilityDiagnostics"
+                        "giCapabilityDiagnostics",
+                        "giPromotionDiagnostics"
                 ),
                 List.of(),
                 List.of(
