@@ -224,6 +224,7 @@ GI notes:
 - Typed GI promotion diagnostics now expose probe-grid expected/active ratio, cooldown/streak envelope state, and probe-grid promotion readiness for parser-free CI assertions.
 - GI phase-2B probe-grid gating now has a dedicated lockdown runner (`scripts/gi_phase2_probe_lockdown.sh`) and CI lane (`gi-phase2-probe-lockdown`).
 - GI runtime now emits RT-detail policy/envelope/promotion telemetry (`GI_RT_DETAIL_POLICY_ACTIVE`, `GI_RT_DETAIL_ENVELOPE`, `GI_RT_DETAIL_ENVELOPE_BREACH`, `GI_RT_DETAIL_PROMOTION_READY`) with tier-default/override thresholds.
+- GI runtime now emits hybrid composition envelope telemetry (`GI_HYBRID_COMPOSITION`, `GI_HYBRID_COMPOSITION_BREACH`) for expected-vs-active SSGI/probe/RT component coverage in hybrid mode.
 - Typed GI promotion diagnostics now expose RT-detail expected/active ratio, cooldown/streak envelope state, and RT-detail promotion readiness for parser-free CI assertions.
 - GI phase-2C RT-detail gating now has a dedicated lockdown runner (`scripts/gi_phase2_rt_lockdown.sh`) and CI lane (`gi-phase2-rt-lockdown`).
 - GI phase-2 now emits consolidated readiness telemetry (`GI_PHASE2_PROMOTION_READY`) with typed diagnostics state (`phase2PromotionReady`) derived from expected SSGI/probe/RT lane readiness.

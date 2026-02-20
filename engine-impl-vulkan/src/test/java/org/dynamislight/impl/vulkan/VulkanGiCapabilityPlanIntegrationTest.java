@@ -38,7 +38,9 @@ class VulkanGiCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.gi.mode", "hybrid_probe_ssgi_rt"),
                     Map.entry("vulkan.gi.promotionReadyMinFrames", "1"),
                     Map.entry("vulkan.gi.ssgiPromotionReadyMinFrames", "1"),
-                    Map.entry("vulkan.gi.probePromotionReadyMinFrames", "1")
+                    Map.entry("vulkan.gi.probePromotionReadyMinFrames", "1"),
+                    Map.entry("vulkan.gi.hybridWarnMinFrames", "1"),
+                    Map.entry("vulkan.gi.hybridWarnCooldownFrames", "0")
             ), QualityTier.HIGH), new NoopCallbacks());
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
@@ -53,6 +55,8 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_POLICY_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_ENVELOPE_BREACH".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_HYBRID_COMPOSITION".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_HYBRID_COMPOSITION_BREACH".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROMOTION_READY".equals(w.code())));
             var diagnostics = runtime.giCapabilityDiagnostics();
             assertTrue(diagnostics.available());
