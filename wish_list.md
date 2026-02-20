@@ -158,6 +158,8 @@ Reflection notes:
 - RT reflections now include a promotion-ready gate (`REFLECTION_RT_PROMOTION_READY`) and mode-bit contract (`1<<26`) after sustained dedicated/hybrid/denoise/AS/fallback stability.
 - RT `Partial -> In` promotion tasks are tracked in `docs/rt-reflections-in-checklist.md`.
 - RT reflections now include a guarded real-Vulkan signoff runner (`scripts/rt_reflections_real_gpu_signoff.sh`) for RT lane contract validation on real hardware paths.
+- Vulkan runtime now emits RT cross-cut policy/envelope/promotion warnings (`RT_CROSSCUT_POLICY_ACTIVE`, `RT_CROSSCUT_ENVELOPE`, `RT_CROSSCUT_ENVELOPE_BREACH`, `RT_CROSSCUT_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`rtCrossCutDiagnostics()`).
+- RT cross-cut lockdown checklist/runner are in place (`docs/rt-crosscut-checklist.md`, `scripts/rt_crosscut_lockdown.sh`) with CI lane `rt-crosscut-lockdown`.
 
 ## Anti-Aliasing
 

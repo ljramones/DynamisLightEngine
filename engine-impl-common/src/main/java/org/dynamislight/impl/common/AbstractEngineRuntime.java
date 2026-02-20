@@ -36,6 +36,7 @@ import org.dynamislight.api.runtime.LightingAdvancedDiagnostics;
 import org.dynamislight.api.runtime.PbrCapabilityDiagnostics;
 import org.dynamislight.api.runtime.PostCorePromotionDiagnostics;
 import org.dynamislight.api.runtime.PostCinematicPromotionDiagnostics;
+import org.dynamislight.api.runtime.RtCrossCutDiagnostics;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -435,6 +436,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public RtCrossCutDiagnostics rtCrossCutDiagnostics() {
+        return backendRtCrossCutDiagnostics();
+    }
+
+    @Override
     public PbrCapabilityDiagnostics pbrCapabilityDiagnostics() {
         return backendPbrCapabilityDiagnostics();
     }
@@ -605,6 +611,10 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected PostCinematicPromotionDiagnostics backendPostCinematicPromotionDiagnostics() {
         return PostCinematicPromotionDiagnostics.unavailable();
+    }
+
+    protected RtCrossCutDiagnostics backendRtCrossCutDiagnostics() {
+        return RtCrossCutDiagnostics.unavailable();
     }
 
     protected PbrCapabilityDiagnostics backendPbrCapabilityDiagnostics() {

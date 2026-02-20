@@ -119,6 +119,10 @@ on:
         description: 'Run full Post lockdown bundle (contract + phaseA + phaseB)'
         required: false
         default: 'false'
+      run_rt_crosscut_lockdown:
+        description: 'Run strict RT cross-cut lockdown gate'
+        required: false
+        default: 'false'
       run_aa_upscaler_vendor_matrix:
         description: 'Run AA upscaler vendor matrix lane'
         required: false
@@ -847,6 +851,26 @@ jobs:
 
       - name: Run Post full lockdown bundle
         run: ./scripts/post_lockdown_full.sh
+
+  rt-crosscut-lockdown:
+    name: RT Cross-Cut Lockdown (JDK 25, macos-latest)
+    if: >
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_rt_crosscut_lockdown == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run RT cross-cut lockdown
+        run: ./scripts/rt_crosscut_lockdown.sh
 
   shadow-stable-promote-real:
     name: Shadow Stable Promote Real (JDK 25, macos-latest)

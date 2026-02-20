@@ -483,6 +483,18 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic RT cross-cut diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link RtCrossCutDiagnostics#unavailable()}.
+     *
+     * @return current RT cross-cut diagnostics snapshot.
+     */
+    default RtCrossCutDiagnostics rtCrossCutDiagnostics() {
+        return RtCrossCutDiagnostics.unavailable();
+    }
+
+    /**
      * Retrieves backend-agnostic PBR/shading capability-plan diagnostics.
      *
      * Backends that do not expose this snapshot return
