@@ -19,6 +19,18 @@
   - `RT_CAPABILITY_PROMOTION_READY`
 - [x] Add integration test coverage (`VulkanRtCapabilityPromotionIntegrationTest`).
 - [x] Add lockdown runner (`scripts/rt_capability_lockdown.sh`) and CI lane (`rt-capability-lockdown`).
+- [x] Add RT v2 capability contract descriptor with explicit modes for:
+  - rt_ao_denoised
+  - rt_translucency_caustics
+  - bvh_management
+  - denoiser_framework
+  - rt_hybrid_raster
+  - rt_quality_tiers
+  - inline_ray_query
+  - dedicated_raygen
+  - rt_full_stack
+- [x] Add deterministic RT capability planner (`VulkanRtCapabilityPlanner`) + plan model for parser-friendly resolved mode/signals.
+- [x] Add planner test coverage (`VulkanRtCapabilityPlannerTest`) and include RT descriptor coverage in cross-capability contract validation (`VulkanCapabilityContractV2DescriptorsTest`).
 
 Scope note:
 - This checklist is Vulkan-path scoped and establishes capability/promotion contracts for remaining RT rows; full dedicated execution hardening remains the next phase.

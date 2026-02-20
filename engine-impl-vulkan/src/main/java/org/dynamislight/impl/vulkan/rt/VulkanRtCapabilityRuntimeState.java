@@ -7,6 +7,7 @@ import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.event.EngineWarning;
 import org.dynamislight.api.runtime.RtCapabilityDiagnostics;
 import org.dynamislight.api.runtime.RtCapabilityPromotionDiagnostics;
+import org.dynamislight.impl.vulkan.capability.VulkanRtCapabilityPlanner;
 import org.dynamislight.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
 
 /**
@@ -85,34 +86,26 @@ public final class VulkanRtCapabilityRuntimeState {
             boolean giRtActive,
             List<EngineWarning> warnings
     ) {
-        QualityTier safeTier = tier == null ? QualityTier.MEDIUM : tier;
-        boolean rtAoActive = rtAoRequested
-                && rtTraversalSupported
-                && safeTier.ordinal() >= QualityTier.MEDIUM.ordinal();
-        boolean rtTranslucencyCausticsActive = rtTranslucencyCausticsRequested
-                && rtTraversalSupported
-                && safeTier.ordinal() >= QualityTier.ULTRA.ordinal();
-        boolean bvhCompactionActive = bvhCompactionRequested && rtBvhSupported;
-        boolean denoiserFrameworkActive = denoiserFrameworkRequested
-                && (reflectionRtLaneActive || giRtActive || rtAoActive || rtTranslucencyCausticsActive);
-        boolean hybridCompositionActive = hybridCompositionRequested
-                && (reflectionRtLaneActive || giRtActive || rtAoActive || rtTranslucencyCausticsActive);
-        boolean qualityTiersActive = qualityTiersRequested;
-        boolean inlineRayQueryActive = inlineRayQueryRequested && rtTraversalSupported;
-        boolean dedicatedRaygenActive = dedicatedRaygenRequested && rtBvhSupported;
+        VulkanRtCapabilityPlanner.PlanInput planInput = new VulkanRtCapabilityPlanner.PlanInput(
+                tier,
+                rtTraversalSupported,
+                rtBvhSupported,
+                reflectionRtLaneActive,
+                giRtActive,
+                rtAoRequested,
+                rtTranslucencyCausticsRequested,
+                bvhCompactionRequested,
+                denoiserFrameworkRequested,
+                hybridCompositionRequested,
+                qualityTiersRequested,
+                inlineRayQueryRequested,
+                dedicatedRaygenRequested
+        );
+        var plan = VulkanRtCapabilityPlanner.plan(planInput);
 
         expectedFeaturesLastFrame = expectedFeatureList();
-        activeFeaturesLastFrame = activeFeatureList(
-                rtAoActive,
-                rtTranslucencyCausticsActive,
-                bvhCompactionActive,
-                denoiserFrameworkActive,
-                hybridCompositionActive,
-                qualityTiersActive,
-                inlineRayQueryActive,
-                dedicatedRaygenActive
-        );
-        prunedFeaturesLastFrame = diff(expectedFeaturesLastFrame, activeFeaturesLastFrame);
+        activeFeaturesLastFrame = plan.activeCapabilities();
+        prunedFeaturesLastFrame = plan.prunedCapabilities();
 
         boolean risk = !prunedFeaturesLastFrame.isEmpty();
         if (risk) {
@@ -134,9 +127,11 @@ public final class VulkanRtCapabilityRuntimeState {
 
         warnings.add(new EngineWarning(
                 "RT_CAPABILITY_MODE_ACTIVE",
-                "RT capability mode active (expected=[" + String.join(", ", expectedFeaturesLastFrame)
+                "RT capability mode active (resolvedMode=" + plan.modeId()
+                        + ", expected=[" + String.join(", ", expectedFeaturesLastFrame)
                         + "], active=[" + String.join(", ", activeFeaturesLastFrame)
-                        + "], pruned=[" + String.join(", ", prunedFeaturesLastFrame) + "])"
+                        + "], pruned=[" + String.join(", ", prunedFeaturesLastFrame)
+                        + "], signals=[" + String.join(", ", plan.signals()) + "])"
         ));
         warnings.add(new EngineWarning(
                 "RT_CAPABILITY_POLICY_ACTIVE",
@@ -229,39 +224,4 @@ public final class VulkanRtCapabilityRuntimeState {
         return List.copyOf(out);
     }
 
-    private static List<String> activeFeatureList(
-            boolean ao,
-            boolean translucencyCaustics,
-            boolean bvhCompaction,
-            boolean denoiserFramework,
-            boolean hybrid,
-            boolean qualityTiers,
-            boolean rayQuery,
-            boolean dedicatedRaygen
-    ) {
-        List<String> out = new ArrayList<>();
-        if (ao) out.add("vulkan.rt.ao");
-        if (translucencyCaustics) out.add("vulkan.rt.translucency_caustics");
-        if (bvhCompaction) out.add("vulkan.rt.bvh_compaction");
-        if (denoiserFramework) out.add("vulkan.rt.denoiser_framework");
-        if (hybrid) out.add("vulkan.rt.hybrid_composition");
-        if (qualityTiers) out.add("vulkan.rt.quality_tiers");
-        if (rayQuery) out.add("vulkan.rt.inline_ray_query");
-        if (dedicatedRaygen) out.add("vulkan.rt.dedicated_raygen");
-        return List.copyOf(out);
-    }
-
-    private static List<String> diff(List<String> expected, List<String> active) {
-        if (expected == null || expected.isEmpty()) {
-            return List.of();
-        }
-        List<String> out = new ArrayList<>();
-        for (String f : expected) {
-            if (!active.contains(f)) {
-                out.add(f);
-            }
-        }
-        return List.copyOf(out);
-    }
 }
-

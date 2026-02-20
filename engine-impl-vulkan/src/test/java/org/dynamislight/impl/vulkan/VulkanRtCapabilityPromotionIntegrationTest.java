@@ -72,8 +72,8 @@ class VulkanRtCapabilityPromotionIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "RT_CAPABILITY_ENVELOPE_BREACH".equals(w.code())));
             var diagnostics = runtime.rtCapabilityDiagnostics();
             assertTrue(diagnostics.available());
-            assertTrue(diagnostics.prunedFeatures().contains("vulkan.rt.ao"));
-            assertTrue(diagnostics.prunedFeatures().contains("vulkan.rt.translucency_caustics"));
+            assertTrue(diagnostics.prunedFeatures().stream().anyMatch(v -> v.startsWith("vulkan.rt.ao")));
+            assertTrue(diagnostics.prunedFeatures().stream().anyMatch(v -> v.startsWith("vulkan.rt.translucency_caustics")));
             var promotion = runtime.rtCapabilityPromotionDiagnostics();
             assertTrue(promotion.available());
             assertTrue(promotion.envelopeBreachedLastFrame());

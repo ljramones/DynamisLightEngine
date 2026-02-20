@@ -6,7 +6,7 @@ cd "${ROOT_DIR}"
 
 echo "[rt-capability-lockdown] Running RT capability integration lockdown..."
 mvn -pl engine-impl-vulkan -am \
-  -Dtest=VulkanRtCapabilityPromotionIntegrationTest \
+  -Dtest=VulkanRtCapabilityPromotionIntegrationTest,VulkanRtCapabilityPlannerTest,VulkanCapabilityContractV2DescriptorsTest \
   -Dsurefire.failIfNoSpecifiedTests=false \
   test
 

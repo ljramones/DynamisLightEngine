@@ -440,6 +440,7 @@ RT notes:
 
 - Vulkan now emits RT capability/promotion telemetry (`RT_CAPABILITY_MODE_ACTIVE`, `RT_CAPABILITY_POLICY_ACTIVE`, `RT_CAPABILITY_ENVELOPE`, `RT_CAPABILITY_ENVELOPE_BREACH`, `RT_CAPABILITY_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`rtCapabilityDiagnostics()`, `rtCapabilityPromotionDiagnostics()`).
 - RT capability coverage includes expected/active/pruned contract tracking for RT AO, RT translucency/caustics, BVH compaction, denoiser framework, hybrid composition, quality tiers, inline ray query, and dedicated raygen path.
+- RT cross-cut now has a deterministic planner + v2 contract descriptor coverage (`VulkanRtCapabilityPlanner`, `VulkanRtCapabilityDescriptorV2`) so resolved RT mode/signals and descriptor/pass/resource declarations are CI-validated across capability composition.
 - RT capability checklist/runner are in place (`docs/rt-capability-checklist.md`, `scripts/rt_capability_lockdown.sh`) with CI lane `rt-capability-lockdown`, and the full RT bundle now includes capability gating (`scripts/rt_lockdown_full.sh`).
 
 ## Sky / Atmosphere
