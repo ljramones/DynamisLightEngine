@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.scene.ReflectionProbeDesc;
@@ -23,6 +24,10 @@ import org.dynamislight.impl.vulkan.profile.ShadowCascadeProfile;
 import org.dynamislight.impl.vulkan.profile.VulkanContextDiagnosticsCoordinator;
 import org.dynamislight.impl.vulkan.profile.VulkanContextProfileCoordinator;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
+import org.dynamislight.impl.vulkan.profile.VulkanPipelineProfileCache;
+import org.dynamislight.impl.vulkan.profile.VulkanPipelineProfileCompilation;
+import org.dynamislight.impl.vulkan.profile.VulkanPipelineProfileKey;
+import org.dynamislight.impl.vulkan.profile.VulkanPipelineProfileResolver;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneRuntimeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeRuntimeCoordinator;
@@ -144,6 +149,10 @@ public final class VulkanContext {
     private int reflectionProbeLodTier1Count;
     private int reflectionProbeLodTier2Count;
     private int reflectionProbeLodTier3Count;
+    private QualityTier pipelineProfileTier = QualityTier.MEDIUM;
+    private final VulkanPipelineProfileCache pipelineProfileCache = new VulkanPipelineProfileCache();
+    private VulkanPipelineProfileKey activePipelineProfileKey = VulkanPipelineProfileKey.defaults();
+    private VulkanPipelineProfileCompilation activePipelineProfile = pipelineProfileCache.getOrCompile(activePipelineProfileKey);
 
     VulkanContext() {
         backendResources.depthFormat = resolveConfiguredDepthFormat();
@@ -198,21 +207,12 @@ public final class VulkanContext {
         descriptorRingStats.descriptorRingMaxSetCapacity = clamp(maxSetCapacity, 256, 32768);
     }
 
-    int configuredFramesInFlight() {
-        return framesInFlight;
-    }
+    int configuredFramesInFlight() { return framesInFlight; }
+    int configuredMaxDynamicSceneObjects() { return maxDynamicSceneObjects; }
+    int configuredMaxPendingUploadRanges() { return maxPendingUploadRanges; }
+    int configuredDescriptorRingMaxSetCapacity() { return descriptorRingStats.descriptorRingMaxSetCapacity; }
 
-    int configuredMaxDynamicSceneObjects() {
-        return maxDynamicSceneObjects;
-    }
-
-    int configuredMaxPendingUploadRanges() {
-        return maxPendingUploadRanges;
-    }
-
-    int configuredDescriptorRingMaxSetCapacity() {
-        return descriptorRingStats.descriptorRingMaxSetCapacity;
-    }
+    void setPipelineProfileTier(QualityTier tier) { pipelineProfileTier = tier == null ? QualityTier.MEDIUM : tier; }
 
     void initialize(String appName, int width, int height, boolean windowVisible) throws EngineException {
         VulkanLifecycleOrchestrator.initializeRuntime(
@@ -234,6 +234,12 @@ public final class VulkanContext {
 
     VulkanFrameMetrics renderFrame() throws EngineException {
         long start = System.nanoTime();
+        if (backendResources.device != null && backendResources.swapchain != VK_NULL_HANDLE) {
+            boolean profileChanged = refreshActivePipelineProfile();
+            if (profileChanged) {
+                rebuildPipelineProfileRuntimeResources();
+            }
+        }
         float[] previousProjMatrix = projMatrix;
         var jitterUpdate = VulkanTemporalAaCoordinator.updateTemporalJitterState(
                 renderState,
@@ -1027,6 +1033,7 @@ public final class VulkanContext {
     }
 
     private void createDescriptorResources(MemoryStack stack) throws EngineException {
+        refreshActivePipelineProfile();
         estimatedGpuMemoryBytes = VulkanContextDescriptorRuntimeHelper.createDescriptorResources(
                 stack,
                 backendResources,
@@ -1035,7 +1042,8 @@ public final class VulkanContext {
                 maxDynamicSceneObjects,
                 DEFAULT_MAX_REFLECTION_PROBES,
                 OBJECT_UNIFORM_BYTES,
-                GLOBAL_SCENE_UNIFORM_BYTES
+                GLOBAL_SCENE_UNIFORM_BYTES,
+                activePipelineProfile.mainGeometryDescriptorPlan()
         );
     }
 
@@ -1053,6 +1061,7 @@ public final class VulkanContext {
     }
 
     private void createSwapchainResources(MemoryStack stack, int requestedWidth, int requestedHeight) throws EngineException {
+        refreshActivePipelineProfile();
         renderState.postIntermediateInitialized = false;
         var state = VulkanLifecycleOrchestrator.createSwapchain(
                 new VulkanLifecycleOrchestrator.CreateSwapchainRequest(
@@ -1062,7 +1071,10 @@ public final class VulkanContext {
                         stack,
                         requestedWidth,
                         requestedHeight,
-                        VERTEX_STRIDE_BYTES
+                        VERTEX_STRIDE_BYTES,
+                        activePipelineProfile.postCompositeDescriptorPlan(),
+                        activePipelineProfile.mainFragmentSource(),
+                        activePipelineProfile.postFragmentSource()
                 )
         );
         VulkanLifecycleOrchestrator.applySwapchainState(backendResources, renderState, state);
@@ -1434,6 +1446,36 @@ public final class VulkanContext {
                 );
             }
         }
+    }
+
+    private boolean refreshActivePipelineProfile() {
+        VulkanContextPipelineProfileRuntimeHelper.RefreshResult result =
+                VulkanContextPipelineProfileRuntimeHelper.refreshActiveProfile(
+                        pipelineProfileTier,
+                        renderState,
+                        localLightCount,
+                        pipelineProfileCache,
+                        activePipelineProfileKey
+                );
+        activePipelineProfileKey = result.key();
+        activePipelineProfile = result.compilation();
+        return result.changed();
+    }
+
+    private void rebuildPipelineProfileRuntimeResources() throws EngineException {
+        VulkanContextPipelineProfileRuntimeHelper.rebuildRuntimeResources(
+                backendResources,
+                sceneResources,
+                iblState,
+                descriptorResources,
+                descriptorRingStats,
+                this::destroyShadowResources,
+                this::destroySwapchainResources,
+                this::destroyDescriptorResources,
+                this::createDescriptorResources,
+                this::createSwapchainResources,
+                this::createShadowResources
+        );
     }
 
     private static int clamp(int value, int min, int max) {

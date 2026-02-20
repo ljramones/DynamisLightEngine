@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorLifecycleCoordinator;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorResources;
+import org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorLayoutPlan;
 import org.dynamislight.impl.vulkan.state.VulkanBackendResources;
 import org.dynamislight.impl.vulkan.state.VulkanDescriptorResourceState;
 import org.dynamislight.impl.vulkan.state.VulkanDescriptorRingStats;
@@ -22,7 +23,8 @@ final class VulkanContextDescriptorRuntimeHelper {
             int maxDynamicSceneObjects,
             int maxReflectionProbes,
             int objectUniformBytes,
-            int globalSceneUniformBytes
+            int globalSceneUniformBytes,
+            VulkanComposedDescriptorLayoutPlan mainGeometryDescriptorPlan
     ) throws EngineException {
         VulkanDescriptorResources.Allocation allocation = VulkanDescriptorResources.create(
                 backendResources.device,
@@ -32,10 +34,12 @@ final class VulkanContextDescriptorRuntimeHelper {
                 maxDynamicSceneObjects,
                 maxReflectionProbes,
                 objectUniformBytes,
-                globalSceneUniformBytes
+                globalSceneUniformBytes,
+                mainGeometryDescriptorPlan
         );
         descriptorResources.descriptorSetLayout = allocation.descriptorSetLayout();
         descriptorResources.textureDescriptorSetLayout = allocation.textureDescriptorSetLayout();
+        descriptorResources.textureDescriptorBindingCount = allocation.textureDescriptorBindingCount();
         descriptorResources.descriptorPool = allocation.descriptorPool();
         descriptorResources.frameDescriptorSets = allocation.frameDescriptorSets();
         descriptorResources.descriptorSet = descriptorResources.frameDescriptorSets[0];
@@ -102,7 +106,8 @@ final class VulkanContextDescriptorRuntimeHelper {
                                 descriptorResources.uniformStrideBytes,
                                 descriptorResources.uniformFrameSpanBytes,
                                 descriptorResources.globalUniformFrameSpanBytes,
-                                estimatedGpuMemoryBytes
+                                estimatedGpuMemoryBytes,
+                                descriptorResources.textureDescriptorBindingCount
                         ),
                         objectUniformBytes,
                         globalSceneUniformBytes
@@ -141,6 +146,7 @@ final class VulkanContextDescriptorRuntimeHelper {
         descriptorResources.descriptorPool = state.descriptorPool();
         descriptorResources.descriptorSetLayout = state.descriptorSetLayout();
         descriptorResources.textureDescriptorSetLayout = state.textureDescriptorSetLayout();
+        descriptorResources.textureDescriptorBindingCount = state.textureDescriptorBindingCount();
         frameUploadStats.lastUniformUploadBytes = state.lastFrameUniformUploadBytes();
         frameUploadStats.maxUniformUploadBytes = state.maxFrameUniformUploadBytes();
         frameUploadStats.lastGlobalUploadBytes = state.lastFrameGlobalUploadBytes();

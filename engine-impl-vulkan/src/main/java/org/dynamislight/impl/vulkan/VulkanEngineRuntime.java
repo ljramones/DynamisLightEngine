@@ -730,6 +730,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         assetRoot = config.assetRoot() == null ? Path.of(".") : config.assetRoot();
         meshLoader = new VulkanMeshAssetLoader(assetRoot, meshGeometryCacheMaxEntries);
         qualityTier = resolvedQualityTier;
+        context.setPipelineProfileTier(qualityTier);
         viewportWidth = config.initialWidthPx();
         viewportHeight = config.initialHeightPx();
         deviceLostRaised = false;

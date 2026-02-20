@@ -11,6 +11,7 @@ Review metadata:
 - Latest shadow contract update: 2026-02-19 13:05 ET — Shadow v2 backlog modes/checklist added (`docs/shadow-contract-v2-backlog-checklist.md`) to track remaining shadow items through contract validation.
 - Latest structure guardrails update: 2026-02-19 16:52 ET — Class-size and package hygiene guardrails now enforced in CI (`.github/workflows/ci.yml` job `structure-guardrails`) via `scripts/java_structure_guardrails.sh`.
 - Latest AA temporal hardening update: 2026-02-19 18:57 ET — geometric AA + alpha-to-coverage envelope/promotion gates were added (`AA_GEOMETRIC_*`, `AA_A2C_*`) through the quality diagnostics path (`aaQualityPromotionDiagnostics()`), with lockdown coverage.
+- Latest Phase C composition update: 2026-02-19 19:13 ET — Phase C shader/descriptor/profile composition completed in Vulkan (`docs/phase-c-shader-composition-checklist.md`), including composed layout runtime wiring and profile compile/cache/switch path.
 
 Status legend:
 
@@ -378,8 +379,8 @@ Post notes:
 - Tier-based graph pruning (passes removed, not branched) — `Partial`
 - Volume system (spatial overrides for any rendering parameter) — `Not In Yet`
 - Per-feature capability modules (shader hook + bindings + uniforms) — `Partial`
-- Shader module composition (assemble fragment from contributed hooks) — `Not In Yet`
-- Descriptor layout composition (per-pass, from declared requirements) — `Not In Yet`
+- Shader module composition (assemble fragment from contributed hooks) — `In`
+- Descriptor layout composition (per-pass, from declared requirements) — `In`
 - Profile/preset system (blessed tier configurations) — `In`
 - Graph validation (reject illegal feature combinations at build time) — `Partial`
 - Hot-reload of individual capability modules (dev workflow) — `Not In Yet`
@@ -396,6 +397,7 @@ Notes:
   - `docs/adr/0002-feature-composition-and-pipeline-migration-policy.md`
   - `docs/architecture/vulkan-render-pipeline-current.md`
 - Structure guardrails now run via `scripts/java_structure_guardrails.sh` (Vulkan-scoped by default; optional full-tree scan with `SCOPE=all`).
+- Phase C runtime now composes descriptor-set layouts from capability requirements, compiles/caches profile tuples (`tier + capability modes`), and binds assembled profile shader sources through swapchain pipeline creation in Vulkan.
 
 ## Status Update Checklist
 

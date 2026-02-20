@@ -81,14 +81,17 @@ public final class VulkanPostPipelineBuilder {
             int swapchainImageFormat,
             int swapchainWidth,
             int swapchainHeight,
-            long postDescriptorSetLayout
+            long postDescriptorSetLayout,
+            String postFragmentSource
     ) throws EngineException {
         long postRenderPass = createRenderPass(device, stack, swapchainImageFormat);
         long postPipelineLayout = VK_NULL_HANDLE;
         long postGraphicsPipeline = VK_NULL_HANDLE;
         try {
             String vertexShaderSource = VulkanShaderSources.postVertex();
-            String fragmentShaderSource = VulkanShaderSources.postFragment();
+            String fragmentShaderSource = (postFragmentSource == null || postFragmentSource.isBlank())
+                    ? VulkanShaderSources.postFragment()
+                    : postFragmentSource;
             ByteBuffer vertSpv = VulkanShaderCompiler.compileGlslToSpv(vertexShaderSource, shaderc_glsl_vertex_shader, "post.vert");
             ByteBuffer fragSpv = VulkanShaderCompiler.compileGlslToSpv(fragmentShaderSource, shaderc_fragment_shader, "post.frag");
             long vertModule = VK_NULL_HANDLE;

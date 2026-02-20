@@ -5,6 +5,7 @@ import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
 import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
 import org.dynamislight.impl.vulkan.pipeline.VulkanMainPipelineBuilder;
 import org.dynamislight.impl.vulkan.pipeline.VulkanPostProcessResources;
+import org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorLayoutPlan;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkPhysicalDevice;
@@ -66,7 +67,8 @@ public final class VulkanSwapchainResourceCoordinator {
                 swapchainAllocation.swapchainHeight(),
                 inputs.vertexStrideBytes(),
                 inputs.descriptorSetLayout(),
-                inputs.textureDescriptorSetLayout()
+                inputs.textureDescriptorSetLayout(),
+                inputs.mainFragmentSource()
         );
         long[] framebuffers = VulkanFramebufferResources.createMainFramebuffers(
                 inputs.device(),
@@ -91,7 +93,9 @@ public final class VulkanSwapchainResourceCoordinator {
                         swapchainAllocation.swapchainWidth(),
                         swapchainAllocation.swapchainHeight(),
                         swapchainImageViews,
-                        velocityImageView
+                        velocityImageView,
+                        inputs.postDescriptorPlan(),
+                        inputs.postFragmentSource()
                 );
                 postOffscreenActive = true;
             } catch (EngineException ex) {
@@ -132,7 +136,10 @@ public final class VulkanSwapchainResourceCoordinator {
             int vertexStrideBytes,
             long descriptorSetLayout,
             long textureDescriptorSetLayout,
-            boolean postOffscreenRequested
+            boolean postOffscreenRequested,
+            VulkanComposedDescriptorLayoutPlan postDescriptorPlan,
+            String mainFragmentSource,
+            String postFragmentSource
     ) {
     }
 

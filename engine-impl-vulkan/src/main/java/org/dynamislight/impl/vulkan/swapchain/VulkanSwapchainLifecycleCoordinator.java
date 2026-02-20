@@ -25,7 +25,10 @@ public final class VulkanSwapchainLifecycleCoordinator {
                         request.vertexStrideBytes(),
                         request.descriptorSetLayout(),
                         request.textureDescriptorSetLayout(),
-                        request.postOffscreenRequested()
+                        request.postOffscreenRequested(),
+                        request.postDescriptorPlan(),
+                        request.mainFragmentSource(),
+                        request.postFragmentSource()
                 )
         );
         VulkanPostProcessResources.Allocation postResources = allocation.postProcessResources();
@@ -178,7 +181,10 @@ public final class VulkanSwapchainLifecycleCoordinator {
             int vertexStrideBytes,
             long descriptorSetLayout,
             long textureDescriptorSetLayout,
-            boolean postOffscreenRequested
+            boolean postOffscreenRequested,
+            org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorLayoutPlan postDescriptorPlan,
+            String mainFragmentSource,
+            String postFragmentSource
     ) {
     }
 

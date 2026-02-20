@@ -39,6 +39,7 @@ public final class VulkanTextureDescriptorPoolManager {
             long descriptorRingPoolReuseCount,
             long descriptorRingPoolResetFailureCount,
             int targetSetCapacity,
+            int textureDescriptorBindingCount,
             long shadowDepthImageView,
             long shadowSampler,
             long shadowMomentImageView,
@@ -78,7 +79,7 @@ public final class VulkanTextureDescriptorPoolManager {
             VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
             poolSizes.get(0)
                     .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                    .descriptorCount(descriptorRingSetCapacity * 10);
+                    .descriptorCount(descriptorRingSetCapacity * Math.max(1, textureDescriptorBindingCount));
 
             VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                     .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)

@@ -5,6 +5,7 @@ import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 public final class VulkanDescriptorResourceState {
     public long descriptorSetLayout = VK_NULL_HANDLE;
     public long textureDescriptorSetLayout = VK_NULL_HANDLE;
+    public int textureDescriptorBindingCount = 10;
     public long descriptorPool = VK_NULL_HANDLE;
     public long descriptorSet = VK_NULL_HANDLE;
     public long[] frameDescriptorSets = new long[0];

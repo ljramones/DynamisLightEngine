@@ -26,6 +26,7 @@ public final class VulkanDescriptorLifecycleCoordinator {
                 VK_NULL_HANDLE,
                 VK_NULL_HANDLE,
                 VK_NULL_HANDLE,
+                10,
                 0, 0, 0, 0, 0, 0, 0, 0, 0
         );
     }
@@ -73,6 +74,7 @@ public final class VulkanDescriptorLifecycleCoordinator {
             long descriptorPool,
             long descriptorSetLayout,
             long textureDescriptorSetLayout,
+            int textureDescriptorBindingCount,
             int lastFrameUniformUploadBytes,
             int maxFrameUniformUploadBytes,
             int lastFrameGlobalUploadBytes,

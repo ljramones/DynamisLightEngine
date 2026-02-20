@@ -22,13 +22,26 @@ Scope: final architecture migration for composed shaders, composed descriptor la
 
 - [x] C.2.1 Build descriptor layout composer from capability requirements.
   - Added deterministic per-pass descriptor composer with collision rejection and integration tests.
-- [ ] C.2.2 Add per-profile layout caching.
-- [ ] C.2.3 Switch descriptor allocation path to composed layouts.
-- [ ] C.2.4 Bind composed layouts in pipeline builders.
+- [x] C.2.2 Add per-profile layout caching.
+  - Added `VulkanPipelineProfileCache` keyed by `VulkanPipelineProfileKey` with compile-once reuse.
+- [x] C.2.3 Switch descriptor allocation path to composed layouts.
+  - Main and texture descriptor-set layouts now build from composed descriptor plans (`VulkanDescriptorResources.create(..., mainGeometryPlan)`).
+  - Descriptor pool sizing now derives from composed binding counts; texture ring pool uses `textureDescriptorBindingCount`.
+- [x] C.2.4 Bind composed layouts in pipeline builders.
+  - Main/post pipeline builders now accept composed fragment shader source payloads.
+  - Swapchain creation path now passes composed post descriptor plan + assembled sources through lifecycle coordinators.
 
 ## C.3 Profile Compilation/Caching
 
-- [ ] C.3.1 Define profile identity (`tier + capability mode set`).
-- [ ] C.3.2 Build profile compiler (shader + layout + pipeline tuple).
-- [ ] C.3.3 Add runtime profile switching to compiled tuples.
-- [ ] C.3.4 Stabilize with full visual/contract regression gates.
+- [x] C.3.1 Define profile identity (`tier + capability mode set`).
+  - Added `VulkanPipelineProfileKey` (`tier + shadow/reflection/aa/post modes`).
+- [x] C.3.2 Build profile compiler (shader + layout + pipeline tuple).
+  - Added `VulkanPipelineProfileCompiler` and `VulkanPipelineProfileCompilation` (assembled main/post shader source + composed main/post descriptor plans).
+- [x] C.3.3 Add runtime profile switching to compiled tuples.
+  - `VulkanContext` now resolves active profile from render state, recompiles/caches via profile cache, and performs guarded runtime resource rebuild when profile identity changes.
+- [x] C.3.4 Stabilize with full visual/contract regression gates.
+  - Added Phase C profile tests:
+    - `VulkanPipelineProfileCompilerTest`
+    - `VulkanPipelineProfileCacheTest`
+    - `VulkanPipelineProfileResolverTest`
+  - Compilation verification run for affected modules completed.

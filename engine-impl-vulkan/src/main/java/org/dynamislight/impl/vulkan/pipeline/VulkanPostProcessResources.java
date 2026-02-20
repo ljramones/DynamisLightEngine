@@ -4,6 +4,9 @@ import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
 import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
+import org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorLayoutPlan;
+import org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorBinding;
+import org.dynamislight.spi.render.RenderDescriptorType;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkDescriptorPoolCreateInfo;
@@ -56,7 +59,9 @@ public final class VulkanPostProcessResources {
             int swapchainWidth,
             int swapchainHeight,
             long[] swapchainImageViews,
-            long velocityImageView
+            long velocityImageView,
+            VulkanComposedDescriptorLayoutPlan postDescriptorPlan,
+            String postFragmentSource
     ) throws EngineException {
         VulkanImageAlloc intermediate = VulkanMemoryOps.createImage(
                 device,
@@ -123,8 +128,8 @@ public final class VulkanPostProcessResources {
         long planarCaptureImageView = createImageView(device, stack, planarCaptureImage, swapchainImageFormat);
         long planarCaptureSampler = createSampler(device, stack);
 
-        long postDescriptorSetLayout = createPostDescriptorSetLayout(device, stack);
-        long postDescriptorPool = createPostDescriptorPool(device, stack);
+        long postDescriptorSetLayout = createPostDescriptorSetLayout(device, stack, postDescriptorPlan);
+        long postDescriptorPool = createPostDescriptorPool(device, stack, postDescriptorPlan);
         long postDescriptorSet = allocatePostDescriptorSet(device, stack, postDescriptorPool, postDescriptorSetLayout);
         writePostDescriptorSet(
                 device,
@@ -148,7 +153,8 @@ public final class VulkanPostProcessResources {
                 swapchainImageFormat,
                 swapchainWidth,
                 swapchainHeight,
-                postDescriptorSetLayout
+                postDescriptorSetLayout,
+                postFragmentSource
         );
         long[] postFramebuffers = createPostFramebuffers(
                 device,
@@ -334,33 +340,32 @@ public final class VulkanPostProcessResources {
         return pSampler.get(0);
     }
 
-    private static long createPostDescriptorSetLayout(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(5, stack);
-        bindings.get(0)
-                .binding(0)
-                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
-        bindings.get(1)
-                .binding(1)
-                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
-        bindings.get(2)
-                .binding(2)
-                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
-        bindings.get(3)
-                .binding(3)
-                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
-        bindings.get(4)
-                .binding(4)
-                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(1)
-                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
+    private static long createPostDescriptorSetLayout(
+            VkDevice device,
+            MemoryStack stack,
+            VulkanComposedDescriptorLayoutPlan postDescriptorPlan
+    ) throws EngineException {
+        java.util.List<VulkanComposedDescriptorBinding> set0 = postDescriptorPlan == null
+                ? java.util.List.of()
+                : postDescriptorPlan.bindingsBySet().getOrDefault(0, java.util.List.of());
+        if (set0.isEmpty()) {
+            set0 = java.util.List.of(
+                    new VulkanComposedDescriptorBinding(0, 0, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, org.dynamislight.spi.render.RenderBindingFrequency.PER_PASS, false, java.util.List.of("fallback")),
+                    new VulkanComposedDescriptorBinding(0, 1, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, org.dynamislight.spi.render.RenderBindingFrequency.PER_PASS, false, java.util.List.of("fallback")),
+                    new VulkanComposedDescriptorBinding(0, 2, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, org.dynamislight.spi.render.RenderBindingFrequency.PER_PASS, false, java.util.List.of("fallback")),
+                    new VulkanComposedDescriptorBinding(0, 3, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, org.dynamislight.spi.render.RenderBindingFrequency.PER_PASS, false, java.util.List.of("fallback")),
+                    new VulkanComposedDescriptorBinding(0, 4, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, org.dynamislight.spi.render.RenderBindingFrequency.PER_PASS, false, java.util.List.of("fallback"))
+            );
+        }
+        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(set0.size(), stack);
+        for (int i = 0; i < set0.size(); i++) {
+            VulkanComposedDescriptorBinding binding = set0.get(i);
+            bindings.get(i)
+                    .binding(binding.bindingIndex())
+                    .descriptorType(toVkDescriptorType(binding.type()))
+                    .descriptorCount(1)
+                    .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
+        }
         VkDescriptorSetLayoutCreateInfo layoutInfo = VkDescriptorSetLayoutCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO)
                 .pBindings(bindings);
@@ -372,11 +377,43 @@ public final class VulkanPostProcessResources {
         return pLayout.get(0);
     }
 
-    private static long createPostDescriptorPool(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
-        poolSizes.get(0)
-                .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                .descriptorCount(5);
+    private static long createPostDescriptorPool(
+            VkDevice device,
+            MemoryStack stack,
+            VulkanComposedDescriptorLayoutPlan postDescriptorPlan
+    ) throws EngineException {
+        java.util.List<VulkanComposedDescriptorBinding> set0 = postDescriptorPlan == null
+                ? java.util.List.of()
+                : postDescriptorPlan.bindingsBySet().getOrDefault(0, java.util.List.of());
+        int samplerCount = 0;
+        int uniformCount = 0;
+        for (VulkanComposedDescriptorBinding binding : set0) {
+            if (binding.type() == RenderDescriptorType.COMBINED_IMAGE_SAMPLER) {
+                samplerCount++;
+            } else if (binding.type() == RenderDescriptorType.UNIFORM_BUFFER) {
+                uniformCount++;
+            }
+        }
+        java.util.ArrayList<VkDescriptorPoolSize> poolList = new java.util.ArrayList<>();
+        if (samplerCount > 0) {
+            poolList.add(VkDescriptorPoolSize.calloc(stack)
+                    .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(samplerCount));
+        }
+        if (uniformCount > 0) {
+            poolList.add(VkDescriptorPoolSize.calloc(stack)
+                    .type(VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                    .descriptorCount(uniformCount));
+        }
+        if (poolList.isEmpty()) {
+            poolList.add(VkDescriptorPoolSize.calloc(stack)
+                    .type(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                    .descriptorCount(1));
+        }
+        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(poolList.size(), stack);
+        for (int i = 0; i < poolList.size(); i++) {
+            poolSizes.put(i, poolList.get(i));
+        }
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
                 .maxSets(1)
@@ -484,6 +521,19 @@ public final class VulkanPostProcessResources {
                 .descriptorCount(1)
                 .pImageInfo(planarCaptureInfo);
         vkUpdateDescriptorSets(device, writes, null);
+    }
+
+    private static int toVkDescriptorType(RenderDescriptorType type) {
+        if (type == null) {
+            return VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        }
+        return switch (type) {
+            case UNIFORM_BUFFER -> VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            case STORAGE_BUFFER -> VK10.VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            case COMBINED_IMAGE_SAMPLER -> VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            case STORAGE_IMAGE -> VK10.VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            case SAMPLER -> VK10.VK_DESCRIPTOR_TYPE_SAMPLER;
+        };
     }
 
     private static long[] createPostFramebuffers(

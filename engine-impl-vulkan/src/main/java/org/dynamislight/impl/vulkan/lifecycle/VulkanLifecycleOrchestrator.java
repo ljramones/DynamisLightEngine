@@ -74,7 +74,10 @@ public final class VulkanLifecycleOrchestrator {
                         request.vertexStrideBytes(),
                         request.descriptorResources().descriptorSetLayout,
                         request.descriptorResources().textureDescriptorSetLayout,
-                        request.renderState().postOffscreenRequested
+                        request.renderState().postOffscreenRequested,
+                        request.postDescriptorPlan(),
+                        request.mainFragmentSource(),
+                        request.postFragmentSource()
                 )
         );
     }
@@ -327,7 +330,10 @@ public final class VulkanLifecycleOrchestrator {
             MemoryStack stack,
             int requestedWidth,
             int requestedHeight,
-            int vertexStrideBytes
+            int vertexStrideBytes,
+            org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorLayoutPlan postDescriptorPlan,
+            String mainFragmentSource,
+            String postFragmentSource
     ) {
     }
 

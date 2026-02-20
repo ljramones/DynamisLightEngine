@@ -88,14 +88,17 @@ public final class VulkanMainPipelineBuilder {
             int swapchainHeight,
             int vertexStrideBytes,
             long descriptorSetLayout,
-            long textureDescriptorSetLayout
+            long textureDescriptorSetLayout,
+            String mainFragmentSource
     ) throws EngineException {
         long renderPass = createRenderPass(device, stack, swapchainImageFormat, depthFormat);
         long pipelineLayout = VK_NULL_HANDLE;
         long graphicsPipeline = VK_NULL_HANDLE;
         try {
             String vertexShaderSource = VulkanShaderSources.mainVertex();
-            String fragmentShaderSource = VulkanShaderSources.mainFragment();
+            String fragmentShaderSource = (mainFragmentSource == null || mainFragmentSource.isBlank())
+                    ? VulkanShaderSources.mainFragment()
+                    : mainFragmentSource;
 
             ByteBuffer vertSpv = VulkanShaderCompiler.compileGlslToSpv(vertexShaderSource, shaderc_glsl_vertex_shader, "triangle.vert");
             ByteBuffer fragSpv = VulkanShaderCompiler.compileGlslToSpv(fragmentShaderSource, shaderc_fragment_shader, "triangle.frag");

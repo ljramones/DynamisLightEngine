@@ -17,6 +17,7 @@ import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkPhysicalDeviceProperties;
 import org.lwjgl.vulkan.VkWriteDescriptorSet;
+import org.dynamislight.spi.render.RenderDescriptorType;
 
 import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 import static org.lwjgl.vulkan.VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -50,10 +51,30 @@ public final class VulkanDescriptorResources {
             int maxDynamicSceneObjects,
             int maxReflectionProbes,
             int objectUniformBytes,
-            int globalSceneUniformBytes
+            int globalSceneUniformBytes,
+            VulkanComposedDescriptorLayoutPlan mainGeometryPlan
     ) throws EngineException {
-        long descriptorSetLayout = createMainDescriptorSetLayout(device, stack);
-        long textureDescriptorSetLayout = createTextureDescriptorSetLayout(device, stack);
+        VulkanComposedDescriptorLayoutPlan safePlan = mainGeometryPlan == null
+                ? new VulkanComposedDescriptorLayoutPlan("main_geometry", java.util.Map.of())
+                : mainGeometryPlan;
+        var set0Bindings = safePlan.bindingsBySet().getOrDefault(0, java.util.List.of());
+        var set1Bindings = safePlan.bindingsBySet().getOrDefault(1, java.util.List.of());
+        if (set0Bindings.isEmpty()) {
+            set0Bindings = java.util.List.of(
+                    new VulkanComposedDescriptorBinding(0, 0, RenderDescriptorType.UNIFORM_BUFFER, org.dynamislight.spi.render.RenderBindingFrequency.PER_FRAME, false, java.util.List.of("fallback")),
+                    new VulkanComposedDescriptorBinding(0, 1, RenderDescriptorType.UNIFORM_BUFFER, org.dynamislight.spi.render.RenderBindingFrequency.PER_DRAW, false, java.util.List.of("fallback")),
+                    new VulkanComposedDescriptorBinding(0, 2, RenderDescriptorType.STORAGE_BUFFER, org.dynamislight.spi.render.RenderBindingFrequency.PER_FRAME, false, java.util.List.of("fallback"))
+            );
+        }
+        if (set1Bindings.isEmpty()) {
+            java.util.ArrayList<VulkanComposedDescriptorBinding> fallback = new java.util.ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                fallback.add(new VulkanComposedDescriptorBinding(1, i, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, org.dynamislight.spi.render.RenderBindingFrequency.PER_MATERIAL, false, java.util.List.of("fallback")));
+            }
+            set1Bindings = java.util.List.copyOf(fallback);
+        }
+        long descriptorSetLayout = createDescriptorSetLayout(device, stack, set0Bindings);
+        long textureDescriptorSetLayout = createDescriptorSetLayout(device, stack, set1Bindings);
 
         VkPhysicalDeviceProperties props = VkPhysicalDeviceProperties.calloc(stack);
         VK10.vkGetPhysicalDeviceProperties(physicalDevice, props);
@@ -147,7 +168,7 @@ public final class VulkanDescriptorResources {
         }
         long reflectionProbeMetadataMappedAddress = pProbeMapped.get(0);
 
-        long descriptorPool = createMainDescriptorPool(device, stack, framesInFlight);
+        long descriptorPool = createMainDescriptorPool(device, stack, framesInFlight, set0Bindings);
         long[] frameDescriptorSets = allocateFrameDescriptorSets(device, stack, descriptorPool, descriptorSetLayout, framesInFlight);
         updateFrameDescriptorSets(
                 device,
@@ -190,7 +211,8 @@ public final class VulkanDescriptorResources {
                 uniformStrideBytes,
                 uniformFrameSpanBytes,
                 globalUniformFrameSpanBytes,
-                estimatedGpuMemoryBytes
+                estimatedGpuMemoryBytes,
+                countCombinedImageSamplerBindings(set1Bindings)
         );
     }
 
@@ -248,24 +270,20 @@ public final class VulkanDescriptorResources {
         }
     }
 
-    private static long createMainDescriptorSetLayout(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(3, stack);
-        bindings.get(0)
-                .binding(0)
-                .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
-                .descriptorCount(1)
-                .stageFlags(VK10.VK_SHADER_STAGE_VERTEX_BIT | VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
-        bindings.get(1)
-                .binding(1)
-                .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
-                .descriptorCount(1)
-                .stageFlags(VK10.VK_SHADER_STAGE_VERTEX_BIT | VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
-        bindings.get(2)
-                .binding(2)
-                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                .descriptorCount(1)
-                .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
-
+    private static long createDescriptorSetLayout(
+            VkDevice device,
+            MemoryStack stack,
+            java.util.List<VulkanComposedDescriptorBinding> planBindings
+    ) throws EngineException {
+        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(Math.max(1, planBindings.size()), stack);
+        for (int i = 0; i < planBindings.size(); i++) {
+            VulkanComposedDescriptorBinding binding = planBindings.get(i);
+            bindings.get(i)
+                    .binding(binding.bindingIndex())
+                    .descriptorType(toVkDescriptorType(binding))
+                    .descriptorCount(1)
+                    .stageFlags(VK10.VK_SHADER_STAGE_ALL_GRAPHICS);
+        }
         VkDescriptorSetLayoutCreateInfo layoutInfo = VkDescriptorSetLayoutCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO)
                 .pBindings(bindings);
@@ -277,41 +295,43 @@ public final class VulkanDescriptorResources {
         return pLayout.get(0);
     }
 
-    private static long createTextureDescriptorSetLayout(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorSetLayoutBinding.Buffer textureBindings = VkDescriptorSetLayoutBinding.calloc(10, stack);
-        for (int i = 0; i < 10; i++) {
-            textureBindings.get(i)
-                    .binding(i)
-                    .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
-                    .descriptorCount(1)
-                    .stageFlags(VK10.VK_SHADER_STAGE_FRAGMENT_BIT);
+    private static long createMainDescriptorPool(
+            VkDevice device,
+            MemoryStack stack,
+            int framesInFlight,
+            java.util.List<VulkanComposedDescriptorBinding> set0Bindings
+    ) throws EngineException {
+        int ub = 0;
+        int ubd = 0;
+        int ssbo = 0;
+        for (VulkanComposedDescriptorBinding binding : set0Bindings) {
+            switch (binding.type()) {
+                case UNIFORM_BUFFER -> {
+                    if (binding.bindingIndex() == 1) {
+                        ubd++;
+                    } else {
+                        ub++;
+                    }
+                }
+                case STORAGE_BUFFER -> ssbo++;
+                default -> {
+                }
+            }
         }
-        VkDescriptorSetLayoutCreateInfo textureLayoutInfo = VkDescriptorSetLayoutCreateInfo.calloc(stack)
-                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO)
-                .pBindings(textureBindings);
-        var pTextureLayout = stack.longs(VK_NULL_HANDLE);
-        int textureLayoutResult = vkCreateDescriptorSetLayout(device, textureLayoutInfo, null, pTextureLayout);
-        if (textureLayoutResult != VK_SUCCESS || pTextureLayout.get(0) == VK_NULL_HANDLE) {
-            throw new EngineException(
-                    EngineErrorCode.BACKEND_INIT_FAILED,
-                    "vkCreateDescriptorSetLayout(texture) failed: " + textureLayoutResult,
-                    false
-            );
+        java.util.ArrayList<VkDescriptorPoolSize> poolList = new java.util.ArrayList<>();
+        if (ub > 0) {
+            poolList.add(VkDescriptorPoolSize.calloc(stack).type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER).descriptorCount(framesInFlight * ub));
         }
-        return pTextureLayout.get(0);
-    }
-
-    private static long createMainDescriptorPool(VkDevice device, MemoryStack stack, int framesInFlight) throws EngineException {
-        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(3, stack);
-        poolSizes.get(0)
-                .type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
-                .descriptorCount(framesInFlight);
-        poolSizes.get(1)
-                .type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
-                .descriptorCount(framesInFlight);
-        poolSizes.get(2)
-                .type(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                .descriptorCount(framesInFlight);
+        if (ubd > 0) {
+            poolList.add(VkDescriptorPoolSize.calloc(stack).type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC).descriptorCount(framesInFlight * ubd));
+        }
+        if (ssbo > 0) {
+            poolList.add(VkDescriptorPoolSize.calloc(stack).type(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER).descriptorCount(framesInFlight * ssbo));
+        }
+        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(Math.max(1, poolList.size()), stack);
+        for (int i = 0; i < poolList.size(); i++) {
+            poolSizes.put(i, poolList.get(i));
+        }
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
                 .maxSets(framesInFlight)
@@ -440,7 +460,39 @@ public final class VulkanDescriptorResources {
             int uniformStrideBytes,
             int uniformFrameSpanBytes,
             int globalUniformFrameSpanBytes,
-            long estimatedGpuMemoryBytes
+            long estimatedGpuMemoryBytes,
+            int textureDescriptorBindingCount
     ) {
+    }
+
+    private static int toVkDescriptorType(RenderDescriptorType type) {
+        if (type == null) {
+            return VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        }
+        return switch (type) {
+            case UNIFORM_BUFFER -> VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            case STORAGE_BUFFER -> VK10.VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            case COMBINED_IMAGE_SAMPLER -> VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            case STORAGE_IMAGE -> VK10.VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            case SAMPLER -> VK10.VK_DESCRIPTOR_TYPE_SAMPLER;
+        };
+    }
+
+    private static int toVkDescriptorType(VulkanComposedDescriptorBinding binding) {
+        if (binding != null && binding.type() == RenderDescriptorType.UNIFORM_BUFFER
+                && binding.setIndex() == 0 && binding.bindingIndex() == 1) {
+            return VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        }
+        return toVkDescriptorType(binding == null ? null : binding.type());
+    }
+
+    private static int countCombinedImageSamplerBindings(java.util.List<VulkanComposedDescriptorBinding> bindings) {
+        int count = 0;
+        for (VulkanComposedDescriptorBinding binding : bindings) {
+            if (binding.type() == RenderDescriptorType.COMBINED_IMAGE_SAMPLER) {
+                count++;
+            }
+        }
+        return Math.max(1, count);
     }
 }

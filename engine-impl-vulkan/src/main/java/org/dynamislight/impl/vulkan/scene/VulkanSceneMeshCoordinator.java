@@ -192,6 +192,7 @@ public final class VulkanSceneMeshCoordinator {
                         in.descriptorRingStats().descriptorRingPoolReuseCount,
                         in.descriptorRingStats().descriptorRingPoolResetFailureCount,
                         in.descriptorRingStats().descriptorRingMaxSetCapacity,
+                        in.descriptorResources().textureDescriptorBindingCount,
                         in.backendResources().shadowDepthImageView,
                         in.backendResources().shadowSampler,
                         in.backendResources().shadowMomentImageView != 0L
