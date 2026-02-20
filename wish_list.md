@@ -4,7 +4,7 @@ Living capability board. Update statuses as implementation evolves.
 
 Review metadata:
 
-- Last reviewed: 2026-02-19
+- Last reviewed: 2026-02-20
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
 - Latest reflection update: 2026-02-19 12:14 ET — Reflections Vulkan closeout index added (`docs/reflections-vulkan-closeout.md`) with linked checklists, exit criteria, and promotion commit ledger.
@@ -20,13 +20,13 @@ Status legend:
 - `Partial`: present in some form, limited, experimental, or backend-specific.
 - `Not In Yet`: wishlist/target only.
 
-Status summary snapshot (2026-02-19):
+Status summary snapshot (2026-02-20):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 52 |
-| `Partial` | 35 |
-| `Not In Yet` | 105 |
+| `In` | 114 |
+| `Partial` | 21 |
+| `Not In Yet` | 57 |
 
 ## Shadows
 
@@ -336,31 +336,32 @@ Post notes:
 - Specular-glossiness workflow — `In`
 - Clear coat (automotive paint, wet surfaces) — `In`
 - Anisotropic specular (brushed metal, hair highlights) — `In`
-- Subsurface scattering (skin, wax, marble — preintegrated or separable) — `Not In Yet`
-- Thin-film iridescence (soap bubbles, beetle shells) — `Not In Yet`
-- Sheen (fabric, velvet — Charlie distribution) — `Not In Yet`
+- Subsurface scattering (skin, wax, marble — preintegrated or separable) — `Partial`
+- Thin-film iridescence (soap bubbles, beetle shells) — `Partial`
+- Sheen (fabric, velvet — Charlie distribution) — `Partial`
 - Transmission / thin translucency (leaves, paper, curtains) — `In`
 - Refraction (thick glass, water surface, per-material IOR) — `In`
 - Detail maps (tiled micro-detail overlay) — `In`
-- Parallax occlusion mapping (height-based depth) — `Not In Yet`
-- Tessellation (displacement mapping, adaptive) — `Not In Yet`
-- Decals (deferred or forward-projected, PBR-full) — `Not In Yet`
+- Parallax occlusion mapping (height-based depth) — `Partial`
+- Tessellation (displacement mapping, adaptive) — `Partial`
+- Decals (deferred or forward-projected, PBR-full) — `Partial`
 - Vertex color blending (terrain, weathering) — `In`
 - Material layering (blend multiple PBR stacks by mask) — `In`
 - Emissive with bloom contribution control — `In`
-- Eye shader (refraction, caustic, iris depth) — `Not In Yet`
-- Hair shader (Marschner or dual-lobe specular) — `Not In Yet`
-- Cloth shader (subsurface + sheen combination) — `Not In Yet`
+- Eye shader (refraction, caustic, iris depth) — `Partial`
+- Hair shader (Marschner or dual-lobe specular) — `Partial`
+- Cloth shader (subsurface + sheen combination) — `Partial`
 - Energy conservation validation (diffuse + specular ≤ 1) — `In`
 
 PBR notes:
 
-- Vulkan PBR now has v2 capability descriptors for `metallic_roughness_baseline`, `specular_glossiness`, `specular_glossiness_detail`, `specular_glossiness_detail_layering`, and `advanced_surface_stack`.
+- Vulkan PBR now has v2 capability descriptors for `metallic_roughness_baseline`, `specular_glossiness`, `specular_glossiness_detail`, `specular_glossiness_detail_layering`, `advanced_surface_stack`, and `cinematic_surface_stack`.
 - Vulkan runtime now emits `PBR_CAPABILITY_MODE_ACTIVE`, `PBR_POLICY`, and `PBR_PROMOTION_READY` warnings and exposes typed backend-agnostic diagnostics (`pbrCapabilityDiagnostics()`).
 - Vulkan runtime now emits PBR promotion envelope diagnostics (`PBR_PROMOTION_POLICY_ACTIVE`, `PBR_PROMOTION_ENVELOPE`, `PBR_PROMOTION_ENVELOPE_BREACH`, `PBR_PROMOTION_READY`) and exposes typed backend-agnostic promotion diagnostics (`pbrPromotionDiagnostics()`).
 - Phase-C profile resolution now consumes runtime PBR mode overrides so compiled profile identity includes `pbr=...` and main-fragment shader module composition can vary by active PBR capability mode.
 - Checklist + lockdown runner: `docs/pbr-contract-v2-checklist.md`, `scripts/pbr_contract_v2_lockdown.sh`.
-- Vulkan shader-module realization now executes mode-specific PBR evaluation hooks (`specular_glossiness`, `specular_glossiness_detail`, `specular_glossiness_detail_layering`, `advanced_surface_stack`) through composed main-fragment modules.
+- Vulkan shader-module realization now executes mode-specific PBR evaluation hooks (`specular_glossiness`, `specular_glossiness_detail`, `specular_glossiness_detail_layering`, `advanced_surface_stack`, `cinematic_surface_stack`) through composed main-fragment modules.
+- Vulkan planner/runtime policy now includes cinematic backlog toggles (`vulkan.pbr.subsurfaceScatteringEnabled`, `thinFilmIridescenceEnabled`, `sheenEnabled`, `parallaxOcclusionEnabled`, `tessellationEnabled`, `decalsEnabled`, `eyeShaderEnabled`, `hairShaderEnabled`, `clothShaderEnabled`) with typed diagnostics + promotion envelope integration.
 
 ## Geometry / Detail
 

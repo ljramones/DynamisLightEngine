@@ -6,6 +6,7 @@
   - `specular_glossiness_detail`
   - `specular_glossiness_detail_layering`
   - `advanced_surface_stack`
+  - `cinematic_surface_stack` (subsurface/iridescence/sheen/pom/tessellation/decals/eye/hair/cloth)
 - [x] Add deterministic Vulkan PBR capability planner and plan payload.
 - [x] Add Vulkan runtime PBR capability state with:
   - backend-option ingestion,
@@ -27,3 +28,13 @@
   - `PBR_PROMOTION_ENVELOPE_BREACH`
   - `PBR_PROMOTION_READY`
   - backend-agnostic typed snapshot: `pbrPromotionDiagnostics()`
+- [x] Extend planner/runtime policy coverage for cinematic backlog toggles:
+  - `vulkan.pbr.subsurfaceScatteringEnabled`
+  - `vulkan.pbr.thinFilmIridescenceEnabled`
+  - `vulkan.pbr.sheenEnabled`
+  - `vulkan.pbr.parallaxOcclusionEnabled`
+  - `vulkan.pbr.tessellationEnabled`
+  - `vulkan.pbr.decalsEnabled`
+  - `vulkan.pbr.eyeShaderEnabled`
+  - `vulkan.pbr.hairShaderEnabled`
+  - `vulkan.pbr.clothShaderEnabled`

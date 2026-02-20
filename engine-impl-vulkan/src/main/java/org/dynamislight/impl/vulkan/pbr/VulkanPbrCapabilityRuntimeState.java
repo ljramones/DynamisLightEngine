@@ -21,6 +21,15 @@ public final class VulkanPbrCapabilityRuntimeState {
     private boolean anisotropicEnabled;
     private boolean transmissionEnabled;
     private boolean refractionEnabled;
+    private boolean subsurfaceScatteringEnabled;
+    private boolean thinFilmIridescenceEnabled;
+    private boolean sheenEnabled;
+    private boolean parallaxOcclusionEnabled;
+    private boolean tessellationEnabled;
+    private boolean decalsEnabled;
+    private boolean eyeShaderEnabled;
+    private boolean hairShaderEnabled;
+    private boolean clothShaderEnabled;
     private boolean vertexColorBlendEnabled;
     private boolean emissiveBloomControlEnabled;
     private boolean energyConservationValidationEnabled;
@@ -73,6 +82,33 @@ public final class VulkanPbrCapabilityRuntimeState {
         refractionEnabled = Boolean.parseBoolean(
                 safe.getOrDefault("vulkan.pbr.refractionEnabled", "true")
         );
+        subsurfaceScatteringEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.pbr.subsurfaceScatteringEnabled", "false")
+        );
+        thinFilmIridescenceEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.pbr.thinFilmIridescenceEnabled", "false")
+        );
+        sheenEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.pbr.sheenEnabled", "false")
+        );
+        parallaxOcclusionEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.pbr.parallaxOcclusionEnabled", "false")
+        );
+        tessellationEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.pbr.tessellationEnabled", "false")
+        );
+        decalsEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.pbr.decalsEnabled", "false")
+        );
+        eyeShaderEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.pbr.eyeShaderEnabled", "false")
+        );
+        hairShaderEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.pbr.hairShaderEnabled", "false")
+        );
+        clothShaderEnabled = Boolean.parseBoolean(
+                safe.getOrDefault("vulkan.pbr.clothShaderEnabled", "false")
+        );
         vertexColorBlendEnabled = Boolean.parseBoolean(
                 safe.getOrDefault("vulkan.pbr.vertexColorBlendEnabled", "true")
         );
@@ -120,6 +156,15 @@ public final class VulkanPbrCapabilityRuntimeState {
                         anisotropicEnabled,
                         transmissionEnabled,
                         refractionEnabled,
+                        subsurfaceScatteringEnabled,
+                        thinFilmIridescenceEnabled,
+                        sheenEnabled,
+                        parallaxOcclusionEnabled,
+                        tessellationEnabled,
+                        decalsEnabled,
+                        eyeShaderEnabled,
+                        hairShaderEnabled,
+                        clothShaderEnabled,
                         vertexColorBlendEnabled,
                         emissiveBloomControlEnabled,
                         energyConservationValidationEnabled
@@ -146,6 +191,15 @@ public final class VulkanPbrCapabilityRuntimeState {
                         + ", anisotropic=" + plan.anisotropicEnabled()
                         + ", transmission=" + plan.transmissionEnabled()
                         + ", refraction=" + plan.refractionEnabled()
+                        + ", subsurfaceScattering=" + plan.subsurfaceScatteringEnabled()
+                        + ", thinFilmIridescence=" + plan.thinFilmIridescenceEnabled()
+                        + ", sheen=" + plan.sheenEnabled()
+                        + ", parallaxOcclusion=" + plan.parallaxOcclusionEnabled()
+                        + ", tessellation=" + plan.tessellationEnabled()
+                        + ", decals=" + plan.decalsEnabled()
+                        + ", eyeShader=" + plan.eyeShaderEnabled()
+                        + ", hairShader=" + plan.hairShaderEnabled()
+                        + ", clothShader=" + plan.clothShaderEnabled()
                         + ", vertexColorBlend=" + plan.vertexColorBlendEnabled()
                         + ", emissiveBloomControl=" + plan.emissiveBloomControlEnabled()
                         + ", energyConservationValidation=" + plan.energyConservationValidationEnabled() + ")"
@@ -159,6 +213,15 @@ public final class VulkanPbrCapabilityRuntimeState {
         if (plan.anisotropicEnabled()) activeAdvancedFeatureCount += 1;
         if (plan.transmissionEnabled()) activeAdvancedFeatureCount += 1;
         if (plan.refractionEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.subsurfaceScatteringEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.thinFilmIridescenceEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.sheenEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.parallaxOcclusionEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.tessellationEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.decalsEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.eyeShaderEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.hairShaderEnabled()) activeAdvancedFeatureCount += 1;
+        if (plan.clothShaderEnabled()) activeAdvancedFeatureCount += 1;
         if (plan.vertexColorBlendEnabled()) activeAdvancedFeatureCount += 1;
         if (plan.emissiveBloomControlEnabled()) activeAdvancedFeatureCount += 1;
 
@@ -224,6 +287,15 @@ public final class VulkanPbrCapabilityRuntimeState {
                 activeCapabilitiesLastFrame.contains("vulkan.pbr.anisotropic"),
                 activeCapabilitiesLastFrame.contains("vulkan.pbr.transmission"),
                 activeCapabilitiesLastFrame.contains("vulkan.pbr.refraction"),
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.subsurface_scattering"),
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.thin_film_iridescence"),
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.sheen"),
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.parallax_occlusion"),
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.tessellation"),
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.decals"),
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.eye_shader"),
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.hair_shader"),
+                activeCapabilitiesLastFrame.contains("vulkan.pbr.cloth_shader"),
                 activeCapabilitiesLastFrame.contains("vulkan.pbr.vertex_color_blend"),
                 activeCapabilitiesLastFrame.contains("vulkan.pbr.emissive_bloom_control"),
                 activeCapabilitiesLastFrame.contains("vulkan.pbr.energy_conservation_validation"),
@@ -242,6 +314,15 @@ public final class VulkanPbrCapabilityRuntimeState {
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.anisotropic")) activeAdvancedFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.transmission")) activeAdvancedFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.refraction")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.subsurface_scattering")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.thin_film_iridescence")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.sheen")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.parallax_occlusion")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.tessellation")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.decals")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.eye_shader")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.hair_shader")) activeAdvancedFeatureCount += 1;
+        if (activeCapabilitiesLastFrame.contains("vulkan.pbr.cloth_shader")) activeAdvancedFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.vertex_color_blend")) activeAdvancedFeatureCount += 1;
         if (activeCapabilitiesLastFrame.contains("vulkan.pbr.emissive_bloom_control")) activeAdvancedFeatureCount += 1;
         boolean energyConservationValidationEnabled =

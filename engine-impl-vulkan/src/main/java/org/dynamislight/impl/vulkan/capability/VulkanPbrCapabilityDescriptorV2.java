@@ -36,13 +36,16 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
             new RenderFeatureMode("specular_glossiness_detail_layering");
     public static final RenderFeatureMode MODE_ADVANCED_SURFACE_STACK =
             new RenderFeatureMode("advanced_surface_stack");
+    public static final RenderFeatureMode MODE_CINEMATIC_SURFACE_STACK =
+            new RenderFeatureMode("cinematic_surface_stack");
 
     private static final List<RenderFeatureMode> SUPPORTED = List.of(
             MODE_METALLIC_ROUGHNESS_BASELINE,
             MODE_SPECULAR_GLOSSINESS,
             MODE_SPECULAR_GLOSSINESS_DETAIL,
             MODE_SPECULAR_GLOSSINESS_DETAIL_LAYERING,
-            MODE_ADVANCED_SURFACE_STACK
+            MODE_ADVANCED_SURFACE_STACK,
+            MODE_CINEMATIC_SURFACE_STACK
     );
 
     private final RenderFeatureMode activeMode;
@@ -102,6 +105,7 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
                     case "specular_glossiness_detail" -> 133;
                     case "specular_glossiness_detail_layering" -> 135;
                     case "advanced_surface_stack" -> 137;
+                    case "cinematic_surface_stack" -> 139;
                     default -> 129;
                 },
                 false
@@ -143,6 +147,23 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
                     return litColor * clearCoatScale * anisotropicScale * mix(0.9, 1.1, 1.0 - roughness);
                 }
                 """;
+            case "cinematic_surface_stack" -> """
+                vec3 evaluatePbrMode(vec3 litColor, float roughness, float metallic) {
+                    float sss = clamp(ubo.pbrSubsurfaceWeight, 0.0, 1.0);
+                    float iridescence = clamp(ubo.pbrIridescenceWeight, 0.0, 1.0);
+                    float sheen = clamp(ubo.pbrSheenWeight, 0.0, 1.0);
+                    float pom = clamp(ubo.pbrParallaxWeight, 0.0, 1.0);
+                    float tess = clamp(ubo.pbrTessellationWeight, 0.0, 1.0);
+                    float decals = clamp(ubo.pbrDecalWeight, 0.0, 1.0);
+                    float eye = clamp(ubo.pbrEyeShaderWeight, 0.0, 1.0);
+                    float hair = clamp(ubo.pbrHairShaderWeight, 0.0, 1.0);
+                    float cloth = clamp(ubo.pbrClothShaderWeight, 0.0, 1.0);
+                    float style = (sss + iridescence + sheen + pom + tess + decals + eye + hair + cloth) / 9.0;
+                    float sparkle = mix(0.96, 1.12, iridescence);
+                    float fabricLift = mix(1.0, 1.05, sheen + cloth * 0.5);
+                    return litColor * mix(0.9, 1.2, style) * sparkle * fabricLift * mix(0.92, 1.08, 1.0 - roughness);
+                }
+                """;
             default -> """
                 vec3 evaluatePbrMode(vec3 litColor, float roughness, float metallic) {
                     return litColor;
@@ -169,6 +190,7 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
                     case "specular_glossiness_detail" -> 133;
                     case "specular_glossiness_detail_layering" -> 135;
                     case "advanced_surface_stack" -> 137;
+                    case "cinematic_surface_stack" -> 139;
                     default -> 129;
                 },
                 false
@@ -186,6 +208,11 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
         }
         if (MODE_SPECULAR_GLOSSINESS_DETAIL_LAYERING.id().equals(active.id())) {
             requirements.add(descriptorFor("main_geometry", 1, 16));
+        }
+        if (MODE_CINEMATIC_SURFACE_STACK.id().equals(active.id())) {
+            requirements.add(descriptorFor("main_geometry", 1, 17));
+            requirements.add(descriptorFor("main_geometry", 1, 18));
+            requirements.add(descriptorFor("main_geometry", 1, 19));
         }
         return List.copyOf(requirements);
     }
@@ -208,6 +235,17 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
         }
         if (MODE_ADVANCED_SURFACE_STACK.id().equals(active.id())) {
             requirements.add(new RenderUniformRequirement("global_scene", "pbrAdvancedSurfaceWeight", 0, 0));
+        }
+        if (MODE_CINEMATIC_SURFACE_STACK.id().equals(active.id())) {
+            requirements.add(new RenderUniformRequirement("global_scene", "pbrSubsurfaceWeight", 0, 0));
+            requirements.add(new RenderUniformRequirement("global_scene", "pbrIridescenceWeight", 0, 0));
+            requirements.add(new RenderUniformRequirement("global_scene", "pbrSheenWeight", 0, 0));
+            requirements.add(new RenderUniformRequirement("global_scene", "pbrParallaxWeight", 0, 0));
+            requirements.add(new RenderUniformRequirement("global_scene", "pbrTessellationWeight", 0, 0));
+            requirements.add(new RenderUniformRequirement("global_scene", "pbrDecalWeight", 0, 0));
+            requirements.add(new RenderUniformRequirement("global_scene", "pbrEyeShaderWeight", 0, 0));
+            requirements.add(new RenderUniformRequirement("global_scene", "pbrHairShaderWeight", 0, 0));
+            requirements.add(new RenderUniformRequirement("global_scene", "pbrClothShaderWeight", 0, 0));
         }
         return List.copyOf(requirements);
     }
@@ -246,6 +284,22 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
                     RenderResourceLifecycle.PERSISTENT_PARTIAL_UPDATE,
                     true,
                     List.of("sceneMaterialsChanged")
+            ));
+        }
+        if (MODE_CINEMATIC_SURFACE_STACK.id().equals(active.id())) {
+            resources.add(new RenderResourceDeclaration(
+                    "pbr_cinematic_surface_table",
+                    RenderResourceType.STORAGE_BUFFER,
+                    RenderResourceLifecycle.PERSISTENT_PARTIAL_UPDATE,
+                    true,
+                    List.of("sceneMaterialsChanged")
+            ));
+            resources.add(new RenderResourceDeclaration(
+                    "pbr_decal_projection_table",
+                    RenderResourceType.STORAGE_BUFFER,
+                    RenderResourceLifecycle.PERSISTENT_PARTIAL_UPDATE,
+                    true,
+                    List.of("sceneMaterialsChanged", "sceneTransformsChanged")
             ));
         }
         return List.copyOf(resources);
