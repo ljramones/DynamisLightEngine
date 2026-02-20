@@ -31,6 +31,7 @@
   - rt_full_stack
 - [x] Add deterministic RT capability planner (`VulkanRtCapabilityPlanner`) + plan model for parser-friendly resolved mode/signals.
 - [x] Add planner test coverage (`VulkanRtCapabilityPlannerTest`) and include RT descriptor coverage in cross-capability contract validation (`VulkanCapabilityContractV2DescriptorsTest`).
+- [x] Wire RT v2 descriptor into Phase-C profile compilation so composed post shader/descriptors include RT capability bindings/modules (`VulkanPipelineProfileCompiler` + `VulkanPipelineProfileCompilerTest`).
 
 Scope note:
 - This checklist is Vulkan-path scoped and establishes capability/promotion contracts for remaining RT rows; full dedicated execution hardening remains the next phase.

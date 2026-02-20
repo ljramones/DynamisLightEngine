@@ -35,5 +35,10 @@ class VulkanPipelineProfileCompilerTest {
                         && binding.bindingIndex() == 80
                         && binding.type() == RenderDescriptorType.UNIFORM_BUFFER
         ));
+        assertTrue(compilation.postCompositeDescriptorPlan().allBindingsSorted().stream().anyMatch(
+                binding -> binding.setIndex() == 0
+                        && binding.bindingIndex() == 90
+                        && binding.type() == RenderDescriptorType.COMBINED_IMAGE_SAMPLER
+        ));
     }
 }
