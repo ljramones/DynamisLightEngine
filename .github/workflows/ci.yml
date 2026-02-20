@@ -67,6 +67,10 @@ on:
         description: 'Run strict lighting advanced-stack lockdown gate'
         required: false
         default: 'false'
+      run_lighting_lockdown_full:
+        description: 'Run full lighting lockdown sequence (contract + phase2 + advanced)'
+        required: false
+        default: 'false'
       run_aa_upscaler_vendor_matrix:
         description: 'Run AA upscaler vendor matrix lane'
         required: false
@@ -526,6 +530,27 @@ jobs:
 
       - name: Run lighting advanced lockdown
         run: ./scripts/lighting_advanced_lockdown.sh
+
+  lighting-lockdown-full:
+    name: Lighting Lockdown Full (JDK 25, macos-latest)
+    if: github.event_name == 'schedule'
+      || github.event_name == 'push'
+      || github.event_name == 'pull_request'
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_lighting_lockdown_full == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Run full lighting lockdown sequence
+        run: ./scripts/lighting_lockdown_full.sh
 
   shadow-stable-promote-real:
     name: Shadow Stable Promote Real (JDK 25, macos-latest)

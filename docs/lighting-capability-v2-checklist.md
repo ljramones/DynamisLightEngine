@@ -21,6 +21,7 @@ Status: In Progress (Vulkan-first)
 - [x] Consolidated phase-2 promotion gate (`LIGHTING_PHASE2_PROMOTION_READY`) when budget + phys-units + emissive (if enabled) are jointly stable.
 - [x] Add strict phase-2 lockdown runner (`scripts/lighting_phase2_lockdown.sh`) and CI lane (`lighting-phase2-lockdown`).
 - [x] Add strict advanced-stack lockdown runner (`scripts/lighting_advanced_lockdown.sh`) and CI lane (`lighting-advanced-lockdown`).
+- [x] Add full lighting lockdown bundle runner (`scripts/lighting_lockdown_full.sh`) and CI lane (`lighting-lockdown-full`).
 - [x] Add advanced-stack promotion gate (`LIGHTING_ADVANCED_PROMOTION_READY`) with tier-profile defaults, override precedence, and integration coverage.
 - [x] Add typed advanced-policy diagnostics fields (`areaApproxEnabled`, `iesProfilesEnabled`, `cookiesEnabled`, `volumetricShaftsEnabled`, `clusteringEnabled`, `lightLayersEnabled`) to backend-agnostic lighting capability diagnostics.
 - [x] Wire planner-resolved lighting mode into Phase-C profile resolution (`VulkanPipelineProfileResolver`) via runtime override so compiled profile keys follow active lighting capability mode.
