@@ -519,6 +519,30 @@ public interface EngineRuntime extends AutoCloseable {
     }
 
     /**
+     * Retrieves backend-agnostic sky/atmosphere capability diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link SkyCapabilityDiagnostics#unavailable()}.
+     *
+     * @return current sky/atmosphere capability diagnostics snapshot.
+     */
+    default SkyCapabilityDiagnostics skyCapabilityDiagnostics() {
+        return SkyCapabilityDiagnostics.unavailable();
+    }
+
+    /**
+     * Retrieves backend-agnostic sky/atmosphere promotion diagnostics.
+     *
+     * Backends that do not expose this snapshot return
+     * {@link SkyPromotionDiagnostics#unavailable()}.
+     *
+     * @return current sky/atmosphere promotion diagnostics snapshot.
+     */
+    default SkyPromotionDiagnostics skyPromotionDiagnostics() {
+        return SkyPromotionDiagnostics.unavailable();
+    }
+
+    /**
      * Shuts down the engine runtime and releases all allocated resources.
      *
      * This method ensures that the engine is properly terminated, including the release

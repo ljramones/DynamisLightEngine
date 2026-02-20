@@ -431,6 +431,11 @@ PBR notes:
 - Night sky (Milky Way, light pollution falloff) — `Not In Yet`
 - Aurora / atmospheric phenomena — `Not In Yet`
 
+Sky notes:
+
+- Vulkan now emits sky capability/promotion telemetry (`SKY_CAPABILITY_MODE_ACTIVE`, `SKY_POLICY_ACTIVE`, `SKY_PROMOTION_ENVELOPE`, `SKY_PROMOTION_ENVELOPE_BREACH`, `SKY_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`skyCapabilityDiagnostics()`, `skyPromotionDiagnostics()`).
+- Sky Phase-1 Vulkan scaffold checklist/runner are in place (`docs/sky-phase1-checklist.md`, `scripts/sky_phase1_lockdown.sh`) with CI lane `sky-phase1-lockdown`.
+
 ## Terrain
 
 - Heightmap terrain (LOD, clipmap or quadtree) — `Not In Yet`

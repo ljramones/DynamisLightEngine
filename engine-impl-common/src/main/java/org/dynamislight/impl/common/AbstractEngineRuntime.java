@@ -38,6 +38,8 @@ import org.dynamislight.api.runtime.PbrPromotionDiagnostics;
 import org.dynamislight.api.runtime.PostCorePromotionDiagnostics;
 import org.dynamislight.api.runtime.PostCinematicPromotionDiagnostics;
 import org.dynamislight.api.runtime.RtCrossCutDiagnostics;
+import org.dynamislight.api.runtime.SkyCapabilityDiagnostics;
+import org.dynamislight.api.runtime.SkyPromotionDiagnostics;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -452,6 +454,16 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public SkyCapabilityDiagnostics skyCapabilityDiagnostics() {
+        return backendSkyCapabilityDiagnostics();
+    }
+
+    @Override
+    public SkyPromotionDiagnostics skyPromotionDiagnostics() {
+        return backendSkyPromotionDiagnostics();
+    }
+
+    @Override
     public final void shutdown() {
         if (state == State.SHUTDOWN) {
             return;
@@ -629,6 +641,14 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
 
     protected PbrPromotionDiagnostics backendPbrPromotionDiagnostics() {
         return PbrPromotionDiagnostics.unavailable();
+    }
+
+    protected SkyCapabilityDiagnostics backendSkyCapabilityDiagnostics() {
+        return SkyCapabilityDiagnostics.unavailable();
+    }
+
+    protected SkyPromotionDiagnostics backendSkyPromotionDiagnostics() {
+        return SkyPromotionDiagnostics.unavailable();
     }
 
     protected final RenderMetrics renderMetrics(
