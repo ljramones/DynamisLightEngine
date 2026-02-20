@@ -1,5 +1,6 @@
 package org.dynamislight.impl.vulkan;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
@@ -99,7 +100,45 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             runtime.render();
             var budget = runtime.lightingBudgetDiagnostics();
             assertTrue(budget.available());
-            assertTrue(budget.warnRatioThreshold() <= 1.10);
+            assertEquals(1.10, budget.warnRatioThreshold(), 1e-9);
+            var promotion = runtime.lightingPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertEquals(2, promotion.warnMinFrames());
+            assertEquals(90, promotion.warnCooldownFrames());
+            assertEquals(5, promotion.promotionReadyMinFrames());
+            var emissive = runtime.lightingEmissiveDiagnostics();
+            assertTrue(emissive.available());
+            assertEquals(0.08, emissive.warnMinCandidateRatio(), 1e-9);
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void backendOverridesTakePrecedenceOverTierDefaults() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.lighting.budgetWarnRatioThreshold", "2.25"),
+                    Map.entry("vulkan.lighting.budgetWarnMinFrames", "7"),
+                    Map.entry("vulkan.lighting.budgetWarnCooldownFrames", "33"),
+                    Map.entry("vulkan.lighting.budgetPromotionReadyMinFrames", "11"),
+                    Map.entry("vulkan.lighting.emissiveWarnMinCandidateRatio", "0.20")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validSceneStableBudget());
+            runtime.render();
+            var budget = runtime.lightingBudgetDiagnostics();
+            assertTrue(budget.available());
+            assertEquals(2.25, budget.warnRatioThreshold(), 1e-9);
+            var promotion = runtime.lightingPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertEquals(7, promotion.warnMinFrames());
+            assertEquals(33, promotion.warnCooldownFrames());
+            assertEquals(11, promotion.promotionReadyMinFrames());
+            var emissive = runtime.lightingEmissiveDiagnostics();
+            assertTrue(emissive.available());
+            assertEquals(0.20, emissive.warnMinCandidateRatio(), 1e-9);
         } finally {
             runtime.shutdown();
         }
