@@ -16,6 +16,8 @@ import org.dynamislight.spi.render.RenderResourceType;
 import org.dynamislight.spi.render.RenderSchedulerDeclaration;
 import org.dynamislight.spi.render.RenderShaderContribution;
 import org.dynamislight.spi.render.RenderShaderInjectionPoint;
+import org.dynamislight.spi.render.RenderShaderModuleBinding;
+import org.dynamislight.spi.render.RenderShaderModuleDeclaration;
 import org.dynamislight.spi.render.RenderShaderStage;
 import org.dynamislight.spi.render.RenderTelemetryDeclaration;
 import org.dynamislight.spi.render.RenderUniformRequirement;
@@ -103,15 +105,61 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
     }
 
     @Override
+    public List<RenderShaderModuleDeclaration> shaderModules(RenderFeatureMode mode) {
+        RenderFeatureMode active = sanitizeMode(mode);
+        java.util.ArrayList<RenderShaderModuleBinding> bindings = new java.util.ArrayList<>(List.of(
+                new RenderShaderModuleBinding("uGiSceneColor", descriptorByTargetSetBinding("post_composite", 0, 70)),
+                new RenderShaderModuleBinding("uGiSceneDepth", descriptorByTargetSetBinding("post_composite", 0, 71)),
+                new RenderShaderModuleBinding("uGiUniforms", descriptorByTargetSetBinding("post_composite", 0, 72))
+        ));
+        if ("ssgi".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
+            bindings.add(new RenderShaderModuleBinding("uGiSceneNormal", descriptorByTargetSetBinding("post_composite", 0, 74)));
+        }
+        if ("rtgi_single".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
+            bindings.add(new RenderShaderModuleBinding("uGiRtLane", descriptorByTargetSetBinding("post_composite", 0, 73)));
+        }
+        if ("probe_grid".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
+            bindings.add(new RenderShaderModuleBinding("uGiProbeGrid", descriptorByTargetSetBinding("post_composite", 0, 75)));
+        }
+        return List.of(new RenderShaderModuleDeclaration(
+                "gi.post.resolve." + active.id(),
+                featureId(),
+                "post_composite",
+                RenderShaderInjectionPoint.POST_RESOLVE,
+                RenderShaderStage.FRAGMENT,
+                "resolveGiIndirect",
+                "vec4 resolveGiIndirect(vec4 baseColor, vec2 uv)",
+                giModuleBody(active),
+                bindings,
+                uniformRequirements(active),
+                List.of(),
+                switch (active.id()) {
+                    case "probe_grid" -> 205;
+                    case "ssgi" -> 210;
+                    case "rtgi_single" -> 215;
+                    case "hybrid_probe_ssgi_rt" -> 220;
+                    default -> 210;
+                },
+                false
+        ));
+    }
+
+    @Override
     public List<RenderDescriptorRequirement> descriptorRequirements(RenderFeatureMode mode) {
         RenderFeatureMode active = sanitizeMode(mode);
         java.util.ArrayList<RenderDescriptorRequirement> requirements = new java.util.ArrayList<>(List.of(
-                new RenderDescriptorRequirement("gi_resolve", 0, 70, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
-                new RenderDescriptorRequirement("gi_resolve", 0, 71, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
-                new RenderDescriptorRequirement("gi_resolve", 0, 72, RenderDescriptorType.UNIFORM_BUFFER, RenderBindingFrequency.PER_FRAME, false)
+                new RenderDescriptorRequirement("post_composite", 0, 70, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
+                new RenderDescriptorRequirement("post_composite", 0, 71, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, false),
+                new RenderDescriptorRequirement("post_composite", 0, 72, RenderDescriptorType.UNIFORM_BUFFER, RenderBindingFrequency.PER_FRAME, false)
         ));
         if ("rtgi_single".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
-            requirements.add(new RenderDescriptorRequirement("gi_resolve", 0, 73, RenderDescriptorType.STORAGE_BUFFER, RenderBindingFrequency.PER_FRAME, true));
+            requirements.add(new RenderDescriptorRequirement("post_composite", 0, 73, RenderDescriptorType.STORAGE_BUFFER, RenderBindingFrequency.PER_FRAME, true));
+        }
+        if ("ssgi".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
+            requirements.add(new RenderDescriptorRequirement("post_composite", 0, 74, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, true));
+        }
+        if ("probe_grid".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
+            requirements.add(new RenderDescriptorRequirement("post_composite", 0, 75, RenderDescriptorType.STORAGE_BUFFER, RenderBindingFrequency.PER_FRAME, true));
         }
         return List.copyOf(requirements);
     }
@@ -235,5 +283,49 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "ssgi", "hybrid_probe_ssgi_rt" -> List.of("gi_ssgi_buffer", "gi_indirect");
             default -> List.of("gi_indirect");
         };
+    }
+
+    private static String giModuleBody(RenderFeatureMode active) {
+        return switch (sanitizeMode(active).id()) {
+            case "probe_grid" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        float probeContribution = 0.12;
+                        return vec4(baseColor.rgb * (1.0 + probeContribution), baseColor.a);
+                    }
+                    """;
+            case "rtgi_single" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        float rtContribution = 0.15;
+                        return vec4(baseColor.rgb * (1.0 + rtContribution), baseColor.a);
+                    }
+                    """;
+            case "hybrid_probe_ssgi_rt" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        float hybridContribution = 0.18;
+                        return vec4(baseColor.rgb * (1.0 + hybridContribution), baseColor.a);
+                    }
+                    """;
+            default -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        float ssgiContribution = 0.10;
+                        return vec4(baseColor.rgb * (1.0 + ssgiContribution), baseColor.a);
+                    }
+                    """;
+        };
+    }
+
+    private static RenderDescriptorRequirement descriptorByTargetSetBinding(String targetPass, int set, int binding) {
+        return new RenderDescriptorRequirement(
+                targetPass,
+                set,
+                binding,
+                switch (binding) {
+                    case 72 -> RenderDescriptorType.UNIFORM_BUFFER;
+                    case 73, 75 -> RenderDescriptorType.STORAGE_BUFFER;
+                    default -> RenderDescriptorType.COMBINED_IMAGE_SAMPLER;
+                },
+                RenderBindingFrequency.PER_FRAME,
+                false
+        );
     }
 }

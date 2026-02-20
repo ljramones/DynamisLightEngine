@@ -219,6 +219,7 @@ GI notes:
 - GI phase-2A contract scaffolding now declares explicit SSGI graph IO/resources (`scene_normal` input, `gi_ssgi_buffer` transient output) for `ssgi` and `hybrid_probe_ssgi_rt` modes.
 - GI phase-2A now has dedicated lockdown replay (`scripts/gi_phase2_ssgi_lockdown.sh`) and integration coverage for SSGI tier-default vs backend-override envelope/promotion thresholds.
 - GI phase-2A SSGI lockdown is now wired into CI as `gi-phase2-ssgi-lockdown` (plus workflow-dispatch toggle `run_gi_phase2_ssgi_lockdown`).
+- GI phase-2A now includes GI shader-module realization in composition (`resolveGiIndirect`) with mode-specific module declarations + descriptor-aligned bindings for `ssgi`, `probe_grid`, `rtgi_single`, and `hybrid_probe_ssgi_rt`.
 
 ## Lighting
 

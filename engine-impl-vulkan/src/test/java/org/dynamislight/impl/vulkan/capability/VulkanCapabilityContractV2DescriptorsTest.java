@@ -312,6 +312,42 @@ class VulkanCapabilityContractV2DescriptorsTest {
     }
 
     @Test
+    void everyGiModeProducesShaderModulesWithDescriptorAlignedBindings() {
+        for (RenderFeatureMode mode : VulkanGiCapabilityDescriptorV2.withMode(null).supportedModes()) {
+            VulkanGiCapabilityDescriptorV2 gi = VulkanGiCapabilityDescriptorV2.withMode(mode);
+            List<RenderShaderModuleDeclaration> modules = gi.shaderModules(mode);
+            assertFalse(modules.isEmpty(), "mode " + mode.id() + " must declare at least one shader module");
+
+            List<RenderDescriptorRequirement> descriptorRequirements = gi.descriptorRequirements(mode);
+            for (RenderShaderModuleDeclaration module : modules) {
+                assertEqualsNonBlank(module.moduleId());
+                assertEqualsNonBlank(module.providerFeatureId());
+                assertEqualsNonBlank(module.targetPassId());
+                assertEqualsNonBlank(module.hookFunction());
+                assertEqualsNonBlank(module.functionSignature());
+                assertTrue(module.functionSignature().contains(module.hookFunction()),
+                        "signature must contain hook function for module " + module.moduleId());
+                assertEqualsNonBlank(module.glslBody());
+                assertFalse(module.bindings().isEmpty(),
+                        "module " + module.moduleId() + " must declare at least one binding");
+
+                for (RenderShaderModuleBinding binding : module.bindings()) {
+                    assertEqualsNonBlank(binding.symbolName());
+                    RenderDescriptorRequirement moduleDescriptor = binding.descriptor();
+                    boolean descriptorExists = descriptorRequirements.stream().anyMatch(req ->
+                            req.targetPassId().equals(moduleDescriptor.targetPassId())
+                                    && req.setIndex() == moduleDescriptor.setIndex()
+                                    && req.bindingIndex() == moduleDescriptor.bindingIndex()
+                    );
+                    assertTrue(descriptorExists,
+                            "module binding must map to declared descriptor requirement for mode "
+                                    + mode.id() + ": " + binding);
+                }
+            }
+        }
+    }
+
+    @Test
     void everyAaModeProducesCompleteContractAndValidatesWithShadowReflectionAndPost() {
         VulkanShadowCapabilityDescriptorV2 shadow =
                 VulkanShadowCapabilityDescriptorV2.withMode(VulkanShadowCapabilityDescriptorV2.MODE_EVSM);
