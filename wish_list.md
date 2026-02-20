@@ -295,27 +295,28 @@ Lighting notes:
 - HDR tonemap (ACES, filmic, Khronos PBR Neutral, AgX, custom curve) — `Partial`
 - Exposure (fixed, auto with histogram, auto with center-weighted) — `Partial`
 - Bloom (threshold, multi-pass blur, energy-conserving) — `Partial`
-- Depth of field (bokeh, circle of confusion, near/far) — `Not In Yet`
-- Motion blur (per-object velocity, camera velocity, tile-based) — `Not In Yet`
-- Chromatic aberration — `Not In Yet`
-- Film grain — `Not In Yet`
-- Vignette — `Not In Yet`
+- Depth of field (bokeh, circle of confusion, near/far) — `Partial`
+- Motion blur (per-object velocity, camera velocity, tile-based) — `Partial`
+- Chromatic aberration — `Partial`
+- Film grain — `Partial`
+- Vignette — `Partial`
 - Lens flare (screen-space, data-driven) — `Not In Yet`
-- Color grading (LUT, lift/gamma/gain, channel mixer) — `Not In Yet`
+- Color grading (LUT, lift/gamma/gain, channel mixer) — `Partial`
 - Sharpening (CAS, RCAS, unsharp mask) — `Partial`
 - SSAO (GTAO, HBAO-style, multi-scale) — `Partial`
 - SSAO with temporal accumulation — `Partial`
 - Screen-space bent normals (indirect occlusion direction) — `Not In Yet`
 - Fog (linear, exponential, height-based, volumetric) — `In`
 - Volumetric fog (froxel-based, light-participating, density noise) — `Partial`
-- Cloud shadows (projected noise, animated) — `Not In Yet`
-- Panini projection (wide FOV correction) — `Not In Yet`
-- Lens distortion — `Not In Yet`
+- Cloud shadows (projected noise, animated) — `Partial`
+- Panini projection (wide FOV correction) — `Partial`
+- Lens distortion — `Partial`
 
 Post notes:
 
 - Vulkan post stack now has v2 capability descriptors for core modules (`tonemap`, `bloom`, `ssao`, `smaa`, `taa_resolve`, `fog_composite`) with explicit pass/read-write/resource declarations.
 - Post v2 contracts are validated in composition with AA + shadow + reflection and are enforced by the always-on CI lane `aa-post-contract-v2-lockdown`.
+- Vulkan AA/post planner now supports cinematic post option toggles (`vulkan.post.depthOfField`, `motionBlur`, `chromaticAberration`, `filmGrain`, `vignette`, `colorGrading`, `sharpening`, `volumetricFog`, `cloudShadows`, `panini`, `lensDistortion`) and exposes active/pruned capability IDs in `AA_POST_CAPABILITY_PLAN_ACTIVE` / `aaPostCapabilityDiagnostics()`.
 
 ## PBR / Shading
 

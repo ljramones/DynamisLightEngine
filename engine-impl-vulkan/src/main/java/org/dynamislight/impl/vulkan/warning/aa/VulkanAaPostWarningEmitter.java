@@ -22,7 +22,18 @@ public final class VulkanAaPostWarningEmitter {
             boolean tonemapEnabled,
             boolean bloomEnabled,
             boolean ssaoEnabled,
-            boolean fogCompositeEnabled
+            boolean fogCompositeEnabled,
+            boolean depthOfFieldEnabled,
+            boolean motionBlurEnabled,
+            boolean chromaticAberrationEnabled,
+            boolean filmGrainEnabled,
+            boolean vignetteEnabled,
+            boolean colorGradingEnabled,
+            boolean sharpeningEnabled,
+            boolean volumetricFogEnabled,
+            boolean cloudShadowsEnabled,
+            boolean paniniEnabled,
+            boolean lensDistortionEnabled
     ) {
         VulkanAaCapabilityMode safeMode = aaMode == null ? VulkanAaCapabilityMode.TAA : aaMode;
         VulkanAaPostCapabilityPlan plan = VulkanAaPostCapabilityPlanner.plan(
@@ -35,7 +46,18 @@ public final class VulkanAaPostWarningEmitter {
                         tonemapEnabled,
                         bloomEnabled,
                         ssaoEnabled,
-                        fogCompositeEnabled
+                        fogCompositeEnabled,
+                        depthOfFieldEnabled,
+                        motionBlurEnabled,
+                        chromaticAberrationEnabled,
+                        filmGrainEnabled,
+                        vignetteEnabled,
+                        colorGradingEnabled,
+                        sharpeningEnabled,
+                        volumetricFogEnabled,
+                        cloudShadowsEnabled,
+                        paniniEnabled,
+                        lensDistortionEnabled
                 )
         );
         String aaModeId = safeMode.name().toLowerCase(java.util.Locale.ROOT);

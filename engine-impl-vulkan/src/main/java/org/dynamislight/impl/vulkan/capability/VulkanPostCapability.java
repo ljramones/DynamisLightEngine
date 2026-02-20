@@ -69,6 +69,17 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
             case SMAA -> List.of("scene_color");
             case TAA_RESOLVE -> List.of("scene_color", "history_color", "velocity", "history_velocity");
             case FOG_COMPOSITE -> List.of("scene_color", "depth");
+            case DEPTH_OF_FIELD,
+                 MOTION_BLUR,
+                 CHROMATIC_ABERRATION,
+                 FILM_GRAIN,
+                 VIGNETTE,
+                 COLOR_GRADING,
+                 SHARPENING,
+                 VOLUMETRIC_FOG,
+                 CLOUD_SHADOWS,
+                 PANINI,
+                 LENS_DISTORTION -> List.of("scene_color", "depth");
         };
     }
 
@@ -87,6 +98,17 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
             case SMAA -> "resolveSmaa";
             case TAA_RESOLVE -> "resolveTaa";
             case FOG_COMPOSITE -> "applyFogComposite";
+            case DEPTH_OF_FIELD -> "applyDepthOfField";
+            case MOTION_BLUR -> "applyMotionBlur";
+            case CHROMATIC_ABERRATION -> "applyChromaticAberration";
+            case FILM_GRAIN -> "applyFilmGrain";
+            case VIGNETTE -> "applyVignette";
+            case COLOR_GRADING -> "applyColorGrading";
+            case SHARPENING -> "applySharpening";
+            case VOLUMETRIC_FOG -> "applyVolumetricFog";
+            case CLOUD_SHADOWS -> "applyCloudShadows";
+            case PANINI -> "applyPaniniProjection";
+            case LENS_DISTORTION -> "applyLensDistortion";
         };
     }
 
@@ -98,6 +120,17 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
             case SMAA -> "smaa_single_pass";
             case TAA_RESOLVE -> "taa_history_reproject";
             case FOG_COMPOSITE -> "fog_post_composite";
+            case DEPTH_OF_FIELD -> "dof_coc_bokeh";
+            case MOTION_BLUR -> "motion_blur_velocity_tile";
+            case CHROMATIC_ABERRATION -> "chromatic_aberration_screen_space";
+            case FILM_GRAIN -> "film_grain_temporal";
+            case VIGNETTE -> "vignette_radial";
+            case COLOR_GRADING -> "color_grading_lut";
+            case SHARPENING -> "sharpening_unsharp";
+            case VOLUMETRIC_FOG -> "volumetric_fog_froxel";
+            case CLOUD_SHADOWS -> "cloud_shadows_projected";
+            case PANINI -> "panini_projection";
+            case LENS_DISTORTION -> "lens_distortion_barrel";
         };
     }
 
@@ -132,6 +165,32 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
                     new RenderResourceRequirement("depth", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 2, true),
                     new RenderResourceRequirement("fog_uniforms", RenderResourceType.PUSH_CONSTANTS, RenderBindingFrequency.PER_PASS, 0, 0, true)
             );
+            case DEPTH_OF_FIELD -> List.of(
+                    new RenderResourceRequirement("scene_color", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 0, true),
+                    new RenderResourceRequirement("depth", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 2, true),
+                    new RenderResourceRequirement("dof_uniforms", RenderResourceType.PUSH_CONSTANTS, RenderBindingFrequency.PER_PASS, 0, 0, true)
+            );
+            case MOTION_BLUR -> List.of(
+                    new RenderResourceRequirement("scene_color", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 0, true),
+                    new RenderResourceRequirement("velocity", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 2, true),
+                    new RenderResourceRequirement("motion_blur_uniforms", RenderResourceType.PUSH_CONSTANTS, RenderBindingFrequency.PER_PASS, 0, 0, true)
+            );
+            case CHROMATIC_ABERRATION,
+                 FILM_GRAIN,
+                 VIGNETTE,
+                 COLOR_GRADING,
+                 SHARPENING,
+                 PANINI,
+                 LENS_DISTORTION -> List.of(
+                    new RenderResourceRequirement("scene_color", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 0, true),
+                    new RenderResourceRequirement("post_fx_uniforms", RenderResourceType.PUSH_CONSTANTS, RenderBindingFrequency.PER_PASS, 0, 0, true)
+            );
+            case VOLUMETRIC_FOG,
+                 CLOUD_SHADOWS -> List.of(
+                    new RenderResourceRequirement("scene_color", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 0, true),
+                    new RenderResourceRequirement("depth", RenderResourceType.SAMPLED_IMAGE, RenderBindingFrequency.PER_PASS, 0, 2, true),
+                    new RenderResourceRequirement("volumetric_uniforms", RenderResourceType.PUSH_CONSTANTS, RenderBindingFrequency.PER_PASS, 0, 0, true)
+            );
         };
     }
 
@@ -146,6 +205,17 @@ public final class VulkanPostCapability implements RenderFeatureCapability {
                     new RenderCapabilityDependency("vulkan.post.smaa", "edge_blend", false)
             );
             case FOG_COMPOSITE -> List.of(new RenderCapabilityDependency("vulkan.main", "depth", true));
+            case DEPTH_OF_FIELD,
+                 MOTION_BLUR,
+                 CHROMATIC_ABERRATION,
+                 FILM_GRAIN,
+                 VIGNETTE,
+                 COLOR_GRADING,
+                 SHARPENING,
+                 VOLUMETRIC_FOG,
+                 CLOUD_SHADOWS,
+                 PANINI,
+                 LENS_DISTORTION -> List.of(new RenderCapabilityDependency("vulkan.main", "scene_color", true));
         };
     }
 }

@@ -47,6 +47,39 @@ public final class VulkanAaPostCapabilityPlanner {
         addPostModule(active, pruned, VulkanPostCapabilityId.FOG_COMPOSITE,
                 safe.fogCompositeEnabled(),
                 "fog composite disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.DEPTH_OF_FIELD,
+                safe.depthOfFieldEnabled(),
+                "depth of field disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.MOTION_BLUR,
+                safe.motionBlurEnabled(),
+                "motion blur disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.CHROMATIC_ABERRATION,
+                safe.chromaticAberrationEnabled(),
+                "chromatic aberration disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.FILM_GRAIN,
+                safe.filmGrainEnabled(),
+                "film grain disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.VIGNETTE,
+                safe.vignetteEnabled(),
+                "vignette disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.COLOR_GRADING,
+                safe.colorGradingEnabled(),
+                "color grading disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.SHARPENING,
+                safe.sharpeningEnabled(),
+                "sharpening disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.VOLUMETRIC_FOG,
+                safe.volumetricFogEnabled(),
+                "volumetric fog disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.CLOUD_SHADOWS,
+                safe.cloudShadowsEnabled(),
+                "cloud shadows disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.PANINI,
+                safe.paniniEnabled(),
+                "panini projection disabled");
+        addPostModule(active, pruned, VulkanPostCapabilityId.LENS_DISTORTION,
+                safe.lensDistortionEnabled(),
+                "lens distortion disabled");
 
         return new VulkanAaPostCapabilityPlan(active, pruned);
     }
@@ -89,7 +122,18 @@ public final class VulkanAaPostCapabilityPlanner {
             boolean tonemapEnabled,
             boolean bloomEnabled,
             boolean ssaoEnabled,
-            boolean fogCompositeEnabled
+            boolean fogCompositeEnabled,
+            boolean depthOfFieldEnabled,
+            boolean motionBlurEnabled,
+            boolean chromaticAberrationEnabled,
+            boolean filmGrainEnabled,
+            boolean vignetteEnabled,
+            boolean colorGradingEnabled,
+            boolean sharpeningEnabled,
+            boolean volumetricFogEnabled,
+            boolean cloudShadowsEnabled,
+            boolean paniniEnabled,
+            boolean lensDistortionEnabled
     ) {
         public PlanInput {
             qualityTier = qualityTier == null ? QualityTier.MEDIUM : qualityTier;
@@ -106,7 +150,18 @@ public final class VulkanAaPostCapabilityPlanner {
                     true,
                     true,
                     true,
-                    true
+                    true,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false
             );
         }
     }

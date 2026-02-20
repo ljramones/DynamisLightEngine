@@ -183,6 +183,44 @@ class VulkanAaPostCapabilityPlanIntegrationTest {
         }
     }
 
+    @Test
+    void cinematicPostOptionsActivateAdditionalPostCapabilities() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.aaMode", "taa"),
+                    Map.entry("vulkan.post.depthOfField", "true"),
+                    Map.entry("vulkan.post.motionBlur", "true"),
+                    Map.entry("vulkan.post.chromaticAberration", "true"),
+                    Map.entry("vulkan.post.filmGrain", "true"),
+                    Map.entry("vulkan.post.vignette", "true"),
+                    Map.entry("vulkan.post.colorGrading", "true"),
+                    Map.entry("vulkan.post.sharpening", "true"),
+                    Map.entry("vulkan.post.volumetricFog", "true"),
+                    Map.entry("vulkan.post.cloudShadows", "true"),
+                    Map.entry("vulkan.post.panini", "true"),
+                    Map.entry("vulkan.post.lensDistortion", "true")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene(true, false, false));
+            runtime.render();
+            var diagnostics = runtime.aaPostCapabilityDiagnostics();
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.depth_of_field"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.motion_blur"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.chromatic_aberration"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.film_grain"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.vignette"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.color_grading"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.sharpening"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.volumetric_fog"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.cloud_shadows"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.panini"));
+            assertTrue(diagnostics.activeCapabilities().contains("vulkan.post.lens_distortion"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
     private static EngineConfig validConfig(Map<String, String> backendOptions, QualityTier tier) {
         return new EngineConfig(
                 "vulkan",

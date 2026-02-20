@@ -138,6 +138,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean deviceLostRaised;
     private boolean postOffscreenRequested;
     private QualityTier qualityTier = QualityTier.MEDIUM;
+    private Map<String, String> backendOptionsLastConfig = Map.of();
     private long plannedDrawCalls = 1;
     private long plannedTriangles = 1;
     private long plannedVisibleObjects = 1;
@@ -675,6 +676,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         );
         context.setTaaDebugView(taaDebugView);
         Map<String, String> safeBackendOptions = config.backendOptions() == null ? Map.of() : config.backendOptions();
+        backendOptionsLastConfig = safeBackendOptions;
         taaLumaClipEnabledDefault = Boolean.parseBoolean(safeBackendOptions.getOrDefault("vulkan.taaLumaClip", "false"));
         aaPreset = VulkanRuntimeOptionParsing.parseAaPreset(safeBackendOptions.get("vulkan.aaPreset"));
         aaMode = VulkanRuntimeOptionParsing.parseAaMode(safeBackendOptions.get("vulkan.aaMode"));
@@ -1207,7 +1209,18 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 currentPost.tonemapEnabled(),
                 currentPost.bloomEnabled(),
                 currentPost.ssaoEnabled(),
-                currentFog.enabled()
+                currentFog.enabled(),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.depthOfField", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.motionBlur", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.chromaticAberration", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.filmGrain", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.vignette", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.colorGrading", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.sharpening", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.volumetricFog", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.cloudShadows", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.panini", "false")),
+                Boolean.parseBoolean(backendOptionsLastConfig.getOrDefault("vulkan.post.lensDistortion", "false"))
         );
         aaPostAaModeLastFrame = aaPostEmission.aaModeId();
         aaPostAaEnabledLastFrame = true;
