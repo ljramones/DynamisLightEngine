@@ -29,4 +29,15 @@ class VulkanGiCapabilityPlannerTest {
         assertFalse(plan.activeCapabilities().contains("vulkan.gi.rt_detail"));
         assertTrue(plan.prunedCapabilities().stream().anyMatch(s -> s.contains("rt unavailable")));
     }
+
+    @Test
+    void rtgiMultiFallsBackToSsgiWhenRtUnavailable() {
+        VulkanGiCapabilityPlan plan = VulkanGiCapabilityPlanner.plan(
+                new VulkanGiCapabilityPlanner.PlanInput(QualityTier.ULTRA, GiMode.RTGI_MULTI, true, false)
+        );
+        assertTrue(plan.giEnabled());
+        assertTrue(plan.activeCapabilities().contains("vulkan.gi.ssgi"));
+        assertFalse(plan.activeCapabilities().contains("vulkan.gi.rtgi_multi"));
+        assertTrue(plan.prunedCapabilities().stream().anyMatch(s -> s.contains("vulkan.gi.rtgi_multi")));
+    }
 }

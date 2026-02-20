@@ -29,12 +29,14 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
     public static final RenderFeatureMode MODE_SSGI = new RenderFeatureMode("ssgi");
     public static final RenderFeatureMode MODE_PROBE_GRID = new RenderFeatureMode("probe_grid");
     public static final RenderFeatureMode MODE_RTGI_SINGLE = new RenderFeatureMode("rtgi_single");
+    public static final RenderFeatureMode MODE_RTGI_MULTI = new RenderFeatureMode("rtgi_multi");
     public static final RenderFeatureMode MODE_HYBRID_PROBE_SSGI_RT = new RenderFeatureMode("hybrid_probe_ssgi_rt");
 
     private static final List<RenderFeatureMode> SUPPORTED = List.of(
             MODE_SSGI,
             MODE_PROBE_GRID,
             MODE_RTGI_SINGLE,
+            MODE_RTGI_MULTI,
             MODE_HYBRID_PROBE_SSGI_RT
     );
 
@@ -86,6 +88,7 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "probe_grid" -> 205;
             case "ssgi" -> 210;
             case "rtgi_single" -> 215;
+            case "rtgi_multi" -> 218;
             case "hybrid_probe_ssgi_rt" -> 220;
             default -> 210;
         };
@@ -118,6 +121,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
         if ("rtgi_single".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
             bindings.add(new RenderShaderModuleBinding("uGiRtLane", descriptorByTargetSetBinding("post_composite", 0, 73)));
         }
+        if ("rtgi_multi".equals(active.id())) {
+            bindings.add(new RenderShaderModuleBinding("uGiRtLane", descriptorByTargetSetBinding("post_composite", 0, 73)));
+        }
         if ("probe_grid".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
             bindings.add(new RenderShaderModuleBinding("uGiProbeGrid", descriptorByTargetSetBinding("post_composite", 0, 75)));
         }
@@ -137,6 +143,7 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                     case "probe_grid" -> 205;
                     case "ssgi" -> 210;
                     case "rtgi_single" -> 215;
+                    case "rtgi_multi" -> 218;
                     case "hybrid_probe_ssgi_rt" -> 220;
                     default -> 210;
                 },
@@ -155,6 +162,9 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
         if ("rtgi_single".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
             requirements.add(new RenderDescriptorRequirement("post_composite", 0, 73, RenderDescriptorType.STORAGE_BUFFER, RenderBindingFrequency.PER_FRAME, true));
         }
+        if ("rtgi_multi".equals(active.id())) {
+            requirements.add(new RenderDescriptorRequirement("post_composite", 0, 73, RenderDescriptorType.STORAGE_BUFFER, RenderBindingFrequency.PER_FRAME, true));
+        }
         if ("ssgi".equals(active.id()) || "hybrid_probe_ssgi_rt".equals(active.id())) {
             requirements.add(new RenderDescriptorRequirement("post_composite", 0, 74, RenderDescriptorType.COMBINED_IMAGE_SAMPLER, RenderBindingFrequency.PER_PASS, true));
         }
@@ -171,6 +181,7 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "ssgi" -> List.of(new RenderUniformRequirement("global_scene", "giSsgi", 0, 0));
             case "probe_grid" -> List.of(new RenderUniformRequirement("global_scene", "giProbeGrid", 0, 0));
             case "rtgi_single" -> List.of(new RenderUniformRequirement("global_scene", "giRt", 0, 0));
+            case "rtgi_multi" -> List.of(new RenderUniformRequirement("global_scene", "giRtMulti", 0, 0));
             case "hybrid_probe_ssgi_rt" -> List.of(
                     new RenderUniformRequirement("global_scene", "giProbeGrid", 0, 0),
                     new RenderUniformRequirement("global_scene", "giSsgi", 0, 0),
@@ -287,6 +298,7 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
             case "ssgi" -> List.of("scene_color", "scene_depth", "scene_normal", "velocity");
             case "probe_grid" -> List.of("scene_color", "scene_depth", "scene_normal", "probe_grid");
             case "rtgi_single" -> List.of("scene_color", "scene_depth", "scene_normal", "rt_scene");
+            case "rtgi_multi" -> List.of("scene_color", "scene_depth", "scene_normal", "rt_scene", "velocity");
             case "hybrid_probe_ssgi_rt" -> List.of("scene_color", "scene_depth", "scene_normal", "probe_grid", "velocity", "rt_scene");
             default -> List.of("scene_color", "scene_depth");
         };
@@ -340,6 +352,20 @@ public final class VulkanGiCapabilityDescriptorV2 implements RenderFeatureCapabi
                         float centerWeight = 1.0 - clamp(length((uv - vec2(0.5)) * 1.6), 0.0, 1.0);
                         float rtContribution = mix(0.08, 0.18, centerWeight);
                         vec3 lifted = mix(baseColor.rgb, rtColor, 0.18 + rtContribution * 0.35);
+                        return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
+                    }
+                    """;
+            case "rtgi_multi" -> """
+                    vec4 resolveGiIndirect(vec4 baseColor, vec2 uv) {
+                        vec2 texel = 1.0 / vec2(textureSize(uSceneColor, 0));
+                        vec2 ray = normalize((uv - vec2(0.5)) + vec2(0.0001));
+                        vec3 bounce0 = textureLod(uSceneColor, clamp(uv + ray * texel * 10.0, vec2(0.0), vec2(1.0)), 0.9).rgb;
+                        vec3 bounce1 = textureLod(uSceneColor, clamp(uv - ray * texel * 14.0, vec2(0.0), vec2(1.0)), 1.4).rgb;
+                        vec3 bounce2 = textureLod(uSceneColor, clamp(uv + vec2(-ray.y, ray.x) * texel * 12.0, vec2(0.0), vec2(1.0)), 1.8).rgb;
+                        vec3 multi = (bounce0 * 0.50) + (bounce1 * 0.30) + (bounce2 * 0.20);
+                        float centerWeight = 1.0 - clamp(length((uv - vec2(0.5)) * 1.4), 0.0, 1.0);
+                        float rtContribution = mix(0.14, 0.28, centerWeight);
+                        vec3 lifted = mix(baseColor.rgb, multi, 0.26 + rtContribution * 0.42);
                         return vec4(clamp(lifted, vec3(0.0), vec3(1.0)), baseColor.a);
                     }
                     """;

@@ -198,7 +198,7 @@ AA notes:
 - Voxel GI (voxel cone tracing, real-time) — `Not In Yet`
 - SDF GI (signed distance field tracing) — `Not In Yet`
 - RT GI (single-bounce diffuse, denoised) — `Partial`
-- RT GI multi-bounce (recursive, accumulation-based) — `Not In Yet`
+- RT GI multi-bounce (recursive, accumulation-based) — `Partial`
 - Hybrid GI (probes + SSGI fill + RT detail) — `Partial`
 - Emissive GI contribution (emissive surfaces as light sources) — `Not In Yet`
 - Dynamic sky GI (environment drives indirect lighting, time-of-day responsive) — `Not In Yet`
@@ -227,6 +227,7 @@ GI notes:
 - GI phase-2B probe-grid gating now has a dedicated lockdown runner (`scripts/gi_phase2_probe_lockdown.sh`) and CI lane (`gi-phase2-probe-lockdown`).
 - GI runtime now emits RT-detail policy/envelope/promotion telemetry (`GI_RT_DETAIL_POLICY_ACTIVE`, `GI_RT_DETAIL_ENVELOPE`, `GI_RT_DETAIL_ENVELOPE_BREACH`, `GI_RT_DETAIL_PROMOTION_READY`) with tier-default/override thresholds.
 - GI runtime now emits explicit RT-detail fallback-chain telemetry (`GI_RT_DETAIL_FALLBACK_CHAIN`) for RT-active vs SSGI-fallback visibility in mode diagnostics.
+- GI now supports explicit `rtgi_multi` mode in contract/planner/runtime diagnostics, with ULTRA+RT gating and deterministic fallback to `ssgi` when unavailable.
 - GI runtime now emits hybrid composition envelope telemetry (`GI_HYBRID_COMPOSITION`, `GI_HYBRID_COMPOSITION_BREACH`) for expected-vs-active SSGI/probe/RT component coverage in hybrid mode.
 - Typed GI promotion diagnostics now expose RT-detail expected/active ratio, cooldown/streak envelope state, and RT-detail promotion readiness for parser-free CI assertions.
 - GI phase-2C RT-detail gating now has a dedicated lockdown runner (`scripts/gi_phase2_rt_lockdown.sh`) and CI lane (`gi-phase2-rt-lockdown`).

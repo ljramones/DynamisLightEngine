@@ -34,6 +34,14 @@ public final class VulkanGiCapabilityPlanner {
                     active.add("vulkan.gi.ssgi");
                 }
             }
+            case RTGI_MULTI -> {
+                if (safe.rtAvailable() && safe.qualityTier().ordinal() >= QualityTier.ULTRA.ordinal()) {
+                    active.add("vulkan.gi.rtgi_multi");
+                } else {
+                    pruned.add("vulkan.gi.rtgi_multi (rt unavailable or quality tier too low)");
+                    active.add("vulkan.gi.ssgi");
+                }
+            }
             case HYBRID_PROBE_SSGI_RT -> {
                 active.add("vulkan.gi.probe_grid");
                 active.add("vulkan.gi.ssgi");

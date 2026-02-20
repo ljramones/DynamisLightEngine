@@ -167,6 +167,30 @@ class VulkanGiCapabilityPlanIntegrationTest {
     }
 
     @Test
+    void emitsRtgiMultiFallbackInPromotionDiagnosticsWhenRtUnavailable() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "rtgi_multi"),
+                    Map.entry("vulkan.gi.promotionReadyMinFrames", "1")
+            ), QualityTier.ULTRA), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_FALLBACK_CHAIN".equals(w.code())));
+            var promotion = runtime.giPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertTrue(promotion.rtFallbackActive());
+            assertTrue(promotion.ssgiActive());
+            assertFalse(promotion.rtDetailActive());
+            assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.ssgi"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
     void appliesTierProfileDefaultsForSsgiEnvelopeThresholdsWhenOverridesAbsent() throws Exception {
         VulkanEngineRuntime runtime = new VulkanEngineRuntime();
         try {

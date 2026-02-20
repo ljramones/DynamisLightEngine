@@ -430,7 +430,7 @@ public final class VulkanGiCapabilityRuntimeState {
         ssgiExpectedLastFrame = configuredEnabled
                 && (configuredMode == GiMode.SSGI
                 || configuredMode == GiMode.HYBRID_PROBE_SSGI_RT
-                || (configuredMode == GiMode.RTGI_SINGLE && rtFallbackActiveLastFrame));
+                || ((configuredMode == GiMode.RTGI_SINGLE || configuredMode == GiMode.RTGI_MULTI) && rtFallbackActiveLastFrame));
         ssgiActiveRatioLastFrame = ssgiActiveLastFrame ? 1.0 : 0.0;
         ssgiEnvelopeBreachedLastFrame = ssgiExpectedLastFrame && ssgiActiveRatioLastFrame < ssgiWarnMinActiveRatio;
         if (ssgiEnvelopeBreachedLastFrame) {
@@ -486,8 +486,11 @@ public final class VulkanGiCapabilityRuntimeState {
             probeGridStreamingWarnCooldownRemaining--;
         }
         rtDetailExpectedLastFrame = configuredEnabled
-                && (configuredMode == GiMode.RTGI_SINGLE || configuredMode == GiMode.HYBRID_PROBE_SSGI_RT);
+                && (configuredMode == GiMode.RTGI_SINGLE
+                || configuredMode == GiMode.RTGI_MULTI
+                || configuredMode == GiMode.HYBRID_PROBE_SSGI_RT);
         rtDetailActiveLastFrame = activeCapabilitiesLastFrame.contains("vulkan.gi.rtgi_single")
+                || activeCapabilitiesLastFrame.contains("vulkan.gi.rtgi_multi")
                 || activeCapabilitiesLastFrame.contains("vulkan.gi.rt_detail");
         rtDetailActiveRatioLastFrame = rtDetailActiveLastFrame ? 1.0 : 0.0;
         rtDetailEnvelopeBreachedLastFrame = rtDetailExpectedLastFrame

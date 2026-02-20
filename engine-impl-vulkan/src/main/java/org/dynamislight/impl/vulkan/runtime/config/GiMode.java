@@ -7,5 +7,6 @@ public enum GiMode {
     SSGI,
     PROBE_GRID,
     RTGI_SINGLE,
+    RTGI_MULTI,
     HYBRID_PROBE_SSGI_RT
 }
