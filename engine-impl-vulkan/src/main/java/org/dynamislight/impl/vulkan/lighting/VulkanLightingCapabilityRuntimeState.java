@@ -123,6 +123,81 @@ public final class VulkanLightingCapabilityRuntimeState {
         );
     }
 
+    public void applyProfileDefaults(Map<String, String> backendOptions, QualityTier tier) {
+        Map<String, String> safe = backendOptions == null ? Map.of() : backendOptions;
+        QualityTier resolved = tier == null ? QualityTier.MEDIUM : tier;
+        switch (resolved) {
+            case LOW -> {
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnRatioThreshold")) {
+                    budgetWarnRatioThreshold = 1.50;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnMinFrames")) {
+                    budgetWarnMinFrames = 4;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnCooldownFrames")) {
+                    budgetWarnCooldownFrames = 180;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetPromotionReadyMinFrames")) {
+                    budgetPromotionReadyMinFrames = 8;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
+                    emissiveWarnMinCandidateRatio = 0.02;
+                }
+            }
+            case MEDIUM -> {
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnRatioThreshold")) {
+                    budgetWarnRatioThreshold = 1.25;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnMinFrames")) {
+                    budgetWarnMinFrames = 3;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnCooldownFrames")) {
+                    budgetWarnCooldownFrames = 120;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetPromotionReadyMinFrames")) {
+                    budgetPromotionReadyMinFrames = 6;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
+                    emissiveWarnMinCandidateRatio = 0.05;
+                }
+            }
+            case HIGH -> {
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnRatioThreshold")) {
+                    budgetWarnRatioThreshold = 1.10;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnMinFrames")) {
+                    budgetWarnMinFrames = 2;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnCooldownFrames")) {
+                    budgetWarnCooldownFrames = 90;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetPromotionReadyMinFrames")) {
+                    budgetPromotionReadyMinFrames = 5;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
+                    emissiveWarnMinCandidateRatio = 0.08;
+                }
+            }
+            case ULTRA -> {
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnRatioThreshold")) {
+                    budgetWarnRatioThreshold = 1.00;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnMinFrames")) {
+                    budgetWarnMinFrames = 2;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetWarnCooldownFrames")) {
+                    budgetWarnCooldownFrames = 75;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.budgetPromotionReadyMinFrames")) {
+                    budgetPromotionReadyMinFrames = 4;
+                }
+                if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.lighting.emissiveWarnMinCandidateRatio")) {
+                    emissiveWarnMinCandidateRatio = 0.10;
+                }
+            }
+        }
+    }
+
     public void emitFrameWarning(
             QualityTier qualityTier,
             List<LightDesc> lights,
@@ -181,6 +256,15 @@ public final class VulkanLightingCapabilityRuntimeState {
             warnings.addAll(emission.warnings().stream()
                     .filter(w -> !"LIGHTING_BUDGET_ENVELOPE_BREACH".equals(w.code()))
                     .toList());
+            warnings.add(new EngineWarning(
+                    "LIGHTING_TELEMETRY_PROFILE_ACTIVE",
+                    "Lighting telemetry profile active (mode=" + modeLastFrame
+                            + ", budgetWarnRatioThreshold=" + budgetWarnRatioThreshold
+                            + ", budgetWarnMinFrames=" + budgetWarnMinFrames
+                            + ", budgetWarnCooldownFrames=" + budgetWarnCooldownFrames
+                            + ", budgetPromotionReadyMinFrames=" + budgetPromotionReadyMinFrames
+                            + ", emissiveWarnMinCandidateRatio=" + emissiveWarnMinCandidateRatio + ")"
+            ));
             warnings.add(new EngineWarning(
                     "LIGHTING_BUDGET_POLICY",
                     "Lighting budget policy (warnMinFrames=" + budgetWarnMinFrames

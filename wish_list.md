@@ -235,6 +235,7 @@ Lighting notes:
 - Vulkan now emits lighting budget envelope telemetry (`LIGHTING_BUDGET_ENVELOPE`, `LIGHTING_BUDGET_ENVELOPE_BREACH`) and exposes typed runtime budget diagnostics (`lightingBudgetDiagnostics()`).
 - Vulkan now emits lighting budget policy/promoted stability telemetry (`LIGHTING_BUDGET_POLICY`, `LIGHTING_BUDGET_PROMOTION_READY`) with cooldown-gated breach behavior and typed runtime promotion diagnostics (`lightingPromotionDiagnostics()`).
 - Vulkan now emits physically-based-unit and emissive policy telemetry (`LIGHTING_PHYS_UNITS_POLICY`, `LIGHTING_EMISSIVE_POLICY`, `LIGHTING_EMISSIVE_ENVELOPE_BREACH`) and exposes typed runtime emissive diagnostics (`lightingEmissiveDiagnostics()`).
+- Lighting telemetry now applies tier-profile defaults with backend-option override precedence and emits compact profile summary telemetry (`LIGHTING_TELEMETRY_PROFILE_ACTIVE`).
 - Lighting v2 contract coverage is tracked in `docs/lighting-capability-v2-checklist.md` and validated in composition with shadow/reflection/aa/post/gi descriptors.
 - Phase C profile compilation now includes lighting mode in profile identity (`lighting=...`) and composes lighting shader/descriptor requirements from the resolved mode.
 - Lighting contract gating is now automated via `scripts/lighting_contract_v2_lockdown.sh` and CI lane `lighting-contract-v2-lockdown`.

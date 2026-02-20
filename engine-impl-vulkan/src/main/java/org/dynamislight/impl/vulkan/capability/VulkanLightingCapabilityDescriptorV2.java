@@ -226,6 +226,7 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
         return new RenderTelemetryDeclaration(
                 List.of(
                         "LIGHTING_CAPABILITY_MODE_ACTIVE",
+                        "LIGHTING_TELEMETRY_PROFILE_ACTIVE",
                         "LIGHTING_BUDGET_POLICY",
                         "LIGHTING_BUDGET_ENVELOPE",
                         "LIGHTING_BUDGET_ENVELOPE_BREACH",

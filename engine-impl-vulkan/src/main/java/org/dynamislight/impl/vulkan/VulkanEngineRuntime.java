@@ -730,6 +730,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         QualityTier resolvedQualityTier = config.qualityTier() == null ? QualityTier.MEDIUM : config.qualityTier();
         applyShadowTelemetryProfileDefaults(safeBackendOptions, resolvedQualityTier);
         applyReflectionProfileTelemetryDefaults(safeBackendOptions);
+        lightingCapabilityState.applyProfileDefaults(safeBackendOptions, resolvedQualityTier);
         tsrControls = VulkanRuntimeOptionParsing.parseTsrControls(safeBackendOptions, "vulkan.");
         externalUpscaler = ExternalUpscalerIntegration.create("vulkan", "vulkan.", safeBackendOptions);
         nativeUpscalerActive = false;
@@ -1097,7 +1098,6 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 giPrunedCapabilitiesLastFrame
         );
     }
-
     @Override
     protected LightingCapabilityDiagnostics backendLightingCapabilityDiagnostics() { return lightingCapabilityState.diagnostics(); }
     @Override

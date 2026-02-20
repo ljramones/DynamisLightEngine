@@ -43,6 +43,7 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             runtime.loadScene(validScene());
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_CAPABILITY_MODE_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_TELEMETRY_PROFILE_ACTIVE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_POLICY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_ENVELOPE_BREACH".equals(w.code())));
@@ -82,6 +83,23 @@ class VulkanLightingCapabilityPlanIntegrationTest {
             EngineFrameResult frame = runtime.render();
             assertTrue(frame.warnings().stream().anyMatch(w -> "LIGHTING_BUDGET_PROMOTION_READY".equals(w.code())));
             assertTrue(runtime.lightingPromotionDiagnostics().promotionReady());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void appliesTierProfileDefaultsWhenOverridesAbsent() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.of(
+                    "vulkan.mockContext", "true"
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validSceneStableBudget());
+            runtime.render();
+            var budget = runtime.lightingBudgetDiagnostics();
+            assertTrue(budget.available());
+            assertTrue(budget.warnRatioThreshold() <= 1.10);
         } finally {
             runtime.shutdown();
         }
