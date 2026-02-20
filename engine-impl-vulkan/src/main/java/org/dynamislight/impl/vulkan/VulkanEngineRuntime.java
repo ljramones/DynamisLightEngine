@@ -152,6 +152,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private static final int REFLECTION_MODE_PLANAR_SCOPE_INCLUDE_OTHER_BIT = 1 << 24;
     private static final int REFLECTION_MODE_RT_DEDICATED_ACTIVE_BIT = 1 << 25;
     private static final int REFLECTION_MODE_RT_PROMOTION_READY_BIT = 1 << 26;
+    private static final int POST_DEBUG_MASK = 0xFF;
+    private static final int POST_FLAG_CHROMATIC_ABERRATION = 1 << 8;
+    private static final int POST_FLAG_FILM_GRAIN = 1 << 9;
+    private static final int POST_FLAG_VIGNETTE = 1 << 10;
+    private static final int POST_FLAG_COLOR_GRADING = 1 << 11;
+    private static final int POST_FLAG_CLOUD_SHADOWS = 1 << 12;
+    private static final int POST_FLAG_SCREEN_SPACE_BENT_NORMALS = 1 << 13;
+    private static final int POST_FLAG_PANINI = 1 << 14;
+    private static final int POST_FLAG_LENS_DISTORTION = 1 << 15;
     private final VulkanContext context = new VulkanContext();
     private final VulkanRuntimeWarningPolicy warningPolicy = new VulkanRuntimeWarningPolicy();
     private final VulkanRuntimeWarningPolicy.State warningState = new VulkanRuntimeWarningPolicy.State();
@@ -1318,6 +1327,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         aaPostTemporalHistoryActiveLastFrame = aaPostEmission.temporalHistoryActive();
         aaPostActiveCapabilitiesLastFrame = aaPostEmission.activeCapabilities();
         aaPostPrunedCapabilitiesLastFrame = aaPostEmission.prunedCapabilities();
+        context.setTaaDebugView(composePackedPostDebugView(taaDebugView, aaPostActiveCapabilitiesLastFrame));
         warnings.add(aaPostEmission.warning());
         VulkanAaTemporalWarningEmitter.Result aaTemporalEmission = VulkanAaTemporalWarningEmitter.emit(
                 new VulkanAaTemporalWarningEmitter.Input(
@@ -1416,6 +1426,39 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
         VulkanShadowFrameWarningFlow.process(this, context, qualityTier, warnings);
         return warnings;
     }
+
+    private static int composePackedPostDebugView(int taaDebugView, List<String> activeCapabilities) {
+        int packed = taaDebugView & POST_DEBUG_MASK;
+        if (activeCapabilities == null || activeCapabilities.isEmpty()) {
+            return packed;
+        }
+        if (activeCapabilities.contains("vulkan.post.chromatic_aberration")) {
+            packed |= POST_FLAG_CHROMATIC_ABERRATION;
+        }
+        if (activeCapabilities.contains("vulkan.post.film_grain")) {
+            packed |= POST_FLAG_FILM_GRAIN;
+        }
+        if (activeCapabilities.contains("vulkan.post.vignette")) {
+            packed |= POST_FLAG_VIGNETTE;
+        }
+        if (activeCapabilities.contains("vulkan.post.color_grading")) {
+            packed |= POST_FLAG_COLOR_GRADING;
+        }
+        if (activeCapabilities.contains("vulkan.post.cloud_shadows")) {
+            packed |= POST_FLAG_CLOUD_SHADOWS;
+        }
+        if (activeCapabilities.contains("vulkan.post.screen_space_bent_normals")) {
+            packed |= POST_FLAG_SCREEN_SPACE_BENT_NORMALS;
+        }
+        if (activeCapabilities.contains("vulkan.post.panini")) {
+            packed |= POST_FLAG_PANINI;
+        }
+        if (activeCapabilities.contains("vulkan.post.lens_distortion")) {
+            packed |= POST_FLAG_LENS_DISTORTION;
+        }
+        return packed;
+    }
+
     SceneReuseStats debugSceneReuseStats() {
         return context.sceneReuseStats();
     }

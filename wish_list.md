@@ -300,20 +300,20 @@ Lighting notes:
 - Bloom (threshold, multi-pass blur, energy-conserving) — `In`
 - Depth of field (bokeh, circle of confusion, near/far) — `Partial`
 - Motion blur (per-object velocity, camera velocity, tile-based) — `Partial`
-- Chromatic aberration — `Partial`
-- Film grain — `Partial`
-- Vignette — `Partial`
+- Chromatic aberration — `In`
+- Film grain — `In`
+- Vignette — `In`
 - Lens flare (screen-space, data-driven) — `Partial`
-- Color grading (LUT, lift/gamma/gain, channel mixer) — `Partial`
+- Color grading (LUT, lift/gamma/gain, channel mixer) — `In`
 - Sharpening (CAS, RCAS, unsharp mask) — `In`
 - SSAO (GTAO, HBAO-style, multi-scale) — `In`
 - SSAO with temporal accumulation — `In`
-- Screen-space bent normals (indirect occlusion direction) — `Partial`
+- Screen-space bent normals (indirect occlusion direction) — `In`
 - Fog (linear, exponential, height-based, volumetric) — `In`
 - Volumetric fog (froxel-based, light-participating, density noise) — `In`
-- Cloud shadows (projected noise, animated) — `Partial`
-- Panini projection (wide FOV correction) — `Partial`
-- Lens distortion — `Partial`
+- Cloud shadows (projected noise, animated) — `In`
+- Panini projection (wide FOV correction) — `In`
+- Lens distortion — `In`
 
 Post notes:
 
@@ -326,6 +326,8 @@ Post notes:
 - Vulkan now emits cinematic post promotion telemetry (`POST_CINEMATIC_POLICY_ACTIVE`, `POST_CINEMATIC_ENVELOPE`, `POST_CINEMATIC_ENVELOPE_BREACH`, `POST_CINEMATIC_PROMOTION_READY`) with typed diagnostics (`postCinematicPromotionDiagnostics()`).
 - Post Phase B cinematic lockdown is now available via `scripts/post_phaseB_cinematic_lockdown.sh` and CI lane `post-phaseb-cinematic-lockdown`.
 - Post full-lockdown bundle is now available via `scripts/post_lockdown_full.sh` and CI lane `post-lockdown-full`.
+- Vulkan post composite now applies runtime-executed cinematic effects for chromatic aberration, film grain, vignette, color grading, cloud shadows, screen-space bent normals, panini projection, and lens distortion through packed post flags in the existing post push constants.
+- OpenGL parity for these cinematic post execution paths is pending; current promotion status is Vulkan-path scoped.
 
 ## PBR / Shading
 

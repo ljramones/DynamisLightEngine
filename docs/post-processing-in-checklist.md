@@ -50,7 +50,8 @@ Targets:
 - screen-space bent normals
 
 Execution checklist:
-- [ ] Add/finish production shader realization per effect in post composite path.
+- [x] Add/finish production shader realization in post composite path for: chromatic aberration, film grain, vignette, color grading, cloud shadows, screen-space bent normals, panini, lens distortion.
+- [ ] Complete remaining production shader realization: depth of field, motion blur, lens flare.
 - [ ] Add per-effect policy/envelope/promotion warning families.
 - [x] Expose typed diagnostics (parser-free assertions) for cinematic effect activation/health (`postCinematicPromotionDiagnostics()`).
 - [x] Add per-effect or grouped lockdown tests for artifact/perf envelopes (grouped cinematic envelope gating in `VulkanAaPostCapabilityPlanIntegrationTest`).
@@ -63,9 +64,9 @@ Exit gate:
 
 - [x] Add full-post lockdown bundle script (core + cinematic + stress/replay gates) (`scripts/post_lockdown_full.sh`).
 - [x] Add CI lane `post-lockdown-full` (workflow-dispatch + schedule coverage).
-- [ ] Run bundle in strict mode and capture promotion artifacts.
-- [ ] Update `wish_list.md` post rows from `Partial` to `In` where gates pass.
-- [ ] Document Vulkan-scope caveat where backend parity is pending.
+- [x] Run bundle in strict mode and capture promotion artifacts (`bash scripts/post_lockdown_full.sh`).
+- [x] Update `wish_list.md` post rows from `Partial` to `In` where gates pass.
+- [x] Document Vulkan-scope caveat where backend parity is pending.
 
 Final exit gate:
 - [ ] Post-processing vertical marked `In` (Vulkan scope) with green lockdown bundle and docs updated.

@@ -300,6 +300,16 @@ public final class VulkanPostShaderSources {
                     int reflectionOverrideMode = int(clamp(floor(sceneSample.a * 3.0 + 0.5), 0.0, 3.0));
                     float centerMaterialReactive = clamp(centerVelocitySample.a, 0.0, 1.0);
                     vec2 centerVelocityUv = centerVelocitySample.rg * 2.0 - 1.0;
+                    int packedPostDebugView = int(pc.taa.w + 0.5);
+                    int debugView = packedPostDebugView & 255;
+                    bool postChromaticAberration = (packedPostDebugView & (1 << 8)) != 0;
+                    bool postFilmGrain = (packedPostDebugView & (1 << 9)) != 0;
+                    bool postVignette = (packedPostDebugView & (1 << 10)) != 0;
+                    bool postColorGrading = (packedPostDebugView & (1 << 11)) != 0;
+                    bool postCloudShadows = (packedPostDebugView & (1 << 12)) != 0;
+                    bool postScreenSpaceBentNormals = (packedPostDebugView & (1 << 13)) != 0;
+                    bool postPanini = (packedPostDebugView & (1 << 14)) != 0;
+                    bool postLensDistortion = (packedPostDebugView & (1 << 15)) != 0;
                     float reflectionDisocclusionSignal = 0.0;
                     float historyConfidenceOut = 1.0;
                     if (pc.tonemap.x > 0.5) {
@@ -434,7 +444,6 @@ public final class VulkanPostShaderSources {
                         color = mix(color, clampedHistory, blend);
                         color = taaSharpen(vUv, color, taaSharpenStrength * (1.0 - reactive));
                         historyConfidenceOut = clamp(max(confidenceState * 0.94, 1.0 - reactive * 0.86), 0.02, 1.0);
-                        int debugView = int(pc.taa.w + 0.5);
                         if (debugView == 1) {
                             color = vec3(reactive);
                         } else if (debugView == 2) {
@@ -472,6 +481,60 @@ public final class VulkanPostShaderSources {
                     vec4 giResolved = resolveGiIndirect(vec4(clamp(color, 0.0, 1.0), historyConfidenceOut), vUv);
                     color = giResolved.rgb;
                     historyConfidenceOut = clamp(max(historyConfidenceOut, giResolved.a), 0.0, 1.0);
+                    if (debugView == 0) {
+                        vec2 postUv = vUv;
+                        vec2 centered = (vUv * 2.0) - vec2(1.0);
+                        if (postPanini) {
+                            vec2 panini = centered / (1.0 + 0.28 * abs(centered.y));
+                            postUv = clamp((panini * 0.5) + vec2(0.5), vec2(0.0), vec2(1.0));
+                        }
+                        if (postLensDistortion) {
+                            vec2 lensCentered = (postUv * 2.0) - vec2(1.0);
+                            float lensR2 = dot(lensCentered, lensCentered);
+                            lensCentered *= (1.0 - 0.09 * lensR2);
+                            postUv = clamp((lensCentered * 0.5) + vec2(0.5), vec2(0.0), vec2(1.0));
+                        }
+                        if (postPanini || postLensDistortion) {
+                            vec3 warped = texture(uSceneColor, postUv).rgb;
+                            color = mix(color, warped, 0.25);
+                        }
+                        if (postChromaticAberration) {
+                            vec2 aberrationDir = postUv - vec2(0.5);
+                            float aberration = 0.0015 + 0.003 * length(aberrationDir);
+                            vec2 rUv = clamp(postUv + aberrationDir * aberration, vec2(0.0), vec2(1.0));
+                            vec2 bUv = clamp(postUv - aberrationDir * aberration, vec2(0.0), vec2(1.0));
+                            vec3 aberrated = vec3(
+                                texture(uSceneColor, rUv).r,
+                                texture(uSceneColor, postUv).g,
+                                texture(uSceneColor, bUv).b
+                            );
+                            color = mix(color, aberrated, 0.45);
+                        }
+                        if (postColorGrading) {
+                            vec3 lift = vec3(0.01, -0.005, -0.01);
+                            vec3 gain = vec3(1.04, 1.02, 0.98);
+                            color = pow(max((color + lift) * gain, vec3(0.0)), vec3(0.98));
+                        }
+                        if (postCloudShadows) {
+                            float cloudNoise = fract(sin(dot(vUv + vec2(pc.motion.x * 3.0, pc.motion.y * 3.0), vec2(12.9898, 78.233))) * 43758.5453);
+                            float cloudShadow = 0.90 + 0.10 * cloudNoise;
+                            color *= cloudShadow;
+                        }
+                        if (postScreenSpaceBentNormals) {
+                            float depthGradient = abs(dFdx(currentDepth)) + abs(dFdy(currentDepth));
+                            float bentOcclusion = clamp(depthGradient * 28.0, 0.0, 1.0);
+                            color *= mix(1.0, 0.94, bentOcclusion);
+                        }
+                        if (postVignette) {
+                            float vignetteDist = length(vUv - vec2(0.5));
+                            float vignette = smoothstep(0.35, 0.85, vignetteDist);
+                            color *= mix(1.0, 0.72, vignette);
+                        }
+                        if (postFilmGrain) {
+                            float grain = fract(sin(dot(vUv * vec2(127.1, 311.7) + vec2(pc.motion.x * 141.0, pc.motion.y * 17.0), vec2(12.9898, 78.233))) * 43758.5453123);
+                            color += (grain - 0.5) * 0.03;
+                        }
+                    }
                     outColor = vec4(clamp(color, 0.0, 1.0), historyConfidenceOut);
                 }
                 """;
