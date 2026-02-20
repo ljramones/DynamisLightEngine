@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -108,6 +109,54 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(promotion.ssgiActive());
             assertFalse(promotion.rtDetailActive());
             assertTrue(runtime.giCapabilityDiagnostics().activeCapabilities().contains("vulkan.gi.ssgi"));
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void appliesTierProfileDefaultsForSsgiEnvelopeThresholdsWhenOverridesAbsent() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "ssgi")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            runtime.render();
+            var promotion = runtime.giPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertEquals(1.0, promotion.ssgiWarnMinActiveRatio(), 1e-9);
+            assertEquals(1, promotion.ssgiWarnMinFrames());
+            assertEquals(90, promotion.ssgiWarnCooldownFrames());
+            assertEquals(4, promotion.ssgiPromotionReadyMinFrames());
+        } finally {
+            runtime.shutdown();
+        }
+    }
+
+    @Test
+    void backendOverridesTakePrecedenceForSsgiEnvelopeThresholds() throws Exception {
+        VulkanEngineRuntime runtime = new VulkanEngineRuntime();
+        try {
+            runtime.initialize(validConfig(Map.ofEntries(
+                    Map.entry("vulkan.mockContext", "true"),
+                    Map.entry("vulkan.gi.enabled", "true"),
+                    Map.entry("vulkan.gi.mode", "ssgi"),
+                    Map.entry("vulkan.gi.ssgiWarnMinActiveRatio", "0.75"),
+                    Map.entry("vulkan.gi.ssgiWarnMinFrames", "7"),
+                    Map.entry("vulkan.gi.ssgiWarnCooldownFrames", "33"),
+                    Map.entry("vulkan.gi.ssgiPromotionReadyMinFrames", "6")
+            ), QualityTier.HIGH), new NoopCallbacks());
+            runtime.loadScene(validScene());
+            runtime.render();
+            var promotion = runtime.giPromotionDiagnostics();
+            assertTrue(promotion.available());
+            assertEquals(0.75, promotion.ssgiWarnMinActiveRatio(), 1e-9);
+            assertEquals(7, promotion.ssgiWarnMinFrames());
+            assertEquals(33, promotion.ssgiWarnCooldownFrames());
+            assertEquals(6, promotion.ssgiPromotionReadyMinFrames());
         } finally {
             runtime.shutdown();
         }
