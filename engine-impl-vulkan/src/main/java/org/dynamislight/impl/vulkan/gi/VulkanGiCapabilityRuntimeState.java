@@ -485,6 +485,16 @@ public final class VulkanGiCapabilityRuntimeState {
                             + ", rtDetailStableStreak=" + rtDetailStableStreak
                             + ", rtDetailPromotionReadyMinFrames=" + rtDetailPromotionReadyMinFrames + ")"
             ));
+            String rtFallbackChain = rtDetailActiveLastFrame
+                    ? "rt_detail_active"
+                    : (rtFallbackActiveLastFrame ? "ssgi_fallback" : "disabled");
+            warnings.add(new EngineWarning(
+                    "GI_RT_DETAIL_FALLBACK_CHAIN",
+                    "GI RT-detail fallback chain (mode=" + modeLastFrame
+                            + ", chain=" + rtFallbackChain
+                            + ", rtAvailable=" + rtAvailableLastFrame
+                            + ", rtFallbackActive=" + rtFallbackActiveLastFrame + ")"
+            ));
             boolean emitSsgiBreach = ssgiEnvelopeBreachedLastFrame
                     && ssgiHighStreak >= ssgiWarnMinFrames
                     && ssgiWarnCooldownRemaining <= 0;

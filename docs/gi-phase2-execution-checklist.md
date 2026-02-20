@@ -22,7 +22,7 @@ Scope: convert GI phase-1 contract/planner scaffolding into production Vulkan ex
 
 ## Phase 2C: RT Detail Lane
 
-- [ ] Add RT GI single-bounce execution lane with explicit fallback signaling.
+- [x] Add RT GI single-bounce lane policy with explicit fallback signaling (`GI_RT_DETAIL_FALLBACK_CHAIN`) for RT-active vs SSGI-fallback visibility.
 - [x] Add RT-detail diagnostics and promotion gates for quality/perf envelope (`GI_RT_DETAIL_POLICY_ACTIVE`, `GI_RT_DETAIL_ENVELOPE`, `GI_RT_DETAIL_ENVELOPE_BREACH`, `GI_RT_DETAIL_PROMOTION_READY`).
 - [x] Add hybrid composition lane (probe + SSGI + RT detail) envelope diagnostics (`GI_HYBRID_COMPOSITION`, `GI_HYBRID_COMPOSITION_BREACH`).
 - [x] Add lockdown lane for RT/hybrid GI promotion (`scripts/gi_phase2_rt_lockdown.sh`) + CI lane (`gi-phase2-rt-lockdown`).

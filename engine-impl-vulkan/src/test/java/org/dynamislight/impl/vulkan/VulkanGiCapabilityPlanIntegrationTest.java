@@ -53,6 +53,7 @@ class VulkanGiCapabilityPlanIntegrationTest {
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_PROBE_GRID_PROMOTION_READY".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_POLICY_ACTIVE".equals(w.code())));
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_FALLBACK_CHAIN".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_ENVELOPE".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_ENVELOPE_BREACH".equals(w.code())));
             assertTrue(frame.warnings().stream().anyMatch(w -> "GI_HYBRID_COMPOSITION".equals(w.code())));
@@ -147,7 +148,8 @@ class VulkanGiCapabilityPlanIntegrationTest {
                     Map.entry("vulkan.gi.promotionReadyMinFrames", "1")
             ), QualityTier.MEDIUM), new NoopCallbacks());
             runtime.loadScene(validScene());
-            runtime.render();
+            EngineFrameResult frame = runtime.render();
+            assertTrue(frame.warnings().stream().anyMatch(w -> "GI_RT_DETAIL_FALLBACK_CHAIN".equals(w.code())));
             var promotion = runtime.giPromotionDiagnostics();
             assertTrue(promotion.available());
             assertTrue(promotion.rtFallbackActive());
