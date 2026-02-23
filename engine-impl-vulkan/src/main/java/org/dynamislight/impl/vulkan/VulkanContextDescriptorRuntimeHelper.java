@@ -39,6 +39,7 @@ final class VulkanContextDescriptorRuntimeHelper {
         );
         descriptorResources.descriptorSetLayout = allocation.descriptorSetLayout();
         descriptorResources.textureDescriptorSetLayout = allocation.textureDescriptorSetLayout();
+        descriptorResources.skinnedDescriptorSetLayout = allocation.skinnedDescriptorSetLayout();
         descriptorResources.textureDescriptorBindingCount = allocation.textureDescriptorBindingCount();
         descriptorResources.descriptorPool = allocation.descriptorPool();
         descriptorResources.frameDescriptorSets = allocation.frameDescriptorSets();
@@ -85,6 +86,7 @@ final class VulkanContextDescriptorRuntimeHelper {
                         new VulkanDescriptorResources.Allocation(
                                 descriptorResources.descriptorSetLayout,
                                 descriptorResources.textureDescriptorSetLayout,
+                                descriptorResources.skinnedDescriptorSetLayout,
                                 descriptorResources.descriptorPool,
                                 descriptorResources.frameDescriptorSets,
                                 descriptorResources.objectUniformBuffer,
@@ -146,6 +148,7 @@ final class VulkanContextDescriptorRuntimeHelper {
         descriptorResources.descriptorPool = state.descriptorPool();
         descriptorResources.descriptorSetLayout = state.descriptorSetLayout();
         descriptorResources.textureDescriptorSetLayout = state.textureDescriptorSetLayout();
+        descriptorResources.skinnedDescriptorSetLayout = state.skinnedDescriptorSetLayout();
         descriptorResources.textureDescriptorBindingCount = state.textureDescriptorBindingCount();
         frameUploadStats.lastUniformUploadBytes = state.lastFrameUniformUploadBytes();
         frameUploadStats.maxUniformUploadBytes = state.maxFrameUniformUploadBytes();

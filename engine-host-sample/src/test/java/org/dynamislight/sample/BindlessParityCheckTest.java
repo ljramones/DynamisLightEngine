@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -67,6 +69,8 @@ class BindlessParityCheckTest {
         command.add("-Dvk.bindless.enabled=" + bindlessEnabled);
         command.add("-Ddle.vulkan.mockContext=" + System.getProperty("dle.vulkan.mockContext", "false"));
         command.add("-Dvk.validation=" + System.getProperty("vk.validation", "true"));
+        command.add("-Ddle.host.headless=true");
+        command.add("-Ddle.host.forceExit=true");
         command.add("org.dynamislight.sample.SampleHostApp");
         command.add("vulkan");
         command.add("--frames=10");
@@ -79,13 +83,22 @@ class BindlessParityCheckTest {
 
         Process process = pb.start();
         ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
+        Thread outputDrainer = Thread.ofPlatform().daemon(true).start(() -> {
+            try {
+                process.getInputStream().transferTo(outputBytes);
+            } catch (IOException ignored) {
+            }
+        });
         boolean exited = process.waitFor(PROCESS_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         if (!exited) {
             process.destroyForcibly();
-            throw new AssertionError("SampleHostApp did not exit in time");
+            process.waitFor(5, TimeUnit.SECONDS);
+            outputDrainer.join(1000);
+            String partialOutput = outputBytes.toString(StandardCharsets.UTF_8);
+            throw new AssertionError("SampleHostApp did not exit in time. Partial output:\n" + partialOutput);
         }
-        process.getInputStream().transferTo(outputBytes);
-        String output = outputBytes.toString();
+        outputDrainer.join(2000);
+        String output = outputBytes.toString(StandardCharsets.UTF_8);
         int exitCode = process.exitValue();
         List<String> parityFrames = parseParityFrames(output);
         if (exitCode != 0 && !isTolerableMacNativeTeardownCrash(exitCode, output, parityFrames)) {

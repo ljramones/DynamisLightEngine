@@ -62,6 +62,8 @@ public final class VulkanBackendResources {
     public long graphicsPipeline = VK_NULL_HANDLE;
     public long bindlessStaticPipelineLayout = VK_NULL_HANDLE;
     public long bindlessStaticGraphicsPipeline = VK_NULL_HANDLE;
+    public long bindlessSkinnedPipelineLayout = VK_NULL_HANDLE;
+    public long bindlessSkinnedGraphicsPipeline = VK_NULL_HANDLE;
     public long morphPipelineLayout = VK_NULL_HANDLE;
     public long morphGraphicsPipeline = VK_NULL_HANDLE;
     public long skinnedPipelineLayout = VK_NULL_HANDLE;

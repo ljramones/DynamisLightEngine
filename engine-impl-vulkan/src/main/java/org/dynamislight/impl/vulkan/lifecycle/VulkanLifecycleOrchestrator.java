@@ -91,8 +91,10 @@ public final class VulkanLifecycleOrchestrator {
                         request.backendResources().framebuffers,
                         request.backendResources().graphicsPipeline,
                         request.backendResources().bindlessStaticGraphicsPipeline,
+                        request.backendResources().bindlessSkinnedGraphicsPipeline,
                         request.backendResources().pipelineLayout,
                         request.backendResources().bindlessStaticPipelineLayout,
+                        request.backendResources().bindlessSkinnedPipelineLayout,
                         request.backendResources().morphGraphicsPipeline,
                         request.backendResources().morphPipelineLayout,
                         request.backendResources().skinnedGraphicsPipeline,
@@ -165,6 +167,8 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.graphicsPipeline = state.graphicsPipeline();
         backendResources.bindlessStaticPipelineLayout = state.bindlessStaticPipelineLayout();
         backendResources.bindlessStaticGraphicsPipeline = state.bindlessStaticGraphicsPipeline();
+        backendResources.bindlessSkinnedPipelineLayout = state.bindlessSkinnedPipelineLayout();
+        backendResources.bindlessSkinnedGraphicsPipeline = state.bindlessSkinnedGraphicsPipeline();
         backendResources.morphPipelineLayout = state.morphPipelineLayout();
         backendResources.morphGraphicsPipeline = state.morphGraphicsPipeline();
         backendResources.skinnedPipelineLayout = state.skinnedPipelineLayout();

@@ -40,6 +40,13 @@ public final class VulkanSceneReusePolicy {
             if (gpuMesh.vertexHash != Arrays.hashCode(sceneMesh.vertices()) || gpuMesh.indexHash != Arrays.hashCode(sceneMesh.indices())) {
                 return false;
             }
+            if (gpuMesh.skinned != sceneMesh.skinned() || gpuMesh.jointCount != sceneMesh.jointCount()) {
+                return false;
+            }
+            if (gpuMesh.morphTargetCount != sceneMesh.morphTargetCount()
+                    || gpuMesh.morphTargetHash != (sceneMesh.morphTargetDeltas() == null ? 0 : Arrays.hashCode(sceneMesh.morphTargetDeltas()))) {
+                return false;
+            }
             String albedoKey = textureCacheKey.apply(sceneMesh.albedoTexturePath(), false);
             String normalKey = textureCacheKey.apply(sceneMesh.normalTexturePath(), true);
             String metallicRoughnessKey = textureCacheKey.apply(sceneMesh.metallicRoughnessTexturePath(), false);
@@ -75,6 +82,13 @@ public final class VulkanSceneReusePolicy {
                 return false;
             }
             if (gpuMesh.vertexHash != Arrays.hashCode(sceneMesh.vertices()) || gpuMesh.indexHash != Arrays.hashCode(sceneMesh.indices())) {
+                return false;
+            }
+            if (gpuMesh.skinned != sceneMesh.skinned() || gpuMesh.jointCount != sceneMesh.jointCount()) {
+                return false;
+            }
+            if (gpuMesh.morphTargetCount != sceneMesh.morphTargetCount()
+                    || gpuMesh.morphTargetHash != (sceneMesh.morphTargetDeltas() == null ? 0 : Arrays.hashCode(sceneMesh.morphTargetDeltas()))) {
                 return false;
             }
         }

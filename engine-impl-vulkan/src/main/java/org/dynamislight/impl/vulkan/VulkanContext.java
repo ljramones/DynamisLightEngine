@@ -516,6 +516,7 @@ public final class VulkanContext {
                 )
         );
         estimatedGpuMemoryBytes = result.estimatedGpuMemoryBytes();
+        syncBindlessSkinnedJointHandles();
     }
 
     void updateSkinnedMesh(int meshHandle, float[] jointMatrices) throws EngineException {
@@ -1467,6 +1468,30 @@ public final class VulkanContext {
         reflectionProbeLodTier1Count = 0;
         reflectionProbeLodTier2Count = 0;
         reflectionProbeLodTier3Count = 0;
+    }
+
+    private void syncBindlessSkinnedJointHandles() {
+        if (backendResources.bindlessDescriptorHeap == null || !backendResources.bindlessDescriptorHeap.active()) {
+            return;
+        }
+        for (var mesh : sceneResources.gpuMeshes) {
+            if (mesh == null || !mesh.skinned || mesh.skinnedUniforms == null || mesh.skinningBufferHandle == VK_NULL_HANDLE) {
+                continue;
+            }
+            if (mesh.bindlessJointHandle == 0L) {
+                mesh.bindlessJointHandle = backendResources.bindlessDescriptorHeap.allocate(
+                        VulkanBindlessDescriptorHeap.HeapType.JOINT_PALETTE
+                );
+            }
+            if (mesh.bindlessJointHandle != 0L) {
+                backendResources.bindlessDescriptorHeap.updateJointPaletteDescriptor(
+                        mesh.bindlessJointHandle,
+                        bindlessFrameSerial,
+                        mesh.skinnedUniforms.bufferHandle(),
+                        (long) mesh.jointCount * 64L
+                );
+            }
+        }
     }
 
     private String textureCacheKey(Path texturePath, boolean normalMap) {

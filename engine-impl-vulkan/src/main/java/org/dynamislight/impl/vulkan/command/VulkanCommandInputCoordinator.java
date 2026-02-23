@@ -80,6 +80,8 @@ public final class VulkanCommandInputCoordinator {
                         request.backendResources().pipelineLayout,
                         request.backendResources().bindlessStaticGraphicsPipeline,
                         request.backendResources().bindlessStaticPipelineLayout,
+                        request.backendResources().bindlessSkinnedGraphicsPipeline,
+                        request.backendResources().bindlessSkinnedPipelineLayout,
                         request.backendResources().morphGraphicsPipeline,
                         request.backendResources().morphPipelineLayout,
                         request.backendResources().skinnedGraphicsPipeline,

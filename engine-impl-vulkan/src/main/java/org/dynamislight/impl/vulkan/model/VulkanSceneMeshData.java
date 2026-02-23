@@ -21,16 +21,24 @@ public record VulkanSceneMeshData(
         Path albedoTexturePath,
         Path normalTexturePath,
         Path metallicRoughnessTexturePath,
-        Path occlusionTexturePath
+        Path occlusionTexturePath,
+        VulkanSkinnedMeshUniforms skinnedUniforms,
+        boolean skinned,
+        int jointCount,
+        float[] morphTargetDeltas,
+        int morphTargetCount,
+        VulkanMorphTargetBuffer morphTargets
 ) {
     private static final int VERTEX_STRIDE_FLOATS = 11;
+    private static final int SKINNED_VERTEX_STRIDE_FLOATS = 16;
 
     public VulkanSceneMeshData {
         if (meshId == null || meshId.isBlank()) {
             throw new IllegalArgumentException("meshId is required");
         }
-        if (vertices == null || vertices.length < VERTEX_STRIDE_FLOATS * 3 || vertices.length % VERTEX_STRIDE_FLOATS != 0) {
-            throw new IllegalArgumentException("vertices must be interleaved as pos/normal/uv/tangent");
+        int stride = skinned ? SKINNED_VERTEX_STRIDE_FLOATS : VERTEX_STRIDE_FLOATS;
+        if (vertices == null || vertices.length < stride * 3 || vertices.length % stride != 0) {
+            throw new IllegalArgumentException("vertices must be interleaved as static(11f) or skinned(16f)");
         }
         if (indices == null || indices.length < 3 || indices.length % 3 != 0) {
             throw new IllegalArgumentException("indices must be non-empty triangles");
@@ -44,10 +52,75 @@ public record VulkanSceneMeshData(
         if (reflectionOverrideMode < 0 || reflectionOverrideMode > 3) {
             throw new IllegalArgumentException("reflectionOverrideMode must be in [0,3]");
         }
+        if (jointCount < 0) {
+            throw new IllegalArgumentException("jointCount must be >= 0");
+        }
+        if (morphTargetCount < 0) {
+            throw new IllegalArgumentException("morphTargetCount must be >= 0");
+        }
+        if (morphTargetCount > 0) {
+            int vertexCount = vertices.length / stride;
+            int expectedMorphFloats = vertexCount * morphTargetCount * 6;
+            if (morphTargetDeltas == null || morphTargetDeltas.length != expectedMorphFloats) {
+                throw new IllegalArgumentException(
+                        "morphTargetDeltas must contain " + expectedMorphFloats + " floats when morphTargetCount > 0"
+                );
+            }
+        }
     }
 
     public static VulkanSceneMeshData defaultTriangle() {
         return triangle(new float[]{1f, 1f, 1f, 1f}, 0);
+    }
+
+    public VulkanSceneMeshData(
+            String meshId,
+            float[] vertices,
+            int[] indices,
+            float[] modelMatrix,
+            float[] color,
+            float metallic,
+            float roughness,
+            float reactiveStrength,
+            boolean alphaTested,
+            boolean foliage,
+            int reflectionOverrideMode,
+            float reactiveBoost,
+            float taaHistoryClamp,
+            float emissiveReactiveBoost,
+            float reactivePreset,
+            Path albedoTexturePath,
+            Path normalTexturePath,
+            Path metallicRoughnessTexturePath,
+            Path occlusionTexturePath
+    ) {
+        this(
+                meshId,
+                vertices,
+                indices,
+                modelMatrix,
+                color,
+                metallic,
+                roughness,
+                reactiveStrength,
+                alphaTested,
+                foliage,
+                reflectionOverrideMode,
+                reactiveBoost,
+                taaHistoryClamp,
+                emissiveReactiveBoost,
+                reactivePreset,
+                albedoTexturePath,
+                normalTexturePath,
+                metallicRoughnessTexturePath,
+                occlusionTexturePath,
+                null,
+                false,
+                0,
+                null,
+                0,
+                null
+        );
     }
 
     public static VulkanSceneMeshData triangle(float[] color, int meshIndex) {
@@ -80,6 +153,12 @@ public record VulkanSceneMeshData(
                 null,
                 null,
                 null,
+                null,
+                null,
+                false,
+                0,
+                null,
+                0,
                 null
         );
     }
@@ -115,6 +194,12 @@ public record VulkanSceneMeshData(
                 null,
                 null,
                 null,
+                null,
+                null,
+                false,
+                0,
+                null,
+                0,
                 null
         );
     }

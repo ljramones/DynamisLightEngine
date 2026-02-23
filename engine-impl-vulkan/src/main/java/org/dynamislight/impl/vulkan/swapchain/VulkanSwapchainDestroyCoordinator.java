@@ -27,6 +27,9 @@ public final class VulkanSwapchainDestroyCoordinator {
         if (inputs.bindlessStaticGraphicsPipeline() != VK_NULL_HANDLE) {
             vkDestroyPipeline(inputs.device(), inputs.bindlessStaticGraphicsPipeline(), null);
         }
+        if (inputs.bindlessSkinnedGraphicsPipeline() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(inputs.device(), inputs.bindlessSkinnedGraphicsPipeline(), null);
+        }
         if (inputs.morphGraphicsPipeline() != VK_NULL_HANDLE) {
             vkDestroyPipeline(inputs.device(), inputs.morphGraphicsPipeline(), null);
         }
@@ -44,6 +47,9 @@ public final class VulkanSwapchainDestroyCoordinator {
         }
         if (inputs.bindlessStaticPipelineLayout() != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(inputs.device(), inputs.bindlessStaticPipelineLayout(), null);
+        }
+        if (inputs.bindlessSkinnedPipelineLayout() != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(inputs.device(), inputs.bindlessSkinnedPipelineLayout(), null);
         }
         if (inputs.morphPipelineLayout() != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(inputs.device(), inputs.morphPipelineLayout(), null);
@@ -89,12 +95,14 @@ public final class VulkanSwapchainDestroyCoordinator {
             long[] framebuffers,
             long graphicsPipeline,
             long bindlessStaticGraphicsPipeline,
+            long bindlessSkinnedGraphicsPipeline,
             long morphGraphicsPipeline,
             long skinnedGraphicsPipeline,
             long skinnedMorphGraphicsPipeline,
             long instancedGraphicsPipeline,
             long pipelineLayout,
             long bindlessStaticPipelineLayout,
+            long bindlessSkinnedPipelineLayout,
             long morphPipelineLayout,
             long skinnedPipelineLayout,
             long skinnedMorphPipelineLayout,
@@ -116,12 +124,14 @@ public final class VulkanSwapchainDestroyCoordinator {
             long[] framebuffers,
             long graphicsPipeline,
             long bindlessStaticGraphicsPipeline,
+            long bindlessSkinnedGraphicsPipeline,
             long morphGraphicsPipeline,
             long skinnedGraphicsPipeline,
             long skinnedMorphGraphicsPipeline,
             long instancedGraphicsPipeline,
             long pipelineLayout,
             long bindlessStaticPipelineLayout,
+            long bindlessSkinnedPipelineLayout,
             long morphPipelineLayout,
             long skinnedPipelineLayout,
             long skinnedMorphPipelineLayout,
@@ -166,6 +176,8 @@ public final class VulkanSwapchainDestroyCoordinator {
         public static Result empty() {
             return new Result(
                     new long[0],
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,

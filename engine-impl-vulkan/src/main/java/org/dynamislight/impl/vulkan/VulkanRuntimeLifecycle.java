@@ -245,6 +245,16 @@ final class VulkanRuntimeLifecycle {
             throw new EngineException(EngineErrorCode.DEVICE_LOST, "Forced Vulkan device loss on render", false);
         }
         if (mockContext) {
+            long drawCount = Math.max(0L, plannedDrawCalls);
+            long streamHash = 1469598103934665603L;
+            streamHash = (streamHash ^ drawCount) * 1099511628211L;
+            streamHash = (streamHash ^ Math.max(0L, plannedTriangles)) * 1099511628211L;
+            streamHash = (streamHash ^ Math.max(0L, plannedVisibleObjects)) * 1099511628211L;
+            boolean bindlessEnabled = Boolean.parseBoolean(System.getProperty("vk.bindless.enabled", "false"));
+            System.out.println("[BINDLESS_PARITY] enabled=" + bindlessEnabled
+                    + ", drawCount=" + drawCount
+                    + ", streamHash=" + Long.toUnsignedString(streamHash)
+                    + ", jointUsed=0, morphDeltaUsed=0, instanceUsed=0");
             return new RenderState(
                     true,
                     0.2,

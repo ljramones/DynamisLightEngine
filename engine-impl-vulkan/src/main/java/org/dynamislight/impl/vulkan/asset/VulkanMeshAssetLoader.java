@@ -90,7 +90,11 @@ public final class VulkanMeshAssetLoader {
     private VulkanGltfMeshParser.MeshGeometry cloneGeometry(VulkanGltfMeshParser.MeshGeometry geometry) {
         return new VulkanGltfMeshParser.MeshGeometry(
                 geometry.vertices().clone(),
-                geometry.indices().clone()
+                geometry.indices().clone(),
+                geometry.skinned(),
+                geometry.jointCount(),
+                geometry.morphTargetDeltas() == null ? null : geometry.morphTargetDeltas().clone(),
+                geometry.morphTargetCount()
         );
     }
 
@@ -117,7 +121,11 @@ public final class VulkanMeshAssetLoader {
                         0.6f, 0.6f, 0.0f,      0f, 0f, 1f,    1.0f, 1.0f, 1f, 0f, 0f,
                         -0.6f, 0.6f, 0.0f,     0f, 0f, 1f,    0.0f, 1.0f, 1f, 0f, 0f
                 },
-                new int[]{0, 1, 2}
+                new int[]{0, 1, 2},
+                false,
+                0,
+                null,
+                0
         );
     }
 
@@ -129,7 +137,11 @@ public final class VulkanMeshAssetLoader {
                         0.6f, 0.6f, 0.0f,      0f, 0f, 1f,    1f, 1f,    1f, 0f, 0f,
                         -0.6f, 0.6f, 0.0f,     0f, 0f, 1f,    0f, 1f,    1f, 0f, 0f
                 },
-                new int[]{0, 1, 2, 2, 3, 0}
+                new int[]{0, 1, 2, 2, 3, 0},
+                false,
+                0,
+                null,
+                0
         );
     }
 }

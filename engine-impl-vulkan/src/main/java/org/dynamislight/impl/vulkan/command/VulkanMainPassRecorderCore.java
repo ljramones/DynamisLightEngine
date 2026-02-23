@@ -142,30 +142,40 @@ final class VulkanMainPassRecorderCore {
                     && !morphDraw
                     && in.bindlessStaticGraphicsPipeline() != VK_NULL_HANDLE
                     && in.bindlessDescriptorSet() != VK_NULL_HANDLE;
+            boolean bindlessSkinnedDraw = in.bindlessActive()
+                    && !instancedDraw
+                    && !skinnedMorphDraw
+                    && mesh.skinned()
+                    && in.bindlessSkinnedGraphicsPipeline() != VK_NULL_HANDLE
+                    && in.bindlessDescriptorSet() != VK_NULL_HANDLE;
             long targetPipeline = bindlessStaticDraw
                     ? in.bindlessStaticGraphicsPipeline()
+                    : (bindlessSkinnedDraw
+                    ? in.bindlessSkinnedGraphicsPipeline()
                     : (instancedDraw
                     ? in.instancedGraphicsPipeline()
                     : (skinnedMorphDraw
                     ? in.skinnedMorphGraphicsPipeline()
                     : (mesh.skinned()
                     ? in.skinnedGraphicsPipeline()
-                    : (morphDraw ? in.morphGraphicsPipeline() : in.staticGraphicsPipeline()))));
+                    : (morphDraw ? in.morphGraphicsPipeline() : in.staticGraphicsPipeline())))));
             long targetPipelineLayout = bindlessStaticDraw
                     ? in.bindlessStaticPipelineLayout()
+                    : (bindlessSkinnedDraw
+                    ? in.bindlessSkinnedPipelineLayout()
                     : (instancedDraw
                     ? in.instancedPipelineLayout()
                     : (skinnedMorphDraw
                     ? in.skinnedMorphPipelineLayout()
                     : (mesh.skinned()
                     ? in.skinnedPipelineLayout()
-                    : (morphDraw ? in.morphPipelineLayout() : in.staticPipelineLayout()))));
+                    : (morphDraw ? in.morphPipelineLayout() : in.staticPipelineLayout())))));
             if (targetPipeline != VK_NULL_HANDLE
                     && (boundPipeline != targetPipeline || boundPipelineLayout != targetPipelineLayout)) {
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, targetPipeline);
                 boundPipeline = targetPipeline;
                 boundPipelineLayout = targetPipelineLayout;
-                if (bindlessStaticDraw) {
+                if (bindlessStaticDraw || bindlessSkinnedDraw) {
                     vkCmdBindDescriptorSets(
                             commandBuffer,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,

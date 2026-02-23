@@ -50,7 +50,15 @@ public final class SampleHostApp {
 
     public static void main(String[] args) throws Exception {
         String backendId = args.length > 0 ? args[0] : "opengl";
+        boolean forceExit = Boolean.getBoolean("dle.host.forceExit");
+        boolean headless = Boolean.getBoolean("dle.host.headless");
+        if (headless) {
+            // In subprocess/CI runs, force mock contexts to avoid GLFW/window-server requirements.
+            System.setProperty("dle.vulkan.mockContext", "true");
+            System.setProperty("dle.opengl.mockContext", "true");
+        }
         SceneOptions sceneOptions = parseSceneOptions(args);
+        String meshPath = parseStringArg(args, "--mesh=", "meshes/triangle.glb");
         boolean resourceProbe = java.util.Arrays.asList(args).contains("--resources");
         boolean compareMode = java.util.Arrays.asList(args).contains("--compare");
         boolean interactive = java.util.Arrays.asList(args).contains("--interactive");
@@ -81,7 +89,7 @@ public final class SampleHostApp {
             System.setProperty("dle.compare.vulkan.mockContext", Boolean.toString(compareVulkanMock));
             System.setProperty("dle.compare.vulkan.postOffscreen", Boolean.toString(compareVulkanOffscreen));
             Path outDir = Path.of("artifacts", "compare");
-            var report = BackendCompareHarness.run(outDir, defaultScene(sceneOptions), compareTier, compareTag);
+            var report = BackendCompareHarness.run(outDir, defaultScene(sceneOptions, meshPath), compareTier, compareTag);
             System.out.printf(
                     "compare tier=%s tag=%s glMock=%s vkMock=%s vkOffscreen=%s openGl=%s vulkan=%s diff=%.5f%n",
                     compareTier,
@@ -97,7 +105,7 @@ public final class SampleHostApp {
         }
         EngineBackendProvider provider = resolveProvider(backendId);
         EngineConfig config = defaultConfig(backendId, sceneOptions.qualityTier(), taaDebugView);
-        SceneDescriptor scene = defaultScene(sceneOptions);
+        SceneDescriptor scene = defaultScene(sceneOptions, meshPath);
         EngineConfigValidator.validate(config);
         SceneValidator.validate(scene);
 
@@ -145,17 +153,26 @@ public final class SampleHostApp {
                             currentOptions = command.updatedOptions();
                         }
                         if (command.reloadScene()) {
-                            runtime.loadScene(defaultScene(currentOptions));
+                            runtime.loadScene(defaultScene(currentOptions, meshPath));
                         }
                         if (command.quit()) {
-                            runtime.shutdown();
-                            System.out.println("Shutdown complete.");
-                            return;
+                            if (forceExit) {
+                                System.out.println("Shutdown complete.");
+                                System.exit(0);
+                            } else {
+                                runtime.shutdown();
+                                System.out.println("Shutdown complete.");
+                                return;
+                            }
                         }
                     }
                 }
             }
 
+            if (forceExit) {
+                System.out.println("Shutdown complete.");
+                System.exit(0);
+            }
             runtime.shutdown();
             System.out.println("Shutdown complete.");
         }
@@ -229,10 +246,10 @@ public final class SampleHostApp {
         }
     }
 
-    private static SceneDescriptor defaultScene(SceneOptions options) {
+    private static SceneDescriptor defaultScene(SceneOptions options, String meshPath) {
         CameraDesc camera = new CameraDesc("main-cam", new Vec3(0, 2, 5), new Vec3(0, 0, 0), 60f, 0.1f, 1000f);
         TransformDesc transform = new TransformDesc("root", new Vec3(0, 0, 0), new Vec3(0, 0, 0), new Vec3(1, 1, 1));
-        MeshDesc mesh = new MeshDesc("mesh-1", "root", "mat-1", "meshes/triangle.glb");
+        MeshDesc mesh = new MeshDesc("mesh-1", "root", "mat-1", meshPath);
         MaterialDesc material = new MaterialDesc(
                 "mat-1",
                 new Vec3(1, 1, 1),
@@ -599,6 +616,20 @@ public final class SampleHostApp {
             } catch (NumberFormatException ignored) {
                 break;
             }
+        }
+        return fallback;
+    }
+
+    private static String parseStringArg(String[] args, String key, String fallback) {
+        for (String arg : args) {
+            if (!arg.startsWith(key)) {
+                continue;
+            }
+            String raw = arg.substring(key.length()).trim();
+            if (!raw.isEmpty()) {
+                return raw;
+            }
+            break;
         }
         return fallback;
     }
