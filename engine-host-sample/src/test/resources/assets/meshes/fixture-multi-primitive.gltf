@@ -1,0 +1,49 @@
+{
+  "asset": { "version": "2.0" },
+  "buffers": [{ "uri": "data:application/octet-stream;base64,AACAvwAAAAAAAAAAzcxMvgAAAAAAAAAAmpkZv83MTD8AAAAAzcxMPgAAAAAAAAAAAACAPwAAAAAAAAAAmpkZP83MTD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAADNzMw+AAAAAM3MTD4AAIA/mpkZPwAAAAAAAIA/AAAAAM3MTD8AAIA/AACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAACAPwAAAAAAAAAAAAABAAIAAAADAAQABQA=", "byteLength": 278 }],
+  "bufferViews": [
+    { "buffer": 0, "byteOffset": 0, "byteLength": 72 },
+    { "buffer": 0, "byteOffset": 72, "byteLength": 72 },
+    { "buffer": 0, "byteOffset": 144, "byteLength": 48 },
+    { "buffer": 0, "byteOffset": 192, "byteLength": 72 },
+    { "buffer": 0, "byteOffset": 264, "byteLength": 6 },
+    { "buffer": 0, "byteOffset": 272, "byteLength": 6 }
+  ],
+  "accessors": [
+    { "bufferView": 0, "componentType": 5126, "count": 6, "type": "VEC3" },
+    { "bufferView": 1, "componentType": 5126, "count": 6, "type": "VEC3" },
+    { "bufferView": 2, "componentType": 5126, "count": 6, "type": "VEC2" },
+    { "bufferView": 3, "componentType": 5126, "count": 6, "type": "VEC3" },
+    { "bufferView": 4, "componentType": 5123, "count": 3, "type": "SCALAR" },
+    { "bufferView": 5, "componentType": 5123, "count": 3, "type": "SCALAR" }
+  ],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2,
+            "TANGENT": 3
+          },
+          "indices": 4,
+          "mode": 4
+        },
+        {
+          "attributes": {
+            "POSITION": 0,
+            "NORMAL": 1,
+            "TEXCOORD_0": 2,
+            "TANGENT": 3
+          },
+          "indices": 5,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "nodes": [{"mesh": 0}],
+  "scenes": [{"nodes": [0]}],
+  "scene": 0
+}
