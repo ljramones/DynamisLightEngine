@@ -4,7 +4,7 @@ Living capability board. Update statuses as implementation evolves.
 
 Review metadata:
 
-- Last reviewed: 2026-02-20
+- Last reviewed: 2026-02-23
 - Reviewed by: Codex (with user direction)
 - Next review trigger: any feature milestone closeout or tier-profile change
 - Latest reflection update: 2026-02-19 12:14 ET — Reflections Vulkan closeout index added (`docs/reflections-vulkan-closeout.md`) with linked checklists, exit criteria, and promotion commit ledger.
@@ -14,6 +14,7 @@ Review metadata:
 - Latest Phase C composition update: 2026-02-19 19:13 ET — Phase C shader/descriptor/profile composition completed in Vulkan (`docs/phase-c-shader-composition-checklist.md`), including composed layout runtime wiring and profile compile/cache/switch path.
 - Latest lighting contract update: 2026-02-20 09:41 ET — Lighting capability v2 descriptor/planner/telemetry scaffold added (`docs/lighting-capability-v2-checklist.md`) with typed runtime diagnostics (`lightingCapabilityDiagnostics()`).
 - Latest sky contract update: 2026-02-20 12:26 ET — Sky capability v2 descriptor/planner scaffold added (`docs/sky-contract-v2-checklist.md`) with deterministic plan warning emission (`SKY_CAPABILITY_PLAN_ACTIVE`) and lockdown coverage.
+- Latest skinned-mesh integration update: 2026-02-23 11:35 ET — Skeletal animation end-to-end landed in Vulkan scope (dual pipeline skinned path, skinned vertex shader/input, joint-palette SSBO, JOINTS_0/WEIGHTS_0 glTF parsing, and runtime `updateSkinnedMesh()` API wiring).
 
 Status legend:
 
@@ -21,13 +22,13 @@ Status legend:
 - `Partial`: present in some form, limited, experimental, or backend-specific.
 - `Not In Yet`: wishlist/target only.
 
-Status summary snapshot (2026-02-20):
+Status summary snapshot (2026-02-23):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 125 |
+| `In` | 126 |
 | `Partial` | 10 |
-| `Not In Yet` | 57 |
+| `Not In Yet` | 56 |
 
 ## Shadows
 
@@ -382,7 +383,7 @@ PBR notes:
 - Mesh streaming (progressive load, distance-prioritized) — `In`
 - Impostor/billboard (far-distance LOD replacement) — `Not In Yet`
 - Procedural geometry (runtime mesh generation, compute-driven) — `Not In Yet`
-- Skinned mesh / skeletal animation — `Not In Yet`
+- Skinned mesh / skeletal animation — `In`
 - Morph targets / blend shapes — `Not In Yet`
 - Vegetation (wind animation, alpha-tested, two-sided) — `Partial`
 
@@ -391,6 +392,7 @@ Geometry notes:
 - Vulkan now emits geometry capability/promotion telemetry (`GEOMETRY_CAPABILITY_MODE_ACTIVE`, `GEOMETRY_POLICY_ACTIVE`, `GEOMETRY_PROMOTION_ENVELOPE`, `GEOMETRY_PROMOTION_ENVELOPE_BREACH`, `GEOMETRY_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`geometryCapabilityDiagnostics()`, `geometryPromotionDiagnostics()`).
 - Geometry Phase-1 Vulkan scaffold checklist/runner are in place (`docs/geometry-phase1-checklist.md`, `scripts/geometry_phase1_lockdown.sh`) with CI lane `geometry-phase1-lockdown`.
 - Frustum culling and mesh streaming are now treated as `In` for Vulkan scope via active-path diagnostics + promotion-ready lockdown coverage; instanced rendering remains `Partial` pending full runtime execution enablement.
+- Skinned mesh / skeletal animation is now `In` for Vulkan scope: dual static/skinned main-pass pipelines, dedicated skinned vertex input + shader path, per-mesh joint-palette SSBO binding (`set=2,binding=2`), JOINTS_0/WEIGHTS_0 parsing with normalized weights + joint-count propagation, and runtime API upload path (`updateSkinnedMesh()`).
 
 ## VFX / Particles
 
