@@ -75,6 +75,7 @@ public final class VulkanLifecycleOrchestrator {
                         request.descriptorResources().descriptorSetLayout,
                         request.descriptorResources().textureDescriptorSetLayout,
                         request.descriptorResources().skinnedDescriptorSetLayout,
+                        request.backendResources().bindlessDescriptorHeap.descriptorSetLayout(),
                         request.renderState().postOffscreenRequested,
                         request.postDescriptorPlan(),
                         request.mainFragmentSource(),
@@ -89,7 +90,9 @@ public final class VulkanLifecycleOrchestrator {
                         request.backendResources().device,
                         request.backendResources().framebuffers,
                         request.backendResources().graphicsPipeline,
+                        request.backendResources().bindlessStaticGraphicsPipeline,
                         request.backendResources().pipelineLayout,
+                        request.backendResources().bindlessStaticPipelineLayout,
                         request.backendResources().morphGraphicsPipeline,
                         request.backendResources().morphPipelineLayout,
                         request.backendResources().skinnedGraphicsPipeline,
@@ -160,6 +163,8 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.renderPass = state.renderPass();
         backendResources.pipelineLayout = state.pipelineLayout();
         backendResources.graphicsPipeline = state.graphicsPipeline();
+        backendResources.bindlessStaticPipelineLayout = state.bindlessStaticPipelineLayout();
+        backendResources.bindlessStaticGraphicsPipeline = state.bindlessStaticGraphicsPipeline();
         backendResources.morphPipelineLayout = state.morphPipelineLayout();
         backendResources.morphGraphicsPipeline = state.morphGraphicsPipeline();
         backendResources.skinnedPipelineLayout = state.skinnedPipelineLayout();

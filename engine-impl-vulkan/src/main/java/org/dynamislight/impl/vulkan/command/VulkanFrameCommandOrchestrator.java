@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntUnaryOperator;
+import java.util.logging.Logger;
 
 import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
@@ -28,6 +29,7 @@ import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 
 public final class VulkanFrameCommandOrchestrator {
+    private static final Logger LOG = Logger.getLogger(VulkanFrameCommandOrchestrator.class.getName());
     private static final VulkanShadowPassRecorder SHADOW_RECORDER = new VulkanShadowPassRecorder();
     private static final VulkanPlanarReflectionPassRecorder PLANAR_RECORDER = new VulkanPlanarReflectionPassRecorder();
     private static final VulkanMainPassRecorder MAIN_RECORDER = new VulkanMainPassRecorder();
@@ -141,6 +143,9 @@ public final class VulkanFrameCommandOrchestrator {
         if (inputs.drawMetaBuffer() != null) {
             inputs.drawMetaBuffer().upload(meshes);
         }
+        LOG.info("[BINDLESS_PARITY] enabled=" + inputs.bindlessActive()
+                + ", drawCount=" + meshes.size()
+                + ", streamHash=" + Long.toUnsignedString(hashCommandStream(meshes)));
 
         VulkanRenderCommandRecorder.resetPlanarTimestampQueries(
                 commandBuffer,
@@ -185,11 +190,15 @@ public final class VulkanFrameCommandOrchestrator {
                 inputs.swapchainWidth(),
                 inputs.swapchainHeight(),
                 activeIndirectBufferHandle,
+                inputs.bindlessActive(),
+                inputs.bindlessDescriptorSet(),
                 frameDescriptorSet,
                 inputs.renderPass(),
                 inputs.framebuffers()[imageIndex],
                 inputs.mainGeometryPipeline(),
                 inputs.mainGeometryPipelineLayout(),
+                inputs.mainGeometryBindlessStaticPipeline(),
+                inputs.mainGeometryBindlessStaticPipelineLayout(),
                 inputs.mainGeometryMorphPipeline(),
                 inputs.mainGeometryMorphPipelineLayout(),
                 inputs.mainGeometrySkinnedPipeline(),
@@ -221,11 +230,15 @@ public final class VulkanFrameCommandOrchestrator {
                 inputs.swapchainWidth(),
                 inputs.swapchainHeight(),
                 activeIndirectBufferHandle,
+                inputs.bindlessActive(),
+                inputs.bindlessDescriptorSet(),
                 frameDescriptorSet,
                 inputs.renderPass(),
                 inputs.framebuffers()[imageIndex],
                 inputs.mainGeometryPipeline(),
                 inputs.mainGeometryPipelineLayout(),
+                inputs.mainGeometryBindlessStaticPipeline(),
+                inputs.mainGeometryBindlessStaticPipelineLayout(),
                 inputs.mainGeometryMorphPipeline(),
                 inputs.mainGeometryMorphPipelineLayout(),
                 inputs.mainGeometrySkinnedPipeline(),
@@ -351,6 +364,25 @@ public final class VulkanFrameCommandOrchestrator {
             return 1;
         }
         return 0;
+    }
+
+    private static long hashCommandStream(List<VulkanRenderCommandRecorder.MeshDrawCmd> meshes) {
+        long hash = 1469598103934665603L;
+        for (VulkanRenderCommandRecorder.MeshDrawCmd mesh : meshes) {
+            hash = mix(hash, mesh.indexCount());
+            hash = mix(hash, mesh.uniformMeshIndex());
+            hash = mix(hash, mesh.instanceCount());
+            hash = mix(hash, mesh.firstInstance());
+            hash = mix(hash, mesh.skinned() ? 1 : 0);
+            hash = mix(hash, mesh.morphTargeted() ? 1 : 0);
+            hash = mix(hash, mesh.instanced() ? 1 : 0);
+        }
+        return hash;
+    }
+
+    private static long mix(long hash, int value) {
+        hash ^= Integer.toUnsignedLong(value) + 0x9e3779b97f4a7c15L + (hash << 6) + (hash >>> 2);
+        return hash;
     }
 
     @FunctionalInterface
@@ -479,6 +511,8 @@ public final class VulkanFrameCommandOrchestrator {
             VulkanDrawMetaBuffer drawMetaBuffer,
             VulkanCullingComputePass cullingComputePass,
             float[] viewProjMatrix,
+            boolean bindlessActive,
+            long bindlessDescriptorSet,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,
@@ -495,6 +529,8 @@ public final class VulkanFrameCommandOrchestrator {
             long[] framebuffers,
             long mainGeometryPipeline,
             long mainGeometryPipelineLayout,
+            long mainGeometryBindlessStaticPipeline,
+            long mainGeometryBindlessStaticPipelineLayout,
             long mainGeometryMorphPipeline,
             long mainGeometryMorphPipelineLayout,
             long mainGeometrySkinnedPipeline,

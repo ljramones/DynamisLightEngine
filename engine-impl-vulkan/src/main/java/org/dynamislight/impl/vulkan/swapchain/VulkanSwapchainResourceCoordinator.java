@@ -69,6 +69,7 @@ public final class VulkanSwapchainResourceCoordinator {
                 inputs.descriptorSetLayout(),
                 inputs.textureDescriptorSetLayout(),
                 inputs.skinnedDescriptorSetLayout(),
+                inputs.bindlessDescriptorSetLayout(),
                 inputs.mainFragmentSource()
         );
         long[] framebuffers = VulkanFramebufferResources.createMainFramebuffers(
@@ -120,6 +121,8 @@ public final class VulkanSwapchainResourceCoordinator {
                 mainPipeline.renderPass(),
                 mainPipeline.pipelineLayout(),
                 mainPipeline.graphicsPipeline(),
+                mainPipeline.bindlessStaticPipelineLayout(),
+                mainPipeline.bindlessStaticGraphicsPipeline(),
                 mainPipeline.morphPipelineLayout(),
                 mainPipeline.morphGraphicsPipeline(),
                 mainPipeline.skinnedPipelineLayout(),
@@ -146,6 +149,7 @@ public final class VulkanSwapchainResourceCoordinator {
             long descriptorSetLayout,
             long textureDescriptorSetLayout,
             long skinnedDescriptorSetLayout,
+            long bindlessDescriptorSetLayout,
             boolean postOffscreenRequested,
             VulkanComposedDescriptorLayoutPlan postDescriptorPlan,
             String mainFragmentSource,
@@ -169,6 +173,8 @@ public final class VulkanSwapchainResourceCoordinator {
             long renderPass,
             long pipelineLayout,
             long graphicsPipeline,
+            long bindlessStaticPipelineLayout,
+            long bindlessStaticGraphicsPipeline,
             long morphPipelineLayout,
             long morphGraphicsPipeline,
             long skinnedPipelineLayout,

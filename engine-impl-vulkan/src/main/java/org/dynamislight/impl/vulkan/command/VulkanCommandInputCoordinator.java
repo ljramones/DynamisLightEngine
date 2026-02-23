@@ -56,6 +56,11 @@ public final class VulkanCommandInputCoordinator {
                         drawMetaBuffer,
                         request.cullingComputePass(),
                         request.viewProjMatrix(),
+                        request.backendResources().bindlessDescriptorHeap != null
+                                && request.backendResources().bindlessDescriptorHeap.active(),
+                        request.backendResources().bindlessDescriptorHeap == null
+                                ? 0L
+                                : request.backendResources().bindlessDescriptorHeap.descriptorSet(),
                         request.maxDynamicSceneObjects(),
                         request.backendResources().swapchainWidth,
                         request.backendResources().swapchainHeight,
@@ -72,6 +77,8 @@ public final class VulkanCommandInputCoordinator {
                         request.backendResources().framebuffers,
                         request.backendResources().graphicsPipeline,
                         request.backendResources().pipelineLayout,
+                        request.backendResources().bindlessStaticGraphicsPipeline,
+                        request.backendResources().bindlessStaticPipelineLayout,
                         request.backendResources().morphGraphicsPipeline,
                         request.backendResources().morphPipelineLayout,
                         request.backendResources().skinnedGraphicsPipeline,

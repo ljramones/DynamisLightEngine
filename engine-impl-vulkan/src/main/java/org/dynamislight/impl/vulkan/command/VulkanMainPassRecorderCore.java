@@ -12,6 +12,7 @@ import org.lwjgl.vulkan.VkImageMemoryBarrier;
 import org.lwjgl.vulkan.VkRenderPassBeginInfo;
 
 import static org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder.*;
+import static org.dynamislight.impl.vulkan.command.VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.VK10.*;
 
@@ -134,25 +135,46 @@ final class VulkanMainPassRecorderCore {
             boolean skinnedMorphDraw = mesh.skinned() && mesh.morphTargeted();
             boolean morphDraw = !mesh.skinned() && mesh.morphTargeted();
             boolean instancedDraw = mesh.instanced();
-            long targetPipeline = instancedDraw
+            boolean bindlessStaticDraw = in.bindlessActive()
+                    && !instancedDraw
+                    && !skinnedMorphDraw
+                    && !mesh.skinned()
+                    && !morphDraw
+                    && in.bindlessStaticGraphicsPipeline() != VK_NULL_HANDLE
+                    && in.bindlessDescriptorSet() != VK_NULL_HANDLE;
+            long targetPipeline = bindlessStaticDraw
+                    ? in.bindlessStaticGraphicsPipeline()
+                    : (instancedDraw
                     ? in.instancedGraphicsPipeline()
                     : (skinnedMorphDraw
                     ? in.skinnedMorphGraphicsPipeline()
                     : (mesh.skinned()
                     ? in.skinnedGraphicsPipeline()
-                    : (morphDraw ? in.morphGraphicsPipeline() : in.staticGraphicsPipeline())));
-            long targetPipelineLayout = instancedDraw
+                    : (morphDraw ? in.morphGraphicsPipeline() : in.staticGraphicsPipeline()))));
+            long targetPipelineLayout = bindlessStaticDraw
+                    ? in.bindlessStaticPipelineLayout()
+                    : (instancedDraw
                     ? in.instancedPipelineLayout()
                     : (skinnedMorphDraw
                     ? in.skinnedMorphPipelineLayout()
                     : (mesh.skinned()
                     ? in.skinnedPipelineLayout()
-                    : (morphDraw ? in.morphPipelineLayout() : in.staticPipelineLayout())));
+                    : (morphDraw ? in.morphPipelineLayout() : in.staticPipelineLayout()))));
             if (targetPipeline != VK_NULL_HANDLE
                     && (boundPipeline != targetPipeline || boundPipelineLayout != targetPipelineLayout)) {
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, targetPipeline);
                 boundPipeline = targetPipeline;
                 boundPipelineLayout = targetPipelineLayout;
+                if (bindlessStaticDraw) {
+                    vkCmdBindDescriptorSets(
+                            commandBuffer,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            targetPipelineLayout,
+                            3,
+                            stack.longs(in.bindlessDescriptorSet()),
+                            null
+                    );
+                }
             }
             boolean useMorphPush = morphDraw || skinnedMorphDraw;
             float morphTargetCount = useMorphPush ? (float) mesh.morphTargetCount() : 0.0f;
@@ -226,14 +248,25 @@ final class VulkanMainPassRecorderCore {
             }
             vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer()), stack.longs(0));
             vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-            vkCmdDrawIndexed(
-                    commandBuffer,
-                    mesh.indexCount(),
-                    Math.max(1, mesh.instanceCount()),
-                    0,
-                    0,
-                    mesh.firstInstance()
-            );
+            if (in.indirectDrawBuffer() != VK_NULL_HANDLE) {
+                long indirectOffset = (long) meshIndex * COMMAND_STRIDE_BYTES;
+                vkCmdDrawIndexedIndirect(
+                        commandBuffer,
+                        in.indirectDrawBuffer(),
+                        indirectOffset,
+                        1,
+                        COMMAND_STRIDE_BYTES
+                );
+            } else {
+                vkCmdDrawIndexed(
+                        commandBuffer,
+                        mesh.indexCount(),
+                        Math.max(1, mesh.instanceCount()),
+                        0,
+                        0,
+                        mesh.firstInstance()
+                );
+            }
             anyDrawn = true;
         }
         if (!anyDrawn) {
