@@ -13,6 +13,10 @@ import org.dynamislight.impl.vulkan.command.VulkanFrameCommandInputAssembler;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
 import org.dynamislight.impl.vulkan.command.VulkanFrameSubmitCoordinator;
 import org.dynamislight.impl.vulkan.command.VulkanCommandInputCoordinator;
+import org.dynamislight.impl.vulkan.command.VulkanBindlessDescriptorHeap;
+import org.dynamislight.impl.vulkan.command.VulkanCullingComputePass;
+import org.dynamislight.impl.vulkan.command.VulkanDrawMetaBuffer;
+import org.dynamislight.impl.vulkan.command.VulkanIndirectDrawBuffer;
 import org.dynamislight.impl.vulkan.descriptor.VulkanTextureDescriptorSetCoordinator;
 import org.dynamislight.impl.vulkan.lifecycle.VulkanLifecycleOrchestrator;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
@@ -103,6 +107,7 @@ public final class VulkanContext {
     private String lastGpuTimingSource = "frame_estimate";
     private double lastPlanarCaptureGpuMs = Double.NaN;
     private boolean lastPlanarCaptureGpuMsValid;
+    private long bindlessFrameSerial;
     private final VulkanSceneResourceState sceneResources = new VulkanSceneResourceState();
     private final VulkanDescriptorRingStats descriptorRingStats = new VulkanDescriptorRingStats();
     private long estimatedGpuMemoryBytes;
@@ -270,6 +275,9 @@ public final class VulkanContext {
         }
         projMatrix = matrixFromArray(updatedProjMatrix, projMatrix);
         if (backendResources.device != null && backendResources.graphicsQueue != null && backendResources.commandBuffers.length > 0 && backendResources.swapchain != VK_NULL_HANDLE) {
+            if (backendResources.bindlessDescriptorHeap != null && backendResources.bindlessDescriptorHeap.active()) {
+                backendResources.bindlessDescriptorHeap.processRetirements(bindlessFrameSerial);
+            }
             try (MemoryStack stack = stackPush()) {
                 int frameIdx = backendResources.currentFrame % backendResources.commandBuffers.length;
                 int acquireResult = acquireNextImage(stack, frameIdx);
@@ -290,6 +298,7 @@ public final class VulkanContext {
                 taaPrevViewProj = matrixFromArray(temporalHistoryUpdate.taaPrevViewProj(), taaPrevViewProj);
                 taaPrevViewProjValid = temporalHistoryUpdate.taaPrevViewProjValid();
             }
+            bindlessFrameSerial++;
         }
         promotePreviousModelMatrices();
         var aaTelemetry = VulkanTemporalAaCoordinator.updateAaTelemetry(renderState, taaConfidenceMean, taaConfidenceDropEvents);
@@ -1097,6 +1106,7 @@ public final class VulkanContext {
     }
 
     private void destroyDescriptorResources() {
+        destroyIndirectDrawBuffers();
         estimatedGpuMemoryBytes = VulkanContextDescriptorRuntimeHelper.destroyDescriptorResources(
                 backendResources,
                 descriptorResources,
@@ -1165,10 +1175,92 @@ public final class VulkanContext {
                 )
         );
         VulkanLifecycleOrchestrator.applyFrameSyncState(backendResources, state);
+        createIndirectDrawBuffers();
         VulkanSwapchainTimestampRuntimeHelper.createPlanarTimestampResources(stack, backendResources, framesInFlight);
         lastGpuTimingSource = "frame_estimate";
         lastPlanarCaptureGpuMs = Double.NaN;
         lastPlanarCaptureGpuMsValid = false;
+    }
+
+    private void createIndirectDrawBuffers() throws EngineException {
+        destroyIndirectDrawBuffers();
+        int bufferCount = Math.max(1, framesInFlight);
+        int capacity = Math.max(1, maxDynamicSceneObjects * 2);
+        backendResources.indirectDrawBuffers = new VulkanIndirectDrawBuffer[bufferCount];
+        backendResources.culledIndirectDrawBuffers = new VulkanIndirectDrawBuffer[bufferCount];
+        backendResources.drawMetaBuffers = new VulkanDrawMetaBuffer[bufferCount];
+        for (int i = 0; i < bufferCount; i++) {
+            backendResources.indirectDrawBuffers[i] = VulkanIndirectDrawBuffer.create(
+                    backendResources.device,
+                    backendResources.physicalDevice,
+                    capacity
+            );
+            backendResources.culledIndirectDrawBuffers[i] = VulkanIndirectDrawBuffer.create(
+                    backendResources.device,
+                    backendResources.physicalDevice,
+                    capacity
+            );
+            backendResources.drawMetaBuffers[i] = VulkanDrawMetaBuffer.create(
+                    backendResources.device,
+                    backendResources.physicalDevice,
+                    capacity
+            );
+        }
+        backendResources.cullingComputePass = VulkanCullingComputePass.create(
+                backendResources.device,
+                backendResources.physicalDevice,
+                maxDynamicSceneObjects,
+                backendResources.indirectDrawBuffers,
+                backendResources.culledIndirectDrawBuffers
+        );
+        boolean bindlessEnabled = Boolean.parseBoolean(System.getProperty("vk.bindless.enabled", "false"));
+        backendResources.bindlessDescriptorHeap = VulkanBindlessDescriptorHeap.create(
+                backendResources.device,
+                backendResources.physicalDevice,
+                bindlessEnabled,
+                framesInFlight
+        );
+    }
+
+    private void destroyIndirectDrawBuffers() {
+        if (backendResources.cullingComputePass != null) {
+            backendResources.cullingComputePass.destroy();
+            backendResources.cullingComputePass = null;
+        }
+        if (backendResources.bindlessDescriptorHeap != null) {
+            backendResources.bindlessDescriptorHeap.destroy(backendResources.device);
+            backendResources.bindlessDescriptorHeap = VulkanBindlessDescriptorHeap.disabled();
+        }
+        if (backendResources.indirectDrawBuffers == null) {
+            backendResources.indirectDrawBuffers = new VulkanIndirectDrawBuffer[0];
+        } else {
+            for (VulkanIndirectDrawBuffer buffer : backendResources.indirectDrawBuffers) {
+                if (buffer != null) {
+                    buffer.destroy();
+                }
+            }
+        }
+        if (backendResources.culledIndirectDrawBuffers == null) {
+            backendResources.culledIndirectDrawBuffers = new VulkanIndirectDrawBuffer[0];
+        } else {
+            for (VulkanIndirectDrawBuffer buffer : backendResources.culledIndirectDrawBuffers) {
+                if (buffer != null) {
+                    buffer.destroy();
+                }
+            }
+        }
+        if (backendResources.drawMetaBuffers == null) {
+            backendResources.drawMetaBuffers = new VulkanDrawMetaBuffer[0];
+        } else {
+            for (VulkanDrawMetaBuffer buffer : backendResources.drawMetaBuffers) {
+                if (buffer != null) {
+                    buffer.destroy();
+                }
+            }
+        }
+        backendResources.indirectDrawBuffers = new VulkanIndirectDrawBuffer[0];
+        backendResources.culledIndirectDrawBuffers = new VulkanIndirectDrawBuffer[0];
+        backendResources.drawMetaBuffers = new VulkanDrawMetaBuffer[0];
     }
 
     private void samplePlanarCaptureTimingForFrame(MemoryStack stack, int frameIdx) throws EngineException {
@@ -1220,6 +1312,7 @@ public final class VulkanContext {
     }
 
     private VulkanFrameCommandOrchestrator.Inputs buildCommandInputs(int frameIdx) {
+        float[] viewProjMatrix = matrixToArray(new Matrix4f(projMatrix).mul(viewMatrix));
         return VulkanCommandInputCoordinator.build(
                 new VulkanCommandInputCoordinator.BuildRequest(
                         sceneResources,
@@ -1228,6 +1321,8 @@ public final class VulkanContext {
                         renderState,
                         descriptorResources,
                         lightingState.pointShadowEnabled(),
+                        backendResources.cullingComputePass,
+                        viewProjMatrix,
                         frameIdx,
                         framesInFlight,
                         MAX_SHADOW_MATRICES,

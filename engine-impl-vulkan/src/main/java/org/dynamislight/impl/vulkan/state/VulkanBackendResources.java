@@ -5,6 +5,10 @@ import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkInstance;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueue;
+import org.dynamislight.impl.vulkan.command.VulkanBindlessDescriptorHeap;
+import org.dynamislight.impl.vulkan.command.VulkanCullingComputePass;
+import org.dynamislight.impl.vulkan.command.VulkanDrawMetaBuffer;
+import org.dynamislight.impl.vulkan.command.VulkanIndirectDrawBuffer;
 
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_B8G8R8A8_SRGB;
 import static org.lwjgl.vulkan.VK10.VK_FORMAT_D32_SFLOAT;
@@ -68,6 +72,11 @@ public final class VulkanBackendResources {
 
     public long commandPool = VK_NULL_HANDLE;
     public VkCommandBuffer[] commandBuffers = new VkCommandBuffer[0];
+    public VulkanIndirectDrawBuffer[] indirectDrawBuffers = new VulkanIndirectDrawBuffer[0];
+    public VulkanIndirectDrawBuffer[] culledIndirectDrawBuffers = new VulkanIndirectDrawBuffer[0];
+    public VulkanDrawMetaBuffer[] drawMetaBuffers = new VulkanDrawMetaBuffer[0];
+    public VulkanCullingComputePass cullingComputePass;
+    public VulkanBindlessDescriptorHeap bindlessDescriptorHeap = VulkanBindlessDescriptorHeap.disabled();
     public long[] imageAvailableSemaphores = new long[0];
     public long[] renderFinishedSemaphores = new long[0];
     public long[] renderFences = new long[0];

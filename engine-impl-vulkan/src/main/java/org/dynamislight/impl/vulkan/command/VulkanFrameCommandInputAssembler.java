@@ -15,6 +15,10 @@ public final class VulkanFrameCommandInputAssembler {
                 new VulkanFrameCommandInputsFactory.Inputs(
                         in.gpuMeshes(),
                         in.instanceBatches(),
+                        in.indirectDrawBuffer(),
+                        in.drawMetaBuffer(),
+                        in.cullingComputePass(),
+                        in.viewProjMatrix(),
                         in.maxDynamicSceneObjects(),
                         in.swapchainWidth(),
                         in.swapchainHeight(),
@@ -111,6 +115,10 @@ public final class VulkanFrameCommandInputAssembler {
     public record AssemblyInputs(
             List<VulkanGpuMesh> gpuMeshes,
             List<VulkanInstanceBatch> instanceBatches,
+            VulkanIndirectDrawBuffer indirectDrawBuffer,
+            VulkanDrawMetaBuffer drawMetaBuffer,
+            VulkanCullingComputePass cullingComputePass,
+            float[] viewProjMatrix,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,

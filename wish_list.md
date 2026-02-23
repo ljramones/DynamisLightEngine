@@ -16,6 +16,8 @@ Review metadata:
 - Latest sky contract update: 2026-02-20 12:26 ET — Sky capability v2 descriptor/planner scaffold added (`docs/sky-contract-v2-checklist.md`) with deterministic plan warning emission (`SKY_CAPABILITY_PLAN_ACTIVE`) and lockdown coverage.
 - Latest skinned+morph integration update: 2026-02-23 14:00 ET — Combined skinned+morph Vulkan path landed (dedicated skinned+morph vertex shader, fourth main-pass pipeline variant, static→morph→skinned→skinned+morph draw routing, and dual descriptor binding for joints+morph data).
 - Latest instanced rendering update: 2026-02-23 14:12 ET — Instanced rendering runtime path landed in Vulkan (instance batch API surface, per-batch instance SSBO at `set=2,binding=5`, dedicated instanced vertex shader/pipeline variant, and static→morph→skinned→skinned+morph→instanced draw routing).
+- Latest GPU-driven submission update: 2026-02-23 14:39 ET — Vulkan Phase 2 GPU frustum culling compute pass landed (`VulkanMeshBoundsBuffer` + `VulkanCullingComputePass` + `VulkanCullingComputeSource`) writing cull-filtered indirect command slots before the main pass.
+- Latest bindless migration update: 2026-02-23 14:56 ET — Bindless Step 1 plumbing started in Vulkan (`VulkanDrawMetaBuffer` per-frame uploads + `VulkanBindlessDescriptorHeap` scaffold) with legacy descriptor binding path preserved.
 
 Status legend:
 
@@ -28,7 +30,7 @@ Status summary snapshot (2026-02-23):
 | Status | Count |
 | --- | ---: |
 | `In` | 129 |
-| `Partial` | 9 |
+| `Partial` | 10 |
 | `Not In Yet` | 54 |
 
 ## Shadows
@@ -375,7 +377,7 @@ PBR notes:
 
 - Static mesh rendering (glTF, optimized draw) — `In`
 - Instanced rendering (per-instance transforms, material overrides) — `In`
-- GPU-driven rendering (indirect dispatch, visibility buffer) — `Not In Yet`
+- GPU-driven rendering (indirect dispatch, visibility buffer) — `Partial`
 - LOD system (discrete, cross-fade/dither transition) — `Not In Yet`
 - Continuous LOD (tessellation-driven) — `Not In Yet`
 - Virtual geometry (Nanite-class mesh streaming, cluster culling) — `Not In Yet`
@@ -398,7 +400,9 @@ Geometry notes:
 - Skinned mesh / skeletal animation is now `In` for Vulkan scope: dual static/skinned main-pass pipelines, dedicated skinned vertex input + shader path, per-mesh joint-palette SSBO binding (`set=2,binding=2`), JOINTS_0/WEIGHTS_0 parsing with normalized weights + joint-count propagation, and runtime API upload path (`updateSkinnedMesh()`).
 - Morph targets / blend shapes are now `In` for Vulkan scope: morph delta SSBO ingestion from glTF targets, per-mesh morph weight UBO upload path (`updateMorphWeights()`), dedicated morph vertex shader path, and explicit static/morph/skinned main-pass pipeline routing.
 - Skinned mesh + morph targets combined is now `In` for Vulkan scope: dedicated skinned+morph vertex shader path (morph-in-bind-pose then skin), fourth geometry pipeline variant, and combined draw-path descriptor binding for joints + morph deltas/weights.
+- GPU-driven rendering is now `Partial` for Vulkan scope: Phase 1+2 are active (`VulkanIndirectDrawBuffer` + per-frame indirect upload + GPU frustum culling compute pass with per-mesh bounds SSBO), with indirect-count dispatch and per-variant indirect batching still pending.
 - Mesh ingest now runs through MeshForge on the active Vulkan runtime path (no internal manual glTF accessor/interleave parser path): `VulkanGltfMeshParser` is now a MeshForge adapter with parser telemetry + hard-fail on parse exceptions.
+- Bindless migration Step 1 is in progress: per-frame draw metadata SSBO upload is wired through frame orchestration (`VulkanDrawMetaBuffer`), and a bindless descriptor-heap scaffold object exists (`VulkanBindlessDescriptorHeap`) while legacy per-draw descriptor binding remains the active render path.
 
 ## VFX / Particles
 

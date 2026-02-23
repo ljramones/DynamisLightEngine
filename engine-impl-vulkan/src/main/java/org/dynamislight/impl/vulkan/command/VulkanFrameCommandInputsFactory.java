@@ -13,6 +13,10 @@ public final class VulkanFrameCommandInputsFactory {
         return new VulkanFrameCommandOrchestrator.Inputs(
                 inputs.gpuMeshes(),
                 inputs.instanceBatches(),
+                inputs.indirectDrawBuffer(),
+                inputs.drawMetaBuffer(),
+                inputs.cullingComputePass(),
+                inputs.viewProjMatrix(),
                 inputs.maxDynamicSceneObjects(),
                 inputs.swapchainWidth(),
                 inputs.swapchainHeight(),
@@ -115,6 +119,10 @@ public final class VulkanFrameCommandInputsFactory {
         return new VulkanFrameCommandOrchestrator.Inputs(
                 common.gpuMeshes(),
                 common.instanceBatches(),
+                common.indirectDrawBuffer(),
+                common.drawMetaBuffer(),
+                common.cullingComputePass(),
+                common.viewProjMatrix(),
                 common.maxDynamicSceneObjects(),
                 common.swapchainWidth(),
                 common.swapchainHeight(),
@@ -210,6 +218,10 @@ public final class VulkanFrameCommandInputsFactory {
     public record Inputs(
             List<VulkanGpuMesh> gpuMeshes,
             List<VulkanInstanceBatch> instanceBatches,
+            VulkanIndirectDrawBuffer indirectDrawBuffer,
+            VulkanDrawMetaBuffer drawMetaBuffer,
+            VulkanCullingComputePass cullingComputePass,
+            float[] viewProjMatrix,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,
@@ -305,6 +317,10 @@ public final class VulkanFrameCommandInputsFactory {
     public record CommonInputs(
             List<VulkanGpuMesh> gpuMeshes,
             List<VulkanInstanceBatch> instanceBatches,
+            VulkanIndirectDrawBuffer indirectDrawBuffer,
+            VulkanDrawMetaBuffer drawMetaBuffer,
+            VulkanCullingComputePass cullingComputePass,
+            float[] viewProjMatrix,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,

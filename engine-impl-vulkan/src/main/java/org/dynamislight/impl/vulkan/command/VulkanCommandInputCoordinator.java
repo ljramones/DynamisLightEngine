@@ -16,6 +16,8 @@ public final class VulkanCommandInputCoordinator {
             VulkanRenderState renderState,
             VulkanDescriptorResourceState descriptorResources,
             boolean pointShadowEnabled,
+            VulkanCullingComputePass cullingComputePass,
+            float[] viewProjMatrix,
             int frameIdx,
             int framesInFlight,
             int maxShadowMatrices,
@@ -37,10 +39,23 @@ public final class VulkanCommandInputCoordinator {
                 request.frameIdx()
         );
 
+        VulkanIndirectDrawBuffer indirectDrawBuffer = request.frameIdx() >= 0
+                && request.frameIdx() < request.backendResources().indirectDrawBuffers.length
+                ? request.backendResources().indirectDrawBuffers[request.frameIdx()]
+                : null;
+        VulkanDrawMetaBuffer drawMetaBuffer = request.frameIdx() >= 0
+                && request.frameIdx() < request.backendResources().drawMetaBuffers.length
+                ? request.backendResources().drawMetaBuffers[request.frameIdx()]
+                : null;
+
         return VulkanFrameCommandInputAssembler.build(
                 new VulkanFrameCommandInputAssembler.AssemblyInputs(
                         request.sceneResources().gpuMeshes,
                         java.util.List.copyOf(request.sceneResources().instanceBatches.values()),
+                        indirectDrawBuffer,
+                        drawMetaBuffer,
+                        request.cullingComputePass(),
+                        request.viewProjMatrix(),
                         request.maxDynamicSceneObjects(),
                         request.backendResources().swapchainWidth,
                         request.backendResources().swapchainHeight,

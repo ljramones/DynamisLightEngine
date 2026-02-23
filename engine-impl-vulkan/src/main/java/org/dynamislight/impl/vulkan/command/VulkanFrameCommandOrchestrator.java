@@ -117,6 +117,30 @@ public final class VulkanFrameCommandOrchestrator {
             }
         }
         meshes.sort((left, right) -> Integer.compare(drawPathRank(left), drawPathRank(right)));
+        long activeIndirectBufferHandle = VK_NULL_HANDLE;
+        int activeDrawCount = meshes.size();
+        if (inputs.indirectDrawBuffer() != null) {
+            activeDrawCount = inputs.indirectDrawBuffer().upload(meshes);
+            if (activeDrawCount < meshes.size()) {
+                meshes = new ArrayList<>(meshes.subList(0, activeDrawCount));
+            }
+            activeIndirectBufferHandle = inputs.indirectDrawBuffer().bufferHandle();
+            if (inputs.cullingComputePass() != null) {
+                inputs.cullingComputePass().uploadMeshBounds(inputs.gpuMeshes());
+                inputs.cullingComputePass().dispatch(
+                        stack,
+                        commandBuffer,
+                        frameIdx,
+                        activeDrawCount,
+                        inputs.gpuMeshes().size(),
+                        inputs.viewProjMatrix()
+                );
+                activeIndirectBufferHandle = inputs.cullingComputePass().culledIndirectBufferHandle(frameIdx);
+            }
+        }
+        if (inputs.drawMetaBuffer() != null) {
+            inputs.drawMetaBuffer().upload(meshes);
+        }
 
         VulkanRenderCommandRecorder.resetPlanarTimestampQueries(
                 commandBuffer,
@@ -160,6 +184,7 @@ public final class VulkanFrameCommandOrchestrator {
                 drawCount,
                 inputs.swapchainWidth(),
                 inputs.swapchainHeight(),
+                activeIndirectBufferHandle,
                 frameDescriptorSet,
                 inputs.renderPass(),
                 inputs.framebuffers()[imageIndex],
@@ -195,6 +220,7 @@ public final class VulkanFrameCommandOrchestrator {
                 drawCount,
                 inputs.swapchainWidth(),
                 inputs.swapchainHeight(),
+                activeIndirectBufferHandle,
                 frameDescriptorSet,
                 inputs.renderPass(),
                 inputs.framebuffers()[imageIndex],
@@ -449,6 +475,10 @@ public final class VulkanFrameCommandOrchestrator {
     public record Inputs(
             List<VulkanGpuMesh> gpuMeshes,
             List<VulkanInstanceBatch> instanceBatches,
+            VulkanIndirectDrawBuffer indirectDrawBuffer,
+            VulkanDrawMetaBuffer drawMetaBuffer,
+            VulkanCullingComputePass cullingComputePass,
+            float[] viewProjMatrix,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,
