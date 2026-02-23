@@ -74,6 +74,7 @@ public final class VulkanLifecycleOrchestrator {
                         request.vertexStrideBytes(),
                         request.descriptorResources().descriptorSetLayout,
                         request.descriptorResources().textureDescriptorSetLayout,
+                        request.descriptorResources().skinnedDescriptorSetLayout,
                         request.renderState().postOffscreenRequested,
                         request.postDescriptorPlan(),
                         request.mainFragmentSource(),
@@ -89,6 +90,12 @@ public final class VulkanLifecycleOrchestrator {
                         request.backendResources().framebuffers,
                         request.backendResources().graphicsPipeline,
                         request.backendResources().pipelineLayout,
+                        request.backendResources().morphGraphicsPipeline,
+                        request.backendResources().morphPipelineLayout,
+                        request.backendResources().skinnedGraphicsPipeline,
+                        request.backendResources().skinnedPipelineLayout,
+                        request.backendResources().skinnedMorphGraphicsPipeline,
+                        request.backendResources().skinnedMorphPipelineLayout,
                         request.backendResources().renderPass,
                         request.backendResources().swapchainImageViews,
                         request.backendResources().depthImages,
@@ -151,6 +158,12 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.renderPass = state.renderPass();
         backendResources.pipelineLayout = state.pipelineLayout();
         backendResources.graphicsPipeline = state.graphicsPipeline();
+        backendResources.morphPipelineLayout = state.morphPipelineLayout();
+        backendResources.morphGraphicsPipeline = state.morphGraphicsPipeline();
+        backendResources.skinnedPipelineLayout = state.skinnedPipelineLayout();
+        backendResources.skinnedGraphicsPipeline = state.skinnedGraphicsPipeline();
+        backendResources.skinnedMorphPipelineLayout = state.skinnedMorphPipelineLayout();
+        backendResources.skinnedMorphGraphicsPipeline = state.skinnedMorphGraphicsPipeline();
         backendResources.framebuffers = state.framebuffers();
         renderState.postOffscreenActive = state.postOffscreenActive();
         backendResources.offscreenColorImage = state.offscreenColorImage();

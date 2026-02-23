@@ -118,33 +118,93 @@ final class VulkanMainPassRecorderCore {
                 .extent(org.lwjgl.vulkan.VkExtent2D.calloc(stack).set(in.swapchainWidth(), in.swapchainHeight()));
 
         vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, in.graphicsPipeline());
         boolean planarClipEnabled = (in.reflectionsMode() & REFLECTION_MODE_PLANAR_CLIP_BIT) != 0;
         float planarCaptureFlag = planarSelectiveOnly ? 1.0f : 0.0f;
         float planarHeight = planarClipEnabled ? in.reflectionsPlanarPlaneHeight() : -10_000.0f;
         ByteBuffer planarPush = stack.malloc(4 * Float.BYTES);
         planarPush.asFloatBuffer().put(new float[]{planarCaptureFlag, planarHeight, 0.0f, 0.0f});
-        vkCmdPushConstants(
-                commandBuffer,
-                in.pipelineLayout(),
-                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                0,
-                planarPush
-        );
+        long boundPipeline = VK_NULL_HANDLE;
+        long boundPipelineLayout = VK_NULL_HANDLE;
         boolean anyDrawn = false;
         for (int meshIndex = 0; meshIndex < in.drawCount() && meshIndex < meshes.size(); meshIndex++) {
             MeshDrawCmd mesh = meshes.get(meshIndex);
             if (planarSelectiveOnly && !isPlanarEligible(mesh.reflectionOverrideMode(), in.reflectionsMode())) {
                 continue;
             }
+            boolean skinnedMorphDraw = mesh.skinned() && mesh.morphTargeted();
+            boolean morphDraw = !mesh.skinned() && mesh.morphTargeted();
+            long targetPipeline = skinnedMorphDraw
+                    ? in.skinnedMorphGraphicsPipeline()
+                    : (mesh.skinned()
+                    ? in.skinnedGraphicsPipeline()
+                    : (morphDraw ? in.morphGraphicsPipeline() : in.staticGraphicsPipeline()));
+            long targetPipelineLayout = skinnedMorphDraw
+                    ? in.skinnedMorphPipelineLayout()
+                    : (mesh.skinned()
+                    ? in.skinnedPipelineLayout()
+                    : (morphDraw ? in.morphPipelineLayout() : in.staticPipelineLayout()));
+            if (targetPipeline != VK_NULL_HANDLE
+                    && (boundPipeline != targetPipeline || boundPipelineLayout != targetPipelineLayout)) {
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, targetPipeline);
+                boundPipeline = targetPipeline;
+                boundPipelineLayout = targetPipelineLayout;
+            }
+            boolean useMorphPush = morphDraw || skinnedMorphDraw;
+            float morphTargetCount = useMorphPush ? (float) mesh.morphTargetCount() : 0.0f;
+            float morphVertexCount = useMorphPush ? (float) mesh.morphVertexCount() : 0.0f;
+            planarPush.clear();
+            planarPush.asFloatBuffer().put(new float[]{planarCaptureFlag, planarHeight, morphTargetCount, morphVertexCount});
+            vkCmdPushConstants(
+                    commandBuffer,
+                    targetPipelineLayout,
+                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                    0,
+                    planarPush
+            );
             if (in.frameDescriptorSet() != VK_NULL_HANDLE && mesh.textureDescriptorSet() != VK_NULL_HANDLE) {
                 vkCmdBindDescriptorSets(
                         commandBuffer,
                         VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        in.pipelineLayout(),
+                        targetPipelineLayout,
                         0,
                         stack.longs(in.frameDescriptorSet(), mesh.textureDescriptorSet()),
                         stack.ints(dynamicUniformOffset.applyAsInt(meshIndex))
+                );
+            }
+            if (mesh.skinned() && mesh.skinningBufferHandle() != VK_NULL_HANDLE) {
+                vkCmdBindDescriptorSets(
+                        commandBuffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        targetPipelineLayout,
+                        2,
+                        stack.longs(mesh.skinningBufferHandle()),
+                        null
+                    );
+            }
+            if (mesh.skinned()
+                    && mesh.morphTargeted()
+                    && mesh.morphDescriptorSetHandle() != VK_NULL_HANDLE
+                    && targetPipelineLayout == in.skinnedMorphPipelineLayout()) {
+                vkCmdBindDescriptorSets(
+                        commandBuffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        targetPipelineLayout,
+                        3,
+                        stack.longs(mesh.morphDescriptorSetHandle()),
+                        null
+                );
+            }
+            if (!mesh.skinned()
+                    && mesh.morphTargeted()
+                    && mesh.morphDescriptorSetHandle() != VK_NULL_HANDLE
+                    && targetPipelineLayout == in.morphPipelineLayout()) {
+                vkCmdBindDescriptorSets(
+                        commandBuffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        targetPipelineLayout,
+                        2,
+                        stack.longs(mesh.morphDescriptorSetHandle()),
+                        null
                 );
             }
             vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer()), stack.longs(0));
@@ -153,6 +213,16 @@ final class VulkanMainPassRecorderCore {
             anyDrawn = true;
         }
         if (!anyDrawn) {
+            if (in.staticGraphicsPipeline() != VK_NULL_HANDLE) {
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, in.staticGraphicsPipeline());
+                vkCmdPushConstants(
+                        commandBuffer,
+                        in.staticPipelineLayout(),
+                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                        0,
+                        planarPush
+                );
+            }
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         }
         vkCmdEndRenderPass(commandBuffer);

@@ -149,8 +149,14 @@ public final class VulkanRenderCommandRecorder {
                         in.frameDescriptorSet(),
                         in.renderPass(),
                         in.framebuffer(),
-                        in.graphicsPipeline(),
-                        in.pipelineLayout(),
+                        in.staticGraphicsPipeline(),
+                        in.staticPipelineLayout(),
+                        in.morphGraphicsPipeline(),
+                        in.morphPipelineLayout(),
+                        in.skinnedGraphicsPipeline(),
+                        in.skinnedPipelineLayout(),
+                        in.skinnedMorphGraphicsPipeline(),
+                        in.skinnedMorphPipelineLayout(),
                         in.reflectionsMode(),
                         in.reflectionsPlanarPlaneHeight(),
                         in.planarTimestampQueryPool(),
@@ -174,8 +180,14 @@ public final class VulkanRenderCommandRecorder {
                         in.frameDescriptorSet(),
                         in.renderPass(),
                         in.framebuffer(),
-                        in.graphicsPipeline(),
-                        in.pipelineLayout(),
+                        in.staticGraphicsPipeline(),
+                        in.staticPipelineLayout(),
+                        in.morphGraphicsPipeline(),
+                        in.morphPipelineLayout(),
+                        in.skinnedGraphicsPipeline(),
+                        in.skinnedPipelineLayout(),
+                        in.skinnedMorphGraphicsPipeline(),
+                        in.skinnedMorphPipelineLayout(),
                         in.reflectionsMode(),
                         in.reflectionsPlanarPlaneHeight()
                 ),
@@ -284,7 +296,19 @@ public final class VulkanRenderCommandRecorder {
         return VulkanRenderCommandRecorderCore.executePostCompositePass(stack, commandBuffer, in);
     }
 
-    public record MeshDrawCmd(long vertexBuffer, long indexBuffer, int indexCount, long textureDescriptorSet, int reflectionOverrideMode) {
+    public record MeshDrawCmd(
+            long vertexBuffer,
+            long indexBuffer,
+            int indexCount,
+            long textureDescriptorSet,
+            int reflectionOverrideMode,
+            boolean skinned,
+            long skinningBufferHandle,
+            boolean morphTargeted,
+            long morphDescriptorSetHandle,
+            int morphTargetCount,
+            int morphVertexCount
+    ) {
     }
 
     public record ShadowPassInputs(
@@ -308,10 +332,43 @@ public final class VulkanRenderCommandRecorder {
     ) {
         RenderPassInputs toRenderPassInputsShadowView() {
             return new RenderPassInputs(
-                    drawCount, 0, 0, shadowMapResolution, shadowEnabled, pointShadowEnabled, shadowCascadeCount, maxShadowMatrices,
-                    maxShadowCascades, pointShadowFaces, frameDescriptorSet, 0L, 0L, 0L, 0L, shadowRenderPass,
-                    shadowPipeline, shadowPipelineLayout, shadowFramebuffers, shadowMomentImage, shadowMomentMipLevels,
-                    shadowMomentPipelineRequested, shadowMomentInitialized, 0, 0L, -1, -1, false, 0L, 0L, 0f
+                    drawCount,
+                    0,
+                    0,
+                    shadowMapResolution,
+                    shadowEnabled,
+                    pointShadowEnabled,
+                    shadowCascadeCount,
+                    maxShadowMatrices,
+                    maxShadowCascades,
+                    pointShadowFaces,
+                    frameDescriptorSet,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
+                    shadowRenderPass,
+                    shadowPipeline,
+                    shadowPipelineLayout,
+                    shadowFramebuffers,
+                    shadowMomentImage,
+                    shadowMomentMipLevels,
+                    shadowMomentPipelineRequested,
+                    shadowMomentInitialized,
+                    0,
+                    0L,
+                    -1,
+                    -1,
+                    false,
+                    0L,
+                    0L,
+                    0f
             );
         }
     }
@@ -323,8 +380,14 @@ public final class VulkanRenderCommandRecorder {
             long frameDescriptorSet,
             long renderPass,
             long framebuffer,
-            long graphicsPipeline,
-            long pipelineLayout,
+            long staticGraphicsPipeline,
+            long staticPipelineLayout,
+            long morphGraphicsPipeline,
+            long morphPipelineLayout,
+            long skinnedGraphicsPipeline,
+            long skinnedPipelineLayout,
+            long skinnedMorphGraphicsPipeline,
+            long skinnedMorphPipelineLayout,
             int reflectionsMode,
             float reflectionsPlanarPlaneHeight
     ) {
@@ -337,8 +400,14 @@ public final class VulkanRenderCommandRecorder {
             long frameDescriptorSet,
             long renderPass,
             long framebuffer,
-            long graphicsPipeline,
-            long pipelineLayout,
+            long staticGraphicsPipeline,
+            long staticPipelineLayout,
+            long morphGraphicsPipeline,
+            long morphPipelineLayout,
+            long skinnedGraphicsPipeline,
+            long skinnedPipelineLayout,
+            long skinnedMorphGraphicsPipeline,
+            long skinnedMorphPipelineLayout,
             int reflectionsMode,
             float reflectionsPlanarPlaneHeight,
             long planarTimestampQueryPool,
@@ -353,14 +422,20 @@ public final class VulkanRenderCommandRecorder {
                     drawCount,
                     swapchainWidth,
                     swapchainHeight,
-                    frameDescriptorSet,
-                    renderPass,
-                    framebuffer,
-                    graphicsPipeline,
-                    pipelineLayout,
-                    reflectionsMode,
-                    reflectionsPlanarPlaneHeight
-            );
+                        frameDescriptorSet,
+                        renderPass,
+                        framebuffer,
+                        staticGraphicsPipeline,
+                        staticPipelineLayout,
+                        morphGraphicsPipeline,
+                        morphPipelineLayout,
+                        skinnedGraphicsPipeline,
+                        skinnedPipelineLayout,
+                        skinnedMorphGraphicsPipeline,
+                        skinnedMorphPipelineLayout,
+                        reflectionsMode,
+                        reflectionsPlanarPlaneHeight
+                );
         }
     }
 
@@ -378,8 +453,14 @@ public final class VulkanRenderCommandRecorder {
             long frameDescriptorSet,
             long renderPass,
             long framebuffer,
-            long graphicsPipeline,
-            long pipelineLayout,
+            long staticGraphicsPipeline,
+            long staticPipelineLayout,
+            long morphGraphicsPipeline,
+            long morphPipelineLayout,
+            long skinnedGraphicsPipeline,
+            long skinnedPipelineLayout,
+            long skinnedMorphGraphicsPipeline,
+            long skinnedMorphPipelineLayout,
             long shadowRenderPass,
             long shadowPipeline,
             long shadowPipelineLayout,

@@ -24,8 +24,26 @@ public final class VulkanSwapchainDestroyCoordinator {
         if (inputs.graphicsPipeline() != VK_NULL_HANDLE) {
             vkDestroyPipeline(inputs.device(), inputs.graphicsPipeline(), null);
         }
+        if (inputs.morphGraphicsPipeline() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(inputs.device(), inputs.morphGraphicsPipeline(), null);
+        }
+        if (inputs.skinnedGraphicsPipeline() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(inputs.device(), inputs.skinnedGraphicsPipeline(), null);
+        }
+        if (inputs.skinnedMorphGraphicsPipeline() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(inputs.device(), inputs.skinnedMorphGraphicsPipeline(), null);
+        }
         if (inputs.pipelineLayout() != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(inputs.device(), inputs.pipelineLayout(), null);
+        }
+        if (inputs.morphPipelineLayout() != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(inputs.device(), inputs.morphPipelineLayout(), null);
+        }
+        if (inputs.skinnedPipelineLayout() != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(inputs.device(), inputs.skinnedPipelineLayout(), null);
+        }
+        if (inputs.skinnedMorphPipelineLayout() != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(inputs.device(), inputs.skinnedMorphPipelineLayout(), null);
         }
         if (inputs.renderPass() != VK_NULL_HANDLE) {
             vkDestroyRenderPass(inputs.device(), inputs.renderPass(), null);
@@ -58,7 +76,13 @@ public final class VulkanSwapchainDestroyCoordinator {
             VkDevice device,
             long[] framebuffers,
             long graphicsPipeline,
+            long morphGraphicsPipeline,
+            long skinnedGraphicsPipeline,
+            long skinnedMorphGraphicsPipeline,
             long pipelineLayout,
+            long morphPipelineLayout,
+            long skinnedPipelineLayout,
+            long skinnedMorphPipelineLayout,
             long renderPass,
             long[] swapchainImageViews,
             long[] depthImages,
@@ -75,7 +99,13 @@ public final class VulkanSwapchainDestroyCoordinator {
     public record Result(
             long[] framebuffers,
             long graphicsPipeline,
+            long morphGraphicsPipeline,
+            long skinnedGraphicsPipeline,
+            long skinnedMorphGraphicsPipeline,
             long pipelineLayout,
+            long morphPipelineLayout,
+            long skinnedPipelineLayout,
+            long skinnedMorphPipelineLayout,
             long renderPass,
             long[] swapchainImageViews,
             long[] depthImages,
@@ -116,6 +146,12 @@ public final class VulkanSwapchainDestroyCoordinator {
         public static Result empty() {
             return new Result(
                     new long[0],
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,

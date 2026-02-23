@@ -55,6 +55,12 @@ public final class VulkanBackendResources {
     public long renderPass = VK_NULL_HANDLE;
     public long pipelineLayout = VK_NULL_HANDLE;
     public long graphicsPipeline = VK_NULL_HANDLE;
+    public long morphPipelineLayout = VK_NULL_HANDLE;
+    public long morphGraphicsPipeline = VK_NULL_HANDLE;
+    public long skinnedPipelineLayout = VK_NULL_HANDLE;
+    public long skinnedGraphicsPipeline = VK_NULL_HANDLE;
+    public long skinnedMorphPipelineLayout = VK_NULL_HANDLE;
+    public long skinnedMorphGraphicsPipeline = VK_NULL_HANDLE;
     public long[] framebuffers = new long[0];
 
     public long commandPool = VK_NULL_HANDLE;

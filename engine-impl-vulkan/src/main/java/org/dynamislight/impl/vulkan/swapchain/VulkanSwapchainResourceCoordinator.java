@@ -68,6 +68,7 @@ public final class VulkanSwapchainResourceCoordinator {
                 inputs.vertexStrideBytes(),
                 inputs.descriptorSetLayout(),
                 inputs.textureDescriptorSetLayout(),
+                inputs.skinnedDescriptorSetLayout(),
                 inputs.mainFragmentSource()
         );
         long[] framebuffers = VulkanFramebufferResources.createMainFramebuffers(
@@ -119,6 +120,12 @@ public final class VulkanSwapchainResourceCoordinator {
                 mainPipeline.renderPass(),
                 mainPipeline.pipelineLayout(),
                 mainPipeline.graphicsPipeline(),
+                mainPipeline.morphPipelineLayout(),
+                mainPipeline.morphGraphicsPipeline(),
+                mainPipeline.skinnedPipelineLayout(),
+                mainPipeline.skinnedGraphicsPipeline(),
+                mainPipeline.skinnedMorphPipelineLayout(),
+                mainPipeline.skinnedMorphGraphicsPipeline(),
                 framebuffers,
                 postProcessResources,
                 postOffscreenActive
@@ -136,6 +143,7 @@ public final class VulkanSwapchainResourceCoordinator {
             int vertexStrideBytes,
             long descriptorSetLayout,
             long textureDescriptorSetLayout,
+            long skinnedDescriptorSetLayout,
             boolean postOffscreenRequested,
             VulkanComposedDescriptorLayoutPlan postDescriptorPlan,
             String mainFragmentSource,
@@ -159,6 +167,12 @@ public final class VulkanSwapchainResourceCoordinator {
             long renderPass,
             long pipelineLayout,
             long graphicsPipeline,
+            long morphPipelineLayout,
+            long morphGraphicsPipeline,
+            long skinnedPipelineLayout,
+            long skinnedGraphicsPipeline,
+            long skinnedMorphPipelineLayout,
+            long skinnedMorphGraphicsPipeline,
             long[] framebuffers,
             VulkanPostProcessResources.Allocation postProcessResources,
             boolean postOffscreenActive

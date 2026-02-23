@@ -14,7 +14,7 @@ Review metadata:
 - Latest Phase C composition update: 2026-02-19 19:13 ET — Phase C shader/descriptor/profile composition completed in Vulkan (`docs/phase-c-shader-composition-checklist.md`), including composed layout runtime wiring and profile compile/cache/switch path.
 - Latest lighting contract update: 2026-02-20 09:41 ET — Lighting capability v2 descriptor/planner/telemetry scaffold added (`docs/lighting-capability-v2-checklist.md`) with typed runtime diagnostics (`lightingCapabilityDiagnostics()`).
 - Latest sky contract update: 2026-02-20 12:26 ET — Sky capability v2 descriptor/planner scaffold added (`docs/sky-contract-v2-checklist.md`) with deterministic plan warning emission (`SKY_CAPABILITY_PLAN_ACTIVE`) and lockdown coverage.
-- Latest skinned-mesh integration update: 2026-02-23 11:35 ET — Skeletal animation end-to-end landed in Vulkan scope (dual pipeline skinned path, skinned vertex shader/input, joint-palette SSBO, JOINTS_0/WEIGHTS_0 glTF parsing, and runtime `updateSkinnedMesh()` API wiring).
+- Latest skinned+morph integration update: 2026-02-23 14:00 ET — Combined skinned+morph Vulkan path landed (dedicated skinned+morph vertex shader, fourth main-pass pipeline variant, static→morph→skinned→skinned+morph draw routing, and dual descriptor binding for joints+morph data).
 
 Status legend:
 
@@ -26,9 +26,9 @@ Status summary snapshot (2026-02-23):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 127 |
+| `In` | 128 |
 | `Partial` | 10 |
-| `Not In Yet` | 55 |
+| `Not In Yet` | 54 |
 
 ## Shadows
 
@@ -385,6 +385,7 @@ PBR notes:
 - Procedural geometry (runtime mesh generation, compute-driven) — `Not In Yet`
 - Skinned mesh / skeletal animation — `In`
 - Morph targets / blend shapes — `In`
+- Skinned mesh + morph targets combined — `In`
 - Vegetation (wind animation, alpha-tested, two-sided) — `Partial`
 
 Geometry notes:
@@ -394,6 +395,7 @@ Geometry notes:
 - Frustum culling and mesh streaming are now treated as `In` for Vulkan scope via active-path diagnostics + promotion-ready lockdown coverage; instanced rendering remains `Partial` pending full runtime execution enablement.
 - Skinned mesh / skeletal animation is now `In` for Vulkan scope: dual static/skinned main-pass pipelines, dedicated skinned vertex input + shader path, per-mesh joint-palette SSBO binding (`set=2,binding=2`), JOINTS_0/WEIGHTS_0 parsing with normalized weights + joint-count propagation, and runtime API upload path (`updateSkinnedMesh()`).
 - Morph targets / blend shapes are now `In` for Vulkan scope: morph delta SSBO ingestion from glTF targets, per-mesh morph weight UBO upload path (`updateMorphWeights()`), dedicated morph vertex shader path, and explicit static/morph/skinned main-pass pipeline routing.
+- Skinned mesh + morph targets combined is now `In` for Vulkan scope: dedicated skinned+morph vertex shader path (morph-in-bind-pose then skin), fourth geometry pipeline variant, and combined draw-path descriptor binding for joints + morph deltas/weights.
 - Mesh ingest now runs through MeshForge on the active Vulkan runtime path (no internal manual glTF accessor/interleave parser path): `VulkanGltfMeshParser` is now a MeshForge adapter with parser telemetry + hard-fail on parse exceptions.
 
 ## VFX / Particles

@@ -24,6 +24,7 @@ import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_GENERAL;
 import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
 
 public final class VulkanFrameCommandOrchestrator {
     private static final VulkanShadowPassRecorder SHADOW_RECORDER = new VulkanShadowPassRecorder();
@@ -67,9 +68,16 @@ public final class VulkanFrameCommandOrchestrator {
                     mesh.indexBuffer,
                     mesh.indexCount,
                     mesh.textureDescriptorSet,
-                    mesh.reflectionOverrideMode
+                    mesh.reflectionOverrideMode,
+                    mesh.skinned,
+                    mesh.skinningBufferHandle,
+                    mesh.morphTargetCount > 0 && mesh.morphDescriptorSetHandle != VK_NULL_HANDLE,
+                    mesh.morphDescriptorSetHandle,
+                    mesh.morphTargetCount,
+                    mesh.morphTargets == null ? 0 : mesh.morphTargets.vertexCount()
             ));
         }
+        meshes.sort((left, right) -> Integer.compare(drawPathRank(left), drawPathRank(right)));
 
         VulkanRenderCommandRecorder.resetPlanarTimestampQueries(
                 commandBuffer,
@@ -115,8 +123,14 @@ public final class VulkanFrameCommandOrchestrator {
                 frameDescriptorSet,
                 inputs.renderPass(),
                 inputs.framebuffers()[imageIndex],
-                inputs.graphicsPipeline(),
-                inputs.pipelineLayout(),
+                inputs.mainGeometryPipeline(),
+                inputs.mainGeometryPipelineLayout(),
+                inputs.mainGeometryMorphPipeline(),
+                inputs.mainGeometryMorphPipelineLayout(),
+                inputs.mainGeometrySkinnedPipeline(),
+                inputs.mainGeometrySkinnedPipelineLayout(),
+                inputs.mainGeometrySkinnedMorphPipeline(),
+                inputs.mainGeometrySkinnedMorphPipelineLayout(),
                 inputs.reflectionsMode(),
                 inputs.reflectionsPlanarPlaneHeight(),
                 inputs.planarTimestampQueryPool(),
@@ -142,8 +156,14 @@ public final class VulkanFrameCommandOrchestrator {
                 frameDescriptorSet,
                 inputs.renderPass(),
                 inputs.framebuffers()[imageIndex],
-                inputs.graphicsPipeline(),
-                inputs.pipelineLayout(),
+                inputs.mainGeometryPipeline(),
+                inputs.mainGeometryPipelineLayout(),
+                inputs.mainGeometryMorphPipeline(),
+                inputs.mainGeometryMorphPipelineLayout(),
+                inputs.mainGeometrySkinnedPipeline(),
+                inputs.mainGeometrySkinnedPipelineLayout(),
+                inputs.mainGeometrySkinnedMorphPipeline(),
+                inputs.mainGeometrySkinnedMorphPipelineLayout(),
                 inputs.reflectionsMode(),
                 inputs.reflectionsPlanarPlaneHeight()
         );
@@ -245,6 +265,19 @@ public final class VulkanFrameCommandOrchestrator {
         if (endResult != VK10.VK_SUCCESS) {
             throw inputs.vkFailure().failure("vkEndCommandBuffer", endResult);
         }
+    }
+
+    private static int drawPathRank(VulkanRenderCommandRecorder.MeshDrawCmd mesh) {
+        if (mesh.skinned() && mesh.morphTargeted()) {
+            return 3;
+        }
+        if (mesh.skinned()) {
+            return 2;
+        }
+        if (mesh.morphTargeted()) {
+            return 1;
+        }
+        return 0;
     }
 
     @FunctionalInterface
@@ -382,8 +415,14 @@ public final class VulkanFrameCommandOrchestrator {
             int pointShadowFaces,
             long renderPass,
             long[] framebuffers,
-            long graphicsPipeline,
-            long pipelineLayout,
+            long mainGeometryPipeline,
+            long mainGeometryPipelineLayout,
+            long mainGeometryMorphPipeline,
+            long mainGeometryMorphPipelineLayout,
+            long mainGeometrySkinnedPipeline,
+            long mainGeometrySkinnedPipelineLayout,
+            long mainGeometrySkinnedMorphPipeline,
+            long mainGeometrySkinnedMorphPipelineLayout,
             long shadowRenderPass,
             long shadowPipeline,
             long shadowPipelineLayout,
