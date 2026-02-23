@@ -463,7 +463,7 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.planarCaptureImage(),
                         inputs.swapchainImageFormat(),
                         VK_IMAGE_ASPECT_COLOR_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 )
                 .bind(
                         "scene_color",
