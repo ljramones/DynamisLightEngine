@@ -343,32 +343,20 @@ public final class VulkanDescriptorResources {
             int framesInFlight,
             java.util.List<VulkanComposedDescriptorBinding> set0Bindings
     ) throws EngineException {
-        int ub = 0;
-        int ubd = 0;
-        int ssbo = 0;
+        java.util.Map<Integer, Integer> descriptorCountsByType = new java.util.LinkedHashMap<>();
         for (VulkanComposedDescriptorBinding binding : set0Bindings) {
-            switch (binding.type()) {
-                case UNIFORM_BUFFER -> {
-                    if (binding.bindingIndex() == 1) {
-                        ubd++;
-                    } else {
-                        ub++;
-                    }
-                }
-                case STORAGE_BUFFER -> ssbo++;
-                default -> {
-                }
-            }
+            int descriptorType = toVkDescriptorType(binding);
+            descriptorCountsByType.merge(descriptorType, 1, Integer::sum);
         }
+
         java.util.ArrayList<VkDescriptorPoolSize> poolList = new java.util.ArrayList<>();
-        if (ub > 0) {
-            poolList.add(VkDescriptorPoolSize.calloc(stack).type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER).descriptorCount(framesInFlight * ub));
-        }
-        if (ubd > 0) {
-            poolList.add(VkDescriptorPoolSize.calloc(stack).type(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC).descriptorCount(framesInFlight * ubd));
-        }
-        if (ssbo > 0) {
-            poolList.add(VkDescriptorPoolSize.calloc(stack).type(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER).descriptorCount(framesInFlight * ssbo));
+        for (java.util.Map.Entry<Integer, Integer> entry : descriptorCountsByType.entrySet()) {
+            int perSetCount = Math.max(1, entry.getValue());
+            poolList.add(
+                    VkDescriptorPoolSize.calloc(stack)
+                            .type(entry.getKey())
+                            .descriptorCount(framesInFlight * perSetCount)
+            );
         }
         VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(Math.max(1, poolList.size()), stack);
         for (int i = 0; i < poolList.size(); i++) {
