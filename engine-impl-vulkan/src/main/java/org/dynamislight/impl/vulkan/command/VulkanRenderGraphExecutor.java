@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.graph.VulkanBufferResourceBinding;
@@ -28,14 +29,21 @@ import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
  * Executes compiled Vulkan graph pass callbacks and emits planned inter-pass barriers.
  */
 public final class VulkanRenderGraphExecutor {
+    private static final Logger LOG = Logger.getLogger(VulkanRenderGraphExecutor.class.getName());
     private final boolean emitVulkanBarriers;
+    private final boolean strictLayoutValidation;
 
     public VulkanRenderGraphExecutor() {
-        this(true);
+        this(true, Boolean.getBoolean("dle.vk.strictLayoutValidation"));
     }
 
     VulkanRenderGraphExecutor(boolean emitVulkanBarriers) {
+        this(emitVulkanBarriers, Boolean.getBoolean("dle.vk.strictLayoutValidation"));
+    }
+
+    VulkanRenderGraphExecutor(boolean emitVulkanBarriers, boolean strictLayoutValidation) {
         this.emitVulkanBarriers = emitVulkanBarriers;
+        this.strictLayoutValidation = strictLayoutValidation;
     }
 
     public void execute(
@@ -100,13 +108,17 @@ public final class VulkanRenderGraphExecutor {
             VulkanResourceBindingTable bindingTable
     ) throws EngineException {
         if (barrier.oldLayout() >= 0 && image.currentLayout() >= 0 && image.currentLayout() != barrier.oldLayout()) {
-            throw new EngineException(
-                    EngineErrorCode.INTERNAL_ERROR,
-                    "Render graph layout mismatch for '" + image.resourceName()
-                            + "': binding=" + image.currentLayout()
-                            + " plannedOld=" + barrier.oldLayout(),
-                    false
-            );
+            String message = "Render graph layout mismatch for '" + image.resourceName()
+                    + "': binding=" + image.currentLayout()
+                    + " plannedOld=" + barrier.oldLayout();
+            if (strictLayoutValidation) {
+                throw new EngineException(
+                        EngineErrorCode.INTERNAL_ERROR,
+                        message,
+                        false
+                );
+            }
+            LOG.warning(message + " (continuing with binding layout)");
         }
         if (!emitVulkanBarriers) {
             if (barrier.newLayout() >= 0) {

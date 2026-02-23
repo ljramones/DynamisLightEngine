@@ -123,7 +123,7 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
         String body = switch (active.id()) {
             case "physically_based_units" -> """
                 vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
-                    float unitScale = clamp(ubo.exposure, 0.25, 4.0);
+                    float unitScale = clamp(gbo.uPostProcess.y, 0.25, 4.0);
                     return litColor * unitScale;
                 }
                 """;
@@ -135,15 +135,15 @@ public final class VulkanLightingCapabilityDescriptorV2 implements RenderFeature
                 """;
             case "emissive_mesh" -> """
                 vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
-                    float emissiveScale = clamp(ubo.emissiveReactiveGain, 0.5, 2.5);
+                    float emissiveScale = clamp(obj.uMaterialReactive.z, 0.5, 2.5);
                     return litColor * emissiveScale;
                 }
                 """;
             case "phys_units_budget_emissive", "phys_units_budget_emissive_advanced" -> """
                 vec3 evaluateLightingMode(vec3 litColor, float localLightLoad) {
-                    float unitScale = clamp(ubo.exposure, 0.25, 4.0);
+                    float unitScale = clamp(gbo.uPostProcess.y, 0.25, 4.0);
                     float budgetScale = clamp(1.0 - (localLightLoad * 0.04), 0.65, 1.0);
-                    float emissiveScale = clamp(ubo.emissiveReactiveGain, 0.5, 2.5);
+                    float emissiveScale = clamp(obj.uMaterialReactive.z, 0.5, 2.5);
                     return litColor * unitScale * budgetScale * emissiveScale;
                 }
                 """;

@@ -126,7 +126,7 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
             case "specular_glossiness_detail" -> """
                 vec3 evaluatePbrMode(vec3 litColor, float roughness, float metallic) {
                     float gloss = 1.0 - roughness;
-                    float detailScale = clamp(ubo.emissiveReactiveGain, 0.8, 1.2);
+                    float detailScale = clamp(obj.uMaterialReactive.z, 0.8, 1.2);
                     float specBoost = mix(0.90, 1.20, gloss);
                     return litColor * detailScale * mix(0.95, specBoost, clamp(1.0 - metallic, 0.0, 1.0));
                 }
@@ -134,8 +134,8 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
             case "specular_glossiness_detail_layering" -> """
                 vec3 evaluatePbrMode(vec3 litColor, float roughness, float metallic) {
                     float gloss = 1.0 - roughness;
-                    float detailScale = clamp(ubo.emissiveReactiveGain, 0.8, 1.3);
-                    float layerScale = clamp(ubo.taaReactiveMaskStrength, 0.7, 1.3);
+                    float detailScale = clamp(obj.uMaterialReactive.z, 0.8, 1.3);
+                    float layerScale = clamp(0.7 + obj.uMaterialReactive.y * 0.6, 0.7, 1.3);
                     float specBoost = mix(0.95, 1.25, gloss);
                     return litColor * detailScale * layerScale * mix(0.95, specBoost, clamp(1.0 - metallic, 0.0, 1.0));
                 }
@@ -149,15 +149,15 @@ public final class VulkanPbrCapabilityDescriptorV2 implements RenderFeatureCapab
                 """;
             case "cinematic_surface_stack" -> """
                 vec3 evaluatePbrMode(vec3 litColor, float roughness, float metallic) {
-                    float sss = clamp(ubo.pbrSubsurfaceWeight, 0.0, 1.0);
-                    float iridescence = clamp(ubo.pbrIridescenceWeight, 0.0, 1.0);
-                    float sheen = clamp(ubo.pbrSheenWeight, 0.0, 1.0);
-                    float pom = clamp(ubo.pbrParallaxWeight, 0.0, 1.0);
-                    float tess = clamp(ubo.pbrTessellationWeight, 0.0, 1.0);
-                    float decals = clamp(ubo.pbrDecalWeight, 0.0, 1.0);
-                    float eye = clamp(ubo.pbrEyeShaderWeight, 0.0, 1.0);
-                    float hair = clamp(ubo.pbrHairShaderWeight, 0.0, 1.0);
-                    float cloth = clamp(ubo.pbrClothShaderWeight, 0.0, 1.0);
+                    float sss = 0.0;
+                    float iridescence = 0.0;
+                    float sheen = 0.0;
+                    float pom = 0.0;
+                    float tess = 0.0;
+                    float decals = 0.0;
+                    float eye = 0.0;
+                    float hair = 0.0;
+                    float cloth = 0.0;
                     float style = (sss + iridescence + sheen + pom + tess + decals + eye + hair + cloth) / 9.0;
                     float sparkle = mix(0.96, 1.12, iridescence);
                     float fabricLift = mix(1.0, 1.05, sheen + cloth * 0.5);
