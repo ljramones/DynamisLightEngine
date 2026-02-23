@@ -4,12 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -60,10 +58,14 @@ class BindlessParityCheckTest {
     private static RunResult runSample(boolean bindlessEnabled) throws Exception {
         List<String> command = new ArrayList<>();
         command.add(javaBinary());
+        if (isMacOs()) {
+            command.add("-XstartOnFirstThread");
+        }
         command.add("-cp");
         command.add(runtimeClasspath());
         command.add("-Dvk.bindless.enabled=" + bindlessEnabled);
-        command.add("-Ddle.vulkan.mockContext=true");
+        command.add("-Ddle.vulkan.mockContext=" + System.getProperty("dle.vulkan.mockContext", "false"));
+        command.add("-Dvk.validation=" + System.getProperty("vk.validation", "true"));
         command.add("org.dynamislight.sample.SampleHostApp");
         command.add("vulkan");
         command.add("--frames=10");
@@ -74,25 +76,18 @@ class BindlessParityCheckTest {
         pb.redirectErrorStream(true);
 
         Process process = pb.start();
-        StringBuilder output = new StringBuilder();
-        Instant deadline = Instant.now().plus(PROCESS_TIMEOUT);
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                output.append(line).append(System.lineSeparator());
-                if (Instant.now().isAfter(deadline)) {
-                    process.destroyForcibly();
-                    throw new AssertionError("Timed out waiting for SampleHostApp output");
-                }
-            }
-        }
-
+        ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
         boolean exited = process.waitFor(PROCESS_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        assertTrue(exited, "SampleHostApp did not exit in time");
+        if (!exited) {
+            process.destroyForcibly();
+            throw new AssertionError("SampleHostApp did not exit in time");
+        }
+        process.getInputStream().transferTo(outputBytes);
+        String output = outputBytes.toString();
         int exitCode = process.exitValue();
         assertEquals(0, exitCode, "SampleHostApp failed with exit code " + exitCode + ":\n" + output);
 
-        return new RunResult(parseParityFrames(output.toString()), output.toString());
+        return new RunResult(parseParityFrames(output), output);
     }
 
     private static List<String> parseParityFrames(String output) {
@@ -108,6 +103,10 @@ class BindlessParityCheckTest {
 
     private static String javaBinary() {
         return Path.of(System.getProperty("java.home"), "bin", "java").toString();
+    }
+
+    private static boolean isMacOs() {
+        return System.getProperty("os.name", "").toLowerCase().contains("mac");
     }
 
     private static String runtimeClasspath() {
