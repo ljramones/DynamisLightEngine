@@ -440,6 +440,8 @@ public final class VulkanFrameCommandOrchestrator {
                 : 0L;
         long sceneColorImage = inputs.postOffscreenActive() ? inputs.offscreenColorImage() : currentSwapchainImage;
         long resolvedColorImage = currentSwapchainImage != 0L ? currentSwapchainImage : sceneColorImage;
+        long shadowMomentImage = inputs.shadowMomentImage() != 0L ? inputs.shadowMomentImage() : resolvedColorImage;
+        int shadowMomentFormat = inputs.shadowMomentFormat() != 0 ? inputs.shadowMomentFormat() : inputs.swapchainImageFormat();
 
         VulkanResourceBindingTable table = new VulkanResourceBindingTable()
                 .bind(
@@ -451,8 +453,8 @@ public final class VulkanFrameCommandOrchestrator {
                 )
                 .bind(
                         "shadow_moment_atlas",
-                        inputs.shadowMomentImage(),
-                        inputs.shadowMomentFormat(),
+                        shadowMomentImage,
+                        shadowMomentFormat,
                         VK_IMAGE_ASPECT_COLOR_BIT,
                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                 )
