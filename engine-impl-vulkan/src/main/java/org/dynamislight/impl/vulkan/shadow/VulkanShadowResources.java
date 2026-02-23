@@ -71,6 +71,7 @@ public final class VulkanShadowResources {
             int vertexStrideBytes,
             long descriptorSetLayout,
             long instancedDescriptorSetLayout,
+            long bindlessDescriptorSetLayout,
             boolean momentPipelineRequested,
             int momentMode
     ) throws EngineException {
@@ -133,7 +134,8 @@ public final class VulkanShadowResources {
                 shadowMapResolution,
                 vertexStrideBytes,
                 descriptorSetLayout,
-                instancedDescriptorSetLayout
+                instancedDescriptorSetLayout,
+                bindlessDescriptorSetLayout
         );
         int shadowMomentMipLevels = 1;
         long[] shadowFramebuffers;
@@ -209,6 +211,7 @@ public final class VulkanShadowResources {
                 shadowPipeline.pipelineLayout(),
                 shadowPipeline.graphicsPipeline(),
                 shadowPipeline.instancedGraphicsPipeline(),
+                shadowPipeline.bindlessInstancedGraphicsPipeline(),
                 shadowFramebuffers,
                 shadowMomentImage,
                 shadowMomentMemory,
@@ -243,6 +246,9 @@ public final class VulkanShadowResources {
         }
         if (resources.shadowInstancedPipeline() != VK_NULL_HANDLE) {
             vkDestroyPipeline(device, resources.shadowInstancedPipeline(), null);
+        }
+        if (resources.shadowBindlessInstancedPipeline() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, resources.shadowBindlessInstancedPipeline(), null);
         }
         if (resources.shadowPipelineLayout() != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(device, resources.shadowPipelineLayout(), null);
@@ -460,6 +466,7 @@ public final class VulkanShadowResources {
             long shadowPipelineLayout,
             long shadowPipeline,
             long shadowInstancedPipeline,
+            long shadowBindlessInstancedPipeline,
             long[] shadowFramebuffers,
             long shadowMomentImage,
             long shadowMomentMemory,

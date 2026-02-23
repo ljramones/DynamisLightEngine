@@ -41,6 +41,7 @@ public final class VulkanShadowLifecycleCoordinator {
                 request.vertexStrideBytes(),
                 request.descriptorSetLayout(),
                 request.instancedDescriptorSetLayout(),
+                request.bindlessDescriptorSetLayout(),
                 request.momentPipelineRequested(),
                 request.momentMode()
         );
@@ -54,6 +55,7 @@ public final class VulkanShadowLifecycleCoordinator {
                 shadowResources.shadowPipelineLayout(),
                 shadowResources.shadowPipeline(),
                 shadowResources.shadowInstancedPipeline(),
+                shadowResources.shadowBindlessInstancedPipeline(),
                 shadowResources.shadowFramebuffers(),
                 shadowResources.shadowMomentImage(),
                 shadowResources.shadowMomentMemory(),
@@ -88,6 +90,7 @@ public final class VulkanShadowLifecycleCoordinator {
                         request.shadowPipelineLayout(),
                         request.shadowPipeline(),
                         request.shadowInstancedPipeline(),
+                        request.shadowBindlessInstancedPipeline(),
                         request.shadowFramebuffers(),
                         request.shadowMomentImage(),
                         request.shadowMomentMemory(),
@@ -133,6 +136,7 @@ public final class VulkanShadowLifecycleCoordinator {
             int vertexStrideBytes,
             long descriptorSetLayout,
             long instancedDescriptorSetLayout,
+            long bindlessDescriptorSetLayout,
             boolean momentPipelineRequested,
             int momentMode
     ) {
@@ -165,6 +169,7 @@ public final class VulkanShadowLifecycleCoordinator {
             long shadowPipelineLayout,
             long shadowPipeline,
             long shadowInstancedPipeline,
+            long shadowBindlessInstancedPipeline,
             long[] shadowFramebuffers,
             long shadowMomentImage,
             long shadowMomentMemory,
@@ -193,6 +198,7 @@ public final class VulkanShadowLifecycleCoordinator {
             long shadowPipelineLayout,
             long shadowPipeline,
             long shadowInstancedPipeline,
+            long shadowBindlessInstancedPipeline,
             long[] shadowFramebuffers,
             long shadowMomentImage,
             long shadowMomentMemory,
@@ -215,6 +221,7 @@ public final class VulkanShadowLifecycleCoordinator {
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     new long[0],
+                    VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,

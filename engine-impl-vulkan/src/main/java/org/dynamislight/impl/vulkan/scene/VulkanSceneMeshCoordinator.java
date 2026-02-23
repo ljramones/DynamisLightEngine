@@ -139,7 +139,11 @@ public final class VulkanSceneMeshCoordinator {
     }
 
     public static void destroySceneMeshes(DestroyRequest in) {
-        VulkanSceneMeshLifecycle.clearInstanceBatches(in.sceneResources().instanceBatches);
+        VulkanSceneMeshLifecycle.clearInstanceBatches(
+                in.sceneResources().instanceBatches,
+                in.backendResources().bindlessDescriptorHeap,
+                in.backendResources().currentFrame
+        );
         in.sceneResources().nextInstanceBatchHandle = 0;
         var destroyResult = VulkanSceneRuntimeCoordinator.destroy(
                 in.backendResources().device,

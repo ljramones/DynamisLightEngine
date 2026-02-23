@@ -601,6 +601,8 @@ public final class VulkanSceneMeshLifecycle {
             VkDevice device,
             VkPhysicalDevice physicalDevice,
             long skinnedDescriptorSetLayout,
+            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            long bindlessFrameSerial,
             List<VulkanGpuMesh> gpuMeshes,
             Map<Integer, VulkanInstanceBatch> instanceBatches,
             int meshHandle,
@@ -635,15 +637,29 @@ public final class VulkanSceneMeshLifecycle {
                 modelMatrices.length
         );
         buffer.upload(modelMatrices, null, null);
+        long bindlessHandle = 0L;
+        if (bindlessDescriptorHeap != null && bindlessDescriptorHeap.active()) {
+            bindlessHandle = bindlessDescriptorHeap.allocate(VulkanBindlessDescriptorHeap.HeapType.INSTANCE_DATA);
+            if (bindlessHandle != 0L) {
+                bindlessDescriptorHeap.updateInstanceDataDescriptor(
+                        bindlessHandle,
+                        bindlessFrameSerial,
+                        buffer.bufferHandle(),
+                        buffer.allocatedBytes()
+                );
+            }
+        }
         int handle = Math.max(0, nextBatchHandle);
-        instanceBatches.put(handle, new VulkanInstanceBatch(handle, meshHandle, buffer, modelMatrices.length));
+        instanceBatches.put(handle, new VulkanInstanceBatch(handle, meshHandle, buffer, bindlessHandle, modelMatrices.length));
         return handle;
     }
 
     public static void updateInstanceBatch(
             Map<Integer, VulkanInstanceBatch> instanceBatches,
             int batchHandle,
-            float[][] modelMatrices
+            float[][] modelMatrices,
+            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            long bindlessFrameSerial
     ) throws EngineException {
         VulkanInstanceBatch batch = instanceBatches == null ? null : instanceBatches.get(batchHandle);
         if (batch == null || batch.buffer == null) {
@@ -669,11 +685,23 @@ public final class VulkanSceneMeshLifecycle {
         }
         batch.buffer.upload(modelMatrices, null, null);
         batch.instanceCount = modelMatrices.length;
+        if (bindlessDescriptorHeap != null
+                && bindlessDescriptorHeap.active()
+                && batch.bindlessInstanceHandle != 0L) {
+            bindlessDescriptorHeap.updateInstanceDataDescriptor(
+                    batch.bindlessInstanceHandle,
+                    bindlessFrameSerial,
+                    batch.buffer.bufferHandle(),
+                    batch.buffer.allocatedBytes()
+            );
+        }
     }
 
     public static void removeInstanceBatch(
             Map<Integer, VulkanInstanceBatch> instanceBatches,
-            int batchHandle
+            int batchHandle,
+            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            long bindlessFrameSerial
     ) throws EngineException {
         VulkanInstanceBatch batch = instanceBatches == null ? null : instanceBatches.remove(batchHandle);
         if (batch == null) {
@@ -683,16 +711,31 @@ public final class VulkanSceneMeshLifecycle {
                     true
             );
         }
+        if (bindlessDescriptorHeap != null && bindlessDescriptorHeap.active() && batch.bindlessInstanceHandle != 0L) {
+            bindlessDescriptorHeap.retire(batch.bindlessInstanceHandle, bindlessFrameSerial);
+            batch.bindlessInstanceHandle = 0L;
+        }
         if (batch.buffer != null) {
             batch.buffer.destroy();
         }
     }
 
-    public static void clearInstanceBatches(Map<Integer, VulkanInstanceBatch> instanceBatches) {
+    public static void clearInstanceBatches(
+            Map<Integer, VulkanInstanceBatch> instanceBatches,
+            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            long bindlessFrameSerial
+    ) {
         if (instanceBatches == null || instanceBatches.isEmpty()) {
             return;
         }
         for (VulkanInstanceBatch batch : instanceBatches.values()) {
+            if (bindlessDescriptorHeap != null
+                    && bindlessDescriptorHeap.active()
+                    && batch != null
+                    && batch.bindlessInstanceHandle != 0L) {
+                bindlessDescriptorHeap.retire(batch.bindlessInstanceHandle, bindlessFrameSerial);
+                batch.bindlessInstanceHandle = 0L;
+            }
             if (batch != null && batch.buffer != null) {
                 batch.buffer.destroy();
             }

@@ -158,6 +158,10 @@ final class VulkanMainPassRecorderCore {
                     && skinnedMorphDraw
                     && in.bindlessSkinnedMorphGraphicsPipeline() != VK_NULL_HANDLE
                     && in.bindlessDescriptorSet() != VK_NULL_HANDLE;
+            boolean bindlessInstancedDraw = in.bindlessActive()
+                    && instancedDraw
+                    && in.bindlessInstancedGraphicsPipeline() != VK_NULL_HANDLE
+                    && in.bindlessDescriptorSet() != VK_NULL_HANDLE;
             long targetPipeline = bindlessStaticDraw
                     ? in.bindlessStaticGraphicsPipeline()
                     : (bindlessSkinnedDraw
@@ -166,13 +170,15 @@ final class VulkanMainPassRecorderCore {
                     ? in.bindlessMorphGraphicsPipeline()
                     : (bindlessSkinnedMorphDraw
                     ? in.bindlessSkinnedMorphGraphicsPipeline()
+                    : (bindlessInstancedDraw
+                    ? in.bindlessInstancedGraphicsPipeline()
                     : (instancedDraw
                     ? in.instancedGraphicsPipeline()
                     : (skinnedMorphDraw
                     ? in.skinnedMorphGraphicsPipeline()
                     : (mesh.skinned()
                     ? in.skinnedGraphicsPipeline()
-                    : (morphDraw ? in.morphGraphicsPipeline() : in.staticGraphicsPipeline())))))));
+                    : (morphDraw ? in.morphGraphicsPipeline() : in.staticGraphicsPipeline()))))))));
             long targetPipelineLayout = bindlessStaticDraw
                     ? in.bindlessStaticPipelineLayout()
                     : (bindlessSkinnedDraw
@@ -181,19 +187,21 @@ final class VulkanMainPassRecorderCore {
                     ? in.bindlessMorphPipelineLayout()
                     : (bindlessSkinnedMorphDraw
                     ? in.bindlessSkinnedMorphPipelineLayout()
+                    : (bindlessInstancedDraw
+                    ? in.bindlessInstancedPipelineLayout()
                     : (instancedDraw
                     ? in.instancedPipelineLayout()
                     : (skinnedMorphDraw
                     ? in.skinnedMorphPipelineLayout()
                     : (mesh.skinned()
                     ? in.skinnedPipelineLayout()
-                    : (morphDraw ? in.morphPipelineLayout() : in.staticPipelineLayout())))))));
+                    : (morphDraw ? in.morphPipelineLayout() : in.staticPipelineLayout()))))))));
             if (targetPipeline != VK_NULL_HANDLE
                     && (boundPipeline != targetPipeline || boundPipelineLayout != targetPipelineLayout)) {
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, targetPipeline);
                 boundPipeline = targetPipeline;
                 boundPipelineLayout = targetPipelineLayout;
-                if (bindlessStaticDraw || bindlessSkinnedDraw || bindlessMorphDraw || bindlessSkinnedMorphDraw) {
+                if (bindlessStaticDraw || bindlessSkinnedDraw || bindlessMorphDraw || bindlessSkinnedMorphDraw || bindlessInstancedDraw) {
                     vkCmdBindDescriptorSets(
                             commandBuffer,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -267,7 +275,8 @@ final class VulkanMainPassRecorderCore {
             }
             if (mesh.instanced()
                     && mesh.instanceBatchDescriptorSet() != VK_NULL_HANDLE
-                    && targetPipelineLayout == in.instancedPipelineLayout()) {
+                    && targetPipelineLayout == in.instancedPipelineLayout()
+                    && !bindlessInstancedDraw) {
                 vkCmdBindDescriptorSets(
                         commandBuffer,
                         VK_PIPELINE_BIND_POINT_GRAPHICS,

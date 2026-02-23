@@ -94,11 +94,13 @@ public final class VulkanLifecycleOrchestrator {
                         request.backendResources().bindlessSkinnedGraphicsPipeline,
                         request.backendResources().bindlessMorphGraphicsPipeline,
                         request.backendResources().bindlessSkinnedMorphGraphicsPipeline,
+                        request.backendResources().bindlessInstancedGraphicsPipeline,
                         request.backendResources().pipelineLayout,
                         request.backendResources().bindlessStaticPipelineLayout,
                         request.backendResources().bindlessSkinnedPipelineLayout,
                         request.backendResources().bindlessMorphPipelineLayout,
                         request.backendResources().bindlessSkinnedMorphPipelineLayout,
+                        request.backendResources().bindlessInstancedPipelineLayout,
                         request.backendResources().morphGraphicsPipeline,
                         request.backendResources().morphPipelineLayout,
                         request.backendResources().skinnedGraphicsPipeline,
@@ -177,6 +179,8 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.bindlessMorphGraphicsPipeline = state.bindlessMorphGraphicsPipeline();
         backendResources.bindlessSkinnedMorphPipelineLayout = state.bindlessSkinnedMorphPipelineLayout();
         backendResources.bindlessSkinnedMorphGraphicsPipeline = state.bindlessSkinnedMorphGraphicsPipeline();
+        backendResources.bindlessInstancedPipelineLayout = state.bindlessInstancedPipelineLayout();
+        backendResources.bindlessInstancedGraphicsPipeline = state.bindlessInstancedGraphicsPipeline();
         backendResources.morphPipelineLayout = state.morphPipelineLayout();
         backendResources.morphGraphicsPipeline = state.morphGraphicsPipeline();
         backendResources.skinnedPipelineLayout = state.skinnedPipelineLayout();
@@ -226,6 +230,7 @@ public final class VulkanLifecycleOrchestrator {
                         request.vertexStrideBytes(),
                         request.descriptorResources().descriptorSetLayout,
                         request.descriptorResources().skinnedDescriptorSetLayout,
+                        request.backendResources().bindlessDescriptorHeap.descriptorSetLayout(),
                         request.renderState().shadowMomentPipelineRequested,
                         request.renderState().shadowMomentMode
                 )
@@ -245,6 +250,7 @@ public final class VulkanLifecycleOrchestrator {
                         backendResources.shadowPipelineLayout,
                         backendResources.shadowPipeline,
                         backendResources.shadowInstancedPipeline,
+                        backendResources.shadowBindlessInstancedPipeline,
                         backendResources.shadowFramebuffers,
                         backendResources.shadowMomentImage,
                         backendResources.shadowMomentMemory,
@@ -267,6 +273,7 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.shadowPipelineLayout = state.shadowPipelineLayout();
         backendResources.shadowPipeline = state.shadowPipeline();
         backendResources.shadowInstancedPipeline = state.shadowInstancedPipeline();
+        backendResources.shadowBindlessInstancedPipeline = state.shadowBindlessInstancedPipeline();
         backendResources.shadowFramebuffers = state.shadowFramebuffers();
         backendResources.shadowMomentImage = state.shadowMomentImage();
         backendResources.shadowMomentMemory = state.shadowMomentMemory();

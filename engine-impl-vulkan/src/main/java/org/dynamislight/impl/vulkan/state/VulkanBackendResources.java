@@ -48,6 +48,7 @@ public final class VulkanBackendResources {
     public long shadowPipelineLayout = VK_NULL_HANDLE;
     public long shadowPipeline = VK_NULL_HANDLE;
     public long shadowInstancedPipeline = VK_NULL_HANDLE;
+    public long shadowBindlessInstancedPipeline = VK_NULL_HANDLE;
     public long[] shadowFramebuffers = new long[0];
     public long shadowMomentImage = VK_NULL_HANDLE;
     public long shadowMomentMemory = VK_NULL_HANDLE;
@@ -68,6 +69,8 @@ public final class VulkanBackendResources {
     public long bindlessMorphGraphicsPipeline = VK_NULL_HANDLE;
     public long bindlessSkinnedMorphPipelineLayout = VK_NULL_HANDLE;
     public long bindlessSkinnedMorphGraphicsPipeline = VK_NULL_HANDLE;
+    public long bindlessInstancedPipelineLayout = VK_NULL_HANDLE;
+    public long bindlessInstancedGraphicsPipeline = VK_NULL_HANDLE;
     public long morphPipelineLayout = VK_NULL_HANDLE;
     public long morphGraphicsPipeline = VK_NULL_HANDLE;
     public long skinnedPipelineLayout = VK_NULL_HANDLE;

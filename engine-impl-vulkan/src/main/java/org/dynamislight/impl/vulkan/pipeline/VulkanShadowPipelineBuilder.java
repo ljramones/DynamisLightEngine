@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan.pipeline;
 import java.nio.ByteBuffer;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.impl.vulkan.shader.VulkanBindlessInstancedShadowVertexShaderSource;
 import org.dynamislight.impl.vulkan.shader.VulkanShaderCompiler;
 import org.dynamislight.impl.vulkan.shader.VulkanShaderSources;
 import org.lwjgl.system.MemoryStack;
@@ -75,15 +76,18 @@ public final class VulkanShadowPipelineBuilder {
             int shadowMapResolution,
             int vertexStrideBytes,
             long descriptorSetLayout,
-            long instancedDescriptorSetLayout
+            long instancedDescriptorSetLayout,
+            long bindlessDescriptorSetLayout
     ) throws EngineException {
         long shadowRenderPass = createRenderPass(device, stack, depthFormat, momentFormat, momentPipelineEnabled);
         long shadowPipelineLayout = VK_NULL_HANDLE;
         long shadowPipeline = VK_NULL_HANDLE;
         long shadowInstancedPipeline = VK_NULL_HANDLE;
+        long shadowBindlessInstancedPipeline = VK_NULL_HANDLE;
         try {
             String shadowVertSource = VulkanShaderSources.shadowVertex();
             String shadowInstancedVertSource = VulkanShaderSources.shadowInstancedVertex();
+            String shadowBindlessInstancedVertSource = VulkanBindlessInstancedShadowVertexShaderSource.shadowVertex();
             String shadowFragSource = momentPipelineEnabled
                     ? VulkanShaderSources.shadowFragmentMoments()
                     : VulkanShaderSources.shadowFragment();
@@ -94,13 +98,20 @@ public final class VulkanShadowPipelineBuilder {
                     shaderc_glsl_vertex_shader,
                     "shadow_instanced.vert"
             );
+            ByteBuffer bindlessInstancedVertSpv = VulkanShaderCompiler.compileGlslToSpv(
+                    shadowBindlessInstancedVertSource,
+                    shaderc_glsl_vertex_shader,
+                    "shadow_instanced_bindless.vert"
+            );
             ByteBuffer fragSpv = VulkanShaderCompiler.compileGlslToSpv(shadowFragSource, shaderc_fragment_shader, "shadow.frag");
             long vertModule = VK_NULL_HANDLE;
             long instancedVertModule = VK_NULL_HANDLE;
+            long bindlessInstancedVertModule = VK_NULL_HANDLE;
             long fragModule = VK_NULL_HANDLE;
             try {
                 vertModule = VulkanShaderCompiler.createShaderModule(device, stack, vertSpv);
                 instancedVertModule = VulkanShaderCompiler.createShaderModule(device, stack, instancedVertSpv);
+                bindlessInstancedVertModule = VulkanShaderCompiler.createShaderModule(device, stack, bindlessInstancedVertSpv);
                 fragModule = VulkanShaderCompiler.createShaderModule(device, stack, fragSpv);
                 VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
                 shaderStages.get(0)
@@ -188,7 +199,14 @@ public final class VulkanShadowPipelineBuilder {
 
                 VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
                         .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
-                        .pSetLayouts(stack.longs(descriptorSetLayout, instancedDescriptorSetLayout))
+                        .pSetLayouts(bindlessDescriptorSetLayout != VK_NULL_HANDLE
+                                ? stack.longs(
+                                descriptorSetLayout,
+                                instancedDescriptorSetLayout,
+                                instancedDescriptorSetLayout,
+                                bindlessDescriptorSetLayout
+                        )
+                                : stack.longs(descriptorSetLayout, instancedDescriptorSetLayout))
                         .pPushConstantRanges(VkPushConstantRange.calloc(1, stack)
                                 .stageFlags(VK_SHADER_STAGE_VERTEX_BIT)
                                 .offset(0)
@@ -256,6 +274,50 @@ public final class VulkanShadowPipelineBuilder {
                     );
                 }
                 shadowInstancedPipeline = pInstancedPipeline.get(0);
+
+                if (bindlessDescriptorSetLayout != VK_NULL_HANDLE) {
+                    VkPipelineShaderStageCreateInfo.Buffer bindlessInstancedShaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
+                    bindlessInstancedShaderStages.get(0)
+                            .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                            .stage(VK_SHADER_STAGE_VERTEX_BIT)
+                            .module(bindlessInstancedVertModule)
+                            .pName(stack.UTF8("main"));
+                    bindlessInstancedShaderStages.get(1)
+                            .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                            .stage(VK_SHADER_STAGE_FRAGMENT_BIT)
+                            .module(fragModule)
+                            .pName(stack.UTF8("main"));
+                    VkGraphicsPipelineCreateInfo.Buffer bindlessInstancedPipelineInfo = VkGraphicsPipelineCreateInfo.calloc(1, stack)
+                            .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+                            .pStages(bindlessInstancedShaderStages)
+                            .pVertexInputState(vertexInput)
+                            .pInputAssemblyState(inputAssembly)
+                            .pViewportState(viewportState)
+                            .pRasterizationState(rasterizer)
+                            .pMultisampleState(multisampling)
+                            .pDepthStencilState(depthStencil)
+                            .pColorBlendState(colorBlending)
+                            .layout(shadowPipelineLayout)
+                            .renderPass(shadowRenderPass)
+                            .subpass(0)
+                            .basePipelineHandle(VK_NULL_HANDLE);
+                    var pBindlessInstancedPipeline = stack.longs(VK_NULL_HANDLE);
+                    int bindlessInstancedPipelineResult = vkCreateGraphicsPipelines(
+                            device,
+                            VK_NULL_HANDLE,
+                            bindlessInstancedPipelineInfo,
+                            null,
+                            pBindlessInstancedPipeline
+                    );
+                    if (bindlessInstancedPipelineResult != VK_SUCCESS || pBindlessInstancedPipeline.get(0) == VK_NULL_HANDLE) {
+                        throw new EngineException(
+                                EngineErrorCode.BACKEND_INIT_FAILED,
+                                "vkCreateGraphicsPipelines(shadowBindlessInstanced) failed: " + bindlessInstancedPipelineResult,
+                                false
+                        );
+                    }
+                    shadowBindlessInstancedPipeline = pBindlessInstancedPipeline.get(0);
+                }
             } finally {
                 if (vertModule != VK_NULL_HANDLE) {
                     vkDestroyShaderModule(device, vertModule, null);
@@ -263,11 +325,17 @@ public final class VulkanShadowPipelineBuilder {
                 if (instancedVertModule != VK_NULL_HANDLE) {
                     vkDestroyShaderModule(device, instancedVertModule, null);
                 }
+                if (bindlessInstancedVertModule != VK_NULL_HANDLE) {
+                    vkDestroyShaderModule(device, bindlessInstancedVertModule, null);
+                }
                 if (fragModule != VK_NULL_HANDLE) {
                     vkDestroyShaderModule(device, fragModule, null);
                 }
             }
         } catch (EngineException ex) {
+            if (shadowBindlessInstancedPipeline != VK_NULL_HANDLE) {
+                VK10.vkDestroyPipeline(device, shadowBindlessInstancedPipeline, null);
+            }
             if (shadowInstancedPipeline != VK_NULL_HANDLE) {
                 VK10.vkDestroyPipeline(device, shadowInstancedPipeline, null);
             }
@@ -279,7 +347,13 @@ public final class VulkanShadowPipelineBuilder {
             }
             throw ex;
         }
-        return new Result(shadowRenderPass, shadowPipelineLayout, shadowPipeline, shadowInstancedPipeline);
+        return new Result(
+                shadowRenderPass,
+                shadowPipelineLayout,
+                shadowPipeline,
+                shadowInstancedPipeline,
+                shadowBindlessInstancedPipeline
+        );
     }
 
     private static long createRenderPass(
@@ -354,6 +428,12 @@ public final class VulkanShadowPipelineBuilder {
         return pRenderPass.get(0);
     }
 
-    public record Result(long renderPass, long pipelineLayout, long graphicsPipeline, long instancedGraphicsPipeline) {
+    public record Result(
+            long renderPass,
+            long pipelineLayout,
+            long graphicsPipeline,
+            long instancedGraphicsPipeline,
+            long bindlessInstancedGraphicsPipeline
+    ) {
     }
 }

@@ -252,6 +252,10 @@ public final class VulkanBindlessDescriptorHeap {
         return updateUniformBufferDescriptor(handle, currentFrame, bufferHandle, rangeBytes, 2);
     }
 
+    public synchronized boolean updateInstanceDataDescriptor(long handle, long currentFrame, long bufferHandle, long rangeBytes) {
+        return updateStorageBufferDescriptor(handle, currentFrame, bufferHandle, rangeBytes, 3);
+    }
+
     public synchronized void updateDrawMetaStats(int drawMetaCount, int invalidIndexWrites) {
         this.drawMetaCount = Math.max(0, drawMetaCount);
         this.invalidIndexWriteCount = Math.max(0, invalidIndexWrites);

@@ -177,6 +177,14 @@ public final class VulkanInstanceBatchBuffer {
         return descriptorSet;
     }
 
+    public long bufferHandle() {
+        return buffer;
+    }
+
+    public int allocatedBytes() {
+        return allocatedBytes;
+    }
+
     public int capacity() {
         return capacity;
     }

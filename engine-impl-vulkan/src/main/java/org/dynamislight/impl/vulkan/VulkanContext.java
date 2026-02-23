@@ -480,7 +480,11 @@ public final class VulkanContext {
     }
 
     void setSceneMeshes(List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
-        VulkanSceneMeshLifecycle.clearInstanceBatches(sceneResources.instanceBatches);
+        VulkanSceneMeshLifecycle.clearInstanceBatches(
+                sceneResources.instanceBatches,
+                backendResources.bindlessDescriptorHeap,
+                bindlessFrameSerial
+        );
         sceneResources.nextInstanceBatchHandle = 0;
         var result = VulkanSceneMeshCoordinator.setSceneMeshes(
                 new VulkanSceneMeshCoordinator.SetSceneRequest(
@@ -544,6 +548,8 @@ public final class VulkanContext {
                 backendResources.device,
                 backendResources.physicalDevice,
                 descriptorResources.skinnedDescriptorSetLayout,
+                backendResources.bindlessDescriptorHeap,
+                bindlessFrameSerial,
                 sceneResources.gpuMeshes,
                 sceneResources.instanceBatches,
                 meshHandle,
@@ -555,11 +561,22 @@ public final class VulkanContext {
     }
 
     void updateInstanceBatch(int batchHandle, float[][] modelMatrices) throws EngineException {
-        VulkanSceneMeshLifecycle.updateInstanceBatch(sceneResources.instanceBatches, batchHandle, modelMatrices);
+        VulkanSceneMeshLifecycle.updateInstanceBatch(
+                sceneResources.instanceBatches,
+                batchHandle,
+                modelMatrices,
+                backendResources.bindlessDescriptorHeap,
+                bindlessFrameSerial
+        );
     }
 
     void removeInstanceBatch(int batchHandle) throws EngineException {
-        VulkanSceneMeshLifecycle.removeInstanceBatch(sceneResources.instanceBatches, batchHandle);
+        VulkanSceneMeshLifecycle.removeInstanceBatch(
+                sceneResources.instanceBatches,
+                batchHandle,
+                backendResources.bindlessDescriptorHeap,
+                bindlessFrameSerial
+        );
     }
 
     void setCameraMatrices(Matrix4f view, Matrix4f proj) {

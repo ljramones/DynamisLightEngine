@@ -85,7 +85,8 @@ public final class VulkanFrameCommandOrchestrator {
                     false,
                     1,
                     0,
-                    VK_NULL_HANDLE
+                    VK_NULL_HANDLE,
+                    0L
             ));
         }
         if (inputs.instanceBatches() != null) {
@@ -117,10 +118,11 @@ public final class VulkanFrameCommandOrchestrator {
                     VK_NULL_HANDLE,
                         0,
                         0,
-                        true,
-                        batch.instanceCount,
-                        0,
-                        batch.buffer.descriptorSetHandle()
+                    true,
+                    batch.instanceCount,
+                    0,
+                        batch.buffer.descriptorSetHandle(),
+                        batch.bindlessInstanceHandle
                 ));
             }
         }
@@ -203,9 +205,12 @@ public final class VulkanFrameCommandOrchestrator {
                 inputs.maxShadowCascades(),
                 inputs.pointShadowFaces(),
                 frameDescriptorSet,
+                inputs.bindlessActive(),
+                inputs.bindlessDescriptorSet(),
                 inputs.shadowRenderPass(),
                 inputs.shadowPipeline(),
                 inputs.shadowInstancedPipeline(),
+                inputs.shadowBindlessInstancedPipeline(),
                 inputs.shadowPipelineLayout(),
                 inputs.shadowFramebuffers(),
                 inputs.shadowMomentImage(),
@@ -242,6 +247,8 @@ public final class VulkanFrameCommandOrchestrator {
                 inputs.mainGeometryBindlessMorphPipelineLayout(),
                 inputs.mainGeometryBindlessSkinnedMorphPipeline(),
                 inputs.mainGeometryBindlessSkinnedMorphPipelineLayout(),
+                inputs.mainGeometryBindlessInstancedPipeline(),
+                inputs.mainGeometryBindlessInstancedPipelineLayout(),
                 inputs.mainGeometryMorphPipeline(),
                 inputs.mainGeometryMorphPipelineLayout(),
                 inputs.mainGeometrySkinnedPipeline(),
@@ -288,6 +295,8 @@ public final class VulkanFrameCommandOrchestrator {
                 inputs.mainGeometryBindlessMorphPipelineLayout(),
                 inputs.mainGeometryBindlessSkinnedMorphPipeline(),
                 inputs.mainGeometryBindlessSkinnedMorphPipelineLayout(),
+                inputs.mainGeometryBindlessInstancedPipeline(),
+                inputs.mainGeometryBindlessInstancedPipelineLayout(),
                 inputs.mainGeometryMorphPipeline(),
                 inputs.mainGeometryMorphPipelineLayout(),
                 inputs.mainGeometrySkinnedPipeline(),
@@ -589,6 +598,8 @@ public final class VulkanFrameCommandOrchestrator {
             long mainGeometryBindlessMorphPipelineLayout,
             long mainGeometryBindlessSkinnedMorphPipeline,
             long mainGeometryBindlessSkinnedMorphPipelineLayout,
+            long mainGeometryBindlessInstancedPipeline,
+            long mainGeometryBindlessInstancedPipelineLayout,
             long mainGeometryMorphPipeline,
             long mainGeometryMorphPipelineLayout,
             long mainGeometrySkinnedPipeline,
@@ -600,6 +611,7 @@ public final class VulkanFrameCommandOrchestrator {
             long shadowRenderPass,
             long shadowPipeline,
             long shadowInstancedPipeline,
+            long shadowBindlessInstancedPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowDepthImage,

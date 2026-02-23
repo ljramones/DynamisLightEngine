@@ -101,8 +101,14 @@ final class VulkanShadowPassRecorderCore {
                 long boundPipeline = VK_NULL_HANDLE;
                 for (int meshIndex = 0; meshIndex < in.drawCount() && meshIndex < meshes.size(); meshIndex++) {
                     MeshDrawCmd mesh = meshes.get(meshIndex);
+                    boolean bindlessInstancedDraw = in.bindlessActive()
+                            && mesh.instanced()
+                            && in.shadowBindlessInstancedPipeline() != VK_NULL_HANDLE
+                            && in.bindlessDescriptorSet() != VK_NULL_HANDLE;
                     long targetPipeline = mesh.instanced()
-                            ? in.shadowInstancedPipeline()
+                            ? (bindlessInstancedDraw
+                            ? in.shadowBindlessInstancedPipeline()
+                            : in.shadowInstancedPipeline())
                             : in.shadowPipeline();
                     if (targetPipeline == VK_NULL_HANDLE) {
                         continue;
@@ -110,6 +116,16 @@ final class VulkanShadowPassRecorderCore {
                     if (boundPipeline != targetPipeline) {
                         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, targetPipeline);
                         boundPipeline = targetPipeline;
+                        if (bindlessInstancedDraw) {
+                            vkCmdBindDescriptorSets(
+                                    commandBuffer,
+                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    in.shadowPipelineLayout(),
+                                    3,
+                                    stack.longs(in.bindlessDescriptorSet()),
+                                    null
+                            );
+                        }
                     }
                     vkCmdBindDescriptorSets(
                             commandBuffer,
@@ -119,7 +135,11 @@ final class VulkanShadowPassRecorderCore {
                             stack.longs(in.frameDescriptorSet()),
                             stack.ints(dynamicUniformOffset.applyAsInt(mesh.uniformMeshIndex()))
                     );
-                    if (mesh.instanced() && mesh.instanceBatchDescriptorSet() != VK_NULL_HANDLE) {
+                    if (mesh.instanced()
+                            && mesh.instanceBatchDescriptorSet() != VK_NULL_HANDLE
+                            && (!in.bindlessActive()
+                            || in.shadowBindlessInstancedPipeline() == VK_NULL_HANDLE
+                            || in.bindlessDescriptorSet() == VK_NULL_HANDLE)) {
                         vkCmdBindDescriptorSets(
                                 commandBuffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
