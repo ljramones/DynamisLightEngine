@@ -519,7 +519,13 @@ public final class VulkanContext {
     }
 
     void updateSkinnedMesh(int meshHandle, float[] jointMatrices) throws EngineException {
-        VulkanSceneMeshLifecycle.updateSkinnedMesh(sceneResources.gpuMeshes, meshHandle, jointMatrices);
+        VulkanSceneMeshLifecycle.updateSkinnedMesh(
+                sceneResources.gpuMeshes,
+                meshHandle,
+                jointMatrices,
+                backendResources.bindlessDescriptorHeap,
+                bindlessFrameSerial
+        );
     }
 
     void updateMorphWeights(int meshHandle, float[] weights) throws EngineException {
@@ -1429,6 +1435,14 @@ public final class VulkanContext {
     }
 
     private void destroySceneMeshes() {
+        if (backendResources.bindlessDescriptorHeap != null && backendResources.bindlessDescriptorHeap.active()) {
+            for (var mesh : sceneResources.gpuMeshes) {
+                if (mesh != null && mesh.bindlessJointHandle != 0L) {
+                    backendResources.bindlessDescriptorHeap.retire(mesh.bindlessJointHandle, bindlessFrameSerial);
+                    mesh.bindlessJointHandle = 0L;
+                }
+            }
+        }
         VulkanReflectionProbeTextureCoordinator.destroyOwnedProbeRadianceTexture(
                 backendResources.device,
                 iblState.probeRadianceTexture,

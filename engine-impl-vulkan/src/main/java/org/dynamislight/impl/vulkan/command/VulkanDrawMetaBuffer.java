@@ -95,7 +95,11 @@ public final class VulkanDrawMetaBuffer {
         }
     }
 
-    public int upload(List<VulkanRenderCommandRecorder.MeshDrawCmd> draws) {
+    public int upload(
+            List<VulkanRenderCommandRecorder.MeshDrawCmd> draws,
+            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            long currentFrame
+    ) {
         if (draws == null || draws.isEmpty()) {
             clear();
             lastUploadCount = 0;
@@ -117,11 +121,21 @@ public final class VulkanDrawMetaBuffer {
             if (draw.instanced()) {
                 flags |= DRAW_FLAG_INSTANCED;
             }
-            src.putInt(INVALID_INDEX); // jointPaletteIndex
+            int jointPaletteIndex = INVALID_INDEX;
+            if (draw.skinned()
+                    && bindlessDescriptorHeap != null
+                    && bindlessDescriptorHeap.active()
+                    && draw.bindlessJointHandle() != 0L) {
+                int resolved = bindlessDescriptorHeap.resolveSlot(draw.bindlessJointHandle(), currentFrame);
+                if (resolved >= 0) {
+                    jointPaletteIndex = resolved;
+                }
+            }
+            src.putInt(jointPaletteIndex); // jointPaletteIndex
             src.putInt(INVALID_INDEX); // morphDeltaIndex
             src.putInt(INVALID_INDEX); // morphWeightIndex
             src.putInt(INVALID_INDEX); // instanceDataIndex
-            invalidIndexWrites += 4;
+            invalidIndexWrites += (jointPaletteIndex == INVALID_INDEX ? 1 : 0) + 3;
             src.putInt(0);             // materialIndex (reserved)
             src.putInt(flags);         // drawFlags
             src.putInt(Math.max(0, draw.uniformMeshIndex())); // meshIndex

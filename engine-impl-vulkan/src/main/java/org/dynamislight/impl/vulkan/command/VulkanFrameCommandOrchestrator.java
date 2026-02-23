@@ -75,6 +75,7 @@ public final class VulkanFrameCommandOrchestrator {
                     i,
                     mesh.skinned,
                     mesh.skinningBufferHandle,
+                    mesh.bindlessJointHandle,
                     mesh.morphTargetCount > 0 && mesh.morphDescriptorSetHandle != VK_NULL_HANDLE,
                     mesh.morphDescriptorSetHandle,
                     mesh.morphTargetCount,
@@ -104,11 +105,12 @@ public final class VulkanFrameCommandOrchestrator {
                         mesh.indexCount,
                         mesh.textureDescriptorSet,
                         mesh.reflectionOverrideMode,
-                        baseMeshIndex,
-                        false,
-                        VK_NULL_HANDLE,
-                        false,
-                        VK_NULL_HANDLE,
+                    baseMeshIndex,
+                    false,
+                    VK_NULL_HANDLE,
+                    0L,
+                    false,
+                    VK_NULL_HANDLE,
                         0,
                         0,
                         true,
@@ -141,7 +143,7 @@ public final class VulkanFrameCommandOrchestrator {
             }
         }
         if (inputs.drawMetaBuffer() != null) {
-            inputs.drawMetaBuffer().upload(meshes);
+            inputs.drawMetaBuffer().upload(meshes, inputs.bindlessDescriptorHeap(), frameIdx);
         }
         BindlessHeapStats bindlessStats = null;
         if (inputs.bindlessDescriptorHeap() != null) {
@@ -477,7 +479,7 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.velocityImage(),
                         inputs.swapchainImageFormat(),
                         VK_IMAGE_ASPECT_COLOR_BIT,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
                 )
                 .bind(
                         "depth",

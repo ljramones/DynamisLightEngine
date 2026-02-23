@@ -320,6 +320,7 @@ public final class VulkanRenderCommandRecorder {
             int uniformMeshIndex,
             boolean skinned,
             long skinningBufferHandle,
+            long bindlessJointHandle,
             boolean morphTargeted,
             long morphDescriptorSetHandle,
             int morphTargetCount,

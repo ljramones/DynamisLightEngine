@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.scene;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.impl.vulkan.command.VulkanBindlessDescriptorHeap;
 import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
 import org.dynamislight.impl.vulkan.model.VulkanBufferAlloc;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
@@ -182,6 +183,7 @@ public final class VulkanSceneMeshLifecycle {
                         morphTargets.bytes()
                 );
             }
+            float[] localBounds = computeLocalBounds(mesh.vertices(), skinned ? 16 : 11);
 
             gpuMeshes.add(new VulkanGpuMesh(
                     vertexAlloc.buffer(),
@@ -213,6 +215,10 @@ public final class VulkanSceneMeshLifecycle {
                     mesh.meshId(),
                     vertexHash,
                     indexHash,
+                    localBounds[0],
+                    localBounds[1],
+                    localBounds[2],
+                    localBounds[3],
                     albedoKey,
                     normalKey,
                     metallicRoughnessKey,
@@ -220,6 +226,7 @@ public final class VulkanSceneMeshLifecycle {
                     skinned,
                     mesh.jointCount(),
                     skinnedUniforms,
+                    0L,
                     morphTargetCount,
                     morphTargetHash,
                     morphTargets,
@@ -345,6 +352,10 @@ public final class VulkanSceneMeshLifecycle {
                     mesh.meshId,
                     mesh.vertexHash,
                     mesh.indexHash,
+                    mesh.localBoundsCenterX,
+                    mesh.localBoundsCenterY,
+                    mesh.localBoundsCenterZ,
+                    mesh.localBoundsRadius,
                     albedoKey,
                     normalKey,
                     metallicRoughnessKey,
@@ -352,6 +363,7 @@ public final class VulkanSceneMeshLifecycle {
                     mesh.skinned,
                     mesh.jointCount,
                     mesh.skinnedUniforms,
+                    mesh.bindlessJointHandle,
                     mesh.morphTargetCount,
                     mesh.morphTargetHash,
                     mesh.morphTargets,
@@ -418,10 +430,49 @@ public final class VulkanSceneMeshLifecycle {
         return new DestroyResult(nextTextureDescriptorPool);
     }
 
+    private static float[] computeLocalBounds(float[] vertices, int strideFloats) {
+        if (vertices == null || vertices.length < strideFloats * 3 || strideFloats < 3) {
+            return new float[]{0f, 0f, 0f, 1f};
+        }
+        int vertexCount = vertices.length / strideFloats;
+        float minX = Float.POSITIVE_INFINITY;
+        float minY = Float.POSITIVE_INFINITY;
+        float minZ = Float.POSITIVE_INFINITY;
+        float maxX = Float.NEGATIVE_INFINITY;
+        float maxY = Float.NEGATIVE_INFINITY;
+        float maxZ = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < vertexCount; i++) {
+            int base = i * strideFloats;
+            float x = vertices[base];
+            float y = vertices[base + 1];
+            float z = vertices[base + 2];
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            minZ = Math.min(minZ, z);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+            maxZ = Math.max(maxZ, z);
+        }
+        float cx = (minX + maxX) * 0.5f;
+        float cy = (minY + maxY) * 0.5f;
+        float cz = (minZ + maxZ) * 0.5f;
+        float radiusSq = 0f;
+        for (int i = 0; i < vertexCount; i++) {
+            int base = i * strideFloats;
+            float dx = vertices[base] - cx;
+            float dy = vertices[base + 1] - cy;
+            float dz = vertices[base + 2] - cz;
+            radiusSq = Math.max(radiusSq, (dx * dx) + (dy * dy) + (dz * dz));
+        }
+        return new float[]{cx, cy, cz, (float) Math.sqrt(Math.max(1e-8f, radiusSq))};
+    }
+
     public static void updateSkinnedMesh(
             List<VulkanGpuMesh> gpuMeshes,
             int meshHandle,
-            float[] jointMatrices
+            float[] jointMatrices,
+            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            long bindlessFrameSerial
     ) throws EngineException {
         if (gpuMeshes == null || meshHandle < 0 || meshHandle >= gpuMeshes.size()) {
             throw new EngineException(
@@ -447,6 +498,19 @@ public final class VulkanSceneMeshLifecycle {
             );
         }
         mesh.skinnedUniforms.upload(jointMatrices);
+        if (bindlessDescriptorHeap != null && bindlessDescriptorHeap.active() && mesh.skinningBufferHandle != VK_NULL_HANDLE) {
+            if (mesh.bindlessJointHandle == 0L) {
+                mesh.bindlessJointHandle = bindlessDescriptorHeap.allocate(VulkanBindlessDescriptorHeap.HeapType.JOINT_PALETTE);
+            }
+            if (mesh.bindlessJointHandle != 0L) {
+                bindlessDescriptorHeap.updateJointPaletteDescriptor(
+                        mesh.bindlessJointHandle,
+                        bindlessFrameSerial,
+                        mesh.skinnedUniforms.bufferHandle(),
+                        (long) mesh.jointCount * 64L
+                );
+            }
+        }
     }
 
     public static void updateMorphWeights(

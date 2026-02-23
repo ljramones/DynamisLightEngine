@@ -27,6 +27,7 @@ public final class VulkanBindlessDescriptorHeap {
     private static final long GEN_MASK = 0x00FF_FFFFL;
     private static final long TYPE_MASK = 0xFFL;
 
+    private final VkDevice device;
     private final boolean active;
     private final long descriptorSetLayout;
     private final long descriptorPool;
@@ -47,6 +48,7 @@ public final class VulkanBindlessDescriptorHeap {
     private int invalidIndexWriteCount;
 
     private VulkanBindlessDescriptorHeap(
+            VkDevice device,
             boolean active,
             long descriptorSetLayout,
             long descriptorPool,
@@ -57,6 +59,7 @@ public final class VulkanBindlessDescriptorHeap {
             TypeState morphWeightState,
             TypeState instanceState
     ) {
+        this.device = device;
         this.active = active;
         this.descriptorSetLayout = descriptorSetLayout;
         this.descriptorPool = descriptorPool;
@@ -88,6 +91,7 @@ public final class VulkanBindlessDescriptorHeap {
             long pool = createDescriptorPool(device, stack);
             long set = allocateDescriptorSet(device, stack, pool, layout);
             return new VulkanBindlessDescriptorHeap(
+                    device,
                     true,
                     layout,
                     pool,
@@ -103,6 +107,7 @@ public final class VulkanBindlessDescriptorHeap {
 
     public static VulkanBindlessDescriptorHeap disabled() {
         return new VulkanBindlessDescriptorHeap(
+                null,
                 false,
                 VK_NULL_HANDLE,
                 VK_NULL_HANDLE,
@@ -209,6 +214,34 @@ public final class VulkanBindlessDescriptorHeap {
             return -1;
         }
         return slot;
+    }
+
+    public synchronized boolean updateJointPaletteDescriptor(long handle, long currentFrame, long bufferHandle, long rangeBytes) {
+        if (!active || handle == 0L || bufferHandle == VK_NULL_HANDLE || rangeBytes <= 0L) {
+            return false;
+        }
+        int slot = resolveSlot(handle, currentFrame);
+        if (slot < 0) {
+            return false;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkDescriptorBufferInfo.Buffer bufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
+            bufferInfo.get(0)
+                    .buffer(bufferHandle)
+                    .offset(0L)
+                    .range(rangeBytes);
+            VkWriteDescriptorSet.Buffer write = VkWriteDescriptorSet.calloc(1, stack);
+            write.get(0)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(descriptorSet)
+                    .dstBinding(0)
+                    .dstArrayElement(slot)
+                    .descriptorCount(1)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .pBufferInfo(bufferInfo);
+            vkUpdateDescriptorSets(device, write, null);
+            return true;
+        }
     }
 
     public synchronized void updateDrawMetaStats(int drawMetaCount, int invalidIndexWrites) {

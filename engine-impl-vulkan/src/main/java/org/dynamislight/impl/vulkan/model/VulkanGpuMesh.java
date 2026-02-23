@@ -34,6 +34,10 @@ public final class VulkanGpuMesh {
     public final VulkanGpuTexture occlusionTexture;
     public final int vertexHash;
     public final int indexHash;
+    public final float localBoundsCenterX;
+    public final float localBoundsCenterY;
+    public final float localBoundsCenterZ;
+    public final float localBoundsRadius;
     public final String albedoKey;
     public final String normalKey;
     public final String metallicRoughnessKey;
@@ -43,6 +47,7 @@ public final class VulkanGpuMesh {
     public final int jointCount;
     public final VulkanSkinnedMeshUniforms skinnedUniforms;
     public long skinningBufferHandle = VK_NULL_HANDLE;
+    public long bindlessJointHandle = 0L;
     public final int morphTargetCount;
     public final int morphTargetHash;
     public final VulkanMorphTargetBuffer morphTargets;
@@ -79,6 +84,10 @@ public final class VulkanGpuMesh {
             String meshId,
             int vertexHash,
             int indexHash,
+            float localBoundsCenterX,
+            float localBoundsCenterY,
+            float localBoundsCenterZ,
+            float localBoundsRadius,
             String albedoKey,
             String normalKey,
             String metallicRoughnessKey,
@@ -86,6 +95,7 @@ public final class VulkanGpuMesh {
             boolean skinned,
             int jointCount,
             VulkanSkinnedMeshUniforms skinnedUniforms,
+            long bindlessJointHandle,
             int morphTargetCount,
             int morphTargetHash,
             VulkanMorphTargetBuffer morphTargets,
@@ -120,6 +130,10 @@ public final class VulkanGpuMesh {
         this.occlusionTexture = occlusionTexture;
         this.vertexHash = vertexHash;
         this.indexHash = indexHash;
+        this.localBoundsCenterX = localBoundsCenterX;
+        this.localBoundsCenterY = localBoundsCenterY;
+        this.localBoundsCenterZ = localBoundsCenterZ;
+        this.localBoundsRadius = Math.max(0.0001f, localBoundsRadius);
         this.albedoKey = albedoKey;
         this.normalKey = normalKey;
         this.metallicRoughnessKey = metallicRoughnessKey;
@@ -127,6 +141,7 @@ public final class VulkanGpuMesh {
         this.skinned = skinned;
         this.jointCount = Math.max(0, jointCount);
         this.skinnedUniforms = skinnedUniforms;
+        this.bindlessJointHandle = bindlessJointHandle;
         this.morphTargetCount = Math.max(0, morphTargetCount);
         this.morphTargetHash = morphTargetHash;
         this.morphTargets = morphTargets;
