@@ -11,6 +11,7 @@ import org.lwjgl.vulkan.VkApplicationInfo;
 import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkDeviceCreateInfo;
 import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
+import org.lwjgl.vulkan.VkExtensionProperties;
 import org.lwjgl.vulkan.VkInstance;
 import org.lwjgl.vulkan.VkInstanceCreateInfo;
 import org.lwjgl.vulkan.VkPhysicalDevice;
@@ -50,6 +51,7 @@ import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 import static org.lwjgl.vulkan.VK10.vkCreateDevice;
 import static org.lwjgl.vulkan.VK10.vkCreateInstance;
+import static org.lwjgl.vulkan.VK10.vkEnumerateInstanceExtensionProperties;
 import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
 
 public final class VulkanBootstrap {
@@ -93,16 +95,25 @@ public final class VulkanBootstrap {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "No required Vulkan instance extensions from GLFW", false);
         }
 
-        PointerBuffer instanceExtensions = stack.mallocPointer(requiredExtensions.remaining() + 1);
+        boolean portabilityEnumerationSupported = hasInstanceExtension(
+                stack,
+                VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+        );
+
+        int extraExtensions = portabilityEnumerationSupported ? 1 : 0;
+        PointerBuffer instanceExtensions = stack.mallocPointer(requiredExtensions.remaining() + extraExtensions);
         for (int i = requiredExtensions.position(); i < requiredExtensions.limit(); i++) {
             instanceExtensions.put(requiredExtensions.get(i));
         }
-        instanceExtensions.put(stack.UTF8(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME));
+        if (portabilityEnumerationSupported) {
+            instanceExtensions.put(stack.UTF8(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME));
+        }
         instanceExtensions.flip();
 
+        int instanceFlags = portabilityEnumerationSupported ? VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR : 0;
         VkInstanceCreateInfo createInfo = VkInstanceCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
-                .flags(VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR)
+                .flags(instanceFlags)
                 .ppEnabledExtensionNames(instanceExtensions);
         int[] apiVersions = {
                 VK10.VK_MAKE_API_VERSION(0, 1, 1, 0),
@@ -136,6 +147,25 @@ public final class VulkanBootstrap {
                 "vkCreateInstance failed: " + lastResult,
                 lastResult == VK_ERROR_INITIALIZATION_FAILED
         );
+    }
+
+    private static boolean hasInstanceExtension(MemoryStack stack, String extensionName) {
+        var pCount = stack.ints(0);
+        int countResult = vkEnumerateInstanceExtensionProperties((String) null, pCount, null);
+        if (countResult != VK_SUCCESS || pCount.get(0) <= 0) {
+            return false;
+        }
+        VkExtensionProperties.Buffer props = VkExtensionProperties.calloc(pCount.get(0), stack);
+        int listResult = vkEnumerateInstanceExtensionProperties((String) null, pCount, props);
+        if (listResult != VK_SUCCESS) {
+            return false;
+        }
+        for (int i = 0; i < props.remaining(); i++) {
+            if (extensionName.equals(props.get(i).extensionNameString())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static long createSurface(VkInstance instance, long window, MemoryStack stack) throws EngineException {
