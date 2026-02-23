@@ -530,7 +530,13 @@ public final class VulkanContext {
     }
 
     void updateMorphWeights(int meshHandle, float[] weights) throws EngineException {
-        VulkanSceneMeshLifecycle.updateMorphWeights(sceneResources.gpuMeshes, meshHandle, weights);
+        VulkanSceneMeshLifecycle.updateMorphWeights(
+                sceneResources.gpuMeshes,
+                meshHandle,
+                weights,
+                backendResources.bindlessDescriptorHeap,
+                bindlessFrameSerial
+        );
     }
 
     int registerInstanceBatch(int meshHandle, float[][] modelMatrices) throws EngineException {
@@ -1442,6 +1448,14 @@ public final class VulkanContext {
                     backendResources.bindlessDescriptorHeap.retire(mesh.bindlessJointHandle, bindlessFrameSerial);
                     mesh.bindlessJointHandle = 0L;
                 }
+                if (mesh != null && mesh.bindlessMorphDeltaHandle != 0L) {
+                    backendResources.bindlessDescriptorHeap.retire(mesh.bindlessMorphDeltaHandle, bindlessFrameSerial);
+                    mesh.bindlessMorphDeltaHandle = 0L;
+                }
+                if (mesh != null && mesh.bindlessMorphWeightHandle != 0L) {
+                    backendResources.bindlessDescriptorHeap.retire(mesh.bindlessMorphWeightHandle, bindlessFrameSerial);
+                    mesh.bindlessMorphWeightHandle = 0L;
+                }
             }
         }
         VulkanReflectionProbeTextureCoordinator.destroyOwnedProbeRadianceTexture(
@@ -1492,6 +1506,11 @@ public final class VulkanContext {
                 );
             }
         }
+        VulkanSceneMeshLifecycle.syncBindlessMorphDescriptors(
+                sceneResources.gpuMeshes,
+                backendResources.bindlessDescriptorHeap,
+                bindlessFrameSerial
+        );
     }
 
     private String textureCacheKey(Path texturePath, boolean normalMap) {

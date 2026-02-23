@@ -48,6 +48,8 @@ public final class VulkanGpuMesh {
     public final VulkanSkinnedMeshUniforms skinnedUniforms;
     public long skinningBufferHandle = VK_NULL_HANDLE;
     public long bindlessJointHandle = 0L;
+    public long bindlessMorphDeltaHandle = 0L;
+    public long bindlessMorphWeightHandle = 0L;
     public final int morphTargetCount;
     public final int morphTargetHash;
     public final VulkanMorphTargetBuffer morphTargets;
@@ -96,6 +98,8 @@ public final class VulkanGpuMesh {
             int jointCount,
             VulkanSkinnedMeshUniforms skinnedUniforms,
             long bindlessJointHandle,
+            long bindlessMorphDeltaHandle,
+            long bindlessMorphWeightHandle,
             int morphTargetCount,
             int morphTargetHash,
             VulkanMorphTargetBuffer morphTargets,
@@ -142,6 +146,8 @@ public final class VulkanGpuMesh {
         this.jointCount = Math.max(0, jointCount);
         this.skinnedUniforms = skinnedUniforms;
         this.bindlessJointHandle = bindlessJointHandle;
+        this.bindlessMorphDeltaHandle = bindlessMorphDeltaHandle;
+        this.bindlessMorphWeightHandle = bindlessMorphWeightHandle;
         this.morphTargetCount = Math.max(0, morphTargetCount);
         this.morphTargetHash = morphTargetHash;
         this.morphTargets = morphTargets;

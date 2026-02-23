@@ -92,9 +92,13 @@ public final class VulkanLifecycleOrchestrator {
                         request.backendResources().graphicsPipeline,
                         request.backendResources().bindlessStaticGraphicsPipeline,
                         request.backendResources().bindlessSkinnedGraphicsPipeline,
+                        request.backendResources().bindlessMorphGraphicsPipeline,
+                        request.backendResources().bindlessSkinnedMorphGraphicsPipeline,
                         request.backendResources().pipelineLayout,
                         request.backendResources().bindlessStaticPipelineLayout,
                         request.backendResources().bindlessSkinnedPipelineLayout,
+                        request.backendResources().bindlessMorphPipelineLayout,
+                        request.backendResources().bindlessSkinnedMorphPipelineLayout,
                         request.backendResources().morphGraphicsPipeline,
                         request.backendResources().morphPipelineLayout,
                         request.backendResources().skinnedGraphicsPipeline,
@@ -169,6 +173,10 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.bindlessStaticGraphicsPipeline = state.bindlessStaticGraphicsPipeline();
         backendResources.bindlessSkinnedPipelineLayout = state.bindlessSkinnedPipelineLayout();
         backendResources.bindlessSkinnedGraphicsPipeline = state.bindlessSkinnedGraphicsPipeline();
+        backendResources.bindlessMorphPipelineLayout = state.bindlessMorphPipelineLayout();
+        backendResources.bindlessMorphGraphicsPipeline = state.bindlessMorphGraphicsPipeline();
+        backendResources.bindlessSkinnedMorphPipelineLayout = state.bindlessSkinnedMorphPipelineLayout();
+        backendResources.bindlessSkinnedMorphGraphicsPipeline = state.bindlessSkinnedMorphGraphicsPipeline();
         backendResources.morphPipelineLayout = state.morphPipelineLayout();
         backendResources.morphGraphicsPipeline = state.morphGraphicsPipeline();
         backendResources.skinnedPipelineLayout = state.skinnedPipelineLayout();

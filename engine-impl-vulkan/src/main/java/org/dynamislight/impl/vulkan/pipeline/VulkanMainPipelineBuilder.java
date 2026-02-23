@@ -5,6 +5,8 @@ import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.shader.VulkanBindlessStaticVertexShaderSource;
 import org.dynamislight.impl.vulkan.shader.VulkanBindlessSkinnedVertexShaderSource;
+import org.dynamislight.impl.vulkan.shader.VulkanBindlessMorphVertexShaderSource;
+import org.dynamislight.impl.vulkan.shader.VulkanBindlessSkinnedMorphVertexShaderSource;
 import org.dynamislight.impl.vulkan.shader.VulkanMorphVertexShaderSource;
 import org.dynamislight.impl.vulkan.shader.VulkanInstancedVertexShaderSource;
 import org.dynamislight.impl.vulkan.shader.VulkanSkinnedMorphVertexShaderSource;
@@ -116,6 +118,10 @@ public final class VulkanMainPipelineBuilder {
         long bindlessStaticGraphicsPipeline = VK_NULL_HANDLE;
         long bindlessSkinnedPipelineLayout = VK_NULL_HANDLE;
         long bindlessSkinnedGraphicsPipeline = VK_NULL_HANDLE;
+        long bindlessMorphPipelineLayout = VK_NULL_HANDLE;
+        long bindlessMorphGraphicsPipeline = VK_NULL_HANDLE;
+        long bindlessSkinnedMorphPipelineLayout = VK_NULL_HANDLE;
+        long bindlessSkinnedMorphGraphicsPipeline = VK_NULL_HANDLE;
         long morphPipelineLayout = VK_NULL_HANDLE;
         long morphGraphicsPipeline = VK_NULL_HANDLE;
         long skinnedPipelineLayout = VK_NULL_HANDLE;
@@ -294,6 +300,42 @@ public final class VulkanMainPipelineBuilder {
                     );
                     bindlessSkinnedPipelineLayout = bindlessSkinnedPipeline.pipelineLayout();
                     bindlessSkinnedGraphicsPipeline = bindlessSkinnedPipeline.graphicsPipeline();
+                    PipelineHandles bindlessMorphPipeline = buildBindlessMorphPipeline(
+                            device,
+                            stack,
+                            fragModule,
+                            inputAssembly,
+                            viewportState,
+                            rasterizer,
+                            multisampling,
+                            depthStencil,
+                            colorBlending,
+                            renderPass,
+                            descriptorSetLayout,
+                            textureDescriptorSetLayout,
+                            skinnedDescriptorSetLayout,
+                            bindlessDescriptorSetLayout
+                    );
+                    bindlessMorphPipelineLayout = bindlessMorphPipeline.pipelineLayout();
+                    bindlessMorphGraphicsPipeline = bindlessMorphPipeline.graphicsPipeline();
+                    PipelineHandles bindlessSkinnedMorphPipeline = buildBindlessSkinnedMorphPipeline(
+                            device,
+                            stack,
+                            fragModule,
+                            inputAssembly,
+                            viewportState,
+                            rasterizer,
+                            multisampling,
+                            depthStencil,
+                            colorBlending,
+                            renderPass,
+                            descriptorSetLayout,
+                            textureDescriptorSetLayout,
+                            skinnedDescriptorSetLayout,
+                            bindlessDescriptorSetLayout
+                    );
+                    bindlessSkinnedMorphPipelineLayout = bindlessSkinnedMorphPipeline.pipelineLayout();
+                    bindlessSkinnedMorphGraphicsPipeline = bindlessSkinnedMorphPipeline.graphicsPipeline();
                 }
                 PipelineHandles morphPipeline = buildMorphPipeline(
                         device,
@@ -390,6 +432,12 @@ public final class VulkanMainPipelineBuilder {
             if (morphPipelineLayout != VK_NULL_HANDLE) {
                 VK10.vkDestroyPipelineLayout(device, morphPipelineLayout, null);
             }
+            if (bindlessMorphGraphicsPipeline != VK_NULL_HANDLE) {
+                VK10.vkDestroyPipeline(device, bindlessMorphGraphicsPipeline, null);
+            }
+            if (bindlessMorphPipelineLayout != VK_NULL_HANDLE) {
+                VK10.vkDestroyPipelineLayout(device, bindlessMorphPipelineLayout, null);
+            }
             if (skinnedGraphicsPipeline != VK_NULL_HANDLE) {
                 VK10.vkDestroyPipeline(device, skinnedGraphicsPipeline, null);
             }
@@ -401,6 +449,12 @@ public final class VulkanMainPipelineBuilder {
             }
             if (skinnedMorphPipelineLayout != VK_NULL_HANDLE) {
                 VK10.vkDestroyPipelineLayout(device, skinnedMorphPipelineLayout, null);
+            }
+            if (bindlessSkinnedMorphGraphicsPipeline != VK_NULL_HANDLE) {
+                VK10.vkDestroyPipeline(device, bindlessSkinnedMorphGraphicsPipeline, null);
+            }
+            if (bindlessSkinnedMorphPipelineLayout != VK_NULL_HANDLE) {
+                VK10.vkDestroyPipelineLayout(device, bindlessSkinnedMorphPipelineLayout, null);
             }
             if (instancedGraphicsPipeline != VK_NULL_HANDLE) {
                 VK10.vkDestroyPipeline(device, instancedGraphicsPipeline, null);
@@ -424,6 +478,10 @@ public final class VulkanMainPipelineBuilder {
                 bindlessStaticGraphicsPipeline,
                 bindlessSkinnedPipelineLayout,
                 bindlessSkinnedGraphicsPipeline,
+                bindlessMorphPipelineLayout,
+                bindlessMorphGraphicsPipeline,
+                bindlessSkinnedMorphPipelineLayout,
+                bindlessSkinnedMorphGraphicsPipeline,
                 morphPipelineLayout,
                 morphGraphicsPipeline,
                 skinnedPipelineLayout,
@@ -687,6 +745,180 @@ public final class VulkanMainPipelineBuilder {
             return new PipelineHandles(pipelineLayout, pPipeline.get(0));
         } finally {
             vkDestroyShaderModule(device, bindlessSkinnedVertModule, null);
+        }
+    }
+
+    private static PipelineHandles buildBindlessMorphPipeline(
+            VkDevice device,
+            MemoryStack stack,
+            long fragModule,
+            VkPipelineInputAssemblyStateCreateInfo inputAssembly,
+            VkPipelineViewportStateCreateInfo viewportState,
+            VkPipelineRasterizationStateCreateInfo rasterizer,
+            VkPipelineMultisampleStateCreateInfo multisampling,
+            VkPipelineDepthStencilStateCreateInfo depthStencil,
+            VkPipelineColorBlendStateCreateInfo colorBlending,
+            long renderPass,
+            long descriptorSetLayout,
+            long textureDescriptorSetLayout,
+            long skinnedDescriptorSetLayout,
+            long bindlessDescriptorSetLayout
+    ) throws EngineException {
+        String bindlessMorphVertexShaderSource = VulkanBindlessMorphVertexShaderSource.mainVertex();
+        ByteBuffer bindlessMorphVertSpv = VulkanShaderCompiler.compileGlslToSpv(
+                bindlessMorphVertexShaderSource,
+                shaderc_glsl_vertex_shader,
+                "main_morph_bindless.vert"
+        );
+        long bindlessMorphVertModule = VulkanShaderCompiler.createShaderModule(device, stack, bindlessMorphVertSpv);
+        VkPipelineLayoutCreateInfo bindlessMorphLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
+                .pSetLayouts(stack.longs(
+                        descriptorSetLayout,
+                        textureDescriptorSetLayout,
+                        skinnedDescriptorSetLayout,
+                        bindlessDescriptorSetLayout
+                ))
+                .pPushConstantRanges(VkPushConstantRange.calloc(1, stack)
+                        .stageFlags(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+                        .offset(0)
+                        .size(4 * Float.BYTES));
+        var pLayout = stack.longs(VK_NULL_HANDLE);
+        int layoutResult = vkCreatePipelineLayout(device, bindlessMorphLayoutInfo, null, pLayout);
+        if (layoutResult != VK_SUCCESS || pLayout.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkCreatePipelineLayout(bindlessMorph) failed: " + layoutResult,
+                    false
+            );
+        }
+        long pipelineLayout = pLayout.get(0);
+        try {
+            VkPipelineShaderStageCreateInfo.Buffer stages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
+            stages.get(0)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_VERTEX_BIT)
+                    .module(bindlessMorphVertModule)
+                    .pName(stack.UTF8("main"));
+            stages.get(1)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_FRAGMENT_BIT)
+                    .module(fragModule)
+                    .pName(stack.UTF8("main"));
+            VkGraphicsPipelineCreateInfo.Buffer info = VkGraphicsPipelineCreateInfo.calloc(1, stack)
+                    .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+                    .pStages(stages)
+                    .pVertexInputState(staticVertexInputState(stack))
+                    .pInputAssemblyState(inputAssembly)
+                    .pViewportState(viewportState)
+                    .pRasterizationState(rasterizer)
+                    .pMultisampleState(multisampling)
+                    .pDepthStencilState(depthStencil)
+                    .pColorBlendState(colorBlending)
+                    .layout(pipelineLayout)
+                    .renderPass(renderPass)
+                    .subpass(0)
+                    .basePipelineHandle(VK_NULL_HANDLE);
+            var pPipeline = stack.longs(VK_NULL_HANDLE);
+            int result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, info, null, pPipeline);
+            if (result != VK_SUCCESS || pPipeline.get(0) == VK_NULL_HANDLE) {
+                VK10.vkDestroyPipelineLayout(device, pipelineLayout, null);
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "vkCreateGraphicsPipelines(bindlessMorph) failed: " + result,
+                        false
+                );
+            }
+            return new PipelineHandles(pipelineLayout, pPipeline.get(0));
+        } finally {
+            vkDestroyShaderModule(device, bindlessMorphVertModule, null);
+        }
+    }
+
+    private static PipelineHandles buildBindlessSkinnedMorphPipeline(
+            VkDevice device,
+            MemoryStack stack,
+            long fragModule,
+            VkPipelineInputAssemblyStateCreateInfo inputAssembly,
+            VkPipelineViewportStateCreateInfo viewportState,
+            VkPipelineRasterizationStateCreateInfo rasterizer,
+            VkPipelineMultisampleStateCreateInfo multisampling,
+            VkPipelineDepthStencilStateCreateInfo depthStencil,
+            VkPipelineColorBlendStateCreateInfo colorBlending,
+            long renderPass,
+            long descriptorSetLayout,
+            long textureDescriptorSetLayout,
+            long skinnedDescriptorSetLayout,
+            long bindlessDescriptorSetLayout
+    ) throws EngineException {
+        String bindlessSkinnedMorphVertexShaderSource = VulkanBindlessSkinnedMorphVertexShaderSource.mainVertex();
+        ByteBuffer bindlessSkinnedMorphVertSpv = VulkanShaderCompiler.compileGlslToSpv(
+                bindlessSkinnedMorphVertexShaderSource,
+                shaderc_glsl_vertex_shader,
+                "main_skinned_morph_bindless.vert"
+        );
+        long bindlessSkinnedMorphVertModule = VulkanShaderCompiler.createShaderModule(device, stack, bindlessSkinnedMorphVertSpv);
+        VkPipelineLayoutCreateInfo bindlessSkinnedMorphLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
+                .pSetLayouts(stack.longs(
+                        descriptorSetLayout,
+                        textureDescriptorSetLayout,
+                        skinnedDescriptorSetLayout,
+                        bindlessDescriptorSetLayout
+                ))
+                .pPushConstantRanges(VkPushConstantRange.calloc(1, stack)
+                        .stageFlags(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+                        .offset(0)
+                        .size(4 * Float.BYTES));
+        var pLayout = stack.longs(VK_NULL_HANDLE);
+        int layoutResult = vkCreatePipelineLayout(device, bindlessSkinnedMorphLayoutInfo, null, pLayout);
+        if (layoutResult != VK_SUCCESS || pLayout.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkCreatePipelineLayout(bindlessSkinnedMorph) failed: " + layoutResult,
+                    false
+            );
+        }
+        long pipelineLayout = pLayout.get(0);
+        try {
+            VkPipelineShaderStageCreateInfo.Buffer stages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
+            stages.get(0)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_VERTEX_BIT)
+                    .module(bindlessSkinnedMorphVertModule)
+                    .pName(stack.UTF8("main"));
+            stages.get(1)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_FRAGMENT_BIT)
+                    .module(fragModule)
+                    .pName(stack.UTF8("main"));
+            VkGraphicsPipelineCreateInfo.Buffer info = VkGraphicsPipelineCreateInfo.calloc(1, stack)
+                    .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+                    .pStages(stages)
+                    .pVertexInputState(skinnedVertexInputState(stack))
+                    .pInputAssemblyState(inputAssembly)
+                    .pViewportState(viewportState)
+                    .pRasterizationState(rasterizer)
+                    .pMultisampleState(multisampling)
+                    .pDepthStencilState(depthStencil)
+                    .pColorBlendState(colorBlending)
+                    .layout(pipelineLayout)
+                    .renderPass(renderPass)
+                    .subpass(0)
+                    .basePipelineHandle(VK_NULL_HANDLE);
+            var pPipeline = stack.longs(VK_NULL_HANDLE);
+            int result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, info, null, pPipeline);
+            if (result != VK_SUCCESS || pPipeline.get(0) == VK_NULL_HANDLE) {
+                VK10.vkDestroyPipelineLayout(device, pipelineLayout, null);
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "vkCreateGraphicsPipelines(bindlessSkinnedMorph) failed: " + result,
+                        false
+                );
+            }
+            return new PipelineHandles(pipelineLayout, pPipeline.get(0));
+        } finally {
+            vkDestroyShaderModule(device, bindlessSkinnedMorphVertModule, null);
         }
     }
 
@@ -1100,6 +1332,10 @@ public final class VulkanMainPipelineBuilder {
             long bindlessStaticGraphicsPipeline,
             long bindlessSkinnedPipelineLayout,
             long bindlessSkinnedGraphicsPipeline,
+            long bindlessMorphPipelineLayout,
+            long bindlessMorphGraphicsPipeline,
+            long bindlessSkinnedMorphPipelineLayout,
+            long bindlessSkinnedMorphGraphicsPipeline,
             long morphPipelineLayout,
             long morphGraphicsPipeline,
             long skinnedPipelineLayout,

@@ -244,6 +244,14 @@ public final class VulkanBindlessDescriptorHeap {
         }
     }
 
+    public synchronized boolean updateMorphDeltaDescriptor(long handle, long currentFrame, long bufferHandle, long rangeBytes) {
+        return updateStorageBufferDescriptor(handle, currentFrame, bufferHandle, rangeBytes, 1);
+    }
+
+    public synchronized boolean updateMorphWeightDescriptor(long handle, long currentFrame, long bufferHandle, long rangeBytes) {
+        return updateUniformBufferDescriptor(handle, currentFrame, bufferHandle, rangeBytes, 2);
+    }
+
     public synchronized void updateDrawMetaStats(int drawMetaCount, int invalidIndexWrites) {
         this.drawMetaCount = Math.max(0, drawMetaCount);
         this.invalidIndexWriteCount = Math.max(0, invalidIndexWrites);
@@ -336,6 +344,74 @@ public final class VulkanBindlessDescriptorHeap {
             );
         }
         return pLayout.get(0);
+    }
+
+    private boolean updateStorageBufferDescriptor(
+            long handle,
+            long currentFrame,
+            long bufferHandle,
+            long rangeBytes,
+            int binding
+    ) {
+        if (!active || handle == 0L || bufferHandle == VK_NULL_HANDLE || rangeBytes <= 0L) {
+            return false;
+        }
+        int slot = resolveSlot(handle, currentFrame);
+        if (slot < 0) {
+            return false;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkDescriptorBufferInfo.Buffer bufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
+            bufferInfo.get(0)
+                    .buffer(bufferHandle)
+                    .offset(0L)
+                    .range(rangeBytes);
+            VkWriteDescriptorSet.Buffer write = VkWriteDescriptorSet.calloc(1, stack);
+            write.get(0)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(descriptorSet)
+                    .dstBinding(binding)
+                    .dstArrayElement(slot)
+                    .descriptorCount(1)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    .pBufferInfo(bufferInfo);
+            vkUpdateDescriptorSets(device, write, null);
+            return true;
+        }
+    }
+
+    private boolean updateUniformBufferDescriptor(
+            long handle,
+            long currentFrame,
+            long bufferHandle,
+            long rangeBytes,
+            int binding
+    ) {
+        if (!active || handle == 0L || bufferHandle == VK_NULL_HANDLE || rangeBytes <= 0L) {
+            return false;
+        }
+        int slot = resolveSlot(handle, currentFrame);
+        if (slot < 0) {
+            return false;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            VkDescriptorBufferInfo.Buffer bufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
+            bufferInfo.get(0)
+                    .buffer(bufferHandle)
+                    .offset(0L)
+                    .range(rangeBytes);
+            VkWriteDescriptorSet.Buffer write = VkWriteDescriptorSet.calloc(1, stack);
+            write.get(0)
+                    .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                    .dstSet(descriptorSet)
+                    .dstBinding(binding)
+                    .dstArrayElement(slot)
+                    .descriptorCount(1)
+                    .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                    .pBufferInfo(bufferInfo);
+            vkUpdateDescriptorSets(device, write, null);
+            return true;
+        }
     }
 
     private static long createDescriptorPool(VkDevice device, MemoryStack stack) throws EngineException {

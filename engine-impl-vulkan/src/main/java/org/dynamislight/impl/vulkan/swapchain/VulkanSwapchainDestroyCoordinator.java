@@ -30,6 +30,12 @@ public final class VulkanSwapchainDestroyCoordinator {
         if (inputs.bindlessSkinnedGraphicsPipeline() != VK_NULL_HANDLE) {
             vkDestroyPipeline(inputs.device(), inputs.bindlessSkinnedGraphicsPipeline(), null);
         }
+        if (inputs.bindlessMorphGraphicsPipeline() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(inputs.device(), inputs.bindlessMorphGraphicsPipeline(), null);
+        }
+        if (inputs.bindlessSkinnedMorphGraphicsPipeline() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(inputs.device(), inputs.bindlessSkinnedMorphGraphicsPipeline(), null);
+        }
         if (inputs.morphGraphicsPipeline() != VK_NULL_HANDLE) {
             vkDestroyPipeline(inputs.device(), inputs.morphGraphicsPipeline(), null);
         }
@@ -50,6 +56,12 @@ public final class VulkanSwapchainDestroyCoordinator {
         }
         if (inputs.bindlessSkinnedPipelineLayout() != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(inputs.device(), inputs.bindlessSkinnedPipelineLayout(), null);
+        }
+        if (inputs.bindlessMorphPipelineLayout() != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(inputs.device(), inputs.bindlessMorphPipelineLayout(), null);
+        }
+        if (inputs.bindlessSkinnedMorphPipelineLayout() != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(inputs.device(), inputs.bindlessSkinnedMorphPipelineLayout(), null);
         }
         if (inputs.morphPipelineLayout() != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(inputs.device(), inputs.morphPipelineLayout(), null);
@@ -96,6 +108,8 @@ public final class VulkanSwapchainDestroyCoordinator {
             long graphicsPipeline,
             long bindlessStaticGraphicsPipeline,
             long bindlessSkinnedGraphicsPipeline,
+            long bindlessMorphGraphicsPipeline,
+            long bindlessSkinnedMorphGraphicsPipeline,
             long morphGraphicsPipeline,
             long skinnedGraphicsPipeline,
             long skinnedMorphGraphicsPipeline,
@@ -103,6 +117,8 @@ public final class VulkanSwapchainDestroyCoordinator {
             long pipelineLayout,
             long bindlessStaticPipelineLayout,
             long bindlessSkinnedPipelineLayout,
+            long bindlessMorphPipelineLayout,
+            long bindlessSkinnedMorphPipelineLayout,
             long morphPipelineLayout,
             long skinnedPipelineLayout,
             long skinnedMorphPipelineLayout,
@@ -125,6 +141,8 @@ public final class VulkanSwapchainDestroyCoordinator {
             long graphicsPipeline,
             long bindlessStaticGraphicsPipeline,
             long bindlessSkinnedGraphicsPipeline,
+            long bindlessMorphGraphicsPipeline,
+            long bindlessSkinnedMorphGraphicsPipeline,
             long morphGraphicsPipeline,
             long skinnedGraphicsPipeline,
             long skinnedMorphGraphicsPipeline,
@@ -132,6 +150,8 @@ public final class VulkanSwapchainDestroyCoordinator {
             long pipelineLayout,
             long bindlessStaticPipelineLayout,
             long bindlessSkinnedPipelineLayout,
+            long bindlessMorphPipelineLayout,
+            long bindlessSkinnedMorphPipelineLayout,
             long morphPipelineLayout,
             long skinnedPipelineLayout,
             long skinnedMorphPipelineLayout,
@@ -176,6 +196,10 @@ public final class VulkanSwapchainDestroyCoordinator {
         public static Result empty() {
             return new Result(
                     new long[0],
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,

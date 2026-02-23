@@ -227,6 +227,8 @@ public final class VulkanSceneMeshLifecycle {
                     mesh.jointCount(),
                     skinnedUniforms,
                     0L,
+                    0L,
+                    0L,
                     morphTargetCount,
                     morphTargetHash,
                     morphTargets,
@@ -364,6 +366,8 @@ public final class VulkanSceneMeshLifecycle {
                     mesh.jointCount,
                     mesh.skinnedUniforms,
                     mesh.bindlessJointHandle,
+                    mesh.bindlessMorphDeltaHandle,
+                    mesh.bindlessMorphWeightHandle,
                     mesh.morphTargetCount,
                     mesh.morphTargetHash,
                     mesh.morphTargets,
@@ -516,7 +520,9 @@ public final class VulkanSceneMeshLifecycle {
     public static void updateMorphWeights(
             List<VulkanGpuMesh> gpuMeshes,
             int meshHandle,
-            float[] weights
+            float[] weights,
+            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            long bindlessFrameSerial
     ) throws EngineException {
         if (gpuMeshes == null || meshHandle < 0 || meshHandle >= gpuMeshes.size()) {
             throw new EngineException(
@@ -541,6 +547,54 @@ public final class VulkanSceneMeshLifecycle {
             );
         }
         mesh.morphWeightUniforms.upload(weights);
+        if (bindlessDescriptorHeap != null
+                && bindlessDescriptorHeap.active()
+                && mesh.bindlessMorphWeightHandle != 0L
+                && mesh.morphWeightUniforms.bufferHandle() != VK_NULL_HANDLE) {
+            bindlessDescriptorHeap.updateMorphWeightDescriptor(
+                    mesh.bindlessMorphWeightHandle,
+                    bindlessFrameSerial,
+                    mesh.morphWeightUniforms.bufferHandle(),
+                    (long) VulkanMorphWeightUniforms.MAX_WEIGHTS * Float.BYTES
+            );
+        }
+    }
+
+    public static void syncBindlessMorphDescriptors(
+            List<VulkanGpuMesh> gpuMeshes,
+            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            long bindlessFrameSerial
+    ) {
+        if (gpuMeshes == null || bindlessDescriptorHeap == null || !bindlessDescriptorHeap.active()) {
+            return;
+        }
+        for (VulkanGpuMesh mesh : gpuMeshes) {
+            if (mesh == null || mesh.morphTargetCount <= 0 || mesh.morphTargets == null || mesh.morphWeightUniforms == null) {
+                continue;
+            }
+            if (mesh.bindlessMorphDeltaHandle == 0L) {
+                mesh.bindlessMorphDeltaHandle = bindlessDescriptorHeap.allocate(VulkanBindlessDescriptorHeap.HeapType.MORPH_DELTA);
+            }
+            if (mesh.bindlessMorphWeightHandle == 0L) {
+                mesh.bindlessMorphWeightHandle = bindlessDescriptorHeap.allocate(VulkanBindlessDescriptorHeap.HeapType.MORPH_WEIGHT);
+            }
+            if (mesh.bindlessMorphDeltaHandle != 0L && mesh.morphTargets.bufferHandle() != VK_NULL_HANDLE) {
+                bindlessDescriptorHeap.updateMorphDeltaDescriptor(
+                        mesh.bindlessMorphDeltaHandle,
+                        bindlessFrameSerial,
+                        mesh.morphTargets.bufferHandle(),
+                        mesh.morphTargets.bytes()
+                );
+            }
+            if (mesh.bindlessMorphWeightHandle != 0L && mesh.morphWeightUniforms.bufferHandle() != VK_NULL_HANDLE) {
+                bindlessDescriptorHeap.updateMorphWeightDescriptor(
+                        mesh.bindlessMorphWeightHandle,
+                        bindlessFrameSerial,
+                        mesh.morphWeightUniforms.bufferHandle(),
+                        (long) VulkanMorphWeightUniforms.MAX_WEIGHTS * Float.BYTES
+                );
+            }
+        }
     }
 
     public static int registerInstanceBatch(
