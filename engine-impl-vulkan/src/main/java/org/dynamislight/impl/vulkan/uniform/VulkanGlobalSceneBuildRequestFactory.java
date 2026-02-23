@@ -3,16 +3,15 @@ package org.dynamislight.impl.vulkan.uniform;
 import org.dynamislight.impl.vulkan.state.VulkanIblState;
 import org.dynamislight.impl.vulkan.state.VulkanLightingParameterMutator;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
-
-import static org.dynamislight.impl.vulkan.math.VulkanMath.mul;
+import org.vectrix.core.Matrix4f;
 
 public final class VulkanGlobalSceneBuildRequestFactory {
     public record Inputs(
             int globalSceneUniformBytes,
-            float[] viewMatrix,
-            float[] projMatrix,
+            Matrix4f viewMatrix,
+            Matrix4f projMatrix,
             boolean taaPrevViewProjValid,
-            float[] taaPrevViewProj,
+            Matrix4f taaPrevViewProj,
             VulkanLightingParameterMutator.LightingState lightingState,
             VulkanRenderState renderState,
             int localLightCount,
@@ -30,17 +29,23 @@ public final class VulkanGlobalSceneBuildRequestFactory {
 
     public static VulkanGlobalSceneUniformCoordinator.BuildRequest build(Inputs in) {
         float planarHeight = in.renderState().reflectionsPlanarPlaneHeight;
-        float[] planeReflection = planarReflectionMatrix(planarHeight);
-        float[] planarViewMatrix = mul(in.viewMatrix(), planeReflection);
-        float[] planarProjMatrix = in.projMatrix();
-        float[] planarPrevViewProj = in.taaPrevViewProjValid()
-                ? mul(in.taaPrevViewProj(), planeReflection)
-                : mul(planarProjMatrix, planarViewMatrix);
+        Matrix4f planeReflection = planarReflectionMatrix(planarHeight);
+        Matrix4f planarViewMatrix = new Matrix4f(in.viewMatrix()).mul(planeReflection, new Matrix4f());
+        Matrix4f planarProjMatrix = new Matrix4f(in.projMatrix());
+        Matrix4f viewMatrix = new Matrix4f(in.viewMatrix());
+        Matrix4f projMatrix = new Matrix4f(in.projMatrix());
+        Matrix4f planarPrevViewProj = in.taaPrevViewProjValid()
+                ? new Matrix4f(in.taaPrevViewProj()).mul(planeReflection, new Matrix4f())
+                : new Matrix4f(planarProjMatrix).mul(planarViewMatrix, new Matrix4f());
+        Matrix4f prevViewProj = in.taaPrevViewProjValid()
+                ? new Matrix4f(in.taaPrevViewProj())
+                : new Matrix4f(projMatrix).mul(viewMatrix, new Matrix4f());
+        Matrix4f[] shadowLightViewProjMatrices = toMatrixArray(in.renderState().shadowLightViewProjMatrices);
 
         return new VulkanGlobalSceneUniformCoordinator.BuildRequest(
                 in.globalSceneUniformBytes(),
-                in.viewMatrix(),
-                in.projMatrix(),
+                viewMatrix,
+                projMatrix,
                 in.lightingState().dirLightDirX(),
                 in.lightingState().dirLightDirY(),
                 in.lightingState().dirLightDirZ(),
@@ -122,21 +127,35 @@ public final class VulkanGlobalSceneBuildRequestFactory {
                 in.renderState().ssaoPower,
                 in.renderState().smaaEnabled,
                 in.renderState().smaaStrength,
-                in.taaPrevViewProjValid() ? in.taaPrevViewProj() : mul(in.projMatrix(), in.viewMatrix()),
-                in.renderState().shadowLightViewProjMatrices,
+                prevViewProj,
+                shadowLightViewProjMatrices,
                 planarViewMatrix,
                 planarProjMatrix,
                 planarPrevViewProj
         );
     }
 
-    private static float[] planarReflectionMatrix(float planeHeight) {
-        return new float[]{
+    private static Matrix4f planarReflectionMatrix(float planeHeight) {
+        return new Matrix4f().set(new float[]{
                 1f, 0f, 0f, 0f,
                 0f, -1f, 0f, 0f,
                 0f, 0f, 1f, 0f,
                 0f, 2f * planeHeight, 0f, 1f
-        };
+        });
+    }
+
+    private static Matrix4f[] toMatrixArray(float[][] matrices) {
+        if (matrices == null || matrices.length == 0) {
+            return new Matrix4f[0];
+        }
+        Matrix4f[] result = new Matrix4f[matrices.length];
+        for (int i = 0; i < matrices.length; i++) {
+            float[] source = matrices[i];
+            result[i] = (source != null && source.length == 16)
+                    ? new Matrix4f().set(source)
+                    : new Matrix4f().identity();
+        }
+        return result;
     }
 
     private VulkanGlobalSceneBuildRequestFactory() {

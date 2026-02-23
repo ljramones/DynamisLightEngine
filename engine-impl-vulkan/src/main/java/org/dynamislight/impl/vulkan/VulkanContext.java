@@ -1,6 +1,7 @@
 package org.dynamislight.impl.vulkan;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +31,7 @@ import org.dynamislight.impl.vulkan.profile.VulkanPipelineProfileKey;
 import org.dynamislight.impl.vulkan.profile.VulkanPipelineProfileResolver;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneRuntimeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshCoordinator;
+import org.dynamislight.impl.vulkan.scene.VulkanSceneMeshLifecycle;
 import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeRuntimeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeTextureCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneSetPlanner;
@@ -55,10 +57,10 @@ import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUploadStateTracker;
 import org.dynamislight.spi.render.RenderFeatureMode;
+import org.vectrix.core.Matrix4f;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
-import static org.dynamislight.impl.vulkan.math.VulkanMath.*;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.glfw.GLFWVulkan.*;
 import static org.lwjgl.system.MemoryStack.stackPush;
@@ -105,10 +107,10 @@ public final class VulkanContext {
     private final VulkanDescriptorRingStats descriptorRingStats = new VulkanDescriptorRingStats();
     private long estimatedGpuMemoryBytes;
     private final VulkanFrameUploadStats frameUploadStats = new VulkanFrameUploadStats();
-    private float[] viewMatrix = identityMatrix();
-    private float[] projMatrix = identityMatrix();
-    private float[] projBaseMatrix = identityMatrix();
-    private float[] taaPrevViewProj = identityMatrix();
+    private Matrix4f viewMatrix = new Matrix4f().identity();
+    private Matrix4f projMatrix = new Matrix4f().identity();
+    private Matrix4f projBaseMatrix = new Matrix4f().identity();
+    private Matrix4f taaPrevViewProj = new Matrix4f().identity();
     private boolean taaPrevViewProjValid;
     private int taaJitterFrameIndex;
     private final VulkanRenderState renderState = new VulkanRenderState();
@@ -249,23 +251,24 @@ public final class VulkanContext {
                 rebuildPipelineProfileRuntimeResources();
             }
         }
-        float[] previousProjMatrix = projMatrix;
+        float[] previousProjMatrix = matrixToArray(projMatrix);
         var jitterUpdate = VulkanTemporalAaCoordinator.updateTemporalJitterState(
                 renderState,
                 taaJitterFrameIndex,
                 backendResources.swapchainWidth,
                 backendResources.swapchainHeight,
-                projBaseMatrix,
-                projMatrix,
+                matrixToArray(projBaseMatrix),
+                previousProjMatrix,
                 taaPrevViewProjValid,
-                taaPrevViewProj,
-                viewMatrix
+                matrixToArray(taaPrevViewProj),
+                matrixToArray(viewMatrix)
         );
         taaJitterFrameIndex = jitterUpdate.taaJitterFrameIndex();
-        projMatrix = jitterUpdate.projMatrix();
-        if (projMatrix != previousProjMatrix) {
+        float[] updatedProjMatrix = jitterUpdate.projMatrix();
+        if (!Arrays.equals(previousProjMatrix, updatedProjMatrix)) {
             markGlobalStateDirty();
         }
+        projMatrix = matrixFromArray(updatedProjMatrix, projMatrix);
         if (backendResources.device != null && backendResources.graphicsQueue != null && backendResources.commandBuffers.length > 0 && backendResources.swapchain != VK_NULL_HANDLE) {
             try (MemoryStack stack = stackPush()) {
                 int frameIdx = backendResources.currentFrame % backendResources.commandBuffers.length;
@@ -279,12 +282,12 @@ public final class VulkanContext {
                 backendResources.currentFrame = (backendResources.currentFrame + 1) % Math.max(1, backendResources.commandBuffers.length);
                 var temporalHistoryUpdate = VulkanTemporalAaCoordinator.updateTemporalHistoryCameraState(
                         renderState,
-                        projMatrix,
-                        viewMatrix,
-                        taaPrevViewProj,
+                        matrixToArray(projMatrix),
+                        matrixToArray(viewMatrix),
+                        matrixToArray(taaPrevViewProj),
                         taaPrevViewProjValid
                 );
-                taaPrevViewProj = temporalHistoryUpdate.taaPrevViewProj();
+                taaPrevViewProj = matrixFromArray(temporalHistoryUpdate.taaPrevViewProj(), taaPrevViewProj);
                 taaPrevViewProjValid = temporalHistoryUpdate.taaPrevViewProjValid();
             }
         }
@@ -504,23 +507,35 @@ public final class VulkanContext {
         estimatedGpuMemoryBytes = result.estimatedGpuMemoryBytes();
     }
 
-    void setCameraMatrices(float[] view, float[] proj) {
+    void updateSkinnedMesh(int meshHandle, float[] jointMatrices) throws EngineException {
+        VulkanSceneMeshLifecycle.updateSkinnedMesh(sceneResources.gpuMeshes, meshHandle, jointMatrices);
+    }
+
+    void updateMorphWeights(int meshHandle, float[] weights) throws EngineException {
+        VulkanSceneMeshLifecycle.updateMorphWeights(sceneResources.gpuMeshes, meshHandle, weights);
+    }
+
+    void setCameraMatrices(Matrix4f view, Matrix4f proj) {
+        float[] currentView = matrixToArray(viewMatrix);
+        float[] currentProj = matrixToArray(projMatrix);
+        float[] incomingView = matrixToArray(view);
+        float[] incomingProj = matrixToArray(proj);
         var result = VulkanRenderParameterMutator.applyCameraMatrices(
-                new VulkanRenderParameterMutator.CameraState(viewMatrix, projMatrix),
-                new VulkanRenderParameterMutator.CameraUpdate(view, proj)
+                new VulkanRenderParameterMutator.CameraState(currentView, currentProj),
+                new VulkanRenderParameterMutator.CameraUpdate(incomingView, incomingProj)
         );
-        viewMatrix = result.state().view();
-        if (proj != null && proj.length == 16) {
-            projBaseMatrix = proj.clone();
-            projMatrix = VulkanTemporalAaCoordinator.applyProjectionJitter(
-                    projBaseMatrix,
+        viewMatrix = matrixFromArray(result.state().view(), viewMatrix);
+        if (proj != null) {
+            projBaseMatrix = matrixFromArray(incomingProj, projBaseMatrix);
+            projMatrix = matrixFromArray(VulkanTemporalAaCoordinator.applyProjectionJitter(
+                    matrixToArray(projBaseMatrix),
                     renderState.taaJitterNdcX,
                     renderState.taaJitterNdcY
-            );
+            ), projMatrix);
             renderState.postTaaHistoryInitialized = false;
             taaPrevViewProjValid = false;
         } else {
-            projMatrix = result.state().proj();
+            projMatrix = matrixFromArray(result.state().proj(), projMatrix);
         }
         if (result.changed() || proj != null) {
             markGlobalStateDirty();
@@ -1009,7 +1024,7 @@ public final class VulkanContext {
             this.renderState.postTaaHistoryInitialized = false;
             taaJitterFrameIndex = 0;
             VulkanTemporalAaCoordinator.resetTemporalJitterState(renderState);
-            projMatrix = projBaseMatrix.clone();
+            projMatrix = new Matrix4f(projBaseMatrix);
             taaPrevViewProjValid = false;
             taaHistoryRejectRate = 0.0;
             taaConfidenceMean = 1.0;
@@ -1245,8 +1260,8 @@ public final class VulkanContext {
                         localLightPosRange,
                         localLightDirInner,
                         localLightOuterTypeShadow,
-                        viewMatrix,
-                        projMatrix,
+                        matrixToArray(viewMatrix),
+                        matrixToArray(projMatrix),
                         MAX_SHADOW_MATRICES,
                         MAX_SHADOW_CASCADES,
                         POINT_SHADOW_FACES
@@ -1392,8 +1407,8 @@ public final class VulkanContext {
                         descriptorResources.reflectionProbeMetadataBufferBytes,
                         descriptorResources.reflectionProbeMetadataMaxCount,
                         descriptorResources.reflectionProbeMetadataStrideBytes,
-                        projMatrix,
-                        viewMatrix,
+                        new Matrix4f(projMatrix),
+                        new Matrix4f(viewMatrix),
                         reflectionProbes,
                         reflectionProbeCubemapSlots,
                         reflectionProbeCubemapSlotCount,
@@ -1490,6 +1505,17 @@ public final class VulkanContext {
                 this::createSwapchainResources,
                 this::createShadowResources
         );
+    }
+
+    private static float[] matrixToArray(Matrix4f matrix) {
+        return (matrix == null ? new Matrix4f().identity() : matrix).get(new float[16]);
+    }
+
+    private static Matrix4f matrixFromArray(float[] values, Matrix4f fallback) {
+        if (values == null || values.length != 16) {
+            return fallback == null ? new Matrix4f().identity() : new Matrix4f(fallback);
+        }
+        return new Matrix4f().set(values);
     }
 
     private static int clamp(int value, int min, int max) {

@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan.uniform;
 
+import org.vectrix.core.Matrix4f;
+
 public final class VulkanGlobalSceneInputBuilder {
     private VulkanGlobalSceneInputBuilder() {
     }
@@ -100,13 +102,13 @@ public final class VulkanGlobalSceneInputBuilder {
 
     public static VulkanUniformWriters.GlobalSceneUniformInput build(
             int globalSceneUniformBytes,
-            float[] viewMatrix,
-            float[] projMatrix,
+            Matrix4f viewMatrix,
+            Matrix4f projMatrix,
             LightingInputs lighting,
             ShadowInputs shadow,
             AtmosphereInputs atmosphere,
             PostInputs post,
-            float[][] shadowLightViewProjMatrices
+            Matrix4f[] shadowLightViewProjMatrices
     ) {
         return new VulkanUniformWriters.GlobalSceneUniformInput(
                 globalSceneUniformBytes,
@@ -203,8 +205,8 @@ public final class VulkanGlobalSceneInputBuilder {
 
     public record Inputs(
             int globalSceneUniformBytes,
-            float[] viewMatrix,
-            float[] projMatrix,
+            Matrix4f viewMatrix,
+            Matrix4f projMatrix,
             float dirLightDirX,
             float dirLightDirY,
             float dirLightDirZ,
@@ -286,11 +288,11 @@ public final class VulkanGlobalSceneInputBuilder {
             float ssaoPower,
             boolean smaaEnabled,
             float smaaStrength,
-            float[] prevViewProjMatrix,
-            float[][] shadowLightViewProjMatrices,
-            float[] planarViewMatrix,
-            float[] planarProjMatrix,
-            float[] planarPrevViewProjMatrix
+            Matrix4f prevViewProjMatrix,
+            Matrix4f[] shadowLightViewProjMatrices,
+            Matrix4f planarViewMatrix,
+            Matrix4f planarProjMatrix,
+            Matrix4f planarPrevViewProjMatrix
     ) {
     }
 
@@ -388,10 +390,10 @@ public final class VulkanGlobalSceneInputBuilder {
             float ssaoPower,
             boolean smaaEnabled,
             float smaaStrength,
-            float[] prevViewProjMatrix,
-            float[] planarViewMatrix,
-            float[] planarProjMatrix,
-            float[] planarPrevViewProjMatrix
+            Matrix4f prevViewProjMatrix,
+            Matrix4f planarViewMatrix,
+            Matrix4f planarProjMatrix,
+            Matrix4f planarPrevViewProjMatrix
     ) {
     }
 }

@@ -16,6 +16,7 @@ import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.impl.vulkan.asset.VulkanGltfMeshParser;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
+import org.vectrix.core.Matrix4f;
 
 public final class VulkanEngineRuntimeSceneAssembly {
     private VulkanEngineRuntimeSceneAssembly() {
@@ -55,13 +56,13 @@ public final class VulkanEngineRuntimeSceneAssembly {
             float taaHistoryClamp = material == null ? 1.0f : clamp01(material.taaHistoryClamp());
             float emissiveReactiveBoost = material == null ? 1.0f : clamp(material.emissiveReactiveBoost(), 0.0f, 3.0f);
             float reactivePreset = material == null ? 0f : toReactivePresetValue(material.reactivePreset());
-            float[] model = VulkanEngineRuntimeCameraMath.modelMatrixOf(transforms.get(mesh.transformId()), i);
+            Matrix4f model = VulkanEngineRuntimeCameraMath.modelMatrixOf(transforms.get(mesh.transformId()), i);
             String stableMeshId = (mesh.id() == null || mesh.id().isBlank()) ? ("mesh-index-" + i) : mesh.id();
             VulkanSceneMeshData meshData = new VulkanSceneMeshData(
                     stableMeshId,
                     geometry.vertices(),
                     geometry.indices(),
-                    model,
+                    model.get(new float[16]),
                     color,
                     metallic,
                     roughness,
@@ -76,7 +77,13 @@ public final class VulkanEngineRuntimeSceneAssembly {
                     resolveTexturePath(material == null ? null : material.albedoTexturePath(), assetRoot),
                     resolveTexturePath(material == null ? null : material.normalTexturePath(), assetRoot),
                     resolveTexturePath(material == null ? null : material.metallicRoughnessTexturePath(), assetRoot),
-                    resolveTexturePath(material == null ? null : material.occlusionTexturePath(), assetRoot)
+                    resolveTexturePath(material == null ? null : material.occlusionTexturePath(), assetRoot),
+                    null,
+                    geometry.skinned(),
+                    geometry.jointCount(),
+                    geometry.morphTargetDeltas(),
+                    geometry.morphTargetCount(),
+                    null
             );
             out.add(meshData);
         }

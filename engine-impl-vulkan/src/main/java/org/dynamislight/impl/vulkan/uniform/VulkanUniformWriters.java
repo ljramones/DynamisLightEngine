@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
+import org.vectrix.core.Matrix4f;
 
 import static org.dynamislight.impl.vulkan.math.VulkanMath.identityMatrix;
 
@@ -15,8 +16,9 @@ public final class VulkanUniformWriters {
         target.position(0);
         target.limit(in.globalSceneUniformBytes());
         FloatBuffer fb = target.slice().order(ByteOrder.nativeOrder()).asFloatBuffer();
-        fb.put(in.viewMatrix());
-        fb.put(in.projMatrix());
+        float[] matrixScratch = new float[16];
+        putMatrix(fb, in.viewMatrix(), matrixScratch);
+        putMatrix(fb, in.projMatrix(), matrixScratch);
         fb.put(new float[]{in.dirLightDirX(), in.dirLightDirY(), in.dirLightDirZ(), in.shadowPcssSoftness()});
         fb.put(new float[]{in.dirLightColorR(), in.dirLightColorG(), in.dirLightColorB(), in.shadowMomentBlend()});
         fb.put(new float[]{in.pointLightPosX(), in.pointLightPosY(), in.pointLightPosZ(), in.pointShadowFarPlane()});
@@ -100,13 +102,13 @@ public final class VulkanUniformWriters {
         fb.put(new float[]{scenePostEnabled && in.tonemapEnabled() ? 1f : 0f, in.tonemapExposure(), in.tonemapGamma(), scenePostEnabled && in.ssaoEnabled() ? 1f : 0f});
         fb.put(new float[]{scenePostEnabled && in.bloomEnabled() ? 1f : 0f, in.bloomThreshold(), in.bloomStrength(), in.ssaoStrength()});
         fb.put(new float[]{scenePostEnabled && in.smaaEnabled() ? 1f : 0f, in.smaaStrength(), 0f, 0f});
-        fb.put(in.prevViewProjMatrix());
+        putMatrix(fb, in.prevViewProjMatrix(), matrixScratch);
         for (int i = 0; i < in.shadowLightViewProjMatrices().length; i++) {
-            fb.put(in.shadowLightViewProjMatrices()[i]);
+            putMatrix(fb, in.shadowLightViewProjMatrices()[i], matrixScratch);
         }
-        fb.put(in.planarViewMatrix());
-        fb.put(in.planarProjMatrix());
-        fb.put(in.planarPrevViewProjMatrix());
+        putMatrix(fb, in.planarViewMatrix(), matrixScratch);
+        putMatrix(fb, in.planarProjMatrix(), matrixScratch);
+        putMatrix(fb, in.planarPrevViewProjMatrix(), matrixScratch);
     }
 
     public static void writeObjectUniform(ByteBuffer target, int offset, int objectUniformBytes, VulkanGpuMesh mesh) {
@@ -138,8 +140,8 @@ public final class VulkanUniformWriters {
 
     public record GlobalSceneUniformInput(
             int globalSceneUniformBytes,
-            float[] viewMatrix,
-            float[] projMatrix,
+            Matrix4f viewMatrix,
+            Matrix4f projMatrix,
             float dirLightDirX,
             float dirLightDirY,
             float dirLightDirZ,
@@ -221,11 +223,19 @@ public final class VulkanUniformWriters {
             float ssaoPower,
             boolean smaaEnabled,
             float smaaStrength,
-            float[] prevViewProjMatrix,
-            float[][] shadowLightViewProjMatrices,
-            float[] planarViewMatrix,
-            float[] planarProjMatrix,
-            float[] planarPrevViewProjMatrix
+            Matrix4f prevViewProjMatrix,
+            Matrix4f[] shadowLightViewProjMatrices,
+            Matrix4f planarViewMatrix,
+            Matrix4f planarProjMatrix,
+            Matrix4f planarPrevViewProjMatrix
     ) {
+    }
+
+    private static void putMatrix(FloatBuffer target, Matrix4f matrix, float[] scratch) {
+        if (matrix == null) {
+            target.put(new Matrix4f().identity().get(scratch));
+            return;
+        }
+        target.put(matrix.get(scratch));
     }
 }

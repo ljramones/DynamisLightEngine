@@ -1,13 +1,12 @@
 package org.dynamislight.impl.vulkan.scene;
 
 import org.dynamislight.api.scene.ReflectionProbeDesc;
+import org.vectrix.core.Matrix4f;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-
-import static org.dynamislight.impl.vulkan.math.VulkanMath.mul;
 
 public final class VulkanReflectionProbeRuntimeCoordinator {
     public record SlotAssignment(Map<String, Integer> slots, int slotCount) {
@@ -32,8 +31,8 @@ public final class VulkanReflectionProbeRuntimeCoordinator {
             int metadataBufferBytes,
             int metadataMaxCount,
             int metadataStrideBytes,
-            float[] projMatrix,
-            float[] viewMatrix,
+            Matrix4f projMatrix,
+            Matrix4f viewMatrix,
             List<ReflectionProbeDesc> reflectionProbes,
             Map<String, Integer> reflectionProbeCubemapSlots,
             int reflectionProbeCubemapSlotCount,
@@ -72,7 +71,9 @@ public final class VulkanReflectionProbeRuntimeCoordinator {
         if (request.mappedAddress() == 0L || request.metadataBufferBytes() <= 0) {
             return new MetadataUploadResult(0, 0, 0, 0, 0, 0, 0, 0, 0, request.reflectionProbeFrameTick());
         }
-        float[] viewProj = mul(request.projMatrix(), request.viewMatrix());
+        float[] viewProj = new Matrix4f(request.projMatrix())
+                .mul(request.viewMatrix(), new Matrix4f())
+                .get(new float[16]);
         VulkanReflectionProbeCoordinator.UploadStats stats = VulkanReflectionProbeCoordinator.uploadVisibleProbes(
                 request.reflectionProbes(),
                 viewProj,

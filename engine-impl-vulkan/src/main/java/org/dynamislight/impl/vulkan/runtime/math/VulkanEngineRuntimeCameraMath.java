@@ -6,7 +6,6 @@ import org.dynamislight.api.scene.CameraDesc;
 import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
-import org.dynamislight.impl.vulkan.math.VulkanMath;
 import org.vectrix.core.Matrix4f;
 import org.vectrix.core.Vector3f;
 
@@ -28,7 +27,7 @@ public final class VulkanEngineRuntimeCameraMath {
         float fy = (float) Math.sin(pitch);
         float fz = (float) (-Math.cos(pitch) * Math.cos(yaw));
 
-        float[] view = VulkanMath.lookAt(
+        Matrix4f view = new Matrix4f().lookAt(
                 pos.x(), pos.y(), pos.z(),
                 pos.x() + fx, pos.y() + fy, pos.z() + fz,
                 0f, 1f, 0f
@@ -38,7 +37,7 @@ public final class VulkanEngineRuntimeCameraMath {
         float far = effective.farPlane() > near ? effective.farPlane() : 100f;
         float fov = effective.fovDegrees() > 1f ? effective.fovDegrees() : 60f;
         float aspect = aspectRatio > 0.01f ? aspectRatio : (16f / 9f);
-        float[] proj = VulkanMath.perspective(radians(fov), aspect, near, far);
+        Matrix4f proj = new Matrix4f().perspective(radians(fov), aspect, near, far);
         return new CameraMatrices(view, proj);
     }
 
@@ -63,10 +62,11 @@ public final class VulkanEngineRuntimeCameraMath {
         return Math.max(0.1f, (float) width / (float) height);
     }
 
-    public static float[] modelMatrixOf(TransformDesc transform, int meshIndex) {
+    public static Matrix4f modelMatrixOf(TransformDesc transform, int meshIndex) {
         if (transform == null) {
-            float[] model = VulkanMath.identityMatrix();
-            model[12] = (meshIndex - 1) * 0.35f;
+            float offsetX = (meshIndex - 1) * 0.35f;
+            Matrix4f model = new Matrix4f().identity();
+            model.m30(offsetX);
             return model;
         }
         Vec3 pos = transform.position() == null ? new Vec3(0f, 0f, 0f) : transform.position();
@@ -79,7 +79,7 @@ public final class VulkanEngineRuntimeCameraMath {
                 .rotateY(radians(rot.y()))
                 .rotateX(radians(rot.x()));
         Matrix4f scale = new Matrix4f().scaling(scl.x(), scl.y(), scl.z());
-        return translation.mul(rotation, new Matrix4f()).mul(scale).get(new float[16]);
+        return translation.mul(rotation, new Matrix4f()).mul(scale);
     }
 
     public static float[] normalize3(float[] v) {

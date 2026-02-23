@@ -1,17 +1,12 @@
 package org.dynamislight.impl.vulkan.shadow;
 
-import static org.dynamislight.impl.vulkan.math.VulkanMath.identityMatrix;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.invert;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.lookAt;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.mul;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.normalize3;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.ortho;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.perspective;
 import static org.dynamislight.impl.vulkan.math.VulkanMath.projectionFar;
 import static org.dynamislight.impl.vulkan.math.VulkanMath.projectionNear;
-import static org.dynamislight.impl.vulkan.math.VulkanMath.transformPoint;
 import static org.dynamislight.impl.vulkan.math.VulkanMath.unproject;
 import static org.dynamislight.impl.vulkan.math.VulkanMath.viewDistanceToNdcDepth;
+
+import org.vectrix.core.Matrix4f;
+import org.vectrix.core.Vector3f;
 
 /**
  * A utility class for constructing shadow matrices used in Vulkan-based rendering.
@@ -44,7 +39,7 @@ public final class VulkanShadowMatrixBuilder {
             float[] shadowCascadeSplitNdc
     ) {
         if (inputs.pointLightIsSpot() > 0.5f) {
-            float[] spotDir = normalize3(inputs.pointLightDirX(), inputs.pointLightDirY(), inputs.pointLightDirZ());
+            float[] spotDir = normalizeDirection(inputs.pointLightDirX(), inputs.pointLightDirY(), inputs.pointLightDirZ());
             float targetX = inputs.pointLightPosX() + spotDir[0];
             float targetY = inputs.pointLightPosY() + spotDir[1];
             float targetZ = inputs.pointLightPosZ() + spotDir[2];
@@ -56,7 +51,7 @@ public final class VulkanShadowMatrixBuilder {
                 upY = 0f;
                 upZ = 1f;
             }
-            float[] lightView = lookAt(
+            Matrix4f lightView = buildLookAt(
                     inputs.pointLightPosX(), inputs.pointLightPosY(), inputs.pointLightPosZ(),
                     targetX, targetY, targetZ,
                     upX, upY, upZ
@@ -64,8 +59,8 @@ public final class VulkanShadowMatrixBuilder {
             float outerCos = Math.max(0.0001f, Math.min(1f, inputs.pointLightOuterCos()));
             float coneHalfAngle = (float) Math.acos(outerCos);
             float fov = Math.max((float) Math.toRadians(20.0), Math.min((float) Math.toRadians(120.0), coneHalfAngle * 2.0f));
-            float[] lightProj = perspective(fov, 1f, 0.1f, 30f);
-            shadowLightViewProjMatrices[0] = mul(lightProj, lightView);
+            Matrix4f lightProj = buildPerspective(fov, 1f, 0.1f, 30f);
+            shadowLightViewProjMatrices[0] = multiplyMatrices(lightProj, lightView);
             for (int i = 1; i < inputs.maxShadowMatrices(); i++) {
                 shadowLightViewProjMatrices[i] = shadowLightViewProjMatrices[0];
             }
@@ -109,7 +104,7 @@ public final class VulkanShadowMatrixBuilder {
                 float pz = inputs.localLightPosRange()[offset + 2];
                 float range = Math.max(1.0f, inputs.localLightPosRange()[offset + 3]);
                 if (isSpot > 0.5f) {
-                    float[] spotDir = normalize3(
+                    float[] spotDir = normalizeDirection(
                             inputs.localLightDirInner()[offset],
                             inputs.localLightDirInner()[offset + 1],
                             inputs.localLightDirInner()[offset + 2]
@@ -117,23 +112,23 @@ public final class VulkanShadowMatrixBuilder {
                     float outerCos = Math.max(0.0001f, Math.min(1f, inputs.localLightOuterTypeShadow()[offset]));
                     float coneHalfAngle = (float) Math.acos(outerCos);
                     float fov = Math.max((float) Math.toRadians(20.0), Math.min((float) Math.toRadians(120.0), coneHalfAngle * 2.0f));
-                    float[] lightView = lookAt(
+                    Matrix4f lightView = buildLookAt(
                             px, py, pz,
                             px + spotDir[0], py + spotDir[1], pz + spotDir[2],
                             0f, Math.abs(spotDir[1]) > 0.95f ? 0f : 1f, Math.abs(spotDir[1]) > 0.95f ? 1f : 0f
                     );
-                    float[] lightProj = perspective(fov, 1f, 0.1f, range);
-                    shadowLightViewProjMatrices[layerIndex] = mul(lightProj, lightView);
+                    Matrix4f lightProj = buildPerspective(fov, 1f, 0.1f, range);
+                    shadowLightViewProjMatrices[layerIndex] = multiplyMatrices(lightProj, lightView);
                     localShadowLayers = Math.max(localShadowLayers, layerIndex + 1);
                 } else {
-                    float[] pointProj = perspective((float) Math.toRadians(90.0), 1f, 0.1f, range);
+                    Matrix4f pointProj = buildPerspective((float) Math.toRadians(90.0), 1f, 0.1f, range);
                     for (int face = 0; face < 6; face++) {
                         int layer = layerIndex + face;
                         if (layer >= inputs.maxShadowMatrices()) {
                             break;
                         }
                         float[] dir = pointDirs[face];
-                        float[] lightView = lookAt(
+                        Matrix4f lightView = buildLookAt(
                                 px,
                                 py,
                                 pz,
@@ -142,7 +137,7 @@ public final class VulkanShadowMatrixBuilder {
                                 pz + dir[2],
                                 pointUp[face][0], pointUp[face][1], pointUp[face][2]
                         );
-                        shadowLightViewProjMatrices[layer] = mul(pointProj, lightView);
+                        shadowLightViewProjMatrices[layer] = multiplyMatrices(pointProj, lightView);
                         localShadowLayers = Math.max(localShadowLayers, layer + 1);
                     }
                 }
@@ -150,7 +145,7 @@ public final class VulkanShadowMatrixBuilder {
             if (localShadowLayers > 0) {
                 for (int i = 0; i < inputs.maxShadowMatrices(); i++) {
                     if (shadowLightViewProjMatrices[i] == null) {
-                        shadowLightViewProjMatrices[i] = identityMatrix();
+                        shadowLightViewProjMatrices[i] = identityArray();
                     }
                 }
                 setPointSplitDefaults(shadowCascadeSplitNdc);
@@ -174,7 +169,7 @@ public final class VulkanShadowMatrixBuilder {
                     {0f, -1f, 0f},
                     {0f, -1f, 0f}
             };
-            float[] lightProj = perspective((float) Math.toRadians(90.0), 1f, 0.1f, inputs.pointShadowFarPlane());
+            Matrix4f lightProj = buildPerspective((float) Math.toRadians(90.0), 1f, 0.1f, inputs.pointShadowFarPlane());
             int availableLayers = Math.max(1, Math.min(inputs.pointShadowFaces(), inputs.shadowCascadeCount()));
             for (int i = 0; i < inputs.maxShadowMatrices(); i++) {
                 int dirIndex = Math.min(i, pointDirs.length - 1);
@@ -183,7 +178,7 @@ public final class VulkanShadowMatrixBuilder {
                     continue;
                 }
                 float[] dir = pointDirs[dirIndex];
-                float[] lightView = lookAt(
+                Matrix4f lightView = buildLookAt(
                         inputs.pointLightPosX(),
                         inputs.pointLightPosY(),
                         inputs.pointLightPosZ(),
@@ -192,21 +187,22 @@ public final class VulkanShadowMatrixBuilder {
                         inputs.pointLightPosZ() + dir[2],
                         pointUp[dirIndex][0], pointUp[dirIndex][1], pointUp[dirIndex][2]
                 );
-                shadowLightViewProjMatrices[i] = mul(lightProj, lightView);
+                shadowLightViewProjMatrices[i] = multiplyMatrices(lightProj, lightView);
             }
             setPointSplitDefaults(shadowCascadeSplitNdc);
             return;
         }
 
-        float[] viewProj = mul(inputs.projMatrix(), inputs.viewMatrix());
-        float[] invViewProj = invert(viewProj);
+        Matrix4f viewProj = new Matrix4f().set(inputs.projMatrix()).mul(new Matrix4f().set(inputs.viewMatrix()), new Matrix4f());
+        Matrix4f invViewProj = invertMatrix(viewProj);
         if (invViewProj == null) {
             for (int i = 0; i < inputs.maxShadowMatrices(); i++) {
-                shadowLightViewProjMatrices[i] = identityMatrix();
+                shadowLightViewProjMatrices[i] = identityArray();
             }
             setPointSplitDefaults(shadowCascadeSplitNdc);
             return;
         }
+        float[] invViewProjArray = invViewProj.get(new float[16]);
 
         float near = projectionNear(inputs.projMatrix());
         float far = projectionFar(inputs.projMatrix());
@@ -269,7 +265,7 @@ public final class VulkanShadowMatrixBuilder {
                     float ndcY = y == 0 ? -1f : 1f;
                     for (int x = 0; x < 2; x++) {
                         float ndcX = x == 0 ? -1f : 1f;
-                        float[] world = unproject(invViewProj, ndcX, ndcY, ndcZ);
+                        float[] world = unproject(invViewProjArray, ndcX, ndcY, ndcZ);
                         corners[idx][0] = world[0];
                         corners[idx][1] = world[1];
                         corners[idx][2] = world[2];
@@ -301,7 +297,7 @@ public final class VulkanShadowMatrixBuilder {
             float eyeX = centerX - lx * (radius * 2.0f);
             float eyeY = centerY - ly * (radius * 2.0f);
             float eyeZ = centerZ - lz * (radius * 2.0f);
-            float[] lightView = lookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+            Matrix4f lightView = buildLookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
 
             float minX = Float.POSITIVE_INFINITY;
             float minY = Float.POSITIVE_INFINITY;
@@ -335,9 +331,58 @@ public final class VulkanShadowMatrixBuilder {
                 maxY += shiftY;
             }
             float zPad = Math.max(10f, radius);
-            float[] lightProj = ortho(minX, maxX, minY, maxY, minZ - zPad, maxZ + zPad);
-            shadowLightViewProjMatrices[cascade] = mul(lightProj, lightView);
+            Matrix4f lightProj = buildOrtho(minX, maxX, minY, maxY, minZ - zPad, maxZ + zPad);
+            shadowLightViewProjMatrices[cascade] = multiplyMatrices(lightProj, lightView);
         }
+    }
+
+    private static float[] normalizeDirection(float x, float y, float z) {
+        Vector3f dir = new Vector3f(x, y, z);
+        if (dir.lengthSquared() < 1.0e-8f) {
+            return new float[]{0f, 0f, 1f};
+        }
+        dir.normalize();
+        return new float[]{dir.x(), dir.y(), dir.z()};
+    }
+
+    private static Matrix4f buildLookAt(
+            float eyeX, float eyeY, float eyeZ,
+            float centerX, float centerY, float centerZ,
+            float upX, float upY, float upZ
+    ) {
+        return new Matrix4f().lookAt(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+    }
+
+    private static Matrix4f buildPerspective(float fovy, float aspect, float zNear, float zFar) {
+        return new Matrix4f().perspective(fovy, aspect, zNear, zFar);
+    }
+
+    private static Matrix4f buildOrtho(float left, float right, float bottom, float top, float zNear, float zFar) {
+        return new Matrix4f().ortho(left, right, bottom, top, zNear, zFar);
+    }
+
+    private static Matrix4f invertMatrix(Matrix4f matrix) {
+        if (matrix == null) {
+            return null;
+        }
+        if (Math.abs(matrix.determinant()) < 1.0e-8f) {
+            return null;
+        }
+        return new Matrix4f(matrix).invert(new Matrix4f());
+    }
+
+    private static float[] transformPoint(Matrix4f matrix, float x, float y, float z) {
+        Vector3f out = new Vector3f();
+        matrix.transformPosition(x, y, z, out);
+        return new float[]{out.x(), out.y(), out.z()};
+    }
+
+    private static float[] multiplyMatrices(Matrix4f left, Matrix4f right) {
+        return new Matrix4f(left).mul(right, new Matrix4f()).get(new float[16]);
+    }
+
+    private static float[] identityArray() {
+        return new Matrix4f().identity().get(new float[16]);
     }
 
     static float snapToTexel(float value, float texelSize) {

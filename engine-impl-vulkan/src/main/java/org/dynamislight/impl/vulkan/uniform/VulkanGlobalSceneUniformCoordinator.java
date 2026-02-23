@@ -1,5 +1,7 @@
 package org.dynamislight.impl.vulkan.uniform;
 
+import org.vectrix.core.Matrix4f;
+
 public final class VulkanGlobalSceneUniformCoordinator {
     private VulkanGlobalSceneUniformCoordinator() {
     }
@@ -102,8 +104,8 @@ public final class VulkanGlobalSceneUniformCoordinator {
 
     public record BuildRequest(
             int globalSceneUniformBytes,
-            float[] viewMatrix,
-            float[] projMatrix,
+            Matrix4f viewMatrix,
+            Matrix4f projMatrix,
             float dirLightDirX,
             float dirLightDirY,
             float dirLightDirZ,
@@ -185,11 +187,11 @@ public final class VulkanGlobalSceneUniformCoordinator {
             float ssaoPower,
             boolean smaaEnabled,
             float smaaStrength,
-            float[] prevViewProjMatrix,
-            float[][] shadowLightViewProjMatrices,
-            float[] planarViewMatrix,
-            float[] planarProjMatrix,
-            float[] planarPrevViewProjMatrix
+            Matrix4f prevViewProjMatrix,
+            Matrix4f[] shadowLightViewProjMatrices,
+            Matrix4f planarViewMatrix,
+            Matrix4f planarProjMatrix,
+            Matrix4f planarPrevViewProjMatrix
     ) {
     }
 }

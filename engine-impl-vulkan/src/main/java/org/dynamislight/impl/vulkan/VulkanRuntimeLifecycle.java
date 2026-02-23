@@ -24,6 +24,7 @@ import org.dynamislight.api.scene.SceneDescriptor;
 import org.dynamislight.impl.vulkan.asset.VulkanMeshAssetLoader;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.profile.VulkanFrameMetrics;
+import org.vectrix.core.Matrix4f;
 
 final class VulkanRuntimeLifecycle {
     private VulkanRuntimeLifecycle() {
@@ -159,7 +160,7 @@ final class VulkanRuntimeLifecycle {
     }
 
     static void applySceneToContext(VulkanContext context, SceneLoadState state) throws EngineException {
-        context.setCameraMatrices(state.cameraMatrices().view(), state.cameraMatrices().proj());
+        context.setCameraMatrices(new Matrix4f(state.cameraMatrices().view()), new Matrix4f(state.cameraMatrices().proj()));
         context.setLightingParameters(
                 state.lighting().directionalDirection(),
                 state.lighting().directionalColor(),
