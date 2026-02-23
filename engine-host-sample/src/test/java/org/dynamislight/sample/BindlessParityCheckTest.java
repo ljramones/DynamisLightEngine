@@ -74,6 +74,7 @@ class BindlessParityCheckTest {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.directory(repoRoot().toFile());
         pb.redirectErrorStream(true);
+        applyVulkanEnv(pb.environment());
 
         Process process = pb.start();
         ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
@@ -107,6 +108,45 @@ class BindlessParityCheckTest {
 
     private static boolean isMacOs() {
         return System.getProperty("os.name", "").toLowerCase().contains("mac");
+    }
+
+    private static void applyVulkanEnv(java.util.Map<String, String> env) {
+        Path sdk = vulkanSdkPath();
+        if (sdk == null) {
+            return;
+        }
+        Path libDir = sdk.resolve("macOS/lib");
+        Path icd = sdk.resolve("macOS/share/vulkan/icd.d/MoltenVK_icd.json");
+        Path layerDir = sdk.resolve("macOS/share/vulkan/explicit_layer.d");
+        if (Files.isDirectory(libDir)) {
+            String existing = env.getOrDefault("DYLD_LIBRARY_PATH", "");
+            env.put("DYLD_LIBRARY_PATH", libDir + (existing.isBlank() ? "" : (File.pathSeparator + existing)));
+        }
+        if (Files.isRegularFile(icd)) {
+            env.put("VK_ICD_FILENAMES", icd.toString());
+        }
+        if (Files.isDirectory(layerDir)) {
+            env.put("VK_LAYER_PATH", layerDir.toString());
+            env.put("VK_ADD_LAYER_PATH", layerDir.toString());
+        }
+    }
+
+    private static Path vulkanSdkPath() {
+        String fromEnv = System.getProperty("VULKAN_SDK");
+        if (fromEnv == null || fromEnv.isBlank()) {
+            fromEnv = System.getenv("VULKAN_SDK");
+        }
+        if (fromEnv != null && !fromEnv.isBlank()) {
+            Path sdk = Path.of(fromEnv);
+            if (Files.isDirectory(sdk)) {
+                return sdk;
+            }
+        }
+        Path fallback = Path.of(System.getProperty("user.home"), "VulkanSDK", "1.4.341.0");
+        if (Files.isDirectory(fallback)) {
+            return fallback;
+        }
+        return null;
     }
 
     private static String runtimeClasspath() {
