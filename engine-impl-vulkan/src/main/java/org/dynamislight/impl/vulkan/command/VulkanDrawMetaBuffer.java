@@ -33,6 +33,8 @@ public final class VulkanDrawMetaBuffer {
     private final long mappedAddress;
     private final int capacity;
     private final int allocatedBytes;
+    private int lastUploadCount;
+    private int lastInvalidIndexWrites;
 
     private VulkanDrawMetaBuffer(
             VkDevice device,
@@ -96,10 +98,13 @@ public final class VulkanDrawMetaBuffer {
     public int upload(List<VulkanRenderCommandRecorder.MeshDrawCmd> draws) {
         if (draws == null || draws.isEmpty()) {
             clear();
+            lastUploadCount = 0;
+            lastInvalidIndexWrites = 0;
             return 0;
         }
         int count = Math.min(capacity, draws.size());
         ByteBuffer src = ByteBuffer.allocateDirect(count * STRIDE_BYTES).order(ByteOrder.nativeOrder());
+        int invalidIndexWrites = 0;
         for (int i = 0; i < count; i++) {
             VulkanRenderCommandRecorder.MeshDrawCmd draw = draws.get(i);
             int flags = 0;
@@ -116,6 +121,7 @@ public final class VulkanDrawMetaBuffer {
             src.putInt(INVALID_INDEX); // morphDeltaIndex
             src.putInt(INVALID_INDEX); // morphWeightIndex
             src.putInt(INVALID_INDEX); // instanceDataIndex
+            invalidIndexWrites += 4;
             src.putInt(0);             // materialIndex (reserved)
             src.putInt(flags);         // drawFlags
             src.putInt(Math.max(0, draw.uniformMeshIndex())); // meshIndex
@@ -123,6 +129,8 @@ public final class VulkanDrawMetaBuffer {
         }
         src.flip();
         memCopy(memAddress(src), mappedAddress, src.remaining());
+        lastUploadCount = count;
+        lastInvalidIndexWrites = invalidIndexWrites;
         return count;
     }
 
@@ -132,6 +140,14 @@ public final class VulkanDrawMetaBuffer {
 
     public int capacity() {
         return capacity;
+    }
+
+    public int lastUploadCount() {
+        return lastUploadCount;
+    }
+
+    public int lastInvalidIndexWrites() {
+        return lastInvalidIndexWrites;
     }
 
     public void clear() {

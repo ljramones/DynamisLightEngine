@@ -61,6 +61,7 @@ public final class VulkanCommandInputCoordinator {
                         request.backendResources().bindlessDescriptorHeap == null
                                 ? 0L
                                 : request.backendResources().bindlessDescriptorHeap.descriptorSet(),
+                        request.backendResources().bindlessDescriptorHeap,
                         request.maxDynamicSceneObjects(),
                         request.backendResources().swapchainWidth,
                         request.backendResources().swapchainHeight,

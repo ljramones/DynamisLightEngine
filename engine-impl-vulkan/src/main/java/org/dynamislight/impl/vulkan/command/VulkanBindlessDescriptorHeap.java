@@ -39,6 +39,12 @@ public final class VulkanBindlessDescriptorHeap {
     private final TypeState instanceState;
 
     private final ArrayDeque<Retirement> retirements = new ArrayDeque<>();
+    private long allocationCount;
+    private long freesQueuedCount;
+    private long freesRetiredCount;
+    private long staleHandleRejectCount;
+    private int drawMetaCount;
+    private int invalidIndexWriteCount;
 
     private VulkanBindlessDescriptorHeap(
             boolean active,
@@ -137,6 +143,7 @@ public final class VulkanBindlessDescriptorHeap {
             gen = 1;
             state.generations[slot] = gen;
         }
+        allocationCount++;
         return packHandle(type, gen, slot);
     }
 
@@ -154,6 +161,7 @@ public final class VulkanBindlessDescriptorHeap {
             return;
         }
         retirements.addLast(new Retirement(type, slot, handleGen, currentFrame + retirementFrames));
+        freesQueuedCount++;
     }
 
     public synchronized int processRetirements(long currentFrame) {
@@ -181,6 +189,7 @@ public final class VulkanBindlessDescriptorHeap {
             if (state.top < state.freeStack.length) {
                 state.freeStack[state.top++] = retirement.slot;
                 processed++;
+                freesRetiredCount++;
             }
         }
         return processed;
@@ -200,6 +209,30 @@ public final class VulkanBindlessDescriptorHeap {
             return -1;
         }
         return slot;
+    }
+
+    public synchronized void updateDrawMetaStats(int drawMetaCount, int invalidIndexWrites) {
+        this.drawMetaCount = Math.max(0, drawMetaCount);
+        this.invalidIndexWriteCount = Math.max(0, invalidIndexWrites);
+    }
+
+    public synchronized BindlessHeapStats stats() {
+        return new BindlessHeapStats(
+                usedCount(jointState),
+                JOINT_CAPACITY,
+                usedCount(morphDeltaState),
+                MORPH_DELTA_CAPACITY,
+                usedCount(morphWeightState),
+                MORPH_WEIGHT_CAPACITY,
+                usedCount(instanceState),
+                INSTANCE_CAPACITY,
+                allocationCount,
+                freesQueuedCount,
+                freesRetiredCount,
+                staleHandleRejectCount,
+                drawMetaCount,
+                invalidIndexWriteCount
+        );
     }
 
     public void destroy(VkDevice device) {
@@ -421,11 +454,19 @@ public final class VulkanBindlessDescriptorHeap {
     }
 
     private void logStale(HeapType type, int slot, int handleGen, int currentGen, long frame) {
+        staleHandleRejectCount++;
         LOG.warning("[BINDLESS_HEAP] stale_handle type=" + safeTypeName(type)
                 + " slot=" + Integer.toUnsignedString(Math.max(0, slot))
                 + " handleGen=" + Integer.toUnsignedString(Math.max(0, handleGen))
                 + " currentGen=" + Integer.toUnsignedString(Math.max(0, currentGen))
                 + " frame=" + Long.toUnsignedString(Math.max(0L, frame)));
+    }
+
+    private static int usedCount(TypeState state) {
+        if (state == null || state.capacity <= 0) {
+            return 0;
+        }
+        return Math.max(0, state.capacity - state.top);
     }
 
     public enum HeapType {

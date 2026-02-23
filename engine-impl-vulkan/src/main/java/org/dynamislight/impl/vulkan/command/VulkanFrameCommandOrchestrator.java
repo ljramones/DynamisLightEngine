@@ -143,9 +143,40 @@ public final class VulkanFrameCommandOrchestrator {
         if (inputs.drawMetaBuffer() != null) {
             inputs.drawMetaBuffer().upload(meshes);
         }
-        LOG.info("[BINDLESS_PARITY] enabled=" + inputs.bindlessActive()
-                + ", drawCount=" + meshes.size()
-                + ", streamHash=" + Long.toUnsignedString(hashCommandStream(meshes)));
+        BindlessHeapStats bindlessStats = null;
+        if (inputs.bindlessDescriptorHeap() != null) {
+            if (inputs.drawMetaBuffer() != null) {
+                inputs.bindlessDescriptorHeap().updateDrawMetaStats(
+                        inputs.drawMetaBuffer().lastUploadCount(),
+                        inputs.drawMetaBuffer().lastInvalidIndexWrites()
+                );
+            } else {
+                inputs.bindlessDescriptorHeap().updateDrawMetaStats(0, 0);
+            }
+            bindlessStats = inputs.bindlessDescriptorHeap().stats();
+        }
+        StringBuilder parityLog = new StringBuilder("[BINDLESS_PARITY] enabled=")
+                .append(inputs.bindlessActive())
+                .append(", drawCount=").append(meshes.size())
+                .append(", streamHash=").append(Long.toUnsignedString(hashCommandStream(meshes)));
+        if (bindlessStats != null) {
+            parityLog.append(", jointUsed=").append(bindlessStats.jointUsed())
+                    .append(", jointCapacity=").append(bindlessStats.jointCapacity())
+                    .append(", morphDeltaUsed=").append(bindlessStats.morphDeltaUsed())
+                    .append(", morphDeltaCapacity=").append(bindlessStats.morphDeltaCapacity())
+                    .append(", morphWeightUsed=").append(bindlessStats.morphWeightUsed())
+                    .append(", morphWeightCapacity=").append(bindlessStats.morphWeightCapacity())
+                    .append(", instanceUsed=").append(bindlessStats.instanceUsed())
+                    .append(", instanceCapacity=").append(bindlessStats.instanceCapacity())
+                    .append(", allocations=").append(bindlessStats.allocations())
+                    .append(", freesQueued=").append(bindlessStats.freesQueued())
+                    .append(", freesRetired=").append(bindlessStats.freesRetired())
+                    .append(", staleHandleRejects=").append(bindlessStats.staleHandleRejects())
+                    .append(", drawMetaCount=").append(bindlessStats.drawMetaCount())
+                    .append(", invalidIndexWrites=").append(bindlessStats.invalidIndexWrites());
+        }
+        LOG.info(parityLog.toString());
+        System.out.println(parityLog);
 
         VulkanRenderCommandRecorder.resetPlanarTimestampQueries(
                 commandBuffer,
@@ -513,6 +544,7 @@ public final class VulkanFrameCommandOrchestrator {
             float[] viewProjMatrix,
             boolean bindlessActive,
             long bindlessDescriptorSet,
+            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,
