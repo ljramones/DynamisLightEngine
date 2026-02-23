@@ -1,14 +1,7 @@
 package org.dynamislight.impl.vulkan.asset;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Base64;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.logging.Logger;
@@ -20,20 +13,16 @@ import org.meshforge.core.topology.Topology;
 import org.meshforge.loader.MeshLoaders;
 
 public final class VulkanGltfMeshParser {
-    private static final int GLB_HEADER_SIZE = 12;
-    private static final int GLB_CHUNK_HEADER_SIZE = 8;
-    private static final int GLB_MAGIC = 0x46546C67;
-    private static final int GLB_JSON_CHUNK = 0x4E4F534A;
-    private static final int GLB_BIN_CHUNK = 0x004E4942;
-    private static final ObjectMapper JSON = new ObjectMapper();
     private static final Logger LOG = Logger.getLogger(VulkanGltfMeshParser.class.getName());
+    private static final int STATIC_VERTEX_STRIDE_FLOATS = 11;
+    private static final int SKINNED_VERTEX_STRIDE_FLOATS = 16;
 
     private final Path assetRoot;
     private final MeshLoaders meshLoaders;
 
     public VulkanGltfMeshParser(Path assetRoot) {
         this.assetRoot = assetRoot == null ? Path.of(".") : assetRoot;
-        this.meshLoaders = MeshLoaders.defaults();
+        this.meshLoaders = MeshLoaders.planned();
     }
 
     Optional<MeshGeometry> parse(Path meshPath) {
@@ -45,36 +34,39 @@ public final class VulkanGltfMeshParser {
             return Optional.empty();
         }
         String lower = resolved.getFileName().toString().toLowerCase(Locale.ROOT);
-        try {
-            if (lower.endsWith(".glb")) {
-                Optional<MeshGeometry> fromMeshForge = parseWithMeshForge(resolved);
-                return fromMeshForge.isPresent() ? fromMeshForge : parseGlb(resolved);
-            }
-            if (lower.endsWith(".gltf")) {
-                Optional<MeshGeometry> fromMeshForge = parseWithMeshForge(resolved);
-                return fromMeshForge.isPresent() ? fromMeshForge : parseGltf(resolved);
-            }
-            return Optional.empty();
-        } catch (IOException | RuntimeException ignored) {
+        if (!lower.endsWith(".glb") && !lower.endsWith(".gltf")) {
             return Optional.empty();
         }
+
+        MeshGeometry geometry = parseWithMeshForge(resolved);
+        String msg = "MeshForge parser handled " + resolved + ": "
+                + vertexCount(geometry) + " vertices, "
+                + geometry.indices().length + " indices";
+        LOG.info(msg);
+        emitParserTelemetry(msg);
+        return Optional.of(geometry);
     }
 
-    private Optional<MeshGeometry> parseWithMeshForge(Path path) {
-        if (path == null) {
-            return Optional.empty();
-        }
+    private MeshGeometry parseWithMeshForge(Path path) {
         try {
             MeshData mesh = meshLoaders.load(path);
-            if (mesh == null || mesh.vertexCount() < 3 || mesh.topology() != Topology.TRIANGLES) {
-                return Optional.empty();
+            if (mesh == null) {
+                throw new IllegalStateException("MeshForge returned null MeshData");
             }
+            if (mesh.vertexCount() < 3) {
+                throw new IllegalStateException("MeshForge returned vertexCount<3: " + mesh.vertexCount());
+            }
+            if (mesh.topology() != Topology.TRIANGLES) {
+                throw new IllegalStateException("MeshForge returned unsupported topology: " + mesh.topology());
+            }
+
             int vertexCount = mesh.vertexCount();
             float[] positions = readMeshForgeFloatAttribute(mesh, AttributeSemantic.POSITION, 0, 3);
             if (positions == null || positions.length < 9) {
-                return Optional.empty();
+                throw new IllegalStateException("MeshForge missing/invalid POSITION attribute");
             }
             normalizePositions(positions);
+
             float[] normals = readMeshForgeFloatAttribute(mesh, AttributeSemantic.NORMAL, 0, 3);
             float[] uvs = readMeshForgeFloatAttribute(mesh, AttributeSemantic.UV, 0, 2);
             float[] tangents = readMeshForgeFloatAttribute(mesh, AttributeSemantic.TANGENT, 0, 3);
@@ -86,251 +78,76 @@ public final class VulkanGltfMeshParser {
                 indices = sequentialTriangles(vertexCount);
             }
             if (indices.length < 3 || indices.length % 3 != 0) {
-                return Optional.empty();
+                throw new IllegalStateException("MeshForge produced invalid index count: " + indices.length);
             }
 
             boolean hasSkinAttributes = weights != null && joints != null
                     && weights.length >= vertexCount * 4
                     && joints.length >= vertexCount * 4;
             int jointCount = hasSkinAttributes ? inferJointCount(joints) : 0;
-            MorphTargetData morph = readMorphTargetsFromMeshForge(mesh, vertexCount);
 
+            MorphTargetData morph = readMorphTargetsFromMeshForge(mesh, vertexCount);
             float[] interleaved = hasSkinAttributes
                     ? interleaveSkinnedVertexAttributes(vertexCount, positions, normals, uvs, tangents, weights, joints)
                     : interleaveVertexAttributes(vertexCount, positions, normals, uvs, tangents);
-            return Optional.of(new MeshGeometry(
-                    interleaved,
-                    indices,
-                    hasSkinAttributes,
-                    jointCount,
-                    morph.packedDeltas(),
-                    morph.targetCount()
-            ));
-        } catch (IOException | RuntimeException ex) {
-            return Optional.empty();
+
+            return new MeshGeometry(interleaved, indices, hasSkinAttributes, jointCount, morph.packedDeltas(), morph.targetCount());
+        } catch (Exception ex) {
+            String msg = "MeshForge threw exception for " + path + ": "
+                    + ex.getClass().getSimpleName() + " - " + ex.getMessage();
+            LOG.warning(msg);
+            emitParserTelemetry(msg);
+            throw new IllegalStateException(msg, ex);
         }
     }
 
-    private Optional<MeshGeometry> parseGlb(Path path) throws IOException {
-        byte[] bytes = Files.readAllBytes(path);
-        if (bytes.length < GLB_HEADER_SIZE + GLB_CHUNK_HEADER_SIZE) {
-            return Optional.empty();
-        }
-        ByteBuffer bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
-        int magic = bb.getInt();
-        int version = bb.getInt();
-        int length = bb.getInt();
-        if (magic != GLB_MAGIC || version < 2 || length > bytes.length) {
-            return Optional.empty();
-        }
-
-        String jsonChunk = null;
-        byte[] binChunk = new byte[0];
-        while (bb.remaining() >= GLB_CHUNK_HEADER_SIZE) {
-            int chunkLength = bb.getInt();
-            int chunkType = bb.getInt();
-            if (chunkLength < 0 || chunkLength > bb.remaining()) {
-                return Optional.empty();
-            }
-            byte[] chunkData = new byte[chunkLength];
-            bb.get(chunkData);
-            if (chunkType == GLB_JSON_CHUNK) {
-                jsonChunk = new String(chunkData, StandardCharsets.UTF_8).trim();
-            } else if (chunkType == GLB_BIN_CHUNK) {
-                binChunk = chunkData;
-            }
-        }
-        if (jsonChunk == null) {
-            return Optional.empty();
-        }
-        JsonNode root = JSON.readTree(jsonChunk);
-        return parseGeometry(root, binChunk);
+    private static int vertexCount(MeshGeometry geometry) {
+        int strideFloats = geometry.skinned() ? SKINNED_VERTEX_STRIDE_FLOATS : STATIC_VERTEX_STRIDE_FLOATS;
+        return geometry.vertices().length / strideFloats;
     }
 
-    private Optional<MeshGeometry> parseGltf(Path path) throws IOException {
-        JsonNode root = JSON.readTree(Files.readString(path));
-        byte[] binary = readPrimaryBuffer(root, path);
-        return parseGeometry(root, binary);
-    }
-
-    private byte[] readPrimaryBuffer(JsonNode root, Path gltfPath) throws IOException {
-        JsonNode buffers = root.path("buffers");
-        if (!buffers.isArray() || buffers.isEmpty()) {
-            return new byte[0];
-        }
-        String uri = buffers.get(0).path("uri").asText("");
-        if (uri.isBlank()) {
-            return new byte[0];
-        }
-        if (uri.startsWith("data:")) {
-            int comma = uri.indexOf(',');
-            if (comma < 0) {
-                return new byte[0];
-            }
-            String data = uri.substring(comma + 1);
-            return Base64.getDecoder().decode(data);
-        }
-        Path resolved = gltfPath.getParent() == null ? assetRoot.resolve(uri) : gltfPath.getParent().resolve(uri);
-        if (!Files.isRegularFile(resolved)) {
-            return new byte[0];
-        }
-        return Files.readAllBytes(resolved);
-    }
-
-    private Optional<MeshGeometry> parseGeometry(JsonNode root, byte[] binary) {
-        JsonNode meshes = root.path("meshes");
-        if (!meshes.isArray() || meshes.isEmpty()) {
-            return Optional.empty();
-        }
-        JsonNode primitives = meshes.get(0).path("primitives");
-        if (!primitives.isArray() || primitives.isEmpty()) {
-            return Optional.empty();
-        }
-        JsonNode primitive = primitives.get(0);
-        int mode = primitive.path("mode").asInt(4);
-        if (mode != 4 && mode != 5) {
-            return Optional.empty();
-        }
-
-        int positionAccessor = primitive.path("attributes").path("POSITION").asInt(-1);
-        if (positionAccessor < 0) {
-            return Optional.empty();
-        }
-
-        float[] positions = readAccessorAsFloatArray(root, binary, positionAccessor, true);
-        if (positions == null || positions.length < 9) {
-            return Optional.empty();
-        }
-
-        int vertexCount = positions.length / 3;
-
-        int normalAccessor = primitive.path("attributes").path("NORMAL").asInt(-1);
-        float[] normals = normalAccessor >= 0 ? readAccessorAsFloatArray(root, binary, normalAccessor, true) : null;
-
-        int uvAccessor = primitive.path("attributes").path("TEXCOORD_0").asInt(-1);
-        float[] uvs = uvAccessor >= 0 ? readAccessorAsFloatArray(root, binary, uvAccessor, false) : null;
-
-        int tangentAccessor = primitive.path("attributes").path("TANGENT").asInt(-1);
-        float[] tangents = tangentAccessor >= 0 ? readAccessorAsFloatArray(root, binary, tangentAccessor, true) : null;
-        int weightsAccessor = primitive.path("attributes").path("WEIGHTS_0").asInt(-1);
-        float[] weights = weightsAccessor >= 0 ? readAccessorAsVec4FloatArray(root, binary, weightsAccessor) : null;
-        int jointsAccessor = primitive.path("attributes").path("JOINTS_0").asInt(-1);
-        int[] joints = jointsAccessor >= 0 ? readAccessorAsJointIndexArray(root, binary, jointsAccessor) : null;
-        int meshIndex = 0;
-        int skinIndex = findSkinIndexForMesh(root, meshIndex);
-        int jointCount = skinIndex >= 0 ? readSkinJointCount(root, skinIndex) : 0;
-
-        int indexAccessor = primitive.path("indices").asInt(-1);
-        int[] indices = indexAccessor >= 0 ? readIndexAccessor(root, binary, indexAccessor) : null;
-
-        if (mode == 5) {
-            indices = triangleStripToTriangles(indices, vertexCount);
-        } else if (indices == null || indices.length == 0) {
-            indices = sequentialTriangles(vertexCount);
-        }
-
-        if (indices.length < 3) {
-            return Optional.empty();
-        }
-
-        normalizePositions(positions);
-        boolean hasSkinAttributes = weights != null && joints != null
-                && weights.length >= vertexCount * 4
-                && joints.length >= vertexCount * 4;
-        if (hasSkinAttributes && (skinIndex < 0 || jointCount <= 0)) {
-            LOG.warning("glTF mesh provides JOINTS_0/WEIGHTS_0 but no associated skin; treating mesh as static");
-        }
-        boolean skinned = hasSkinAttributes && skinIndex >= 0 && jointCount > 0;
-        MorphTargetData morph = readMorphTargetData(root, binary, primitive, vertexCount);
-        float[] interleaved = skinned
-                ? interleaveSkinnedVertexAttributes(vertexCount, positions, normals, uvs, tangents, weights, joints)
-                : interleaveVertexAttributes(vertexCount, positions, normals, uvs, tangents);
-        return Optional.of(new MeshGeometry(
-                interleaved,
-                indices,
-                skinned,
-                skinned ? jointCount : 0,
-                morph.packedDeltas(),
-                morph.targetCount()
-        ));
-    }
-
-    private MorphTargetData readMorphTargetData(
-            JsonNode root,
-            byte[] binary,
-            JsonNode primitive,
-            int vertexCount
-    ) {
-        JsonNode targets = primitive.path("targets");
-        if (!targets.isArray() || targets.isEmpty()) {
-            return MorphTargetData.empty();
-        }
-        int targetCount = targets.size();
-        float[] packed = new float[vertexCount * targetCount * 6];
-        for (int t = 0; t < targetCount; t++) {
-            JsonNode target = targets.get(t);
-            if (target == null || !target.isObject()) {
-                continue;
-            }
-            int posAccessor = target.path("POSITION").asInt(-1);
-            int normAccessor = target.path("NORMAL").asInt(-1);
-            float[] posDeltas = posAccessor >= 0 ? readAccessorAsFloatArray(root, binary, posAccessor, true) : null;
-            float[] normDeltas = normAccessor >= 0 ? readAccessorAsFloatArray(root, binary, normAccessor, true) : null;
-            for (int v = 0; v < vertexCount; v++) {
-                int outBase = ((t * vertexCount) + v) * 6;
-                int vecBase = v * 3;
-                if (posDeltas != null && posDeltas.length >= vecBase + 3) {
-                    packed[outBase] = posDeltas[vecBase];
-                    packed[outBase + 1] = posDeltas[vecBase + 1];
-                    packed[outBase + 2] = posDeltas[vecBase + 2];
-                }
-                if (normDeltas != null && normDeltas.length >= vecBase + 3) {
-                    packed[outBase + 3] = normDeltas[vecBase];
-                    packed[outBase + 4] = normDeltas[vecBase + 1];
-                    packed[outBase + 5] = normDeltas[vecBase + 2];
-                }
-            }
-        }
-        return new MorphTargetData(packed, targetCount);
+    private static void emitParserTelemetry(String message) {
+        System.out.println("[PARSER] " + message);
     }
 
     private MorphTargetData readMorphTargetsFromMeshForge(MeshData mesh, int vertexCount) {
-        if (mesh == null || mesh.morphTargets() == null || mesh.morphTargets().isEmpty()) {
+        var targets = mesh.morphTargets();
+        if (targets == null || targets.isEmpty()) {
             return MorphTargetData.empty();
         }
-        int targetCount = mesh.morphTargets().size();
-        float[] packed = new float[vertexCount * targetCount * 6];
-        for (int t = 0; t < targetCount; t++) {
-            MorphTarget target = mesh.morphTargets().get(t);
-            if (target == null) {
-                continue;
-            }
-            float[] posDeltas = target.positionDeltas();
-            float[] normDeltas = target.normalDeltas();
-            for (int v = 0; v < vertexCount; v++) {
-                int outBase = ((t * vertexCount) + v) * 6;
-                int vecBase = v * 3;
-                if (posDeltas != null && posDeltas.length >= vecBase + 3) {
-                    packed[outBase] = posDeltas[vecBase];
-                    packed[outBase + 1] = posDeltas[vecBase + 1];
-                    packed[outBase + 2] = posDeltas[vecBase + 2];
+        int targetCount = targets.size();
+        float[] packed = new float[targetCount * vertexCount * 6];
+
+        for (int targetIndex = 0; targetIndex < targetCount; targetIndex++) {
+            MorphTarget target = targets.get(targetIndex);
+            float[] posDelta = target == null ? null : target.positionDeltas();
+            float[] normalDelta = target == null ? null : target.normalDeltas();
+
+            for (int vertexIndex = 0; vertexIndex < vertexCount; vertexIndex++) {
+                int outBase = (targetIndex * vertexCount + vertexIndex) * 6;
+                if (posDelta != null) {
+                    int base = vertexIndex * 3;
+                    if (base + 2 < posDelta.length) {
+                        packed[outBase] = posDelta[base];
+                        packed[outBase + 1] = posDelta[base + 1];
+                        packed[outBase + 2] = posDelta[base + 2];
+                    }
                 }
-                if (normDeltas != null && normDeltas.length >= vecBase + 3) {
-                    packed[outBase + 3] = normDeltas[vecBase];
-                    packed[outBase + 4] = normDeltas[vecBase + 1];
-                    packed[outBase + 5] = normDeltas[vecBase + 2];
+                if (normalDelta != null) {
+                    int base = vertexIndex * 3;
+                    if (base + 2 < normalDelta.length) {
+                        packed[outBase + 3] = normalDelta[base];
+                        packed[outBase + 4] = normalDelta[base + 1];
+                        packed[outBase + 5] = normalDelta[base + 2];
+                    }
                 }
             }
         }
+
         return new MorphTargetData(packed, targetCount);
     }
 
-    private float[] readMeshForgeFloatAttribute(
-            MeshData mesh,
-            AttributeSemantic semantic,
-            int setIndex,
-            int components
-    ) {
+    private float[] readMeshForgeFloatAttribute(MeshData mesh, AttributeSemantic semantic, int setIndex, int components) {
         if (mesh == null || semantic == null || components <= 0 || !mesh.has(semantic, setIndex)) {
             return null;
         }
@@ -338,8 +155,9 @@ public final class VulkanGltfMeshParser {
         if (view == null || view.vertexCount() != mesh.vertexCount()) {
             return null;
         }
-        float[] out = new float[mesh.vertexCount() * components];
-        for (int i = 0; i < mesh.vertexCount(); i++) {
+        int vertexCount = mesh.vertexCount();
+        float[] out = new float[vertexCount * components];
+        for (int i = 0; i < vertexCount; i++) {
             int base = i * components;
             for (int c = 0; c < components; c++) {
                 out[base + c] = view.getFloat(i, c);
@@ -356,21 +174,18 @@ public final class VulkanGltfMeshParser {
         if (view == null || view.vertexCount() != mesh.vertexCount()) {
             return null;
         }
-        int[] out = new int[mesh.vertexCount() * 4];
-        for (int i = 0; i < mesh.vertexCount(); i++) {
-            int base = i * 4;
+        int vertexCount = mesh.vertexCount();
+        int[] out = new int[vertexCount * 4];
+        for (int i = 0; i < vertexCount; i++) {
             for (int c = 0; c < 4; c++) {
                 int value = view.getInt(i, c);
-                out[base + c] = Math.max(0, Math.min(255, value));
+                out[i * 4 + c] = Math.max(0, Math.min(255, value));
             }
         }
         return out;
     }
 
     private int inferJointCount(int[] joints) {
-        if (joints == null || joints.length == 0) {
-            return 0;
-        }
         int max = 0;
         for (int joint : joints) {
             if (joint > max) {
@@ -387,32 +202,38 @@ public final class VulkanGltfMeshParser {
             float[] uvs,
             float[] tangents
     ) {
-        float[] out = new float[vertexCount * 11];
+        float[] out = new float[vertexCount * STATIC_VERTEX_STRIDE_FLOATS];
         for (int i = 0; i < vertexCount; i++) {
-            int outBase = i * 11;
-            int pBase = i * 3;
-            out[outBase] = positions[pBase];
-            out[outBase + 1] = positions[pBase + 1];
-            out[outBase + 2] = positions[pBase + 2];
+            int outBase = i * STATIC_VERTEX_STRIDE_FLOATS;
+            int posBase = i * 3;
+            out[outBase] = positions[posBase];
+            out[outBase + 1] = positions[posBase + 1];
+            out[outBase + 2] = positions[posBase + 2];
 
             float nx = 0f;
             float ny = 0f;
             float nz = 1f;
-            if (normals != null && normals.length >= pBase + 3) {
-                nx = normals[pBase];
-                ny = normals[pBase + 1];
-                nz = normals[pBase + 2];
+            if (normals != null) {
+                int normalStride = normals.length / vertexCount;
+                int nBase = i * normalStride;
+                if (normals.length >= nBase + 3) {
+                    nx = normals[nBase];
+                    ny = normals[nBase + 1];
+                    nz = normals[nBase + 2];
+                }
             }
             out[outBase + 3] = nx;
             out[outBase + 4] = ny;
             out[outBase + 5] = nz;
 
-            int uvBase = i * 2;
-            float u = (positions[pBase] * 0.5f) + 0.5f;
-            float v = (positions[pBase + 1] * 0.5f) + 0.5f;
-            if (uvs != null && uvs.length >= uvBase + 2) {
-                u = uvs[uvBase];
-                v = uvs[uvBase + 1];
+            float u = 0f;
+            float v = 0f;
+            if (uvs != null) {
+                int uvBase = i * 2;
+                if (uvs.length >= uvBase + 2) {
+                    u = uvs[uvBase];
+                    v = uvs[uvBase + 1];
+                }
             }
             out[outBase + 6] = u;
             out[outBase + 7] = v;
@@ -445,32 +266,38 @@ public final class VulkanGltfMeshParser {
             float[] weights,
             int[] joints
     ) {
-        float[] out = new float[vertexCount * 16];
+        float[] out = new float[vertexCount * SKINNED_VERTEX_STRIDE_FLOATS];
         for (int i = 0; i < vertexCount; i++) {
-            int outBase = i * 16;
-            int pBase = i * 3;
-            out[outBase] = positions[pBase];
-            out[outBase + 1] = positions[pBase + 1];
-            out[outBase + 2] = positions[pBase + 2];
+            int outBase = i * SKINNED_VERTEX_STRIDE_FLOATS;
+            int posBase = i * 3;
+            out[outBase] = positions[posBase];
+            out[outBase + 1] = positions[posBase + 1];
+            out[outBase + 2] = positions[posBase + 2];
 
             float nx = 0f;
             float ny = 0f;
             float nz = 1f;
-            if (normals != null && normals.length >= pBase + 3) {
-                nx = normals[pBase];
-                ny = normals[pBase + 1];
-                nz = normals[pBase + 2];
+            if (normals != null) {
+                int normalStride = normals.length / vertexCount;
+                int nBase = i * normalStride;
+                if (normals.length >= nBase + 3) {
+                    nx = normals[nBase];
+                    ny = normals[nBase + 1];
+                    nz = normals[nBase + 2];
+                }
             }
             out[outBase + 3] = nx;
             out[outBase + 4] = ny;
             out[outBase + 5] = nz;
 
-            int uvBase = i * 2;
-            float u = (positions[pBase] * 0.5f) + 0.5f;
-            float v = (positions[pBase + 1] * 0.5f) + 0.5f;
-            if (uvs != null && uvs.length >= uvBase + 2) {
-                u = uvs[uvBase];
-                v = uvs[uvBase + 1];
+            float u = 0f;
+            float v = 0f;
+            if (uvs != null) {
+                int uvBase = i * 2;
+                if (uvs.length >= uvBase + 2) {
+                    u = uvs[uvBase];
+                    v = uvs[uvBase + 1];
+                }
             }
             out[outBase + 6] = u;
             out[outBase + 7] = v;
@@ -519,141 +346,8 @@ public final class VulkanGltfMeshParser {
                     | ((joints[jBase + 1] & 0xFF) << 8)
                     | ((joints[jBase + 2] & 0xFF) << 16)
                     | ((joints[jBase + 3] & 0xFF) << 24);
-            // Keep the interleaved upload path float-based for now; loc5 reinterprets these raw bits as R8G8B8A8_UINT.
+            // Keep the interleaved upload path float-based; loc5 reinterprets bits as R8G8B8A8_UINT.
             out[outBase + 15] = Float.intBitsToFloat(packed);
-        }
-        return out;
-    }
-
-    private float[] readAccessorAsFloatArray(JsonNode root, byte[] binary, int accessorIndex, boolean expectVec3OrVec4) {
-        AccessorMeta meta = readAccessorMeta(root, accessorIndex);
-        if (meta == null || binary.length == 0) {
-            return null;
-        }
-        if (expectVec3OrVec4) {
-            if (meta.components < 3 || meta.components > 4) {
-                return null;
-            }
-        } else if (meta.components != 2) {
-            return null;
-        }
-
-        int componentsOut = expectVec3OrVec4 ? 3 : 2;
-        float[] out = new float[meta.count * componentsOut];
-        ByteBuffer bb = ByteBuffer.wrap(binary).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < meta.count; i++) {
-            int base = meta.offset + i * meta.stride;
-            if (base + meta.componentBytes * meta.components > binary.length) {
-                return null;
-            }
-            out[i * componentsOut] = readComponentAsFloat(bb, base, meta.componentType);
-            out[i * componentsOut + 1] = readComponentAsFloat(bb, base + meta.componentBytes, meta.componentType);
-            if (componentsOut == 3) {
-                out[i * componentsOut + 2] = readComponentAsFloat(bb, base + 2 * meta.componentBytes, meta.componentType);
-            }
-        }
-        return out;
-    }
-
-    private float[] readAccessorAsVec4FloatArray(JsonNode root, byte[] binary, int accessorIndex) {
-        AccessorMeta meta = readAccessorMeta(root, accessorIndex);
-        if (meta == null || binary.length == 0 || meta.components != 4) {
-            return null;
-        }
-        float[] out = new float[meta.count * 4];
-        ByteBuffer bb = ByteBuffer.wrap(binary).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < meta.count; i++) {
-            int base = meta.offset + i * meta.stride;
-            if (base + (meta.componentBytes * 4) > binary.length) {
-                return null;
-            }
-            out[i * 4] = readComponentAsFloat(bb, base, meta.componentType);
-            out[(i * 4) + 1] = readComponentAsFloat(bb, base + meta.componentBytes, meta.componentType);
-            out[(i * 4) + 2] = readComponentAsFloat(bb, base + 2 * meta.componentBytes, meta.componentType);
-            out[(i * 4) + 3] = readComponentAsFloat(bb, base + 3 * meta.componentBytes, meta.componentType);
-        }
-        return out;
-    }
-
-    private int[] readAccessorAsJointIndexArray(JsonNode root, byte[] binary, int accessorIndex) {
-        AccessorMeta meta = readAccessorMeta(root, accessorIndex);
-        if (meta == null || binary.length == 0 || meta.components != 4) {
-            return null;
-        }
-        if (meta.componentType != 5121 && meta.componentType != 5123) {
-            return null;
-        }
-        int[] out = new int[meta.count * 4];
-        ByteBuffer bb = ByteBuffer.wrap(binary).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < meta.count; i++) {
-            int base = meta.offset + i * meta.stride;
-            if (base + (meta.componentBytes * 4) > binary.length) {
-                return null;
-            }
-            for (int c = 0; c < 4; c++) {
-                int value = meta.componentType == 5121
-                        ? (bb.get(base + c) & 0xFF)
-                        : (bb.getShort(base + (c * meta.componentBytes)) & 0xFFFF);
-                if (value > 255) {
-                    value = 255;
-                }
-                out[(i * 4) + c] = value;
-            }
-        }
-        return out;
-    }
-
-    private int findSkinIndexForMesh(JsonNode root, int meshIndex) {
-        JsonNode nodes = root.path("nodes");
-        if (!nodes.isArray()) {
-            return -1;
-        }
-        for (int i = 0; i < nodes.size(); i++) {
-            JsonNode node = nodes.get(i);
-            if (node.path("mesh").asInt(-1) == meshIndex) {
-                int skin = node.path("skin").asInt(-1);
-                if (skin >= 0) {
-                    return skin;
-                }
-            }
-        }
-        return -1;
-    }
-
-    private int readSkinJointCount(JsonNode root, int skinIndex) {
-        JsonNode skins = root.path("skins");
-        if (!skins.isArray() || skinIndex < 0 || skinIndex >= skins.size()) {
-            return 0;
-        }
-        JsonNode skin = skins.get(skinIndex);
-        JsonNode joints = skin.path("joints");
-        if (!joints.isArray()) {
-            return 0;
-        }
-        return Math.max(0, joints.size());
-    }
-
-    private int[] readIndexAccessor(JsonNode root, byte[] binary, int accessorIndex) {
-        AccessorMeta meta = readAccessorMeta(root, accessorIndex);
-        if (meta == null || meta.components != 1 || binary.length == 0) {
-            return null;
-        }
-        int[] out = new int[meta.count];
-        ByteBuffer bb = ByteBuffer.wrap(binary).order(ByteOrder.LITTLE_ENDIAN);
-        for (int i = 0; i < meta.count; i++) {
-            int base = meta.offset + i * meta.stride;
-            if (base + meta.componentBytes > binary.length) {
-                return null;
-            }
-            out[i] = switch (meta.componentType) {
-                case 5121 -> bb.get(base) & 0xFF;
-                case 5123 -> bb.getShort(base) & 0xFFFF;
-                case 5125 -> bb.getInt(base);
-                default -> -1;
-            };
-            if (out[i] < 0) {
-                return null;
-            }
         }
         return out;
     }
@@ -667,119 +361,19 @@ public final class VulkanGltfMeshParser {
         return out;
     }
 
-    private int[] triangleStripToTriangles(int[] indices, int vertexCount) {
-        if (indices == null || indices.length < 3) {
-            int count = Math.max(0, vertexCount - 2);
-            int[] generated = new int[count * 3];
-            int out = 0;
-            for (int i = 0; i < count; i++) {
-                if ((i & 1) == 0) {
-                    generated[out++] = i;
-                    generated[out++] = i + 1;
-                    generated[out++] = i + 2;
-                } else {
-                    generated[out++] = i + 1;
-                    generated[out++] = i;
-                    generated[out++] = i + 2;
-                }
-            }
-            return generated;
-        }
-
-        int triCount = Math.max(0, indices.length - 2);
-        int[] out = new int[triCount * 3];
-        int outIdx = 0;
-        for (int i = 0; i < triCount; i++) {
-            int a = indices[i];
-            int b = indices[i + 1];
-            int c = indices[i + 2];
-            if ((i & 1) == 1) {
-                int t = a;
-                a = b;
-                b = t;
-            }
-            out[outIdx++] = a;
-            out[outIdx++] = b;
-            out[outIdx++] = c;
-        }
-        return out;
-    }
-
-    private float readComponentAsFloat(ByteBuffer bb, int offset, int componentType) {
-        return switch (componentType) {
-            case 5126 -> bb.getFloat(offset);
-            case 5121 -> (bb.get(offset) & 0xFF) / 255.0f;
-            case 5123 -> (bb.getShort(offset) & 0xFFFF) / 65535.0f;
-            case 5120 -> Math.max(-1.0f, bb.get(offset) / 127.0f);
-            case 5122 -> Math.max(-1.0f, bb.getShort(offset) / 32767.0f);
-            default -> 0.0f;
-        };
-    }
-
-    private AccessorMeta readAccessorMeta(JsonNode root, int accessorIndex) {
-        JsonNode accessors = root.path("accessors");
-        JsonNode bufferViews = root.path("bufferViews");
-        if (!accessors.isArray() || accessorIndex < 0 || accessorIndex >= accessors.size()) {
-            return null;
-        }
-        JsonNode accessor = accessors.get(accessorIndex);
-        int viewIndex = accessor.path("bufferView").asInt(-1);
-        if (!bufferViews.isArray() || viewIndex < 0 || viewIndex >= bufferViews.size()) {
-            return null;
-        }
-        JsonNode view = bufferViews.get(viewIndex);
-
-        int componentType = accessor.path("componentType").asInt(-1);
-        int componentBytes = switch (componentType) {
-            case 5120, 5121 -> 1;
-            case 5122, 5123 -> 2;
-            case 5125, 5126 -> 4;
-            default -> -1;
-        };
-        if (componentBytes < 0) {
-            return null;
-        }
-
-        int components = componentCount(accessor.path("type").asText(""));
-        if (components <= 0) {
-            return null;
-        }
-
-        int count = accessor.path("count").asInt(0);
-        if (count <= 0) {
-            return null;
-        }
-
-        int accessorOffset = accessor.path("byteOffset").asInt(0);
-        int viewOffset = view.path("byteOffset").asInt(0);
-        int stride = view.path("byteStride").asInt(components * componentBytes);
-
-        return new AccessorMeta(componentType, componentBytes, components, count, accessorOffset + viewOffset, stride);
-    }
-
-    private int componentCount(String type) {
-        return switch (type) {
-            case "SCALAR" -> 1;
-            case "VEC2" -> 2;
-            case "VEC3" -> 3;
-            case "VEC4" -> 4;
-            default -> -1;
-        };
-    }
-
-    private void normalizePositions(float[] interleavedOrPositions) {
+    private void normalizePositions(float[] positions) {
         float maxAbs = 0f;
-        for (int i = 0; i < interleavedOrPositions.length; i += 3) {
-            maxAbs = Math.max(maxAbs, Math.abs(interleavedOrPositions[i]));
-            maxAbs = Math.max(maxAbs, Math.abs(interleavedOrPositions[i + 1]));
-            maxAbs = Math.max(maxAbs, Math.abs(interleavedOrPositions[i + 2]));
+        for (int i = 0; i < positions.length; i += 3) {
+            maxAbs = Math.max(maxAbs, Math.abs(positions[i]));
+            maxAbs = Math.max(maxAbs, Math.abs(positions[i + 1]));
+            maxAbs = Math.max(maxAbs, Math.abs(positions[i + 2]));
         }
         if (maxAbs < 0.00001f) {
             return;
         }
         float scale = 0.8f / maxAbs;
-        for (int i = 0; i < interleavedOrPositions.length; i++) {
-            interleavedOrPositions[i] *= scale;
+        for (int i = 0; i < positions.length; i++) {
+            positions[i] *= scale;
         }
     }
 
@@ -797,15 +391,5 @@ public final class VulkanGltfMeshParser {
         static MorphTargetData empty() {
             return new MorphTargetData(null, 0);
         }
-    }
-
-    private record AccessorMeta(
-            int componentType,
-            int componentBytes,
-            int components,
-            int count,
-            int offset,
-            int stride
-    ) {
     }
 }

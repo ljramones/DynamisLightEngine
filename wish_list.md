@@ -26,9 +26,9 @@ Status summary snapshot (2026-02-23):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 126 |
+| `In` | 127 |
 | `Partial` | 10 |
-| `Not In Yet` | 56 |
+| `Not In Yet` | 55 |
 
 ## Shadows
 
@@ -384,7 +384,7 @@ PBR notes:
 - Impostor/billboard (far-distance LOD replacement) — `Not In Yet`
 - Procedural geometry (runtime mesh generation, compute-driven) — `Not In Yet`
 - Skinned mesh / skeletal animation — `In`
-- Morph targets / blend shapes — `Not In Yet`
+- Morph targets / blend shapes — `In`
 - Vegetation (wind animation, alpha-tested, two-sided) — `Partial`
 
 Geometry notes:
@@ -393,6 +393,8 @@ Geometry notes:
 - Geometry Phase-1 Vulkan scaffold checklist/runner are in place (`docs/geometry-phase1-checklist.md`, `scripts/geometry_phase1_lockdown.sh`) with CI lane `geometry-phase1-lockdown`.
 - Frustum culling and mesh streaming are now treated as `In` for Vulkan scope via active-path diagnostics + promotion-ready lockdown coverage; instanced rendering remains `Partial` pending full runtime execution enablement.
 - Skinned mesh / skeletal animation is now `In` for Vulkan scope: dual static/skinned main-pass pipelines, dedicated skinned vertex input + shader path, per-mesh joint-palette SSBO binding (`set=2,binding=2`), JOINTS_0/WEIGHTS_0 parsing with normalized weights + joint-count propagation, and runtime API upload path (`updateSkinnedMesh()`).
+- Morph targets / blend shapes are now `In` for Vulkan scope: morph delta SSBO ingestion from glTF targets, per-mesh morph weight UBO upload path (`updateMorphWeights()`), dedicated morph vertex shader path, and explicit static/morph/skinned main-pass pipeline routing.
+- Mesh ingest now runs through MeshForge on the active Vulkan runtime path (no internal manual glTF accessor/interleave parser path): `VulkanGltfMeshParser` is now a MeshForge adapter with parser telemetry + hard-fail on parse exceptions.
 
 ## VFX / Particles
 
