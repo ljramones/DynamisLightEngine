@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.function.IntUnaryOperator;
 
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
+import org.dynamislight.impl.vulkan.model.VulkanInstanceBatch;
 
 public final class VulkanFrameCommandInputAssembler {
     private VulkanFrameCommandInputAssembler() {
@@ -13,6 +14,7 @@ public final class VulkanFrameCommandInputAssembler {
         return VulkanFrameCommandInputsFactory.create(
                 new VulkanFrameCommandInputsFactory.Inputs(
                         in.gpuMeshes(),
+                        in.instanceBatches(),
                         in.maxDynamicSceneObjects(),
                         in.swapchainWidth(),
                         in.swapchainHeight(),
@@ -35,8 +37,11 @@ public final class VulkanFrameCommandInputAssembler {
                         in.mainGeometrySkinnedPipelineLayout(),
                         in.mainGeometrySkinnedMorphPipeline(),
                         in.mainGeometrySkinnedMorphPipelineLayout(),
+                        in.mainGeometryInstancedPipeline(),
+                        in.mainGeometryInstancedPipelineLayout(),
                         in.shadowRenderPass(),
                         in.shadowPipeline(),
+                        in.shadowInstancedPipeline(),
                         in.shadowPipelineLayout(),
                         in.shadowFramebuffers(),
                         in.shadowDepthImage(),
@@ -105,6 +110,7 @@ public final class VulkanFrameCommandInputAssembler {
 
     public record AssemblyInputs(
             List<VulkanGpuMesh> gpuMeshes,
+            List<VulkanInstanceBatch> instanceBatches,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,
@@ -127,8 +133,11 @@ public final class VulkanFrameCommandInputAssembler {
             long mainGeometrySkinnedPipelineLayout,
             long mainGeometrySkinnedMorphPipeline,
             long mainGeometrySkinnedMorphPipelineLayout,
+            long mainGeometryInstancedPipeline,
+            long mainGeometryInstancedPipelineLayout,
             long shadowRenderPass,
             long shadowPipeline,
+            long shadowInstancedPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowDepthImage,

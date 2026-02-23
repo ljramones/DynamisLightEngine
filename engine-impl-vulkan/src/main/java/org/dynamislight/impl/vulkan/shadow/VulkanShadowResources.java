@@ -70,6 +70,7 @@ public final class VulkanShadowResources {
             int maxShadowMatrices,
             int vertexStrideBytes,
             long descriptorSetLayout,
+            long instancedDescriptorSetLayout,
             boolean momentPipelineRequested,
             int momentMode
     ) throws EngineException {
@@ -131,7 +132,8 @@ public final class VulkanShadowResources {
                 momentPipelineEnabled,
                 shadowMapResolution,
                 vertexStrideBytes,
-                descriptorSetLayout
+                descriptorSetLayout,
+                instancedDescriptorSetLayout
         );
         int shadowMomentMipLevels = 1;
         long[] shadowFramebuffers;
@@ -206,6 +208,7 @@ public final class VulkanShadowResources {
                 shadowPipeline.renderPass(),
                 shadowPipeline.pipelineLayout(),
                 shadowPipeline.graphicsPipeline(),
+                shadowPipeline.instancedGraphicsPipeline(),
                 shadowFramebuffers,
                 shadowMomentImage,
                 shadowMomentMemory,
@@ -237,6 +240,9 @@ public final class VulkanShadowResources {
         }
         if (resources.shadowPipeline() != VK_NULL_HANDLE) {
             vkDestroyPipeline(device, resources.shadowPipeline(), null);
+        }
+        if (resources.shadowInstancedPipeline() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, resources.shadowInstancedPipeline(), null);
         }
         if (resources.shadowPipelineLayout() != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(device, resources.shadowPipelineLayout(), null);
@@ -453,6 +459,7 @@ public final class VulkanShadowResources {
             long shadowRenderPass,
             long shadowPipelineLayout,
             long shadowPipeline,
+            long shadowInstancedPipeline,
             long[] shadowFramebuffers,
             long shadowMomentImage,
             long shadowMomentMemory,

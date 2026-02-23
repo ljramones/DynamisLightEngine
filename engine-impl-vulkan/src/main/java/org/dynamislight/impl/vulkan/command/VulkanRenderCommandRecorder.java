@@ -128,6 +128,7 @@ public final class VulkanRenderCommandRecorder {
                         in.frameDescriptorSet(),
                         in.shadowRenderPass(),
                         in.shadowPipeline(),
+                        in.shadowInstancedPipeline(),
                         in.shadowPipelineLayout(),
                         in.shadowFramebuffers(),
                         in.shadowMomentImage(),
@@ -157,6 +158,8 @@ public final class VulkanRenderCommandRecorder {
                         in.skinnedPipelineLayout(),
                         in.skinnedMorphGraphicsPipeline(),
                         in.skinnedMorphPipelineLayout(),
+                        in.instancedGraphicsPipeline(),
+                        in.instancedPipelineLayout(),
                         in.reflectionsMode(),
                         in.reflectionsPlanarPlaneHeight(),
                         in.planarTimestampQueryPool(),
@@ -188,6 +191,8 @@ public final class VulkanRenderCommandRecorder {
                         in.skinnedPipelineLayout(),
                         in.skinnedMorphGraphicsPipeline(),
                         in.skinnedMorphPipelineLayout(),
+                        in.instancedGraphicsPipeline(),
+                        in.instancedPipelineLayout(),
                         in.reflectionsMode(),
                         in.reflectionsPlanarPlaneHeight()
                 ),
@@ -302,12 +307,17 @@ public final class VulkanRenderCommandRecorder {
             int indexCount,
             long textureDescriptorSet,
             int reflectionOverrideMode,
+            int uniformMeshIndex,
             boolean skinned,
             long skinningBufferHandle,
             boolean morphTargeted,
             long morphDescriptorSetHandle,
             int morphTargetCount,
-            int morphVertexCount
+            int morphVertexCount,
+            boolean instanced,
+            int instanceCount,
+            int firstInstance,
+            long instanceBatchDescriptorSet
     ) {
     }
 
@@ -323,6 +333,7 @@ public final class VulkanRenderCommandRecorder {
             long frameDescriptorSet,
             long shadowRenderPass,
             long shadowPipeline,
+            long shadowInstancedPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowMomentImage,
@@ -353,8 +364,11 @@ public final class VulkanRenderCommandRecorder {
                     0L,
                     0L,
                     0L,
+                    0L,
+                    0L,
                     shadowRenderPass,
                     shadowPipeline,
+                    shadowInstancedPipeline,
                     shadowPipelineLayout,
                     shadowFramebuffers,
                     shadowMomentImage,
@@ -388,6 +402,8 @@ public final class VulkanRenderCommandRecorder {
             long skinnedPipelineLayout,
             long skinnedMorphGraphicsPipeline,
             long skinnedMorphPipelineLayout,
+            long instancedGraphicsPipeline,
+            long instancedPipelineLayout,
             int reflectionsMode,
             float reflectionsPlanarPlaneHeight
     ) {
@@ -408,6 +424,8 @@ public final class VulkanRenderCommandRecorder {
             long skinnedPipelineLayout,
             long skinnedMorphGraphicsPipeline,
             long skinnedMorphPipelineLayout,
+            long instancedGraphicsPipeline,
+            long instancedPipelineLayout,
             int reflectionsMode,
             float reflectionsPlanarPlaneHeight,
             long planarTimestampQueryPool,
@@ -433,6 +451,8 @@ public final class VulkanRenderCommandRecorder {
                         skinnedPipelineLayout,
                         skinnedMorphGraphicsPipeline,
                         skinnedMorphPipelineLayout,
+                        instancedGraphicsPipeline,
+                        instancedPipelineLayout,
                         reflectionsMode,
                         reflectionsPlanarPlaneHeight
                 );
@@ -461,8 +481,11 @@ public final class VulkanRenderCommandRecorder {
             long skinnedPipelineLayout,
             long skinnedMorphGraphicsPipeline,
             long skinnedMorphPipelineLayout,
+            long instancedGraphicsPipeline,
+            long instancedPipelineLayout,
             long shadowRenderPass,
             long shadowPipeline,
+            long shadowInstancedPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowMomentImage,

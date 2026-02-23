@@ -33,6 +33,9 @@ public final class VulkanSwapchainDestroyCoordinator {
         if (inputs.skinnedMorphGraphicsPipeline() != VK_NULL_HANDLE) {
             vkDestroyPipeline(inputs.device(), inputs.skinnedMorphGraphicsPipeline(), null);
         }
+        if (inputs.instancedGraphicsPipeline() != VK_NULL_HANDLE) {
+            vkDestroyPipeline(inputs.device(), inputs.instancedGraphicsPipeline(), null);
+        }
         if (inputs.pipelineLayout() != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(inputs.device(), inputs.pipelineLayout(), null);
         }
@@ -44,6 +47,9 @@ public final class VulkanSwapchainDestroyCoordinator {
         }
         if (inputs.skinnedMorphPipelineLayout() != VK_NULL_HANDLE) {
             vkDestroyPipelineLayout(inputs.device(), inputs.skinnedMorphPipelineLayout(), null);
+        }
+        if (inputs.instancedPipelineLayout() != VK_NULL_HANDLE) {
+            vkDestroyPipelineLayout(inputs.device(), inputs.instancedPipelineLayout(), null);
         }
         if (inputs.renderPass() != VK_NULL_HANDLE) {
             vkDestroyRenderPass(inputs.device(), inputs.renderPass(), null);
@@ -79,10 +85,12 @@ public final class VulkanSwapchainDestroyCoordinator {
             long morphGraphicsPipeline,
             long skinnedGraphicsPipeline,
             long skinnedMorphGraphicsPipeline,
+            long instancedGraphicsPipeline,
             long pipelineLayout,
             long morphPipelineLayout,
             long skinnedPipelineLayout,
             long skinnedMorphPipelineLayout,
+            long instancedPipelineLayout,
             long renderPass,
             long[] swapchainImageViews,
             long[] depthImages,
@@ -102,10 +110,12 @@ public final class VulkanSwapchainDestroyCoordinator {
             long morphGraphicsPipeline,
             long skinnedGraphicsPipeline,
             long skinnedMorphGraphicsPipeline,
+            long instancedGraphicsPipeline,
             long pipelineLayout,
             long morphPipelineLayout,
             long skinnedPipelineLayout,
             long skinnedMorphPipelineLayout,
+            long instancedPipelineLayout,
             long renderPass,
             long[] swapchainImageViews,
             long[] depthImages,
@@ -146,6 +156,8 @@ public final class VulkanSwapchainDestroyCoordinator {
         public static Result empty() {
             return new Result(
                     new long[0],
+                    VK_NULL_HANDLE,
+                    VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,
                     VK_NULL_HANDLE,

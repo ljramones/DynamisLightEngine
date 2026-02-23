@@ -5,8 +5,13 @@ import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
 import org.dynamislight.impl.vulkan.model.VulkanBufferAlloc;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
+import org.dynamislight.impl.vulkan.model.VulkanInstanceBatch;
+import org.dynamislight.impl.vulkan.model.VulkanInstanceBatchBuffer;
 import org.dynamislight.impl.vulkan.model.VulkanGpuTexture;
+import org.dynamislight.impl.vulkan.model.VulkanMorphTargetBuffer;
+import org.dynamislight.impl.vulkan.model.VulkanMorphWeightUniforms;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
+import org.dynamislight.impl.vulkan.model.VulkanSkinnedMeshUniforms;
 import org.dynamislight.impl.vulkan.texture.VulkanTextureResourceOps;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -76,6 +81,7 @@ public final class VulkanSceneMeshLifecycle {
             Path iblBrdfLutPath,
             int uniformFrameSpanBytes,
             int framesInFlight,
+            long skinnedDescriptorSetLayout,
             TextureFactory textureFactory,
             TextureResolver textureResolver,
             TextureKeyer textureKeyer,
@@ -139,6 +145,43 @@ public final class VulkanSceneMeshLifecycle {
                     false
             );
             VulkanGpuTexture occlusionTexture = textureResolver.resolve(mesh.occlusionTexturePath(), textureCache, defaultOcclusion, false);
+            boolean skinned = mesh.skinned() && mesh.jointCount() > 0 && skinnedDescriptorSetLayout != VK_NULL_HANDLE;
+            VulkanSkinnedMeshUniforms skinnedUniforms = null;
+            if (skinned) {
+                skinnedUniforms = VulkanSkinnedMeshUniforms.create(
+                        device,
+                        physicalDevice,
+                        skinnedDescriptorSetLayout,
+                        mesh.jointCount()
+                );
+            }
+            int morphTargetCount = Math.max(0, mesh.morphTargetCount());
+            int morphTargetHash = mesh.morphTargetDeltas() == null ? 0 : Arrays.hashCode(mesh.morphTargetDeltas());
+            VulkanMorphTargetBuffer morphTargets = mesh.morphTargets();
+            if (morphTargets == null && morphTargetCount > 0) {
+                int morphVertexCount = mesh.morphTargetDeltas().length / (morphTargetCount * 6);
+                morphTargets = VulkanMorphTargetBuffer.create(
+                        device,
+                        physicalDevice,
+                        commandPool,
+                        graphicsQueue,
+                        stack,
+                        mesh.morphTargetDeltas(),
+                        morphVertexCount,
+                        morphTargetCount,
+                        vkFailure::failure
+                );
+            }
+            VulkanMorphWeightUniforms morphWeightUniforms = null;
+            if (morphTargets != null && morphTargetCount > 0 && skinnedDescriptorSetLayout != VK_NULL_HANDLE) {
+                morphWeightUniforms = VulkanMorphWeightUniforms.create(
+                        device,
+                        physicalDevice,
+                        skinnedDescriptorSetLayout,
+                        morphTargets.bufferHandle(),
+                        morphTargets.bytes()
+                );
+            }
 
             gpuMeshes.add(new VulkanGpuMesh(
                     vertexAlloc.buffer(),
@@ -173,7 +216,14 @@ public final class VulkanSceneMeshLifecycle {
                     albedoKey,
                     normalKey,
                     metallicRoughnessKey,
-                    occlusionKey
+                    occlusionKey,
+                    skinned,
+                    mesh.jointCount(),
+                    skinnedUniforms,
+                    morphTargetCount,
+                    morphTargetHash,
+                    morphTargets,
+                    morphWeightUniforms
             ));
         }
 
@@ -298,7 +348,14 @@ public final class VulkanSceneMeshLifecycle {
                     albedoKey,
                     normalKey,
                     metallicRoughnessKey,
-                    occlusionKey
+                    occlusionKey,
+                    mesh.skinned,
+                    mesh.jointCount,
+                    mesh.skinnedUniforms,
+                    mesh.morphTargetCount,
+                    mesh.morphTargetHash,
+                    mesh.morphTargets,
+                    mesh.morphWeightUniforms
             ));
         }
         gpuMeshes.clear();
@@ -334,6 +391,15 @@ public final class VulkanSceneMeshLifecycle {
             if (mesh.indexMemory != VK_NULL_HANDLE) {
                 vkFreeMemory(device, mesh.indexMemory, null);
             }
+            if (mesh.skinnedUniforms != null) {
+                mesh.skinnedUniforms.destroy();
+            }
+            if (mesh.morphTargets != null) {
+                mesh.morphTargets.destroy(device);
+            }
+            if (mesh.morphWeightUniforms != null) {
+                mesh.morphWeightUniforms.destroy();
+            }
             uniqueTextures.add(mesh.albedoTexture);
             uniqueTextures.add(mesh.normalTexture);
             uniqueTextures.add(mesh.metallicRoughnessTexture);
@@ -350,6 +416,170 @@ public final class VulkanSceneMeshLifecycle {
         }
         gpuMeshes.clear();
         return new DestroyResult(nextTextureDescriptorPool);
+    }
+
+    public static void updateSkinnedMesh(
+            List<VulkanGpuMesh> gpuMeshes,
+            int meshHandle,
+            float[] jointMatrices
+    ) throws EngineException {
+        if (gpuMeshes == null || meshHandle < 0 || meshHandle >= gpuMeshes.size()) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "Invalid meshHandle for skinned mesh update: " + meshHandle,
+                    true
+            );
+        }
+        VulkanGpuMesh mesh = gpuMeshes.get(meshHandle);
+        if (!mesh.skinned || mesh.skinnedUniforms == null) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "Mesh handle " + meshHandle + " is not a skinned mesh",
+                    true
+            );
+        }
+        int expectedFloats = mesh.jointCount * 16;
+        if (mesh.jointCount <= 0 || jointMatrices == null || jointMatrices.length != expectedFloats) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "jointMatrices must contain exactly " + expectedFloats + " floats for mesh handle " + meshHandle,
+                    true
+            );
+        }
+        mesh.skinnedUniforms.upload(jointMatrices);
+    }
+
+    public static void updateMorphWeights(
+            List<VulkanGpuMesh> gpuMeshes,
+            int meshHandle,
+            float[] weights
+    ) throws EngineException {
+        if (gpuMeshes == null || meshHandle < 0 || meshHandle >= gpuMeshes.size()) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "Invalid meshHandle for morph weight update: " + meshHandle,
+                    true
+            );
+        }
+        VulkanGpuMesh mesh = gpuMeshes.get(meshHandle);
+        if (mesh.morphTargetCount <= 0 || mesh.morphWeightUniforms == null) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "Mesh handle " + meshHandle + " is not a morph-target mesh",
+                    true
+            );
+        }
+        if (weights == null || weights.length != mesh.morphTargetCount) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "weights must contain exactly " + mesh.morphTargetCount + " floats for mesh handle " + meshHandle,
+                    true
+            );
+        }
+        mesh.morphWeightUniforms.upload(weights);
+    }
+
+    public static int registerInstanceBatch(
+            VkDevice device,
+            VkPhysicalDevice physicalDevice,
+            long skinnedDescriptorSetLayout,
+            List<VulkanGpuMesh> gpuMeshes,
+            Map<Integer, VulkanInstanceBatch> instanceBatches,
+            int meshHandle,
+            float[][] modelMatrices,
+            int nextBatchHandle
+    ) throws EngineException {
+        if (device == null || physicalDevice == null || skinnedDescriptorSetLayout == VK_NULL_HANDLE) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_STATE,
+                    "Cannot register instance batch before Vulkan resources are initialized",
+                    false
+            );
+        }
+        if (gpuMeshes == null || meshHandle < 0 || meshHandle >= gpuMeshes.size()) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "Invalid meshHandle for instance batch registration: " + meshHandle,
+                    true
+            );
+        }
+        if (modelMatrices == null || modelMatrices.length == 0) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "modelMatrices must contain at least one matrix",
+                    true
+            );
+        }
+        VulkanInstanceBatchBuffer buffer = VulkanInstanceBatchBuffer.create(
+                device,
+                physicalDevice,
+                skinnedDescriptorSetLayout,
+                modelMatrices.length
+        );
+        buffer.upload(modelMatrices, null, null);
+        int handle = Math.max(0, nextBatchHandle);
+        instanceBatches.put(handle, new VulkanInstanceBatch(handle, meshHandle, buffer, modelMatrices.length));
+        return handle;
+    }
+
+    public static void updateInstanceBatch(
+            Map<Integer, VulkanInstanceBatch> instanceBatches,
+            int batchHandle,
+            float[][] modelMatrices
+    ) throws EngineException {
+        VulkanInstanceBatch batch = instanceBatches == null ? null : instanceBatches.get(batchHandle);
+        if (batch == null || batch.buffer == null) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "Invalid batchHandle for instance batch update: " + batchHandle,
+                    true
+            );
+        }
+        if (modelMatrices == null || modelMatrices.length == 0) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "modelMatrices must contain at least one matrix",
+                    true
+            );
+        }
+        if (modelMatrices.length > batch.buffer.capacity()) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "modelMatrices exceed registered capacity for batch " + batchHandle,
+                    true
+            );
+        }
+        batch.buffer.upload(modelMatrices, null, null);
+        batch.instanceCount = modelMatrices.length;
+    }
+
+    public static void removeInstanceBatch(
+            Map<Integer, VulkanInstanceBatch> instanceBatches,
+            int batchHandle
+    ) throws EngineException {
+        VulkanInstanceBatch batch = instanceBatches == null ? null : instanceBatches.remove(batchHandle);
+        if (batch == null) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "Invalid batchHandle for instance batch removal: " + batchHandle,
+                    true
+            );
+        }
+        if (batch.buffer != null) {
+            batch.buffer.destroy();
+        }
+    }
+
+    public static void clearInstanceBatches(Map<Integer, VulkanInstanceBatch> instanceBatches) {
+        if (instanceBatches == null || instanceBatches.isEmpty()) {
+            return;
+        }
+        for (VulkanInstanceBatch batch : instanceBatches.values()) {
+            if (batch != null && batch.buffer != null) {
+                batch.buffer.destroy();
+            }
+        }
+        instanceBatches.clear();
     }
 
     public record UploadResult(

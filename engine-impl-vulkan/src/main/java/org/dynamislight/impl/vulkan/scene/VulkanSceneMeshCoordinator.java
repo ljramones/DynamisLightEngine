@@ -113,6 +113,7 @@ public final class VulkanSceneMeshCoordinator {
                             in.iblState().brdfLutPath,
                             in.descriptorResources().uniformFrameSpanBytes,
                             in.framesInFlight(),
+                            in.descriptorResources().skinnedDescriptorSetLayout,
                             in.createTextureFromPath(),
                             in.resolveOrCreateTexture(),
                             in.textureCacheKey(),
@@ -138,6 +139,8 @@ public final class VulkanSceneMeshCoordinator {
     }
 
     public static void destroySceneMeshes(DestroyRequest in) {
+        VulkanSceneMeshLifecycle.clearInstanceBatches(in.sceneResources().instanceBatches);
+        in.sceneResources().nextInstanceBatchHandle = 0;
         var destroyResult = VulkanSceneRuntimeCoordinator.destroy(
                 in.backendResources().device,
                 in.sceneResources().gpuMeshes,

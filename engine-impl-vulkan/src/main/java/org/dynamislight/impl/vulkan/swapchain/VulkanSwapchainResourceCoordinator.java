@@ -126,6 +126,8 @@ public final class VulkanSwapchainResourceCoordinator {
                 mainPipeline.skinnedGraphicsPipeline(),
                 mainPipeline.skinnedMorphPipelineLayout(),
                 mainPipeline.skinnedMorphGraphicsPipeline(),
+                mainPipeline.instancedPipelineLayout(),
+                mainPipeline.instancedGraphicsPipeline(),
                 framebuffers,
                 postProcessResources,
                 postOffscreenActive
@@ -173,6 +175,8 @@ public final class VulkanSwapchainResourceCoordinator {
             long skinnedGraphicsPipeline,
             long skinnedMorphPipelineLayout,
             long skinnedMorphGraphicsPipeline,
+            long instancedPipelineLayout,
+            long instancedGraphicsPipeline,
             long[] framebuffers,
             VulkanPostProcessResources.Allocation postProcessResources,
             boolean postOffscreenActive

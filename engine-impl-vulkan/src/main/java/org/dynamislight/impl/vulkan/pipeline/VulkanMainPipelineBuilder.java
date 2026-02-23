@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.shader.VulkanMorphVertexShaderSource;
+import org.dynamislight.impl.vulkan.shader.VulkanInstancedVertexShaderSource;
 import org.dynamislight.impl.vulkan.shader.VulkanSkinnedMorphVertexShaderSource;
 import org.dynamislight.impl.vulkan.shader.VulkanSkinnedVertexShaderSource;
 import org.dynamislight.impl.vulkan.shader.VulkanShaderCompiler;
@@ -114,6 +115,8 @@ public final class VulkanMainPipelineBuilder {
         long skinnedGraphicsPipeline = VK_NULL_HANDLE;
         long skinnedMorphPipelineLayout = VK_NULL_HANDLE;
         long skinnedMorphGraphicsPipeline = VK_NULL_HANDLE;
+        long instancedPipelineLayout = VK_NULL_HANDLE;
+        long instancedGraphicsPipeline = VK_NULL_HANDLE;
         try {
             String vertexShaderSource = VulkanShaderSources.mainVertex();
             String fragmentShaderSource = (mainFragmentSource == null || mainFragmentSource.isBlank())
@@ -298,6 +301,23 @@ public final class VulkanMainPipelineBuilder {
                 );
                 skinnedMorphPipelineLayout = skinnedMorphPipeline.pipelineLayout();
                 skinnedMorphGraphicsPipeline = skinnedMorphPipeline.graphicsPipeline();
+                PipelineHandles instancedPipeline = buildInstancedPipeline(
+                        device,
+                        stack,
+                        fragModule,
+                        inputAssembly,
+                        viewportState,
+                        rasterizer,
+                        multisampling,
+                        depthStencil,
+                        colorBlending,
+                        renderPass,
+                        descriptorSetLayout,
+                        textureDescriptorSetLayout,
+                        skinnedDescriptorSetLayout
+                );
+                instancedPipelineLayout = instancedPipeline.pipelineLayout();
+                instancedGraphicsPipeline = instancedPipeline.graphicsPipeline();
             } finally {
                 if (vertModule != VK_NULL_HANDLE) {
                     vkDestroyShaderModule(device, vertModule, null);
@@ -325,6 +345,12 @@ public final class VulkanMainPipelineBuilder {
             if (skinnedMorphPipelineLayout != VK_NULL_HANDLE) {
                 VK10.vkDestroyPipelineLayout(device, skinnedMorphPipelineLayout, null);
             }
+            if (instancedGraphicsPipeline != VK_NULL_HANDLE) {
+                VK10.vkDestroyPipeline(device, instancedGraphicsPipeline, null);
+            }
+            if (instancedPipelineLayout != VK_NULL_HANDLE) {
+                VK10.vkDestroyPipelineLayout(device, instancedPipelineLayout, null);
+            }
             if (pipelineLayout != VK_NULL_HANDLE) {
                 VK10.vkDestroyPipelineLayout(device, pipelineLayout, null);
             }
@@ -342,8 +368,91 @@ public final class VulkanMainPipelineBuilder {
                 skinnedPipelineLayout,
                 skinnedGraphicsPipeline,
                 skinnedMorphPipelineLayout,
-                skinnedMorphGraphicsPipeline
+                skinnedMorphGraphicsPipeline,
+                instancedPipelineLayout,
+                instancedGraphicsPipeline
         );
+    }
+
+    private static PipelineHandles buildInstancedPipeline(
+            VkDevice device,
+            MemoryStack stack,
+            long fragModule,
+            VkPipelineInputAssemblyStateCreateInfo inputAssembly,
+            VkPipelineViewportStateCreateInfo viewportState,
+            VkPipelineRasterizationStateCreateInfo rasterizer,
+            VkPipelineMultisampleStateCreateInfo multisampling,
+            VkPipelineDepthStencilStateCreateInfo depthStencil,
+            VkPipelineColorBlendStateCreateInfo colorBlending,
+            long renderPass,
+            long descriptorSetLayout,
+            long textureDescriptorSetLayout,
+            long skinnedDescriptorSetLayout
+    ) throws EngineException {
+        String instancedVertexShaderSource = VulkanInstancedVertexShaderSource.mainVertex();
+        ByteBuffer instancedVertSpv = VulkanShaderCompiler.compileGlslToSpv(
+                instancedVertexShaderSource,
+                shaderc_glsl_vertex_shader,
+                "main_instanced.vert"
+        );
+        long instancedVertModule = VulkanShaderCompiler.createShaderModule(device, stack, instancedVertSpv);
+        VkPipelineLayoutCreateInfo instancedLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
+                .pSetLayouts(stack.longs(descriptorSetLayout, textureDescriptorSetLayout, skinnedDescriptorSetLayout))
+                .pPushConstantRanges(VkPushConstantRange.calloc(1, stack)
+                        .stageFlags(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT)
+                        .offset(0)
+                        .size(4 * Float.BYTES));
+        var pInstancedLayout = stack.longs(VK_NULL_HANDLE);
+        int instancedLayoutResult = vkCreatePipelineLayout(device, instancedLayoutInfo, null, pInstancedLayout);
+        if (instancedLayoutResult != VK_SUCCESS || pInstancedLayout.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkCreatePipelineLayout(instanced) failed: " + instancedLayoutResult,
+                    false
+            );
+        }
+        long instancedPipelineLayout = pInstancedLayout.get(0);
+        try {
+            VkPipelineShaderStageCreateInfo.Buffer instancedShaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
+            instancedShaderStages.get(0)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_VERTEX_BIT)
+                    .module(instancedVertModule)
+                    .pName(stack.UTF8("main"));
+            instancedShaderStages.get(1)
+                    .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                    .stage(VK_SHADER_STAGE_FRAGMENT_BIT)
+                    .module(fragModule)
+                    .pName(stack.UTF8("main"));
+            VkGraphicsPipelineCreateInfo.Buffer instancedPipelineInfo = VkGraphicsPipelineCreateInfo.calloc(1, stack)
+                    .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+                    .pStages(instancedShaderStages)
+                    .pVertexInputState(staticVertexInputState(stack))
+                    .pInputAssemblyState(inputAssembly)
+                    .pViewportState(viewportState)
+                    .pRasterizationState(rasterizer)
+                    .pMultisampleState(multisampling)
+                    .pDepthStencilState(depthStencil)
+                    .pColorBlendState(colorBlending)
+                    .layout(instancedPipelineLayout)
+                    .renderPass(renderPass)
+                    .subpass(0)
+                    .basePipelineHandle(VK_NULL_HANDLE);
+            var pInstancedPipeline = stack.longs(VK_NULL_HANDLE);
+            int instancedPipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, instancedPipelineInfo, null, pInstancedPipeline);
+            if (instancedPipelineResult != VK_SUCCESS || pInstancedPipeline.get(0) == VK_NULL_HANDLE) {
+                VK10.vkDestroyPipelineLayout(device, instancedPipelineLayout, null);
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "vkCreateGraphicsPipelines(instanced) failed: " + instancedPipelineResult,
+                        false
+                );
+            }
+            return new PipelineHandles(instancedPipelineLayout, pInstancedPipeline.get(0));
+        } finally {
+            vkDestroyShaderModule(device, instancedVertModule, null);
+        }
     }
 
     private static PipelineHandles buildSkinnedMorphPipeline(
@@ -757,7 +866,9 @@ public final class VulkanMainPipelineBuilder {
             long skinnedPipelineLayout,
             long skinnedGraphicsPipeline,
             long skinnedMorphPipelineLayout,
-            long skinnedMorphGraphicsPipeline
+            long skinnedMorphGraphicsPipeline,
+            long instancedPipelineLayout,
+            long instancedGraphicsPipeline
     ) {
     }
 }

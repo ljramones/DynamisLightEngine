@@ -24,6 +24,10 @@ public final class VulkanShaderSources {
         return VulkanShadowShaderSources.shadowVertex();
     }
 
+    public static String shadowInstancedVertex() {
+        return VulkanShadowShaderSources.shadowInstancedVertex();
+    }
+
     public static String shadowFragment() {
         return VulkanShadowShaderSources.shadowFragment();
     }

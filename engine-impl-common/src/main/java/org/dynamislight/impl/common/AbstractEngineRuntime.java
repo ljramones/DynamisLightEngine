@@ -299,6 +299,117 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public final void updateSkinnedMesh(int meshHandle, float[] jointMatrices) throws EngineException {
+        try {
+            ensureInitialized();
+            if (meshHandle < 0) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "meshHandle must be >= 0", true);
+            }
+            if (jointMatrices == null || jointMatrices.length == 0 || (jointMatrices.length % 16) != 0) {
+                throw new EngineException(
+                        EngineErrorCode.INVALID_ARGUMENT,
+                        "jointMatrices must be non-empty and contain 16 floats per joint",
+                        true
+                );
+            }
+            onUpdateSkinnedMesh(meshHandle, jointMatrices);
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Unexpected skinned mesh update failure: " + e.getMessage(),
+                    false
+            ));
+        }
+    }
+
+    @Override
+    public final void updateMorphWeights(int meshHandle, float[] weights) throws EngineException {
+        try {
+            ensureInitialized();
+            if (meshHandle < 0) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "meshHandle must be >= 0", true);
+            }
+            if (weights == null) {
+                throw new EngineException(
+                        EngineErrorCode.INVALID_ARGUMENT,
+                        "weights must not be null",
+                        true
+                );
+            }
+            onUpdateMorphWeights(meshHandle, weights);
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Unexpected morph weight update failure: " + e.getMessage(),
+                    false
+            ));
+        }
+    }
+
+    @Override
+    public final int registerInstanceBatch(int meshHandle, float[][] modelMatrices) throws EngineException {
+        try {
+            ensureInitialized();
+            if (meshHandle < 0) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "meshHandle must be >= 0", true);
+            }
+            validateInstanceMatrices(modelMatrices);
+            return onRegisterInstanceBatch(meshHandle, modelMatrices);
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Unexpected instance batch registration failure: " + e.getMessage(),
+                    false
+            ));
+        }
+    }
+
+    @Override
+    public final void updateInstanceBatch(int batchHandle, float[][] modelMatrices) throws EngineException {
+        try {
+            ensureInitialized();
+            if (batchHandle < 0) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "batchHandle must be >= 0", true);
+            }
+            validateInstanceMatrices(modelMatrices);
+            onUpdateInstanceBatch(batchHandle, modelMatrices);
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Unexpected instance batch update failure: " + e.getMessage(),
+                    false
+            ));
+        }
+    }
+
+    @Override
+    public final void removeInstanceBatch(int batchHandle) throws EngineException {
+        try {
+            ensureInitialized();
+            if (batchHandle < 0) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "batchHandle must be >= 0", true);
+            }
+            onRemoveInstanceBatch(batchHandle);
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Unexpected instance batch remove failure: " + e.getMessage(),
+                    false
+            ));
+        }
+    }
+
+    @Override
     public final EngineStats getStats() {
         return stats;
     }
@@ -554,6 +665,66 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     protected RenderMetrics onRender() throws EngineException { return null; }
 
     protected void onResize(int widthPx, int heightPx, float dpiScale) throws EngineException { }
+
+    protected void onUpdateSkinnedMesh(int meshHandle, float[] jointMatrices) throws EngineException {
+        throw new EngineException(
+                EngineErrorCode.INVALID_STATE,
+                "Skinned mesh updates are not supported by this backend",
+                false
+        );
+    }
+
+    protected void onUpdateMorphWeights(int meshHandle, float[] weights) throws EngineException {
+        throw new EngineException(
+                EngineErrorCode.INVALID_STATE,
+                "Morph weight updates are not supported by this backend",
+                false
+        );
+    }
+
+    protected int onRegisterInstanceBatch(int meshHandle, float[][] modelMatrices) throws EngineException {
+        throw new EngineException(
+                EngineErrorCode.INVALID_STATE,
+                "Instanced rendering is not supported by this backend",
+                false
+        );
+    }
+
+    protected void onUpdateInstanceBatch(int batchHandle, float[][] modelMatrices) throws EngineException {
+        throw new EngineException(
+                EngineErrorCode.INVALID_STATE,
+                "Instanced rendering is not supported by this backend",
+                false
+        );
+    }
+
+    protected void onRemoveInstanceBatch(int batchHandle) throws EngineException {
+        throw new EngineException(
+                EngineErrorCode.INVALID_STATE,
+                "Instanced rendering is not supported by this backend",
+                false
+        );
+    }
+
+    private static void validateInstanceMatrices(float[][] modelMatrices) throws EngineException {
+        if (modelMatrices == null || modelMatrices.length == 0) {
+            throw new EngineException(
+                    EngineErrorCode.INVALID_ARGUMENT,
+                    "modelMatrices must contain at least one matrix",
+                    true
+            );
+        }
+        for (int i = 0; i < modelMatrices.length; i++) {
+            float[] matrix = modelMatrices[i];
+            if (matrix == null || matrix.length != 16) {
+                throw new EngineException(
+                        EngineErrorCode.INVALID_ARGUMENT,
+                        "modelMatrices[" + i + "] must contain exactly 16 floats",
+                        true
+                );
+            }
+        }
+    }
 
     protected List<EngineWarning> frameWarnings() {
         return List.of();

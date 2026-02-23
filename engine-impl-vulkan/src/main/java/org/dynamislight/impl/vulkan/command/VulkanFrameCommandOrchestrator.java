@@ -8,6 +8,7 @@ import org.dynamislight.impl.vulkan.graph.VulkanExecutableRenderGraphBuilder;
 import org.dynamislight.impl.vulkan.graph.VulkanExecutableRenderGraphPlanner;
 import org.dynamislight.impl.vulkan.graph.VulkanResourceBindingTable;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
+import org.dynamislight.impl.vulkan.model.VulkanInstanceBatch;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkCommandBuffer;
@@ -69,13 +70,51 @@ public final class VulkanFrameCommandOrchestrator {
                     mesh.indexCount,
                     mesh.textureDescriptorSet,
                     mesh.reflectionOverrideMode,
+                    i,
                     mesh.skinned,
                     mesh.skinningBufferHandle,
                     mesh.morphTargetCount > 0 && mesh.morphDescriptorSetHandle != VK_NULL_HANDLE,
                     mesh.morphDescriptorSetHandle,
                     mesh.morphTargetCount,
-                    mesh.morphTargets == null ? 0 : mesh.morphTargets.vertexCount()
+                    mesh.morphTargets == null ? 0 : mesh.morphTargets.vertexCount(),
+                    false,
+                    1,
+                    0,
+                    VK_NULL_HANDLE
             ));
+        }
+        if (inputs.instanceBatches() != null) {
+            for (VulkanInstanceBatch batch : inputs.instanceBatches()) {
+                if (batch == null || batch.instanceCount <= 0) {
+                    continue;
+                }
+                int baseMeshIndex = batch.meshHandle;
+                if (baseMeshIndex < 0 || baseMeshIndex >= inputs.gpuMeshes().size()) {
+                    continue;
+                }
+                VulkanGpuMesh mesh = inputs.gpuMeshes().get(baseMeshIndex);
+                if (batch.buffer == null || batch.buffer.descriptorSetHandle() == VK_NULL_HANDLE) {
+                    continue;
+                }
+                meshes.add(new VulkanRenderCommandRecorder.MeshDrawCmd(
+                        mesh.vertexBuffer,
+                        mesh.indexBuffer,
+                        mesh.indexCount,
+                        mesh.textureDescriptorSet,
+                        mesh.reflectionOverrideMode,
+                        baseMeshIndex,
+                        false,
+                        VK_NULL_HANDLE,
+                        false,
+                        VK_NULL_HANDLE,
+                        0,
+                        0,
+                        true,
+                        batch.instanceCount,
+                        0,
+                        batch.buffer.descriptorSetHandle()
+                ));
+            }
         }
         meshes.sort((left, right) -> Integer.compare(drawPathRank(left), drawPathRank(right)));
 
@@ -100,6 +139,7 @@ public final class VulkanFrameCommandOrchestrator {
                 frameDescriptorSet,
                 inputs.shadowRenderPass(),
                 inputs.shadowPipeline(),
+                inputs.shadowInstancedPipeline(),
                 inputs.shadowPipelineLayout(),
                 inputs.shadowFramebuffers(),
                 inputs.shadowMomentImage(),
@@ -131,6 +171,8 @@ public final class VulkanFrameCommandOrchestrator {
                 inputs.mainGeometrySkinnedPipelineLayout(),
                 inputs.mainGeometrySkinnedMorphPipeline(),
                 inputs.mainGeometrySkinnedMorphPipelineLayout(),
+                inputs.mainGeometryInstancedPipeline(),
+                inputs.mainGeometryInstancedPipelineLayout(),
                 inputs.reflectionsMode(),
                 inputs.reflectionsPlanarPlaneHeight(),
                 inputs.planarTimestampQueryPool(),
@@ -164,6 +206,8 @@ public final class VulkanFrameCommandOrchestrator {
                 inputs.mainGeometrySkinnedPipelineLayout(),
                 inputs.mainGeometrySkinnedMorphPipeline(),
                 inputs.mainGeometrySkinnedMorphPipelineLayout(),
+                inputs.mainGeometryInstancedPipeline(),
+                inputs.mainGeometryInstancedPipelineLayout(),
                 inputs.reflectionsMode(),
                 inputs.reflectionsPlanarPlaneHeight()
         );
@@ -268,6 +312,9 @@ public final class VulkanFrameCommandOrchestrator {
     }
 
     private static int drawPathRank(VulkanRenderCommandRecorder.MeshDrawCmd mesh) {
+        if (mesh.instanced()) {
+            return 4;
+        }
         if (mesh.skinned() && mesh.morphTargeted()) {
             return 3;
         }
@@ -401,6 +448,7 @@ public final class VulkanFrameCommandOrchestrator {
 
     public record Inputs(
             List<VulkanGpuMesh> gpuMeshes,
+            List<VulkanInstanceBatch> instanceBatches,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,
@@ -423,8 +471,11 @@ public final class VulkanFrameCommandOrchestrator {
             long mainGeometrySkinnedPipelineLayout,
             long mainGeometrySkinnedMorphPipeline,
             long mainGeometrySkinnedMorphPipelineLayout,
+            long mainGeometryInstancedPipeline,
+            long mainGeometryInstancedPipelineLayout,
             long shadowRenderPass,
             long shadowPipeline,
+            long shadowInstancedPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowDepthImage,

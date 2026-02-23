@@ -75,6 +75,7 @@ public final class VulkanDescriptorResources {
         }
         long descriptorSetLayout = createDescriptorSetLayout(device, stack, set0Bindings);
         long textureDescriptorSetLayout = createDescriptorSetLayout(device, stack, set1Bindings);
+        long skinnedDescriptorSetLayout = createSkinnedDescriptorSetLayout(device, stack);
 
         VkPhysicalDeviceProperties props = VkPhysicalDeviceProperties.calloc(stack);
         VK10.vkGetPhysicalDeviceProperties(physicalDevice, props);
@@ -190,6 +191,7 @@ public final class VulkanDescriptorResources {
         return new Allocation(
                 descriptorSetLayout,
                 textureDescriptorSetLayout,
+                skinnedDescriptorSetLayout,
                 descriptorPool,
                 frameDescriptorSets,
                 objectUniformDeviceAlloc.buffer(),
@@ -268,6 +270,9 @@ public final class VulkanDescriptorResources {
         if (resources.textureDescriptorSetLayout() != VK_NULL_HANDLE) {
             vkDestroyDescriptorSetLayout(device, resources.textureDescriptorSetLayout(), null);
         }
+        if (resources.skinnedDescriptorSetLayout() != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, resources.skinnedDescriptorSetLayout(), null);
+        }
     }
 
     private static long createDescriptorSetLayout(
@@ -291,6 +296,43 @@ public final class VulkanDescriptorResources {
         int layoutResult = vkCreateDescriptorSetLayout(device, layoutInfo, null, pLayout);
         if (layoutResult != VK_SUCCESS || pLayout.get(0) == VK_NULL_HANDLE) {
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateDescriptorSetLayout failed: " + layoutResult, false);
+        }
+        return pLayout.get(0);
+    }
+
+    private static long createSkinnedDescriptorSetLayout(VkDevice device, MemoryStack stack) throws EngineException {
+        VkDescriptorSetLayoutBinding.Buffer bindings = VkDescriptorSetLayoutBinding.calloc(4, stack);
+        bindings.get(0)
+                .binding(2)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .stageFlags(VK10.VK_SHADER_STAGE_VERTEX_BIT);
+        bindings.get(1)
+                .binding(3)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .stageFlags(VK10.VK_SHADER_STAGE_VERTEX_BIT);
+        bindings.get(2)
+                .binding(4)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                .descriptorCount(1)
+                .stageFlags(VK10.VK_SHADER_STAGE_VERTEX_BIT);
+        bindings.get(3)
+                .binding(5)
+                .descriptorType(VK10.VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(1)
+                .stageFlags(VK10.VK_SHADER_STAGE_VERTEX_BIT);
+        VkDescriptorSetLayoutCreateInfo layoutInfo = VkDescriptorSetLayoutCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO)
+                .pBindings(bindings);
+        var pLayout = stack.longs(VK_NULL_HANDLE);
+        int layoutResult = vkCreateDescriptorSetLayout(device, layoutInfo, null, pLayout);
+        if (layoutResult != VK_SUCCESS || pLayout.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkCreateDescriptorSetLayout(skinned) failed: " + layoutResult,
+                    false
+            );
         }
         return pLayout.get(0);
     }
@@ -425,6 +467,100 @@ public final class VulkanDescriptorResources {
         vkUpdateDescriptorSets(device, writes, null);
     }
 
+    public static void writeSkinnedMeshDescriptorSet(
+            VkDevice device,
+            MemoryStack stack,
+            long descriptorSet,
+            long skinningBuffer,
+            long rangeBytes
+    ) {
+        if (device == null || descriptorSet == VK_NULL_HANDLE || skinningBuffer == VK_NULL_HANDLE) {
+            return;
+        }
+        VkDescriptorBufferInfo.Buffer bufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
+        bufferInfo.get(0)
+                .buffer(skinningBuffer)
+                .offset(0)
+                .range(rangeBytes <= 0 ? VK10.VK_WHOLE_SIZE : rangeBytes);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(1, stack);
+        writes.get(0)
+                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                .dstSet(descriptorSet)
+                .dstBinding(2)
+                .dstArrayElement(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .pBufferInfo(bufferInfo);
+        vkUpdateDescriptorSets(device, writes, null);
+    }
+
+    public static void writeMorphMeshDescriptorSet(
+            VkDevice device,
+            MemoryStack stack,
+            long descriptorSet,
+            long morphDeltaBuffer,
+            long morphDeltaRangeBytes,
+            long morphWeightBuffer,
+            long morphWeightRangeBytes
+    ) {
+        if (device == null || descriptorSet == VK_NULL_HANDLE
+                || morphDeltaBuffer == VK_NULL_HANDLE
+                || morphWeightBuffer == VK_NULL_HANDLE) {
+            return;
+        }
+        VkDescriptorBufferInfo.Buffer deltaBufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
+        deltaBufferInfo.get(0)
+                .buffer(morphDeltaBuffer)
+                .offset(0)
+                .range(morphDeltaRangeBytes <= 0 ? VK10.VK_WHOLE_SIZE : morphDeltaRangeBytes);
+        VkDescriptorBufferInfo.Buffer weightBufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
+        weightBufferInfo.get(0)
+                .buffer(morphWeightBuffer)
+                .offset(0)
+                .range(morphWeightRangeBytes <= 0 ? VK10.VK_WHOLE_SIZE : morphWeightRangeBytes);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(2, stack);
+        writes.get(0)
+                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                .dstSet(descriptorSet)
+                .dstBinding(3)
+                .dstArrayElement(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .pBufferInfo(deltaBufferInfo);
+        writes.get(1)
+                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                .dstSet(descriptorSet)
+                .dstBinding(4)
+                .dstArrayElement(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                .pBufferInfo(weightBufferInfo);
+        vkUpdateDescriptorSets(device, writes, null);
+    }
+
+    public static void writeInstanceBatchDescriptorSet(
+            VkDevice device,
+            MemoryStack stack,
+            long descriptorSet,
+            long instanceBuffer,
+            long instanceRangeBytes
+    ) {
+        if (device == null || descriptorSet == VK_NULL_HANDLE || instanceBuffer == VK_NULL_HANDLE) {
+            return;
+        }
+        VkDescriptorBufferInfo.Buffer instanceBufferInfo = VkDescriptorBufferInfo.calloc(1, stack);
+        instanceBufferInfo.get(0)
+                .buffer(instanceBuffer)
+                .offset(0)
+                .range(instanceRangeBytes <= 0 ? VK10.VK_WHOLE_SIZE : instanceRangeBytes);
+        VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(1, stack);
+        writes.get(0)
+                .sType(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET)
+                .dstSet(descriptorSet)
+                .dstBinding(5)
+                .dstArrayElement(0)
+                .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .pBufferInfo(instanceBufferInfo);
+        vkUpdateDescriptorSets(device, writes, null);
+    }
+
     private static int alignUp(int value, int alignment) {
         if (alignment <= 0) {
             return value;
@@ -439,6 +575,7 @@ public final class VulkanDescriptorResources {
     public record Allocation(
             long descriptorSetLayout,
             long textureDescriptorSetLayout,
+            long skinnedDescriptorSetLayout,
             long descriptorPool,
             long[] frameDescriptorSets,
             long objectUniformBuffer,

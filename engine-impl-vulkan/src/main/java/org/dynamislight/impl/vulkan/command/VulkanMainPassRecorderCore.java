@@ -133,16 +133,21 @@ final class VulkanMainPassRecorderCore {
             }
             boolean skinnedMorphDraw = mesh.skinned() && mesh.morphTargeted();
             boolean morphDraw = !mesh.skinned() && mesh.morphTargeted();
-            long targetPipeline = skinnedMorphDraw
+            boolean instancedDraw = mesh.instanced();
+            long targetPipeline = instancedDraw
+                    ? in.instancedGraphicsPipeline()
+                    : (skinnedMorphDraw
                     ? in.skinnedMorphGraphicsPipeline()
                     : (mesh.skinned()
                     ? in.skinnedGraphicsPipeline()
-                    : (morphDraw ? in.morphGraphicsPipeline() : in.staticGraphicsPipeline()));
-            long targetPipelineLayout = skinnedMorphDraw
+                    : (morphDraw ? in.morphGraphicsPipeline() : in.staticGraphicsPipeline())));
+            long targetPipelineLayout = instancedDraw
+                    ? in.instancedPipelineLayout()
+                    : (skinnedMorphDraw
                     ? in.skinnedMorphPipelineLayout()
                     : (mesh.skinned()
                     ? in.skinnedPipelineLayout()
-                    : (morphDraw ? in.morphPipelineLayout() : in.staticPipelineLayout()));
+                    : (morphDraw ? in.morphPipelineLayout() : in.staticPipelineLayout())));
             if (targetPipeline != VK_NULL_HANDLE
                     && (boundPipeline != targetPipeline || boundPipelineLayout != targetPipelineLayout)) {
                 vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, targetPipeline);
@@ -168,7 +173,7 @@ final class VulkanMainPassRecorderCore {
                         targetPipelineLayout,
                         0,
                         stack.longs(in.frameDescriptorSet(), mesh.textureDescriptorSet()),
-                        stack.ints(dynamicUniformOffset.applyAsInt(meshIndex))
+                        stack.ints(dynamicUniformOffset.applyAsInt(mesh.uniformMeshIndex()))
                 );
             }
             if (mesh.skinned() && mesh.skinningBufferHandle() != VK_NULL_HANDLE) {
@@ -207,9 +212,28 @@ final class VulkanMainPassRecorderCore {
                         null
                 );
             }
+            if (mesh.instanced()
+                    && mesh.instanceBatchDescriptorSet() != VK_NULL_HANDLE
+                    && targetPipelineLayout == in.instancedPipelineLayout()) {
+                vkCmdBindDescriptorSets(
+                        commandBuffer,
+                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        targetPipelineLayout,
+                        2,
+                        stack.longs(mesh.instanceBatchDescriptorSet()),
+                        null
+                );
+            }
             vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer()), stack.longs(0));
             vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-            vkCmdDrawIndexed(commandBuffer, mesh.indexCount(), 1, 0, 0, 0);
+            vkCmdDrawIndexed(
+                    commandBuffer,
+                    mesh.indexCount(),
+                    Math.max(1, mesh.instanceCount()),
+                    0,
+                    0,
+                    mesh.firstInstance()
+            );
             anyDrawn = true;
         }
         if (!anyDrawn) {

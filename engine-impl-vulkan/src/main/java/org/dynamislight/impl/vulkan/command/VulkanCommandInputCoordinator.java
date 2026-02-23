@@ -40,6 +40,7 @@ public final class VulkanCommandInputCoordinator {
         return VulkanFrameCommandInputAssembler.build(
                 new VulkanFrameCommandInputAssembler.AssemblyInputs(
                         request.sceneResources().gpuMeshes,
+                        java.util.List.copyOf(request.sceneResources().instanceBatches.values()),
                         request.maxDynamicSceneObjects(),
                         request.backendResources().swapchainWidth,
                         request.backendResources().swapchainHeight,
@@ -62,8 +63,11 @@ public final class VulkanCommandInputCoordinator {
                         request.backendResources().skinnedPipelineLayout,
                         request.backendResources().skinnedMorphGraphicsPipeline,
                         request.backendResources().skinnedMorphPipelineLayout,
+                        request.backendResources().instancedGraphicsPipeline,
+                        request.backendResources().instancedPipelineLayout,
                         request.backendResources().shadowRenderPass,
                         request.backendResources().shadowPipeline,
+                        request.backendResources().shadowInstancedPipeline,
                         request.backendResources().shadowPipelineLayout,
                         request.backendResources().shadowFramebuffers,
                         request.backendResources().shadowDepthImage,

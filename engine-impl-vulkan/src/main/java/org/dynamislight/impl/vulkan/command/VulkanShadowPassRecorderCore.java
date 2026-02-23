@@ -87,7 +87,6 @@ final class VulkanShadowPassRecorderCore {
                         .offset(it -> it.set(0, 0))
                         .extent(org.lwjgl.vulkan.VkExtent2D.calloc(stack).set(in.shadowMapResolution(), in.shadowMapResolution()));
                 vkCmdBeginRenderPass(commandBuffer, shadowPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, in.shadowPipeline());
                 vkCmdBindDescriptorSets(
                         commandBuffer,
                         VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -99,19 +98,47 @@ final class VulkanShadowPassRecorderCore {
                 ByteBuffer cascadePush = stack.malloc(Integer.BYTES);
                 cascadePush.putInt(0, cascadeIndex);
                 vkCmdPushConstants(commandBuffer, in.shadowPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, cascadePush);
+                long boundPipeline = VK_NULL_HANDLE;
                 for (int meshIndex = 0; meshIndex < in.drawCount() && meshIndex < meshes.size(); meshIndex++) {
                     MeshDrawCmd mesh = meshes.get(meshIndex);
+                    long targetPipeline = mesh.instanced()
+                            ? in.shadowInstancedPipeline()
+                            : in.shadowPipeline();
+                    if (targetPipeline == VK_NULL_HANDLE) {
+                        continue;
+                    }
+                    if (boundPipeline != targetPipeline) {
+                        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, targetPipeline);
+                        boundPipeline = targetPipeline;
+                    }
                     vkCmdBindDescriptorSets(
                             commandBuffer,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
                             in.shadowPipelineLayout(),
                             0,
                             stack.longs(in.frameDescriptorSet()),
-                            stack.ints(dynamicUniformOffset.applyAsInt(meshIndex))
+                            stack.ints(dynamicUniformOffset.applyAsInt(mesh.uniformMeshIndex()))
                     );
+                    if (mesh.instanced() && mesh.instanceBatchDescriptorSet() != VK_NULL_HANDLE) {
+                        vkCmdBindDescriptorSets(
+                                commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                in.shadowPipelineLayout(),
+                                1,
+                                stack.longs(mesh.instanceBatchDescriptorSet()),
+                                null
+                        );
+                    }
                     vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(mesh.vertexBuffer()), stack.longs(0));
                     vkCmdBindIndexBuffer(commandBuffer, mesh.indexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-                    vkCmdDrawIndexed(commandBuffer, mesh.indexCount(), 1, 0, 0, 0);
+                    vkCmdDrawIndexed(
+                            commandBuffer,
+                            mesh.indexCount(),
+                            Math.max(1, mesh.instanceCount()),
+                            0,
+                            0,
+                            mesh.firstInstance()
+                    );
                 }
                 vkCmdEndRenderPass(commandBuffer);
             }

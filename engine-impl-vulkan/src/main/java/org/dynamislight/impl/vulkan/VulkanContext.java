@@ -471,6 +471,8 @@ public final class VulkanContext {
     }
 
     void setSceneMeshes(List<VulkanSceneMeshData> sceneMeshes) throws EngineException {
+        VulkanSceneMeshLifecycle.clearInstanceBatches(sceneResources.instanceBatches);
+        sceneResources.nextInstanceBatchHandle = 0;
         var result = VulkanSceneMeshCoordinator.setSceneMeshes(
                 new VulkanSceneMeshCoordinator.SetSceneRequest(
                         sceneMeshes,
@@ -513,6 +515,29 @@ public final class VulkanContext {
 
     void updateMorphWeights(int meshHandle, float[] weights) throws EngineException {
         VulkanSceneMeshLifecycle.updateMorphWeights(sceneResources.gpuMeshes, meshHandle, weights);
+    }
+
+    int registerInstanceBatch(int meshHandle, float[][] modelMatrices) throws EngineException {
+        int handle = VulkanSceneMeshLifecycle.registerInstanceBatch(
+                backendResources.device,
+                backendResources.physicalDevice,
+                descriptorResources.skinnedDescriptorSetLayout,
+                sceneResources.gpuMeshes,
+                sceneResources.instanceBatches,
+                meshHandle,
+                modelMatrices,
+                sceneResources.nextInstanceBatchHandle
+        );
+        sceneResources.nextInstanceBatchHandle = handle + 1;
+        return handle;
+    }
+
+    void updateInstanceBatch(int batchHandle, float[][] modelMatrices) throws EngineException {
+        VulkanSceneMeshLifecycle.updateInstanceBatch(sceneResources.instanceBatches, batchHandle, modelMatrices);
+    }
+
+    void removeInstanceBatch(int batchHandle) throws EngineException {
+        VulkanSceneMeshLifecycle.removeInstanceBatch(sceneResources.instanceBatches, batchHandle);
     }
 
     void setCameraMatrices(Matrix4f view, Matrix4f proj) {

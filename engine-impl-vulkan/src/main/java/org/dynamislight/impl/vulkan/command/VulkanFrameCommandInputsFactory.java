@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan.command;
 import java.util.List;
 import java.util.function.IntUnaryOperator;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
+import org.dynamislight.impl.vulkan.model.VulkanInstanceBatch;
 
 public final class VulkanFrameCommandInputsFactory {
     private VulkanFrameCommandInputsFactory() {
@@ -11,6 +12,7 @@ public final class VulkanFrameCommandInputsFactory {
     public static VulkanFrameCommandOrchestrator.Inputs create(Inputs inputs) {
         return new VulkanFrameCommandOrchestrator.Inputs(
                 inputs.gpuMeshes(),
+                inputs.instanceBatches(),
                 inputs.maxDynamicSceneObjects(),
                 inputs.swapchainWidth(),
                 inputs.swapchainHeight(),
@@ -33,8 +35,11 @@ public final class VulkanFrameCommandInputsFactory {
                 inputs.mainGeometrySkinnedPipelineLayout(),
                 inputs.mainGeometrySkinnedMorphPipeline(),
                 inputs.mainGeometrySkinnedMorphPipelineLayout(),
+                inputs.mainGeometryInstancedPipeline(),
+                inputs.mainGeometryInstancedPipelineLayout(),
                 inputs.shadowRenderPass(),
                 inputs.shadowPipeline(),
+                inputs.shadowInstancedPipeline(),
                 inputs.shadowPipelineLayout(),
                 inputs.shadowFramebuffers(),
                 inputs.shadowDepthImage(),
@@ -109,6 +114,7 @@ public final class VulkanFrameCommandInputsFactory {
     ) {
         return new VulkanFrameCommandOrchestrator.Inputs(
                 common.gpuMeshes(),
+                common.instanceBatches(),
                 common.maxDynamicSceneObjects(),
                 common.swapchainWidth(),
                 common.swapchainHeight(),
@@ -131,8 +137,11 @@ public final class VulkanFrameCommandInputsFactory {
                 common.mainGeometrySkinnedPipelineLayout(),
                 common.mainGeometrySkinnedMorphPipeline(),
                 common.mainGeometrySkinnedMorphPipelineLayout(),
+                common.mainGeometryInstancedPipeline(),
+                common.mainGeometryInstancedPipelineLayout(),
                 common.shadowRenderPass(),
                 common.shadowPipeline(),
+                common.shadowInstancedPipeline(),
                 common.shadowPipelineLayout(),
                 common.shadowFramebuffers(),
                 common.shadowDepthImage(),
@@ -200,6 +209,7 @@ public final class VulkanFrameCommandInputsFactory {
 
     public record Inputs(
             List<VulkanGpuMesh> gpuMeshes,
+            List<VulkanInstanceBatch> instanceBatches,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,
@@ -222,8 +232,11 @@ public final class VulkanFrameCommandInputsFactory {
             long mainGeometrySkinnedPipelineLayout,
             long mainGeometrySkinnedMorphPipeline,
             long mainGeometrySkinnedMorphPipelineLayout,
+            long mainGeometryInstancedPipeline,
+            long mainGeometryInstancedPipelineLayout,
             long shadowRenderPass,
             long shadowPipeline,
+            long shadowInstancedPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowDepthImage,
@@ -291,6 +304,7 @@ public final class VulkanFrameCommandInputsFactory {
 
     public record CommonInputs(
             List<VulkanGpuMesh> gpuMeshes,
+            List<VulkanInstanceBatch> instanceBatches,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,
@@ -313,8 +327,11 @@ public final class VulkanFrameCommandInputsFactory {
             long mainGeometrySkinnedPipelineLayout,
             long mainGeometrySkinnedMorphPipeline,
             long mainGeometrySkinnedMorphPipelineLayout,
+            long mainGeometryInstancedPipeline,
+            long mainGeometryInstancedPipelineLayout,
             long shadowRenderPass,
             long shadowPipeline,
+            long shadowInstancedPipeline,
             long shadowPipelineLayout,
             long[] shadowFramebuffers,
             long shadowDepthImage,

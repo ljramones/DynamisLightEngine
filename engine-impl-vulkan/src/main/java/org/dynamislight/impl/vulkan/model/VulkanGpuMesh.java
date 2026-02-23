@@ -39,6 +39,15 @@ public final class VulkanGpuMesh {
     public final String metallicRoughnessKey;
     public final String occlusionKey;
     public long textureDescriptorSet = VK_NULL_HANDLE;
+    public final boolean skinned;
+    public final int jointCount;
+    public final VulkanSkinnedMeshUniforms skinnedUniforms;
+    public long skinningBufferHandle = VK_NULL_HANDLE;
+    public final int morphTargetCount;
+    public final int morphTargetHash;
+    public final VulkanMorphTargetBuffer morphTargets;
+    public final VulkanMorphWeightUniforms morphWeightUniforms;
+    public long morphDescriptorSetHandle = VK_NULL_HANDLE;
 
     public VulkanGpuMesh(
             long vertexBuffer,
@@ -73,7 +82,14 @@ public final class VulkanGpuMesh {
             String albedoKey,
             String normalKey,
             String metallicRoughnessKey,
-            String occlusionKey
+            String occlusionKey,
+            boolean skinned,
+            int jointCount,
+            VulkanSkinnedMeshUniforms skinnedUniforms,
+            int morphTargetCount,
+            int morphTargetHash,
+            VulkanMorphTargetBuffer morphTargets,
+            VulkanMorphWeightUniforms morphWeightUniforms
     ) {
         this.vertexBuffer = vertexBuffer;
         this.vertexMemory = vertexMemory;
@@ -108,6 +124,19 @@ public final class VulkanGpuMesh {
         this.normalKey = normalKey;
         this.metallicRoughnessKey = metallicRoughnessKey;
         this.occlusionKey = occlusionKey;
+        this.skinned = skinned;
+        this.jointCount = Math.max(0, jointCount);
+        this.skinnedUniforms = skinnedUniforms;
+        this.morphTargetCount = Math.max(0, morphTargetCount);
+        this.morphTargetHash = morphTargetHash;
+        this.morphTargets = morphTargets;
+        this.morphWeightUniforms = morphWeightUniforms;
+        if (skinned && skinnedUniforms != null) {
+            this.skinningBufferHandle = skinnedUniforms.descriptorSetHandle();
+        }
+        if (morphWeightUniforms != null) {
+            this.morphDescriptorSetHandle = morphWeightUniforms.descriptorSetHandle();
+        }
     }
 
     public boolean updateDynamicState(

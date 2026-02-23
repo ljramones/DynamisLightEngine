@@ -96,6 +96,8 @@ public final class VulkanLifecycleOrchestrator {
                         request.backendResources().skinnedPipelineLayout,
                         request.backendResources().skinnedMorphGraphicsPipeline,
                         request.backendResources().skinnedMorphPipelineLayout,
+                        request.backendResources().instancedGraphicsPipeline,
+                        request.backendResources().instancedPipelineLayout,
                         request.backendResources().renderPass,
                         request.backendResources().swapchainImageViews,
                         request.backendResources().depthImages,
@@ -164,6 +166,8 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.skinnedGraphicsPipeline = state.skinnedGraphicsPipeline();
         backendResources.skinnedMorphPipelineLayout = state.skinnedMorphPipelineLayout();
         backendResources.skinnedMorphGraphicsPipeline = state.skinnedMorphGraphicsPipeline();
+        backendResources.instancedPipelineLayout = state.instancedPipelineLayout();
+        backendResources.instancedGraphicsPipeline = state.instancedGraphicsPipeline();
         backendResources.framebuffers = state.framebuffers();
         renderState.postOffscreenActive = state.postOffscreenActive();
         backendResources.offscreenColorImage = state.offscreenColorImage();
@@ -204,6 +208,7 @@ public final class VulkanLifecycleOrchestrator {
                         request.maxShadowMatrices(),
                         request.vertexStrideBytes(),
                         request.descriptorResources().descriptorSetLayout,
+                        request.descriptorResources().skinnedDescriptorSetLayout,
                         request.renderState().shadowMomentPipelineRequested,
                         request.renderState().shadowMomentMode
                 )
@@ -222,6 +227,7 @@ public final class VulkanLifecycleOrchestrator {
                         backendResources.shadowRenderPass,
                         backendResources.shadowPipelineLayout,
                         backendResources.shadowPipeline,
+                        backendResources.shadowInstancedPipeline,
                         backendResources.shadowFramebuffers,
                         backendResources.shadowMomentImage,
                         backendResources.shadowMomentMemory,
@@ -243,6 +249,7 @@ public final class VulkanLifecycleOrchestrator {
         backendResources.shadowRenderPass = state.shadowRenderPass();
         backendResources.shadowPipelineLayout = state.shadowPipelineLayout();
         backendResources.shadowPipeline = state.shadowPipeline();
+        backendResources.shadowInstancedPipeline = state.shadowInstancedPipeline();
         backendResources.shadowFramebuffers = state.shadowFramebuffers();
         backendResources.shadowMomentImage = state.shadowMomentImage();
         backendResources.shadowMomentMemory = state.shadowMomentMemory();

@@ -1076,6 +1076,31 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     }
 
     @Override
+    protected void onUpdateSkinnedMesh(int meshHandle, float[] jointMatrices) throws EngineException {
+        context.updateSkinnedMesh(meshHandle, jointMatrices);
+    }
+
+    @Override
+    protected void onUpdateMorphWeights(int meshHandle, float[] weights) throws EngineException {
+        context.updateMorphWeights(meshHandle, weights);
+    }
+
+    @Override
+    protected int onRegisterInstanceBatch(int meshHandle, float[][] modelMatrices) throws EngineException {
+        return context.registerInstanceBatch(meshHandle, modelMatrices);
+    }
+
+    @Override
+    protected void onUpdateInstanceBatch(int batchHandle, float[][] modelMatrices) throws EngineException {
+        context.updateInstanceBatch(batchHandle, modelMatrices);
+    }
+
+    @Override
+    protected void onRemoveInstanceBatch(int batchHandle) throws EngineException {
+        context.removeInstanceBatch(batchHandle);
+    }
+
+    @Override
     protected void onShutdown() {
         VulkanRuntimeLifecycle.shutdown(context, mockContext);
     }

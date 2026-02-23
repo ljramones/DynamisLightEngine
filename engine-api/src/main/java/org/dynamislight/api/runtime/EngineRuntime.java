@@ -101,6 +101,60 @@ public interface EngineRuntime extends AutoCloseable {
     EngineFrameResult render() throws EngineException;
 
     /**
+     * Updates the joint matrix palette for a previously loaded skinned mesh.
+     *
+     * The mesh handle is backend-assigned at scene load time and is stable for the life of
+     * the loaded scene. The joint matrix array must contain packed {@code mat4} values
+     * ({@code 16} floats per joint) in row-major engine order.
+     *
+     * @param meshHandle mesh handle identifying the skinned mesh to update.
+     * @param jointMatrices joint palette data ({@code 16 * jointCount} floats).
+     * @throws EngineException if the runtime is not initialized, the handle is invalid,
+     *                         or the target mesh is not skinned.
+     */
+    void updateSkinnedMesh(int meshHandle, float[] jointMatrices) throws EngineException;
+
+    /**
+     * Updates morph target blend weights for a previously loaded mesh.
+     *
+     * The mesh handle is backend-assigned at scene load time and is stable for the life of
+     * the loaded scene. The provided array is copied by the runtime on update.
+     *
+     * @param meshHandle mesh handle identifying the morph-target mesh to update.
+     * @param weights morph target weights, one float per target.
+     * @throws EngineException if the runtime is not initialized, the handle is invalid,
+     *                         or the target mesh has no morph targets.
+     */
+    void updateMorphWeights(int meshHandle, float[] weights) throws EngineException;
+
+    /**
+     * Registers an instanced draw batch for a previously loaded mesh.
+     *
+     * @param meshHandle mesh handle identifying the base mesh.
+     * @param modelMatrices per-instance model matrices, one 4x4 matrix ({@code 16} floats) per instance.
+     * @return backend-assigned batch handle.
+     * @throws EngineException if the runtime is not initialized, the handle is invalid, or data is malformed.
+     */
+    int registerInstanceBatch(int meshHandle, float[][] modelMatrices) throws EngineException;
+
+    /**
+     * Updates model matrices for an existing instanced draw batch.
+     *
+     * @param batchHandle batch handle returned by {@link #registerInstanceBatch(int, float[][])}.
+     * @param modelMatrices per-instance model matrices, one 4x4 matrix ({@code 16} floats) per instance.
+     * @throws EngineException if the runtime is not initialized, the handle is invalid, or data is malformed.
+     */
+    void updateInstanceBatch(int batchHandle, float[][] modelMatrices) throws EngineException;
+
+    /**
+     * Removes an existing instanced draw batch.
+     *
+     * @param batchHandle batch handle returned by {@link #registerInstanceBatch(int, float[][])}.
+     * @throws EngineException if the runtime is not initialized or the handle is invalid.
+     */
+    void removeInstanceBatch(int batchHandle) throws EngineException;
+
+    /**
      * Resizes the rendering viewport of the engine runtime and updates the pixel density scaling factor.
      *
      * This method adjusts the rendering resolution based on the specified width, height,

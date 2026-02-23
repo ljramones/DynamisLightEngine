@@ -15,6 +15,7 @@ Review metadata:
 - Latest lighting contract update: 2026-02-20 09:41 ET — Lighting capability v2 descriptor/planner/telemetry scaffold added (`docs/lighting-capability-v2-checklist.md`) with typed runtime diagnostics (`lightingCapabilityDiagnostics()`).
 - Latest sky contract update: 2026-02-20 12:26 ET — Sky capability v2 descriptor/planner scaffold added (`docs/sky-contract-v2-checklist.md`) with deterministic plan warning emission (`SKY_CAPABILITY_PLAN_ACTIVE`) and lockdown coverage.
 - Latest skinned+morph integration update: 2026-02-23 14:00 ET — Combined skinned+morph Vulkan path landed (dedicated skinned+morph vertex shader, fourth main-pass pipeline variant, static→morph→skinned→skinned+morph draw routing, and dual descriptor binding for joints+morph data).
+- Latest instanced rendering update: 2026-02-23 14:12 ET — Instanced rendering runtime path landed in Vulkan (instance batch API surface, per-batch instance SSBO at `set=2,binding=5`, dedicated instanced vertex shader/pipeline variant, and static→morph→skinned→skinned+morph→instanced draw routing).
 
 Status legend:
 
@@ -26,8 +27,8 @@ Status summary snapshot (2026-02-23):
 
 | Status | Count |
 | --- | ---: |
-| `In` | 128 |
-| `Partial` | 10 |
+| `In` | 129 |
+| `Partial` | 9 |
 | `Not In Yet` | 54 |
 
 ## Shadows
@@ -373,7 +374,7 @@ PBR notes:
 ## Geometry / Detail
 
 - Static mesh rendering (glTF, optimized draw) — `In`
-- Instanced rendering (per-instance transforms, material overrides) — `Partial`
+- Instanced rendering (per-instance transforms, material overrides) — `In`
 - GPU-driven rendering (indirect dispatch, visibility buffer) — `Not In Yet`
 - LOD system (discrete, cross-fade/dither transition) — `Not In Yet`
 - Continuous LOD (tessellation-driven) — `Not In Yet`
@@ -392,7 +393,8 @@ Geometry notes:
 
 - Vulkan now emits geometry capability/promotion telemetry (`GEOMETRY_CAPABILITY_MODE_ACTIVE`, `GEOMETRY_POLICY_ACTIVE`, `GEOMETRY_PROMOTION_ENVELOPE`, `GEOMETRY_PROMOTION_ENVELOPE_BREACH`, `GEOMETRY_PROMOTION_READY`) and exposes typed backend-agnostic diagnostics (`geometryCapabilityDiagnostics()`, `geometryPromotionDiagnostics()`).
 - Geometry Phase-1 Vulkan scaffold checklist/runner are in place (`docs/geometry-phase1-checklist.md`, `scripts/geometry_phase1_lockdown.sh`) with CI lane `geometry-phase1-lockdown`.
-- Frustum culling and mesh streaming are now treated as `In` for Vulkan scope via active-path diagnostics + promotion-ready lockdown coverage; instanced rendering remains `Partial` pending full runtime execution enablement.
+- Frustum culling and mesh streaming are now treated as `In` for Vulkan scope via active-path diagnostics + promotion-ready lockdown coverage.
+- Instanced rendering is now `In` for Vulkan scope: runtime instance-batch API (`registerInstanceBatch()`, `updateInstanceBatch()`, `removeInstanceBatch()`), per-batch instance SSBO descriptor binding (`set=2,binding=5`), dedicated instanced vertex shader + pipeline variant, and instanced draw submission via `vkCmdDrawIndexed(..., instanceCount, firstInstance)` in the main pass.
 - Skinned mesh / skeletal animation is now `In` for Vulkan scope: dual static/skinned main-pass pipelines, dedicated skinned vertex input + shader path, per-mesh joint-palette SSBO binding (`set=2,binding=2`), JOINTS_0/WEIGHTS_0 parsing with normalized weights + joint-count propagation, and runtime API upload path (`updateSkinnedMesh()`).
 - Morph targets / blend shapes are now `In` for Vulkan scope: morph delta SSBO ingestion from glTF targets, per-mesh morph weight UBO upload path (`updateMorphWeights()`), dedicated morph vertex shader path, and explicit static/morph/skinned main-pass pipeline routing.
 - Skinned mesh + morph targets combined is now `In` for Vulkan scope: dedicated skinned+morph vertex shader path (morph-in-bind-pose then skin), fourth geometry pipeline variant, and combined draw-path descriptor binding for joints + morph deltas/weights.

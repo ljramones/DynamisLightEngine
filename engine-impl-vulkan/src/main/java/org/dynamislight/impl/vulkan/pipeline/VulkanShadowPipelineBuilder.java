@@ -74,23 +74,33 @@ public final class VulkanShadowPipelineBuilder {
             boolean momentPipelineEnabled,
             int shadowMapResolution,
             int vertexStrideBytes,
-            long descriptorSetLayout
+            long descriptorSetLayout,
+            long instancedDescriptorSetLayout
     ) throws EngineException {
         long shadowRenderPass = createRenderPass(device, stack, depthFormat, momentFormat, momentPipelineEnabled);
         long shadowPipelineLayout = VK_NULL_HANDLE;
         long shadowPipeline = VK_NULL_HANDLE;
+        long shadowInstancedPipeline = VK_NULL_HANDLE;
         try {
             String shadowVertSource = VulkanShaderSources.shadowVertex();
+            String shadowInstancedVertSource = VulkanShaderSources.shadowInstancedVertex();
             String shadowFragSource = momentPipelineEnabled
                     ? VulkanShaderSources.shadowFragmentMoments()
                     : VulkanShaderSources.shadowFragment();
 
             ByteBuffer vertSpv = VulkanShaderCompiler.compileGlslToSpv(shadowVertSource, shaderc_glsl_vertex_shader, "shadow.vert");
+            ByteBuffer instancedVertSpv = VulkanShaderCompiler.compileGlslToSpv(
+                    shadowInstancedVertSource,
+                    shaderc_glsl_vertex_shader,
+                    "shadow_instanced.vert"
+            );
             ByteBuffer fragSpv = VulkanShaderCompiler.compileGlslToSpv(shadowFragSource, shaderc_fragment_shader, "shadow.frag");
             long vertModule = VK_NULL_HANDLE;
+            long instancedVertModule = VK_NULL_HANDLE;
             long fragModule = VK_NULL_HANDLE;
             try {
                 vertModule = VulkanShaderCompiler.createShaderModule(device, stack, vertSpv);
+                instancedVertModule = VulkanShaderCompiler.createShaderModule(device, stack, instancedVertSpv);
                 fragModule = VulkanShaderCompiler.createShaderModule(device, stack, fragSpv);
                 VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
                 shaderStages.get(0)
@@ -178,7 +188,7 @@ public final class VulkanShadowPipelineBuilder {
 
                 VkPipelineLayoutCreateInfo pipelineLayoutInfo = VkPipelineLayoutCreateInfo.calloc(stack)
                         .sType(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO)
-                        .pSetLayouts(stack.longs(descriptorSetLayout))
+                        .pSetLayouts(stack.longs(descriptorSetLayout, instancedDescriptorSetLayout))
                         .pPushConstantRanges(VkPushConstantRange.calloc(1, stack)
                                 .stageFlags(VK_SHADER_STAGE_VERTEX_BIT)
                                 .offset(0)
@@ -210,15 +220,57 @@ public final class VulkanShadowPipelineBuilder {
                     throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "vkCreateGraphicsPipelines(shadow) failed: " + pipelineResult, false);
                 }
                 shadowPipeline = pPipeline.get(0);
+
+                VkPipelineShaderStageCreateInfo.Buffer instancedShaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
+                instancedShaderStages.get(0)
+                        .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                        .stage(VK_SHADER_STAGE_VERTEX_BIT)
+                        .module(instancedVertModule)
+                        .pName(stack.UTF8("main"));
+                instancedShaderStages.get(1)
+                        .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
+                        .stage(VK_SHADER_STAGE_FRAGMENT_BIT)
+                        .module(fragModule)
+                        .pName(stack.UTF8("main"));
+                VkGraphicsPipelineCreateInfo.Buffer instancedPipelineInfo = VkGraphicsPipelineCreateInfo.calloc(1, stack)
+                        .sType(VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO)
+                        .pStages(instancedShaderStages)
+                        .pVertexInputState(vertexInput)
+                        .pInputAssemblyState(inputAssembly)
+                        .pViewportState(viewportState)
+                        .pRasterizationState(rasterizer)
+                        .pMultisampleState(multisampling)
+                        .pDepthStencilState(depthStencil)
+                        .pColorBlendState(colorBlending)
+                        .layout(shadowPipelineLayout)
+                        .renderPass(shadowRenderPass)
+                        .subpass(0)
+                        .basePipelineHandle(VK_NULL_HANDLE);
+                var pInstancedPipeline = stack.longs(VK_NULL_HANDLE);
+                int instancedPipelineResult = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, instancedPipelineInfo, null, pInstancedPipeline);
+                if (instancedPipelineResult != VK_SUCCESS || pInstancedPipeline.get(0) == VK_NULL_HANDLE) {
+                    throw new EngineException(
+                            EngineErrorCode.BACKEND_INIT_FAILED,
+                            "vkCreateGraphicsPipelines(shadowInstanced) failed: " + instancedPipelineResult,
+                            false
+                    );
+                }
+                shadowInstancedPipeline = pInstancedPipeline.get(0);
             } finally {
                 if (vertModule != VK_NULL_HANDLE) {
                     vkDestroyShaderModule(device, vertModule, null);
+                }
+                if (instancedVertModule != VK_NULL_HANDLE) {
+                    vkDestroyShaderModule(device, instancedVertModule, null);
                 }
                 if (fragModule != VK_NULL_HANDLE) {
                     vkDestroyShaderModule(device, fragModule, null);
                 }
             }
         } catch (EngineException ex) {
+            if (shadowInstancedPipeline != VK_NULL_HANDLE) {
+                VK10.vkDestroyPipeline(device, shadowInstancedPipeline, null);
+            }
             if (shadowPipelineLayout != VK_NULL_HANDLE) {
                 VK10.vkDestroyPipelineLayout(device, shadowPipelineLayout, null);
             }
@@ -227,7 +279,7 @@ public final class VulkanShadowPipelineBuilder {
             }
             throw ex;
         }
-        return new Result(shadowRenderPass, shadowPipelineLayout, shadowPipeline);
+        return new Result(shadowRenderPass, shadowPipelineLayout, shadowPipeline, shadowInstancedPipeline);
     }
 
     private static long createRenderPass(
@@ -302,6 +354,6 @@ public final class VulkanShadowPipelineBuilder {
         return pRenderPass.get(0);
     }
 
-    public record Result(long renderPass, long pipelineLayout, long graphicsPipeline) {
+    public record Result(long renderPass, long pipelineLayout, long graphicsPipeline, long instancedGraphicsPipeline) {
     }
 }
