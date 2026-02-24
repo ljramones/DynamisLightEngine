@@ -61,6 +61,7 @@ import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneBuildRequestFactory
 import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUploadStateTracker;
+import org.dynamislight.impl.vulkan.vfx.VulkanVfxIntegration;
 import org.dynamislight.spi.render.RenderFeatureMode;
 import org.vectrix.core.Matrix4f;
 import org.lwjgl.system.MemoryStack;
@@ -168,6 +169,8 @@ public final class VulkanContext {
     private VulkanPipelineProfileKey activePipelineProfileKey = VulkanPipelineProfileKey.defaults();
     private VulkanPipelineProfileCompilation activePipelineProfile = pipelineProfileCache.getOrCompile(activePipelineProfileKey);
 
+    private VulkanVfxIntegration vfxIntegration;
+
     VulkanContext() {
         backendResources.depthFormat = resolveConfiguredDepthFormat();
     }
@@ -247,6 +250,7 @@ public final class VulkanContext {
                         this::uploadSceneMeshes
                 )
         );
+        vfxIntegration = VulkanVfxIntegration.create(this, backendResources);
     }
 
     VulkanFrameMetrics renderFrame() throws EngineException {
@@ -1108,6 +1112,10 @@ public final class VulkanContext {
     }
 
     void shutdown() {
+        if (vfxIntegration != null) {
+            vfxIntegration.destroy();
+            vfxIntegration = null;
+        }
         VulkanSwapchainTimestampRuntimeHelper.destroyPlanarTimestampResources(backendResources);
         var result = VulkanLifecycleOrchestrator.shutdown(
                 new VulkanLifecycleOrchestrator.ShutdownRequest(
@@ -1333,6 +1341,21 @@ public final class VulkanContext {
     }
 
     private void recordCommandBuffer(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex, int frameIdx) throws EngineException {
+        if (vfxIntegration != null) {
+            float[] currentView = matrixToArray(viewMatrix);
+            float[] currentProj = matrixToArray(projMatrix);
+            float[] frustumPlanes = new float[24];
+            vfxIntegration.simulate(
+                    this,
+                    commandBuffer.address(),
+                    frameIdx,
+                    1.0f / 60.0f,
+                    currentView,
+                    currentProj,
+                    frustumPlanes
+            );
+            vfxIntegration.recordDraws(backendResources, frameIdx);
+        }
         VulkanFrameCommandOrchestrator.Inputs commandInputs = buildCommandInputs(frameIdx);
         VulkanFrameCommandOrchestrator.record(
                 stack,
@@ -1371,6 +1394,11 @@ public final class VulkanContext {
                 )
         );
     }
+    VulkanVfxIntegration vfxIntegration() {
+        return vfxIntegration;
+    }
+
+
 
     private void recreateSwapchainFromWindow() throws EngineException {
         VulkanSwapchainTimestampRuntimeHelper.recreateSwapchainFromWindow(
