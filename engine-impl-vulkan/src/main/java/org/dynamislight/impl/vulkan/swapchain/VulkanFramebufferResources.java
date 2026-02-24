@@ -2,8 +2,9 @@ package org.dynamislight.impl.vulkan.swapchain;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
-import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanImageAlloc;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkDevice;
@@ -40,18 +41,27 @@ public final class VulkanFramebufferResources {
         long[] depthMemories = new long[imageCount];
         long[] depthImageViews = new long[imageCount];
         for (int i = 0; i < imageCount; i++) {
-            VulkanImageAlloc depth = VulkanMemoryOps.createImage(
-                    device,
-                    physicalDevice,
-                    stack,
-                    width,
-                    height,
-                    depthFormat,
-                    VK10.VK_IMAGE_TILING_OPTIMAL,
-                    VK10.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                    VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                    1
-            );
+            VulkanImageAlloc depth;
+            try {
+                depth = VulkanMemoryOps.createImage(
+                        device,
+                        physicalDevice,
+                        stack,
+                        width,
+                        height,
+                        depthFormat,
+                        VK10.VK_IMAGE_TILING_OPTIMAL,
+                        VK10.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                        VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                        1
+                );
+            } catch (GpuException ex) {
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "Failed to create depth image: " + ex.getMessage(),
+                        false
+                );
+            }
             depthImages[i] = depth.image();
             depthMemories[i] = depth.memory();
             depthImageViews[i] = createDepthImageView(device, stack, depth.image(), depthFormat);

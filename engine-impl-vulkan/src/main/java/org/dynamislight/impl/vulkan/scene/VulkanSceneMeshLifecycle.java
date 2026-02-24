@@ -2,14 +2,15 @@ package org.dynamislight.impl.vulkan.scene;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
-import org.dynamislight.impl.vulkan.command.VulkanBindlessDescriptorHeap;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
-import org.dynamislight.impl.vulkan.model.VulkanBufferAlloc;
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamisgpu.vulkan.descriptor.VulkanBindlessDescriptorHeap;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanBufferAlloc;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
 import org.dynamislight.impl.vulkan.model.VulkanInstanceBatch;
 import org.dynamislight.impl.vulkan.model.VulkanInstanceBatchBuffer;
 import org.dynamislight.impl.vulkan.model.VulkanGpuTexture;
-import org.dynamislight.impl.vulkan.model.VulkanMorphTargetBuffer;
+import org.dynamisgpu.vulkan.buffer.VulkanMorphTargetBuffer;
 import org.dynamislight.impl.vulkan.model.VulkanMorphWeightUniforms;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.model.VulkanSkinnedMeshUniforms;
@@ -111,26 +112,36 @@ public final class VulkanSceneMeshLifecycle {
             ib.put(indices);
             indexData.limit(indices.length * Integer.BYTES);
 
-            VulkanBufferAlloc vertexAlloc = VulkanMemoryOps.createDeviceLocalBufferWithStaging(
-                    device,
-                    physicalDevice,
-                    commandPool,
-                    graphicsQueue,
-                    stack,
-                    vertexData,
-                    VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                    vkFailure::failure
-            );
-            VulkanBufferAlloc indexAlloc = VulkanMemoryOps.createDeviceLocalBufferWithStaging(
-                    device,
-                    physicalDevice,
-                    commandPool,
-                    graphicsQueue,
-                    stack,
-                    indexData,
-                    VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                    vkFailure::failure
-            );
+            VulkanBufferAlloc vertexAlloc;
+            VulkanBufferAlloc indexAlloc;
+            try {
+                vertexAlloc = VulkanMemoryOps.createDeviceLocalBufferWithStaging(
+                        device,
+                        physicalDevice,
+                        commandPool,
+                        graphicsQueue,
+                        stack,
+                        vertexData,
+                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                        vkFailure::failure
+                );
+                indexAlloc = VulkanMemoryOps.createDeviceLocalBufferWithStaging(
+                        device,
+                        physicalDevice,
+                        commandPool,
+                        graphicsQueue,
+                        stack,
+                        indexData,
+                        VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                        vkFailure::failure
+                );
+            } catch (GpuException ex) {
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "Failed to upload mesh vertex/index buffers: " + ex.getMessage(),
+                        false
+                );
+            }
             int vertexHash = Arrays.hashCode(vertices);
             int indexHash = Arrays.hashCode(indices);
             String albedoKey = textureKeyer.key(mesh.albedoTexturePath(), false);
@@ -161,17 +172,25 @@ public final class VulkanSceneMeshLifecycle {
             VulkanMorphTargetBuffer morphTargets = mesh.morphTargets();
             if (morphTargets == null && morphTargetCount > 0) {
                 int morphVertexCount = mesh.morphTargetDeltas().length / (morphTargetCount * 6);
-                morphTargets = VulkanMorphTargetBuffer.create(
-                        device,
-                        physicalDevice,
-                        commandPool,
-                        graphicsQueue,
-                        stack,
-                        mesh.morphTargetDeltas(),
-                        morphVertexCount,
-                        morphTargetCount,
-                        vkFailure::failure
-                );
+                try {
+                    morphTargets = VulkanMorphTargetBuffer.create(
+                            device,
+                            physicalDevice,
+                            commandPool,
+                            graphicsQueue,
+                            stack,
+                            mesh.morphTargetDeltas(),
+                            morphVertexCount,
+                            morphTargetCount,
+                            vkFailure::failure
+                    );
+                } catch (GpuException ex) {
+                    throw new EngineException(
+                            EngineErrorCode.BACKEND_INIT_FAILED,
+                            "Failed to create morph target buffer: " + ex.getMessage(),
+                            false
+                    );
+                }
             }
             VulkanMorphWeightUniforms morphWeightUniforms = null;
             if (morphTargets != null && morphTargetCount > 0 && skinnedDescriptorSetLayout != VK_NULL_HANDLE) {

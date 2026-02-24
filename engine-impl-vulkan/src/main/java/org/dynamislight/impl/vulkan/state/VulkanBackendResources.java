@@ -5,7 +5,7 @@ import org.lwjgl.vulkan.VkDevice;
 import org.lwjgl.vulkan.VkInstance;
 import org.lwjgl.vulkan.VkPhysicalDevice;
 import org.lwjgl.vulkan.VkQueue;
-import org.dynamislight.impl.vulkan.command.VulkanBindlessDescriptorHeap;
+import org.dynamisgpu.vulkan.descriptor.VulkanBindlessDescriptorHeap;
 import org.dynamislight.impl.vulkan.command.VulkanCullingComputePass;
 import org.dynamislight.impl.vulkan.command.VulkanDrawMetaBuffer;
 import org.dynamislight.impl.vulkan.command.VulkanIndirectDrawBuffer;

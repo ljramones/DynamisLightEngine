@@ -2,12 +2,13 @@ package org.dynamislight.impl.vulkan.texture;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
-import org.dynamislight.impl.vulkan.model.VulkanBufferAlloc;
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanBufferAlloc;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
 import org.dynamislight.impl.vulkan.model.VulkanGpuTexture;
-import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
-import org.dynamislight.impl.vulkan.model.VulkanTexturePixelData;
+import org.dynamisgpu.vulkan.memory.VulkanImageAlloc;
+import org.dynamisgpu.api.VulkanTexturePixelData;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkImageViewCreateInfo;
@@ -185,6 +186,12 @@ public final class VulkanTextureResourceOps {
                     vkFreeMemory(context.device(), staging.memory(), null);
                 }
             }
+        } catch (GpuException ex) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "Failed to create texture from pixels: " + ex.getMessage(),
+                    false
+            );
         }
     }
 
@@ -324,6 +331,12 @@ public final class VulkanTextureResourceOps {
                     vkFreeMemory(context.device(), staging.memory(), null);
                 }
             }
+        } catch (GpuException ex) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "Failed to create layered texture: " + ex.getMessage(),
+                    false
+            );
         } finally {
             memFree(interleaved);
         }

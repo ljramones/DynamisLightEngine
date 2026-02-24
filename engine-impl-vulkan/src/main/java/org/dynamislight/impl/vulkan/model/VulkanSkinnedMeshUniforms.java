@@ -3,10 +3,11 @@ package org.dynamislight.impl.vulkan.model;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import org.dynamisgpu.api.error.GpuException;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.descriptor.VulkanDescriptorResources;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -83,14 +84,23 @@ public final class VulkanSkinnedMeshUniforms {
             VK10.vkGetPhysicalDeviceProperties(physicalDevice, props);
             long minAlign = Math.max(1L, props.limits().minStorageBufferOffsetAlignment());
             int allocBytes = alignUp(rawBytes, (int) Math.min(Integer.MAX_VALUE, minAlign));
-            VulkanBufferAlloc alloc = VulkanMemoryOps.createBuffer(
-                    device,
-                    physicalDevice,
-                    stack,
-                    allocBytes,
-                    VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            );
+            org.dynamisgpu.vulkan.memory.VulkanBufferAlloc alloc;
+            try {
+                alloc = VulkanMemoryOps.createBuffer(
+                        device,
+                        physicalDevice,
+                        stack,
+                        allocBytes,
+                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                );
+            } catch (GpuException ex) {
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "Failed to create skinned uniform buffer: " + ex.getMessage(),
+                        false
+                );
+            }
             PointerBuffer mapped = stack.mallocPointer(1);
             int mapResult = vkMapMemory(device, alloc.memory(), 0, allocBytes, 0, mapped);
             if (mapResult != VK_SUCCESS || mapped.get(0) == 0L) {

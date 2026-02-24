@@ -2,8 +2,9 @@ package org.dynamislight.impl.vulkan.command;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
-import org.dynamislight.impl.vulkan.model.VulkanBufferAlloc;
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanBufferAlloc;
 import org.dynamislight.impl.vulkan.model.VulkanGpuMesh;
 import org.dynamislight.impl.vulkan.shader.VulkanCullingComputeSource;
 import org.dynamislight.impl.vulkan.shader.VulkanShaderCompiler;
@@ -79,14 +80,23 @@ public final class VulkanCullingComputePass {
             long[] drawCountBuffers = new long[frameCount];
             long[] drawCountMemories = new long[frameCount];
             for (int i = 0; i < frameCount; i++) {
-                VulkanBufferAlloc alloc = VulkanMemoryOps.createBuffer(
-                        device,
-                        physicalDevice,
-                        stack,
-                        DRAW_COUNT_BUFFER_BYTES,
-                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-                );
+                VulkanBufferAlloc alloc;
+                try {
+                    alloc = VulkanMemoryOps.createBuffer(
+                            device,
+                            physicalDevice,
+                            stack,
+                            DRAW_COUNT_BUFFER_BYTES,
+                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+                    );
+                } catch (GpuException ex) {
+                    throw new EngineException(
+                            EngineErrorCode.BACKEND_INIT_FAILED,
+                            "Failed to create culling draw-count buffer: " + ex.getMessage(),
+                            false
+                    );
+                }
                 drawCountBuffers[i] = alloc.buffer();
                 drawCountMemories[i] = alloc.memory();
             }

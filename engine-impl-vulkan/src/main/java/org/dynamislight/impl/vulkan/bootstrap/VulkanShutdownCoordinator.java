@@ -1,6 +1,6 @@
 package org.dynamislight.impl.vulkan.bootstrap;
 
-import org.dynamislight.impl.vulkan.command.VulkanFrameSyncResources;
+import org.dynamisgpu.vulkan.sync.VulkanFrameSyncResources;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkDevice;

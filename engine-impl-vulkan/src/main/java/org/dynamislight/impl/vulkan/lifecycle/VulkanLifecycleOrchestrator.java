@@ -2,10 +2,12 @@ package org.dynamislight.impl.vulkan.lifecycle;
 
 import java.util.List;
 
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.bootstrap.VulkanBootstrap;
 import org.dynamislight.impl.vulkan.bootstrap.VulkanShutdownCoordinator;
-import org.dynamislight.impl.vulkan.command.VulkanFrameSyncLifecycleCoordinator;
+import org.dynamisgpu.vulkan.sync.VulkanFrameSyncLifecycleCoordinator;
 import org.dynamislight.impl.vulkan.model.VulkanSceneMeshData;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowLifecycleCoordinator;
 import org.dynamislight.impl.vulkan.state.VulkanBackendResources;
@@ -285,14 +287,22 @@ public final class VulkanLifecycleOrchestrator {
     }
 
     public static VulkanFrameSyncLifecycleCoordinator.State createFrameSync(CreateFrameSyncRequest request) throws EngineException {
-        return VulkanFrameSyncLifecycleCoordinator.create(
-                new VulkanFrameSyncLifecycleCoordinator.CreateRequest(
-                        request.backendResources().device,
-                        request.stack(),
-                        request.backendResources().graphicsQueueFamilyIndex,
-                        request.framesInFlight()
-                )
-        );
+        try {
+            return VulkanFrameSyncLifecycleCoordinator.create(
+                    new VulkanFrameSyncLifecycleCoordinator.CreateRequest(
+                            request.backendResources().device,
+                            request.stack(),
+                            request.backendResources().graphicsQueueFamilyIndex,
+                            request.framesInFlight()
+                    )
+            );
+        } catch (GpuException ex) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "Failed to create frame sync resources: " + ex.getMessage(),
+                    false
+            );
+        }
     }
 
     public static void applyFrameSyncState(VulkanBackendResources backendResources, VulkanFrameSyncLifecycleCoordinator.State state) {

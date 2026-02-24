@@ -27,7 +27,7 @@ public record VulkanSceneMeshData(
         int jointCount,
         float[] morphTargetDeltas,
         int morphTargetCount,
-        VulkanMorphTargetBuffer morphTargets
+        org.dynamisgpu.vulkan.buffer.VulkanMorphTargetBuffer morphTargets
 ) {
     private static final int VERTEX_STRIDE_FLOATS = 11;
     private static final int SKINNED_VERTEX_STRIDE_FLOATS = 16;

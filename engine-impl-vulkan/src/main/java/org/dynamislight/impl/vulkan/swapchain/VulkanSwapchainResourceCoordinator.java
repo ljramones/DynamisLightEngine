@@ -1,8 +1,10 @@
 package org.dynamislight.impl.vulkan.swapchain;
 
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
-import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanImageAlloc;
 import org.dynamislight.impl.vulkan.pipeline.VulkanMainPipelineBuilder;
 import org.dynamislight.impl.vulkan.pipeline.VulkanPostProcessResources;
 import org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorLayoutPlan;
@@ -41,18 +43,27 @@ public final class VulkanSwapchainResourceCoordinator {
                 swapchainAllocation.swapchainHeight(),
                 inputs.depthFormat()
         );
-        VulkanImageAlloc velocity = VulkanMemoryOps.createImage(
-                inputs.device(),
-                inputs.physicalDevice(),
-                inputs.stack(),
-                swapchainAllocation.swapchainWidth(),
-                swapchainAllocation.swapchainHeight(),
-                swapchainAllocation.swapchainImageFormat(),
-                VK10.VK_IMAGE_TILING_OPTIMAL,
-                VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
-                VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                1
-        );
+        VulkanImageAlloc velocity;
+        try {
+            velocity = VulkanMemoryOps.createImage(
+                    inputs.device(),
+                    inputs.physicalDevice(),
+                    inputs.stack(),
+                    swapchainAllocation.swapchainWidth(),
+                    swapchainAllocation.swapchainHeight(),
+                    swapchainAllocation.swapchainImageFormat(),
+                    VK10.VK_IMAGE_TILING_OPTIMAL,
+                    VK10.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
+                    VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                    1
+            );
+        } catch (GpuException ex) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "Failed to create velocity image: " + ex.getMessage(),
+                    false
+            );
+        }
         long velocityImage = velocity.image();
         long velocityMemory = velocity.memory();
         long velocityImageView = VulkanFramebufferResources.createColorImageView(

@@ -5,8 +5,9 @@ import java.nio.ByteOrder;
 import java.util.List;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
-import org.dynamislight.impl.vulkan.model.VulkanBufferAlloc;
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanBufferAlloc;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -84,14 +85,23 @@ public final class VulkanIndirectDrawBuffer {
         int safeCapacity = Math.max(1, capacity);
         int bytes = safeCapacity * COMMAND_STRIDE_BYTES;
         try (MemoryStack stack = stackPush()) {
-            VulkanBufferAlloc alloc = VulkanMemoryOps.createBuffer(
-                    device,
-                    physicalDevice,
-                    stack,
-                    bytes,
-                    VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            );
+            VulkanBufferAlloc alloc;
+            try {
+                alloc = VulkanMemoryOps.createBuffer(
+                        device,
+                        physicalDevice,
+                        stack,
+                        bytes,
+                        VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                );
+            } catch (GpuException ex) {
+                throw new EngineException(
+                        EngineErrorCode.BACKEND_INIT_FAILED,
+                        "Failed to create indirect draw buffer: " + ex.getMessage(),
+                        false
+                );
+            }
             PointerBuffer mapped = stack.mallocPointer(1);
             int mapResult = vkMapMemory(device, alloc.memory(), 0, bytes, 0, mapped);
             if (mapResult != VK_SUCCESS || mapped.get(0) == 0L) {

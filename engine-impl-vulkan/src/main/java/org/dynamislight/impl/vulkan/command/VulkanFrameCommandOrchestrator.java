@@ -183,7 +183,7 @@ public final class VulkanFrameCommandOrchestrator {
         if (inputs.drawMetaBuffer() != null) {
             inputs.drawMetaBuffer().upload(meshes, inputs.bindlessDescriptorHeap(), frameIdx);
         }
-        BindlessHeapStats bindlessStats = null;
+        org.dynamisgpu.api.BindlessHeapStats bindlessStats = null;
         if (inputs.bindlessDescriptorHeap() != null) {
             if (inputs.drawMetaBuffer() != null) {
                 inputs.bindlessDescriptorHeap().updateDrawMetaStats(
@@ -631,7 +631,7 @@ public final class VulkanFrameCommandOrchestrator {
             float[] viewProjMatrix,
             boolean bindlessActive,
             long bindlessDescriptorSet,
-            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            org.dynamisgpu.vulkan.descriptor.VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,

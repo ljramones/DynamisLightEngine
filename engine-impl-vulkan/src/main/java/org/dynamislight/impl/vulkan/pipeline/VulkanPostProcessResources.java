@@ -2,8 +2,9 @@ package org.dynamislight.impl.vulkan.pipeline;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
-import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanImageAlloc;
 import org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorLayoutPlan;
 import org.dynamislight.impl.vulkan.descriptor.VulkanComposedDescriptorBinding;
 import org.dynamislight.spi.render.RenderDescriptorType;
@@ -63,7 +64,7 @@ public final class VulkanPostProcessResources {
             VulkanComposedDescriptorLayoutPlan postDescriptorPlan,
             String postFragmentSource
     ) throws EngineException {
-        VulkanImageAlloc intermediate = VulkanMemoryOps.createImage(
+        VulkanImageAlloc intermediate = createImageOrThrow(
                 device,
                 physicalDevice,
                 stack,
@@ -73,13 +74,14 @@ public final class VulkanPostProcessResources {
                 VK10.VK_IMAGE_TILING_OPTIMAL,
                 VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                1
+                1,
+                "offscreen color image"
         );
         long offscreenColorImage = intermediate.image();
         long offscreenColorMemory = intermediate.memory();
         long offscreenColorImageView = createImageView(device, stack, offscreenColorImage, swapchainImageFormat);
         long offscreenColorSampler = createSampler(device, stack);
-        VulkanImageAlloc history = VulkanMemoryOps.createImage(
+        VulkanImageAlloc history = createImageOrThrow(
                 device,
                 physicalDevice,
                 stack,
@@ -89,13 +91,14 @@ public final class VulkanPostProcessResources {
                 VK10.VK_IMAGE_TILING_OPTIMAL,
                 VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                1
+                1,
+                "taa history image"
         );
         long taaHistoryImage = history.image();
         long taaHistoryMemory = history.memory();
         long taaHistoryImageView = createImageView(device, stack, taaHistoryImage, swapchainImageFormat);
         long taaHistorySampler = createSampler(device, stack);
-        VulkanImageAlloc historyVelocity = VulkanMemoryOps.createImage(
+        VulkanImageAlloc historyVelocity = createImageOrThrow(
                 device,
                 physicalDevice,
                 stack,
@@ -105,13 +108,14 @@ public final class VulkanPostProcessResources {
                 VK10.VK_IMAGE_TILING_OPTIMAL,
                 VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                1
+                1,
+                "taa history velocity image"
         );
         long taaHistoryVelocityImage = historyVelocity.image();
         long taaHistoryVelocityMemory = historyVelocity.memory();
         long taaHistoryVelocityImageView = createImageView(device, stack, taaHistoryVelocityImage, swapchainImageFormat);
         long taaHistoryVelocitySampler = createSampler(device, stack);
-        VulkanImageAlloc planarCapture = VulkanMemoryOps.createImage(
+        VulkanImageAlloc planarCapture = createImageOrThrow(
                 device,
                 physicalDevice,
                 stack,
@@ -121,7 +125,8 @@ public final class VulkanPostProcessResources {
                 VK10.VK_IMAGE_TILING_OPTIMAL,
                 VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                1
+                1,
+                "planar capture image"
         );
         long planarCaptureImage = planarCapture.image();
         long planarCaptureMemory = planarCapture.memory();
@@ -190,6 +195,41 @@ public final class VulkanPostProcessResources {
                 postPipeline.graphicsPipeline(),
                 postFramebuffers
         );
+    }
+
+    private static VulkanImageAlloc createImageOrThrow(
+            VkDevice device,
+            VkPhysicalDevice physicalDevice,
+            MemoryStack stack,
+            int width,
+            int height,
+            int format,
+            int tiling,
+            int usage,
+            int memoryFlags,
+            int mipLevels,
+            String label
+    ) throws EngineException {
+        try {
+            return VulkanMemoryOps.createImage(
+                    device,
+                    physicalDevice,
+                    stack,
+                    width,
+                    height,
+                    format,
+                    tiling,
+                    usage,
+                    memoryFlags,
+                    mipLevels
+            );
+        } catch (GpuException ex) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "Failed to create " + label + ": " + ex.getMessage(),
+                    false
+            );
+        }
     }
 
     public static Allocation empty() {

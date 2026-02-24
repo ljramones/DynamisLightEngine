@@ -135,7 +135,7 @@ public final class VulkanFrameCommandInputAssembler {
             float[] viewProjMatrix,
             boolean bindlessActive,
             long bindlessDescriptorSet,
-            VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            org.dynamisgpu.vulkan.descriptor.VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
             int maxDynamicSceneObjects,
             int swapchainWidth,
             int swapchainHeight,

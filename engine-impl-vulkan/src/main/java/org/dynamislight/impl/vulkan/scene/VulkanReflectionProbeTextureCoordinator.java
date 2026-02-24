@@ -2,7 +2,7 @@ package org.dynamislight.impl.vulkan.scene;
 
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.model.VulkanGpuTexture;
-import org.dynamislight.impl.vulkan.model.VulkanTexturePixelData;
+import org.dynamisgpu.api.VulkanTexturePixelData;
 import org.dynamislight.impl.vulkan.texture.VulkanTexturePixelLoader;
 import org.dynamislight.impl.vulkan.texture.VulkanTextureResourceOps;
 import org.lwjgl.system.MemoryUtil;

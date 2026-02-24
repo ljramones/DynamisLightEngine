@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import javax.imageio.ImageIO;
 import org.dynamislight.impl.common.texture.KtxDecodeUtil;
-import org.dynamislight.impl.vulkan.model.VulkanTexturePixelData;
+import org.dynamisgpu.api.VulkanTexturePixelData;
 import org.lwjgl.system.MemoryStack;
 
 import static org.lwjgl.stb.STBImage.stbi_image_free;

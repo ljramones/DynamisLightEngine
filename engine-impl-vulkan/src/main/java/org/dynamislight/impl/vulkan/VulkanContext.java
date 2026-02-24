@@ -8,12 +8,13 @@ import java.util.Map;
 import org.dynamislight.api.config.QualityTier;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamisgpu.api.error.GpuException;
 import org.dynamislight.api.scene.ReflectionProbeDesc;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandInputAssembler;
 import org.dynamislight.impl.vulkan.command.VulkanFrameCommandOrchestrator;
 import org.dynamislight.impl.vulkan.command.VulkanFrameSubmitCoordinator;
 import org.dynamislight.impl.vulkan.command.VulkanCommandInputCoordinator;
-import org.dynamislight.impl.vulkan.command.VulkanBindlessDescriptorHeap;
+import org.dynamisgpu.vulkan.descriptor.VulkanBindlessDescriptorHeap;
 import org.dynamislight.impl.vulkan.command.VulkanCullingComputePass;
 import org.dynamislight.impl.vulkan.command.VulkanDrawMetaBuffer;
 import org.dynamislight.impl.vulkan.command.VulkanIndirectDrawBuffer;
@@ -1244,12 +1245,20 @@ public final class VulkanContext {
                 backendResources.culledIndirectDrawBuffers
         );
         boolean bindlessEnabled = Boolean.parseBoolean(System.getProperty("vk.bindless.enabled", "false"));
-        backendResources.bindlessDescriptorHeap = VulkanBindlessDescriptorHeap.create(
-                backendResources.device,
-                backendResources.physicalDevice,
-                bindlessEnabled,
-                framesInFlight
-        );
+        try {
+            backendResources.bindlessDescriptorHeap = VulkanBindlessDescriptorHeap.create(
+                    backendResources.device,
+                    backendResources.physicalDevice,
+                    bindlessEnabled,
+                    framesInFlight
+            );
+        } catch (GpuException e) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    e.getMessage(),
+                    false
+            );
+        }
     }
 
     private void destroyIndirectDrawBuffers() {

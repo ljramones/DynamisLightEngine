@@ -2,8 +2,9 @@ package org.dynamislight.impl.vulkan.descriptor;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
-import org.dynamislight.impl.vulkan.model.VulkanBufferAlloc;
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanBufferAlloc;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -86,21 +87,23 @@ public final class VulkanDescriptorResources {
         int totalObjectUniformBytes = uniformFrameSpanBytes * framesInFlight;
         int totalGlobalUniformBytes = globalUniformFrameSpanBytes * framesInFlight;
 
-        VulkanBufferAlloc objectUniformDeviceAlloc = VulkanMemoryOps.createBuffer(
+        VulkanBufferAlloc objectUniformDeviceAlloc = createBufferOrThrow(
                 device,
                 physicalDevice,
                 stack,
                 totalObjectUniformBytes,
                 VK10.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+                VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                "object uniform device buffer"
         );
-        VulkanBufferAlloc objectUniformStagingAlloc = VulkanMemoryOps.createBuffer(
+        VulkanBufferAlloc objectUniformStagingAlloc = createBufferOrThrow(
                 device,
                 physicalDevice,
                 stack,
                 totalObjectUniformBytes,
                 VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                "object uniform staging buffer"
         );
         PointerBuffer pObjectMapped = stack.mallocPointer(1);
         int mapObjectStagingResult = vkMapMemory(device, objectUniformStagingAlloc.memory(), 0, totalObjectUniformBytes, 0, pObjectMapped);
@@ -113,21 +116,23 @@ public final class VulkanDescriptorResources {
         }
         long objectUniformStagingMappedAddress = pObjectMapped.get(0);
 
-        VulkanBufferAlloc globalUniformDeviceAlloc = VulkanMemoryOps.createBuffer(
+        VulkanBufferAlloc globalUniformDeviceAlloc = createBufferOrThrow(
                 device,
                 physicalDevice,
                 stack,
                 totalGlobalUniformBytes,
                 VK10.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK10.VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+                VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                "global uniform device buffer"
         );
-        VulkanBufferAlloc globalUniformStagingAlloc = VulkanMemoryOps.createBuffer(
+        VulkanBufferAlloc globalUniformStagingAlloc = createBufferOrThrow(
                 device,
                 physicalDevice,
                 stack,
                 totalGlobalUniformBytes,
                 VK10.VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                "global uniform staging buffer"
         );
         PointerBuffer pGlobalMapped = stack.mallocPointer(1);
         int mapGlobalStagingResult = vkMapMemory(device, globalUniformStagingAlloc.memory(), 0, totalGlobalUniformBytes, 0, pGlobalMapped);
@@ -143,13 +148,14 @@ public final class VulkanDescriptorResources {
         int reflectionProbeMetadataMaxCount = Math.max(1, maxReflectionProbes);
         int reflectionProbeMetadataStrideBytes = 80;
         int reflectionProbeMetadataBufferBytes = 16 + (reflectionProbeMetadataMaxCount * reflectionProbeMetadataStrideBytes);
-        VulkanBufferAlloc reflectionProbeMetadataAlloc = VulkanMemoryOps.createBuffer(
+        VulkanBufferAlloc reflectionProbeMetadataAlloc = createBufferOrThrow(
                 device,
                 physicalDevice,
                 stack,
                 reflectionProbeMetadataBufferBytes,
                 VK10.VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                VK10.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK10.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                "reflection probe metadata buffer"
         );
         PointerBuffer pProbeMapped = stack.mallocPointer(1);
         int mapProbeResult = vkMapMemory(
@@ -547,6 +553,33 @@ public final class VulkanDescriptorResources {
                 .descriptorType(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
                 .pBufferInfo(instanceBufferInfo);
         vkUpdateDescriptorSets(device, writes, null);
+    }
+
+    private static VulkanBufferAlloc createBufferOrThrow(
+            VkDevice device,
+            VkPhysicalDevice physicalDevice,
+            MemoryStack stack,
+            int sizeBytes,
+            int usageFlags,
+            int memoryPropertyFlags,
+            String label
+    ) throws EngineException {
+        try {
+            return VulkanMemoryOps.createBuffer(
+                    device,
+                    physicalDevice,
+                    stack,
+                    sizeBytes,
+                    usageFlags,
+                    memoryPropertyFlags
+            );
+        } catch (GpuException ex) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "Failed to create " + label + ": " + ex.getMessage(),
+                    false
+            );
+        }
     }
 
     private static int alignUp(int value, int alignment) {

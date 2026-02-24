@@ -52,7 +52,7 @@ public final class VulkanGpuMesh {
     public long bindlessMorphWeightHandle = 0L;
     public final int morphTargetCount;
     public final int morphTargetHash;
-    public final VulkanMorphTargetBuffer morphTargets;
+    public final org.dynamisgpu.vulkan.buffer.VulkanMorphTargetBuffer morphTargets;
     public final VulkanMorphWeightUniforms morphWeightUniforms;
     public long morphDescriptorSetHandle = VK_NULL_HANDLE;
 
@@ -102,7 +102,7 @@ public final class VulkanGpuMesh {
             long bindlessMorphWeightHandle,
             int morphTargetCount,
             int morphTargetHash,
-            VulkanMorphTargetBuffer morphTargets,
+            org.dynamisgpu.vulkan.buffer.VulkanMorphTargetBuffer morphTargets,
             VulkanMorphWeightUniforms morphWeightUniforms
     ) {
         this.vertexBuffer = vertexBuffer;

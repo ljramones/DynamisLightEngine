@@ -2,8 +2,9 @@ package org.dynamislight.impl.vulkan.shadow;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
-import org.dynamislight.impl.vulkan.memory.VulkanMemoryOps;
-import org.dynamislight.impl.vulkan.model.VulkanImageAlloc;
+import org.dynamisgpu.api.error.GpuException;
+import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisgpu.vulkan.memory.VulkanImageAlloc;
 import org.dynamislight.impl.vulkan.pipeline.VulkanShadowPipelineBuilder;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -75,7 +76,7 @@ public final class VulkanShadowResources {
             boolean momentPipelineRequested,
             int momentMode
     ) throws EngineException {
-        VulkanImageAlloc shadowDepth = VulkanMemoryOps.createImage(
+        VulkanImageAlloc shadowDepth = createImageOrThrow(
                 device,
                 physicalDevice,
                 stack,
@@ -85,7 +86,8 @@ public final class VulkanShadowResources {
                 VK10.VK_IMAGE_TILING_OPTIMAL,
                 VK10.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK10.VK_IMAGE_USAGE_SAMPLED_BIT,
                 VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                maxShadowMatrices
+                maxShadowMatrices,
+                "shadow depth image"
         );
         long shadowDepthImage = shadowDepth.image();
         long shadowDepthMemory = shadowDepth.memory();
@@ -146,7 +148,7 @@ public final class VulkanShadowResources {
         long shadowMomentSampler = VK_NULL_HANDLE;
         if (momentPipelineEnabled) {
             shadowMomentMipLevels = mipLevelsForResolution(shadowMapResolution);
-            VulkanImageAlloc shadowMoment = VulkanMemoryOps.createImage(
+            VulkanImageAlloc shadowMoment = createImageOrThrow(
                     device,
                     physicalDevice,
                     stack,
@@ -160,7 +162,8 @@ public final class VulkanShadowResources {
                             | VK10.VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                     VK10.VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                     maxShadowMatrices,
-                    shadowMomentMipLevels
+                    shadowMomentMipLevels,
+                    "shadow moment image"
             );
             shadowMomentImage = shadowMoment.image();
             shadowMomentMemory = shadowMoment.memory();
@@ -221,6 +224,78 @@ public final class VulkanShadowResources {
                 shadowMomentFormat,
                 shadowMomentMipLevels
         );
+    }
+
+    private static VulkanImageAlloc createImageOrThrow(
+            VkDevice device,
+            VkPhysicalDevice physicalDevice,
+            MemoryStack stack,
+            int width,
+            int height,
+            int format,
+            int tiling,
+            int usage,
+            int memoryFlags,
+            int layers,
+            String label
+    ) throws EngineException {
+        try {
+            return VulkanMemoryOps.createImage(
+                    device,
+                    physicalDevice,
+                    stack,
+                    width,
+                    height,
+                    format,
+                    tiling,
+                    usage,
+                    memoryFlags,
+                    layers
+            );
+        } catch (GpuException ex) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "Failed to create " + label + ": " + ex.getMessage(),
+                    false
+            );
+        }
+    }
+
+    private static VulkanImageAlloc createImageOrThrow(
+            VkDevice device,
+            VkPhysicalDevice physicalDevice,
+            MemoryStack stack,
+            int width,
+            int height,
+            int format,
+            int tiling,
+            int usage,
+            int memoryFlags,
+            int layers,
+            int mipLevels,
+            String label
+    ) throws EngineException {
+        try {
+            return VulkanMemoryOps.createImage(
+                    device,
+                    physicalDevice,
+                    stack,
+                    width,
+                    height,
+                    format,
+                    tiling,
+                    usage,
+                    memoryFlags,
+                    layers,
+                    mipLevels
+            );
+        } catch (GpuException ex) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "Failed to create " + label + ": " + ex.getMessage(),
+                    false
+            );
+        }
     }
 
     /**
