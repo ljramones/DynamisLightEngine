@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.descriptor;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamisgpu.api.gpu.DescriptorWriter;
 import org.dynamisgpu.api.error.GpuException;
 import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
 import org.dynamisgpu.vulkan.memory.VulkanBufferAlloc;
@@ -40,8 +41,23 @@ import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 import static org.lwjgl.vulkan.VK10.vkUpdateDescriptorSets;
 
-public final class VulkanDescriptorResources {
+public final class VulkanDescriptorResources implements DescriptorWriter {
     private VulkanDescriptorResources() {
+    }
+
+    @Override
+    public void writeStorageBuffer(long descriptorSet, int binding, int arrayElement, long buffer, long offset, long range) {
+        throw new UnsupportedOperationException("Use VulkanDescriptorResources static descriptor write helpers");
+    }
+
+    @Override
+    public void writeUniformBuffer(long descriptorSet, int binding, int arrayElement, long buffer, long offset, long range) {
+        throw new UnsupportedOperationException("Use VulkanDescriptorResources static descriptor write helpers");
+    }
+
+    @Override
+    public void writeSampledImage(long descriptorSet, int binding, int arrayElement, long imageView, long sampler) {
+        throw new UnsupportedOperationException("Use VulkanDescriptorResources static descriptor write helpers");
     }
 
     public static Allocation create(

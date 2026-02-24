@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan.model;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import org.dynamisgpu.api.gpu.WeightBuffer;
 import org.dynamisgpu.api.error.GpuException;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -37,7 +38,7 @@ import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 
-public final class VulkanMorphWeightUniforms {
+public final class VulkanMorphWeightUniforms implements WeightBuffer {
     public static final int MAX_WEIGHTS = 256;
     private static final int WEIGHT_BYTES = MAX_WEIGHTS * Float.BYTES;
 

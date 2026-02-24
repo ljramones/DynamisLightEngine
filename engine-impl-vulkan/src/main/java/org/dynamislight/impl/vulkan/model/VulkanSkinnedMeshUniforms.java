@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan.model;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import org.dynamisgpu.api.gpu.JointPaletteBuffer;
 import org.dynamisgpu.api.error.GpuException;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -37,7 +38,7 @@ import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 
-public final class VulkanSkinnedMeshUniforms {
+public final class VulkanSkinnedMeshUniforms implements JointPaletteBuffer {
     private final VkDevice device;
     private final long buffer;
     private final long memory;
@@ -45,6 +46,7 @@ public final class VulkanSkinnedMeshUniforms {
     private final long descriptorSet;
     private final long mappedAddress;
     private final int allocatedBytes;
+    private final int jointCount;
 
     private VulkanSkinnedMeshUniforms(
             VkDevice device,
@@ -53,7 +55,8 @@ public final class VulkanSkinnedMeshUniforms {
             long descriptorPool,
             long descriptorSet,
             long mappedAddress,
-            int allocatedBytes
+            int allocatedBytes,
+            int jointCount
     ) {
         this.device = device;
         this.buffer = buffer;
@@ -62,6 +65,7 @@ public final class VulkanSkinnedMeshUniforms {
         this.descriptorSet = descriptorSet;
         this.mappedAddress = mappedAddress;
         this.allocatedBytes = allocatedBytes;
+        this.jointCount = jointCount;
     }
 
     public static VulkanSkinnedMeshUniforms create(
@@ -122,7 +126,8 @@ public final class VulkanSkinnedMeshUniforms {
                     pool,
                     set,
                     mapped.get(0),
-                    allocBytes
+                    allocBytes,
+                    safeJointCount
             );
             uniforms.upload(null);
             return uniforms;
@@ -166,6 +171,11 @@ public final class VulkanSkinnedMeshUniforms {
 
     public long descriptorSetHandle() {
         return descriptorSet;
+    }
+
+    @Override
+    public int jointCount() {
+        return jointCount;
     }
 
     private static long createDescriptorPool(VkDevice device, MemoryStack stack) throws EngineException {

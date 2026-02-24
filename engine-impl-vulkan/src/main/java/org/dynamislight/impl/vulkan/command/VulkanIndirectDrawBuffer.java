@@ -3,6 +3,7 @@ package org.dynamislight.impl.vulkan.command;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import org.dynamisgpu.api.gpu.IndirectCommandBuffer;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
 import org.dynamisgpu.api.error.GpuException;
@@ -30,7 +31,7 @@ import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 
-public final class VulkanIndirectDrawBuffer {
+public final class VulkanIndirectDrawBuffer implements IndirectCommandBuffer {
     public static final int COMMAND_STRIDE_BYTES = 5 * Integer.BYTES;
     public static final int VARIANT_COUNT = 5;
     public static final int VARIANT_STATIC = 0;
@@ -152,8 +153,18 @@ public final class VulkanIndirectDrawBuffer {
         return commandCount;
     }
 
+    @Override
+    public void writeCommand(int variant, int indexCount, int instanceCount, int firstIndex, int vertexOffset, int firstInstance) {
+        throw new UnsupportedOperationException("Use upload(drawList) for batched indirect command writes");
+    }
+
     public long bufferHandle() {
         return buffer;
+    }
+
+    @Override
+    public long countBufferHandle() {
+        return VK_NULL_HANDLE;
     }
 
     public int commandCount() {
@@ -176,6 +187,11 @@ public final class VulkanIndirectDrawBuffer {
             case VARIANT_INSTANCED -> layout.instancedOffsetCommands();
             default -> layout.staticOffsetCommands();
         };
+    }
+
+    @Override
+    public int variantOffset(int variant) {
+        return variantOffsetCommands(variant);
     }
 
     public int variantCapacity(int variant) {

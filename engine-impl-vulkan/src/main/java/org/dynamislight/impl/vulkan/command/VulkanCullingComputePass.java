@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.command;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamisgpu.api.gpu.ComputeCullingDispatch;
 import org.dynamisgpu.api.error.GpuException;
 import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
 import org.dynamisgpu.vulkan.memory.VulkanBufferAlloc;
@@ -18,7 +19,7 @@ import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_glsl_compute_shader;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class VulkanCullingComputePass {
+public final class VulkanCullingComputePass implements ComputeCullingDispatch {
     private static final int LOCAL_SIZE_X = 64;
     private static final int DRAW_COUNT_BUFFER_BYTES = 8 * Integer.BYTES;
     private static final int PUSH_BYTES = (6 * 4 * Float.BYTES) + (8 * Integer.BYTES);
@@ -175,6 +176,11 @@ public final class VulkanCullingComputePass {
         int groups = Math.max(1, (drawCount + LOCAL_SIZE_X - 1) / LOCAL_SIZE_X);
         vkCmdDispatch(commandBuffer, groups, 1, 1);
         barrierComputeToIndirect(commandBuffer, frameIdx);
+    }
+
+    @Override
+    public void dispatch(org.dynamisgpu.api.gpu.VkCommandBuffer commandBuffer, int drawCount, float[] viewProjectionMatrix) {
+        throw new UnsupportedOperationException("Use engine-specific dispatch with frame index and LWJGL command buffer");
     }
 
     public long culledIndirectBufferHandle(int frameIdx) {

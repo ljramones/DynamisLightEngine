@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.model;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import org.dynamisgpu.api.gpu.InstanceDataBuffer;
 import org.dynamisgpu.api.error.GpuException;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
@@ -36,7 +37,7 @@ import static org.lwjgl.vulkan.VK10.vkFreeMemory;
 import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 
-public final class VulkanInstanceBatchBuffer {
+public final class VulkanInstanceBatchBuffer implements InstanceDataBuffer {
     public static final int INSTANCE_STRIDE_BYTES = (16 * Float.BYTES) + (4 * Integer.BYTES);
     private static final int DEFAULT_FLAGS = 1;
 
@@ -48,6 +49,7 @@ public final class VulkanInstanceBatchBuffer {
     private final long mappedAddress;
     private final int capacity;
     private final int allocatedBytes;
+    private int instanceCount;
 
     private VulkanInstanceBatchBuffer(
             VkDevice device,
@@ -67,6 +69,7 @@ public final class VulkanInstanceBatchBuffer {
         this.mappedAddress = mappedAddress;
         this.capacity = capacity;
         this.allocatedBytes = allocatedBytes;
+        this.instanceCount = 0;
     }
 
     public static VulkanInstanceBatchBuffer create(
@@ -166,6 +169,7 @@ public final class VulkanInstanceBatchBuffer {
         }
         src.flip();
         memCopy(memAddress(src), mappedAddress, byteCount);
+        instanceCount = modelMatrices.length;
     }
 
     public void destroy() {
@@ -197,6 +201,11 @@ public final class VulkanInstanceBatchBuffer {
 
     public int capacity() {
         return capacity;
+    }
+
+    @Override
+    public int instanceCount() {
+        return instanceCount;
     }
 
     private static long createDescriptorPool(VkDevice device, MemoryStack stack) throws EngineException {

@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.uniform;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamisgpu.api.gpu.StagingScheduler;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -20,8 +21,28 @@ import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
 import static org.lwjgl.vulkan.VK10.vkMapMemory;
 import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 
-public final class VulkanFrameUniformCoordinator {
+public final class VulkanFrameUniformCoordinator implements StagingScheduler {
     private VulkanFrameUniformCoordinator() {
+    }
+
+    @Override
+    public void markDirty(long srcOffset, long dstOffset, long byteCount) {
+        throw new UnsupportedOperationException("Use prepare(...) to schedule frame uniform uploads");
+    }
+
+    @Override
+    public void flush(org.dynamisgpu.api.gpu.VkCommandBuffer commandBuffer) {
+        throw new UnsupportedOperationException("Use VulkanUniformCopyCoordinator for command buffer flush");
+    }
+
+    @Override
+    public void reset() {
+        throw new UnsupportedOperationException("Use VulkanUploadStateTracker to reset staged ranges");
+    }
+
+    @Override
+    public void destroy() {
+        // No-op: static coordinator with no owned native resources.
     }
 
     @FunctionalInterface

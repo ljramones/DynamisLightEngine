@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.command;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamisgpu.api.gpu.BoundsBuffer;
 import org.dynamisgpu.api.error.GpuException;
 import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
 import org.dynamisgpu.vulkan.memory.VulkanBufferAlloc;
@@ -21,7 +22,7 @@ import static org.lwjgl.system.MemoryUtil.memByteBuffer;
 import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class VulkanMeshBoundsBuffer {
+public final class VulkanMeshBoundsBuffer implements BoundsBuffer {
     public static final int STRIDE_BYTES = 8 * Integer.BYTES;
 
     private final VkDevice device;
@@ -131,6 +132,20 @@ public final class VulkanMeshBoundsBuffer {
         memCopy(memAddress(src), mappedAddress, src.remaining());
     }
 
+    @Override
+    public void writeBounds(int meshIndex, float centerX, float centerY, float centerZ, float radius) {
+        if (meshIndex < 0 || meshIndex >= capacity || mappedAddress == 0L) {
+            return;
+        }
+        ByteBuffer mapped = memByteBuffer(mappedAddress, allocatedBytes).order(ByteOrder.nativeOrder());
+        int offset = meshIndex * STRIDE_BYTES;
+        if (offset + STRIDE_BYTES > allocatedBytes) {
+            return;
+        }
+        mapped.position(offset);
+        putBounds(mapped, centerX, centerY, centerZ, radius, meshIndex);
+    }
+
     private static void putBounds(ByteBuffer dst, float x, float y, float z, float radius, int meshIndex) {
         dst.putFloat(x);
         dst.putFloat(y);
@@ -152,6 +167,11 @@ public final class VulkanMeshBoundsBuffer {
             mapped.put((byte) 0);
         }
         mapped.clear();
+    }
+
+    @Override
+    public void flush() {
+        // No-op: writes are immediate to host-visible mapped memory.
     }
 
     public long bufferHandle() {

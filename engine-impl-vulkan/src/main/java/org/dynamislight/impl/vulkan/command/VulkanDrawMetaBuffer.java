@@ -2,6 +2,7 @@ package org.dynamislight.impl.vulkan.command;
 
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamisgpu.api.gpu.DrawMetaWriter;
 import org.dynamisgpu.api.error.GpuException;
 import org.dynamisgpu.vulkan.memory.VulkanMemoryOps;
 import org.dynamisgpu.vulkan.memory.VulkanBufferAlloc;
@@ -20,7 +21,7 @@ import static org.lwjgl.system.MemoryUtil.memByteBuffer;
 import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.vulkan.VK10.*;
 
-public final class VulkanDrawMetaBuffer {
+public final class VulkanDrawMetaBuffer implements DrawMetaWriter {
     public static final int STRIDE_BYTES = 8 * Integer.BYTES;
     public static final int INVALID_INDEX = 0xFFFF_FFFF;
 
@@ -187,6 +188,17 @@ public final class VulkanDrawMetaBuffer {
         lastUploadCount = count;
         lastInvalidIndexWrites = invalidIndexWrites;
         return count;
+    }
+
+    @Override
+    public void write(int jointPaletteIndex, int morphDeltaIndex, int morphWeightIndex, int instanceDataIndex,
+                      int materialIndex, int drawFlags, int meshIndex, int reserved0) {
+        throw new UnsupportedOperationException("Use upload(draws, heap, frame) for batched draw meta updates");
+    }
+
+    @Override
+    public void flush() {
+        // No-op: upload() writes directly into mapped memory.
     }
 
     public long bufferHandle() {
