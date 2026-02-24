@@ -61,6 +61,7 @@ import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneBuildRequestFactory
 import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUploadStateTracker;
+import org.dynamislight.impl.vulkan.vfx.VulkanVfxDepthSamplerBridge;
 import org.dynamislight.impl.vulkan.vfx.VulkanVfxIntegration;
 import org.dynamislight.spi.render.RenderFeatureMode;
 import org.vectrix.core.Matrix4f;
@@ -1354,7 +1355,22 @@ public final class VulkanContext {
                     currentProj,
                     frustumPlanes
             );
+            long depthImage = imageIndex >= 0 && imageIndex < backendResources.depthImages.length
+                    ? backendResources.depthImages[imageIndex]
+                    : VK_NULL_HANDLE;
+            long depthImageView = imageIndex >= 0 && imageIndex < backendResources.depthImageViews.length
+                    ? backendResources.depthImageViews[imageIndex]
+                    : VK_NULL_HANDLE;
+            VulkanVfxDepthSamplerBridge.transitionForVfxRead(commandBuffer, depthImage);
+            VulkanVfxDepthSamplerBridge.writeDepthDescriptor(
+                    backendResources.device,
+                    VK_NULL_HANDLE,
+                    depthImageView,
+                    VK_NULL_HANDLE,
+                    frameIdx
+            );
             vfxIntegration.recordDraws(frameIdx);
+            VulkanVfxDepthSamplerBridge.transitionAfterVfxRead(commandBuffer, depthImage);
             backendResources.vfxIndirectDrawBuffer = vfxIntegration.vfxIndirectBufferHandle();
             backendResources.vfxIndirectDrawCount = vfxIntegration.vfxDrawCount();
         } else {
