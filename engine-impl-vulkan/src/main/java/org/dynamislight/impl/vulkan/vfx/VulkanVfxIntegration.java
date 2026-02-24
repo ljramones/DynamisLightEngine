@@ -16,18 +16,24 @@ import java.util.List;
 public final class VulkanVfxIntegration {
     private final VulkanVfxService vfxService;
     private final VulkanVfxIndirectResources indirectResources;
+    private final VulkanVfxTextureRegistry textureRegistry;
     private final List<VfxHandle> activeHandles = new ArrayList<>();
     private int lastDrawCount;
 
-    private VulkanVfxIntegration(VulkanVfxService vfxService, VulkanVfxIndirectResources indirectResources) {
+    private VulkanVfxIntegration(
+            VulkanVfxService vfxService,
+            VulkanVfxIndirectResources indirectResources,
+            VulkanVfxTextureRegistry textureRegistry
+    ) {
         this.vfxService = vfxService;
         this.indirectResources = indirectResources;
+        this.textureRegistry = textureRegistry;
     }
 
     public static VulkanVfxIntegration create(VulkanContext ctx, VulkanBackendResources backendResources)
             throws EngineException {
         if (backendResources == null || backendResources.device == null) {
-            return new VulkanVfxIntegration(null, null);
+            return new VulkanVfxIntegration(null, null, null);
         }
         long deviceHandle = backendResources.device.address();
         VulkanVfxDescriptorSetLayout layout = VulkanVfxDescriptorSetLayout.create(deviceHandle);
@@ -37,7 +43,9 @@ public final class VulkanVfxIntegration {
                 backendResources.device,
                 backendResources.physicalDevice
         );
-        return new VulkanVfxIntegration(service, vfxIndirect);
+        VulkanVfxTextureRegistry textureRegistry = new VulkanVfxTextureRegistry(backendResources.bindlessDescriptorHeap);
+        textureRegistry.registerFallback(deviceHandle, null);
+        return new VulkanVfxIntegration(service, vfxIndirect, textureRegistry);
     }
 
     public void simulate(
@@ -83,6 +91,10 @@ public final class VulkanVfxIntegration {
 
     public int vfxDrawCount() {
         return lastDrawCount;
+    }
+
+    public VulkanVfxTextureRegistry textureRegistry() {
+        return textureRegistry;
     }
 
     public boolean hasActiveDecals() {
