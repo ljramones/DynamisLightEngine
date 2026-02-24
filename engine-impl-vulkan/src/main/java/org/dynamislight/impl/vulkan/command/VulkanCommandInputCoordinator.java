@@ -53,6 +53,8 @@ public final class VulkanCommandInputCoordinator {
                         request.sceneResources().gpuMeshes,
                         java.util.List.copyOf(request.sceneResources().instanceBatches.values()),
                         indirectDrawBuffer,
+                        request.backendResources().vfxIndirectDrawBuffer,
+                        request.backendResources().vfxIndirectDrawCount,
                         drawMetaBuffer,
                         request.cullingComputePass(),
                         request.viewProjMatrix(),

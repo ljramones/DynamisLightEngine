@@ -212,6 +212,8 @@ public final class VulkanRenderCommandRecorder {
                         in.swapchainWidth(),
                         in.swapchainHeight(),
                         in.indirectDrawBuffer(),
+                        0L,
+                        0,
                         in.indirectDrawCountBuffer(),
                         in.indirectStaticOffsetBytes(),
                         in.indirectMorphOffsetBytes(),
@@ -483,6 +485,8 @@ public final class VulkanRenderCommandRecorder {
             int swapchainWidth,
             int swapchainHeight,
             long indirectDrawBuffer,
+            long vfxIndirectDrawBuffer,
+            int vfxIndirectDrawCount,
             long indirectDrawCountBuffer,
             int indirectStaticOffsetBytes,
             int indirectMorphOffsetBytes,
@@ -580,6 +584,8 @@ public final class VulkanRenderCommandRecorder {
                     swapchainWidth,
                     swapchainHeight,
                     indirectDrawBuffer,
+                    0L,
+                    0,
                     indirectDrawCountBuffer,
                     indirectStaticOffsetBytes,
                     indirectMorphOffsetBytes,
@@ -618,7 +624,7 @@ public final class VulkanRenderCommandRecorder {
                     instancedPipelineLayout,
                     reflectionsMode,
                     reflectionsPlanarPlaneHeight
-                );
+            );
         }
     }
 

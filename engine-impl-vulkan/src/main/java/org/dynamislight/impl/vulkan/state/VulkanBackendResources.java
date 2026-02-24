@@ -86,6 +86,8 @@ public final class VulkanBackendResources {
     public VulkanIndirectDrawBuffer[] indirectDrawBuffers = new VulkanIndirectDrawBuffer[0];
     public VulkanIndirectDrawBuffer[] culledIndirectDrawBuffers = new VulkanIndirectDrawBuffer[0];
     public VulkanDrawMetaBuffer[] drawMetaBuffers = new VulkanDrawMetaBuffer[0];
+    public long vfxIndirectDrawBuffer = VK_NULL_HANDLE;
+    public int vfxIndirectDrawCount = 0;
     public VulkanCullingComputePass cullingComputePass;
     public VulkanBindlessDescriptorHeap bindlessDescriptorHeap = VulkanBindlessDescriptorHeap.disabled();
     public long[] imageAvailableSemaphores = new long[0];

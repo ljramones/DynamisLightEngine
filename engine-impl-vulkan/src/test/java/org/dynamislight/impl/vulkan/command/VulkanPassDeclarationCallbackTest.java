@@ -40,7 +40,16 @@ class VulkanPassDeclarationCallbackTest {
                 null,
                 null,
                 new VulkanRenderCommandRecorder.MainPassInputs(
-                        1, 1280, 720, 1L, 1L, 1L, 1L, 1L, 0, 0f
+                        1, 1280, 720,
+                        1L, 0L, 0, 0L,
+                        0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0,
+                        false, 0L, 0L,
+                        1L, 1L,
+                        1L, 1L,
+                        0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L,
+                        0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L,
+                        0, 0f
                 ),
                 List.of(),
                 i -> 0

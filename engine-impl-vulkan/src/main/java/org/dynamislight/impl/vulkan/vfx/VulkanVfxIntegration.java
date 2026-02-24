@@ -1,7 +1,7 @@
 package org.dynamislight.impl.vulkan.vfx;
 
 import org.dynamislight.impl.vulkan.VulkanContext;
-import org.dynamislight.impl.vulkan.command.VulkanIndirectDrawBuffer;
+import org.dynamislight.api.error.EngineException;
 import org.dynamislight.impl.vulkan.state.VulkanBackendResources;
 import org.dynamisvfx.api.ParticleEmitterDescriptor;
 import org.dynamisvfx.api.VfxBudgetStats;
@@ -15,21 +15,29 @@ import java.util.List;
 
 public final class VulkanVfxIntegration {
     private final VulkanVfxService vfxService;
+    private final VulkanVfxIndirectResources indirectResources;
     private final List<VfxHandle> activeHandles = new ArrayList<>();
+    private int lastDrawCount;
 
-    private VulkanVfxIntegration(VulkanVfxService vfxService) {
+    private VulkanVfxIntegration(VulkanVfxService vfxService, VulkanVfxIndirectResources indirectResources) {
         this.vfxService = vfxService;
+        this.indirectResources = indirectResources;
     }
 
-    public static VulkanVfxIntegration create(VulkanContext ctx, VulkanBackendResources backendResources) {
+    public static VulkanVfxIntegration create(VulkanContext ctx, VulkanBackendResources backendResources)
+            throws EngineException {
         if (backendResources == null || backendResources.device == null) {
-            return new VulkanVfxIntegration(null);
+            return new VulkanVfxIntegration(null, null);
         }
         long deviceHandle = backendResources.device.address();
         VulkanVfxDescriptorSetLayout layout = VulkanVfxDescriptorSetLayout.create(deviceHandle);
         VulkanVfxService service = new VulkanVfxService(deviceHandle, null, layout);
         service.setPhysicsHandoff(new VulkanVfxPhysicsHandoffAdapter());
-        return new VulkanVfxIntegration(service);
+        VulkanVfxIndirectResources vfxIndirect = VulkanVfxIndirectResources.create(
+                backendResources.device,
+                backendResources.physicalDevice
+        );
+        return new VulkanVfxIntegration(service, vfxIndirect);
     }
 
     public void simulate(
@@ -54,20 +62,27 @@ public final class VulkanVfxIntegration {
         vfxService.simulate(activeHandles, deltaTime, frameCtx);
     }
 
-    public void recordDraws(VulkanBackendResources backendResources, long frameIndex) {
-        if (vfxService == null
-                || backendResources == null
-                || backendResources.indirectDrawBuffers == null
-                || backendResources.indirectDrawBuffers.length == 0) {
+    public void recordDraws(long frameIndex) {
+        if (vfxService == null || indirectResources == null) {
+            lastDrawCount = 0;
             return;
         }
-        int slot = (int) (Math.floorMod(frameIndex, backendResources.indirectDrawBuffers.length));
-        VulkanIndirectDrawBuffer indirect = backendResources.indirectDrawBuffers[slot];
-        if (indirect == null) {
-            return;
-        }
+        var indirect = indirectResources.indirectBuffer();
+        indirect.clear();
         VulkanVfxDrawContextAdapter drawCtx = new VulkanVfxDrawContextAdapter(indirect, frameIndex);
         vfxService.recordDraws(activeHandles, drawCtx);
+        lastDrawCount = Math.max(0, indirect.commandCount());
+    }
+
+    public long vfxIndirectBufferHandle() {
+        if (indirectResources == null) {
+            return 0L;
+        }
+        return indirectResources.indirectBuffer().bufferHandle();
+    }
+
+    public int vfxDrawCount() {
+        return lastDrawCount;
     }
 
     public VfxHandle spawnEffect(ParticleEmitterDescriptor desc, float[] transform) {
@@ -100,6 +115,10 @@ public final class VulkanVfxIntegration {
         if (vfxService != null) {
             vfxService.destroy();
         }
+        if (indirectResources != null) {
+            indirectResources.destroy();
+        }
         activeHandles.clear();
+        lastDrawCount = 0;
     }
 }

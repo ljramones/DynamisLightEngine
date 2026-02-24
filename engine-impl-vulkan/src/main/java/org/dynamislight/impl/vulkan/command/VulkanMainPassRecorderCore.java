@@ -337,6 +337,17 @@ final class VulkanMainPassRecorderCore {
             }
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         }
+        if (anyDrawn
+                && in.vfxIndirectDrawBuffer() != VK_NULL_HANDLE
+                && in.vfxIndirectDrawCount() > 0) {
+            vkCmdDrawIndirect(
+                    commandBuffer,
+                    in.vfxIndirectDrawBuffer(),
+                    0L,
+                    in.vfxIndirectDrawCount(),
+                    COMMAND_STRIDE_BYTES
+            );
+        }
         vkCmdEndRenderPass(commandBuffer);
     }
 

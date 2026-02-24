@@ -1354,7 +1354,12 @@ public final class VulkanContext {
                     currentProj,
                     frustumPlanes
             );
-            vfxIntegration.recordDraws(backendResources, frameIdx);
+            vfxIntegration.recordDraws(frameIdx);
+            backendResources.vfxIndirectDrawBuffer = vfxIntegration.vfxIndirectBufferHandle();
+            backendResources.vfxIndirectDrawCount = vfxIntegration.vfxDrawCount();
+        } else {
+            backendResources.vfxIndirectDrawBuffer = VK_NULL_HANDLE;
+            backendResources.vfxIndirectDrawCount = 0;
         }
         VulkanFrameCommandOrchestrator.Inputs commandInputs = buildCommandInputs(frameIdx);
         VulkanFrameCommandOrchestrator.record(
