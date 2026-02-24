@@ -62,6 +62,7 @@ import org.dynamislight.impl.vulkan.uniform.VulkanGlobalSceneUniformCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUniformUploadCoordinator;
 import org.dynamislight.impl.vulkan.uniform.VulkanUploadStateTracker;
 import org.dynamislight.impl.vulkan.vfx.VulkanVfxDepthSamplerBridge;
+import org.dynamislight.impl.vulkan.vfx.VulkanVfxGBufferBridge;
 import org.dynamislight.impl.vulkan.vfx.VulkanVfxIntegration;
 import org.dynamislight.spi.render.RenderFeatureMode;
 import org.vectrix.core.Matrix4f;
@@ -1361,6 +1362,8 @@ public final class VulkanContext {
             long depthImageView = imageIndex >= 0 && imageIndex < backendResources.depthImageViews.length
                     ? backendResources.depthImageViews[imageIndex]
                     : VK_NULL_HANDLE;
+            boolean hasDecals = vfxIntegration.hasActiveDecals();
+            long normalImage = backendResources.velocityImage;
             VulkanVfxDepthSamplerBridge.transitionForVfxRead(commandBuffer, depthImage);
             VulkanVfxDepthSamplerBridge.writeDepthDescriptor(
                     backendResources.device,
@@ -1369,7 +1372,20 @@ public final class VulkanContext {
                     VK_NULL_HANDLE,
                     frameIdx
             );
+            if (hasDecals) {
+                VulkanVfxGBufferBridge.transitionNormalForVfxRead(commandBuffer, normalImage);
+                VulkanVfxGBufferBridge.writeNormalDescriptor(
+                        backendResources.device,
+                        VK_NULL_HANDLE,
+                        backendResources.velocityImageView,
+                        VK_NULL_HANDLE,
+                        frameIdx
+                );
+            }
             vfxIntegration.recordDraws(frameIdx);
+            if (hasDecals) {
+                VulkanVfxGBufferBridge.transitionNormalAfterVfxRead(commandBuffer, normalImage);
+            }
             VulkanVfxDepthSamplerBridge.transitionAfterVfxRead(commandBuffer, depthImage);
             backendResources.vfxIndirectDrawBuffer = vfxIntegration.vfxIndirectBufferHandle();
             backendResources.vfxIndirectDrawCount = vfxIntegration.vfxDrawCount();

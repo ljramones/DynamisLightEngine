@@ -85,6 +85,13 @@ public final class VulkanVfxIntegration {
         return lastDrawCount;
     }
 
+    public boolean hasActiveDecals() {
+        return activeHandles.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(Object::toString)
+                .anyMatch(id -> id.toLowerCase(java.util.Locale.ROOT).contains("decal"));
+    }
+
     public VfxHandle spawnEffect(ParticleEmitterDescriptor desc, float[] transform) {
         if (vfxService == null) {
             return null;
