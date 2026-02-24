@@ -42,6 +42,7 @@ import org.dynamislight.impl.vulkan.scene.VulkanReflectionProbeTextureCoordinato
 import org.dynamislight.impl.vulkan.scene.VulkanSceneSetPlanner;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneTextureRuntimeCoordinator;
 import org.dynamislight.impl.vulkan.scene.VulkanSceneTextureCoordinator;
+import org.dynamislight.impl.vulkan.sky.VulkanSkyRuntimeBridge;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowMatrixStateCoordinator;
 import org.dynamislight.impl.vulkan.state.VulkanFrameUploadStats;
 import org.dynamislight.impl.vulkan.state.VulkanIblState;
@@ -174,6 +175,7 @@ public final class VulkanContext {
 
     private VulkanVfxIntegration vfxIntegration;
     private final VfxRenderPhaseTracker vfxPhaseTracker = new VfxRenderPhaseTracker();
+    private final VulkanSkyRuntimeBridge skyRuntimeBridge = new VulkanSkyRuntimeBridge();
 
     VulkanContext() {
         backendResources.depthFormat = resolveConfiguredDepthFormat();
@@ -255,6 +257,7 @@ public final class VulkanContext {
                 )
         );
         vfxIntegration = VulkanVfxIntegration.create(this, backendResources);
+        skyRuntimeBridge.initialize(backendResources);
     }
 
     VulkanFrameMetrics renderFrame() throws EngineException {
@@ -1401,6 +1404,29 @@ public final class VulkanContext {
             vfxPhaseTracker.markComputeComplete();
             vfxPhaseTracker.markOpaqueComplete();
             vfxPhaseTracker.markVfxComplete();
+        }
+        Matrix4f viewProj = new Matrix4f(projMatrix).mul(viewMatrix);
+        Matrix4f invViewProj = new Matrix4f(viewProj).invert();
+        skyRuntimeBridge.updateAndRecord(commandBuffer.address(), frameIdx, viewProj, invViewProj);
+        if (skyRuntimeBridge.active()) {
+            float[] sunDir = skyRuntimeBridge.sunDirection();
+            float[] sunColor = skyRuntimeBridge.sunColor();
+            float sunIntensity = skyRuntimeBridge.sunIntensity();
+            var lightingUpdate = new VulkanLightingParameterMutator.LightingUpdate(
+                    sunDir,
+                    sunColor,
+                    sunIntensity,
+                    new float[]{lightingState.pointLightPosX(), lightingState.pointLightPosY(), lightingState.pointLightPosZ()},
+                    new float[]{lightingState.pointLightColorR(), lightingState.pointLightColorG(), lightingState.pointLightColorB()},
+                    lightingState.pointLightIntensity(),
+                    new float[]{lightingState.pointLightDirX(), lightingState.pointLightDirY(), lightingState.pointLightDirZ()},
+                    lightingState.pointLightInnerCos(),
+                    lightingState.pointLightOuterCos(),
+                    lightingState.pointLightIsSpot() > 0.5f,
+                    lightingState.pointShadowFarPlane(),
+                    lightingState.pointShadowEnabled()
+            );
+            lightingState = VulkanLightingParameterMutator.applyLighting(lightingState, lightingUpdate).state();
         }
         VulkanFrameCommandOrchestrator.Inputs commandInputs = buildCommandInputs(frameIdx);
         VulkanFrameCommandOrchestrator.record(
