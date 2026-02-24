@@ -64,6 +64,7 @@ import org.dynamislight.impl.vulkan.uniform.VulkanUploadStateTracker;
 import org.dynamislight.impl.vulkan.vfx.VulkanVfxDepthSamplerBridge;
 import org.dynamislight.impl.vulkan.vfx.VulkanVfxGBufferBridge;
 import org.dynamislight.impl.vulkan.vfx.VulkanVfxIntegration;
+import org.dynamislight.impl.vulkan.vfx.VfxRenderPhaseTracker;
 import org.dynamislight.spi.render.RenderFeatureMode;
 import org.vectrix.core.Matrix4f;
 import org.lwjgl.system.MemoryStack;
@@ -172,6 +173,7 @@ public final class VulkanContext {
     private VulkanPipelineProfileCompilation activePipelineProfile = pipelineProfileCache.getOrCompile(activePipelineProfileKey);
 
     private VulkanVfxIntegration vfxIntegration;
+    private final VfxRenderPhaseTracker vfxPhaseTracker = new VfxRenderPhaseTracker();
 
     VulkanContext() {
         backendResources.depthFormat = resolveConfiguredDepthFormat();
@@ -1343,6 +1345,7 @@ public final class VulkanContext {
     }
 
     private void recordCommandBuffer(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex, int frameIdx) throws EngineException {
+        vfxPhaseTracker.beginFrame();
         if (vfxIntegration != null) {
             float[] currentView = matrixToArray(viewMatrix);
             float[] currentProj = matrixToArray(projMatrix);
@@ -1356,6 +1359,7 @@ public final class VulkanContext {
                     currentProj,
                     frustumPlanes
             );
+            vfxPhaseTracker.markComputeComplete();
             long depthImage = imageIndex >= 0 && imageIndex < backendResources.depthImages.length
                     ? backendResources.depthImages[imageIndex]
                     : VK_NULL_HANDLE;
@@ -1382,7 +1386,9 @@ public final class VulkanContext {
                         frameIdx
                 );
             }
+            vfxPhaseTracker.markOpaqueComplete();
             vfxIntegration.recordDraws(frameIdx);
+            vfxPhaseTracker.markVfxComplete();
             if (hasDecals) {
                 VulkanVfxGBufferBridge.transitionNormalAfterVfxRead(commandBuffer, normalImage);
             }
@@ -1392,6 +1398,9 @@ public final class VulkanContext {
         } else {
             backendResources.vfxIndirectDrawBuffer = VK_NULL_HANDLE;
             backendResources.vfxIndirectDrawCount = 0;
+            vfxPhaseTracker.markComputeComplete();
+            vfxPhaseTracker.markOpaqueComplete();
+            vfxPhaseTracker.markVfxComplete();
         }
         VulkanFrameCommandOrchestrator.Inputs commandInputs = buildCommandInputs(frameIdx);
         VulkanFrameCommandOrchestrator.record(
@@ -1408,6 +1417,7 @@ public final class VulkanContext {
                 ),
                 commandInputs
         );
+        vfxPhaseTracker.markPostProcess();
     }
 
     private VulkanFrameCommandOrchestrator.Inputs buildCommandInputs(int frameIdx) {
