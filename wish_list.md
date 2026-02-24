@@ -17,7 +17,7 @@ Review metadata:
 - Latest skinned+morph integration update: 2026-02-23 14:00 ET — Combined skinned+morph Vulkan path landed (dedicated skinned+morph vertex shader, fourth main-pass pipeline variant, static→morph→skinned→skinned+morph draw routing, and dual descriptor binding for joints+morph data).
 - Latest instanced rendering update: 2026-02-23 14:12 ET — Instanced rendering runtime path landed in Vulkan (instance batch API surface, per-batch instance SSBO at `set=2,binding=5`, dedicated instanced vertex shader/pipeline variant, and static→morph→skinned→skinned+morph→instanced draw routing).
 - Latest GPU-driven submission update: 2026-02-23 14:39 ET — Vulkan Phase 2 GPU frustum culling compute pass landed (`VulkanMeshBoundsBuffer` + `VulkanCullingComputePass` + `VulkanCullingComputeSource`) writing cull-filtered indirect command slots before the main pass.
-- Latest bindless migration update: 2026-02-23 18:40 ET — Bindless Step 5 parity gate validated (`BindlessParityCheckTest` green) after Step 4 morph + skinned/morph bindless migration and Step 5 instanced main/shadow bindless migration; unified indirect Step 6 is now unblocked.
+- Latest bindless migration update: 2026-02-23 18:54 ET — Bindless Step 6 parity gate validated (`BindlessParityCheckTest` green) after unified indirect-count submission wiring (variant-ranged compact output + grouped `vkCmdDrawIndexedIndirectCount` path) in Vulkan lane.
 
 Status legend:
 
@@ -400,9 +400,9 @@ Geometry notes:
 - Skinned mesh / skeletal animation is now `In` for Vulkan scope: dual static/skinned main-pass pipelines, dedicated skinned vertex input + shader path, per-mesh joint-palette SSBO binding (`set=2,binding=2`), JOINTS_0/WEIGHTS_0 parsing with normalized weights + joint-count propagation, and runtime API upload path (`updateSkinnedMesh()`).
 - Morph targets / blend shapes are now `In` for Vulkan scope: morph delta SSBO ingestion from glTF targets, per-mesh morph weight UBO upload path (`updateMorphWeights()`), dedicated morph vertex shader path, and explicit static/morph/skinned main-pass pipeline routing.
 - Skinned mesh + morph targets combined is now `In` for Vulkan scope: dedicated skinned+morph vertex shader path (morph-in-bind-pose then skin), fourth geometry pipeline variant, and combined draw-path descriptor binding for joints + morph deltas/weights.
-- GPU-driven rendering is now `Partial` for Vulkan scope: Phase 1+2 are active (`VulkanIndirectDrawBuffer` + per-frame indirect upload + GPU frustum culling compute pass with per-mesh bounds SSBO), with indirect-count dispatch and per-variant indirect batching still pending.
+- GPU-driven rendering is now `In` for Vulkan scope: Phases 1+2+3 are active (`VulkanIndirectDrawBuffer` + per-frame indirect upload + GPU frustum culling compute pass with unified variant-ranged output + grouped indirect-count submission path).
 - Mesh ingest now runs through MeshForge on the active Vulkan runtime path (no internal manual glTF accessor/interleave parser path): `VulkanGltfMeshParser` is now a MeshForge adapter with parser telemetry + hard-fail on parse exceptions.
-- Bindless migration is now at Step 5 validated state: static, skinned, morph, skinned+morph, and instanced (main + shadow) routes are all bindless-parity verified in the Vulkan lane (latest gate green on 2026-02-23); Step 6 unified indirect-count submission remains pending.
+- Bindless migration is now at Step 6 validated state: static, skinned, morph, skinned+morph, and instanced (main + shadow) routes are bindless-parity verified, and unified indirect-count submission path is active in Vulkan lane (latest gate green on 2026-02-23).
 
 ## VFX / Particles
 

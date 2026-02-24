@@ -128,6 +128,8 @@ public final class VulkanFrameCommandOrchestrator {
         }
         meshes.sort((left, right) -> Integer.compare(drawPathRank(left), drawPathRank(right)));
         long activeIndirectBufferHandle = VK_NULL_HANDLE;
+        long activeIndirectCountBufferHandle = VK_NULL_HANDLE;
+        VulkanIndirectDrawBuffer activeIndirectBuffer = null;
         int activeDrawCount = meshes.size();
         if (inputs.indirectDrawBuffer() != null) {
             activeDrawCount = inputs.indirectDrawBuffer().upload(meshes);
@@ -135,6 +137,7 @@ public final class VulkanFrameCommandOrchestrator {
                 meshes = new ArrayList<>(meshes.subList(0, activeDrawCount));
             }
             activeIndirectBufferHandle = inputs.indirectDrawBuffer().bufferHandle();
+            activeIndirectBuffer = inputs.indirectDrawBuffer();
             if (inputs.cullingComputePass() != null) {
                 inputs.cullingComputePass().uploadMeshBounds(inputs.gpuMeshes());
                 inputs.cullingComputePass().dispatch(
@@ -146,7 +149,36 @@ public final class VulkanFrameCommandOrchestrator {
                         inputs.viewProjMatrix()
                 );
                 activeIndirectBufferHandle = inputs.cullingComputePass().culledIndirectBufferHandle(frameIdx);
+                activeIndirectCountBufferHandle = inputs.cullingComputePass().drawCountBufferHandle(frameIdx);
+                activeIndirectBuffer = inputs.cullingComputePass().culledIndirectBuffer(frameIdx);
             }
+        }
+        int indirectStaticOffsetBytes = 0;
+        int indirectMorphOffsetBytes = 0;
+        int indirectSkinnedOffsetBytes = 0;
+        int indirectSkinnedMorphOffsetBytes = 0;
+        int indirectInstancedOffsetBytes = 0;
+        int indirectStaticMaxDraws = 0;
+        int indirectMorphMaxDraws = 0;
+        int indirectSkinnedMaxDraws = 0;
+        int indirectSkinnedMorphMaxDraws = 0;
+        int indirectInstancedMaxDraws = 0;
+        if (activeIndirectBuffer != null) {
+            indirectStaticOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_STATIC)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectMorphOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_MORPH)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectSkinnedOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_SKINNED)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectSkinnedMorphOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_SKINNED_MORPH)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectInstancedOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_INSTANCED)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectStaticMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_STATIC);
+            indirectMorphMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_MORPH);
+            indirectSkinnedMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_SKINNED);
+            indirectSkinnedMorphMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_SKINNED_MORPH);
+            indirectInstancedMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_INSTANCED);
         }
         if (inputs.drawMetaBuffer() != null) {
             inputs.drawMetaBuffer().upload(meshes, inputs.bindlessDescriptorHeap(), frameIdx);
@@ -197,6 +229,10 @@ public final class VulkanFrameCommandOrchestrator {
 
         VulkanRenderCommandRecorder.ShadowPassInputs shadowInputs = new VulkanRenderCommandRecorder.ShadowPassInputs(
                 drawCount,
+                activeIndirectBufferHandle,
+                activeIndirectCountBufferHandle,
+                indirectInstancedOffsetBytes,
+                indirectInstancedMaxDraws,
                 inputs.shadowMapResolution(),
                 inputs.shadowEnabled(),
                 inputs.pointShadowEnabled(),
@@ -232,6 +268,17 @@ public final class VulkanFrameCommandOrchestrator {
                 inputs.swapchainWidth(),
                 inputs.swapchainHeight(),
                 activeIndirectBufferHandle,
+                activeIndirectCountBufferHandle,
+                indirectStaticOffsetBytes,
+                indirectMorphOffsetBytes,
+                indirectSkinnedOffsetBytes,
+                indirectSkinnedMorphOffsetBytes,
+                indirectInstancedOffsetBytes,
+                indirectStaticMaxDraws,
+                indirectMorphMaxDraws,
+                indirectSkinnedMaxDraws,
+                indirectSkinnedMorphMaxDraws,
+                indirectInstancedMaxDraws,
                 inputs.bindlessActive(),
                 inputs.bindlessDescriptorSet(),
                 frameDescriptorSet,
@@ -280,6 +327,17 @@ public final class VulkanFrameCommandOrchestrator {
                 inputs.swapchainWidth(),
                 inputs.swapchainHeight(),
                 activeIndirectBufferHandle,
+                activeIndirectCountBufferHandle,
+                indirectStaticOffsetBytes,
+                indirectMorphOffsetBytes,
+                indirectSkinnedOffsetBytes,
+                indirectSkinnedMorphOffsetBytes,
+                indirectInstancedOffsetBytes,
+                indirectStaticMaxDraws,
+                indirectMorphMaxDraws,
+                indirectSkinnedMaxDraws,
+                indirectSkinnedMorphMaxDraws,
+                indirectInstancedMaxDraws,
                 inputs.bindlessActive(),
                 inputs.bindlessDescriptorSet(),
                 frameDescriptorSet,

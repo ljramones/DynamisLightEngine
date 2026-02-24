@@ -19,7 +19,8 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public final class VulkanCullingComputePass {
     private static final int LOCAL_SIZE_X = 64;
-    private static final int PUSH_BYTES = (6 * 4 * Float.BYTES) + (4 * Integer.BYTES);
+    private static final int DRAW_COUNT_BUFFER_BYTES = 8 * Integer.BYTES;
+    private static final int PUSH_BYTES = (6 * 4 * Float.BYTES) + (8 * Integer.BYTES);
 
     private final VkDevice device;
     private final VulkanMeshBoundsBuffer boundsBuffer;
@@ -82,7 +83,7 @@ public final class VulkanCullingComputePass {
                         device,
                         physicalDevice,
                         stack,
-                        Integer.BYTES,
+                        DRAW_COUNT_BUFFER_BYTES,
                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
                 );
@@ -151,7 +152,12 @@ public final class VulkanCullingComputePass {
         }
         push.putInt(drawCount);
         push.putInt(safeBoundsCount);
-        push.putInt(0);
+        VulkanIndirectDrawBuffer.Layout layout = outputBuffers[frameIdx].layout();
+        push.putInt(layout.staticOffsetCommands());
+        push.putInt(layout.morphOffsetCommands());
+        push.putInt(layout.skinnedOffsetCommands());
+        push.putInt(layout.skinnedMorphOffsetCommands());
+        push.putInt(layout.instancedOffsetCommands());
         push.putInt(0);
         push.flip();
         vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, push);
@@ -166,6 +172,13 @@ public final class VulkanCullingComputePass {
             return VK_NULL_HANDLE;
         }
         return outputBuffers[frameIdx].bufferHandle();
+    }
+
+    public VulkanIndirectDrawBuffer culledIndirectBuffer(int frameIdx) {
+        if (frameIdx < 0 || frameIdx >= outputBuffers.length) {
+            return null;
+        }
+        return outputBuffers[frameIdx];
     }
 
     public long drawCountBufferHandle(int frameIdx) {
@@ -200,7 +213,7 @@ public final class VulkanCullingComputePass {
     }
 
     private void resetDrawCount(VkCommandBuffer commandBuffer, int frameIdx) {
-        vkCmdFillBuffer(commandBuffer, drawCountBuffers[frameIdx], 0, Integer.BYTES, 0);
+        vkCmdFillBuffer(commandBuffer, drawCountBuffers[frameIdx], 0, DRAW_COUNT_BUFFER_BYTES, 0);
     }
 
     private void barrierTransferToCompute(VkCommandBuffer commandBuffer, int frameIdx) {
@@ -229,7 +242,7 @@ public final class VulkanCullingComputePass {
 
     private void barrierComputeToIndirect(VkCommandBuffer commandBuffer, int frameIdx) {
         try (MemoryStack stack = stackPush()) {
-            VkBufferMemoryBarrier.Buffer barriers = VkBufferMemoryBarrier.calloc(1, stack);
+            VkBufferMemoryBarrier.Buffer barriers = VkBufferMemoryBarrier.calloc(2, stack);
             barriers.get(0)
                     .sType(VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER)
                     .srcAccessMask(VK_ACCESS_SHADER_WRITE_BIT)
@@ -237,6 +250,15 @@ public final class VulkanCullingComputePass {
                     .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                     .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
                     .buffer(outputBuffers[frameIdx].bufferHandle())
+                    .offset(0)
+                    .size(VK_WHOLE_SIZE);
+            barriers.get(1)
+                    .sType(VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER)
+                    .srcAccessMask(VK_ACCESS_SHADER_WRITE_BIT)
+                    .dstAccessMask(VK_ACCESS_INDIRECT_COMMAND_READ_BIT)
+                    .srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .dstQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED)
+                    .buffer(drawCountBuffers[frameIdx])
                     .offset(0)
                     .size(VK_WHOLE_SIZE);
             vkCmdPipelineBarrier(
@@ -340,7 +362,7 @@ public final class VulkanCullingComputePass {
         infos.get(0).buffer(boundsBuffer).offset(0).range(VK_WHOLE_SIZE);
         infos.get(1).buffer(inputDrawBuffer).offset(0).range(VK_WHOLE_SIZE);
         infos.get(2).buffer(outputDrawBuffer).offset(0).range(VK_WHOLE_SIZE);
-        infos.get(3).buffer(drawCountBuffer).offset(0).range(Integer.BYTES);
+        infos.get(3).buffer(drawCountBuffer).offset(0).range(DRAW_COUNT_BUFFER_BYTES);
 
         VkWriteDescriptorSet.Buffer writes = VkWriteDescriptorSet.calloc(4, stack);
         for (int i = 0; i < 4; i++) {

@@ -13,6 +13,7 @@ import org.lwjgl.vulkan.VkRenderPassBeginInfo;
 
 import static org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder.*;
 import static org.dynamislight.impl.vulkan.command.VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+import static org.lwjgl.vulkan.KHRDrawIndirectCount.vkCmdDrawIndexedIndirectCountKHR;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.VK10.*;
 
@@ -124,6 +125,20 @@ final class VulkanMainPassRecorderCore {
         float planarHeight = planarClipEnabled ? in.reflectionsPlanarPlaneHeight() : -10_000.0f;
         ByteBuffer planarPush = stack.malloc(4 * Float.BYTES);
         planarPush.asFloatBuffer().put(new float[]{planarCaptureFlag, planarHeight, 0.0f, 0.0f});
+        if (tryRecordGroupedIndirectCount(
+                stack,
+                commandBuffer,
+                in,
+                meshes,
+                dynamicUniformOffset,
+                planarPush,
+                planarCaptureFlag,
+                planarHeight,
+                planarSelectiveOnly
+        )) {
+            vkCmdEndRenderPass(commandBuffer);
+            return;
+        }
         long boundPipeline = VK_NULL_HANDLE;
         long boundPipelineLayout = VK_NULL_HANDLE;
         boolean anyDrawn = false;
@@ -323,6 +338,134 @@ final class VulkanMainPassRecorderCore {
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         }
         vkCmdEndRenderPass(commandBuffer);
+    }
+
+    private static boolean tryRecordGroupedIndirectCount(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            MainPassInputs in,
+            List<MeshDrawCmd> meshes,
+            IntUnaryOperator dynamicUniformOffset,
+            ByteBuffer planarPush,
+            float planarCaptureFlag,
+            float planarHeight,
+            boolean planarSelectiveOnly
+    ) {
+        if (!in.bindlessActive()
+                || in.indirectDrawBuffer() == VK_NULL_HANDLE
+                || in.indirectDrawCountBuffer() == VK_NULL_HANDLE
+                || meshes == null
+                || meshes.isEmpty()) {
+            return false;
+        }
+
+        MeshDrawCmd staticMesh = null;
+        MeshDrawCmd morphMesh = null;
+        MeshDrawCmd skinnedMesh = null;
+        MeshDrawCmd skinnedMorphMesh = null;
+        MeshDrawCmd instancedMesh = null;
+        for (MeshDrawCmd mesh : meshes) {
+            if (planarSelectiveOnly && !isPlanarEligible(mesh.reflectionOverrideMode(), in.reflectionsMode())) {
+                continue;
+            }
+            if (mesh.instanced()) {
+                if (instancedMesh == null) {
+                    instancedMesh = mesh;
+                }
+                continue;
+            }
+            if (mesh.skinned() && mesh.morphTargeted()) {
+                if (skinnedMorphMesh == null) {
+                    skinnedMorphMesh = mesh;
+                }
+            } else if (mesh.skinned()) {
+                if (skinnedMesh == null) {
+                    skinnedMesh = mesh;
+                }
+            } else if (mesh.morphTargeted()) {
+                if (morphMesh == null) {
+                    morphMesh = mesh;
+                }
+            } else if (staticMesh == null) {
+                staticMesh = mesh;
+            }
+        }
+
+        return drawGroupedVariant(stack, commandBuffer, in, staticMesh, dynamicUniformOffset, planarPush, planarCaptureFlag, planarHeight,
+                in.bindlessStaticGraphicsPipeline(), in.bindlessStaticPipelineLayout(), in.indirectStaticOffsetBytes(), 0 * Integer.BYTES, in.indirectStaticMaxDraws())
+                | drawGroupedVariant(stack, commandBuffer, in, morphMesh, dynamicUniformOffset, planarPush, planarCaptureFlag, planarHeight,
+                in.bindlessMorphGraphicsPipeline(), in.bindlessMorphPipelineLayout(), in.indirectMorphOffsetBytes(), 1 * Integer.BYTES, in.indirectMorphMaxDraws())
+                | drawGroupedVariant(stack, commandBuffer, in, skinnedMesh, dynamicUniformOffset, planarPush, planarCaptureFlag, planarHeight,
+                in.bindlessSkinnedGraphicsPipeline(), in.bindlessSkinnedPipelineLayout(), in.indirectSkinnedOffsetBytes(), 2 * Integer.BYTES, in.indirectSkinnedMaxDraws())
+                | drawGroupedVariant(stack, commandBuffer, in, skinnedMorphMesh, dynamicUniformOffset, planarPush, planarCaptureFlag, planarHeight,
+                in.bindlessSkinnedMorphGraphicsPipeline(), in.bindlessSkinnedMorphPipelineLayout(), in.indirectSkinnedMorphOffsetBytes(), 3 * Integer.BYTES, in.indirectSkinnedMorphMaxDraws())
+                | drawGroupedVariant(stack, commandBuffer, in, instancedMesh, dynamicUniformOffset, planarPush, planarCaptureFlag, planarHeight,
+                in.bindlessInstancedGraphicsPipeline(), in.bindlessInstancedPipelineLayout(), in.indirectInstancedOffsetBytes(), 4 * Integer.BYTES, in.indirectInstancedMaxDraws());
+    }
+
+    private static boolean drawGroupedVariant(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            MainPassInputs in,
+            MeshDrawCmd representative,
+            IntUnaryOperator dynamicUniformOffset,
+            ByteBuffer planarPush,
+            float planarCaptureFlag,
+            float planarHeight,
+            long pipeline,
+            long pipelineLayout,
+            int indirectOffsetBytes,
+            int countBufferOffsetBytes,
+            int maxDraws
+    ) {
+        if (representative == null
+                || pipeline == VK_NULL_HANDLE
+                || pipelineLayout == VK_NULL_HANDLE
+                || maxDraws <= 0) {
+            return false;
+        }
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+        vkCmdBindDescriptorSets(
+                commandBuffer,
+                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                pipelineLayout,
+                3,
+                stack.longs(in.bindlessDescriptorSet()),
+                null
+        );
+        planarPush.clear();
+        float morphTargetCount = representative.morphTargeted() ? (float) representative.morphTargetCount() : 0.0f;
+        float morphVertexCount = representative.morphTargeted() ? (float) representative.morphVertexCount() : 0.0f;
+        planarPush.asFloatBuffer().put(new float[]{planarCaptureFlag, planarHeight, morphTargetCount, morphVertexCount});
+        vkCmdPushConstants(
+                commandBuffer,
+                pipelineLayout,
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                0,
+                planarPush
+        );
+        if (in.frameDescriptorSet() != VK_NULL_HANDLE && representative.textureDescriptorSet() != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(
+                    commandBuffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    pipelineLayout,
+                    0,
+                    stack.longs(in.frameDescriptorSet(), representative.textureDescriptorSet()),
+                    stack.ints(dynamicUniformOffset.applyAsInt(representative.uniformMeshIndex()))
+            );
+        }
+        vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(representative.vertexBuffer()), stack.longs(0));
+        vkCmdBindIndexBuffer(commandBuffer, representative.indexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexedIndirectCountKHR(
+                commandBuffer,
+                in.indirectDrawBuffer(),
+                Integer.toUnsignedLong(indirectOffsetBytes),
+                in.indirectDrawCountBuffer(),
+                Integer.toUnsignedLong(countBufferOffsetBytes),
+                maxDraws,
+                COMMAND_STRIDE_BYTES
+        );
+        return true;
     }
 
     private static boolean isPlanarEligible(int reflectionOverrideMode, int reflectionsMode) {

@@ -12,6 +12,8 @@ import org.lwjgl.vulkan.VkImageMemoryBarrier;
 import org.lwjgl.vulkan.VkRenderPassBeginInfo;
 
 import static org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder.*;
+import static org.dynamislight.impl.vulkan.command.VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+import static org.lwjgl.vulkan.KHRDrawIndirectCount.vkCmdDrawIndexedIndirectCountKHR;
 import static org.lwjgl.vulkan.VK10.*;
 
 import org.dynamislight.impl.vulkan.command.VulkanRenderCommandRecorder.MeshDrawCmd;
@@ -99,8 +101,58 @@ final class VulkanShadowPassRecorderCore {
                 cascadePush.putInt(0, cascadeIndex);
                 vkCmdPushConstants(commandBuffer, in.shadowPipelineLayout(), VK_SHADER_STAGE_VERTEX_BIT, 0, cascadePush);
                 long boundPipeline = VK_NULL_HANDLE;
+                boolean groupedInstancedDrawIssued = false;
+                if (in.bindlessActive()
+                        && in.indirectDrawBuffer() != VK_NULL_HANDLE
+                        && in.indirectDrawCountBuffer() != VK_NULL_HANDLE
+                        && in.shadowBindlessInstancedPipeline() != VK_NULL_HANDLE
+                        && in.bindlessDescriptorSet() != VK_NULL_HANDLE
+                        && in.indirectInstancedMaxDraws() > 0) {
+                    MeshDrawCmd representativeInstanced = null;
+                    for (MeshDrawCmd candidate : meshes) {
+                        if (candidate.instanced()) {
+                            representativeInstanced = candidate;
+                            break;
+                        }
+                    }
+                    if (representativeInstanced != null) {
+                        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, in.shadowBindlessInstancedPipeline());
+                        vkCmdBindDescriptorSets(
+                                commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                in.shadowPipelineLayout(),
+                                3,
+                                stack.longs(in.bindlessDescriptorSet()),
+                                null
+                        );
+                        vkCmdBindDescriptorSets(
+                                commandBuffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                in.shadowPipelineLayout(),
+                                0,
+                                stack.longs(in.frameDescriptorSet()),
+                                stack.ints(dynamicUniformOffset.applyAsInt(representativeInstanced.uniformMeshIndex()))
+                        );
+                        vkCmdBindVertexBuffers(commandBuffer, 0, stack.longs(representativeInstanced.vertexBuffer()), stack.longs(0));
+                        vkCmdBindIndexBuffer(commandBuffer, representativeInstanced.indexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+                        vkCmdDrawIndexedIndirectCountKHR(
+                                commandBuffer,
+                                in.indirectDrawBuffer(),
+                                Integer.toUnsignedLong(in.indirectInstancedOffsetBytes()),
+                                in.indirectDrawCountBuffer(),
+                                Integer.toUnsignedLong(4 * Integer.BYTES),
+                                in.indirectInstancedMaxDraws(),
+                                COMMAND_STRIDE_BYTES
+                        );
+                        groupedInstancedDrawIssued = true;
+                        boundPipeline = in.shadowBindlessInstancedPipeline();
+                    }
+                }
                 for (int meshIndex = 0; meshIndex < in.drawCount() && meshIndex < meshes.size(); meshIndex++) {
                     MeshDrawCmd mesh = meshes.get(meshIndex);
+                    if (groupedInstancedDrawIssued && mesh.instanced()) {
+                        continue;
+                    }
                     boolean bindlessInstancedDraw = in.bindlessActive()
                             && mesh.instanced()
                             && in.shadowBindlessInstancedPipeline() != VK_NULL_HANDLE

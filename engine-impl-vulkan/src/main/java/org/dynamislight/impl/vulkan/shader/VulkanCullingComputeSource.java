@@ -35,16 +35,30 @@ public final class VulkanCullingComputeSource {
                 } outputCmds;
 
                 layout(set = 0, binding = 3) buffer DrawCount {
-                    uint count;
+                    uint counts[8];
                 } drawCount;
 
                 layout(push_constant) uniform FrustumPush {
                     vec4 planes[6];
-                    uint drawCount;
-                    uint boundsCount;
-                    uint _pad0;
-                    uint _pad1;
+                    uvec4 header0; // x=drawCount, y=boundsCount, z=staticBase, w=morphBase
+                    uvec4 header1; // x=skinnedBase, y=skinnedMorphBase, z=instancedBase, w=unused
                 } pc;
+
+                uint variantBase(uint variant) {
+                    if (variant == 0u) {
+                        return pc.header0.z;
+                    }
+                    if (variant == 1u) {
+                        return pc.header0.w;
+                    }
+                    if (variant == 2u) {
+                        return pc.header1.x;
+                    }
+                    if (variant == 3u) {
+                        return pc.header1.y;
+                    }
+                    return pc.header1.z;
+                }
 
                 bool sphereVisible(vec3 center, float radius) {
                     for (int i = 0; i < 6; i++) {
@@ -59,32 +73,27 @@ public final class VulkanCullingComputeSource {
 
                 void main() {
                     uint id = gl_GlobalInvocationID.x;
-                    if (id >= pc.drawCount) {
+                    if (id >= pc.header0.x) {
                         return;
                     }
 
                     DrawCmd cmd = inputCmds.cmds[id];
+                    uint variant = (cmd.firstInstance >> 29u) & 0x7u;
+                    cmd.firstInstance = cmd.firstInstance & 0x1FFFFFFFu;
+                    if (variant > 4u) {
+                        variant = 0u;
+                    }
 
-                    // Instance draws are appended after per-mesh draws in current submission ordering.
-                    // Those slots currently bypass culling because bounds are tracked per registered mesh.
-                    if (id >= pc.boundsCount) {
-                        outputCmds.cmds[id] = cmd;
-                        atomicAdd(drawCount.count, 1u);
+                    bool visible = true;
+                    if (id < pc.header0.y) {
+                        MeshBounds b = meshBounds.bounds[id];
+                        visible = sphereVisible(b.centerRadius.xyz, b.centerRadius.w);
+                    }
+                    if (!visible) {
                         return;
                     }
-
-                    MeshBounds b = meshBounds.bounds[id];
-                    bool visible = sphereVisible(b.centerRadius.xyz, b.centerRadius.w);
-                    if (visible) {
-                        outputCmds.cmds[id] = cmd;
-                        atomicAdd(drawCount.count, 1u);
-                    } else {
-                        outputCmds.cmds[id].indexCount = 0u;
-                        outputCmds.cmds[id].instanceCount = 0u;
-                        outputCmds.cmds[id].firstIndex = 0u;
-                        outputCmds.cmds[id].vertexOffset = 0;
-                        outputCmds.cmds[id].firstInstance = 0u;
-                    }
+                    uint outIndex = variantBase(variant) + atomicAdd(drawCount.counts[variant], 1u);
+                    outputCmds.cmds[outIndex] = cmd;
                 }
                 """;
     }

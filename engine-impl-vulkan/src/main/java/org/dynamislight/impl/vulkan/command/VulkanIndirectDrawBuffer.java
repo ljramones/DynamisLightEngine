@@ -31,6 +31,15 @@ import static org.lwjgl.vulkan.VK10.vkUnmapMemory;
 
 public final class VulkanIndirectDrawBuffer {
     public static final int COMMAND_STRIDE_BYTES = 5 * Integer.BYTES;
+    public static final int VARIANT_COUNT = 5;
+    public static final int VARIANT_STATIC = 0;
+    public static final int VARIANT_MORPH = 1;
+    public static final int VARIANT_SKINNED = 2;
+    public static final int VARIANT_SKINNED_MORPH = 3;
+    public static final int VARIANT_INSTANCED = 4;
+
+    private static final int VARIANT_SHIFT = 29;
+    private static final int FIRST_INSTANCE_MASK = (1 << VARIANT_SHIFT) - 1;
 
     private final VkDevice device;
     private final long buffer;
@@ -38,6 +47,7 @@ public final class VulkanIndirectDrawBuffer {
     private final long mappedAddress;
     private final int capacity;
     private final int allocatedBytes;
+    private final Layout layout;
     private int commandCount;
 
     private VulkanIndirectDrawBuffer(
@@ -46,7 +56,8 @@ public final class VulkanIndirectDrawBuffer {
             long memory,
             long mappedAddress,
             int capacity,
-            int allocatedBytes
+            int allocatedBytes,
+            Layout layout
     ) {
         this.device = device;
         this.buffer = buffer;
@@ -54,6 +65,7 @@ public final class VulkanIndirectDrawBuffer {
         this.mappedAddress = mappedAddress;
         this.capacity = capacity;
         this.allocatedBytes = allocatedBytes;
+        this.layout = layout;
         this.commandCount = 0;
     }
 
@@ -97,7 +109,8 @@ public final class VulkanIndirectDrawBuffer {
                     alloc.memory(),
                     mapped.get(0),
                     safeCapacity,
-                    bytes
+                    bytes,
+                    Layout.create(safeCapacity)
             );
             result.clear();
             return result;
@@ -114,11 +127,14 @@ public final class VulkanIndirectDrawBuffer {
         ByteBuffer src = ByteBuffer.allocateDirect(bytes).order(ByteOrder.nativeOrder());
         for (int i = 0; i < writeCount; i++) {
             VulkanRenderCommandRecorder.MeshDrawCmd draw = draws.get(i);
+            int variant = variantOf(draw);
+            int firstInstance = Math.max(0, draw.firstInstance()) & FIRST_INSTANCE_MASK;
+            int encodedFirstInstance = (variant << VARIANT_SHIFT) | firstInstance;
             src.putInt(draw.indexCount());
             src.putInt(Math.max(1, draw.instanceCount()));
             src.putInt(0); // firstIndex
             src.putInt(0); // vertexOffset
-            src.putInt(Math.max(0, draw.firstInstance()));
+            src.putInt(encodedFirstInstance);
         }
         src.flip();
         memCopy(memAddress(src), mappedAddress, bytes);
@@ -136,6 +152,30 @@ public final class VulkanIndirectDrawBuffer {
 
     public int capacity() {
         return capacity;
+    }
+
+    public Layout layout() {
+        return layout;
+    }
+
+    public int variantOffsetCommands(int variant) {
+        return switch (variant) {
+            case VARIANT_MORPH -> layout.morphOffsetCommands();
+            case VARIANT_SKINNED -> layout.skinnedOffsetCommands();
+            case VARIANT_SKINNED_MORPH -> layout.skinnedMorphOffsetCommands();
+            case VARIANT_INSTANCED -> layout.instancedOffsetCommands();
+            default -> layout.staticOffsetCommands();
+        };
+    }
+
+    public int variantCapacity(int variant) {
+        return switch (variant) {
+            case VARIANT_MORPH -> layout.morphCapacity();
+            case VARIANT_SKINNED -> layout.skinnedCapacity();
+            case VARIANT_SKINNED_MORPH -> layout.skinnedMorphCapacity();
+            case VARIANT_INSTANCED -> layout.instancedCapacity();
+            default -> layout.staticCapacity();
+        };
     }
 
     public void clear() {
@@ -160,6 +200,68 @@ public final class VulkanIndirectDrawBuffer {
         }
         if (memory != VK_NULL_HANDLE) {
             vkFreeMemory(device, memory, null);
+        }
+    }
+
+    private static int variantOf(VulkanRenderCommandRecorder.MeshDrawCmd draw) {
+        if (draw == null) {
+            return VARIANT_STATIC;
+        }
+        if (draw.instanced()) {
+            return VARIANT_INSTANCED;
+        }
+        if (draw.skinned() && draw.morphTargeted()) {
+            return VARIANT_SKINNED_MORPH;
+        }
+        if (draw.skinned()) {
+            return VARIANT_SKINNED;
+        }
+        if (draw.morphTargeted()) {
+            return VARIANT_MORPH;
+        }
+        return VARIANT_STATIC;
+    }
+
+    public record Layout(
+            int totalCapacity,
+            int staticCapacity,
+            int morphCapacity,
+            int skinnedCapacity,
+            int skinnedMorphCapacity,
+            int instancedCapacity,
+            int staticOffsetCommands,
+            int morphOffsetCommands,
+            int skinnedOffsetCommands,
+            int skinnedMorphOffsetCommands,
+            int instancedOffsetCommands
+    ) {
+        static Layout create(int totalCapacity) {
+            int safeTotal = Math.max(VARIANT_COUNT, totalCapacity);
+            int base = Math.max(1, safeTotal / VARIANT_COUNT);
+            int remainder = safeTotal - (base * VARIANT_COUNT);
+            int staticCap = base + remainder;
+            int morphCap = base;
+            int skinnedCap = base;
+            int skinnedMorphCap = base;
+            int instancedCap = base;
+            int staticOffset = 0;
+            int morphOffset = staticOffset + staticCap;
+            int skinnedOffset = morphOffset + morphCap;
+            int skinnedMorphOffset = skinnedOffset + skinnedCap;
+            int instancedOffset = skinnedMorphOffset + skinnedMorphCap;
+            return new Layout(
+                    safeTotal,
+                    staticCap,
+                    morphCap,
+                    skinnedCap,
+                    skinnedMorphCap,
+                    instancedCap,
+                    staticOffset,
+                    morphOffset,
+                    skinnedOffset,
+                    skinnedMorphOffset,
+                    instancedOffset
+            );
         }
     }
 }
