@@ -59,6 +59,7 @@ public final class SampleHostApp {
         }
         SceneOptions sceneOptions = parseSceneOptions(args);
         String meshPath = parseStringArg(args, "--mesh=", "meshes/triangle.glb");
+        String loadSlotPath = parseLoadSlotPath(args);
         boolean resourceProbe = java.util.Arrays.asList(args).contains("--resources");
         boolean compareMode = java.util.Arrays.asList(args).contains("--compare");
         boolean interactive = java.util.Arrays.asList(args).contains("--interactive");
@@ -117,8 +118,13 @@ public final class SampleHostApp {
             if (sceneGraphSpike) {
                 sceneGraphAdapter = new SceneGraphLightEngineAdapter();
                 sceneGraphAdapter.loadMinimalScene(runtime);
-                sceneGraphAdapter.seedDemoGrid(10, 10, 2.5f, 1, "spike-default-material");
-                sceneGraphAdapter.syncBatches(runtime, sceneGraphAdapter.sceneGraph().extractBatched());
+                if (loadSlotPath != null) {
+                    var loadedWorld = sceneGraphAdapter.loadWorldFromSlot(Path.of(loadSlotPath));
+                    sceneGraphAdapter.projectWorld(loadedWorld);
+                } else {
+                    sceneGraphAdapter.seedDemoGrid(10, 10, 2.5f, 1, "spike-default-material");
+                }
+                sceneGraphAdapter.syncFromProjectedWorld(runtime);
             }
             SceneOptions currentOptions = sceneOptions;
             if (resourceProbe) {
@@ -138,8 +144,10 @@ public final class SampleHostApp {
                 EngineFrameResult updateResult = runtime.update(1.0 / 60.0, emptyInput());
                 EngineFrameResult renderResult = runtime.render();
                 if (sceneGraphAdapter != null) {
-                    sceneGraphAdapter.animateDemoGrid(renderResult.frameIndex() / 60.0);
-                    sceneGraphAdapter.syncBatches(runtime, sceneGraphAdapter.sceneGraph().extractBatched());
+                    if (loadSlotPath == null) {
+                        sceneGraphAdapter.animateDemoGrid(renderResult.frameIndex() / 60.0);
+                    }
+                    sceneGraphAdapter.syncFromProjectedWorld(runtime);
                 }
                 System.out.printf(
                         "frame=%d updateCpuMs=%.2f renderCpuMs=%.2f warnings=%d%n",
@@ -167,7 +175,13 @@ public final class SampleHostApp {
                         if (command.reloadScene()) {
                             if (sceneGraphAdapter != null) {
                                 sceneGraphAdapter.loadMinimalScene(runtime);
-                                sceneGraphAdapter.syncBatches(runtime, sceneGraphAdapter.sceneGraph().extractBatched());
+                                if (loadSlotPath != null) {
+                                    var loadedWorld = sceneGraphAdapter.loadWorldFromSlot(Path.of(loadSlotPath));
+                                    sceneGraphAdapter.projectWorld(loadedWorld);
+                                } else {
+                                    sceneGraphAdapter.seedDemoGrid(10, 10, 2.5f, 1, "spike-default-material");
+                                }
+                                sceneGraphAdapter.syncFromProjectedWorld(runtime);
                             } else {
                                 runtime.loadScene(defaultScene(currentOptions, meshPath));
                             }
@@ -642,6 +656,25 @@ public final class SampleHostApp {
             }
         }
         return fallback;
+    }
+
+    private static String parseLoadSlotPath(String[] args) {
+        for (int i = 0; i < args.length; i++) {
+            String arg = args[i];
+            if ("--load-slot".equals(arg) && i + 1 < args.length) {
+                String next = args[i + 1].trim();
+                if (!next.isEmpty() && !next.startsWith("--")) {
+                    return next;
+                }
+            }
+            if (arg.startsWith("--load-slot=")) {
+                String value = arg.substring("--load-slot=".length()).trim();
+                if (!value.isEmpty()) {
+                    return value;
+                }
+            }
+        }
+        return null;
     }
 
     private static String parseStringArg(String[] args, String key, String fallback) {

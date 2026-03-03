@@ -1,5 +1,7 @@
 package org.dynamislight.sample;
 
+import org.dynamis.core.entity.EntityId;
+import org.dynamisecs.api.world.World;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.runtime.EngineRuntime;
 import org.dynamislight.api.scene.CameraDesc;
@@ -14,15 +16,19 @@ import org.dynamislight.api.scene.ShadowDesc;
 import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
+import org.dynamislight.sample.save.DemoCodecRegistry;
+import org.dynamislight.sample.save.ProjectionRebuilder;
 import org.dynamisscenegraph.api.SceneNodeId;
 import org.dynamisscenegraph.api.extract.BatchedRenderScene;
 import org.dynamisscenegraph.api.extract.InstanceBatch;
 import org.dynamisscenegraph.api.extract.RenderKey;
 import org.dynamisscenegraph.core.DefaultSceneGraph;
+import org.dynamissession.runtime.DefaultSessionManager;
 import org.vectrix.affine.Transformf;
 import org.vectrix.core.Matrix4f;
 import org.vectrix.core.Vector3f;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -39,6 +45,8 @@ final class SceneGraphLightEngineAdapter {
     private final Map<RenderKey, Integer> batchHandlesByKey = new HashMap<>();
     private final List<SceneNodeId> animatedNodes = new ArrayList<>();
     private final Map<SceneNodeId, Vector3f> basePositions = new HashMap<>();
+    private final Map<EntityId, SceneNodeId> entityToNode = new HashMap<>();
+    private final ProjectionRebuilder projectionRebuilder = new ProjectionRebuilder();
 
     DefaultSceneGraph sceneGraph() {
         return sceneGraph;
@@ -48,9 +56,22 @@ final class SceneGraphLightEngineAdapter {
         engine.loadScene(minimalSceneDescriptor());
     }
 
+    World loadWorldFromSlot(Path slotFile) {
+        return new DefaultSessionManager().load(slotFile, DemoCodecRegistry.build());
+    }
+
+    void projectWorld(World world) {
+        projectionRebuilder.rebuildIntoSceneGraph(world, sceneGraph, entityToNode);
+    }
+
+    void syncFromProjectedWorld(EngineRuntime engine) throws EngineException {
+        syncBatches(engine, sceneGraph.extractBatched());
+    }
+
     void seedDemoGrid(int width, int depth, float spacing, int meshHandle, Object materialKey) {
         animatedNodes.clear();
         basePositions.clear();
+        entityToNode.clear();
 
         for (int z = 0; z < depth; z++) {
             for (int x = 0; x < width; x++) {
