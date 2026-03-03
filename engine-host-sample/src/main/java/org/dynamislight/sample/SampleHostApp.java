@@ -63,6 +63,7 @@ public final class SampleHostApp {
         boolean compareMode = java.util.Arrays.asList(args).contains("--compare");
         boolean interactive = java.util.Arrays.asList(args).contains("--interactive");
         boolean overlay = java.util.Arrays.asList(args).contains("--overlay") || interactive;
+        boolean sceneGraphSpike = java.util.Arrays.asList(args).contains("--scenegraph-spike");
         int maxFrames = parseIntArg(args, "--frames=", interactive ? Integer.MAX_VALUE : 3, 1, Integer.MAX_VALUE);
         int taaDebugView = parseTaaDebugViewArg(args);
         System.setProperty("dle.aa.preset", sceneOptions.aaPreset().name().toLowerCase());
@@ -112,6 +113,13 @@ public final class SampleHostApp {
         try (var runtime = provider.createRuntime()) {
             runtime.initialize(config, new ConsoleCallbacks());
             runtime.loadScene(scene);
+            SceneGraphLightEngineAdapter sceneGraphAdapter = null;
+            if (sceneGraphSpike) {
+                sceneGraphAdapter = new SceneGraphLightEngineAdapter();
+                sceneGraphAdapter.loadMinimalScene(runtime);
+                sceneGraphAdapter.seedDemoGrid(10, 10, 2.5f, 1, "spike-default-material");
+                sceneGraphAdapter.syncBatches(runtime, sceneGraphAdapter.sceneGraph().extractBatched());
+            }
             SceneOptions currentOptions = sceneOptions;
             if (resourceProbe) {
                 printResources(runtime.resources().loadedResources(), "loaded");
@@ -129,6 +137,10 @@ public final class SampleHostApp {
             for (int i = 0; i < maxFrames; i++) {
                 EngineFrameResult updateResult = runtime.update(1.0 / 60.0, emptyInput());
                 EngineFrameResult renderResult = runtime.render();
+                if (sceneGraphAdapter != null) {
+                    sceneGraphAdapter.animateDemoGrid(renderResult.frameIndex() / 60.0);
+                    sceneGraphAdapter.syncBatches(runtime, sceneGraphAdapter.sceneGraph().extractBatched());
+                }
                 System.out.printf(
                         "frame=%d updateCpuMs=%.2f renderCpuMs=%.2f warnings=%d%n",
                         renderResult.frameIndex(),
@@ -153,9 +165,17 @@ public final class SampleHostApp {
                             currentOptions = command.updatedOptions();
                         }
                         if (command.reloadScene()) {
-                            runtime.loadScene(defaultScene(currentOptions, meshPath));
+                            if (sceneGraphAdapter != null) {
+                                sceneGraphAdapter.loadMinimalScene(runtime);
+                                sceneGraphAdapter.syncBatches(runtime, sceneGraphAdapter.sceneGraph().extractBatched());
+                            } else {
+                                runtime.loadScene(defaultScene(currentOptions, meshPath));
+                            }
                         }
                         if (command.quit()) {
+                            if (sceneGraphAdapter != null) {
+                                sceneGraphAdapter.removeAllBatches(runtime);
+                            }
                             if (forceExit) {
                                 System.out.println("Shutdown complete.");
                                 System.exit(0);
@@ -167,6 +187,10 @@ public final class SampleHostApp {
                         }
                     }
                 }
+            }
+
+            if (sceneGraphAdapter != null) {
+                sceneGraphAdapter.removeAllBatches(runtime);
             }
 
             if (forceExit) {
