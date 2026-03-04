@@ -3,6 +3,8 @@ package org.dynamislight.api.runtime;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineException;
 import org.dynamislight.api.input.EngineInput;
+import org.dynamislight.api.mesh.MeshUploadRequest;
+import org.dynamislight.api.mesh.MeshUploadResult;
 import org.dynamislight.api.resource.EngineResourceService;
 import org.dynamislight.api.scene.SceneDescriptor;
 
@@ -136,6 +138,23 @@ public interface EngineRuntime extends AutoCloseable {
      * @throws EngineException if the runtime is not initialized, the handle is invalid, or data is malformed.
      */
     int registerInstanceBatch(int meshHandle, float[][] modelMatrices) throws EngineException;
+
+    /**
+     * Registers an externally uploaded mesh and returns the resulting runtime mesh handle.
+     *
+     * @param request backend-neutral mesh upload request carrying format, payload, and dedupe hash.
+     * @return upload result containing mesh handle and reuse metadata.
+     * @throws EngineException if the runtime is not initialized, request format is unsupported, or upload fails.
+     */
+    MeshUploadResult registerMesh(MeshUploadRequest request) throws EngineException;
+
+    /**
+     * Removes a previously registered external mesh.
+     *
+     * @param meshHandle mesh handle returned by {@link #registerMesh(MeshUploadRequest)}.
+     * @throws EngineException if the runtime is not initialized or meshHandle is invalid.
+     */
+    void removeMesh(int meshHandle) throws EngineException;
 
     /**
      * Updates model matrices for an existing instanced draw batch.
