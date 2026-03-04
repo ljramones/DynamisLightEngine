@@ -17,6 +17,7 @@ import org.dynamislight.api.scene.SmokeEmitterDesc;
 import org.dynamislight.api.scene.TransformDesc;
 import org.dynamislight.api.scene.Vec3;
 import org.dynamislight.sample.save.DemoCodecRegistry;
+import org.dynamislight.sample.save.DemoViewProj;
 import org.dynamislight.sample.save.ProjectionRebuilder;
 import org.dynamisscenegraph.api.SceneNodeId;
 import org.dynamisscenegraph.api.extract.BatchedRenderScene;
@@ -40,6 +41,7 @@ final class SceneGraphLightEngineAdapter {
     private static final String SPIKE_TRANSFORM_ID = "sg-spike-root";
     private static final String SPIKE_MESH_ID = "sg-spike-mesh";
     private static final String SPIKE_MATERIAL_ID = "sg-spike-material";
+    private static final float DEFAULT_ASPECT = 16f / 9f;
 
     private final DefaultSceneGraph sceneGraph = new DefaultSceneGraph();
     private final Map<RenderKey, Integer> batchHandlesByKey = new HashMap<>();
@@ -65,7 +67,19 @@ final class SceneGraphLightEngineAdapter {
     }
 
     void syncFromProjectedWorld(EngineRuntime engine) throws EngineException {
-        syncBatches(engine, sceneGraph.extractBatched());
+        syncFromProjectedWorld(engine, false);
+    }
+
+    void syncFromProjectedWorld(EngineRuntime engine, boolean cullEnabled) throws EngineException {
+        syncBatches(engine, extractProjectedBatches(cullEnabled));
+    }
+
+    BatchedRenderScene extractProjectedBatches(boolean cullEnabled) {
+        if (!cullEnabled) {
+            return sceneGraph.extractBatched();
+        }
+        Matrix4f viewProj = DemoViewProj.build(DEFAULT_ASPECT);
+        return sceneGraph.extractBatchedCulled(viewProj);
     }
 
     void seedDemoGrid(int width, int depth, float spacing, int meshHandle, Object materialKey) {

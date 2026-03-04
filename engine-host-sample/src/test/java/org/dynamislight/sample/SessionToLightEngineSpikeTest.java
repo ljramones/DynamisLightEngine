@@ -52,7 +52,74 @@ final class SessionToLightEngineSpikeTest {
         AtomicInteger nextHandle = new AtomicInteger(300);
         Map<Integer, float[][]> uploads = new HashMap<>();
 
-        EngineRuntime runtime = (EngineRuntime) Proxy.newProxyInstance(
+        EngineRuntime runtime = runtimeProxy(registerCalls, updateCalls, nextHandle, uploads);
+
+        adapter.syncFromProjectedWorld(runtime);
+        assertEquals(1, registerCalls.get());
+        assertEquals(0, updateCalls.get());
+
+        float[][] firstUpload = uploads.values().iterator().next();
+        assertEquals(3, firstUpload.length);
+        assertEquals(16, firstUpload[0].length);
+
+        adapter.syncFromProjectedWorld(runtime);
+        assertEquals(1, registerCalls.get());
+        assertEquals(1, updateCalls.get());
+    }
+
+    @Test
+    void cullingExcludesFarInstances() throws Exception {
+        Path slot = Files.createTempFile("session-lightengine-cull-", ".dses");
+        var registry = DemoCodecRegistry.build();
+
+        DefaultWorld world = new DefaultWorld();
+
+        EntityId near = world.createEntity();
+        world.add(near, DemoKeys.TRANSLATION, new TranslationComponent(0f, 0f, 0f));
+        world.add(near, DemoKeys.BOUNDS, new BoundsSphereComponent(0f, 0f, 0f, 0.5f));
+        world.add(near, DemoKeys.RENDERABLE, new RenderableComponent(1, "mat.default"));
+
+        EntityId far = world.createEntity();
+        world.add(far, DemoKeys.TRANSLATION, new TranslationComponent(0f, 0f, -10_000f));
+        world.add(far, DemoKeys.BOUNDS, new BoundsSphereComponent(0f, 0f, 0f, 0.5f));
+        world.add(far, DemoKeys.RENDERABLE, new RenderableComponent(1, "mat.default"));
+
+        SaveGame save = new SaveGame(
+                new SaveMetadata(1, "1.0.0-SNAPSHOT", System.currentTimeMillis(), 8L, "host-sample-cull"),
+                new EcsSnapshot(List.of()));
+        new DefaultSessionManager().save(slot, world, save, registry);
+
+        SceneGraphLightEngineAdapter adapter = new SceneGraphLightEngineAdapter();
+        var loaded = adapter.loadWorldFromSlot(slot);
+        adapter.projectWorld(loaded);
+
+        var culled = adapter.extractProjectedBatches(true);
+        assertEquals(1, culled.batches().size());
+        assertEquals(1, culled.batches().getFirst().instanceCount());
+
+        AtomicInteger registerCalls = new AtomicInteger();
+        AtomicInteger updateCalls = new AtomicInteger();
+        AtomicInteger nextHandle = new AtomicInteger(500);
+        Map<Integer, float[][]> uploads = new HashMap<>();
+
+        EngineRuntime runtime = runtimeProxy(registerCalls, updateCalls, nextHandle, uploads);
+
+        adapter.syncFromProjectedWorld(runtime, true);
+        assertEquals(1, registerCalls.get());
+        assertEquals(0, updateCalls.get());
+
+        float[][] upload = uploads.values().iterator().next();
+        assertEquals(1, upload.length);
+        assertEquals(16, upload[0].length);
+    }
+
+    private static EngineRuntime runtimeProxy(
+            AtomicInteger registerCalls,
+            AtomicInteger updateCalls,
+            AtomicInteger nextHandle,
+            Map<Integer, float[][]> uploads
+    ) {
+        return (EngineRuntime) Proxy.newProxyInstance(
                 EngineRuntime.class.getClassLoader(),
                 new Class<?>[]{EngineRuntime.class},
                 (proxy, method, args) -> switch (method.getName()) {
@@ -74,18 +141,6 @@ final class SessionToLightEngineSpikeTest {
                     default -> null;
                 }
         );
-
-        adapter.syncFromProjectedWorld(runtime);
-        assertEquals(1, registerCalls.get());
-        assertEquals(0, updateCalls.get());
-
-        float[][] firstUpload = uploads.values().iterator().next();
-        assertEquals(3, firstUpload.length);
-        assertEquals(16, firstUpload[0].length);
-
-        adapter.syncFromProjectedWorld(runtime);
-        assertEquals(1, registerCalls.get());
-        assertEquals(1, updateCalls.get());
     }
 
     private static void seed(DefaultWorld world) {

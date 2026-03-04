@@ -65,6 +65,7 @@ public final class SampleHostApp {
         boolean interactive = java.util.Arrays.asList(args).contains("--interactive");
         boolean overlay = java.util.Arrays.asList(args).contains("--overlay") || interactive;
         boolean sceneGraphSpike = java.util.Arrays.asList(args).contains("--scenegraph-spike");
+        boolean sceneGraphCull = parseSceneGraphCullFlag(args);
         int maxFrames = parseIntArg(args, "--frames=", interactive ? Integer.MAX_VALUE : 3, 1, Integer.MAX_VALUE);
         int taaDebugView = parseTaaDebugViewArg(args);
         System.setProperty("dle.aa.preset", sceneOptions.aaPreset().name().toLowerCase());
@@ -124,7 +125,7 @@ public final class SampleHostApp {
                 } else {
                     sceneGraphAdapter.seedDemoGrid(10, 10, 2.5f, 1, "spike-default-material");
                 }
-                sceneGraphAdapter.syncFromProjectedWorld(runtime);
+                sceneGraphAdapter.syncFromProjectedWorld(runtime, sceneGraphCull);
             }
             SceneOptions currentOptions = sceneOptions;
             if (resourceProbe) {
@@ -147,7 +148,7 @@ public final class SampleHostApp {
                     if (loadSlotPath == null) {
                         sceneGraphAdapter.animateDemoGrid(renderResult.frameIndex() / 60.0);
                     }
-                    sceneGraphAdapter.syncFromProjectedWorld(runtime);
+                    sceneGraphAdapter.syncFromProjectedWorld(runtime, sceneGraphCull);
                 }
                 System.out.printf(
                         "frame=%d updateCpuMs=%.2f renderCpuMs=%.2f warnings=%d%n",
@@ -181,7 +182,7 @@ public final class SampleHostApp {
                                 } else {
                                     sceneGraphAdapter.seedDemoGrid(10, 10, 2.5f, 1, "spike-default-material");
                                 }
-                                sceneGraphAdapter.syncFromProjectedWorld(runtime);
+                                sceneGraphAdapter.syncFromProjectedWorld(runtime, sceneGraphCull);
                             } else {
                                 runtime.loadScene(defaultScene(currentOptions, meshPath));
                             }
@@ -656,6 +657,19 @@ public final class SampleHostApp {
             }
         }
         return fallback;
+    }
+
+    private static boolean parseSceneGraphCullFlag(String[] args) {
+        for (String arg : args) {
+            if ("--scenegraph-cull".equals(arg)) {
+                return true;
+            }
+            if (arg.startsWith("--scenegraph-cull=")) {
+                String value = arg.substring("--scenegraph-cull=".length()).trim().toLowerCase();
+                return "true".equals(value) || "1".equals(value) || "on".equals(value) || "yes".equals(value);
+            }
+        }
+        return false;
     }
 
     private static String parseLoadSlotPath(String[] args) {
