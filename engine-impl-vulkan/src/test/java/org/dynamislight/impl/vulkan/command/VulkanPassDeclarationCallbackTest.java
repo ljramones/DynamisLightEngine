@@ -18,8 +18,8 @@ class VulkanPassDeclarationCallbackTest {
                 null,
                 null,
                 new VulkanRenderCommandRecorder.ShadowPassInputs(
-                        1, 1024, true, false, 4, 24, 24, 6,
-                        1L, 1L, 1L, 1L, new long[]{1L}, 1L, 1, false, false
+                        1, 1L, 1L, 0, 24, 1024, true, false, 4, 24, 24, 6,
+                        1L, false, 0L, 1L, 1L, 1L, 1L, 1L, new long[]{1L}, 1L, 1, false, false
                 ),
                 List.of(),
                 i -> 0
@@ -70,9 +70,12 @@ class VulkanPassDeclarationCallbackTest {
                 null,
                 null,
                 new VulkanRenderCommandRecorder.PlanarReflectionPassInputs(
-                        1, 1280, 720, 1L, 1L, 1L, 1L, 1L,
-                        (1 << 14) | (1 << 18) | (1 << 20),
-                        0f,
+                        1, 1280, 720, 1L, 1L,
+                        0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 24,
+                        false, 0L, 0L, 1L, 1L,
+                        0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L,
+                        0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, (1 << 14) | (1 << 18) | (1 << 20), 0f,
                         0L, -1, -1,
                         2L, 3L,
                         false

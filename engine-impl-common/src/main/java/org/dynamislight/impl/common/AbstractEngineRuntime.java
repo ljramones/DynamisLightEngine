@@ -47,6 +47,8 @@ import org.dynamislight.api.runtime.SkyPromotionDiagnostics;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.mesh.MeshUploadRequest;
+import org.dynamislight.api.mesh.MeshUploadResult;
 import org.dynamislight.api.runtime.EngineFrameResult;
 import org.dynamislight.api.runtime.EngineHostCallbacks;
 import org.dynamislight.api.input.EngineInput;
@@ -410,6 +412,44 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     }
 
     @Override
+    public final MeshUploadResult registerMesh(MeshUploadRequest request) throws EngineException {
+        try {
+            ensureInitialized();
+            if (request == null) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "request must not be null", true);
+            }
+            return onRegisterMesh(request);
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Unexpected mesh registration failure: " + e.getMessage(),
+                    false
+            ));
+        }
+    }
+
+    @Override
+    public final void removeMesh(int meshHandle) throws EngineException {
+        try {
+            ensureInitialized();
+            if (meshHandle < 0) {
+                throw new EngineException(EngineErrorCode.INVALID_ARGUMENT, "meshHandle must be >= 0", true);
+            }
+            onRemoveMesh(meshHandle);
+        } catch (EngineException e) {
+            throw reportAndReturn(e);
+        } catch (RuntimeException e) {
+            throw reportAndReturn(new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Unexpected mesh removal failure: " + e.getMessage(),
+                    false
+            ));
+        }
+    }
+
+    @Override
     public final EngineStats getStats() {
         return stats;
     }
@@ -702,6 +742,22 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
         throw new EngineException(
                 EngineErrorCode.INVALID_STATE,
                 "Instanced rendering is not supported by this backend",
+                false
+        );
+    }
+
+    protected MeshUploadResult onRegisterMesh(MeshUploadRequest request) throws EngineException {
+        throw new EngineException(
+                EngineErrorCode.INVALID_STATE,
+                "External mesh upload is not supported by this backend",
+                false
+        );
+    }
+
+    protected void onRemoveMesh(int meshHandle) throws EngineException {
+        throw new EngineException(
+                EngineErrorCode.INVALID_STATE,
+                "External mesh upload is not supported by this backend",
                 false
         );
     }

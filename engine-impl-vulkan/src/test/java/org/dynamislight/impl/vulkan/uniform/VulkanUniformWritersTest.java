@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import org.junit.jupiter.api.Test;
+import org.vectrix.core.Matrix4f;
 
 class VulkanUniformWritersTest {
     private static final int GLOBAL_SCENE_UNIFORM_BYTES = 2736;
@@ -70,11 +71,7 @@ class VulkanUniformWritersTest {
                 false, 0f, 1f, 0.02f, 1f,
                 false, 0f,
                 identity(),
-                new float[][]{
-                        identity(), identity(), identity(), identity(), identity(), identity(),
-                        identity(), identity(), identity(), identity(), identity(), identity(),
-                        identity(), identity(), identity(), identity(), identity(), identity()
-                },
+                shadowMatrices(),
                 identity(),
                 identity(),
                 identity()
@@ -130,11 +127,7 @@ class VulkanUniformWritersTest {
                 false, 0f, 1f, 0.02f, 1f,
                 false, 0f,
                 identity(),
-                new float[][]{
-                        identity(), identity(), identity(), identity(), identity(), identity(),
-                        identity(), identity(), identity(), identity(), identity(), identity(),
-                        identity(), identity(), identity(), identity(), identity(), identity()
-                },
+                shadowMatrices(),
                 identity(),
                 identity(),
                 identity()
@@ -146,12 +139,15 @@ class VulkanUniformWritersTest {
         assertTrue(metaIndex >= 0); // filter=3, rtMode=2, rtActive=1, rtSamples=6 => packed with 3-bit mode + shifted active/sample bits
     }
 
-    private static float[] identity() {
-        return new float[]{
-                1f, 0f, 0f, 0f,
-                0f, 1f, 0f, 0f,
-                0f, 0f, 1f, 0f,
-                0f, 0f, 0f, 1f
+    private static Matrix4f identity() {
+        return new Matrix4f().identity();
+    }
+
+    private static Matrix4f[] shadowMatrices() {
+        return new Matrix4f[]{
+                identity(), identity(), identity(), identity(), identity(), identity(),
+                identity(), identity(), identity(), identity(), identity(), identity(),
+                identity(), identity(), identity(), identity(), identity(), identity()
         };
     }
 

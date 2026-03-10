@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import org.dynamislight.impl.vulkan.command.VulkanFrameSyncLifecycleCoordinator;
+import org.dynamisgpu.vulkan.sync.VulkanFrameSyncLifecycleCoordinator;
 import org.dynamislight.impl.vulkan.shadow.VulkanShadowLifecycleCoordinator;
 import org.dynamislight.impl.vulkan.state.VulkanBackendResources;
 import org.dynamislight.impl.vulkan.state.VulkanRenderState;
@@ -24,7 +24,9 @@ class VulkanLifecycleOrchestratorTest {
                 11L, 44, 1920, 1080,
                 swapchainImages, new long[]{201L}, new long[]{202L}, new long[]{203L}, new long[]{204L},
                 12L, 13L, 14L,
-                25L, 26L, 27L,
+                25L, 26L, 27L, // render pass + primary pipeline
+                40L, 41L, 42L, 43L, 44L, 45L, 46L, 47L, 48L, 49L, // bindless layouts/pipelines
+                50L, 51L, 52L, 53L, 54L, 55L, 56L, 57L, // morph/skinned/instanced layouts/pipelines
                 framebuffers, true,
                 15L, 16L, 17L, 18L,
                 19L, 20L, 21L, 22L,
@@ -60,7 +62,7 @@ class VulkanLifecycleOrchestratorTest {
         long[] framebuffers = new long[]{9L};
         long[] momentLayerViews = new long[]{15L, 16L};
         var state = new VulkanShadowLifecycleCoordinator.State(
-                1L, 2L, 3L, layerViews, 4L, 5L, 6L, 10L, framebuffers,
+                1L, 2L, 3L, layerViews, 4L, 5L, 6L, 10L, 17L, 18L, framebuffers,
                 11L, 12L, 13L, momentLayerViews, 14L, 97, 6
         );
 
@@ -74,6 +76,8 @@ class VulkanLifecycleOrchestratorTest {
         assertEquals(5L, backend.shadowRenderPass);
         assertEquals(6L, backend.shadowPipelineLayout);
         assertEquals(10L, backend.shadowPipeline);
+        assertEquals(17L, backend.shadowInstancedPipeline);
+        assertEquals(18L, backend.shadowBindlessInstancedPipeline);
         assertSame(framebuffers, backend.shadowFramebuffers);
         assertEquals(11L, backend.shadowMomentImage);
         assertEquals(12L, backend.shadowMomentMemory);

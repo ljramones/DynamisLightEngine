@@ -10,6 +10,8 @@ import org.dynamislight.api.runtime.EngineCapabilities;
 import org.dynamislight.api.config.EngineConfig;
 import org.dynamislight.api.error.EngineErrorCode;
 import org.dynamislight.api.error.EngineException;
+import org.dynamislight.api.mesh.MeshUploadRequest;
+import org.dynamislight.api.mesh.MeshUploadResult;
 import org.dynamislight.api.runtime.EngineFrameResult;
 import org.dynamislight.api.runtime.EngineHostCallbacks;
 import org.dynamislight.api.input.EngineInput;
@@ -109,6 +111,36 @@ class BackendRegistryTest {
                     @Override
                     public EngineFrameResult render() {
                         return new EngineFrameResult(0, 0, 0, new FrameHandle(0, false), List.of());
+                    }
+
+                    @Override
+                    public void updateSkinnedMesh(int meshHandle, float[] jointMatrices) {
+                    }
+
+                    @Override
+                    public void updateMorphWeights(int meshHandle, float[] weights) {
+                    }
+
+                    @Override
+                    public int registerInstanceBatch(int meshHandle, float[][] modelMatrices) {
+                        return 1;
+                    }
+
+                    @Override
+                    public MeshUploadResult registerMesh(MeshUploadRequest request) {
+                        return new MeshUploadResult(1, false, "test-mesh");
+                    }
+
+                    @Override
+                    public void removeMesh(int meshHandle) {
+                    }
+
+                    @Override
+                    public void updateInstanceBatch(int batchHandle, float[][] modelMatrices) {
+                    }
+
+                    @Override
+                    public void removeInstanceBatch(int batchHandle) {
                     }
 
                     @Override

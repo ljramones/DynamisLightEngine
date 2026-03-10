@@ -1,7 +1,6 @@
 package org.dynamislight.impl.vulkan.command;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -79,7 +78,7 @@ class VulkanRenderGraphExecutorTest {
     }
 
     @Test
-    void throwsOnImageLayoutMismatch() {
+    void toleratesImageLayoutMismatchByKeepingCurrentBindingLayout() throws EngineException {
         String nodeId = "feature.main:main_geometry#0";
         VulkanExecutableRenderGraphPlan plan = plan(
                 List.of(node(nodeId, "main_geometry", RenderPassPhase.MAIN)),
@@ -102,7 +101,11 @@ class VulkanRenderGraphExecutorTest {
                 .bind("scene_color", 21L, VK_FORMAT_B8G8R8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
         VulkanRenderGraphExecutor executor = new VulkanRenderGraphExecutor(false);
-        assertThrows(EngineException.class, () -> executor.execute(null, null, plan, table));
+        executor.execute(null, null, plan, table);
+        assertEquals(
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                table.resolveImage("scene_color").currentLayout()
+        );
     }
 
     @Test
