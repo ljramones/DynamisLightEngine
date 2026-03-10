@@ -25,6 +25,25 @@ class RenderCapabilityContractV2ValidatorTest {
         assertTrue(RenderCapabilityContractV2Validator.hasErrors(issues));
     }
 
+    @Test
+    void phaseParticipationContractIsAuthoritativeForPhaseInterpretation() {
+        RenderFeatureCapabilityV2 feature = new PhaseCapability("feature.sky", RenderPassPhase.MAIN);
+
+        RenderPhaseContract phaseContract = new RenderPhaseContract(
+                List.of(RenderPassPhase.PRE_MAIN, RenderPassPhase.MAIN, RenderPassPhase.POST_MAIN),
+                List.of(new RenderPhaseParticipation("feature.sky", RenderPassPhase.POST_MAIN, List.of(), List.of("feature.unknown")))
+        );
+
+        List<RenderCapabilityValidationIssue> issues = RenderCapabilityContractV2Validator.validate(
+                List.of(feature),
+                QualityTier.HIGH,
+                phaseContract
+        );
+
+        assertIssue(issues, "FEATURE_PHASE_DECLARATION_MISMATCH", RenderCapabilityValidationIssue.Severity.WARNING);
+        assertIssue(issues, "FEATURE_PHASE_ORDER_REFERENCE_UNRESOLVED", RenderCapabilityValidationIssue.Severity.WARNING);
+    }
+
     private static void assertIssue(
             List<RenderCapabilityValidationIssue> issues,
             String code,
@@ -122,6 +141,73 @@ class RenderCapabilityContractV2ValidatorTest {
                     false,
                     List.of()
             ));
+        }
+
+        @Override
+        public List<RenderSchedulerDeclaration> schedulers(RenderFeatureMode mode) {
+            return List.of();
+        }
+
+        @Override
+        public RenderTelemetryDeclaration telemetry(RenderFeatureMode mode) {
+            return new RenderTelemetryDeclaration(List.of(), List.of(), List.of(), List.of());
+        }
+    }
+
+    private record PhaseCapability(String id, RenderPassPhase phase) implements RenderFeatureCapabilityV2 {
+
+        @Override
+        public String featureId() {
+            return id;
+        }
+
+        @Override
+        public List<RenderFeatureMode> supportedModes() {
+            return List.of(new RenderFeatureMode("phase-check"));
+        }
+
+        @Override
+        public RenderFeatureMode activeMode() {
+            return new RenderFeatureMode("phase-check");
+        }
+
+        @Override
+        public List<RenderPassDeclaration> declarePasses(QualityTier tier, RenderFeatureMode mode) {
+            return List.of(new RenderPassDeclaration(
+                    "phase-pass",
+                    phase,
+                    List.of(),
+                    List.of("color"),
+                    false,
+                    false,
+                    false,
+                    List.of()
+            ));
+        }
+
+        @Override
+        public List<RenderShaderContribution> shaderContributions(RenderFeatureMode mode) {
+            return List.of();
+        }
+
+        @Override
+        public List<RenderDescriptorRequirement> descriptorRequirements(RenderFeatureMode mode) {
+            return List.of();
+        }
+
+        @Override
+        public List<RenderUniformRequirement> uniformRequirements(RenderFeatureMode mode) {
+            return List.of();
+        }
+
+        @Override
+        public List<RenderPushConstantRequirement> pushConstantRequirements(RenderFeatureMode mode) {
+            return List.of();
+        }
+
+        @Override
+        public List<RenderResourceDeclaration> ownedResources(RenderFeatureMode mode) {
+            return List.of();
         }
 
         @Override

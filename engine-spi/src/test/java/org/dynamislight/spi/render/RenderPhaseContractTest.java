@@ -38,4 +38,15 @@ class RenderPhaseContractTest {
         assertThrows(UnsupportedOperationException.class,
                 () -> contract.participations().add(new RenderPhaseParticipation("vfx", RenderPassPhase.AUXILIARY, List.of(), List.of())));
     }
+
+    @Test
+    void interpretsFeaturePhaseUsingParticipationContract() {
+        RenderPhaseContract contract = new RenderPhaseContract(
+                List.of(RenderPassPhase.PRE_MAIN, RenderPassPhase.MAIN, RenderPassPhase.POST_MAIN),
+                List.of(new RenderPhaseParticipation("sky", RenderPassPhase.POST_MAIN, List.of(), List.of()))
+        );
+
+        assertEquals(RenderPassPhase.POST_MAIN, contract.interpretedPhaseFor("sky", RenderPassPhase.MAIN));
+        assertEquals(RenderPassPhase.MAIN, contract.interpretedPhaseFor("terrain", RenderPassPhase.MAIN));
+    }
 }

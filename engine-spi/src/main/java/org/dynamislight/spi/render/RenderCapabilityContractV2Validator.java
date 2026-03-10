@@ -20,6 +20,14 @@ public final class RenderCapabilityContractV2Validator {
             List<RenderFeatureCapabilityV2> capabilities,
             QualityTier tier
     ) {
+        return validate(capabilities, tier, null);
+    }
+
+    public static List<RenderCapabilityValidationIssue> validate(
+            List<RenderFeatureCapabilityV2> capabilities,
+            QualityTier tier,
+            RenderPhaseContract phaseContract
+    ) {
         List<RenderFeatureCapabilityV2> safeCapabilities = capabilities == null ? List.of() : capabilities.stream()
                 .filter(Objects::nonNull)
                 .toList();
@@ -35,6 +43,7 @@ public final class RenderCapabilityContractV2Validator {
         validatePushConstantConflicts(contracts, issues);
         validateRequiredFeatureScopes(contracts, issues);
         validateShaderInjectionConflicts(contracts, issues);
+        validateFeaturePhaseAuthority(contracts, phaseContract, issues);
         return List.copyOf(issues);
     }
 
@@ -233,6 +242,91 @@ public final class RenderCapabilityContractV2Validator {
                         contribution.ordering(),
                         contribution.implementationKey()
                 ));
+            }
+        }
+    }
+
+    private static void validateFeaturePhaseAuthority(
+            List<RenderCapabilityContractV2> contracts,
+            RenderPhaseContract phaseContract,
+            List<RenderCapabilityValidationIssue> issues
+    ) {
+        if (phaseContract == null) {
+            return;
+        }
+
+        Set<String> presentFeatures = new LinkedHashSet<>();
+        for (RenderCapabilityContractV2 contract : contracts) {
+            presentFeatures.add(normalized(contract.featureId()));
+        }
+
+        Map<String, RenderPhaseParticipation> participationByFeature = new LinkedHashMap<>();
+        for (RenderPhaseParticipation participation : phaseContract.participations()) {
+            if (participation == null) {
+                continue;
+            }
+            String featureId = normalized(participation.featureId());
+            if (featureId.isBlank()) {
+                continue;
+            }
+            RenderPhaseParticipation existing = participationByFeature.putIfAbsent(featureId, participation);
+            if (existing != null) {
+                issues.add(new RenderCapabilityValidationIssue(
+                        "FEATURE_PHASE_PARTICIPATION_DUPLICATE",
+                        "Duplicate phase participation declaration for feature '" + featureId + "'",
+                        RenderCapabilityValidationIssue.Severity.WARNING,
+                        featureId,
+                        "",
+                        "declaredPhase=" + participation.phase()
+                ));
+            }
+
+            for (String before : participation.runsBefore()) {
+                String target = normalized(before);
+                if (!target.isBlank() && !presentFeatures.contains(target)) {
+                    issues.add(new RenderCapabilityValidationIssue(
+                            "FEATURE_PHASE_ORDER_REFERENCE_UNRESOLVED",
+                            "Phase ordering declaration references unknown feature '" + target + "'",
+                            RenderCapabilityValidationIssue.Severity.WARNING,
+                            featureId,
+                            target,
+                            "relation=runsBefore"
+                    ));
+                }
+            }
+            for (String after : participation.runsAfter()) {
+                String target = normalized(after);
+                if (!target.isBlank() && !presentFeatures.contains(target)) {
+                    issues.add(new RenderCapabilityValidationIssue(
+                            "FEATURE_PHASE_ORDER_REFERENCE_UNRESOLVED",
+                            "Phase ordering declaration references unknown feature '" + target + "'",
+                            RenderCapabilityValidationIssue.Severity.WARNING,
+                            featureId,
+                            target,
+                            "relation=runsAfter"
+                    ));
+                }
+            }
+        }
+
+        for (RenderCapabilityContractV2 contract : contracts) {
+            String featureId = normalized(contract.featureId());
+            if (!participationByFeature.containsKey(featureId)) {
+                continue;
+            }
+            for (RenderPassDeclaration pass : contract.passes()) {
+                RenderPassPhase interpreted = phaseContract.interpretedPhaseFor(featureId, pass.phase());
+                if (interpreted != pass.phase()) {
+                    issues.add(new RenderCapabilityValidationIssue(
+                            "FEATURE_PHASE_DECLARATION_MISMATCH",
+                            "Feature '" + featureId + "' pass '" + pass.passId() + "' declares phase '"
+                                    + pass.phase() + "' but LightEngine phase contract interprets phase '" + interpreted + "'",
+                            RenderCapabilityValidationIssue.Severity.WARNING,
+                            featureId,
+                            "",
+                            "passId=" + pass.passId() + ", declaredPhase=" + pass.phase() + ", interpretedPhase=" + interpreted
+                    ));
+                }
             }
         }
     }
