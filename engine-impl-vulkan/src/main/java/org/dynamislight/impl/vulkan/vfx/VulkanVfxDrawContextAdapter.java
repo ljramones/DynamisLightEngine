@@ -1,11 +1,12 @@
 package org.dynamislight.impl.vulkan.vfx;
 
-import org.dynamisgpu.api.gpu.DescriptorWriter;
 import org.dynamisgpu.api.gpu.IndirectCommandBuffer;
+import org.dynamisvfx.api.VfxDescriptorBindingWriter;
 import org.dynamisvfx.api.VfxDrawContext;
+import org.dynamisvfx.api.VfxIndirectCommandSink;
 
 public final class VulkanVfxDrawContextAdapter implements VfxDrawContext {
-    private static final DescriptorWriter NOOP_DESCRIPTOR_WRITER = new DescriptorWriter() {
+    private static final VfxDescriptorBindingWriter NOOP_DESCRIPTOR_WRITER = new VfxDescriptorBindingWriter() {
         @Override
         public void writeStorageBuffer(long descriptorSet, int binding, int arrayElement, long buffer, long offset, long range) {
             // No-op until DLE bindless descriptor writer wiring is required by VFX.
@@ -22,21 +23,51 @@ public final class VulkanVfxDrawContextAdapter implements VfxDrawContext {
         }
     };
 
-    private final IndirectCommandBuffer indirectBuffer;
     private final long frameIndex;
+    private final VfxIndirectCommandSink indirectSink;
 
     public VulkanVfxDrawContextAdapter(IndirectCommandBuffer indirectBuffer, long frameIndex) {
-        this.indirectBuffer = indirectBuffer;
         this.frameIndex = frameIndex;
+        this.indirectSink = new VfxIndirectCommandSink() {
+            @Override
+            public void writeCommand(int slot, int indexCount, int instanceCount, int firstIndex, int vertexOffset, int firstInstance) {
+                indirectBuffer.writeCommand(slot, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance);
+            }
+
+            @Override
+            public long bufferHandle() {
+                return indirectBuffer.bufferHandle();
+            }
+
+            @Override
+            public long countBufferHandle() {
+                return indirectBuffer.countBufferHandle();
+            }
+
+            @Override
+            public int variantOffset(int variantIndex) {
+                return indirectBuffer.variantOffset(variantIndex);
+            }
+
+            @Override
+            public int variantCapacity(int variantIndex) {
+                return indirectBuffer.variantCapacity(variantIndex);
+            }
+
+            @Override
+            public void destroy() {
+                indirectBuffer.destroy();
+            }
+        };
     }
 
     @Override
-    public IndirectCommandBuffer indirectBuffer() {
-        return indirectBuffer;
+    public VfxIndirectCommandSink indirectCommandSink() {
+        return indirectSink;
     }
 
     @Override
-    public DescriptorWriter bindlessHeap() {
+    public VfxDescriptorBindingWriter bindlessHeapWriter() {
         return NOOP_DESCRIPTOR_WRITER;
     }
 

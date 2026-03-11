@@ -8,7 +8,6 @@ import org.dynamisvfx.api.VfxBudgetStats;
 import org.dynamisvfx.api.VfxHandle;
 import org.dynamisvfx.api.VfxStats;
 import org.dynamisvfx.vulkan.VulkanVfxService;
-import org.dynamisvfx.vulkan.descriptor.VulkanVfxDescriptorSetLayout;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,8 +35,7 @@ public final class VulkanVfxIntegration {
             return new VulkanVfxIntegration(null, null, null);
         }
         long deviceHandle = backendResources.device.address();
-        VulkanVfxDescriptorSetLayout layout = VulkanVfxDescriptorSetLayout.create(deviceHandle);
-        VulkanVfxService service = new VulkanVfxService(deviceHandle, null, layout);
+        VulkanVfxService service = VulkanVfxService.createDefault(deviceHandle);
         service.setPhysicsHandoff(new VulkanVfxPhysicsHandoffAdapter());
         VulkanVfxIndirectResources vfxIndirect = VulkanVfxIndirectResources.create(
                 backendResources.device,
