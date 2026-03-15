@@ -4,7 +4,7 @@ import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
 import org.dynamisengine.gpu.api.gpu.ComputeCullingDispatch;
 import org.dynamisengine.gpu.api.error.GpuException;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanBufferOps;
 import org.dynamisengine.gpu.vulkan.memory.VulkanBufferAlloc;
 import org.dynamisengine.light.impl.vulkan.model.VulkanGpuMesh;
 import org.dynamisengine.light.impl.vulkan.shader.VulkanCullingComputeSource;
@@ -83,7 +83,7 @@ public final class VulkanCullingComputePass implements ComputeCullingDispatch {
             for (int i = 0; i < frameCount; i++) {
                 VulkanBufferAlloc alloc;
                 try {
-                    alloc = VulkanMemoryOps.createBuffer(
+                    alloc = VulkanBufferOps.createBuffer(
                             device,
                             physicalDevice,
                             stack,

@@ -3,7 +3,8 @@ package org.dynamisengine.light.impl.vulkan.texture;
 import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
 import org.dynamisengine.gpu.api.error.GpuException;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanBufferOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanImageOps;
 import org.dynamisengine.gpu.vulkan.memory.VulkanBufferAlloc;
 import org.dynamisengine.light.impl.vulkan.model.VulkanGpuMesh;
 import org.dynamisengine.light.impl.vulkan.model.VulkanGpuTexture;
@@ -124,7 +125,7 @@ public final class VulkanTextureResourceOps {
 
     public static VulkanGpuTexture createTextureFromPixels(VulkanTexturePixelData pixels, Context context) throws EngineException {
         try (MemoryStack stack = stackPush()) {
-            VulkanBufferAlloc staging = VulkanMemoryOps.createBuffer(
+            VulkanBufferAlloc staging = VulkanBufferOps.createBuffer(
                     context.device(),
                     context.physicalDevice(),
                     stack,
@@ -133,8 +134,8 @@ public final class VulkanTextureResourceOps {
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
             );
             try {
-                VulkanMemoryOps.uploadToMemory(context.device(), staging.memory(), pixels.data(), context.vkFailure()::failure);
-                VulkanImageAlloc imageAlloc = VulkanMemoryOps.createImage(
+                VulkanBufferOps.uploadToMemory(context.device(), staging.memory(), pixels.data(), context.vkFailure()::failure);
+                VulkanImageAlloc imageAlloc = VulkanImageOps.createImage(
                         context.device(),
                         context.physicalDevice(),
                         stack,
@@ -146,7 +147,7 @@ public final class VulkanTextureResourceOps {
                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                         1
                 );
-                VulkanMemoryOps.transitionImageLayout(
+                VulkanImageOps.transitionImageLayout(
                         context.device(),
                         context.commandPool(),
                         context.graphicsQueue(),
@@ -155,7 +156,7 @@ public final class VulkanTextureResourceOps {
                         VK10.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                         context.vkFailure()::failure
                 );
-                VulkanMemoryOps.copyBufferToImage(
+                VulkanImageOps.copyBufferToImage(
                         context.device(),
                         context.commandPool(),
                         context.graphicsQueue(),
@@ -165,7 +166,7 @@ public final class VulkanTextureResourceOps {
                         pixels.height(),
                         context.vkFailure()::failure
                 );
-                VulkanMemoryOps.transitionImageLayout(
+                VulkanImageOps.transitionImageLayout(
                         context.device(),
                         context.commandPool(),
                         context.graphicsQueue(),
@@ -253,7 +254,7 @@ public final class VulkanTextureResourceOps {
         interleaved.flip();
 
         try (MemoryStack stack = stackPush()) {
-            VulkanBufferAlloc staging = VulkanMemoryOps.createBuffer(
+            VulkanBufferAlloc staging = VulkanBufferOps.createBuffer(
                     context.device(),
                     context.physicalDevice(),
                     stack,
@@ -262,8 +263,8 @@ public final class VulkanTextureResourceOps {
                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
             );
             try {
-                VulkanMemoryOps.uploadToMemory(context.device(), staging.memory(), interleaved, context.vkFailure()::failure);
-                VulkanImageAlloc imageAlloc = VulkanMemoryOps.createImage(
+                VulkanBufferOps.uploadToMemory(context.device(), staging.memory(), interleaved, context.vkFailure()::failure);
+                VulkanImageAlloc imageAlloc = VulkanImageOps.createImage(
                         context.device(),
                         context.physicalDevice(),
                         stack,
@@ -277,7 +278,7 @@ public final class VulkanTextureResourceOps {
                         1,
                         imageCreateFlags
                 );
-                VulkanMemoryOps.transitionImageLayout(
+                VulkanImageOps.transitionImageLayout(
                         context.device(),
                         context.commandPool(),
                         context.graphicsQueue(),
@@ -288,7 +289,7 @@ public final class VulkanTextureResourceOps {
                         1,
                         context.vkFailure()::failure
                 );
-                VulkanMemoryOps.copyBufferToImageLayers(
+                VulkanImageOps.copyBufferToImageLayers(
                         context.device(),
                         context.commandPool(),
                         context.graphicsQueue(),
@@ -300,7 +301,7 @@ public final class VulkanTextureResourceOps {
                         bytesPerLayer,
                         context.vkFailure()::failure
                 );
-                VulkanMemoryOps.transitionImageLayout(
+                VulkanImageOps.transitionImageLayout(
                         context.device(),
                         context.commandPool(),
                         context.graphicsQueue(),

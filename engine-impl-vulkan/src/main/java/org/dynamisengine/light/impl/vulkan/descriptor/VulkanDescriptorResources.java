@@ -4,7 +4,7 @@ import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
 import org.dynamisengine.gpu.api.gpu.DescriptorWriter;
 import org.dynamisengine.gpu.api.error.GpuException;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanBufferOps;
 import org.dynamisengine.gpu.vulkan.memory.VulkanBufferAlloc;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -581,7 +581,7 @@ public final class VulkanDescriptorResources implements DescriptorWriter {
             String label
     ) throws EngineException {
         try {
-            return VulkanMemoryOps.createBuffer(
+            return VulkanBufferOps.createBuffer(
                     device,
                     physicalDevice,
                     stack,

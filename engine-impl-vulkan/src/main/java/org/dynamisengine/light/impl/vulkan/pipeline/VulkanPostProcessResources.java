@@ -3,7 +3,7 @@ package org.dynamisengine.light.impl.vulkan.pipeline;
 import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
 import org.dynamisengine.gpu.api.error.GpuException;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanImageOps;
 import org.dynamisengine.gpu.vulkan.memory.VulkanImageAlloc;
 import org.dynamisengine.light.impl.vulkan.descriptor.VulkanComposedDescriptorLayoutPlan;
 import org.dynamisengine.light.impl.vulkan.descriptor.VulkanComposedDescriptorBinding;
@@ -211,7 +211,7 @@ public final class VulkanPostProcessResources {
             String label
     ) throws EngineException {
         try {
-            return VulkanMemoryOps.createImage(
+            return VulkanImageOps.createImage(
                     device,
                     physicalDevice,
                     stack,

@@ -4,7 +4,7 @@ import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
 import org.dynamisengine.gpu.api.gpu.BoundsBuffer;
 import org.dynamisengine.gpu.api.error.GpuException;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanBufferOps;
 import org.dynamisengine.gpu.vulkan.memory.VulkanBufferAlloc;
 import org.dynamisengine.light.impl.vulkan.model.VulkanGpuMesh;
 import org.lwjgl.PointerBuffer;
@@ -61,7 +61,7 @@ public final class VulkanMeshBoundsBuffer implements BoundsBuffer {
         try (MemoryStack stack = stackPush()) {
             VulkanBufferAlloc alloc;
             try {
-                alloc = VulkanMemoryOps.createBuffer(
+                alloc = VulkanBufferOps.createBuffer(
                         device,
                         physicalDevice,
                         stack,

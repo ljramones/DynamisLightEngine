@@ -8,7 +8,7 @@ import org.dynamisengine.gpu.api.error.GpuException;
 import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
 import org.dynamisengine.light.impl.vulkan.descriptor.VulkanDescriptorResources;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanBufferOps;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -82,7 +82,7 @@ public final class VulkanMorphWeightUniforms implements WeightBuffer {
         try (MemoryStack stack = stackPush()) {
             org.dynamisengine.gpu.vulkan.memory.VulkanBufferAlloc alloc;
             try {
-                alloc = VulkanMemoryOps.createBuffer(
+                alloc = VulkanBufferOps.createBuffer(
                         device,
                         physicalDevice,
                         stack,

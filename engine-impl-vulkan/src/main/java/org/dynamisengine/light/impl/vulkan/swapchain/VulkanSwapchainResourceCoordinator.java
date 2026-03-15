@@ -3,7 +3,7 @@ package org.dynamisengine.light.impl.vulkan.swapchain;
 import org.dynamisengine.gpu.api.error.GpuException;
 import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanImageOps;
 import org.dynamisengine.gpu.vulkan.memory.VulkanImageAlloc;
 import org.dynamisengine.light.impl.vulkan.pipeline.VulkanMainPipelineBuilder;
 import org.dynamisengine.light.impl.vulkan.pipeline.VulkanPostProcessResources;
@@ -45,7 +45,7 @@ public final class VulkanSwapchainResourceCoordinator {
         );
         VulkanImageAlloc velocity;
         try {
-            velocity = VulkanMemoryOps.createImage(
+            velocity = VulkanImageOps.createImage(
                     inputs.device(),
                     inputs.physicalDevice(),
                     inputs.stack(),

@@ -4,7 +4,7 @@ import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
 import org.dynamisengine.gpu.api.error.GpuException;
 import org.dynamisengine.gpu.vulkan.descriptor.VulkanBindlessDescriptorHeap;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanBufferOps;
 import org.dynamisengine.gpu.vulkan.memory.VulkanBufferAlloc;
 import org.dynamisengine.light.impl.vulkan.model.VulkanGpuMesh;
 import org.dynamisengine.light.impl.vulkan.model.VulkanInstanceBatch;
@@ -115,7 +115,7 @@ public final class VulkanSceneMeshLifecycle {
             VulkanBufferAlloc vertexAlloc;
             VulkanBufferAlloc indexAlloc;
             try {
-                vertexAlloc = VulkanMemoryOps.createDeviceLocalBufferWithStaging(
+                vertexAlloc = VulkanBufferOps.createDeviceLocalBufferWithStaging(
                         device,
                         physicalDevice,
                         commandPool,
@@ -125,7 +125,7 @@ public final class VulkanSceneMeshLifecycle {
                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                         vkFailure::failure
                 );
-                indexAlloc = VulkanMemoryOps.createDeviceLocalBufferWithStaging(
+                indexAlloc = VulkanBufferOps.createDeviceLocalBufferWithStaging(
                         device,
                         physicalDevice,
                         commandPool,

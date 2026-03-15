@@ -4,7 +4,7 @@ import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
 import org.dynamisengine.gpu.api.gpu.DrawMetaWriter;
 import org.dynamisengine.gpu.api.error.GpuException;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanBufferOps;
 import org.dynamisengine.gpu.vulkan.memory.VulkanBufferAlloc;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -67,7 +67,7 @@ public final class VulkanDrawMetaBuffer implements DrawMetaWriter {
         try (MemoryStack stack = stackPush()) {
             VulkanBufferAlloc alloc;
             try {
-                alloc = VulkanMemoryOps.createBuffer(
+                alloc = VulkanBufferOps.createBuffer(
                         device,
                         physicalDevice,
                         stack,

@@ -3,7 +3,7 @@ package org.dynamisengine.light.impl.vulkan.swapchain;
 import org.dynamisengine.light.api.error.EngineErrorCode;
 import org.dynamisengine.light.api.error.EngineException;
 import org.dynamisengine.gpu.api.error.GpuException;
-import org.dynamisengine.gpu.vulkan.memory.VulkanMemoryOps;
+import org.dynamisengine.gpu.vulkan.memory.VulkanImageOps;
 import org.dynamisengine.gpu.vulkan.memory.VulkanImageAlloc;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
@@ -43,7 +43,7 @@ public final class VulkanFramebufferResources {
         for (int i = 0; i < imageCount; i++) {
             VulkanImageAlloc depth;
             try {
-                depth = VulkanMemoryOps.createImage(
+                depth = VulkanImageOps.createImage(
                         device,
                         physicalDevice,
                         stack,
