@@ -32,7 +32,7 @@ Introduce a minimal `engine-spi` capability contract (`RenderFeatureCapability` 
 
 ## Contract Scope (Phase 1)
 
-- Package: `org.dynamislight.spi.render`
+- Package: `org.dynamisengine.light.spi.render`
 - Interface: `RenderFeatureCapability`
 - Core models:
   - `RenderFeatureContract`

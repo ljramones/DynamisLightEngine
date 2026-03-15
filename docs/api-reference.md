@@ -1,6 +1,6 @@
 # DynamicLightEngine API Reference
 
-This document describes the public Java API in `engine-api` (`org.dynamislight.api.*`).
+This document describes the public Java API in `engine-api` (`org.dynamisengine.light.api.*`).
 
 ## 1) Design rules
 - API boundary is Java-first and JavaFX-agnostic.
@@ -9,15 +9,15 @@ This document describes the public Java API in `engine-api` (`org.dynamislight.a
 - Runtime interaction is single-threaded and non-reentrant.
 
 ## 2) Package index
-- `org.dynamislight.api.runtime`: runtime lifecycle, stats, capabilities, frames, host callbacks.
-- `org.dynamislight.api.config`: runtime config and quality tier.
-- `org.dynamislight.api.scene`: scene graph DTOs (camera/transform/mesh/material/light/fog/smoke).
-- `org.dynamislight.api.input`: input DTOs and key codes.
-- `org.dynamislight.api.event`: event hierarchy and per-frame warnings.
-- `org.dynamislight.api.error`: error model (`EngineException`, `EngineErrorCode`, reports).
-- `org.dynamislight.api.logging`: structured log message DTOs.
-- `org.dynamislight.api.resource`: runtime resource service and cache telemetry.
-- `org.dynamislight.api.validation`: validators for config and scene contracts.
+- `org.dynamisengine.light.api.runtime`: runtime lifecycle, stats, capabilities, frames, host callbacks.
+- `org.dynamisengine.light.api.config`: runtime config and quality tier.
+- `org.dynamisengine.light.api.scene`: scene graph DTOs (camera/transform/mesh/material/light/fog/smoke).
+- `org.dynamisengine.light.api.input`: input DTOs and key codes.
+- `org.dynamisengine.light.api.event`: event hierarchy and per-frame warnings.
+- `org.dynamisengine.light.api.error`: error model (`EngineException`, `EngineErrorCode`, reports).
+- `org.dynamisengine.light.api.logging`: structured log message DTOs.
+- `org.dynamisengine.light.api.resource`: runtime resource service and cache telemetry.
+- `org.dynamisengine.light.api.validation`: validators for config and scene contracts.
 
 ## 3) Core runtime contract
 `EngineRuntime` is the host entry point:

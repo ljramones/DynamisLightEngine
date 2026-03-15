@@ -38,10 +38,10 @@ Interactive commands:
 Attach `ShadowDesc` to lights in your `SceneDescriptor`.
 
 ```java
-import org.dynamislight.api.scene.LightDesc;
-import org.dynamislight.api.scene.LightType;
-import org.dynamislight.api.scene.ShadowDesc;
-import org.dynamislight.api.scene.Vec3;
+import org.dynamisengine.light.api.scene.LightDesc;
+import org.dynamisengine.light.api.scene.LightType;
+import org.dynamisengine.light.api.scene.ShadowDesc;
+import org.dynamisengine.light.api.scene.Vec3;
 
 ShadowDesc shadow = new ShadowDesc(
     2048,    // mapResolution

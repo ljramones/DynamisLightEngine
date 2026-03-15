@@ -110,15 +110,15 @@ Legacy path unchanged when `bindlessActive=false`.
 
 ## 7. Files to Change
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanBindlessInstancedVertexShaderSource.java` (new)
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanBindlessInstancedShadowVertexShaderSource.java` (new)
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/pipeline/VulkanMainPipelineBuilder.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/pipeline/VulkanShadowPipelineBuilder.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanSceneMeshLifecycle.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/model/VulkanInstanceBatch.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanMainPassRecorderCore.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanShadowPassRecorderCore.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanBindlessInstancedVertexShaderSource.java` (new)
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanBindlessInstancedShadowVertexShaderSource.java` (new)
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/pipeline/VulkanMainPipelineBuilder.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/pipeline/VulkanShadowPipelineBuilder.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/scene/VulkanSceneMeshLifecycle.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/model/VulkanInstanceBatch.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanMainPassRecorderCore.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanShadowPassRecorderCore.java`
 - swapchain/lifecycle propagation for new bindless instanced main/shadow pipelines
 
 ## 8. Validation (Step 5)

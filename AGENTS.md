@@ -3,8 +3,8 @@
 ## Project Structure & Module Organization
 DynamicLightEngine is a multi-module Maven project targeting Java/JDK 25:
 
-- `engine-api`: stable host/runtime boundary DTOs and contracts (`org.dynamislight.api`)
-- `engine-spi`: backend provider SPI and metadata (`org.dynamislight.spi`)
+- `engine-api`: stable host/runtime boundary DTOs and contracts (`org.dynamisengine.light.api`)
+- `engine-spi`: backend provider SPI and metadata (`org.dynamisengine.light.spi`)
 - `engine-impl-common`: shared backend runtime lifecycle base
 - `engine-impl-opengl`: first runtime backend + ServiceLoader registration
 - `engine-impl-vulkan`: Vulkan backend skeleton + ServiceLoader registration
@@ -31,7 +31,7 @@ Use 4-space indentation and UTF-8 source files. Prefer immutable records for DTO
 - Classes/records/interfaces: `PascalCase`
 - Methods/fields: `camelCase`
 - Enums/constants: `UPPER_SNAKE_CASE`
-- Package names: lowercase (`org.dynamislight.*`)
+- Package names: lowercase (`org.dynamisengine.light.*`)
 
 Respect lifecycle and threading contracts in runtime code: single engine thread, no callback reentrancy.
 

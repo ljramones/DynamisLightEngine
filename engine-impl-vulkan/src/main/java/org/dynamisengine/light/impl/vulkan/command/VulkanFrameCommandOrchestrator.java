@@ -1,0 +1,741 @@
+package org.dynamisengine.light.impl.vulkan.command;
+
+import org.dynamisengine.light.api.error.EngineException;
+import org.dynamisengine.light.api.error.EngineErrorCode;
+import org.dynamisengine.light.impl.vulkan.graph.VulkanAaPostRenderGraphPlanner;
+import org.dynamisengine.light.impl.vulkan.graph.VulkanExecutableRenderGraphPlan;
+import org.dynamisengine.light.impl.vulkan.graph.VulkanExecutableRenderGraphBuilder;
+import org.dynamisengine.light.impl.vulkan.graph.VulkanExecutableRenderGraphPlanner;
+import org.dynamisengine.light.impl.vulkan.graph.VulkanResourceBindingTable;
+import org.dynamisengine.light.impl.vulkan.model.VulkanGpuMesh;
+import org.dynamisengine.light.impl.vulkan.model.VulkanInstanceBatch;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.vulkan.VK10;
+import org.lwjgl.vulkan.VkCommandBuffer;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.function.IntUnaryOperator;
+import java.util.logging.Logger;
+
+import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_COLOR_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_ASPECT_DEPTH_BIT;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_GENERAL;
+import static org.lwjgl.vulkan.VK10.VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
+
+public final class VulkanFrameCommandOrchestrator {
+    private static final Logger LOG = Logger.getLogger(VulkanFrameCommandOrchestrator.class.getName());
+    private static final VulkanShadowPassRecorder SHADOW_RECORDER = new VulkanShadowPassRecorder();
+    private static final VulkanPlanarReflectionPassRecorder PLANAR_RECORDER = new VulkanPlanarReflectionPassRecorder();
+    private static final VulkanMainPassRecorder MAIN_RECORDER = new VulkanMainPassRecorder();
+    private static final VulkanPostCompositePassRecorder POST_COMPOSITE_RECORDER = new VulkanPostCompositePassRecorder();
+    private static final VulkanExecutableRenderGraphPlanner EXECUTABLE_GRAPH_PLANNER = new VulkanExecutableRenderGraphPlanner();
+    private static final VulkanRenderGraphExecutor GRAPH_EXECUTOR = new VulkanRenderGraphExecutor();
+
+    private VulkanFrameCommandOrchestrator() {
+    }
+
+    @FunctionalInterface
+    public interface ThrowingRunnable {
+        void run() throws EngineException;
+    }
+
+    public static void record(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            int imageIndex,
+            int frameIdx,
+            FrameHooks hooks,
+            Inputs inputs
+    ) throws EngineException {
+        int beginResult = VulkanRenderCommandRecorder.beginOneShot(commandBuffer, stack);
+        if (beginResult != VK10.VK_SUCCESS) {
+            throw inputs.vkFailure().failure("vkBeginCommandBuffer", beginResult);
+        }
+
+        hooks.updateShadowMatrices().run();
+        hooks.prepareUniforms().run();
+        hooks.uploadUniforms().run();
+        long frameDescriptorSet = inputs.descriptorSetForFrame().applyAsLong(frameIdx);
+        int drawCount = inputs.gpuMeshes().isEmpty() ? 1 : Math.min(inputs.maxDynamicSceneObjects(), inputs.gpuMeshes().size());
+        List<VulkanRenderCommandRecorder.MeshDrawCmd> meshes = new ArrayList<>(Math.min(drawCount, inputs.gpuMeshes().size()));
+        for (int i = 0; i < drawCount && i < inputs.gpuMeshes().size(); i++) {
+            VulkanGpuMesh mesh = inputs.gpuMeshes().get(i);
+            meshes.add(new VulkanRenderCommandRecorder.MeshDrawCmd(
+                    mesh.vertexBuffer,
+                    mesh.indexBuffer,
+                    mesh.indexCount,
+                    mesh.textureDescriptorSet,
+                    mesh.reflectionOverrideMode,
+                    i,
+                    mesh.skinned,
+                    mesh.skinningBufferHandle,
+                    mesh.bindlessJointHandle,
+                    mesh.bindlessMorphDeltaHandle,
+                    mesh.bindlessMorphWeightHandle,
+                    mesh.morphTargetCount > 0 && mesh.morphDescriptorSetHandle != VK_NULL_HANDLE,
+                    mesh.morphDescriptorSetHandle,
+                    mesh.morphTargetCount,
+                    mesh.morphTargets == null ? 0 : mesh.morphTargets.vertexCount(),
+                    false,
+                    1,
+                    0,
+                    VK_NULL_HANDLE,
+                    0L
+            ));
+        }
+        if (inputs.instanceBatches() != null) {
+            for (VulkanInstanceBatch batch : inputs.instanceBatches()) {
+                if (batch == null || batch.instanceCount <= 0) {
+                    continue;
+                }
+                int baseMeshIndex = batch.meshHandle;
+                if (baseMeshIndex < 0 || baseMeshIndex >= inputs.gpuMeshes().size()) {
+                    continue;
+                }
+                VulkanGpuMesh mesh = inputs.gpuMeshes().get(baseMeshIndex);
+                if (batch.buffer == null || batch.buffer.descriptorSetHandle() == VK_NULL_HANDLE) {
+                    continue;
+                }
+                meshes.add(new VulkanRenderCommandRecorder.MeshDrawCmd(
+                        mesh.vertexBuffer,
+                        mesh.indexBuffer,
+                        mesh.indexCount,
+                        mesh.textureDescriptorSet,
+                        mesh.reflectionOverrideMode,
+                    baseMeshIndex,
+                    false,
+                    VK_NULL_HANDLE,
+                    0L,
+                    0L,
+                    0L,
+                    false,
+                    VK_NULL_HANDLE,
+                        0,
+                        0,
+                    true,
+                    batch.instanceCount,
+                    0,
+                        batch.buffer.descriptorSetHandle(),
+                        batch.bindlessInstanceHandle
+                ));
+            }
+        }
+        meshes.sort((left, right) -> Integer.compare(drawPathRank(left), drawPathRank(right)));
+        long activeIndirectBufferHandle = VK_NULL_HANDLE;
+        long activeIndirectCountBufferHandle = VK_NULL_HANDLE;
+        VulkanIndirectDrawBuffer activeIndirectBuffer = null;
+        int activeDrawCount = meshes.size();
+        if (inputs.indirectDrawBuffer() != null) {
+            activeDrawCount = inputs.indirectDrawBuffer().upload(meshes);
+            if (activeDrawCount < meshes.size()) {
+                meshes = new ArrayList<>(meshes.subList(0, activeDrawCount));
+            }
+            activeIndirectBufferHandle = inputs.indirectDrawBuffer().bufferHandle();
+            activeIndirectBuffer = inputs.indirectDrawBuffer();
+            if (inputs.cullingComputePass() != null) {
+                inputs.cullingComputePass().uploadMeshBounds(inputs.gpuMeshes());
+                inputs.cullingComputePass().dispatch(
+                        stack,
+                        commandBuffer,
+                        frameIdx,
+                        activeDrawCount,
+                        inputs.gpuMeshes().size(),
+                        inputs.viewProjMatrix()
+                );
+                activeIndirectBufferHandle = inputs.cullingComputePass().culledIndirectBufferHandle(frameIdx);
+                activeIndirectCountBufferHandle = inputs.cullingComputePass().drawCountBufferHandle(frameIdx);
+                activeIndirectBuffer = inputs.cullingComputePass().culledIndirectBuffer(frameIdx);
+            }
+        }
+        int indirectStaticOffsetBytes = 0;
+        int indirectMorphOffsetBytes = 0;
+        int indirectSkinnedOffsetBytes = 0;
+        int indirectSkinnedMorphOffsetBytes = 0;
+        int indirectInstancedOffsetBytes = 0;
+        int indirectStaticMaxDraws = 0;
+        int indirectMorphMaxDraws = 0;
+        int indirectSkinnedMaxDraws = 0;
+        int indirectSkinnedMorphMaxDraws = 0;
+        int indirectInstancedMaxDraws = 0;
+        if (activeIndirectBuffer != null) {
+            indirectStaticOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_STATIC)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectMorphOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_MORPH)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectSkinnedOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_SKINNED)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectSkinnedMorphOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_SKINNED_MORPH)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectInstancedOffsetBytes = activeIndirectBuffer.variantOffsetCommands(VulkanIndirectDrawBuffer.VARIANT_INSTANCED)
+                    * VulkanIndirectDrawBuffer.COMMAND_STRIDE_BYTES;
+            indirectStaticMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_STATIC);
+            indirectMorphMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_MORPH);
+            indirectSkinnedMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_SKINNED);
+            indirectSkinnedMorphMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_SKINNED_MORPH);
+            indirectInstancedMaxDraws = activeIndirectBuffer.variantCapacity(VulkanIndirectDrawBuffer.VARIANT_INSTANCED);
+        }
+        if (inputs.drawMetaBuffer() != null) {
+            inputs.drawMetaBuffer().upload(meshes, inputs.bindlessDescriptorHeap(), frameIdx);
+        }
+        org.dynamisengine.gpu.api.BindlessHeapStats bindlessStats = null;
+        if (inputs.bindlessDescriptorHeap() != null) {
+            if (inputs.drawMetaBuffer() != null) {
+                inputs.bindlessDescriptorHeap().updateDrawMetaStats(
+                        inputs.drawMetaBuffer().lastUploadCount(),
+                        inputs.drawMetaBuffer().lastInvalidIndexWrites()
+                );
+            } else {
+                inputs.bindlessDescriptorHeap().updateDrawMetaStats(0, 0);
+            }
+            bindlessStats = inputs.bindlessDescriptorHeap().stats();
+        }
+        StringBuilder parityLog = new StringBuilder("[BINDLESS_PARITY] enabled=")
+                .append(inputs.bindlessActive())
+                .append(", drawCount=").append(meshes.size())
+                .append(", streamHash=").append(Long.toUnsignedString(hashCommandStream(meshes)));
+        if (bindlessStats != null) {
+            parityLog.append(", jointUsed=").append(bindlessStats.jointUsed())
+                    .append(", jointCapacity=").append(bindlessStats.jointCapacity())
+                    .append(", morphDeltaUsed=").append(bindlessStats.morphDeltaUsed())
+                    .append(", morphDeltaCapacity=").append(bindlessStats.morphDeltaCapacity())
+                    .append(", morphWeightUsed=").append(bindlessStats.morphWeightUsed())
+                    .append(", morphWeightCapacity=").append(bindlessStats.morphWeightCapacity())
+                    .append(", instanceUsed=").append(bindlessStats.instanceUsed())
+                    .append(", instanceCapacity=").append(bindlessStats.instanceCapacity())
+                    .append(", allocations=").append(bindlessStats.allocations())
+                    .append(", freesQueued=").append(bindlessStats.freesQueued())
+                    .append(", freesRetired=").append(bindlessStats.freesRetired())
+                    .append(", staleHandleRejects=").append(bindlessStats.staleHandleRejects())
+                    .append(", drawMetaCount=").append(bindlessStats.drawMetaCount())
+                    .append(", invalidIndexWrites=").append(bindlessStats.invalidIndexWrites());
+        }
+        LOG.info(parityLog.toString());
+        System.out.println(parityLog);
+
+        VulkanRenderCommandRecorder.resetPlanarTimestampQueries(
+                commandBuffer,
+                inputs.planarTimestampQueryPool(),
+                inputs.planarTimestampQueryStartIndex(),
+                inputs.planarTimestampQueryEndIndex()
+        );
+
+        VulkanExecutableRenderGraphBuilder graphBuilder = new VulkanExecutableRenderGraphBuilder();
+
+        VulkanRenderCommandRecorder.ShadowPassInputs shadowInputs = new VulkanRenderCommandRecorder.ShadowPassInputs(
+                drawCount,
+                activeIndirectBufferHandle,
+                activeIndirectCountBufferHandle,
+                indirectInstancedOffsetBytes,
+                indirectInstancedMaxDraws,
+                inputs.shadowMapResolution(),
+                inputs.shadowEnabled(),
+                inputs.pointShadowEnabled(),
+                inputs.shadowCascadeCount(),
+                inputs.maxShadowMatrices(),
+                inputs.maxShadowCascades(),
+                inputs.pointShadowFaces(),
+                frameDescriptorSet,
+                inputs.bindlessActive(),
+                inputs.bindlessDescriptorSet(),
+                inputs.shadowRenderPass(),
+                inputs.shadowPipeline(),
+                inputs.shadowInstancedPipeline(),
+                inputs.shadowBindlessInstancedPipeline(),
+                inputs.shadowPipelineLayout(),
+                inputs.shadowFramebuffers(),
+                inputs.shadowMomentImage(),
+                inputs.shadowMomentMipLevels(),
+                inputs.shadowMomentPipelineRequested(),
+                inputs.shadowMomentInitialized()
+        );
+        SHADOW_RECORDER.declarePasses(
+                graphBuilder,
+                stack,
+                commandBuffer,
+                shadowInputs,
+                meshes,
+                meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
+        );
+
+        VulkanRenderCommandRecorder.PlanarReflectionPassInputs planarInputs = new VulkanRenderCommandRecorder.PlanarReflectionPassInputs(
+                drawCount,
+                inputs.swapchainWidth(),
+                inputs.swapchainHeight(),
+                activeIndirectBufferHandle,
+                activeIndirectCountBufferHandle,
+                indirectStaticOffsetBytes,
+                indirectMorphOffsetBytes,
+                indirectSkinnedOffsetBytes,
+                indirectSkinnedMorphOffsetBytes,
+                indirectInstancedOffsetBytes,
+                indirectStaticMaxDraws,
+                indirectMorphMaxDraws,
+                indirectSkinnedMaxDraws,
+                indirectSkinnedMorphMaxDraws,
+                indirectInstancedMaxDraws,
+                inputs.bindlessActive(),
+                inputs.bindlessDescriptorSet(),
+                frameDescriptorSet,
+                inputs.renderPass(),
+                inputs.framebuffers()[imageIndex],
+                inputs.mainGeometryPipeline(),
+                inputs.mainGeometryPipelineLayout(),
+                inputs.mainGeometryBindlessStaticPipeline(),
+                inputs.mainGeometryBindlessStaticPipelineLayout(),
+                inputs.mainGeometryBindlessSkinnedPipeline(),
+                inputs.mainGeometryBindlessSkinnedPipelineLayout(),
+                inputs.mainGeometryBindlessMorphPipeline(),
+                inputs.mainGeometryBindlessMorphPipelineLayout(),
+                inputs.mainGeometryBindlessSkinnedMorphPipeline(),
+                inputs.mainGeometryBindlessSkinnedMorphPipelineLayout(),
+                inputs.mainGeometryBindlessInstancedPipeline(),
+                inputs.mainGeometryBindlessInstancedPipelineLayout(),
+                inputs.mainGeometryMorphPipeline(),
+                inputs.mainGeometryMorphPipelineLayout(),
+                inputs.mainGeometrySkinnedPipeline(),
+                inputs.mainGeometrySkinnedPipelineLayout(),
+                inputs.mainGeometrySkinnedMorphPipeline(),
+                inputs.mainGeometrySkinnedMorphPipelineLayout(),
+                inputs.mainGeometryInstancedPipeline(),
+                inputs.mainGeometryInstancedPipelineLayout(),
+                inputs.reflectionsMode(),
+                inputs.reflectionsPlanarPlaneHeight(),
+                inputs.planarTimestampQueryPool(),
+                inputs.planarTimestampQueryStartIndex(),
+                inputs.planarTimestampQueryEndIndex(),
+                inputs.planarCaptureImage(),
+                inputs.swapchainImages()[imageIndex],
+                inputs.taaHistoryInitialized()
+        );
+        PLANAR_RECORDER.declarePasses(
+                graphBuilder,
+                stack,
+                commandBuffer,
+                planarInputs,
+                meshes,
+                meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
+        );
+
+        VulkanRenderCommandRecorder.MainPassInputs mainInputs = new VulkanRenderCommandRecorder.MainPassInputs(
+                drawCount,
+                inputs.swapchainWidth(),
+                inputs.swapchainHeight(),
+                activeIndirectBufferHandle,
+                inputs.vfxIndirectDrawBuffer(),
+                inputs.vfxIndirectDrawCount(),
+                activeIndirectCountBufferHandle,
+                indirectStaticOffsetBytes,
+                indirectMorphOffsetBytes,
+                indirectSkinnedOffsetBytes,
+                indirectSkinnedMorphOffsetBytes,
+                indirectInstancedOffsetBytes,
+                indirectStaticMaxDraws,
+                indirectMorphMaxDraws,
+                indirectSkinnedMaxDraws,
+                indirectSkinnedMorphMaxDraws,
+                indirectInstancedMaxDraws,
+                inputs.bindlessActive(),
+                inputs.bindlessDescriptorSet(),
+                frameDescriptorSet,
+                inputs.renderPass(),
+                inputs.framebuffers()[imageIndex],
+                inputs.mainGeometryPipeline(),
+                inputs.mainGeometryPipelineLayout(),
+                inputs.mainGeometryBindlessStaticPipeline(),
+                inputs.mainGeometryBindlessStaticPipelineLayout(),
+                inputs.mainGeometryBindlessSkinnedPipeline(),
+                inputs.mainGeometryBindlessSkinnedPipelineLayout(),
+                inputs.mainGeometryBindlessMorphPipeline(),
+                inputs.mainGeometryBindlessMorphPipelineLayout(),
+                inputs.mainGeometryBindlessSkinnedMorphPipeline(),
+                inputs.mainGeometryBindlessSkinnedMorphPipelineLayout(),
+                inputs.mainGeometryBindlessInstancedPipeline(),
+                inputs.mainGeometryBindlessInstancedPipelineLayout(),
+                inputs.mainGeometryMorphPipeline(),
+                inputs.mainGeometryMorphPipelineLayout(),
+                inputs.mainGeometrySkinnedPipeline(),
+                inputs.mainGeometrySkinnedPipelineLayout(),
+                inputs.mainGeometrySkinnedMorphPipeline(),
+                inputs.mainGeometrySkinnedMorphPipelineLayout(),
+                inputs.mainGeometryInstancedPipeline(),
+                inputs.mainGeometryInstancedPipelineLayout(),
+                inputs.reflectionsMode(),
+                inputs.reflectionsPlanarPlaneHeight()
+        );
+        MAIN_RECORDER.declarePasses(
+                graphBuilder,
+                stack,
+                commandBuffer,
+                mainInputs,
+                meshes,
+                meshIndex -> inputs.dynamicUniformOffset().applyAsInt(meshIndex)
+        );
+
+        if (inputs.postOffscreenActive()) {
+            VulkanRenderCommandRecorder.PostCompositeInputs postInputs = new VulkanRenderCommandRecorder.PostCompositeInputs(
+                    imageIndex,
+                    inputs.swapchainWidth(),
+                    inputs.swapchainHeight(),
+                    inputs.postIntermediateInitialized(),
+                    inputs.tonemapEnabled(),
+                    inputs.tonemapExposure(),
+                    inputs.tonemapGamma(),
+                    inputs.ssaoEnabled(),
+                    inputs.bloomEnabled(),
+                    inputs.bloomThreshold(),
+                    inputs.bloomStrength(),
+                    inputs.ssaoStrength(),
+                    inputs.ssaoRadius(),
+                    inputs.ssaoBias(),
+                    inputs.ssaoPower(),
+                    inputs.smaaEnabled(),
+                    inputs.smaaStrength(),
+                    inputs.taaEnabled(),
+                    inputs.taaBlend(),
+                    inputs.taaHistoryInitialized(),
+                    inputs.taaJitterUvDeltaX(),
+                    inputs.taaJitterUvDeltaY(),
+                    inputs.taaMotionUvX(),
+                    inputs.taaMotionUvY(),
+                    inputs.taaClipScale(),
+                    inputs.taaRenderScale(),
+                    inputs.taaLumaClipEnabled(),
+                    inputs.taaSharpenStrength(),
+                    inputs.reflectionsEnabled(),
+                    inputs.reflectionsMode(),
+                    inputs.reflectionsSsrStrength(),
+                    inputs.reflectionsSsrMaxRoughness(),
+                    inputs.reflectionsSsrStepScale(),
+                    inputs.reflectionsTemporalWeight(),
+                    inputs.reflectionsPlanarStrength(),
+                    inputs.reflectionsRtDenoiseStrength(),
+                    inputs.taaDebugView(),
+                    inputs.postRenderPass(),
+                    inputs.postGraphicsPipeline(),
+                    inputs.postPipelineLayout(),
+                    inputs.postDescriptorSet(),
+                    inputs.offscreenColorImage(),
+                    inputs.taaHistoryImage(),
+                    inputs.taaHistoryVelocityImage(),
+                    inputs.planarCaptureImage(),
+                    inputs.velocityImage(),
+                    inputs.swapchainImages()[imageIndex],
+                    inputs.postFramebuffers()
+            );
+            POST_COMPOSITE_RECORDER.declarePasses(
+                    graphBuilder,
+                    stack,
+                    commandBuffer,
+                    postInputs,
+                    hooks.postIntermediateInitializedSink()::accept,
+                    hooks.postTaaHistoryInitializedSink()::accept
+            );
+        }
+
+        VulkanExecutableRenderGraphPlan executablePlan = EXECUTABLE_GRAPH_PLANNER.compile(
+                graphBuilder.build(),
+                VulkanAaPostRenderGraphPlanner.defaultImportedResources()
+        );
+        VulkanResourceBindingTable bindingTable = buildResourceBindingTable(inputs, imageIndex);
+        Set<String> unboundResources = bindingTable.unboundResources(executablePlan.metadataPlan());
+        if (!unboundResources.isEmpty()) {
+            throw new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Render graph has unbound Vulkan resources: " + String.join(", ", unboundResources),
+                    false
+            );
+        }
+        Set<String> invalidBindings = bindingTable.invalidBindings(executablePlan.metadataPlan());
+        if (!invalidBindings.isEmpty()) {
+            throw new EngineException(
+                    EngineErrorCode.INTERNAL_ERROR,
+                    "Render graph has invalid Vulkan resource bindings: " + String.join(", ", invalidBindings),
+                    false
+            );
+        }
+
+        GRAPH_EXECUTOR.execute(stack, commandBuffer, executablePlan, bindingTable);
+
+        int endResult = VulkanRenderCommandRecorder.end(commandBuffer);
+        if (endResult != VK10.VK_SUCCESS) {
+            throw inputs.vkFailure().failure("vkEndCommandBuffer", endResult);
+        }
+    }
+
+    private static int drawPathRank(VulkanRenderCommandRecorder.MeshDrawCmd mesh) {
+        if (mesh.instanced()) {
+            return 4;
+        }
+        if (mesh.skinned() && mesh.morphTargeted()) {
+            return 3;
+        }
+        if (mesh.skinned()) {
+            return 2;
+        }
+        if (mesh.morphTargeted()) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private static long hashCommandStream(List<VulkanRenderCommandRecorder.MeshDrawCmd> meshes) {
+        long hash = 1469598103934665603L;
+        for (VulkanRenderCommandRecorder.MeshDrawCmd mesh : meshes) {
+            hash = mix(hash, mesh.indexCount());
+            hash = mix(hash, mesh.uniformMeshIndex());
+            hash = mix(hash, mesh.instanceCount());
+            hash = mix(hash, mesh.firstInstance());
+            hash = mix(hash, mesh.skinned() ? 1 : 0);
+            hash = mix(hash, mesh.morphTargeted() ? 1 : 0);
+            hash = mix(hash, mesh.instanced() ? 1 : 0);
+        }
+        return hash;
+    }
+
+    private static long mix(long hash, int value) {
+        hash ^= Integer.toUnsignedLong(value) + 0x9e3779b97f4a7c15L + (hash << 6) + (hash >>> 2);
+        return hash;
+    }
+
+    @FunctionalInterface
+    public interface LongByInt {
+        long applyAsLong(int value);
+    }
+
+    @FunctionalInterface
+    public interface BooleanSink {
+        void accept(boolean value);
+    }
+
+    @FunctionalInterface
+    public interface FailureFactory {
+        EngineException failure(String operation, int result);
+    }
+
+    static VulkanResourceBindingTable buildResourceBindingTable(Inputs inputs, int imageIndex) {
+        long currentSwapchainImage = imageIndex >= 0 && imageIndex < inputs.swapchainImages().length
+                ? inputs.swapchainImages()[imageIndex]
+                : 0L;
+        long currentDepthImage = imageIndex >= 0 && imageIndex < inputs.depthImages().length
+                ? inputs.depthImages()[imageIndex]
+                : 0L;
+        long sceneColorImage = inputs.postOffscreenActive() ? inputs.offscreenColorImage() : currentSwapchainImage;
+        long resolvedColorImage = currentSwapchainImage != 0L ? currentSwapchainImage : sceneColorImage;
+        long shadowMomentImage = inputs.shadowMomentImage() != 0L ? inputs.shadowMomentImage() : resolvedColorImage;
+        int shadowMomentFormat = inputs.shadowMomentFormat() != 0 ? inputs.shadowMomentFormat() : inputs.swapchainImageFormat();
+
+        VulkanResourceBindingTable table = new VulkanResourceBindingTable()
+                .bind(
+                        "shadow_depth",
+                        inputs.shadowDepthImage(),
+                        inputs.depthFormat(),
+                        VK_IMAGE_ASPECT_DEPTH_BIT,
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "shadow_moment_atlas",
+                        shadowMomentImage,
+                        shadowMomentFormat,
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                )
+                .bind(
+                        "planar_capture",
+                        inputs.planarCaptureImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "scene_color",
+                        sceneColorImage,
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        inputs.postOffscreenActive() ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "velocity",
+                        inputs.velocityImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "depth",
+                        currentDepthImage,
+                        inputs.depthFormat(),
+                        VK_IMAGE_ASPECT_DEPTH_BIT,
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "history_color",
+                        inputs.taaHistoryImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                )
+                .bind(
+                        "history_velocity",
+                        inputs.taaHistoryVelocityImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                )
+                .bind(
+                        "resolved_color",
+                        resolvedColorImage,
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                )
+                .bind(
+                        "history_color_next",
+                        inputs.taaHistoryImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_GENERAL
+                )
+                .bind(
+                        "history_velocity_next",
+                        inputs.taaHistoryVelocityImage(),
+                        inputs.swapchainImageFormat(),
+                        VK_IMAGE_ASPECT_COLOR_BIT,
+                        VK_IMAGE_LAYOUT_GENERAL
+                );
+
+        if (!inputs.postOffscreenActive()) {
+            table.updateLayout("resolved_color", VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        }
+        return table;
+    }
+
+    public record FrameHooks(
+            ThrowingRunnable updateShadowMatrices,
+            ThrowingRunnable prepareUniforms,
+            ThrowingRunnable uploadUniforms,
+            BooleanSink postIntermediateInitializedSink,
+            BooleanSink postTaaHistoryInitializedSink
+    ) {
+    }
+
+    public record Inputs(
+            List<VulkanGpuMesh> gpuMeshes,
+            List<VulkanInstanceBatch> instanceBatches,
+            VulkanIndirectDrawBuffer indirectDrawBuffer,
+            long vfxIndirectDrawBuffer,
+            int vfxIndirectDrawCount,
+            VulkanDrawMetaBuffer drawMetaBuffer,
+            VulkanCullingComputePass cullingComputePass,
+            float[] viewProjMatrix,
+            boolean bindlessActive,
+            long bindlessDescriptorSet,
+            org.dynamisengine.gpu.vulkan.descriptor.VulkanBindlessDescriptorHeap bindlessDescriptorHeap,
+            int maxDynamicSceneObjects,
+            int swapchainWidth,
+            int swapchainHeight,
+            int swapchainImageFormat,
+            int depthFormat,
+            int shadowMapResolution,
+            boolean shadowEnabled,
+            boolean pointShadowEnabled,
+            int shadowCascadeCount,
+            int maxShadowMatrices,
+            int maxShadowCascades,
+            int pointShadowFaces,
+            long renderPass,
+            long[] framebuffers,
+            long mainGeometryPipeline,
+            long mainGeometryPipelineLayout,
+            long mainGeometryBindlessStaticPipeline,
+            long mainGeometryBindlessStaticPipelineLayout,
+            long mainGeometryBindlessSkinnedPipeline,
+            long mainGeometryBindlessSkinnedPipelineLayout,
+            long mainGeometryBindlessMorphPipeline,
+            long mainGeometryBindlessMorphPipelineLayout,
+            long mainGeometryBindlessSkinnedMorphPipeline,
+            long mainGeometryBindlessSkinnedMorphPipelineLayout,
+            long mainGeometryBindlessInstancedPipeline,
+            long mainGeometryBindlessInstancedPipelineLayout,
+            long mainGeometryMorphPipeline,
+            long mainGeometryMorphPipelineLayout,
+            long mainGeometrySkinnedPipeline,
+            long mainGeometrySkinnedPipelineLayout,
+            long mainGeometrySkinnedMorphPipeline,
+            long mainGeometrySkinnedMorphPipelineLayout,
+            long mainGeometryInstancedPipeline,
+            long mainGeometryInstancedPipelineLayout,
+            long shadowRenderPass,
+            long shadowPipeline,
+            long shadowInstancedPipeline,
+            long shadowBindlessInstancedPipeline,
+            long shadowPipelineLayout,
+            long[] shadowFramebuffers,
+            long shadowDepthImage,
+            long shadowMomentImage,
+            int shadowMomentFormat,
+            int shadowMomentMipLevels,
+            boolean shadowMomentPipelineRequested,
+            boolean shadowMomentInitialized,
+            boolean postOffscreenActive,
+            boolean postIntermediateInitialized,
+            boolean tonemapEnabled,
+            float tonemapExposure,
+            float tonemapGamma,
+            boolean ssaoEnabled,
+            boolean bloomEnabled,
+            float bloomThreshold,
+            float bloomStrength,
+            float ssaoStrength,
+            float ssaoRadius,
+            float ssaoBias,
+            float ssaoPower,
+            boolean smaaEnabled,
+            float smaaStrength,
+            boolean taaEnabled,
+            float taaBlend,
+            boolean taaHistoryInitialized,
+            float taaJitterUvDeltaX,
+            float taaJitterUvDeltaY,
+            float taaMotionUvX,
+            float taaMotionUvY,
+            float taaClipScale,
+            float taaRenderScale,
+            boolean taaLumaClipEnabled,
+            float taaSharpenStrength,
+            boolean reflectionsEnabled,
+            int reflectionsMode,
+            long planarTimestampQueryPool,
+            int planarTimestampQueryStartIndex,
+            int planarTimestampQueryEndIndex,
+            float reflectionsSsrStrength,
+            float reflectionsSsrMaxRoughness,
+            float reflectionsSsrStepScale,
+            float reflectionsTemporalWeight,
+            float reflectionsPlanarStrength,
+            float reflectionsPlanarPlaneHeight,
+            float reflectionsRtDenoiseStrength,
+            int taaDebugView,
+            long postRenderPass,
+            long postGraphicsPipeline,
+            long postPipelineLayout,
+            long postDescriptorSet,
+            long offscreenColorImage,
+            long taaHistoryImage,
+            long taaHistoryVelocityImage,
+            long planarCaptureImage,
+            long velocityImage,
+            long[] depthImages,
+            long[] swapchainImages,
+            long[] postFramebuffers,
+            LongByInt descriptorSetForFrame,
+            IntUnaryOperator dynamicUniformOffset,
+            FailureFactory vkFailure
+    ) {
+    }
+}

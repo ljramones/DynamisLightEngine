@@ -12,7 +12,7 @@ This module is the home for first-party demo content:
   material definitions and material manifests.
 - `src/main/resources/demos/scenes`:
   scene descriptors and scene manifests.
-- `src/main/java/org/dynamislight/demos`:
+- `src/main/java/org/dynamisengine/light/demos`:
   demo runner, registry, and demo implementations.
 
 ## Conventions

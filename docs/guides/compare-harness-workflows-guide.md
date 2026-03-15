@@ -24,7 +24,7 @@ DLE_COMPARE_VULKAN_MODE=real ./scripts/aa_rebaseline_real_mac.sh
 
 ### Single test class/method run
 ```bash
-DLE_COMPARE_TEST_CLASS=org.dynamislight.sample.BackendParityIntegrationTest#compareHarnessProducesImagesWithBoundedDiff \
+DLE_COMPARE_TEST_CLASS=org.dynamisengine.light.sample.BackendParityIntegrationTest#compareHarnessProducesImagesWithBoundedDiff \
 DLE_COMPARE_VULKAN_MODE=real \
 ./scripts/aa_rebaseline_real_mac.sh
 ```

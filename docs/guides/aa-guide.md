@@ -38,8 +38,8 @@ mvn -pl engine-host-sample -am test \
 Use scene-level AA configuration through `AntiAliasingDesc` on `PostProcessDesc`.
 
 ```java
-import org.dynamislight.api.scene.AntiAliasingDesc;
-import org.dynamislight.api.scene.PostProcessDesc;
+import org.dynamisengine.light.api.scene.AntiAliasingDesc;
+import org.dynamisengine.light.api.scene.PostProcessDesc;
 
 AntiAliasingDesc aa = new AntiAliasingDesc(
     "tsr",   // mode
@@ -184,7 +184,7 @@ Native bridge options:
 - `<backend>.upscaler.nativeEnabled=true|false`
 - `<backend>.upscaler.bridgeClass=com.example.MyUpscalerBridge`
 - `<backend>.upscaler.bridgeLibrary=/abs/path/libvendor_bridge.dylib`
-  - built-in bridge: `org.dynamislight.impl.common.upscale.VendorSdkUpscalerBridge`
+  - built-in bridge: `org.dynamisengine.light.impl.common.upscale.VendorSdkUpscalerBridge`
 - Optional vendor SDK readiness keys (mode-gated for `fsr|xess|dlss`):
   - `<backend>.upscaler.vendor.fsr.library=/abs/path/libfsr_sdk.dylib` (or shared-library name)
   - `<backend>.upscaler.vendor.xess.library=/abs/path/libxess_sdk.dylib` (or shared-library name)

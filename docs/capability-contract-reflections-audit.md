@@ -8,7 +8,7 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 ### Graph-visible pass contribution
 
 - Reflection-owned graph pass recorder:
-  - `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanPlanarReflectionPassRecorder.java:14`
+  - `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanPlanarReflectionPassRecorder.java:14`
 - Feature/pass identity:
   - `featureId = vulkan.reflections.planar` (`VulkanPlanarReflectionPassRecorder.java:15`)
   - `passId = planar_capture` (`VulkanPlanarReflectionPassRecorder.java:16`)
@@ -17,13 +17,13 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
   - reads: `scene_color` (`VulkanPlanarReflectionPassRecorder.java:53`)
   - writes: `planar_capture` (`VulkanPlanarReflectionPassRecorder.java:54`)
 - Post reflections are currently composed inside the post composite pass, not a standalone graph node:
-  - post pass declaration: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanPostCompositePassRecorder.java:49`
+  - post pass declaration: `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanPostCompositePassRecorder.java:49`
   - reflections module active/pruned via `post.reflections.resolve` (`VulkanPostCompositePassRecorder.java:81`)
 
 ### Runtime execution shape inside reflection callbacks
 
 - Planar capture execution entry:
-  - `recordPlanarReflectionPass(...)` in `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanRenderCommandRecorder.java:501`
+  - `recordPlanarReflectionPass(...)` in `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanRenderCommandRecorder.java:501`
 - Planar execution is conditional on runtime mode bits + capture image availability:
   - `isPlanarReflectionPassRequested(...)` (`VulkanRenderCommandRecorder.java:205`)
 - Planar pass behavior:
@@ -48,7 +48,7 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 ### Main fragment contribution (probe sampling + overrides)
 
 - Main shader includes reflection probe metadata SSBO and probe-radiance sampler bindings:
-  - probe SSBO `set=0,binding=2` (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanShaderSources.java:207`)
+  - probe SSBO `set=0,binding=2` (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanShaderSources.java:207`)
   - probe radiance sampler `set=1,binding=9` (`VulkanShaderSources.java:220`)
 - Box-projected probe sampling + weighted blending in main fragment:
   - probe weights and priority/distance weighting (`VulkanShaderSources.java:245`)
@@ -83,10 +83,10 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 ### Descriptor sets/bindings
 
 - Scene descriptor set includes reflection probe metadata storage buffer at binding 2:
-  - layout declaration (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/VulkanDescriptorResources.java:263`)
+  - layout declaration (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/descriptor/VulkanDescriptorResources.java:263`)
   - per-frame descriptor writes for probe metadata buffer (`VulkanDescriptorResources.java:382`, `VulkanDescriptorResources.java:402`)
 - Texture descriptor set includes dedicated probe radiance lane at binding 9:
-  - writer + binding (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/VulkanTextureDescriptorWriter.java:83`, `VulkanTextureDescriptorWriter.java:154`)
+  - writer + binding (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/descriptor/VulkanTextureDescriptorWriter.java:83`, `VulkanTextureDescriptorWriter.java:154`)
 - Post descriptor set includes dedicated planar capture sampler lane:
   - post shader `uPlanarCaptureColor` binding (`VulkanShaderSources.java:1771`)
 
@@ -94,14 +94,14 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 
 - Global scene UBO includes planar matrices used by planar capture/main path:
   - `uPlanarView`, `uPlanarProj`, `uPlanarPrevViewProj` (`VulkanShaderSources.java:187` to `VulkanShaderSources.java:189`)
-  - runtime population in uniform prep (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanContext.java:1589` to `VulkanContext.java:1697`)
+  - runtime population in uniform prep (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanContext.java:1589` to `VulkanContext.java:1697`)
 - Main-pass push constants carry planar flag/height for clip/capture behavior:
   - push constant write (`VulkanRenderCommandRecorder.java:590`)
 - Post-pass push constants include reflection controls and mode word:
   - `reflectionsA/reflectionsB` in shader (`VulkanShaderSources.java:1779`)
   - packed from post inputs (`VulkanRenderCommandRecorder.java:1368`)
 - Runtime composes reflection execution mode bits per frame:
-  - `composeReflectionExecutionMode(...)` (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanEngineRuntime.java:2951`)
+  - `composeReflectionExecutionMode(...)` (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntime.java:2951`)
 
 ## 4. Resources and Lifecycles
 
@@ -110,9 +110,9 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 - Reflection probe metadata buffer (persistent mapped storage buffer):
   - allocation metadata fields (`VulkanDescriptorResources.java:434` to `VulkanDescriptorResources.java:439`)
 - Probe radiance atlas texture and slot map:
-  - slot assignment + atlas rebuild (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanContext.java:1757` to `VulkanContext.java:1785`)
+  - slot assignment + atlas rebuild (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanContext.java:1757` to `VulkanContext.java:1785`)
 - Planar capture image lane + sampler consumption in post:
-  - runtime bindings in frame inputs (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanFrameCommandOrchestrator.java:196`)
+  - runtime bindings in frame inputs (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanFrameCommandOrchestrator.java:196`)
   - shader sampler lane (`VulkanShaderSources.java:1771`)
 - TAA history/history velocity are cross-frame reflection inputs/outputs in post pass:
   - post pass graph resources (`VulkanPostCompositePassRecorder.java:54` to `VulkanPostCompositePassRecorder.java:55`)
@@ -123,11 +123,11 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
   - update call in frame prep (`VulkanContext.java:1588`)
   - upload with frustum/cadence/LOD limits (`VulkanContext.java:1723`)
 - Probe metadata packing embeds per-probe blend distance, priority, slot, box-projection flag, and LOD tier:
-  - pack/write details (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanReflectionProbeCoordinator.java:188` to `VulkanReflectionProbeCoordinator.java:209`)
+  - pack/write details (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/scene/VulkanReflectionProbeCoordinator.java:188` to `VulkanReflectionProbeCoordinator.java:209`)
 - Probe active-set selection uses frustum cull + priority sort + cadence rotation + max visible budget:
   - selection logic (`VulkanReflectionProbeCoordinator.java:136` to `VulkanReflectionProbeCoordinator.java:186`)
 - Planar capture timing resources are optional and guarded via timestamp query support:
-  - query pool lifecycle in context (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanContext.java:1207` to `VulkanContext.java:1249`)
+  - query pool lifecycle in context (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanContext.java:1207` to `VulkanContext.java:1249`)
 
 ## 5. Scheduling and Budget Logic
 
@@ -137,7 +137,7 @@ Primary reflection scheduling/budget behavior is runtime-owned and fed into pass
   - RT lane request/activation/fallback-chain computation (`VulkanEngineRuntime.java:2909`)
   - composed execution bits for planar scope, RT, reprojection/history, transparency (`VulkanEngineRuntime.java:2951`)
 - Probe scheduling/budgeting:
-  - update cadence + max-visible + LOD depth scale parsed via options (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanRuntimeOptions.java:127` to `VulkanRuntimeOptions.java:129`)
+  - update cadence + max-visible + LOD depth scale parsed via options (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanRuntimeOptions.java:127` to `VulkanRuntimeOptions.java:129`)
   - consumed during metadata upload (`VulkanContext.java:1733` to `VulkanContext.java:1735`)
 - SSR/TAA adaptive policy scheduling:
   - severity and policy activation derived from EMA reject/confidence/streak (`VulkanEngineRuntime.java:2889`)
@@ -176,11 +176,11 @@ Primary reflection scheduling/budget behavior is runtime-owned and fed into pass
 ## 7. CI/Test Contracts Currently Enforced
 
 - Reflection integration coverage (warnings + typed diagnostics + profile defaults + envelopes):
-  - `engine-impl-vulkan/src/test/java/org/dynamislight/impl/vulkan/VulkanEngineRuntimeIntegrationTest.java`
+  - `engine-impl-vulkan/src/test/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntimeIntegrationTest.java`
 - Reflection runtime option parsing + bounds/defaults:
-  - `engine-impl-vulkan/src/test/java/org/dynamislight/impl/vulkan/VulkanRuntimeOptionsTest.java`
+  - `engine-impl-vulkan/src/test/java/org/dynamisengine/light/impl/vulkan/VulkanRuntimeOptionsTest.java`
 - Post modularization coverage including reflections resolve module activation/pruning:
-  - `engine-impl-vulkan/src/test/java/org/dynamislight/impl/vulkan/command/VulkanPostCompositePassRecorderTest.java`
+  - `engine-impl-vulkan/src/test/java/org/dynamisengine/light/impl/vulkan/command/VulkanPostCompositePassRecorderTest.java`
 - Dedicated reflection CI/sweep/signoff runners:
   - `scripts/planar_ci_lockdown_full.sh`
   - `scripts/planar_real_gpu_signoff.sh`

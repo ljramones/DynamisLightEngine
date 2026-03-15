@@ -8,7 +8,7 @@ MAX_FILE_LINES="${MAX_FILE_LINES:-1500}"
 REPORT_THRESHOLD="${REPORT_THRESHOLD:-1000}"
 MAX_VULKAN_ROOT_CLASSES="${MAX_VULKAN_ROOT_CLASSES:-8}"
 SCOPE="${SCOPE:-vulkan}"
-VULKAN_ROOT_PACKAGE_DIR="engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan"
+VULKAN_ROOT_PACKAGE_DIR="engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan"
 
 echo "[guardrails] Java structure guardrails"
 echo "[guardrails] scope=${SCOPE} max_file_lines=${MAX_FILE_LINES} report_threshold=${REPORT_THRESHOLD} max_vulkan_root_classes=${MAX_VULKAN_ROOT_CLASSES}"

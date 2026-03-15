@@ -114,12 +114,12 @@ Legacy route:
 
 ## 7. Files to Change
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanCullingComputeSource.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanMainPassRecorderCore.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanShadowPassRecorderCore.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanIndirectDrawBuffer.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanCullingComputePass.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanCullingComputeSource.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanMainPassRecorderCore.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanShadowPassRecorderCore.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanIndirectDrawBuffer.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanCullingComputePass.java`
 
 ## 8. Validation (Step 6)
 

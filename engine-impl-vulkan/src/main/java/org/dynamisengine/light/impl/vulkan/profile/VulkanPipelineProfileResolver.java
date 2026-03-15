@@ -1,0 +1,175 @@
+package org.dynamisengine.light.impl.vulkan.profile;
+
+import org.dynamisengine.light.api.config.QualityTier;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanAaCapabilityDescriptorV2;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanGiCapabilityDescriptorV2;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanLightingCapabilityDescriptorV2;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanPbrCapabilityDescriptorV2;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanPostCapabilityDescriptorV2;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanReflectionCapabilityDescriptorV2;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanRtCapabilityDescriptorV2;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanSkyCapabilityDescriptorV2;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanShadowCapabilityPlanner;
+import org.dynamisengine.light.impl.vulkan.state.VulkanRenderState;
+import org.dynamisengine.light.spi.render.RenderFeatureMode;
+
+/**
+ * Resolves active Phase C profile identity from runtime state.
+ */
+public final class VulkanPipelineProfileResolver {
+    private VulkanPipelineProfileResolver() {
+    }
+
+    public static VulkanPipelineProfileKey resolve(
+            QualityTier tier,
+            VulkanRenderState renderState,
+            int selectedLocalShadowLights,
+            RenderFeatureMode lightingModeOverride,
+            RenderFeatureMode pbrModeOverride,
+            RenderFeatureMode giModeOverride,
+            RenderFeatureMode skyModeOverride,
+            RenderFeatureMode rtModeOverride,
+            int deferredShadowLightCount,
+            int renderedSpotShadowLights,
+            int renderedPointShadowCubemaps,
+            boolean schedulerEnabled,
+            boolean shadowCacheEnabled,
+            boolean areaLightShadowsEnabled,
+            boolean spotProjectedEnabled,
+            boolean transparentReceiversEnabled,
+            boolean distanceFieldSoftEnabled
+    ) {
+        VulkanRenderState state = renderState == null ? new VulkanRenderState() : renderState;
+        RenderFeatureMode shadowMode = VulkanShadowCapabilityPlanner.plan(new VulkanShadowCapabilityPlanner.PlanInput(
+                tier,
+                shadowFilterModeId(state.shadowFilterMode),
+                state.shadowContactShadows,
+                shadowRtModeId(state.shadowRtMode),
+                0,
+                0,
+                0,
+                selectedLocalShadowLights,
+                deferredShadowLightCount,
+                renderedSpotShadowLights,
+                renderedPointShadowCubemaps,
+                schedulerEnabled,
+                shadowCacheEnabled,
+                areaLightShadowsEnabled,
+                spotProjectedEnabled,
+                transparentReceiversEnabled,
+                distanceFieldSoftEnabled
+        )).mode();
+
+        RenderFeatureMode reflectionMode = switch (state.reflectionsMode & 0x7) {
+            case 1 -> VulkanReflectionCapabilityDescriptorV2.MODE_SSR;
+            case 2 -> VulkanReflectionCapabilityDescriptorV2.MODE_PLANAR;
+            case 4 -> VulkanReflectionCapabilityDescriptorV2.MODE_RT_HYBRID;
+            case 3 -> VulkanReflectionCapabilityDescriptorV2.MODE_HYBRID;
+            default -> VulkanReflectionCapabilityDescriptorV2.MODE_IBL_ONLY;
+        };
+
+        RenderFeatureMode aaMode = state.taaEnabled
+                ? VulkanAaCapabilityDescriptorV2.MODE_TAA
+                : VulkanAaCapabilityDescriptorV2.MODE_FXAA_LOW;
+        RenderFeatureMode postMode = state.taaEnabled
+                ? VulkanPostCapabilityDescriptorV2.MODE_TAA_RESOLVE
+                : VulkanPostCapabilityDescriptorV2.MODE_TONEMAP;
+        RenderFeatureMode rtMode = sanitizeRtMode(
+                rtModeOverride,
+                VulkanRtCapabilityDescriptorV2.MODE_QUALITY_TIERS
+        );
+        RenderFeatureMode lightingMode = sanitizeLightingMode(
+                lightingModeOverride,
+                localLightCountToMode(selectedLocalShadowLights + deferredShadowLightCount)
+        );
+        RenderFeatureMode pbrMode = sanitizePbrMode(
+                pbrModeOverride,
+                VulkanPbrCapabilityDescriptorV2.MODE_METALLIC_ROUGHNESS_BASELINE
+        );
+        RenderFeatureMode giMode = sanitizeGiMode(giModeOverride, VulkanGiCapabilityDescriptorV2.MODE_SSGI);
+        RenderFeatureMode skyMode = sanitizeSkyMode(skyModeOverride, VulkanSkyCapabilityDescriptorV2.MODE_HDRI);
+
+        return new VulkanPipelineProfileKey(
+                tier == null ? QualityTier.MEDIUM : tier,
+                shadowMode,
+                reflectionMode,
+                aaMode,
+                postMode,
+                rtMode,
+                lightingMode,
+                pbrMode,
+                giMode,
+                skyMode
+        );
+    }
+
+    private static RenderFeatureMode localLightCountToMode(int localLightCount) {
+        int safe = Math.max(0, localLightCount);
+        if (safe > 8) {
+            return VulkanLightingCapabilityDescriptorV2.MODE_LIGHT_BUDGET_PRIORITY;
+        }
+        return VulkanLightingCapabilityDescriptorV2.MODE_BASELINE_DIRECTIONAL_POINT_SPOT;
+    }
+
+    private static RenderFeatureMode sanitizeLightingMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {
+        if (overrideMode == null || overrideMode.id() == null || overrideMode.id().isBlank()) {
+            return fallback;
+        }
+        String requested = overrideMode.id();
+        return VulkanLightingCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
+    }
+
+    private static RenderFeatureMode sanitizeGiMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {
+        if (overrideMode == null || overrideMode.id() == null || overrideMode.id().isBlank()) {
+            return fallback;
+        }
+        String requested = overrideMode.id();
+        return VulkanGiCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
+    }
+
+    private static RenderFeatureMode sanitizePbrMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {
+        if (overrideMode == null || overrideMode.id() == null || overrideMode.id().isBlank()) {
+            return fallback;
+        }
+        String requested = overrideMode.id();
+        return VulkanPbrCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
+    }
+
+    private static RenderFeatureMode sanitizeSkyMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {
+        if (overrideMode == null || overrideMode.id() == null || overrideMode.id().isBlank()) {
+            return fallback;
+        }
+        String requested = overrideMode.id();
+        return VulkanSkyCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
+    }
+
+    private static RenderFeatureMode sanitizeRtMode(RenderFeatureMode overrideMode, RenderFeatureMode fallback) {
+        if (overrideMode == null || overrideMode.id() == null || overrideMode.id().isBlank()) {
+            return fallback;
+        }
+        String requested = overrideMode.id();
+        return VulkanRtCapabilityDescriptorV2.withMode(new RenderFeatureMode(requested)).activeMode();
+    }
+
+    private static String shadowFilterModeId(int mode) {
+        return switch (mode) {
+            case 1 -> "pcss";
+            case 2 -> "vsm";
+            case 3 -> "evsm";
+            default -> "pcf";
+        };
+    }
+
+    private static String shadowRtModeId(int mode) {
+        return switch (mode) {
+            case 1 -> "optional";
+            case 2 -> "force";
+            case 3 -> "bvh";
+            case 4 -> "bvh_dedicated";
+            case 5 -> "bvh_production";
+            case 6 -> "rt_native";
+            case 7 -> "rt_native_denoised";
+            default -> "off";
+        };
+    }
+}

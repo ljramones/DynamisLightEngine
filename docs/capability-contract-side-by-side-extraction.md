@@ -95,12 +95,12 @@ The extracted v2 SPI contract is implemented in `engine-spi` with these key type
 
 Metadata-only proofs that the contract can represent both mature domains:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/capability/VulkanShadowCapabilityDescriptorV2.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/capability/VulkanReflectionCapabilityDescriptorV2.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/capability/VulkanShadowCapabilityDescriptorV2.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/capability/VulkanReflectionCapabilityDescriptorV2.java`
 
 Cross-capability validation tests:
 
-- `engine-impl-vulkan/src/test/java/org/dynamislight/impl/vulkan/capability/VulkanCapabilityContractV2DescriptorsTest.java`
+- `engine-impl-vulkan/src/test/java/org/dynamisengine/light/impl/vulkan/capability/VulkanCapabilityContractV2DescriptorsTest.java`
 
 ## Explicit Phase C Inputs (known open mechanics)
 

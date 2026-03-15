@@ -149,9 +149,9 @@ OpenGL backend provides a real forward render baseline:
   - accepted values: `performance`, `balanced`, `quality`, `stability`
 - Native external upscaler bridge path is supported (optional):
   - backend options: `<backend>.upscaler.nativeEnabled`, `<backend>.upscaler.bridgeClass`, `<backend>.upscaler.bridgeLibrary`
-  - built-in bridge class: `org.dynamislight.impl.common.upscale.VendorSdkUpscalerBridge`
+  - built-in bridge class: `org.dynamisengine.light.impl.common.upscale.VendorSdkUpscalerBridge`
   - vendor readiness gating: `<backend>.upscaler.vendor.fsr.library`, `<backend>.upscaler.vendor.xess.library`, `<backend>.upscaler.vendor.dlss.library` (plus `dle.upscaler.vendor.*` fallbacks)
-  - pluggable vendor SDK provider interface: `org.dynamislight.impl.common.upscale.VendorUpscalerSdkProvider` loaded via `<backend>.upscaler.vendor.<vendor>.providerClass`
+  - pluggable vendor SDK provider interface: `org.dynamisengine.light.impl.common.upscale.VendorUpscalerSdkProvider` loaded via `<backend>.upscaler.vendor.<vendor>.providerClass`
   - when active, runtime emits `UPSCALER_NATIVE_ACTIVE`; otherwise `UPSCALER_NATIVE_INACTIVE` explains fallback reason.
 
 ### OpenGL limitations (current)

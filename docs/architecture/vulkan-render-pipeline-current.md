@@ -12,14 +12,14 @@ Feature-depth sequencing and composition migration policy (including why reflect
 ## Scope and entry points
 
 - API lifecycle entry is `VulkanEngineRuntime`:
-  - initialize: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanEngineRuntime.java`
-  - load scene: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanEngineRuntime.java`
-  - render: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanEngineRuntime.java`
+  - initialize: `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntime.java`
+  - load scene: `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntime.java`
+  - render: `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntime.java`
 - Runtime lifecycle helpers are in:
-  - `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanRuntimeLifecycle.java`
+  - `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanRuntimeLifecycle.java`
 - Low-level Vulkan orchestration is in:
-  - `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanContext.java`
-  - `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/lifecycle/VulkanLifecycleOrchestrator.java`
+  - `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanContext.java`
+  - `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/lifecycle/VulkanLifecycleOrchestrator.java`
 
 `mockContext=true` bypasses native Vulkan rendering and returns synthetic metrics via `VulkanRuntimeLifecycle.render(...)`.
 
@@ -40,8 +40,8 @@ Runtime startup is orchestrated by `VulkanLifecycleOrchestrator.initializeRuntim
 
 Primary files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/lifecycle/VulkanLifecycleOrchestrator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanContext.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/lifecycle/VulkanLifecycleOrchestrator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanContext.java`
 
 ## Descriptor and uniform model
 
@@ -53,7 +53,7 @@ Defined in `VulkanDescriptorResources`:
 - `binding 1`: per-object UBO (`VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC`)
 - `binding 2`: reflection probe metadata SSBO (`VK_DESCRIPTOR_TYPE_STORAGE_BUFFER`)
 
-File: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/VulkanDescriptorResources.java`
+File: `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/descriptor/VulkanDescriptorResources.java`
 
 ### Texture descriptor set (`set=1`)
 
@@ -72,17 +72,17 @@ Layout has 10 combined image samplers, written per mesh:
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/VulkanDescriptorResources.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/VulkanTextureDescriptorWriter.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanSceneMeshCoordinator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/descriptor/VulkanDescriptorResources.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/descriptor/VulkanTextureDescriptorWriter.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/scene/VulkanSceneMeshCoordinator.java`
 
 ### Reflection probe path (current)
 
 Reflection probe descriptors are scene-level API data and are mapped into Vulkan runtime state:
 
-- API descriptor: `engine-api/src/main/java/org/dynamislight/api/scene/ReflectionProbeDesc.java`
-- Runtime mapper: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanEngineRuntimeSceneMapper.java`
-- Frame upload/cull: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanReflectionProbeCoordinator.java`
+- API descriptor: `engine-api/src/main/java/org/dynamisengine/light/api/scene/ReflectionProbeDesc.java`
+- Runtime mapper: `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntimeSceneMapper.java`
+- Frame upload/cull: `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/scene/VulkanReflectionProbeCoordinator.java`
 
 Current behavior:
 
@@ -113,8 +113,8 @@ Current limitation:
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanContext.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/uniform/VulkanUniformUploadCoordinator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanContext.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/uniform/VulkanUniformUploadCoordinator.java`
 
 ## Graphics pipelines and passes
 
@@ -134,8 +134,8 @@ Built by `VulkanMainPipelineBuilder`:
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/pipeline/VulkanMainPipelineBuilder.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanShaderSources.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/pipeline/VulkanMainPipelineBuilder.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanShaderSources.java`
 
 ## Shadow pass pipeline
 
@@ -150,9 +150,9 @@ Built by `VulkanShadowPipelineBuilder`:
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/pipeline/VulkanShadowPipelineBuilder.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanRenderCommandRecorder.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanShaderSources.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/pipeline/VulkanShadowPipelineBuilder.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanRenderCommandRecorder.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanShaderSources.java`
 
 ## Post composite pipeline (optional)
 
@@ -170,9 +170,9 @@ Built by `VulkanPostPipelineBuilder` + `VulkanPostProcessResources`:
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/pipeline/VulkanPostPipelineBuilder.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/pipeline/VulkanPostProcessResources.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanShaderSources.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/pipeline/VulkanPostPipelineBuilder.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/pipeline/VulkanPostProcessResources.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanShaderSources.java`
 
 ## Per-frame execution order
 
@@ -193,9 +193,9 @@ Frame entry is `VulkanContext.renderFrame()`.
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanContext.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanCommandSubmitter.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanContext.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanCommandSubmitter.java`
 
 ## Command orchestration details
 
@@ -208,8 +208,8 @@ This recorder handles explicit image layout transitions and copy/blit operations
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanRenderCommandRecorder.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanRenderCommandRecorder.java`
 
 ## Swapchain and frame sync
 
@@ -223,10 +223,10 @@ Files:
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanFrameSyncLifecycleCoordinator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanCommandSubmitter.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/swapchain/VulkanSwapchainLifecycleCoordinator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/swapchain/VulkanSwapchainRecreateCoordinator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanFrameSyncLifecycleCoordinator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanCommandSubmitter.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/swapchain/VulkanSwapchainLifecycleCoordinator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/swapchain/VulkanSwapchainRecreateCoordinator.java`
 
 ## Scene update and reuse behavior
 
@@ -240,9 +240,9 @@ This avoids unnecessary GPU reallocation when only transforms/material state cha
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanSceneSetPlanner.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanSceneMeshCoordinator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanSceneRuntimeCoordinator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/scene/VulkanSceneSetPlanner.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/scene/VulkanSceneMeshCoordinator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/scene/VulkanSceneRuntimeCoordinator.java`
 
 ## Notes and known characteristics
 
@@ -252,8 +252,8 @@ Files:
 
 Files:
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanShaderCompiler.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanShaderSources.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanShaderCompiler.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanShaderSources.java`
 
 ## Maintenance checklist for future changes
 

@@ -1,0 +1,1175 @@
+package org.dynamisengine.light.impl.vulkan.gi;
+
+import java.util.List;
+import java.util.Map;
+import org.dynamisengine.light.api.config.QualityTier;
+import org.dynamisengine.light.api.event.EngineWarning;
+import org.dynamisengine.light.api.runtime.GiCapabilityDiagnostics;
+import org.dynamisengine.light.api.runtime.GiPromotionDiagnostics;
+import org.dynamisengine.light.impl.vulkan.capability.VulkanGiCapabilityPlan;
+import org.dynamisengine.light.impl.vulkan.runtime.config.GiMode;
+import org.dynamisengine.light.impl.vulkan.runtime.config.VulkanRuntimeOptionParsing;
+import org.dynamisengine.light.impl.vulkan.warning.gi.VulkanGiWarningEmitter;
+
+/**
+ * Runtime GI capability diagnostics/promotion state.
+ */
+public final class VulkanGiCapabilityRuntimeState {
+    private GiMode configuredMode = GiMode.SSGI;
+    private boolean configuredEnabled;
+    private int promotionReadyMinFrames = 4;
+    private double ssgiWarnMinActiveRatio = 1.0;
+    private int ssgiWarnMinFrames = 2;
+    private int ssgiWarnCooldownFrames = 120;
+    private int ssgiPromotionReadyMinFrames = 4;
+    private double probeGridWarnMinActiveRatio = 1.0;
+    private int probeGridWarnMinFrames = 2;
+    private int probeGridWarnCooldownFrames = 120;
+    private int probeGridPromotionReadyMinFrames = 4;
+    private int probeGridConfiguredCount = 8;
+    private int probeGridUpdateBudgetPerFrame = 4;
+    private double probeGridStreamingWarnMinCoverageRatio = 0.25;
+    private int probeGridStreamingWarnMinFrames = 2;
+    private int probeGridStreamingWarnCooldownFrames = 120;
+    private double rtDetailWarnMinActiveRatio = 1.0;
+    private int rtDetailWarnMinFrames = 2;
+    private int rtDetailWarnCooldownFrames = 120;
+    private int rtDetailPromotionReadyMinFrames = 4;
+    private int hybridWarnMinFrames = 2;
+    private int hybridWarnCooldownFrames = 120;
+    private double dedicatedWarnMinActiveRatio = 1.0;
+    private int dedicatedWarnMinFrames = 2;
+    private int dedicatedWarnCooldownFrames = 120;
+    private int dedicatedPromotionReadyMinFrames = 4;
+    private int stableStreak;
+    private int ssgiStableStreak;
+    private int probeGridStableStreak;
+    private int rtDetailStableStreak;
+    private boolean promotionReadyLastFrame;
+    private boolean phase2PromotionReadyLastFrame;
+    private boolean ssgiPromotionReadyLastFrame;
+    private boolean probeGridPromotionReadyLastFrame;
+    private boolean rtDetailPromotionReadyLastFrame;
+    private boolean rtFallbackActiveLastFrame;
+    private boolean ssgiActiveLastFrame;
+    private boolean ssgiExpectedLastFrame;
+    private double ssgiActiveRatioLastFrame;
+    private boolean ssgiEnvelopeBreachedLastFrame;
+    private int ssgiHighStreak;
+    private int ssgiWarnCooldownRemaining;
+    private boolean probeGridExpectedLastFrame;
+    private boolean probeGridActiveLastFrame;
+    private double probeGridActiveRatioLastFrame;
+    private boolean probeGridEnvelopeBreachedLastFrame;
+    private int probeGridHighStreak;
+    private int probeGridWarnCooldownRemaining;
+    private int probeGridConfiguredCountLastFrame;
+    private int probeGridActiveCountLastFrame;
+    private int probeGridUpdatesLastFrame;
+    private double probeGridUpdateCoverageRatioLastFrame;
+    private boolean probeGridStreamingEnvelopeBreachedLastFrame;
+    private int probeGridStreamingHighStreak;
+    private int probeGridStreamingWarnCooldownRemaining;
+    private boolean hybridExpectedLastFrame;
+    private int hybridExpectedComponentCountLastFrame;
+    private int hybridActiveComponentCountLastFrame;
+    private boolean hybridEnvelopeBreachedLastFrame;
+    private int hybridHighStreak;
+    private int hybridWarnCooldownRemaining;
+    private boolean dedicatedExpectedLastFrame;
+    private boolean dedicatedActiveLastFrame;
+    private double dedicatedActiveRatioLastFrame;
+    private boolean dedicatedEnvelopeBreachedLastFrame;
+    private int dedicatedStableStreak;
+    private int dedicatedHighStreak;
+    private int dedicatedWarnCooldownRemaining;
+    private boolean dedicatedPromotionReadyLastFrame;
+    private boolean rtDetailExpectedLastFrame;
+    private boolean rtDetailActiveLastFrame;
+    private double rtDetailActiveRatioLastFrame;
+    private boolean rtDetailEnvelopeBreachedLastFrame;
+    private int rtDetailHighStreak;
+    private int rtDetailWarnCooldownRemaining;
+    private String modeLastFrame = "ssgi";
+    private boolean rtAvailableLastFrame;
+    private List<String> activeCapabilitiesLastFrame = List.of();
+    private List<String> prunedCapabilitiesLastFrame = List.of();
+
+    public void reset() {
+        stableStreak = 0;
+        ssgiStableStreak = 0;
+        probeGridStableStreak = 0;
+        rtDetailStableStreak = 0;
+        promotionReadyLastFrame = false;
+        phase2PromotionReadyLastFrame = false;
+        ssgiPromotionReadyLastFrame = false;
+        probeGridPromotionReadyLastFrame = false;
+        rtDetailPromotionReadyLastFrame = false;
+        rtFallbackActiveLastFrame = false;
+        ssgiActiveLastFrame = false;
+        ssgiExpectedLastFrame = false;
+        ssgiActiveRatioLastFrame = 0.0;
+        ssgiEnvelopeBreachedLastFrame = false;
+        ssgiHighStreak = 0;
+        ssgiWarnCooldownRemaining = 0;
+        probeGridExpectedLastFrame = false;
+        probeGridActiveLastFrame = false;
+        probeGridActiveRatioLastFrame = 0.0;
+        probeGridEnvelopeBreachedLastFrame = false;
+        probeGridHighStreak = 0;
+        probeGridWarnCooldownRemaining = 0;
+        probeGridConfiguredCountLastFrame = 0;
+        probeGridActiveCountLastFrame = 0;
+        probeGridUpdatesLastFrame = 0;
+        probeGridUpdateCoverageRatioLastFrame = 0.0;
+        probeGridStreamingEnvelopeBreachedLastFrame = false;
+        probeGridStreamingHighStreak = 0;
+        probeGridStreamingWarnCooldownRemaining = 0;
+        hybridExpectedLastFrame = false;
+        hybridExpectedComponentCountLastFrame = 0;
+        hybridActiveComponentCountLastFrame = 0;
+        hybridEnvelopeBreachedLastFrame = false;
+        hybridHighStreak = 0;
+        hybridWarnCooldownRemaining = 0;
+        dedicatedExpectedLastFrame = false;
+        dedicatedActiveLastFrame = false;
+        dedicatedActiveRatioLastFrame = 0.0;
+        dedicatedEnvelopeBreachedLastFrame = false;
+        dedicatedStableStreak = 0;
+        dedicatedHighStreak = 0;
+        dedicatedWarnCooldownRemaining = 0;
+        dedicatedPromotionReadyLastFrame = false;
+        rtDetailExpectedLastFrame = false;
+        rtDetailActiveLastFrame = false;
+        rtDetailActiveRatioLastFrame = 0.0;
+        rtDetailEnvelopeBreachedLastFrame = false;
+        rtDetailHighStreak = 0;
+        rtDetailWarnCooldownRemaining = 0;
+        modeLastFrame = configuredMode.name().toLowerCase(java.util.Locale.ROOT);
+        rtAvailableLastFrame = false;
+        activeCapabilitiesLastFrame = List.of();
+        prunedCapabilitiesLastFrame = List.of();
+    }
+
+    public void applyBackendOptions(Map<String, String> backendOptions) {
+        Map<String, String> safe = backendOptions == null ? Map.of() : backendOptions;
+        configuredMode = VulkanRuntimeOptionParsing.parseGiMode(safe.get("vulkan.gi.mode"));
+        configuredEnabled = Boolean.parseBoolean(safe.getOrDefault("vulkan.gi.enabled", "false"));
+        promotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.promotionReadyMinFrames",
+                promotionReadyMinFrames,
+                1,
+                100000
+        );
+        ssgiWarnMinActiveRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe,
+                "vulkan.gi.ssgiWarnMinActiveRatio",
+                ssgiWarnMinActiveRatio,
+                0.0,
+                1.0
+        );
+        ssgiWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.ssgiWarnMinFrames",
+                ssgiWarnMinFrames,
+                1,
+                100000
+        );
+        ssgiWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.ssgiWarnCooldownFrames",
+                ssgiWarnCooldownFrames,
+                0,
+                100000
+        );
+        ssgiPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.ssgiPromotionReadyMinFrames",
+                ssgiPromotionReadyMinFrames,
+                1,
+                100000
+        );
+        probeGridWarnMinActiveRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe,
+                "vulkan.gi.probeWarnMinActiveRatio",
+                probeGridWarnMinActiveRatio,
+                0.0,
+                1.0
+        );
+        probeGridWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeWarnMinFrames",
+                probeGridWarnMinFrames,
+                1,
+                100000
+        );
+        probeGridWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeWarnCooldownFrames",
+                probeGridWarnCooldownFrames,
+                0,
+                100000
+        );
+        probeGridPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probePromotionReadyMinFrames",
+                probeGridPromotionReadyMinFrames,
+                1,
+                100000
+        );
+        probeGridConfiguredCount = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeConfiguredCount",
+                probeGridConfiguredCount,
+                0,
+                100000
+        );
+        probeGridUpdateBudgetPerFrame = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeUpdateBudgetPerFrame",
+                probeGridUpdateBudgetPerFrame,
+                0,
+                100000
+        );
+        probeGridStreamingWarnMinCoverageRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe,
+                "vulkan.gi.probeStreamingWarnMinCoverageRatio",
+                probeGridStreamingWarnMinCoverageRatio,
+                0.0,
+                1.0
+        );
+        probeGridStreamingWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeStreamingWarnMinFrames",
+                probeGridStreamingWarnMinFrames,
+                1,
+                100000
+        );
+        probeGridStreamingWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.probeStreamingWarnCooldownFrames",
+                probeGridStreamingWarnCooldownFrames,
+                0,
+                100000
+        );
+        rtDetailWarnMinActiveRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe,
+                "vulkan.gi.rtWarnMinActiveRatio",
+                rtDetailWarnMinActiveRatio,
+                0.0,
+                1.0
+        );
+        rtDetailWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.rtWarnMinFrames",
+                rtDetailWarnMinFrames,
+                1,
+                100000
+        );
+        rtDetailWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.rtWarnCooldownFrames",
+                rtDetailWarnCooldownFrames,
+                0,
+                100000
+        );
+        rtDetailPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.rtPromotionReadyMinFrames",
+                rtDetailPromotionReadyMinFrames,
+                1,
+                100000
+        );
+        hybridWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.hybridWarnMinFrames",
+                hybridWarnMinFrames,
+                1,
+                100000
+        );
+        hybridWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.hybridWarnCooldownFrames",
+                hybridWarnCooldownFrames,
+                0,
+                100000
+        );
+        dedicatedWarnMinActiveRatio = VulkanRuntimeOptionParsing.parseBackendDoubleOption(
+                safe,
+                "vulkan.gi.dedicatedWarnMinActiveRatio",
+                dedicatedWarnMinActiveRatio,
+                0.0,
+                1.0
+        );
+        dedicatedWarnMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.dedicatedWarnMinFrames",
+                dedicatedWarnMinFrames,
+                1,
+                100000
+        );
+        dedicatedWarnCooldownFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.dedicatedWarnCooldownFrames",
+                dedicatedWarnCooldownFrames,
+                0,
+                100000
+        );
+        dedicatedPromotionReadyMinFrames = VulkanRuntimeOptionParsing.parseBackendIntOption(
+                safe,
+                "vulkan.gi.dedicatedPromotionReadyMinFrames",
+                dedicatedPromotionReadyMinFrames,
+                1,
+                100000
+        );
+    }
+
+    public void applyProfileDefaults(Map<String, String> backendOptions, QualityTier tier) {
+        Map<String, String> safe = backendOptions == null ? Map.of() : backendOptions;
+        QualityTier resolved = tier == null ? QualityTier.MEDIUM : tier;
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.promotionReadyMinFrames")) {
+            promotionReadyMinFrames = switch (resolved) {
+                case LOW -> 6;
+                case MEDIUM -> 5;
+                case HIGH -> 4;
+                case ULTRA -> 3;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.ssgiWarnMinFrames")) {
+            ssgiWarnMinFrames = switch (resolved) {
+                case LOW -> 3;
+                case MEDIUM -> 2;
+                case HIGH, ULTRA -> 1;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.ssgiWarnCooldownFrames")) {
+            ssgiWarnCooldownFrames = switch (resolved) {
+                case LOW -> 180;
+                case MEDIUM -> 120;
+                case HIGH -> 90;
+                case ULTRA -> 75;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.ssgiPromotionReadyMinFrames")) {
+            ssgiPromotionReadyMinFrames = switch (resolved) {
+                case LOW -> 6;
+                case MEDIUM -> 5;
+                case HIGH -> 4;
+                case ULTRA -> 3;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeWarnMinFrames")) {
+            probeGridWarnMinFrames = switch (resolved) {
+                case LOW -> 3;
+                case MEDIUM -> 2;
+                case HIGH, ULTRA -> 1;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeWarnCooldownFrames")) {
+            probeGridWarnCooldownFrames = switch (resolved) {
+                case LOW -> 180;
+                case MEDIUM -> 120;
+                case HIGH -> 90;
+                case ULTRA -> 75;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probePromotionReadyMinFrames")) {
+            probeGridPromotionReadyMinFrames = switch (resolved) {
+                case LOW -> 6;
+                case MEDIUM -> 5;
+                case HIGH -> 4;
+                case ULTRA -> 3;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeConfiguredCount")) {
+            probeGridConfiguredCount = switch (resolved) {
+                case LOW -> 4;
+                case MEDIUM -> 8;
+                case HIGH -> 12;
+                case ULTRA -> 16;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeUpdateBudgetPerFrame")) {
+            probeGridUpdateBudgetPerFrame = switch (resolved) {
+                case LOW -> 1;
+                case MEDIUM -> 2;
+                case HIGH -> 4;
+                case ULTRA -> 6;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeStreamingWarnMinCoverageRatio")) {
+            probeGridStreamingWarnMinCoverageRatio = switch (resolved) {
+                case LOW -> 0.20;
+                case MEDIUM -> 0.25;
+                case HIGH -> 0.30;
+                case ULTRA -> 0.35;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeStreamingWarnMinFrames")) {
+            probeGridStreamingWarnMinFrames = switch (resolved) {
+                case LOW -> 3;
+                case MEDIUM -> 2;
+                case HIGH, ULTRA -> 1;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.probeStreamingWarnCooldownFrames")) {
+            probeGridStreamingWarnCooldownFrames = switch (resolved) {
+                case LOW -> 180;
+                case MEDIUM -> 120;
+                case HIGH -> 90;
+                case ULTRA -> 75;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.rtWarnMinFrames")) {
+            rtDetailWarnMinFrames = switch (resolved) {
+                case LOW -> 3;
+                case MEDIUM -> 2;
+                case HIGH, ULTRA -> 1;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.rtWarnCooldownFrames")) {
+            rtDetailWarnCooldownFrames = switch (resolved) {
+                case LOW -> 180;
+                case MEDIUM -> 120;
+                case HIGH -> 90;
+                case ULTRA -> 75;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.rtPromotionReadyMinFrames")) {
+            rtDetailPromotionReadyMinFrames = switch (resolved) {
+                case LOW -> 6;
+                case MEDIUM -> 5;
+                case HIGH -> 4;
+                case ULTRA -> 3;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.hybridWarnMinFrames")) {
+            hybridWarnMinFrames = switch (resolved) {
+                case LOW -> 3;
+                case MEDIUM -> 2;
+                case HIGH, ULTRA -> 1;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.hybridWarnCooldownFrames")) {
+            hybridWarnCooldownFrames = switch (resolved) {
+                case LOW -> 180;
+                case MEDIUM -> 120;
+                case HIGH -> 90;
+                case ULTRA -> 75;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.dedicatedWarnMinFrames")) {
+            dedicatedWarnMinFrames = switch (resolved) {
+                case LOW -> 3;
+                case MEDIUM -> 2;
+                case HIGH, ULTRA -> 1;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.dedicatedWarnCooldownFrames")) {
+            dedicatedWarnCooldownFrames = switch (resolved) {
+                case LOW -> 180;
+                case MEDIUM -> 120;
+                case HIGH -> 90;
+                case ULTRA -> 75;
+            };
+        }
+        if (!VulkanRuntimeOptionParsing.hasBackendOption(safe, "vulkan.gi.dedicatedPromotionReadyMinFrames")) {
+            dedicatedPromotionReadyMinFrames = switch (resolved) {
+                case LOW -> 6;
+                case MEDIUM -> 5;
+                case HIGH -> 4;
+                case ULTRA -> 3;
+            };
+        }
+    }
+
+    public void emitFrameWarnings(QualityTier qualityTier, boolean rtAvailable, List<EngineWarning> warnings) {
+        VulkanGiWarningEmitter.Result emission = VulkanGiWarningEmitter.emit(
+                qualityTier,
+                configuredMode,
+                configuredEnabled,
+                rtAvailable
+        );
+        VulkanGiCapabilityPlan plan = emission.plan();
+        modeLastFrame = plan.giModeId();
+        rtAvailableLastFrame = plan.rtAvailable();
+        activeCapabilitiesLastFrame = plan.activeCapabilities();
+        prunedCapabilitiesLastFrame = plan.prunedCapabilities();
+        rtFallbackActiveLastFrame = prunedCapabilitiesLastFrame.stream().anyMatch(s -> s.contains("rt"));
+        ssgiActiveLastFrame = activeCapabilitiesLastFrame.contains("vulkan.gi.ssgi");
+        ssgiExpectedLastFrame = configuredEnabled
+                && (configuredMode == GiMode.SSGI
+                || configuredMode == GiMode.HYBRID_PROBE_SSGI_RT
+                || ((configuredMode == GiMode.RTGI_SINGLE || configuredMode == GiMode.RTGI_MULTI) && rtFallbackActiveLastFrame));
+        ssgiActiveRatioLastFrame = ssgiActiveLastFrame ? 1.0 : 0.0;
+        ssgiEnvelopeBreachedLastFrame = ssgiExpectedLastFrame && ssgiActiveRatioLastFrame < ssgiWarnMinActiveRatio;
+        if (ssgiEnvelopeBreachedLastFrame) {
+            ssgiHighStreak++;
+            ssgiStableStreak = 0;
+        } else {
+            ssgiHighStreak = 0;
+            if (ssgiExpectedLastFrame) {
+                ssgiStableStreak++;
+            } else {
+                ssgiStableStreak = 0;
+            }
+        }
+        if (ssgiWarnCooldownRemaining > 0) {
+            ssgiWarnCooldownRemaining--;
+        }
+        probeGridExpectedLastFrame = configuredEnabled
+                && (configuredMode == GiMode.PROBE_GRID || configuredMode == GiMode.HYBRID_PROBE_SSGI_RT);
+        probeGridActiveLastFrame = activeCapabilitiesLastFrame.contains("vulkan.gi.probe_grid");
+        probeGridActiveRatioLastFrame = probeGridActiveLastFrame ? 1.0 : 0.0;
+        probeGridConfiguredCountLastFrame = probeGridExpectedLastFrame ? Math.max(0, probeGridConfiguredCount) : 0;
+        probeGridActiveCountLastFrame = probeGridActiveLastFrame ? probeGridConfiguredCountLastFrame : 0;
+        probeGridUpdatesLastFrame = probeGridActiveCountLastFrame > 0
+                ? Math.min(Math.max(0, probeGridUpdateBudgetPerFrame), probeGridActiveCountLastFrame)
+                : 0;
+        probeGridUpdateCoverageRatioLastFrame = probeGridActiveCountLastFrame > 0
+                ? ((double) probeGridUpdatesLastFrame / (double) probeGridActiveCountLastFrame)
+                : 1.0;
+        probeGridEnvelopeBreachedLastFrame = probeGridExpectedLastFrame
+                && probeGridActiveRatioLastFrame < probeGridWarnMinActiveRatio;
+        probeGridStreamingEnvelopeBreachedLastFrame = probeGridExpectedLastFrame
+                && probeGridUpdateCoverageRatioLastFrame < probeGridStreamingWarnMinCoverageRatio;
+        if (probeGridEnvelopeBreachedLastFrame) {
+            probeGridHighStreak++;
+            probeGridStableStreak = 0;
+        } else {
+            probeGridHighStreak = 0;
+            if (probeGridExpectedLastFrame) {
+                probeGridStableStreak++;
+            } else {
+                probeGridStableStreak = 0;
+            }
+        }
+        if (probeGridStreamingEnvelopeBreachedLastFrame) {
+            probeGridStreamingHighStreak++;
+        } else {
+            probeGridStreamingHighStreak = 0;
+        }
+        if (probeGridWarnCooldownRemaining > 0) {
+            probeGridWarnCooldownRemaining--;
+        }
+        if (probeGridStreamingWarnCooldownRemaining > 0) {
+            probeGridStreamingWarnCooldownRemaining--;
+        }
+        rtDetailExpectedLastFrame = configuredEnabled
+                && (configuredMode == GiMode.RTGI_SINGLE
+                || configuredMode == GiMode.RTGI_MULTI
+                || configuredMode == GiMode.HYBRID_PROBE_SSGI_RT);
+        rtDetailActiveLastFrame = activeCapabilitiesLastFrame.contains("vulkan.gi.rtgi_single")
+                || activeCapabilitiesLastFrame.contains("vulkan.gi.rtgi_multi")
+                || activeCapabilitiesLastFrame.contains("vulkan.gi.rt_detail");
+        rtDetailActiveRatioLastFrame = rtDetailActiveLastFrame ? 1.0 : 0.0;
+        rtDetailEnvelopeBreachedLastFrame = rtDetailExpectedLastFrame
+                && rtDetailActiveRatioLastFrame < rtDetailWarnMinActiveRatio;
+        if (rtDetailEnvelopeBreachedLastFrame) {
+            rtDetailHighStreak++;
+            rtDetailStableStreak = 0;
+        } else {
+            rtDetailHighStreak = 0;
+            if (rtDetailExpectedLastFrame) {
+                rtDetailStableStreak++;
+            } else {
+                rtDetailStableStreak = 0;
+            }
+        }
+        if (rtDetailWarnCooldownRemaining > 0) {
+            rtDetailWarnCooldownRemaining--;
+        }
+        hybridExpectedLastFrame = configuredEnabled && configuredMode == GiMode.HYBRID_PROBE_SSGI_RT;
+        hybridExpectedComponentCountLastFrame = hybridExpectedLastFrame ? 3 : 0;
+        hybridActiveComponentCountLastFrame = (ssgiActiveLastFrame ? 1 : 0)
+                + (probeGridActiveLastFrame ? 1 : 0)
+                + (rtDetailActiveLastFrame ? 1 : 0);
+        hybridEnvelopeBreachedLastFrame = hybridExpectedLastFrame
+                && hybridActiveComponentCountLastFrame < hybridExpectedComponentCountLastFrame;
+        if (hybridEnvelopeBreachedLastFrame) {
+            hybridHighStreak++;
+        } else {
+            hybridHighStreak = 0;
+        }
+        if (hybridWarnCooldownRemaining > 0) {
+            hybridWarnCooldownRemaining--;
+        }
+        dedicatedExpectedLastFrame = configuredEnabled && isDedicatedMode(configuredMode);
+        dedicatedActiveLastFrame = dedicatedExpectedLastFrame
+                && activeCapabilitiesLastFrame.contains(activeCapabilityForMode(configuredMode));
+        dedicatedActiveRatioLastFrame = dedicatedActiveLastFrame ? 1.0 : 0.0;
+        dedicatedEnvelopeBreachedLastFrame = dedicatedExpectedLastFrame
+                && dedicatedActiveRatioLastFrame < dedicatedWarnMinActiveRatio;
+        if (dedicatedEnvelopeBreachedLastFrame) {
+            dedicatedHighStreak++;
+            dedicatedStableStreak = 0;
+        } else {
+            dedicatedHighStreak = 0;
+            if (dedicatedExpectedLastFrame) {
+                dedicatedStableStreak++;
+            } else {
+                dedicatedStableStreak = 0;
+            }
+        }
+        if (dedicatedWarnCooldownRemaining > 0) {
+            dedicatedWarnCooldownRemaining--;
+        }
+
+        boolean stableThisFrame = configuredEnabled && !activeCapabilitiesLastFrame.isEmpty();
+        stableStreak = stableThisFrame ? stableStreak + 1 : 0;
+        promotionReadyLastFrame = stableThisFrame && stableStreak >= promotionReadyMinFrames;
+        ssgiPromotionReadyLastFrame = ssgiExpectedLastFrame
+                && !ssgiEnvelopeBreachedLastFrame
+                && ssgiStableStreak >= ssgiPromotionReadyMinFrames;
+        probeGridPromotionReadyLastFrame = probeGridExpectedLastFrame
+                && !probeGridEnvelopeBreachedLastFrame
+                && probeGridStableStreak >= probeGridPromotionReadyMinFrames;
+        rtDetailPromotionReadyLastFrame = rtDetailExpectedLastFrame
+                && !rtDetailEnvelopeBreachedLastFrame
+                && rtDetailStableStreak >= rtDetailPromotionReadyMinFrames;
+        dedicatedPromotionReadyLastFrame = dedicatedExpectedLastFrame
+                && !dedicatedEnvelopeBreachedLastFrame
+                && dedicatedStableStreak >= dedicatedPromotionReadyMinFrames;
+        phase2PromotionReadyLastFrame = promotionReadyLastFrame
+                && (!ssgiExpectedLastFrame || ssgiPromotionReadyLastFrame)
+                && (!probeGridExpectedLastFrame || probeGridPromotionReadyLastFrame)
+                && (!rtDetailExpectedLastFrame || rtDetailPromotionReadyLastFrame);
+
+        if (warnings != null) {
+            warnings.add(emission.warning());
+            warnings.add(new EngineWarning(
+                    "GI_PROMOTION_POLICY_ACTIVE",
+                    "GI promotion policy active (mode=" + modeLastFrame
+                            + ", enabled=" + configuredEnabled
+                            + ", rtAvailable=" + rtAvailableLastFrame
+                            + ", rtFallbackActive=" + rtFallbackActiveLastFrame
+                            + ", ssgiActive=" + ssgiActiveLastFrame
+                            + ", ssgiExpected=" + ssgiExpectedLastFrame
+                            + ", ssgiActiveRatio=" + ssgiActiveRatioLastFrame
+                            + ", probeGridActive=" + probeGridActiveLastFrame
+                            + ", rtDetailActive=" + rtDetailActiveLastFrame
+                            + ", stableStreak=" + stableStreak
+                            + ", minFrames=" + promotionReadyMinFrames + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_SSGI_POLICY_ACTIVE",
+                    "GI SSGI policy active (mode=" + modeLastFrame
+                            + ", ssgiActive=" + ssgiActiveLastFrame
+                            + ", ssgiExpected=" + ssgiExpectedLastFrame
+                            + ", ssgiActiveRatio=" + ssgiActiveRatioLastFrame
+                            + ", ssgiWarnMinActiveRatio=" + ssgiWarnMinActiveRatio
+                            + ", ssgiWarnMinFrames=" + ssgiWarnMinFrames
+                            + ", ssgiWarnCooldownFrames=" + ssgiWarnCooldownFrames
+                            + ", ssgiWarnCooldownRemaining=" + ssgiWarnCooldownRemaining
+                            + ", ssgiStableStreak=" + ssgiStableStreak
+                            + ", ssgiPromotionReadyMinFrames=" + ssgiPromotionReadyMinFrames
+                            + ", probeGridActive=" + probeGridActiveLastFrame
+                            + ", rtDetailActive=" + rtDetailActiveLastFrame + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_PROBE_GRID_POLICY_ACTIVE",
+                    "GI probe-grid policy active (mode=" + modeLastFrame
+                            + ", probeGridActive=" + probeGridActiveLastFrame
+                            + ", probeGridExpected=" + probeGridExpectedLastFrame
+                            + ", probeGridActiveRatio=" + probeGridActiveRatioLastFrame
+                            + ", probeGridWarnMinActiveRatio=" + probeGridWarnMinActiveRatio
+                            + ", probeGridWarnMinFrames=" + probeGridWarnMinFrames
+                            + ", probeGridWarnCooldownFrames=" + probeGridWarnCooldownFrames
+                            + ", probeGridWarnCooldownRemaining=" + probeGridWarnCooldownRemaining
+                            + ", probeGridStableStreak=" + probeGridStableStreak
+                            + ", probeGridPromotionReadyMinFrames=" + probeGridPromotionReadyMinFrames
+                            + ", probeConfiguredCount=" + probeGridConfiguredCountLastFrame
+                            + ", probeActiveCount=" + probeGridActiveCountLastFrame
+                            + ", probeUpdateBudgetPerFrame=" + probeGridUpdateBudgetPerFrame
+                            + ", probeUpdatesLastFrame=" + probeGridUpdatesLastFrame
+                            + ", probeUpdateCoverageRatio=" + probeGridUpdateCoverageRatioLastFrame
+                            + ", probeStreamingWarnMinCoverageRatio=" + probeGridStreamingWarnMinCoverageRatio
+                            + ", probeStreamingWarnMinFrames=" + probeGridStreamingWarnMinFrames
+                            + ", probeStreamingWarnCooldownFrames=" + probeGridStreamingWarnCooldownFrames
+                            + ", probeStreamingWarnCooldownRemaining=" + probeGridStreamingWarnCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_PROBE_GRID_STREAMING_POLICY_ACTIVE",
+                    "GI probe-grid streaming policy active (mode=" + modeLastFrame
+                            + ", probeConfiguredCount=" + probeGridConfiguredCountLastFrame
+                            + ", probeActiveCount=" + probeGridActiveCountLastFrame
+                            + ", probeUpdateBudgetPerFrame=" + probeGridUpdateBudgetPerFrame
+                            + ", probeUpdatesLastFrame=" + probeGridUpdatesLastFrame
+                            + ", probeUpdateCoverageRatio=" + probeGridUpdateCoverageRatioLastFrame
+                            + ", probeStreamingWarnMinCoverageRatio=" + probeGridStreamingWarnMinCoverageRatio
+                            + ", probeStreamingWarnMinFrames=" + probeGridStreamingWarnMinFrames
+                            + ", probeStreamingWarnCooldownFrames=" + probeGridStreamingWarnCooldownFrames
+                            + ", probeStreamingWarnCooldownRemaining=" + probeGridStreamingWarnCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_RT_DETAIL_POLICY_ACTIVE",
+                    "GI RT-detail policy active (mode=" + modeLastFrame
+                            + ", rtDetailActive=" + rtDetailActiveLastFrame
+                            + ", rtDetailExpected=" + rtDetailExpectedLastFrame
+                            + ", rtDetailActiveRatio=" + rtDetailActiveRatioLastFrame
+                            + ", rtDetailWarnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                            + ", rtDetailWarnMinFrames=" + rtDetailWarnMinFrames
+                            + ", rtDetailWarnCooldownFrames=" + rtDetailWarnCooldownFrames
+                            + ", rtDetailWarnCooldownRemaining=" + rtDetailWarnCooldownRemaining
+                            + ", rtDetailStableStreak=" + rtDetailStableStreak
+                            + ", rtDetailPromotionReadyMinFrames=" + rtDetailPromotionReadyMinFrames + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_DEDICATED_POLICY_ACTIVE",
+                    "GI dedicated policy active (mode=" + modeLastFrame
+                            + ", expected=" + dedicatedExpectedLastFrame
+                            + ", active=" + dedicatedActiveLastFrame
+                            + ", activeRatio=" + dedicatedActiveRatioLastFrame
+                            + ", warnMinActiveRatio=" + dedicatedWarnMinActiveRatio
+                            + ", warnMinFrames=" + dedicatedWarnMinFrames
+                            + ", warnCooldownFrames=" + dedicatedWarnCooldownFrames
+                            + ", warnCooldownRemaining=" + dedicatedWarnCooldownRemaining
+                            + ", stableStreak=" + dedicatedStableStreak
+                            + ", promotionReadyMinFrames=" + dedicatedPromotionReadyMinFrames + ")"
+            ));
+            if (configuredMode == GiMode.EMISSIVE_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_EMISSIVE_POLICY_ACTIVE",
+                        "GI emissive policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.emissive")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.DYNAMIC_SKY_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_DYNAMIC_SKY_POLICY_ACTIVE",
+                        "GI dynamic-sky policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.dynamic_sky")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.INDIRECT_SPECULAR_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_INDIRECT_SPECULAR_POLICY_ACTIVE",
+                        "GI indirect-specular policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.indirect_specular")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.STATIC_LIGHTMAPS) {
+                warnings.add(new EngineWarning(
+                        "GI_STATIC_LIGHTMAPS_POLICY_ACTIVE",
+                        "GI static-lightmaps policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.static_lightmaps")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.LIGHT_PROBES_SH) {
+                warnings.add(new EngineWarning(
+                        "GI_LIGHT_PROBES_SH_POLICY_ACTIVE",
+                        "GI light-probes-SH policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.light_probes_sh")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.IRRADIANCE_VOLUMES) {
+                warnings.add(new EngineWarning(
+                        "GI_IRRADIANCE_VOLUMES_POLICY_ACTIVE",
+                        "GI irradiance-volumes policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.irradiance_volumes")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.VOXEL_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_VOXEL_POLICY_ACTIVE",
+                        "GI voxel policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.voxel")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.SDF_GI) {
+                warnings.add(new EngineWarning(
+                        "GI_SDF_POLICY_ACTIVE",
+                        "GI sdf policy active (mode=" + modeLastFrame
+                                + ", active=" + activeCapabilitiesLastFrame.contains("vulkan.gi.sdf")
+                                + ", expected=" + configuredEnabled + ")"
+                ));
+            }
+            if (configuredMode == GiMode.RTGI_MULTI) {
+                warnings.add(new EngineWarning(
+                        "GI_RT_MULTI_POLICY_ACTIVE",
+                        "GI RT-multi policy active (mode=" + modeLastFrame
+                                + ", rtDetailActive=" + rtDetailActiveLastFrame
+                                + ", rtDetailExpected=" + rtDetailExpectedLastFrame
+                                + ", rtDetailActiveRatio=" + rtDetailActiveRatioLastFrame
+                                + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                                + ", warnMinFrames=" + rtDetailWarnMinFrames
+                                + ", warnCooldownFrames=" + rtDetailWarnCooldownFrames
+                                + ", warnCooldownRemaining=" + rtDetailWarnCooldownRemaining
+                                + ", stableStreak=" + rtDetailStableStreak
+                                + ", promotionReadyMinFrames=" + rtDetailPromotionReadyMinFrames + ")"
+                ));
+            }
+            String rtFallbackChain = rtDetailActiveLastFrame
+                    ? "rt_detail_active"
+                    : (rtFallbackActiveLastFrame ? "ssgi_fallback" : "disabled");
+            warnings.add(new EngineWarning(
+                    "GI_RT_DETAIL_FALLBACK_CHAIN",
+                    "GI RT-detail fallback chain (mode=" + modeLastFrame
+                            + ", chain=" + rtFallbackChain
+                            + ", rtAvailable=" + rtAvailableLastFrame
+                            + ", rtFallbackActive=" + rtFallbackActiveLastFrame + ")"
+            ));
+            boolean emitSsgiBreach = ssgiEnvelopeBreachedLastFrame
+                    && ssgiHighStreak >= ssgiWarnMinFrames
+                    && ssgiWarnCooldownRemaining <= 0;
+            boolean emitProbeGridBreach = probeGridEnvelopeBreachedLastFrame
+                    && probeGridHighStreak >= probeGridWarnMinFrames
+                    && probeGridWarnCooldownRemaining <= 0;
+            boolean emitProbeGridStreamingBreach = probeGridStreamingEnvelopeBreachedLastFrame
+                    && probeGridStreamingHighStreak >= probeGridStreamingWarnMinFrames
+                    && probeGridStreamingWarnCooldownRemaining <= 0;
+            boolean emitRtDetailBreach = rtDetailEnvelopeBreachedLastFrame
+                    && rtDetailHighStreak >= rtDetailWarnMinFrames
+                    && rtDetailWarnCooldownRemaining <= 0;
+            boolean emitHybridBreach = hybridEnvelopeBreachedLastFrame
+                    && hybridHighStreak >= hybridWarnMinFrames
+                    && hybridWarnCooldownRemaining <= 0;
+            boolean emitDedicatedBreach = dedicatedEnvelopeBreachedLastFrame
+                    && dedicatedHighStreak >= dedicatedWarnMinFrames
+                    && dedicatedWarnCooldownRemaining <= 0;
+            warnings.add(new EngineWarning(
+                    "GI_SSGI_ENVELOPE",
+                    "GI SSGI envelope (mode=" + modeLastFrame
+                            + ", expected=" + ssgiExpectedLastFrame
+                            + ", active=" + ssgiActiveLastFrame
+                            + ", activeRatio=" + ssgiActiveRatioLastFrame
+                            + ", warnMinActiveRatio=" + ssgiWarnMinActiveRatio
+                            + ", breached=" + ssgiEnvelopeBreachedLastFrame
+                            + ", highStreak=" + ssgiHighStreak
+                            + ", warnMinFrames=" + ssgiWarnMinFrames
+                            + ", cooldownRemaining=" + ssgiWarnCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_PROBE_GRID_ENVELOPE",
+                    "GI probe-grid envelope (mode=" + modeLastFrame
+                            + ", expected=" + probeGridExpectedLastFrame
+                            + ", active=" + probeGridActiveLastFrame
+                            + ", activeRatio=" + probeGridActiveRatioLastFrame
+                            + ", warnMinActiveRatio=" + probeGridWarnMinActiveRatio
+                            + ", breached=" + probeGridEnvelopeBreachedLastFrame
+                            + ", highStreak=" + probeGridHighStreak
+                            + ", warnMinFrames=" + probeGridWarnMinFrames
+                            + ", cooldownRemaining=" + probeGridWarnCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_PROBE_GRID_STREAMING_ENVELOPE",
+                    "GI probe-grid streaming envelope (mode=" + modeLastFrame
+                            + ", expected=" + probeGridExpectedLastFrame
+                            + ", configuredCount=" + probeGridConfiguredCountLastFrame
+                            + ", activeCount=" + probeGridActiveCountLastFrame
+                            + ", updateBudgetPerFrame=" + probeGridUpdateBudgetPerFrame
+                            + ", updatesLastFrame=" + probeGridUpdatesLastFrame
+                            + ", updateCoverageRatio=" + probeGridUpdateCoverageRatioLastFrame
+                            + ", warnMinCoverageRatio=" + probeGridStreamingWarnMinCoverageRatio
+                            + ", breached=" + probeGridStreamingEnvelopeBreachedLastFrame
+                            + ", highStreak=" + probeGridStreamingHighStreak
+                            + ", warnMinFrames=" + probeGridStreamingWarnMinFrames
+                            + ", cooldownRemaining=" + probeGridStreamingWarnCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_RT_DETAIL_ENVELOPE",
+                    "GI RT-detail envelope (mode=" + modeLastFrame
+                            + ", expected=" + rtDetailExpectedLastFrame
+                            + ", active=" + rtDetailActiveLastFrame
+                            + ", activeRatio=" + rtDetailActiveRatioLastFrame
+                            + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                            + ", breached=" + rtDetailEnvelopeBreachedLastFrame
+                            + ", highStreak=" + rtDetailHighStreak
+                            + ", warnMinFrames=" + rtDetailWarnMinFrames
+                            + ", cooldownRemaining=" + rtDetailWarnCooldownRemaining + ")"
+            ));
+            warnings.add(new EngineWarning(
+                    "GI_DEDICATED_ENVELOPE",
+                    "GI dedicated envelope (mode=" + modeLastFrame
+                            + ", expected=" + dedicatedExpectedLastFrame
+                            + ", active=" + dedicatedActiveLastFrame
+                            + ", activeRatio=" + dedicatedActiveRatioLastFrame
+                            + ", warnMinActiveRatio=" + dedicatedWarnMinActiveRatio
+                            + ", breached=" + dedicatedEnvelopeBreachedLastFrame
+                            + ", highStreak=" + dedicatedHighStreak
+                            + ", warnMinFrames=" + dedicatedWarnMinFrames
+                            + ", cooldownRemaining=" + dedicatedWarnCooldownRemaining + ")"
+            ));
+            if (configuredMode == GiMode.RTGI_MULTI) {
+                warnings.add(new EngineWarning(
+                        "GI_RT_MULTI_ENVELOPE",
+                        "GI RT-multi envelope (mode=" + modeLastFrame
+                                + ", expected=" + rtDetailExpectedLastFrame
+                                + ", active=" + rtDetailActiveLastFrame
+                                + ", activeRatio=" + rtDetailActiveRatioLastFrame
+                                + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                                + ", breached=" + rtDetailEnvelopeBreachedLastFrame
+                                + ", highStreak=" + rtDetailHighStreak
+                                + ", warnMinFrames=" + rtDetailWarnMinFrames
+                                + ", cooldownRemaining=" + rtDetailWarnCooldownRemaining + ")"
+                ));
+            }
+            warnings.add(new EngineWarning(
+                    "GI_HYBRID_COMPOSITION",
+                    "GI hybrid composition (mode=" + modeLastFrame
+                            + ", expected=" + hybridExpectedLastFrame
+                            + ", expectedComponentCount=" + hybridExpectedComponentCountLastFrame
+                            + ", activeComponentCount=" + hybridActiveComponentCountLastFrame
+                            + ", breached=" + hybridEnvelopeBreachedLastFrame
+                            + ", highStreak=" + hybridHighStreak
+                            + ", warnMinFrames=" + hybridWarnMinFrames
+                            + ", cooldownRemaining=" + hybridWarnCooldownRemaining + ")"
+            ));
+            if (emitSsgiBreach) {
+                ssgiWarnCooldownRemaining = ssgiWarnCooldownFrames;
+                warnings.add(new EngineWarning(
+                        "GI_SSGI_ENVELOPE_BREACH",
+                        "GI SSGI envelope breach (mode=" + modeLastFrame
+                                + ", expected=" + ssgiExpectedLastFrame
+                                + ", activeRatio=" + ssgiActiveRatioLastFrame
+                                + ", warnMinActiveRatio=" + ssgiWarnMinActiveRatio
+                                + ", highStreak=" + ssgiHighStreak
+                                + ", cooldownFrames=" + ssgiWarnCooldownFrames + ")"
+                ));
+            }
+            if (ssgiPromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "GI_SSGI_PROMOTION_READY",
+                        "GI SSGI promotion ready (mode=" + modeLastFrame
+                                + ", stableStreak=" + ssgiStableStreak
+                                + ", minFrames=" + ssgiPromotionReadyMinFrames + ")"
+                ));
+            }
+            if (emitProbeGridBreach) {
+                probeGridWarnCooldownRemaining = probeGridWarnCooldownFrames;
+                warnings.add(new EngineWarning(
+                        "GI_PROBE_GRID_ENVELOPE_BREACH",
+                        "GI probe-grid envelope breach (mode=" + modeLastFrame
+                                + ", expected=" + probeGridExpectedLastFrame
+                                + ", activeRatio=" + probeGridActiveRatioLastFrame
+                                + ", warnMinActiveRatio=" + probeGridWarnMinActiveRatio
+                                + ", highStreak=" + probeGridHighStreak
+                                + ", cooldownFrames=" + probeGridWarnCooldownFrames + ")"
+                ));
+            }
+            if (emitProbeGridStreamingBreach) {
+                probeGridStreamingWarnCooldownRemaining = probeGridStreamingWarnCooldownFrames;
+                warnings.add(new EngineWarning(
+                        "GI_PROBE_GRID_STREAMING_ENVELOPE_BREACH",
+                        "GI probe-grid streaming envelope breach (mode=" + modeLastFrame
+                                + ", expected=" + probeGridExpectedLastFrame
+                                + ", updateCoverageRatio=" + probeGridUpdateCoverageRatioLastFrame
+                                + ", warnMinCoverageRatio=" + probeGridStreamingWarnMinCoverageRatio
+                                + ", highStreak=" + probeGridStreamingHighStreak
+                                + ", cooldownFrames=" + probeGridStreamingWarnCooldownFrames + ")"
+                ));
+            }
+            if (emitRtDetailBreach) {
+                rtDetailWarnCooldownRemaining = rtDetailWarnCooldownFrames;
+                warnings.add(new EngineWarning(
+                        "GI_RT_DETAIL_ENVELOPE_BREACH",
+                        "GI RT-detail envelope breach (mode=" + modeLastFrame
+                                + ", expected=" + rtDetailExpectedLastFrame
+                                + ", activeRatio=" + rtDetailActiveRatioLastFrame
+                                + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                                + ", highStreak=" + rtDetailHighStreak
+                                + ", cooldownFrames=" + rtDetailWarnCooldownFrames + ")"
+                ));
+                if (configuredMode == GiMode.RTGI_MULTI) {
+                    warnings.add(new EngineWarning(
+                            "GI_RT_MULTI_ENVELOPE_BREACH",
+                            "GI RT-multi envelope breach (mode=" + modeLastFrame
+                                    + ", expected=" + rtDetailExpectedLastFrame
+                                    + ", activeRatio=" + rtDetailActiveRatioLastFrame
+                                    + ", warnMinActiveRatio=" + rtDetailWarnMinActiveRatio
+                                    + ", highStreak=" + rtDetailHighStreak
+                                    + ", cooldownFrames=" + rtDetailWarnCooldownFrames + ")"
+                    ));
+                }
+            }
+            if (emitHybridBreach) {
+                hybridWarnCooldownRemaining = hybridWarnCooldownFrames;
+                warnings.add(new EngineWarning(
+                        "GI_HYBRID_COMPOSITION_BREACH",
+                        "GI hybrid composition breach (mode=" + modeLastFrame
+                                + ", expectedComponentCount=" + hybridExpectedComponentCountLastFrame
+                                + ", activeComponentCount=" + hybridActiveComponentCountLastFrame
+                                + ", highStreak=" + hybridHighStreak
+                                + ", warnMinFrames=" + hybridWarnMinFrames
+                                + ", cooldownFrames=" + hybridWarnCooldownFrames + ")"
+                ));
+            }
+            if (emitDedicatedBreach) {
+                dedicatedWarnCooldownRemaining = dedicatedWarnCooldownFrames;
+                warnings.add(new EngineWarning(
+                        "GI_DEDICATED_ENVELOPE_BREACH",
+                        "GI dedicated envelope breach (mode=" + modeLastFrame
+                                + ", expected=" + dedicatedExpectedLastFrame
+                                + ", activeRatio=" + dedicatedActiveRatioLastFrame
+                                + ", warnMinActiveRatio=" + dedicatedWarnMinActiveRatio
+                                + ", highStreak=" + dedicatedHighStreak
+                                + ", cooldownFrames=" + dedicatedWarnCooldownFrames + ")"
+                ));
+            }
+            if (probeGridPromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "GI_PROBE_GRID_PROMOTION_READY",
+                        "GI probe-grid promotion ready (mode=" + modeLastFrame
+                                + ", stableStreak=" + probeGridStableStreak
+                                + ", minFrames=" + probeGridPromotionReadyMinFrames + ")"
+                ));
+            }
+            if (rtDetailPromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "GI_RT_DETAIL_PROMOTION_READY",
+                        "GI RT-detail promotion ready (mode=" + modeLastFrame
+                                + ", stableStreak=" + rtDetailStableStreak
+                                + ", minFrames=" + rtDetailPromotionReadyMinFrames + ")"
+                ));
+                if (configuredMode == GiMode.RTGI_MULTI) {
+                    warnings.add(new EngineWarning(
+                            "GI_RT_MULTI_PROMOTION_READY",
+                            "GI RT-multi promotion ready (mode=" + modeLastFrame
+                                    + ", stableStreak=" + rtDetailStableStreak
+                                    + ", minFrames=" + rtDetailPromotionReadyMinFrames + ")"
+                    ));
+                }
+            }
+            if (dedicatedPromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "GI_DEDICATED_PROMOTION_READY",
+                        "GI dedicated promotion ready (mode=" + modeLastFrame
+                                + ", stableStreak=" + dedicatedStableStreak
+                                + ", minFrames=" + dedicatedPromotionReadyMinFrames + ")"
+                ));
+            }
+            if (promotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "GI_PROMOTION_READY",
+                        "GI promotion ready (mode=" + modeLastFrame
+                                + ", stableStreak=" + stableStreak
+                                + ", minFrames=" + promotionReadyMinFrames
+                                + ", rtFallbackActive=" + rtFallbackActiveLastFrame + ")"
+                ));
+            }
+            if (phase2PromotionReadyLastFrame) {
+                warnings.add(new EngineWarning(
+                        "GI_PHASE2_PROMOTION_READY",
+                        "GI phase2 promotion ready (mode=" + modeLastFrame
+                                + ", promotionReady=" + promotionReadyLastFrame
+                                + ", ssgiExpected=" + ssgiExpectedLastFrame
+                                + ", ssgiReady=" + ssgiPromotionReadyLastFrame
+                                + ", probeExpected=" + probeGridExpectedLastFrame
+                                + ", probeReady=" + probeGridPromotionReadyLastFrame
+                                + ", rtExpected=" + rtDetailExpectedLastFrame
+                                + ", rtReady=" + rtDetailPromotionReadyLastFrame + ")"
+                ));
+            }
+        }
+    }
+
+    public GiCapabilityDiagnostics diagnostics() {
+        return new GiCapabilityDiagnostics(
+                !modeLastFrame.isBlank(),
+                modeLastFrame,
+                configuredEnabled,
+                rtAvailableLastFrame,
+                activeCapabilitiesLastFrame,
+                prunedCapabilitiesLastFrame
+        );
+    }
+
+    private static boolean isDedicatedMode(GiMode mode) {
+        if (mode == null) {
+            return false;
+        }
+        return switch (mode) {
+            case EMISSIVE_GI,
+                 DYNAMIC_SKY_GI,
+                 INDIRECT_SPECULAR_GI,
+                 STATIC_LIGHTMAPS,
+                 LIGHT_PROBES_SH,
+                 IRRADIANCE_VOLUMES,
+                 VOXEL_GI,
+                 SDF_GI -> true;
+            default -> false;
+        };
+    }
+
+    private static String activeCapabilityForMode(GiMode mode) {
+        if (mode == null) {
+            return "";
+        }
+        return switch (mode) {
+            case EMISSIVE_GI -> "vulkan.gi.emissive";
+            case DYNAMIC_SKY_GI -> "vulkan.gi.dynamic_sky";
+            case INDIRECT_SPECULAR_GI -> "vulkan.gi.indirect_specular";
+            case STATIC_LIGHTMAPS -> "vulkan.gi.static_lightmaps";
+            case LIGHT_PROBES_SH -> "vulkan.gi.light_probes_sh";
+            case IRRADIANCE_VOLUMES -> "vulkan.gi.irradiance_volumes";
+            case VOXEL_GI -> "vulkan.gi.voxel";
+            case SDF_GI -> "vulkan.gi.sdf";
+            default -> "";
+        };
+    }
+
+    public GiPromotionDiagnostics promotionDiagnostics() {
+        return new GiPromotionDiagnostics(
+                !modeLastFrame.isBlank(),
+                modeLastFrame,
+                configuredEnabled,
+                rtAvailableLastFrame,
+                rtFallbackActiveLastFrame,
+                ssgiActiveLastFrame,
+                ssgiExpectedLastFrame,
+                ssgiActiveRatioLastFrame,
+                ssgiWarnMinActiveRatio,
+                ssgiWarnMinFrames,
+                ssgiWarnCooldownFrames,
+                ssgiWarnCooldownRemaining,
+                ssgiEnvelopeBreachedLastFrame,
+                probeGridActiveLastFrame,
+                probeGridExpectedLastFrame,
+                probeGridActiveRatioLastFrame,
+                probeGridWarnMinActiveRatio,
+                probeGridWarnMinFrames,
+                probeGridWarnCooldownFrames,
+                probeGridWarnCooldownRemaining,
+                probeGridEnvelopeBreachedLastFrame,
+                rtDetailActiveLastFrame,
+                rtDetailExpectedLastFrame,
+                rtDetailActiveRatioLastFrame,
+                rtDetailWarnMinActiveRatio,
+                rtDetailWarnMinFrames,
+                rtDetailWarnCooldownFrames,
+                rtDetailWarnCooldownRemaining,
+                rtDetailEnvelopeBreachedLastFrame,
+                stableStreak,
+                promotionReadyMinFrames,
+                promotionReadyLastFrame,
+                phase2PromotionReadyLastFrame,
+                ssgiStableStreak,
+                ssgiPromotionReadyMinFrames,
+                ssgiPromotionReadyLastFrame,
+                rtDetailStableStreak,
+                rtDetailPromotionReadyMinFrames,
+                rtDetailPromotionReadyLastFrame,
+                probeGridStableStreak,
+                probeGridPromotionReadyMinFrames,
+                probeGridPromotionReadyLastFrame,
+                probeGridConfiguredCountLastFrame,
+                probeGridActiveCountLastFrame,
+                probeGridUpdateBudgetPerFrame,
+                probeGridUpdatesLastFrame,
+                probeGridUpdateCoverageRatioLastFrame,
+                probeGridStreamingWarnMinCoverageRatio,
+                probeGridStreamingWarnMinFrames,
+                probeGridStreamingWarnCooldownFrames,
+                probeGridStreamingWarnCooldownRemaining,
+                probeGridStreamingEnvelopeBreachedLastFrame
+        );
+    }
+}

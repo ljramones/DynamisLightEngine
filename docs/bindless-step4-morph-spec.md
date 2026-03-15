@@ -127,13 +127,13 @@ In `VulkanMainPassRecorderCore`:
 
 ## 7. Files to Change
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanBindlessMorphVertexShaderSource.java` (new)
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanBindlessSkinnedMorphVertexShaderSource.java` (new)
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/pipeline/VulkanMainPipelineBuilder.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanSceneMeshLifecycle.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/model/VulkanGpuMesh.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanMainPassRecorderCore.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanBindlessMorphVertexShaderSource.java` (new)
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanBindlessSkinnedMorphVertexShaderSource.java` (new)
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/pipeline/VulkanMainPipelineBuilder.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/scene/VulkanSceneMeshLifecycle.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/model/VulkanGpuMesh.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanMainPassRecorderCore.java`
 - swapchain/lifecycle propagation files for new bindless morph and bindless skinned+morph pipelines
 
 ## 8. Validation (Step 4)

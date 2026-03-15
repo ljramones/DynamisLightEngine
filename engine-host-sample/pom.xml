@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.dynamislight</groupId>
+    <groupId>org.dynamisengine.light</groupId>
     <artifactId>dynamiclightengine-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
@@ -35,12 +35,12 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.dynamisgpu</groupId>
+      <groupId>org.dynamisengine</groupId>
       <artifactId>dynamis-gpu-api</artifactId>
       <version>1.0.1</version>
     </dependency>
     <dependency>
-      <groupId>org.dynamisgpu</groupId>
+      <groupId>org.dynamisengine</groupId>
       <artifactId>dynamis-gpu-vulkan</artifactId>
       <version>1.0.1</version>
     </dependency>
@@ -55,29 +55,78 @@
       <version>0.1.0-SNAPSHOT</version>
     </dependency>
     <dependency>
-      <groupId>org.dynamisscenegraph</groupId>
+      <groupId>org.dynamisengine</groupId>
+      <artifactId>dynamis-core</artifactId>
+      <version>1.0.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dynamisengine.ecs</groupId>
+      <artifactId>ecs-api</artifactId>
+      <version>1.0.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dynamisengine.ecs</groupId>
+      <artifactId>ecs-core</artifactId>
+      <version>1.0.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dynamisengine.scenegraph</groupId>
       <artifactId>scene-api</artifactId>
       <version>1.0.0-SNAPSHOT</version>
     </dependency>
     <dependency>
-      <groupId>org.dynamisscenegraph</groupId>
+      <groupId>org.dynamisengine.scenegraph</groupId>
       <artifactId>scene-core</artifactId>
       <version>1.0.0-SNAPSHOT</version>
     </dependency>
     <dependency>
-      <groupId>org.dynamissession</groupId>
+      <groupId>org.dynamisengine.session</groupId>
       <artifactId>session-api</artifactId>
       <version>1.0.0-SNAPSHOT</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.dynamis</groupId>
+          <artifactId>dynamis-core</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.dynamisengine.ecs</groupId>
+          <artifactId>ecs-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.dynamissession</groupId>
+      <groupId>org.dynamisengine.session</groupId>
       <artifactId>session-core</artifactId>
       <version>1.0.0-SNAPSHOT</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.dynamis</groupId>
+          <artifactId>dynamis-core</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.dynamisengine.ecs</groupId>
+          <artifactId>ecs-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.dynamissession</groupId>
+      <groupId>org.dynamisengine.session</groupId>
       <artifactId>session-runtime</artifactId>
       <version>1.0.0-SNAPSHOT</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.dynamis</groupId>
+          <artifactId>dynamis-core</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.dynamisengine.ecs</groupId>
+          <artifactId>ecs-core</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.dynamisengine.ecs</groupId>
+          <artifactId>ecs-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -94,7 +143,7 @@
         <artifactId>exec-maven-plugin</artifactId>
         <version>3.6.1</version>
         <configuration>
-          <mainClass>org.dynamislight.sample.SampleHostApp</mainClass>
+          <mainClass>org.dynamisengine.light.sample.SampleHostApp</mainClass>
         </configuration>
       </plugin>
     </plugins>

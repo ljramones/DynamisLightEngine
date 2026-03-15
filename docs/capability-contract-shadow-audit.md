@@ -7,7 +7,7 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 
 ### Graph-visible pass contribution
 
-- Feature recorder: `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanShadowPassRecorder.java:14`
+- Feature recorder: `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanShadowPassRecorder.java:14`
 - Feature/pass identity:
   - `featureId = vulkan.shadow` (`VulkanShadowPassRecorder.java:15`)
   - `passId = shadow_passes` (`VulkanShadowPassRecorder.java:16`)
@@ -20,7 +20,7 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 
 ### Runtime execution shape inside shadow pass callback
 
-- Entry: `recordShadowPasses(...)` in `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanRenderCommandRecorder.java:215`
+- Entry: `recordShadowPasses(...)` in `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanRenderCommandRecorder.java:215`
 - Pass count is dynamic per frame:
   - computed by `shadowPassCount(...)` (`VulkanRenderCommandRecorder.java:998`)
   - clamps to requested cascades, max cascades, max matrices
@@ -43,7 +43,7 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 
 ### Shadow-only shaders
 
-- Shadow vertex: transforms with `uShadowLightViewProj[cascade]` (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanShaderSources.java:7`)
+- Shadow vertex: transforms with `uShadowLightViewProj[cascade]` (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanShaderSources.java:7`)
 - Shadow fragment:
   - depth-only variant (`VulkanShaderSources.java:60`)
   - moment variant outputs `(d, d^2, 0, 0)` (`VulkanShaderSources.java:67`)
@@ -63,34 +63,34 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 ### Descriptor sets/bindings
 
 - Scene-level set (`set=0`) includes shadow-related data through global UBO and per-object UBO:
-  - descriptor set layout bindings 0/1/2 in `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/descriptor/VulkanDescriptorResources.java:251`
+  - descriptor set layout bindings 0/1/2 in `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/descriptor/VulkanDescriptorResources.java:251`
 - Texture/material set (`set=1`) includes shadow samplers:
   - binding 4: shadow depth array (`VulkanTextureDescriptorWriter.java:115`)
   - binding 8: shadow moment array (`VulkanTextureDescriptorWriter.java:143`)
 - Shadow pipeline layout uses scene descriptor set + push constant (cascade index):
-  - `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/pipeline/VulkanShadowPipelineBuilder.java:179`
+  - `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/pipeline/VulkanShadowPipelineBuilder.java:179`
 
 ### Uniform contract
 
 - Global scene UBO includes shadow parameters and matrices:
-  - filter/RT/contact tuning and cascade metadata in `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/uniform/VulkanGlobalSceneInputBuilder.java:42`
+  - filter/RT/contact tuning and cascade metadata in `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/uniform/VulkanGlobalSceneInputBuilder.java:42`
   - shadow matrices array `uShadowLightViewProj[24]` in shader (`VulkanShaderSources.java:38`)
 - Current uniform sizes:
-  - global UBO `2736` bytes (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanContext.java:82`)
+  - global UBO `2736` bytes (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanContext.java:82`)
   - per-object UBO `176` bytes (`VulkanContext.java:83`)
 
 ## 4. Resources and Lifecycles
 
 ### Owned resources
 
-- Shadow depth array image/view/sampler + per-layer views (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shadow/VulkanShadowResources.java:76`)
+- Shadow depth array image/view/sampler + per-layer views (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shadow/VulkanShadowResources.java:76`)
 - Optional moment array image/view/sampler + per-layer views + mip levels (`VulkanShadowResources.java:143`)
 - Shadow render pass, pipeline layout, graphics pipeline, framebuffers (`VulkanShadowResources.java:126`)
 
 ### Lifecycle behavior
 
 - Create/destroy coordinated by `VulkanShadowLifecycleCoordinator`:
-  - create (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shadow/VulkanShadowLifecycleCoordinator.java:33`)
+  - create (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shadow/VulkanShadowLifecycleCoordinator.java:33`)
   - destroy (`VulkanShadowLifecycleCoordinator.java:76`)
 - Recreated when:
   - shadow map resolution changes (`VulkanContext.java:587`)
@@ -103,7 +103,7 @@ Scope: Step 1 audit for capability-contract extraction, based on implemented beh
 
 Primary shadow scheduling/budget logic is currently owned by runtime mapping, not the recorder:
 
-- Mapper entry: `mapShadows(...)` in `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanEngineRuntimeLightingMapper.java:724`
+- Mapper entry: `mapShadows(...)` in `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntimeLightingMapper.java:724`
 - Tier-aware budgets:
   - max shadowed local lights, max local layers, optional face budget (`VulkanEngineRuntimeLightingMapper.java:754`)
 - Cadence scheduler:
@@ -112,7 +112,7 @@ Primary shadow scheduling/budget logic is currently owned by runtime mapping, no
   - staleness bypass to prevent starvation (`VulkanEngineRuntimeLightingMapper.java:1214`)
 - Deferred/selected IDs and stale-bypass counts are tracked in returned `LocalShadowSchedule` (`VulkanEngineRuntimeLightingMapper.java:1259`)
 - Runtime applies scheduler each frame:
-  - increments frame tick (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanEngineRuntime.java:820`)
+  - increments frame tick (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntime.java:820`)
   - refreshes shadow config and updates last-rendered tick map (`VulkanEngineRuntime.java:822`, `VulkanEngineRuntime.java:842`)
 
 ## 6. Telemetry and Warning Outputs
@@ -123,7 +123,7 @@ Primary shadow scheduling/budget logic is currently owned by runtime mapping, no
   - `SHADOW_POLICY_ACTIVE` (`VulkanEngineRuntime.java:2249`)
   - includes budgets, rendered/deferred IDs, atlas estimates, moment state, filter path, RT mode/state, scheduler settings
 - Quality and capability-path warnings:
-  - `SHADOW_QUALITY_DEGRADED` (`engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanRuntimeWarningPolicy.java:65`)
+  - `SHADOW_QUALITY_DEGRADED` (`engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanRuntimeWarningPolicy.java:65`)
   - `SHADOW_LOCAL_RENDER_BASELINE` (`VulkanEngineRuntime.java:2321`)
   - moment state warnings (`VulkanEngineRuntime.java:2337`)
   - RT requested/fallback/pending/native warnings (`VulkanEngineRuntime.java:2367`)
@@ -133,16 +133,16 @@ Primary shadow scheduling/budget logic is currently owned by runtime mapping, no
 ### Typed diagnostics/profile surfaces
 
 - Shadow cascade profile typed surface:
-  - `shadowCascadeProfile()` in `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/VulkanContext.java:438`
+  - `shadowCascadeProfile()` in `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/VulkanContext.java:438`
 - Depth/moment format tags for diagnostics:
   - `shadowDepthFormatTag()` / `shadowMomentFormatTag()` (`VulkanContext.java:157`)
 
 ## 7. CI/Test Contracts Currently Enforced
 
 - Unit/integration validation of shadow mapping policy, cadence, and warnings:
-  - `engine-impl-vulkan/src/test/java/org/dynamislight/impl/vulkan/VulkanEngineRuntimeLightingMapperTest.java`
-  - `engine-impl-vulkan/src/test/java/org/dynamislight/impl/vulkan/VulkanEngineRuntimeIntegrationTest.java`
-  - `engine-impl-vulkan/src/test/java/org/dynamislight/impl/vulkan/VulkanRuntimeOptionsTest.java`
+  - `engine-impl-vulkan/src/test/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntimeLightingMapperTest.java`
+  - `engine-impl-vulkan/src/test/java/org/dynamisengine/light/impl/vulkan/VulkanEngineRuntimeIntegrationTest.java`
+  - `engine-impl-vulkan/src/test/java/org/dynamisengine/light/impl/vulkan/VulkanRuntimeOptionsTest.java`
 - Dedicated shadow CI/sweep runners:
   - `scripts/shadow_ci_matrix.sh`
   - `scripts/shadow_ci_lockdown_full.sh`

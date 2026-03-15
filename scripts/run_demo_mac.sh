@@ -82,4 +82,4 @@ fi
 exec mvn -f engine-demos/pom.xml -DskipTests exec:exec \
   -Dexec.executable=java \
   -Dexec.classpathScope=runtime \
-  -Dexec.args="-XstartOnFirstThread ${VULKAN_LIBNAME:+-Dorg.lwjgl.vulkan.libname=$VULKAN_LIBNAME} -cp %classpath org.dynamislight.demos.DemoRunner $*"
+  -Dexec.args="-XstartOnFirstThread ${VULKAN_LIBNAME:+-Dorg.lwjgl.vulkan.libname=$VULKAN_LIBNAME} -cp %classpath org.dynamisengine.light.demos.DemoRunner $*"

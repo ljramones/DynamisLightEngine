@@ -1,0 +1,159 @@
+package org.dynamisengine.light.api.runtime;
+
+/**
+ * Backend-agnostic GI promotion diagnostics snapshot.
+ */
+public record GiPromotionDiagnostics(
+        boolean available,
+        String giMode,
+        boolean giEnabled,
+        boolean rtAvailable,
+        boolean rtFallbackActive,
+        boolean ssgiActive,
+        boolean ssgiExpected,
+        double ssgiActiveRatio,
+        double ssgiWarnMinActiveRatio,
+        int ssgiWarnMinFrames,
+        int ssgiWarnCooldownFrames,
+        int ssgiWarnCooldownRemaining,
+        boolean ssgiEnvelopeBreachedLastFrame,
+        boolean probeGridActive,
+        boolean probeGridExpected,
+        double probeGridActiveRatio,
+        double probeGridWarnMinActiveRatio,
+        int probeGridWarnMinFrames,
+        int probeGridWarnCooldownFrames,
+        int probeGridWarnCooldownRemaining,
+        boolean probeGridEnvelopeBreachedLastFrame,
+        boolean rtDetailActive,
+        boolean rtDetailExpected,
+        double rtDetailActiveRatio,
+        double rtDetailWarnMinActiveRatio,
+        int rtDetailWarnMinFrames,
+        int rtDetailWarnCooldownFrames,
+        int rtDetailWarnCooldownRemaining,
+        boolean rtDetailEnvelopeBreachedLastFrame,
+        int stableStreak,
+        int promotionReadyMinFrames,
+        boolean promotionReady,
+        boolean phase2PromotionReady,
+        int ssgiStableStreak,
+        int ssgiPromotionReadyMinFrames,
+        boolean ssgiPromotionReady,
+        int rtDetailStableStreak,
+        int rtDetailPromotionReadyMinFrames,
+        boolean rtDetailPromotionReady,
+        int probeGridStableStreak,
+        int probeGridPromotionReadyMinFrames,
+        boolean probeGridPromotionReady,
+        int probeGridConfiguredCount,
+        int probeGridActiveCount,
+        int probeGridUpdateBudgetPerFrame,
+        int probeGridUpdatesLastFrame,
+        double probeGridUpdateCoverageRatio,
+        double probeGridStreamingWarnMinCoverageRatio,
+        int probeGridStreamingWarnMinFrames,
+        int probeGridStreamingWarnCooldownFrames,
+        int probeGridStreamingWarnCooldownRemaining,
+        boolean probeGridStreamingEnvelopeBreachedLastFrame
+) {
+    public GiPromotionDiagnostics {
+        giMode = giMode == null ? "" : giMode;
+        ssgiActiveRatio = clamp01(ssgiActiveRatio);
+        ssgiWarnMinActiveRatio = clamp01(ssgiWarnMinActiveRatio);
+        ssgiWarnMinFrames = Math.max(1, ssgiWarnMinFrames);
+        ssgiWarnCooldownFrames = Math.max(0, ssgiWarnCooldownFrames);
+        ssgiWarnCooldownRemaining = Math.max(0, ssgiWarnCooldownRemaining);
+        probeGridActiveRatio = clamp01(probeGridActiveRatio);
+        probeGridWarnMinActiveRatio = clamp01(probeGridWarnMinActiveRatio);
+        probeGridWarnMinFrames = Math.max(1, probeGridWarnMinFrames);
+        probeGridWarnCooldownFrames = Math.max(0, probeGridWarnCooldownFrames);
+        probeGridWarnCooldownRemaining = Math.max(0, probeGridWarnCooldownRemaining);
+        rtDetailActiveRatio = clamp01(rtDetailActiveRatio);
+        rtDetailWarnMinActiveRatio = clamp01(rtDetailWarnMinActiveRatio);
+        rtDetailWarnMinFrames = Math.max(1, rtDetailWarnMinFrames);
+        rtDetailWarnCooldownFrames = Math.max(0, rtDetailWarnCooldownFrames);
+        rtDetailWarnCooldownRemaining = Math.max(0, rtDetailWarnCooldownRemaining);
+        stableStreak = Math.max(0, stableStreak);
+        promotionReadyMinFrames = Math.max(1, promotionReadyMinFrames);
+        ssgiStableStreak = Math.max(0, ssgiStableStreak);
+        ssgiPromotionReadyMinFrames = Math.max(1, ssgiPromotionReadyMinFrames);
+        rtDetailStableStreak = Math.max(0, rtDetailStableStreak);
+        rtDetailPromotionReadyMinFrames = Math.max(1, rtDetailPromotionReadyMinFrames);
+        probeGridStableStreak = Math.max(0, probeGridStableStreak);
+        probeGridPromotionReadyMinFrames = Math.max(1, probeGridPromotionReadyMinFrames);
+        probeGridConfiguredCount = Math.max(0, probeGridConfiguredCount);
+        probeGridActiveCount = Math.max(0, probeGridActiveCount);
+        probeGridUpdateBudgetPerFrame = Math.max(0, probeGridUpdateBudgetPerFrame);
+        probeGridUpdatesLastFrame = Math.max(0, probeGridUpdatesLastFrame);
+        probeGridUpdateCoverageRatio = clamp01(probeGridUpdateCoverageRatio);
+        probeGridStreamingWarnMinCoverageRatio = clamp01(probeGridStreamingWarnMinCoverageRatio);
+        probeGridStreamingWarnMinFrames = Math.max(1, probeGridStreamingWarnMinFrames);
+        probeGridStreamingWarnCooldownFrames = Math.max(0, probeGridStreamingWarnCooldownFrames);
+        probeGridStreamingWarnCooldownRemaining = Math.max(0, probeGridStreamingWarnCooldownRemaining);
+    }
+
+    public static GiPromotionDiagnostics unavailable() {
+        return new GiPromotionDiagnostics(
+                false,
+                "",
+                false,
+                false,
+                false,
+                false,
+                false,
+                0.0,
+                1.0,
+                1,
+                0,
+                0,
+                false,
+                false,
+                false,
+                0.0,
+                1.0,
+                1,
+                0,
+                0,
+                false,
+                false,
+                false,
+                0.0,
+                1.0,
+                1,
+                0,
+                0,
+                false,
+                0,
+                1,
+                false,
+                false,
+                0,
+                1,
+                false,
+                0,
+                1,
+                false,
+                0,
+                1,
+                false,
+                0,
+                0,
+                0,
+                0,
+                0.0,
+                1.0,
+                1,
+                0,
+                0,
+                false
+        );
+    }
+
+    private static double clamp01(double v) {
+        if (!Double.isFinite(v)) {
+            return 0.0;
+        }
+        return Math.max(0.0, Math.min(1.0, v));
+    }
+}

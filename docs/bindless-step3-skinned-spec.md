@@ -124,12 +124,12 @@ When `bindlessActive=false` or bindless skinned pipeline unavailable:
 
 ## 6. Files to Change
 
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/shader/VulkanBindlessSkinnedVertexShaderSource.java` (new)
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/pipeline/VulkanMainPipelineBuilder.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/scene/VulkanSceneMeshLifecycle.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/model/VulkanGpuMesh.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
-- `engine-impl-vulkan/src/main/java/org/dynamislight/impl/vulkan/command/VulkanMainPassRecorderCore.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/shader/VulkanBindlessSkinnedVertexShaderSource.java` (new)
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/pipeline/VulkanMainPipelineBuilder.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/scene/VulkanSceneMeshLifecycle.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/model/VulkanGpuMesh.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanFrameCommandOrchestrator.java`
+- `engine-impl-vulkan/src/main/java/org/dynamisengine/light/impl/vulkan/command/VulkanMainPassRecorderCore.java`
 - swapchain/lifecycle propagation files for new bindless skinned pipeline handles
 
 ## 7. Validation (Step 3)

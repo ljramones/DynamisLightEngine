@@ -102,11 +102,11 @@ engine-host-sample        Minimal console host + BackendCompareHarness
 
 ### Backend Selection & Discovery
 
-Backends register via `META-INF/services/org.dynamislight.spi.EngineBackendProvider`. `BackendRegistry` discovers them with `ServiceLoader`. Each backend supports mock context mode for headless CI (`opengl.mockContext=true`, `vulkan.mockContext=true` via `EngineConfig.backendOptions`). API version compatibility: major must match, runtime minor >= host required minor.
+Backends register via `META-INF/services/org.dynamisengine.light.spi.EngineBackendProvider`. `BackendRegistry` discovers them with `ServiceLoader`. Each backend supports mock context mode for headless CI (`opengl.mockContext=true`, `vulkan.mockContext=true` via `EngineConfig.backendOptions`). API version compatibility: major must match, runtime minor >= host required minor.
 
 ### Vulkan Module Organization
 
-The Vulkan backend is heavily decomposed into subpackages under `org.dynamislight.impl.vulkan`: `asset`, `bootstrap`, `command`, `descriptor`, `lifecycle`, `math`, `memory`, `model`, `pipeline`, `profile`, `scene`, `shader`, `shadow`, `state`, `swapchain`, `texture`, `uniform`. Design rule: keep render orchestration/state transitions in `VulkanContext`; data carriers/parsers go in subpackages. New Vulkan features should default to subpackage classes first. The OpenGL backend is flat (single package).
+The Vulkan backend is heavily decomposed into subpackages under `org.dynamisengine.light.impl.vulkan`: `asset`, `bootstrap`, `command`, `descriptor`, `lifecycle`, `math`, `memory`, `model`, `pipeline`, `profile`, `scene`, `shader`, `shadow`, `state`, `swapchain`, `texture`, `uniform`. Design rule: keep render orchestration/state transitions in `VulkanContext`; data carriers/parsers go in subpackages. New Vulkan features should default to subpackage classes first. The OpenGL backend is flat (single package).
 
 ### Key Subsystems
 
@@ -157,7 +157,7 @@ When implementing a new feature, check the relevant guide and testing doc for ex
 - 4-space indentation, UTF-8 sources
 - DTOs as immutable Java `record` types with defensive copying (`List.copyOf`, `Map.copyOf`)
 - Classes/records/interfaces: `PascalCase`; methods/fields: `camelCase`; enums/constants: `UPPER_SNAKE_CASE`
-- Packages: `org.dynamislight.*` (all lowercase)
+- Packages: `org.dynamisengine.light.*` (all lowercase)
 - Tests mirror main package structure, named by behavior (e.g., `OpenGlEngineRuntimeLifecycleTest`)
 - Conventional Commits: `feat(api):`, `fix(opengl):`, `test(spi):`, etc.
 - PRs must include: concise problem/solution summary, linked issue/task ID, verification commands run, logs/screenshots when behavior changes are visible

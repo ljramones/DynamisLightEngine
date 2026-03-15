@@ -1,0 +1,246 @@
+package org.dynamisengine.light.impl.vulkan.bootstrap;
+
+import org.dynamisengine.light.api.error.EngineErrorCode;
+import org.dynamisengine.light.api.error.EngineException;
+import org.dynamisengine.light.impl.vulkan.swapchain.VulkanDeviceSelector;
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.vulkan.VK10;
+import org.lwjgl.vulkan.VkApplicationInfo;
+import org.lwjgl.vulkan.VkDevice;
+import org.lwjgl.vulkan.VkDeviceCreateInfo;
+import org.lwjgl.vulkan.VkDeviceQueueCreateInfo;
+import org.lwjgl.vulkan.VkExtensionProperties;
+import org.lwjgl.vulkan.VkInstance;
+import org.lwjgl.vulkan.VkInstanceCreateInfo;
+import org.lwjgl.vulkan.VkPhysicalDevice;
+import org.lwjgl.vulkan.VkQueue;
+import org.lwjgl.vulkan.KHRPortabilityEnumeration;
+import org.lwjgl.vulkan.KHRPortabilitySubset;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
+import static org.lwjgl.glfw.GLFW.GLFW_FALSE;
+import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
+import static org.lwjgl.glfw.GLFW.GLFW_TRUE;
+import static org.lwjgl.glfw.GLFW.GLFW_VISIBLE;
+import static org.lwjgl.glfw.GLFW.glfwCreateWindow;
+import static org.lwjgl.glfw.GLFW.glfwDefaultWindowHints;
+import static org.lwjgl.glfw.GLFW.glfwFocusWindow;
+import static org.lwjgl.glfw.GLFW.glfwInit;
+import static org.lwjgl.glfw.GLFW.glfwRestoreWindow;
+import static org.lwjgl.glfw.GLFW.glfwShowWindow;
+import static org.lwjgl.glfw.GLFW.glfwSetWindowPos;
+import static org.lwjgl.glfw.GLFW.glfwWindowHint;
+import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
+import static org.lwjgl.glfw.GLFWVulkan.glfwGetRequiredInstanceExtensions;
+import static org.lwjgl.glfw.GLFWVulkan.glfwVulkanSupported;
+import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+import static org.lwjgl.vulkan.KHRPortabilityEnumeration.VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+import static org.lwjgl.vulkan.KHRPortabilityEnumeration.VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+import static org.lwjgl.vulkan.KHRPortabilitySubset.VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME;
+import static org.lwjgl.vulkan.VK10.VK_ERROR_INITIALIZATION_FAILED;
+import static org.lwjgl.vulkan.VK10.VK_NULL_HANDLE;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_APPLICATION_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+import static org.lwjgl.vulkan.VK10.VK_SUCCESS;
+import static org.lwjgl.vulkan.VK10.vkCreateDevice;
+import static org.lwjgl.vulkan.VK10.vkCreateInstance;
+import static org.lwjgl.vulkan.VK10.vkEnumerateInstanceExtensionProperties;
+import static org.lwjgl.vulkan.VK10.vkGetDeviceQueue;
+
+public final class VulkanBootstrap {
+    private VulkanBootstrap() {
+    }
+
+    private static final boolean IS_MAC = System.getProperty("os.name", "").toLowerCase().contains("mac");
+    private static final String EXT_RAY_QUERY = "VK_KHR_ray_query";
+    private static final String EXT_ACCELERATION_STRUCTURE = "VK_KHR_acceleration_structure";
+    private static final String EXT_RT_PIPELINE = "VK_KHR_ray_tracing_pipeline";
+    private static final String EXT_DEFERRED_HOST_OPS = "VK_KHR_deferred_host_operations";
+
+    public static long initWindow(String appName, int width, int height, boolean windowVisible) throws EngineException {
+        GLFWErrorCallback.createPrint(System.err).set();
+        if (!glfwInit()) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "GLFW initialization failed", false);
+        }
+        if (!glfwVulkanSupported()) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "GLFW Vulkan not supported", false);
+        }
+        glfwDefaultWindowHints();
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_VISIBLE, windowVisible ? GLFW_TRUE : GLFW_FALSE);
+        long window = glfwCreateWindow(Math.max(1, width), Math.max(1, height), appName, VK_NULL_HANDLE, VK_NULL_HANDLE);
+        if (window == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Failed to create Vulkan window", false);
+        }
+        if (windowVisible) {
+            // Make visibility explicit on macOS instead of relying solely on GLFW hints.
+            glfwRestoreWindow(window);
+            glfwSetWindowPos(window, 120, 120);
+            glfwShowWindow(window);
+            glfwFocusWindow(window);
+        }
+        return window;
+    }
+
+    public static VkInstance createInstance(MemoryStack stack, String appName) throws EngineException {
+        PointerBuffer requiredExtensions = glfwGetRequiredInstanceExtensions();
+        if (requiredExtensions == null) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "No required Vulkan instance extensions from GLFW", false);
+        }
+
+        boolean portabilityEnumerationSupported = hasInstanceExtension(
+                stack,
+                VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+        );
+
+        int extraExtensions = portabilityEnumerationSupported ? 1 : 0;
+        PointerBuffer instanceExtensions = stack.mallocPointer(requiredExtensions.remaining() + extraExtensions);
+        for (int i = requiredExtensions.position(); i < requiredExtensions.limit(); i++) {
+            instanceExtensions.put(requiredExtensions.get(i));
+        }
+        if (portabilityEnumerationSupported) {
+            instanceExtensions.put(stack.UTF8(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME));
+        }
+        instanceExtensions.flip();
+
+        int instanceFlags = portabilityEnumerationSupported ? VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR : 0;
+        VkInstanceCreateInfo createInfo = VkInstanceCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO)
+                .flags(instanceFlags)
+                .ppEnabledExtensionNames(instanceExtensions);
+        int[] apiVersions = {
+                VK10.VK_MAKE_API_VERSION(0, 1, 1, 0),
+                VK10.VK_MAKE_API_VERSION(0, 1, 0, 0)
+        };
+        int lastResult = VK_ERROR_INITIALIZATION_FAILED;
+        for (int i = 0; i < apiVersions.length; i++) {
+            int apiVersion = apiVersions[i];
+            VkApplicationInfo appInfo = VkApplicationInfo.calloc(stack)
+                    .sType(VK_STRUCTURE_TYPE_APPLICATION_INFO)
+                    .pApplicationName(stack.UTF8(appName))
+                    .applicationVersion(VK10.VK_MAKE_API_VERSION(0, 0, 1, 0))
+                    .pEngineName(stack.UTF8("DynamicLightEngine"))
+                    .engineVersion(VK10.VK_MAKE_API_VERSION(0, 0, 1, 0))
+                    .apiVersion(apiVersion);
+            createInfo.pApplicationInfo(appInfo);
+
+            PointerBuffer pInstance = stack.mallocPointer(1);
+            int result = vkCreateInstance(createInfo, null, pInstance);
+            if (result == VK_SUCCESS) {
+                return new VkInstance(pInstance.get(0), createInfo);
+            }
+            lastResult = result;
+            boolean canRetryLowerVersion = (result == VK10.VK_ERROR_INCOMPATIBLE_DRIVER) && (i + 1 < apiVersions.length);
+            if (!canRetryLowerVersion) {
+                break;
+            }
+        }
+        throw new EngineException(
+                EngineErrorCode.BACKEND_INIT_FAILED,
+                "vkCreateInstance failed: " + lastResult,
+                lastResult == VK_ERROR_INITIALIZATION_FAILED
+        );
+    }
+
+    private static boolean hasInstanceExtension(MemoryStack stack, String extensionName) {
+        var pCount = stack.ints(0);
+        int countResult = vkEnumerateInstanceExtensionProperties((String) null, pCount, null);
+        if (countResult != VK_SUCCESS || pCount.get(0) <= 0) {
+            return false;
+        }
+        VkExtensionProperties.Buffer props = VkExtensionProperties.calloc(pCount.get(0), stack);
+        int listResult = vkEnumerateInstanceExtensionProperties((String) null, pCount, props);
+        if (listResult != VK_SUCCESS) {
+            return false;
+        }
+        for (int i = 0; i < props.remaining(); i++) {
+            if (extensionName.equals(props.get(i).extensionNameString())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static long createSurface(VkInstance instance, long window, MemoryStack stack) throws EngineException {
+        var pSurface = stack.longs(VK_NULL_HANDLE);
+        int result = glfwCreateWindowSurface(instance, window, null, pSurface);
+        if (result != VK_SUCCESS || pSurface.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "glfwCreateWindowSurface failed: " + result, false);
+        }
+        return pSurface.get(0);
+    }
+
+    public static VulkanDeviceSelector.Selection selectPhysicalDevice(VkInstance instance, long surface, MemoryStack stack) throws EngineException {
+        return VulkanDeviceSelector.select(instance, surface, stack);
+    }
+
+    public static DeviceAndQueue createLogicalDevice(
+            VkPhysicalDevice physicalDevice,
+            int graphicsQueueFamilyIndex,
+            boolean shadowRtTraversalSupported,
+            boolean shadowRtBvhSupported,
+            MemoryStack stack
+    ) throws EngineException {
+        if (physicalDevice == null || graphicsQueueFamilyIndex < 0) {
+            throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "Vulkan physical device not selected", false);
+        }
+
+        var queuePriority = stack.floats(1.0f);
+        VkDeviceQueueCreateInfo.Buffer queueCreateInfo = VkDeviceQueueCreateInfo.calloc(1, stack)
+                .sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO)
+                .queueFamilyIndex(graphicsQueueFamilyIndex)
+                .pQueuePriorities(queuePriority);
+
+        List<String> requiredDeviceExtensions = new ArrayList<>();
+        requiredDeviceExtensions.add(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+        if (IS_MAC) {
+            requiredDeviceExtensions.add(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+        }
+        if (shadowRtTraversalSupported) {
+            requiredDeviceExtensions.add(EXT_RAY_QUERY);
+            requiredDeviceExtensions.add(EXT_ACCELERATION_STRUCTURE);
+            if (shadowRtBvhSupported) {
+                requiredDeviceExtensions.add(EXT_RT_PIPELINE);
+                requiredDeviceExtensions.add(EXT_DEFERRED_HOST_OPS);
+            }
+        }
+        PointerBuffer extensions = stack.mallocPointer(requiredDeviceExtensions.size());
+        for (String extensionName : requiredDeviceExtensions) {
+            extensions.put(stack.UTF8(extensionName));
+        }
+        extensions.flip();
+        VkDeviceCreateInfo deviceCreateInfo = VkDeviceCreateInfo.calloc(stack)
+                .sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO)
+                .pQueueCreateInfos(queueCreateInfo)
+                .ppEnabledExtensionNames(extensions);
+
+        PointerBuffer pDevice = stack.mallocPointer(1);
+        int createResult = vkCreateDevice(physicalDevice, deviceCreateInfo, null, pDevice);
+        if (createResult != VK_SUCCESS || pDevice.get(0) == VK_NULL_HANDLE) {
+            throw new EngineException(
+                    EngineErrorCode.BACKEND_INIT_FAILED,
+                    "vkCreateDevice failed: " + createResult,
+                    createResult == VK_ERROR_INITIALIZATION_FAILED
+            );
+        }
+
+        VkDevice device = new VkDevice(pDevice.get(0), physicalDevice, deviceCreateInfo);
+        PointerBuffer pQueue = stack.mallocPointer(1);
+        vkGetDeviceQueue(device, graphicsQueueFamilyIndex, 0, pQueue);
+        VkQueue graphicsQueue = new VkQueue(pQueue.get(0), device);
+        return new DeviceAndQueue(device, graphicsQueue);
+    }
+
+    public record DeviceAndQueue(
+            VkDevice device,
+            VkQueue graphicsQueue
+    ) {
+    }
+}

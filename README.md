@@ -28,7 +28,7 @@ mvn -version
 
 ## Modules
 
-- `engine-api`: immutable DTOs and runtime contracts (`org.dynamislight.api.*`)
+- `engine-api`: immutable DTOs and runtime contracts (`org.dynamisengine.light.api.*`)
 - `engine-spi`: backend discovery SPI (`ServiceLoader`)
 - `engine-impl-common`: shared lifecycle/runtime base for backend implementations
 - `engine-impl-opengl`: OpenGL backend implementation
@@ -40,14 +40,14 @@ mvn -version
 
 ### API contract modules
 
-- `org.dynamislight.api.runtime`: lifecycle and execution surface (`EngineRuntime`, callbacks, frame/stats/capabilities)
-- `org.dynamislight.api.config`: runtime config and quality tier
-- `org.dynamislight.api.input`: host input DTOs
-- `org.dynamislight.api.scene`: scene/fog/smoke DTOs
-- `org.dynamislight.api.event`: event/warning DTOs
-- `org.dynamislight.api.error`: engine error model (`EngineException`, `EngineErrorCode`)
-- `org.dynamislight.api.logging`: structured runtime log DTOs
-- `org.dynamislight.api.resource`: resource cache/reload service contracts
+- `org.dynamisengine.light.api.runtime`: lifecycle and execution surface (`EngineRuntime`, callbacks, frame/stats/capabilities)
+- `org.dynamisengine.light.api.config`: runtime config and quality tier
+- `org.dynamisengine.light.api.input`: host input DTOs
+- `org.dynamisengine.light.api.scene`: scene/fog/smoke DTOs
+- `org.dynamisengine.light.api.event`: event/warning DTOs
+- `org.dynamisengine.light.api.error`: engine error model (`EngineException`, `EngineErrorCode`)
+- `org.dynamisengine.light.api.logging`: structured runtime log DTOs
+- `org.dynamisengine.light.api.resource`: resource cache/reload service contracts
 
 ### SPI and backend implementations
 
