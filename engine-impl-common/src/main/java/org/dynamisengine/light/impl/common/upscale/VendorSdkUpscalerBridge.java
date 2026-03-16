@@ -86,6 +86,17 @@ public final class VendorSdkUpscalerBridge implements ExternalUpscalerBridge {
     }
 
     private void initializeProvider(String vendor) {
+        // Try ServiceLoader discovery first
+        for (VendorUpscalerSdkProvider candidate : java.util.ServiceLoader.load(VendorUpscalerSdkProvider.class)) {
+            if (vendor.equalsIgnoreCase(candidate.vendor())) {
+                if (candidate.initialize(options)) {
+                    providers.put(vendor, candidate);
+                    return;
+                }
+            }
+        }
+
+        // Fall back to config-driven Class.forName
         String providerClass = firstNonBlank(
                 options.get("dle.upscaler.vendor." + vendor + ".providerClass"),
                 options.get("vulkan.upscaler.vendor." + vendor + ".providerClass"),

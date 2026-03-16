@@ -24,6 +24,8 @@ module org.dynamisengine.light.impl.vulkan {
 
     opens org.dynamisengine.light.impl.vulkan.state;
 
+    uses org.dynamisengine.light.impl.common.sky.SkyRenderBridge;
+
     provides org.dynamisengine.light.spi.EngineBackendProvider
         with org.dynamisengine.light.impl.vulkan.bootstrap.VulkanBackendProvider;
 }

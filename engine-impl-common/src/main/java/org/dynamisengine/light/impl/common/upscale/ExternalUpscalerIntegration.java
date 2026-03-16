@@ -25,33 +25,49 @@ public final class ExternalUpscalerIntegration {
         if (!parseBoolean(safeOptions, prefix + "upscaler.nativeEnabled", true)) {
             return inactive("disabled by " + prefix + "upscaler.nativeEnabled=false");
         }
-        String bridgeClass = firstNonBlank(
-                safeOptions.get(prefix + "upscaler.bridgeClass"),
-                safeOptions.get("dle.upscaler.bridgeClass")
-        );
-        if (bridgeClass == null) {
-            return inactive("bridge class not configured (" + prefix + "upscaler.bridgeClass)");
+        // Try ServiceLoader discovery first
+        ExternalUpscalerBridge bridge = null;
+        for (ExternalUpscalerBridge candidate : java.util.ServiceLoader.load(ExternalUpscalerBridge.class)) {
+            bridge = candidate;
+            break; // take first provider
         }
-        try {
-            loadOptionalLibraries(firstNonBlank(
-                    safeOptions.get(prefix + "upscaler.bridgeLibrary"),
-                    safeOptions.get("dle.upscaler.bridgeLibrary")
-            ));
-            Class<?> cls = Class.forName(bridgeClass);
-            Object instance = cls.getDeclaredConstructor().newInstance();
-            if (!(instance instanceof ExternalUpscalerBridge bridge)) {
-                return inactive("configured bridge class is not an ExternalUpscalerBridge: " + bridgeClass);
+
+        // Fall back to config-driven Class.forName if no ServiceLoader provider
+        if (bridge == null) {
+            String bridgeClass = firstNonBlank(
+                    safeOptions.get(prefix + "upscaler.bridgeClass"),
+                    safeOptions.get("dle.upscaler.bridgeClass")
+            );
+            if (bridgeClass == null) {
+                return inactive("bridge class not configured (" + prefix + "upscaler.bridgeClass)");
             }
+            try {
+                loadOptionalLibraries(firstNonBlank(
+                        safeOptions.get(prefix + "upscaler.bridgeLibrary"),
+                        safeOptions.get("dle.upscaler.bridgeLibrary")
+                ));
+                Class<?> cls = Class.forName(bridgeClass);
+                Object instance = cls.getDeclaredConstructor().newInstance();
+                if (!(instance instanceof ExternalUpscalerBridge b)) {
+                    return inactive("configured bridge class is not an ExternalUpscalerBridge: " + bridgeClass);
+                }
+                bridge = b;
+            } catch (Throwable t) {
+                return inactive("bridge load/init failure for " + bridgeClass + ": " + t.getClass().getSimpleName() + " " + safeMessage(t));
+            }
+        }
+
+        try {
             boolean initialized = bridge.initialize(new ExternalUpscalerBridge.InitContext(backend, Map.copyOf(safeOptions)));
             if (!initialized) {
-                return inactive("bridge initialize() returned false: " + bridgeClass);
+                return inactive("bridge initialize() returned false: " + bridge.getClass().getName());
             }
             Map<String, String> vendorStatus = resolveVendorStatus(safeOptions, prefix);
             String vendorSummary = summarizeVendorStatus(vendorStatus);
             String detail = vendorSummary == null ? "native bridge active" : ("native bridge active; " + vendorSummary);
             return new ExternalUpscalerIntegration(bridge, bridge.id(), detail, vendorStatus);
         } catch (Throwable t) {
-            return inactive("bridge load/init failure for " + bridgeClass + ": " + t.getClass().getSimpleName() + " " + safeMessage(t));
+            return inactive("bridge init failure for " + bridge.getClass().getName() + ": " + t.getClass().getSimpleName() + " " + safeMessage(t));
         }
     }
 

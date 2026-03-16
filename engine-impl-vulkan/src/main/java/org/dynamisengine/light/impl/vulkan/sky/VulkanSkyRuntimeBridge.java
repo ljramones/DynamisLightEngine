@@ -1,125 +1,85 @@
 package org.dynamisengine.light.impl.vulkan.sky;
 
+import org.dynamisengine.light.impl.common.sky.SkyRenderBridge;
 import org.dynamisengine.light.impl.vulkan.state.VulkanBackendResources;
 import org.vectrix.core.Matrix4f;
 
-import java.lang.reflect.Method;
+import java.util.ServiceLoader;
 import java.util.logging.Logger;
 
 /**
- * Optional runtime bridge to DynamisSky via reflection.
+ * Optional runtime bridge to DynamisSky via ServiceLoader SPI.
  */
 public final class VulkanSkyRuntimeBridge {
     private static final Logger LOG = Logger.getLogger(VulkanSkyRuntimeBridge.class.getName());
 
-    private Object integration;
-    private Method updateDefaultCameraMethod;
-    private Method recordBackgroundMethod;
-    private Method recordCelestialMethod;
-    private Method getSunStateMethod;
+    private SkyRenderBridge bridge;
 
     public void initialize(VulkanBackendResources resources) {
         if (resources == null || resources.device == null || resources.physicalDevice == null) {
             return;
         }
-        try {
-            Class<?> skyConfigClass = Class.forName("org.dynamissky.vulkan.SkyConfig");
-            Object builder = skyConfigClass.getMethod("builder").invoke(null);
-            Object config = builder.getClass().getMethod("build").invoke(builder);
-
-            Class<?> integrationClass = Class.forName("org.dynamissky.vulkan.integration.VulkanSkyIntegration");
-            integration = integrationClass
-                    .getMethod("createWithLwjglDevices",
-                            org.lwjgl.vulkan.VkDevice.class,
-                            org.lwjgl.vulkan.VkPhysicalDevice.class,
-                            long.class,
-                            long.class,
-                            skyConfigClass)
-                    .invoke(null, resources.device, resources.physicalDevice, resources.renderPass, 0L, config);
-
-            updateDefaultCameraMethod = integrationClass.getMethod("updateDefaultCamera", long.class, float.class, int.class);
-            recordBackgroundMethod = integrationClass.getMethod("recordBackground", long.class, Matrix4f.class, int.class);
-            recordCelestialMethod = integrationClass.getMethod("recordCelestial", long.class, Matrix4f.class, int.class);
-            getSunStateMethod = integrationClass.getMethod("getSunState");
-        } catch (Throwable t) {
-            integration = null;
-            updateDefaultCameraMethod = null;
-            recordBackgroundMethod = null;
-            recordCelestialMethod = null;
-            getSunStateMethod = null;
-            LOG.fine("DynamisSky bridge unavailable: " + t.getMessage());
+        for (SkyRenderBridge candidate : ServiceLoader.load(SkyRenderBridge.class)) {
+            var ctx = new SkyRenderBridge.InitContext(
+                resources.device.address(),
+                resources.physicalDevice.address(),
+                resources.renderPass,
+                0L
+            );
+            if (candidate.initialize(ctx)) {
+                this.bridge = candidate;
+                break;
+            }
+        }
+        if (bridge == null) {
+            LOG.fine("DynamisSky bridge unavailable: no ServiceLoader provider found");
         }
     }
 
     public boolean active() {
-        return integration != null;
+        return bridge != null;
     }
 
     public void updateAndRecord(long commandBuffer, int frameIndex, Matrix4f viewProj, Matrix4f invViewProj) {
         if (!active()) {
             return;
         }
-        try {
-            updateDefaultCameraMethod.invoke(integration, commandBuffer, 1.0f / 60.0f, frameIndex);
-            recordBackgroundMethod.invoke(integration, commandBuffer, invViewProj, frameIndex);
-            recordCelestialMethod.invoke(integration, commandBuffer, viewProj, frameIndex);
-        } catch (Throwable t) {
-            LOG.fine("DynamisSky frame bridge failure: " + t.getMessage());
-        }
+        bridge.updateAndRecord(commandBuffer, frameIndex, 1.0f / 60.0f,
+                matrixToArray(invViewProj), matrixToArray(viewProj));
     }
 
     public float[] sunDirection() {
-        Object sun = sunState();
-        if (sun == null) {
+        if (!active()) {
             return new float[]{0f, -1f, 0f};
         }
-        try {
-            Object dir = sun.getClass().getMethod("direction").invoke(sun);
-            float x = ((Number) dir.getClass().getMethod("x").invoke(dir)).floatValue();
-            float y = ((Number) dir.getClass().getMethod("y").invoke(dir)).floatValue();
-            float z = ((Number) dir.getClass().getMethod("z").invoke(dir)).floatValue();
-            return new float[]{x, y, z};
-        } catch (Throwable t) {
-            return new float[]{0f, -1f, 0f};
-        }
+        float[] dir = bridge.sunDirection();
+        return dir != null ? dir : new float[]{0f, -1f, 0f};
     }
 
     public float[] sunColor() {
-        Object sun = sunState();
-        if (sun == null) {
+        if (!active()) {
             return new float[]{1f, 1f, 1f};
         }
-        try {
-            Object color = sun.getClass().getMethod("color").invoke(sun);
-            float r = ((Number) color.getClass().getMethod("r").invoke(color)).floatValue();
-            float g = ((Number) color.getClass().getMethod("g").invoke(color)).floatValue();
-            float b = ((Number) color.getClass().getMethod("b").invoke(color)).floatValue();
-            return new float[]{r, g, b};
-        } catch (Throwable t) {
-            return new float[]{1f, 1f, 1f};
-        }
+        float[] color = bridge.sunColor();
+        return color != null ? color : new float[]{1f, 1f, 1f};
     }
 
     public float sunIntensity() {
-        Object sun = sunState();
-        if (sun == null) {
+        if (!active()) {
             return 1f;
         }
-        try {
-            return ((Number) sun.getClass().getMethod("intensity").invoke(sun)).floatValue();
-        } catch (Throwable t) {
-            return 1f;
-        }
+        return bridge.sunIntensity();
     }
 
-    private Object sunState() {
-        if (!active()) {
-            return null;
+    private static float[] matrixToArray(Matrix4f m) {
+        if (m == null) {
+            return new float[16];
         }
-        try {
-            return getSunStateMethod.invoke(integration);
-        } catch (Throwable t) {
-            return null;
-        }
+        float[] a = new float[16];
+        a[ 0] = m.m00(); a[ 1] = m.m01(); a[ 2] = m.m02(); a[ 3] = m.m03();
+        a[ 4] = m.m10(); a[ 5] = m.m11(); a[ 6] = m.m12(); a[ 7] = m.m13();
+        a[ 8] = m.m20(); a[ 9] = m.m21(); a[10] = m.m22(); a[11] = m.m23();
+        a[12] = m.m30(); a[13] = m.m31(); a[14] = m.m32(); a[15] = m.m33();
+        return a;
     }
 }
