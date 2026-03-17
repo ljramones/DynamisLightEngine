@@ -1,15 +1,8 @@
 package org.dynamisengine.light.impl.opengl;
 
-import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.nio.FloatBuffer;
 import java.nio.file.Path;
-import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import org.dynamisengine.light.api.runtime.EngineCapabilities;
 import org.dynamisengine.light.api.config.EngineConfig;
@@ -23,21 +16,13 @@ import org.dynamisengine.light.api.scene.FogDesc;
 import org.dynamisengine.light.api.scene.FogMode;
 import org.dynamisengine.light.api.config.QualityTier;
 import org.dynamisengine.light.api.scene.LightDesc;
-import org.dynamisengine.light.api.scene.LightType;
-import org.dynamisengine.light.api.scene.MaterialDesc;
-import org.dynamisengine.light.api.scene.MeshDesc;
 import org.dynamisengine.light.api.scene.PostProcessDesc;
-import org.dynamisengine.light.api.scene.ReactivePreset;
 import org.dynamisengine.light.api.scene.ReflectionAdvancedDesc;
 import org.dynamisengine.light.api.scene.ReflectionDesc;
 import org.dynamisengine.light.api.scene.SceneDescriptor;
-import org.dynamisengine.light.api.scene.ShadowDesc;
 import org.dynamisengine.light.api.scene.SmokeEmitterDesc;
-import org.dynamisengine.light.api.scene.TransformDesc;
 import org.dynamisengine.light.api.scene.Vec3;
 import org.dynamisengine.light.impl.common.AbstractEngineRuntime;
-import org.dynamisengine.light.impl.common.shadow.ShadowAtlasPlanner;
-import org.dynamisengine.light.impl.common.texture.KtxDecodeUtil;
 import org.dynamisengine.light.impl.common.framegraph.FrameGraph;
 import org.dynamisengine.light.impl.common.framegraph.FrameGraphBuilder;
 import org.dynamisengine.light.impl.common.framegraph.FrameGraphExecutor;
@@ -45,64 +30,12 @@ import org.dynamisengine.light.impl.common.framegraph.FrameGraphPass;
 import org.dynamisengine.light.impl.common.upscale.ExternalUpscalerBridge;
 import org.dynamisengine.light.impl.common.upscale.ExternalUpscalerIntegration;
 
+import org.dynamisengine.light.impl.opengl.OpenGlRenderingOptions.*;
+import org.dynamisengine.light.impl.opengl.OpenGlIblResolver.IblRenderConfig;
+import org.dynamisengine.light.impl.opengl.OpenGlLightingMapper.LightingConfig;
+import org.dynamisengine.light.impl.opengl.OpenGlLightingMapper.ShadowRenderConfig;
+
 public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
-    private enum AaPreset {
-        PERFORMANCE,
-        BALANCED,
-        QUALITY,
-        STABILITY
-    }
-
-    private enum AaMode {
-        TAA,
-        TSR,
-        TUUA,
-        MSAA_SELECTIVE,
-        HYBRID_TUUA_MSAA,
-        DLAA,
-        FXAA_LOW
-    }
-
-    private enum UpscalerMode {
-        NONE,
-        FSR,
-        XESS,
-        DLSS
-    }
-
-    private enum UpscalerQuality {
-        PERFORMANCE,
-        BALANCED,
-        QUALITY,
-        ULTRA_QUALITY
-    }
-
-    private enum ReflectionMode {
-        IBL_ONLY,
-        SSR,
-        PLANAR,
-        HYBRID,
-        RT_HYBRID
-    }
-
-    private enum ReflectionProfile {
-        PERFORMANCE,
-        BALANCED,
-        QUALITY,
-        STABILITY
-    }
-
-    private record TsrControls(
-            float historyWeight,
-            float responsiveMask,
-            float neighborhoodClamp,
-            float reprojectionConfidence,
-            float sharpen,
-            float antiRinging,
-            float tsrRenderScale,
-            float tuuaRenderScale
-    ) {
-    }
 
     private record FogRenderConfig(boolean enabled, float r, float g, float b, float density, int steps) {
     }
@@ -140,26 +73,6 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     ) {
     }
 
-    private record IblRenderConfig(
-            boolean enabled,
-            float diffuseStrength,
-            float specularStrength,
-            boolean textureDriven,
-            boolean skyboxDerived,
-            boolean ktxContainerRequested,
-            boolean ktxSkyboxFallback,
-            int ktxDecodeUnavailableCount,
-            int ktxTranscodeRequiredCount,
-            int ktxUnsupportedVariantCount,
-            float prefilterStrength,
-            boolean degraded,
-            int missingAssetCount,
-            Path irradiancePath,
-            Path radiancePath,
-            Path brdfLutPath
-    ) {
-    }
-
     static record CameraMatrices(float[] view, float[] proj) {
     }
 
@@ -179,15 +92,9 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     private SceneDescriptor activeScene;
     private FogRenderConfig fog = new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
     private SmokeRenderConfig smoke = new SmokeRenderConfig(false, 0.6f, 0.6f, 0.6f, 0f, false);
-    private ShadowRenderConfig shadows = new ShadowRenderConfig(
-            false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024,
-            0, 0, "none", "none",
-            0, 0, 0.0f, 0,
-            0L, 0L, 0L,
-            false
-    );
+    private ShadowRenderConfig shadows = OpenGlLightingMapper.SHADOWS_DISABLED;
     private PostProcessRenderConfig postProcess = new PostProcessRenderConfig(true, 1.0f, 2.2f, false, 1.0f, 0.8f, false, 0f, 1.0f, 0.02f, 1.0f, false, 0f, false, 0f, 1.0f, false, 0.16f, 1.0f, false, ReflectionMode.IBL_ONLY.ordinal(), 0.6f, 0.78f, 1.0f, 0.80f, 0.35f);
-    private IblRenderConfig ibl = new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
+    private IblRenderConfig ibl = OpenGlIblResolver.DISABLED;
     private boolean nonDirectionalShadowRequested;
     private int taaDebugView;
     private boolean taaLumaClipEnabledDefault;
@@ -231,12 +138,12 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
             taaDebugView = 0;
         }
         taaLumaClipEnabledDefault = Boolean.parseBoolean(config.backendOptions().getOrDefault("opengl.taaLumaClip", "false"));
-        aaPreset = parseAaPreset(config.backendOptions().get("opengl.aaPreset"));
-        aaMode = parseAaMode(config.backendOptions().get("opengl.aaMode"));
-        upscalerMode = parseUpscalerMode(config.backendOptions().get("opengl.upscalerMode"));
-        upscalerQuality = parseUpscalerQuality(config.backendOptions().get("opengl.upscalerQuality"));
-        reflectionProfile = parseReflectionProfile(config.backendOptions().get("opengl.reflectionsProfile"));
-        tsrControls = parseTsrControls(config.backendOptions(), "opengl.");
+        aaPreset = OpenGlRenderingOptions.parseAaPreset(config.backendOptions().get("opengl.aaPreset"));
+        aaMode = OpenGlRenderingOptions.parseAaMode(config.backendOptions().get("opengl.aaMode"));
+        upscalerMode = OpenGlRenderingOptions.parseUpscalerMode(config.backendOptions().get("opengl.upscalerMode"));
+        upscalerQuality = OpenGlRenderingOptions.parseUpscalerQuality(config.backendOptions().get("opengl.upscalerQuality"));
+        reflectionProfile = OpenGlRenderingOptions.parseReflectionProfile(config.backendOptions().get("opengl.reflectionsProfile"));
+        tsrControls = OpenGlRenderingOptions.parseTsrControls(config.backendOptions(), "opengl.");
         externalUpscaler = ExternalUpscalerIntegration.create("opengl", "opengl.", config.backendOptions());
         nativeUpscalerActive = false;
         nativeUpscalerProvider = externalUpscaler.providerId();
@@ -257,34 +164,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         context.setSmokeParameters(smoke.enabled(), smoke.r(), smoke.g(), smoke.b(), smoke.intensity());
         context.setIblParameters(ibl.enabled(), ibl.diffuseStrength(), ibl.specularStrength(), ibl.prefilterStrength());
         context.setIblTexturePaths(null, null, null);
-        context.setPostProcessParameters(
-                postProcess.tonemapEnabled(),
-                postProcess.exposure(),
-                postProcess.gamma(),
-                postProcess.bloomEnabled(),
-                postProcess.bloomThreshold(),
-                postProcess.bloomStrength(),
-                postProcess.ssaoEnabled(),
-                postProcess.ssaoStrength(),
-                postProcess.ssaoRadius(),
-                postProcess.ssaoBias(),
-                postProcess.ssaoPower(),
-                postProcess.smaaEnabled(),
-                postProcess.smaaStrength(),
-                postProcess.taaEnabled(),
-                postProcess.taaBlend(),
-                postProcess.taaClipScale(),
-                postProcess.taaLumaClipEnabled(),
-                postProcess.taaSharpenStrength(),
-                postProcess.taaRenderScale(),
-                postProcess.reflectionsEnabled(),
-                postProcess.reflectionsMode(),
-                postProcess.reflectionsSsrStrength(),
-                postProcess.reflectionsSsrMaxRoughness(),
-                postProcess.reflectionsSsrStepScale(),
-                postProcess.reflectionsTemporalWeight(),
-                postProcess.reflectionsPlanarStrength()
-        );
+        pushPostProcessToContext();
         context.setTaaDebugView(taaDebugView);
         frameGraph = buildFrameGraph();
     }
@@ -292,17 +172,17 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     @Override
     protected void onLoadScene(SceneDescriptor scene) throws EngineException {
         activeScene = scene;
-        aaMode = resolveAaMode(scene.postProcess(), aaMode);
-        taaDebugView = resolveTaaDebugView(scene.postProcess(), taaDebugView);
+        aaMode = OpenGlRenderingOptions.resolveAaMode(scene.postProcess(), aaMode);
+        taaDebugView = OpenGlRenderingOptions.resolveTaaDebugView(scene.postProcess(), taaDebugView);
         fog = mapFog(scene.fog(), qualityTier);
         smoke = mapSmoke(scene.smokeEmitters(), qualityTier);
-        shadows = mapShadows(scene.lights(), qualityTier);
-        nonDirectionalShadowRequested = hasNonDirectionalShadowRequest(scene.lights());
+        shadows = OpenGlLightingMapper.mapShadows(scene.lights(), qualityTier);
+        nonDirectionalShadowRequested = OpenGlLightingMapper.hasNonDirectionalShadowRequest(scene.lights());
         postProcess = mapPostProcess(scene.postProcess(), qualityTier, taaLumaClipEnabledDefault, aaPreset, aaMode, upscalerMode, upscalerQuality, tsrControls, reflectionProfile);
         postProcess = applyExternalUpscalerDecision(postProcess);
-        ibl = mapIbl(scene.environment(), qualityTier);
+        ibl = OpenGlIblResolver.mapIbl(scene.environment(), qualityTier, assetRoot);
 
-        List<OpenGlContext.SceneMesh> sceneMeshes = mapSceneMeshes(scene);
+        List<OpenGlContext.SceneMesh> sceneMeshes = OpenGlSceneMeshMapper.mapSceneMeshes(scene, meshLoader, context, assetRoot, mockContext);
         plannedDrawCalls = sceneMeshes.size();
         plannedTriangles = sceneMeshes.stream().mapToLong(mesh -> mesh.geometry().vertexCount() / 3).sum();
         plannedVisibleObjects = plannedDrawCalls;
@@ -313,7 +193,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         if (!mockContext) {
             context.setSceneMeshes(sceneMeshes);
             context.setCameraMatrices(cameraMatrices.view(), cameraMatrices.proj());
-            LightingConfig lighting = mapLighting(scene.lights());
+            LightingConfig lighting = OpenGlLightingMapper.mapLighting(scene.lights());
             context.setLightingParameters(
                     lighting.directionalDirection(),
                     lighting.directionalColor(),
@@ -341,7 +221,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     shadows.mapResolution(),
                     shadows.selectedLocalShadowLights()
             );
-            float shadowRange = directionalLightRange(scene.lights());
+            float shadowRange = OpenGlLightingMapper.directionalLightRange(scene.lights());
             if (shadowRange > 0f) {
                 context.setShadowOrthoSize(shadowRange * 0.3f, shadowRange);
             }
@@ -365,34 +245,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                     ibl.radiancePath(),
                     ibl.brdfLutPath()
             );
-            context.setPostProcessParameters(
-                    postProcess.tonemapEnabled(),
-                    postProcess.exposure(),
-                    postProcess.gamma(),
-                    postProcess.bloomEnabled(),
-                    postProcess.bloomThreshold(),
-                    postProcess.bloomStrength(),
-                    postProcess.ssaoEnabled(),
-                    postProcess.ssaoStrength(),
-                    postProcess.ssaoRadius(),
-                    postProcess.ssaoBias(),
-                    postProcess.ssaoPower(),
-                    postProcess.smaaEnabled(),
-                    postProcess.smaaStrength(),
-                    postProcess.taaEnabled(),
-                    postProcess.taaBlend(),
-                    postProcess.taaClipScale(),
-                    postProcess.taaLumaClipEnabled(),
-                    postProcess.taaSharpenStrength(),
-                    postProcess.taaRenderScale(),
-                    postProcess.reflectionsEnabled(),
-                    postProcess.reflectionsMode(),
-                    postProcess.reflectionsSsrStrength(),
-                    postProcess.reflectionsSsrMaxRoughness(),
-                    postProcess.reflectionsSsrStepScale(),
-                    postProcess.reflectionsTemporalWeight(),
-                    postProcess.reflectionsPlanarStrength()
-            );
+            pushPostProcessToContext();
             context.setTaaDebugView(taaDebugView);
             frameGraph = buildFrameGraph();
         }
@@ -642,6 +495,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         return context.taaConfidenceDropEvents();
     }
 
+    // ── fog / smoke (kept here — small, tightly coupled to local records) ──
+
     private static FogRenderConfig mapFog(FogDesc fogDesc, QualityTier qualityTier) {
         if (fogDesc == null || !fogDesc.enabled() || fogDesc.mode() == FogMode.NONE) {
             return new FogRenderConfig(false, 0.5f, 0.5f, 0.5f, 0f, 0);
@@ -726,6 +581,8 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 degraded
         );
     }
+
+    // ── post-process (kept here — large but deeply coupled to local enums/records) ──
 
     private static PostProcessRenderConfig mapPostProcess(
             PostProcessDesc desc,
@@ -928,7 +785,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         float reflectionsTemporalWeight = 0.80f;
         float reflectionsPlanarStrength = 0.35f;
         if (reflectionDesc != null) {
-            reflectionsMode = parseReflectionMode(reflectionDesc.mode());
+            reflectionsMode = OpenGlRenderingOptions.parseReflectionMode(reflectionDesc.mode());
             reflectionsEnabled = reflectionDesc.enabled() && reflectionsMode != ReflectionMode.IBL_ONLY;
             reflectionsSsrStrength = clamp(reflectionDesc.ssrStrength(), 0f, 1.0f);
             reflectionsSsrMaxRoughness = clamp(reflectionDesc.ssrMaxRoughness(), 0f, 1.0f);
@@ -959,7 +816,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
                 reflectionsTemporalWeight = clamp(reflectionsTemporalWeight + 0.02f, 0f, 0.98f);
             }
             if (reflectionAdvancedDesc.rtEnabled()) {
-                ReflectionMode fallbackMode = parseReflectionMode(reflectionAdvancedDesc.rtFallbackMode());
+                ReflectionMode fallbackMode = OpenGlRenderingOptions.parseReflectionMode(reflectionAdvancedDesc.rtFallbackMode());
                 reflectionsMode = fallbackMode == ReflectionMode.IBL_ONLY ? ReflectionMode.HYBRID : fallbackMode;
                 reflectionsSsrMaxRoughness = clamp(
                         Math.max(reflectionsSsrMaxRoughness, reflectionAdvancedDesc.rtMaxRoughness()),
@@ -1101,19 +958,6 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         return Math.max(min, Math.min(max, value));
     }
 
-    private static ReflectionMode parseReflectionMode(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return ReflectionMode.IBL_ONLY;
-        }
-        return switch (raw.trim().toLowerCase()) {
-            case "ssr" -> ReflectionMode.SSR;
-            case "planar" -> ReflectionMode.PLANAR;
-            case "hybrid" -> ReflectionMode.HYBRID;
-            case "rt_hybrid", "rt" -> ReflectionMode.RT_HYBRID;
-            default -> ReflectionMode.IBL_ONLY;
-        };
-    }
-
     private static int packReflectionMode(ReflectionMode baseMode, ReflectionAdvancedDesc advanced) {
         int packed = baseMode.ordinal() & 0x7;
         if (advanced == null) {
@@ -1139,845 +983,7 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         return packed;
     }
 
-    private static ReflectionProfile parseReflectionProfile(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return ReflectionProfile.BALANCED;
-        }
-        return switch (raw.trim().toLowerCase()) {
-            case "performance" -> ReflectionProfile.PERFORMANCE;
-            case "quality" -> ReflectionProfile.QUALITY;
-            case "stability" -> ReflectionProfile.STABILITY;
-            default -> ReflectionProfile.BALANCED;
-        };
-    }
-
-    private AaMode resolveAaMode(PostProcessDesc postProcess, AaMode fallback) {
-        if (postProcess == null || postProcess.antiAliasing() == null) {
-            return fallback;
-        }
-        String raw = postProcess.antiAliasing().mode();
-        if (raw == null || raw.isBlank()) {
-            return fallback;
-        }
-        return parseAaMode(raw);
-    }
-
-    private int resolveTaaDebugView(PostProcessDesc postProcess, int fallback) {
-        if (postProcess == null || postProcess.antiAliasing() == null) {
-            return fallback;
-        }
-        return Math.max(0, Math.min(5, postProcess.antiAliasing().debugView()));
-    }
-
-    private static AaPreset parseAaPreset(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return AaPreset.BALANCED;
-        }
-        try {
-            return AaPreset.valueOf(raw.trim().toUpperCase());
-        } catch (IllegalArgumentException ignored) {
-            return AaPreset.BALANCED;
-        }
-    }
-
-    private static AaMode parseAaMode(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return AaMode.TAA;
-        }
-        String normalized = raw.trim().toUpperCase().replace('-', '_');
-        try {
-            return AaMode.valueOf(normalized);
-        } catch (IllegalArgumentException ignored) {
-            return AaMode.TAA;
-        }
-    }
-
-    private static UpscalerMode parseUpscalerMode(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return UpscalerMode.NONE;
-        }
-        String normalized = raw.trim().toUpperCase().replace('-', '_');
-        try {
-            return UpscalerMode.valueOf(normalized);
-        } catch (IllegalArgumentException ignored) {
-            return UpscalerMode.NONE;
-        }
-    }
-
-    private static UpscalerQuality parseUpscalerQuality(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return UpscalerQuality.QUALITY;
-        }
-        String normalized = raw.trim().toUpperCase().replace('-', '_');
-        try {
-            return UpscalerQuality.valueOf(normalized);
-        } catch (IllegalArgumentException ignored) {
-            return UpscalerQuality.QUALITY;
-        }
-    }
-
-    private static TsrControls parseTsrControls(Map<String, String> options, String prefix) {
-        return new TsrControls(
-                parseFloatOption(options, prefix + "tsrHistoryWeight", 0.90f, 0.50f, 0.99f),
-                parseFloatOption(options, prefix + "tsrResponsiveMask", 0.65f, 0.0f, 1.0f),
-                parseFloatOption(options, prefix + "tsrNeighborhoodClamp", 0.88f, 0.50f, 1.20f),
-                parseFloatOption(options, prefix + "tsrReprojectionConfidence", 0.85f, 0.10f, 1.0f),
-                parseFloatOption(options, prefix + "tsrSharpen", 0.14f, 0.0f, 0.35f),
-                parseFloatOption(options, prefix + "tsrAntiRinging", 0.75f, 0.0f, 1.0f),
-                parseFloatOption(options, prefix + "tsrRenderScale", 0.60f, 0.50f, 1.0f),
-                parseFloatOption(options, prefix + "tuuaRenderScale", 0.72f, 0.50f, 1.0f)
-        );
-    }
-
-    private static float parseFloatOption(Map<String, String> options, String key, float fallback, float min, float max) {
-        String raw = options.get(key);
-        if (raw == null || raw.isBlank()) {
-            return fallback;
-        }
-        try {
-            return Math.max(min, Math.min(max, Float.parseFloat(raw.trim())));
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
-    }
-
-    private IblRenderConfig mapIbl(EnvironmentDesc environment, QualityTier qualityTier) {
-        if (environment == null) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
-        }
-        boolean enabled = !isBlank(environment.iblIrradiancePath())
-                || !isBlank(environment.iblRadiancePath())
-                || !isBlank(environment.iblBrdfLutPath())
-                || !isBlank(environment.skyboxAssetPath());
-        if (!enabled) {
-            return new IblRenderConfig(false, 0f, 0f, false, false, false, false, 0, 0, 0, 0f, false, 0, null, null, null);
-        }
-        float tierScale = switch (qualityTier) {
-            case LOW -> 0.62f;
-            case MEDIUM -> 0.82f;
-            case HIGH -> 1.0f;
-            case ULTRA -> 1.15f;
-        };
-        float diffuse = 0.42f * tierScale;
-        float specular = 0.30f * tierScale;
-        float prefilterStrength = switch (qualityTier) {
-            case LOW -> 0.38f;
-            case MEDIUM -> 0.62f;
-            case HIGH -> 0.85f;
-            case ULTRA -> 1.0f;
-        };
-        boolean degraded = qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
-        boolean textureDriven = false;
-
-        String fallbackSkyboxPath = environment.skyboxAssetPath();
-        boolean skyboxDerived = !isBlank(fallbackSkyboxPath)
-                && (isBlank(environment.iblIrradiancePath()) || isBlank(environment.iblRadiancePath()));
-        Path irrSource = resolveTexturePath(
-                isBlank(environment.iblIrradiancePath()) ? fallbackSkyboxPath : environment.iblIrradiancePath()
-        );
-        Path radSource = resolveTexturePath(
-                isBlank(environment.iblRadiancePath()) ? fallbackSkyboxPath : environment.iblRadiancePath()
-        );
-        Path brdfSource = resolveTexturePath(environment.iblBrdfLutPath());
-        boolean ktxContainerRequested = isKtxContainerPath(irrSource)
-                || isKtxContainerPath(radSource)
-                || isKtxContainerPath(brdfSource);
-
-        Path irr = resolveContainerSourcePath(irrSource);
-        Path rad = resolveContainerSourcePath(radSource);
-        Path brdf = resolveContainerSourcePath(brdfSource);
-        boolean ktxSkyboxFallback = false;
-        Path skyboxResolved = resolveContainerSourcePath(resolveTexturePath(fallbackSkyboxPath));
-        if (isKtxContainerPath(irrSource) && !isRegularFile(irr) && isRegularFile(skyboxResolved)) {
-            irr = skyboxResolved;
-            ktxSkyboxFallback = true;
-        }
-        if (isKtxContainerPath(radSource) && !isRegularFile(rad) && isRegularFile(skyboxResolved)) {
-            rad = skyboxResolved;
-            ktxSkyboxFallback = true;
-        }
-        boolean skyboxDerivedActive = skyboxDerived || ktxSkyboxFallback;
-        int ktxDecodeUnavailableCount = 0;
-        ktxDecodeUnavailableCount += decodeUnavailableChannelCount(irrSource, irr);
-        ktxDecodeUnavailableCount += decodeUnavailableChannelCount(radSource, rad);
-        ktxDecodeUnavailableCount += decodeUnavailableChannelCount(brdfSource, brdf);
-        int ktxTranscodeRequiredCount = 0;
-        ktxTranscodeRequiredCount += transcodeRequiredChannelCount(irrSource);
-        ktxTranscodeRequiredCount += transcodeRequiredChannelCount(radSource);
-        ktxTranscodeRequiredCount += transcodeRequiredChannelCount(brdfSource);
-        int ktxUnsupportedVariantCount = 0;
-        ktxUnsupportedVariantCount += unsupportedVariantChannelCount(irrSource);
-        ktxUnsupportedVariantCount += unsupportedVariantChannelCount(radSource);
-        ktxUnsupportedVariantCount += unsupportedVariantChannelCount(brdfSource);
-        int missingAssetCount = countMissingFiles(irr, rad, brdf);
-        float irrSignal = imageLuminanceSignal(irr);
-        float radSignal = imageLuminanceSignal(rad);
-        float brdfSignal = imageLuminanceSignal(brdf);
-        if (irrSignal >= 0f || radSignal >= 0f || brdfSignal >= 0f) {
-            float irrUsed = irrSignal < 0f ? 0.5f : irrSignal;
-            float radUsed = radSignal < 0f ? 0.5f : radSignal;
-            float brdfUsed = brdfSignal < 0f ? 0.5f : brdfSignal;
-            float diffuseScale = 0.82f + 0.36f * irrUsed;
-            float specScale = 0.78f + 0.42f * ((radUsed * 0.6f) + (brdfUsed * 0.4f));
-            diffuse *= diffuseScale;
-            specular *= specScale;
-            prefilterStrength = Math.max(prefilterStrength, 0.65f + 0.35f * radUsed);
-            textureDriven = true;
-        }
-
-        return new IblRenderConfig(
-                true,
-                Math.max(0f, Math.min(2.0f, diffuse)),
-                Math.max(0f, Math.min(2.0f, specular)),
-                textureDriven,
-                skyboxDerivedActive,
-                ktxContainerRequested,
-                ktxSkyboxFallback,
-                ktxDecodeUnavailableCount,
-                ktxTranscodeRequiredCount,
-                ktxUnsupportedVariantCount,
-                Math.max(0f, Math.min(1f, prefilterStrength)),
-                degraded,
-                missingAssetCount,
-                irr,
-                rad,
-                brdf
-        );
-    }
-
-    private static int countMissingFiles(Path... paths) {
-        int missing = 0;
-        for (Path path : paths) {
-            if (!isRegularFile(path)) {
-                missing++;
-            }
-        }
-        return missing;
-    }
-
-    private static boolean isRegularFile(Path path) {
-        return path != null && Files.isRegularFile(path);
-    }
-
-    private static int decodeUnavailableChannelCount(Path requestedPath, Path resolvedPath) {
-        if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
-            return 0;
-        }
-        if (!Objects.equals(requestedPath, resolvedPath)) {
-            return 0;
-        }
-        if (KtxDecodeUtil.canDecodeSupported(requestedPath)) {
-            return 0;
-        }
-        if (KtxDecodeUtil.requiresTranscode(requestedPath)) {
-            return 0;
-        }
-        return canDecodeViaStb(requestedPath) ? 0 : 1;
-    }
-
-    private static int transcodeRequiredChannelCount(Path requestedPath) {
-        if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
-            return 0;
-        }
-        if (KtxDecodeUtil.canDecodeSupported(requestedPath)) {
-            return 0;
-        }
-        if (!KtxDecodeUtil.requiresTranscode(requestedPath)) {
-            return 0;
-        }
-        return canDecodeViaStb(requestedPath) ? 0 : 1;
-    }
-
-    private static int unsupportedVariantChannelCount(Path requestedPath) {
-        if (!isKtxContainerPath(requestedPath) || !isRegularFile(requestedPath)) {
-            return 0;
-        }
-        if (KtxDecodeUtil.requiresTranscode(requestedPath)) {
-            return 0;
-        }
-        if (!KtxDecodeUtil.isKnownUnsupportedVariant(requestedPath)) {
-            return 0;
-        }
-        return canDecodeViaStb(requestedPath) ? 0 : 1;
-    }
-
-    private static boolean canDecodeViaStb(Path path) {
-        if (path == null || !Files.isRegularFile(path)) {
-            return false;
-        }
-        try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
-            var x = stack.mallocInt(1);
-            var y = stack.mallocInt(1);
-            var channels = stack.mallocInt(1);
-            java.nio.ByteBuffer pixels = org.lwjgl.stb.STBImage.stbi_load(
-                    path.toAbsolutePath().toString(),
-                    x,
-                    y,
-                    channels,
-                    4
-            );
-            if (pixels == null || x.get(0) <= 0 || y.get(0) <= 0) {
-                return false;
-            }
-            org.lwjgl.stb.STBImage.stbi_image_free(pixels);
-            return true;
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    private static ShadowRenderConfig mapShadows(List<LightDesc> lights, QualityTier qualityTier) {
-        if (lights == null || lights.isEmpty()) {
-            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, 0, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, false);
-        }
-        int maxShadowedLocalLights = switch (qualityTier) {
-            case LOW -> 1;
-            case MEDIUM -> 2;
-            case HIGH -> 3;
-            case ULTRA -> 4;
-        };
-        List<LightDesc> localShadowCandidates = new ArrayList<>();
-        LightDesc primaryDirectional = null;
-        LightDesc bestLocal = null;
-        for (LightDesc light : lights) {
-            if (light == null || !light.castsShadows()) {
-                continue;
-            }
-            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
-            if (type == LightType.POINT || type == LightType.SPOT) {
-                localShadowCandidates.add(light);
-                if (bestLocal == null || localLightPriority(light) > localLightPriority(bestLocal)) {
-                    bestLocal = light;
-                }
-            }
-            if (primaryDirectional == null && type == LightType.DIRECTIONAL) {
-                primaryDirectional = light;
-            }
-        }
-        localShadowCandidates.sort((a, b) -> Float.compare(localLightPriority(b), localLightPriority(a)));
-        int selectedLocalShadowLights = Math.min(maxShadowedLocalLights, localShadowCandidates.size());
-        selectedLocalShadowLights = Math.min(maxShadowedLocalLights, selectedLocalShadowLights);
-        LightDesc primary = primaryDirectional != null ? primaryDirectional : bestLocal;
-        if (primary == null) {
-            return new ShadowRenderConfig(false, 0.45f, 0.0015f, 1.0f, 1.0f, 1, 1, 1024, maxShadowedLocalLights, 0, "none", "none", 0, 0, 0.0f, 0, 0L, 0L, 0L, false);
-        }
-
-        LightType type = primary.type() == null ? LightType.DIRECTIONAL : primary.type();
-        ShadowDesc shadow = primary.shadow();
-        int kernel = shadow == null ? 3 : Math.max(1, shadow.pcfKernelSize());
-        int maxKernel = switch (type) {
-            case DIRECTIONAL -> switch (qualityTier) {
-                case LOW -> 3;
-                case MEDIUM -> 5;
-                case HIGH -> 7;
-                case ULTRA -> 9;
-            };
-            case SPOT -> switch (qualityTier) {
-                case LOW -> 3;
-                case MEDIUM -> 5;
-                case HIGH -> 5;
-                case ULTRA -> 7;
-            };
-            case POINT -> switch (qualityTier) {
-                case LOW -> 3;
-                case MEDIUM -> 3;
-                case HIGH -> 5;
-                case ULTRA -> 5;
-            };
-        };
-        int kernelClamped = Math.min(kernel, maxKernel);
-        int radius = Math.max(0, (kernelClamped - 1) / 2);
-        int cascades = shadow == null ? 1 : Math.max(1, shadow.cascadeCount());
-        if (type == LightType.SPOT || type == LightType.POINT) {
-            cascades = 1;
-        }
-        int maxCascades = switch (qualityTier) {
-            case LOW -> 1;
-            case MEDIUM -> 2;
-            case HIGH -> 3;
-            case ULTRA -> 4;
-        };
-        cascades = Math.min(cascades, maxCascades);
-        int requestedResolution = shadow == null ? 1024 : Math.max(256, Math.min(4096, shadow.mapResolution()));
-        float typeResolutionScale = switch (type) {
-            case DIRECTIONAL -> 1.0f;
-            case SPOT -> 0.85f;
-            case POINT -> 0.75f;
-        };
-        int resolution = Math.max(256, Math.min(4096, Math.round(requestedResolution * typeResolutionScale)));
-        int atlasCapacityTiles = Math.max(1, (resolution / 256) * (resolution / 256));
-        List<ShadowAtlasPlanner.Request> atlasRequests = new ArrayList<>();
-        for (int i = 0; i < selectedLocalShadowLights; i++) {
-            LightDesc local = localShadowCandidates.get(i);
-            LightType localType = local.type() == null ? LightType.DIRECTIONAL : local.type();
-            if (localType != LightType.SPOT) {
-                continue;
-            }
-            int tileSize = Math.max(256, Math.round(resolution * 0.5f));
-            atlasRequests.add(new ShadowAtlasPlanner.Request(
-                    local.id() == null || local.id().isBlank() ? ("local-shadow-" + i) : local.id(),
-                    tileSize,
-                    0
-            ));
-        }
-        ShadowAtlasPlanner.PlanResult atlasPlan = ShadowAtlasPlanner.plan(resolution, atlasRequests, Map.of());
-        long atlasMemoryBytesD16 = (long) resolution * (long) resolution * 2L;
-        long atlasMemoryBytesD32 = (long) resolution * (long) resolution * 4L;
-        long shadowUpdateBytesEstimate = 0L;
-        for (ShadowAtlasPlanner.Allocation allocation : atlasPlan.allocations()) {
-            long tilePixels = (long) allocation.tileSizePx() * (long) allocation.tileSizePx();
-            shadowUpdateBytesEstimate += tilePixels * 2L;
-        }
-        float bias = shadow == null ? 0.0015f : Math.max(0.00002f, shadow.depthBias());
-        float biasScale = 1.0f + (radius * 0.15f) + (Math.max(0, cascades - 1) * 0.05f);
-        bias = Math.max(0.00002f, Math.min(0.02f, bias * biasScale));
-        float normalBiasScale = switch (type) {
-            case DIRECTIONAL -> 1.0f;
-            case SPOT -> 1.2f;
-            case POINT -> 1.35f;
-        };
-        float slopeBiasScale = switch (type) {
-            case DIRECTIONAL -> 1.0f;
-            case SPOT -> 1.15f;
-            case POINT -> 1.30f;
-        };
-        float base = Math.min(0.9f, 0.25f + (kernelClamped * 0.04f) + (cascades * 0.05f));
-        float tierScale = switch (qualityTier) {
-            case LOW -> 0.55f;
-            case MEDIUM -> 0.75f;
-            case HIGH -> 1.0f;
-            case ULTRA -> 1.15f;
-        };
-        boolean degraded = kernelClamped != kernel
-                || resolution != requestedResolution
-                || qualityTier == QualityTier.LOW || qualityTier == QualityTier.MEDIUM;
-        return new ShadowRenderConfig(
-                true,
-                Math.max(0.2f, Math.min(0.9f, base * tierScale)),
-                bias,
-                normalBiasScale,
-                slopeBiasScale,
-                radius,
-                cascades,
-                resolution,
-                maxShadowedLocalLights,
-                selectedLocalShadowLights,
-                type.name().toLowerCase(java.util.Locale.ROOT),
-                primary.id() == null ? "unnamed" : primary.id(),
-                atlasCapacityTiles,
-                atlasPlan.allocations().size(),
-                atlasPlan.utilization(),
-                atlasPlan.evictedIds().size(),
-                atlasMemoryBytesD16,
-                atlasMemoryBytesD32,
-                shadowUpdateBytesEstimate,
-                degraded
-        );
-    }
-
-    private List<OpenGlContext.SceneMesh> mapSceneMeshes(SceneDescriptor scene) {
-        if (scene.meshes() == null || scene.meshes().isEmpty()) {
-            return List.of(new OpenGlContext.SceneMesh(
-                    "default-triangle",
-                    OpenGlContext.defaultTriangleGeometry(),
-                    identityMatrix(),
-                    new float[]{1f, 1f, 1f},
-                    0.0f,
-                    0.6f,
-                    0f,
-                    false,
-                    false,
-                    1.0f,
-                    1.0f,
-                    1.0f,
-                    0f,
-                    null,
-                    null,
-                    null,
-                    null
-            ));
-        }
-
-        Map<String, TransformDesc> transforms = new HashMap<>();
-        for (TransformDesc transform : scene.transforms()) {
-            transforms.put(transform.id(), transform);
-        }
-
-        Map<String, MaterialDesc> materials = new HashMap<>();
-        for (MaterialDesc material : scene.materials()) {
-            materials.put(material.id(), material);
-        }
-
-        List<OpenGlContext.SceneMesh> sceneMeshes = new ArrayList<>(scene.meshes().size());
-        for (int i = 0; i < scene.meshes().size(); i++) {
-            MeshDesc mesh = scene.meshes().get(i);
-
-            if (mesh.id() != null && mesh.id().startsWith("gltf-scene:")) {
-                List<OpenGlContext.SceneMesh> expanded = expandGltfScene(mesh, transforms, materials);
-                sceneMeshes.addAll(expanded);
-                continue;
-            }
-
-            OpenGlContext.MeshGeometry geometry = meshLoader.loadMeshGeometry(mesh, i);
-            TransformDesc transform = transforms.get(mesh.transformId());
-            MaterialDesc material = materials.get(mesh.materialId());
-
-            float[] model = modelMatrixOf(transform);
-            float[] albedo = albedoOf(material);
-            Path albedoTexturePath = resolveTexturePath(material == null ? null : material.albedoTexturePath());
-            Path normalTexturePath = resolveTexturePath(material == null ? null : material.normalTexturePath());
-            Path metallicRoughnessTexturePath =
-                    resolveTexturePath(material == null ? null : material.metallicRoughnessTexturePath());
-            Path occlusionTexturePath = resolveTexturePath(material == null ? null : material.occlusionTexturePath());
-            float metallic = material == null ? 0.0f : clamp01(material.metallic());
-            float roughness = material == null ? 0.6f : clamp01(material.roughness());
-            float reactiveStrength = material == null ? 0f : clamp01(material.reactiveStrength());
-            boolean alphaTested = material != null && material.alphaTested();
-            boolean foliage = material != null && material.foliage();
-            float reactiveBoost = material == null ? 1.0f : Math.max(0f, Math.min(2.0f, material.reactiveBoost()));
-            float taaHistoryClamp = material == null ? 1.0f : clamp01(material.taaHistoryClamp());
-            float emissiveReactiveBoost = material == null ? 1.0f : Math.max(0f, Math.min(3.0f, material.emissiveReactiveBoost()));
-            float reactivePreset = material == null ? 0f : toReactivePresetValue(material.reactivePreset());
-            sceneMeshes.add(new OpenGlContext.SceneMesh(
-                    mesh.id() == null || mesh.id().isBlank() ? ("mesh-index-" + i) : mesh.id(),
-                    geometry,
-                    model,
-                    albedo,
-                    metallic,
-                    roughness,
-                    reactiveStrength,
-                    alphaTested,
-                    foliage,
-                    reactiveBoost,
-                    taaHistoryClamp,
-                    emissiveReactiveBoost,
-                    reactivePreset,
-                    albedoTexturePath,
-                    normalTexturePath,
-                    metallicRoughnessTexturePath,
-                    occlusionTexturePath
-            ));
-        }
-        return sceneMeshes;
-    }
-
-    private List<OpenGlContext.SceneMesh> expandGltfScene(
-            MeshDesc mesh, Map<String, TransformDesc> transforms, Map<String, MaterialDesc> materials) {
-        Path glbPath = mesh.meshAssetPath() == null ? null : Path.of(mesh.meshAssetPath());
-        if (glbPath == null) {
-            return List.of();
-        }
-        OpenGlMeshAssetLoader.LoadedGltfScene loaded = meshLoader.loadGltfScene(glbPath);
-        if (loaded == null) {
-            return List.of();
-        }
-        TransformDesc sceneTransform = transforms.get(mesh.transformId());
-        float[] sceneModel = modelMatrixOf(sceneTransform);
-
-        // Identify which images are used as color (sRGB) textures
-        java.util.Set<Integer> sRgbImages = new java.util.HashSet<>();
-        for (var mat : loaded.materials()) {
-            if (mat.baseColorTextureIndex() >= 0) {
-                sRgbImages.add(mat.baseColorTextureIndex());
-            }
-        }
-
-        // Upload embedded textures
-        int[] textureIds = new int[loaded.imageBuffers().size()];
-        for (int ti = 0; ti < loaded.imageBuffers().size(); ti++) {
-            java.nio.ByteBuffer imgBuf = loaded.imageBuffers().get(ti);
-            if (imgBuf != null) {
-                textureIds[ti] = context.loadTextureFromMemory(imgBuf, sRgbImages.contains(ti));
-            }
-        }
-
-        List<OpenGlContext.SceneMesh> result = new ArrayList<>(loaded.primitives().size());
-        for (var prim : loaded.primitives()) {
-            float[] albedoColor = new float[]{1f, 1f, 1f};
-            float metallic = 0.0f;
-            float roughness = 1.0f;
-            int albedoTexId = 0;
-            int normalTexId = 0;
-            int mrTexId = 0;
-            int occlusionTexId = 0;
-
-            boolean alphaTested = false;
-            float alphaCutoff = 0f;
-
-            if (prim.materialIndex() >= 0 && prim.materialIndex() < loaded.materials().size()) {
-                var gltfMat = loaded.materials().get(prim.materialIndex());
-                albedoColor = new float[]{gltfMat.baseColorFactor()[0], gltfMat.baseColorFactor()[1], gltfMat.baseColorFactor()[2]};
-                metallic = gltfMat.metallicFactor();
-                roughness = gltfMat.roughnessFactor();
-                alphaTested = "MASK".equals(gltfMat.alphaMode());
-                alphaCutoff = alphaTested ? gltfMat.alphaCutoff() : 0f;
-                if (gltfMat.baseColorTextureIndex() >= 0 && gltfMat.baseColorTextureIndex() < textureIds.length) {
-                    albedoTexId = textureIds[gltfMat.baseColorTextureIndex()];
-                }
-                if (gltfMat.normalTextureIndex() >= 0 && gltfMat.normalTextureIndex() < textureIds.length) {
-                    normalTexId = textureIds[gltfMat.normalTextureIndex()];
-                }
-                if (gltfMat.metallicRoughnessTextureIndex() >= 0 && gltfMat.metallicRoughnessTextureIndex() < textureIds.length) {
-                    mrTexId = textureIds[gltfMat.metallicRoughnessTextureIndex()];
-                }
-                if (gltfMat.occlusionTextureIndex() >= 0 && gltfMat.occlusionTextureIndex() < textureIds.length) {
-                    occlusionTexId = textureIds[gltfMat.occlusionTextureIndex()];
-                }
-            }
-
-            String primId = prim.meshName() + "-p" + prim.primitiveIndex();
-            result.add(new OpenGlContext.SceneMesh(
-                    primId,
-                    prim.geometry(),
-                    sceneModel.clone(),
-                    albedoColor,
-                    metallic,
-                    roughness,
-                    0f,     // reactiveStrength
-                    alphaTested,
-                    alphaCutoff,
-                    false,  // foliage
-                    1.0f,   // reactiveBoost
-                    1.0f,   // taaHistoryClamp
-                    1.0f,   // emissiveReactiveBoost
-                    0f,     // reactivePreset
-                    null,   // albedoTexturePath
-                    null,   // normalTexturePath
-                    null,   // metallicRoughnessTexturePath
-                    null,   // occlusionTexturePath
-                    albedoTexId,
-                    normalTexId,
-                    mrTexId,
-                    occlusionTexId
-            ));
-        }
-        return result;
-    }
-
-    private static float directionalLightRange(List<LightDesc> lights) {
-        if (lights == null || lights.isEmpty()) {
-            return 0f;
-        }
-        for (LightDesc light : lights) {
-            if (light == null) continue;
-            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
-            if (type == LightType.DIRECTIONAL && light.range() > 0f) {
-                return light.range();
-            }
-        }
-        return 0f;
-    }
-
-    private static LightingConfig mapLighting(List<LightDesc> lights) {
-        float[] dir = new float[]{0.35f, -1.0f, 0.25f};
-        float[] dirColor = new float[]{1.0f, 0.98f, 0.95f};
-        float dirIntensity = 1.0f;
-        float[] shadowPointPos = new float[]{0f, 1.3f, 1.8f};
-        float[] shadowPointDir = new float[]{0f, -1f, 0f};
-        boolean shadowPointIsSpot = false;
-        float shadowPointOuterCos = 1.0f;
-        float shadowPointRange = 15f;
-        boolean shadowPointCastsShadows = false;
-        int localLightCount = 0;
-        float[] localLightPosRange = new float[OpenGlContext.MAX_LOCAL_LIGHTS * 4];
-        float[] localLightColorIntensity = new float[OpenGlContext.MAX_LOCAL_LIGHTS * 4];
-        float[] localLightDirInner = new float[OpenGlContext.MAX_LOCAL_LIGHTS * 4];
-        float[] localLightOuterTypeShadow = new float[OpenGlContext.MAX_LOCAL_LIGHTS * 4];
-        if (lights == null || lights.isEmpty()) {
-            return new LightingConfig(
-                    dir, dirColor, dirIntensity,
-                    shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
-                    localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow
-            );
-        }
-        LightDesc directional = null;
-        List<LightDesc> localLights = new ArrayList<>();
-        for (LightDesc light : lights) {
-            if (light == null) {
-                continue;
-            }
-            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
-            if (directional == null && type == LightType.DIRECTIONAL) {
-                directional = light;
-            }
-            if (type == LightType.SPOT || type == LightType.POINT) {
-                localLights.add(light);
-            }
-        }
-        if (directional == null) {
-            directional = lights.getFirst();
-        }
-        if (directional != null && directional.color() != null) {
-            dirColor = new float[]{
-                    clamp01(directional.color().x()),
-                    clamp01(directional.color().y()),
-                    clamp01(directional.color().z())
-            };
-        }
-        if (directional != null) {
-            dirIntensity = Math.max(0f, directional.intensity());
-            if (directional.direction() != null) {
-                dir = normalize3(new float[]{
-                        directional.direction().x(),
-                        directional.direction().y(),
-                        directional.direction().z()
-                });
-            }
-        }
-        if (!localLights.isEmpty()) {
-            localLights.sort((a, b) -> Float.compare(localLightPriority(b), localLightPriority(a)));
-            localLightCount = Math.min(OpenGlContext.MAX_LOCAL_LIGHTS, localLights.size());
-            for (int i = 0; i < localLightCount; i++) {
-                LightDesc light = localLights.get(i);
-                int offset = i * 4;
-                LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
-                float[] pos = light.position() == null
-                        ? new float[]{0f, 1.3f, 1.8f}
-                        : new float[]{light.position().x(), light.position().y(), light.position().z()};
-                float range = light.range() > 0f ? light.range() : 15f;
-                float[] color = light.color() == null
-                        ? new float[]{0.95f, 0.62f, 0.22f}
-                        : new float[]{clamp01(light.color().x()), clamp01(light.color().y()), clamp01(light.color().z())};
-                float intensity = Math.max(0f, light.intensity());
-                float[] direction = light.direction() == null
-                        ? new float[]{0f, -1f, 0f}
-                        : normalize3(new float[]{light.direction().x(), light.direction().y(), light.direction().z()});
-                float inner = 1.0f;
-                float outer = 1.0f;
-                float isSpot = 0f;
-                if (type == LightType.SPOT) {
-                    float innerCos = cosFromDegrees(light.innerConeDegrees());
-                    float outerCos = cosFromDegrees(light.outerConeDegrees());
-                    inner = Math.max(innerCos, outerCos);
-                    outer = Math.min(innerCos, outerCos);
-                    isSpot = 1f;
-                }
-                float castsShadows = light.castsShadows() ? 1f : 0f;
-                localLightPosRange[offset] = pos[0];
-                localLightPosRange[offset + 1] = pos[1];
-                localLightPosRange[offset + 2] = pos[2];
-                localLightPosRange[offset + 3] = range;
-                localLightColorIntensity[offset] = color[0];
-                localLightColorIntensity[offset + 1] = color[1];
-                localLightColorIntensity[offset + 2] = color[2];
-                localLightColorIntensity[offset + 3] = intensity;
-                localLightDirInner[offset] = direction[0];
-                localLightDirInner[offset + 1] = direction[1];
-                localLightDirInner[offset + 2] = direction[2];
-                localLightDirInner[offset + 3] = inner;
-                localLightOuterTypeShadow[offset] = outer;
-                localLightOuterTypeShadow[offset + 1] = isSpot;
-                localLightOuterTypeShadow[offset + 2] = castsShadows;
-            }
-
-            LightDesc shadowLight = localLights.stream().filter(LightDesc::castsShadows).findFirst().orElse(localLights.getFirst());
-            if (shadowLight.position() != null) {
-                shadowPointPos = new float[]{shadowLight.position().x(), shadowLight.position().y(), shadowLight.position().z()};
-            }
-            shadowPointRange = shadowLight.range() > 0f ? shadowLight.range() : 15f;
-            LightType shadowType = shadowLight.type() == null ? LightType.DIRECTIONAL : shadowLight.type();
-            shadowPointIsSpot = shadowType == LightType.SPOT;
-            shadowPointCastsShadows = shadowLight.castsShadows();
-            if (shadowLight.direction() != null) {
-                shadowPointDir = normalize3(new float[]{shadowLight.direction().x(), shadowLight.direction().y(), shadowLight.direction().z()});
-            }
-            if (shadowPointIsSpot) {
-                float innerCos = cosFromDegrees(shadowLight.innerConeDegrees());
-                float outerCos = cosFromDegrees(shadowLight.outerConeDegrees());
-                shadowPointOuterCos = Math.min(innerCos, outerCos);
-            }
-        }
-        return new LightingConfig(
-                dir, dirColor, dirIntensity,
-                shadowPointPos, shadowPointDir, shadowPointIsSpot, shadowPointOuterCos, shadowPointRange, shadowPointCastsShadows,
-                localLightCount, localLightPosRange, localLightColorIntensity, localLightDirInner, localLightOuterTypeShadow
-        );
-    }
-
-    private static boolean hasNonDirectionalShadowRequest(List<LightDesc> lights) {
-        if (lights == null || lights.isEmpty()) {
-            return false;
-        }
-        for (LightDesc light : lights) {
-            if (light == null || !light.castsShadows()) {
-                continue;
-            }
-            LightType type = light.type() == null ? LightType.DIRECTIONAL : light.type();
-            if (type == LightType.POINT || type == LightType.SPOT) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static float[] normalize3(float[] v) {
-        if (v == null || v.length != 3) {
-            return new float[]{0f, -1f, 0f};
-        }
-        float len = (float) Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-        if (len < 1.0e-6f) {
-            return new float[]{0f, -1f, 0f};
-        }
-        return new float[]{v[0] / len, v[1] / len, v[2] / len};
-    }
-
-    private static float cosFromDegrees(float degrees) {
-        float clamped = Math.max(0f, Math.min(89.9f, degrees));
-        return (float) Math.cos(Math.toRadians(clamped));
-    }
-
-    private static float localLightPriority(LightDesc light) {
-        if (light == null) {
-            return Float.NEGATIVE_INFINITY;
-        }
-        float intensity = Math.max(0f, light.intensity());
-        float range = Math.max(0f, light.range());
-        float shadowBoost = light.castsShadows() ? 1.15f : 1.0f;
-        float spotBoost = (light.type() == LightType.SPOT) ? 1.05f : 1.0f;
-        return intensity * (1.0f + (range * 0.08f)) * shadowBoost * spotBoost;
-    }
-
-    private record LightingConfig(
-            float[] directionalDirection,
-            float[] directionalColor,
-            float directionalIntensity,
-            float[] shadowPointPosition,
-            float[] shadowPointDirection,
-            boolean shadowPointIsSpot,
-            float shadowPointOuterCos,
-            float shadowPointRange,
-            boolean shadowPointCastsShadows,
-            int localLightCount,
-            float[] localLightPosRange,
-            float[] localLightColorIntensity,
-            float[] localLightDirInner,
-            float[] localLightOuterTypeShadow
-    ) {
-    }
-
-    private record ShadowRenderConfig(
-            boolean enabled,
-            float strength,
-            float bias,
-            float normalBiasScale,
-            float slopeBiasScale,
-            int pcfRadius,
-            int cascadeCount,
-            int mapResolution,
-            int maxShadowedLocalLights,
-            int selectedLocalShadowLights,
-            String primaryShadowType,
-            String primaryShadowLightId,
-            int atlasCapacityTiles,
-            int atlasAllocatedTiles,
-            float atlasUtilization,
-            int atlasEvictions,
-            long atlasMemoryBytesD16,
-            long atlasMemoryBytesD32,
-            long shadowUpdateBytesEstimate,
-            boolean degraded
-    ) {
-    }
+    // ── camera ──
 
     private CameraDesc selectActiveCamera(SceneDescriptor scene) {
         if (scene == null || scene.cameras() == null || scene.cameras().isEmpty()) {
@@ -2000,14 +1006,14 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
 
         Vec3 pos = effective.position() == null ? new Vec3(0f, 0f, 5f) : effective.position();
         Vec3 rot = effective.rotationEulerDeg() == null ? new Vec3(0f, 0f, 0f) : effective.rotationEulerDeg();
-        float yaw = radians(rot.y());
-        float pitch = radians(rot.x());
+        float yaw = OpenGlSceneMeshMapper.radians(rot.y());
+        float pitch = OpenGlSceneMeshMapper.radians(rot.x());
 
         float fx = (float) (Math.cos(pitch) * Math.sin(yaw));
         float fy = (float) Math.sin(pitch);
         float fz = (float) (-Math.cos(pitch) * Math.cos(yaw));
 
-        float[] view = lookAt(
+        float[] view = OpenGlSceneMeshMapper.lookAt(
                 pos.x(), pos.y(), pos.z(),
                 pos.x() + fx, pos.y() + fy, pos.z() + fz,
                 0f, 1f, 0f
@@ -2017,184 +1023,11 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         float far = effective.farPlane() > near ? effective.farPlane() : 100f;
         float fov = effective.fovDegrees() > 1f ? effective.fovDegrees() : 60f;
         float aspect = aspectRatio > 0.01f ? aspectRatio : (16f / 9f);
-        float[] proj = perspective(radians(fov), aspect, near, far);
+        float[] proj = OpenGlSceneMeshMapper.perspective(OpenGlSceneMeshMapper.radians(fov), aspect, near, far);
         return new CameraMatrices(view, proj);
     }
 
-    static float[] modelMatrixOf(TransformDesc transform) {
-        if (transform == null) {
-            return identityMatrix();
-        }
-        Vec3 pos = transform.position() == null ? new Vec3(0f, 0f, 0f) : transform.position();
-        Vec3 rot = transform.rotationEulerDeg() == null ? new Vec3(0f, 0f, 0f) : transform.rotationEulerDeg();
-        Vec3 scl = transform.scale() == null ? new Vec3(1f, 1f, 1f) : transform.scale();
-
-        float[] translation = translationMatrix(pos.x(), pos.y(), pos.z());
-        float[] rotation = mul(mul(rotationZ(radians(rot.z())), rotationY(radians(rot.y()))), rotationX(radians(rot.x())));
-        float[] scale = scaleMatrix(scl.x(), scl.y(), scl.z());
-        return mul(translation, mul(rotation, scale));
-    }
-
-    private float[] albedoOf(MaterialDesc material) {
-        if (material == null || material.albedo() == null) {
-            return new float[]{1f, 1f, 1f};
-        }
-        return new float[]{material.albedo().x(), material.albedo().y(), material.albedo().z()};
-    }
-
-    private Path resolveTexturePath(String texturePath) {
-        if (texturePath == null || texturePath.isBlank()) {
-            return null;
-        }
-        Path path = Path.of(texturePath);
-        return path.isAbsolute() ? path : assetRoot.resolve(path).normalize();
-    }
-
-    private static float safeAspect(int width, int height) {
-        if (height <= 0) {
-            return 16f / 9f;
-        }
-        return Math.max(0.1f, (float) width / (float) height);
-    }
-
-    private static boolean isBlank(String value) {
-        return value == null || value.isBlank();
-    }
-
-    private static float imageLuminanceSignal(Path path) {
-        Path sourcePath = resolveContainerSourcePath(path);
-        if (sourcePath == null || !Files.isRegularFile(sourcePath)) {
-            return -1f;
-        }
-        String name = sourcePath.getFileName() == null ? "" : sourcePath.getFileName().toString().toLowerCase();
-        boolean imageIoSupported = name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg");
-        boolean hdrSupported = name.endsWith(".hdr");
-        if (!imageIoSupported && !hdrSupported) {
-            BufferedImage ktxImage = KtxDecodeUtil.decodeToImageIfSupported(sourcePath);
-            return ktxImage == null ? -1f : bufferedImageLuminanceSignal(ktxImage);
-        }
-        if (hdrSupported) {
-            try (var stack = org.lwjgl.system.MemoryStack.stackPush()) {
-                var x = stack.mallocInt(1);
-                var y = stack.mallocInt(1);
-                var channels = stack.mallocInt(1);
-                FloatBuffer hdr = org.lwjgl.stb.STBImage.stbi_loadf(sourcePath.toAbsolutePath().toString(), x, y, channels, 3);
-                if (hdr == null || x.get(0) <= 0 || y.get(0) <= 0) {
-                    return -1f;
-                }
-                try {
-                    int width = x.get(0);
-                    int height = y.get(0);
-                    int stepX = Math.max(1, width / 64);
-                    int stepY = Math.max(1, height / 64);
-                    double sum = 0.0;
-                    int count = 0;
-                    for (int yIdx = 0; yIdx < height; yIdx += stepY) {
-                        for (int xIdx = 0; xIdx < width; xIdx += stepX) {
-                            int idx = (yIdx * width + xIdx) * 3;
-                            float r = hdr.get(idx);
-                            float g = hdr.get(idx + 1);
-                            float b = hdr.get(idx + 2);
-                            float ldrR = toneMapLdr(r);
-                            float ldrG = toneMapLdr(g);
-                            float ldrB = toneMapLdr(b);
-                            sum += (0.2126 * ldrR) + (0.7152 * ldrG) + (0.0722 * ldrB);
-                            count++;
-                        }
-                    }
-                    if (count == 0) {
-                        return -1f;
-                    }
-                    return (float) Math.max(0.0, Math.min(1.0, sum / count));
-                } finally {
-                    org.lwjgl.stb.STBImage.stbi_image_free(hdr);
-                }
-            } catch (Throwable ignored) {
-                return -1f;
-            }
-        }
-        try {
-            BufferedImage image = javax.imageio.ImageIO.read(sourcePath.toFile());
-            return bufferedImageLuminanceSignal(image);
-        } catch (IOException ignored) {
-            return -1f;
-        }
-    }
-
-    private static float bufferedImageLuminanceSignal(BufferedImage image) {
-        if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) {
-            return -1f;
-        }
-        int stepX = Math.max(1, image.getWidth() / 64);
-        int stepY = Math.max(1, image.getHeight() / 64);
-        double sum = 0.0;
-        int count = 0;
-        for (int y = 0; y < image.getHeight(); y += stepY) {
-            for (int x = 0; x < image.getWidth(); x += stepX) {
-                int argb = image.getRGB(x, y);
-                float r = ((argb >> 16) & 0xFF) / 255f;
-                float g = ((argb >> 8) & 0xFF) / 255f;
-                float b = (argb & 0xFF) / 255f;
-                sum += (0.2126 * r) + (0.7152 * g) + (0.0722 * b);
-                count++;
-            }
-        }
-        if (count == 0) {
-            return -1f;
-        }
-        return (float) Math.max(0.0, Math.min(1.0, sum / count));
-    }
-
-    private static Path resolveContainerSourcePath(Path requestedPath) {
-        if (requestedPath == null || !Files.isRegularFile(requestedPath) || !isKtxContainerPath(requestedPath)) {
-            return requestedPath;
-        }
-        String fileName = requestedPath.getFileName() == null ? null : requestedPath.getFileName().toString();
-        if (fileName == null) {
-            return requestedPath;
-        }
-        int dot = fileName.lastIndexOf('.');
-        if (dot <= 0) {
-            return requestedPath;
-        }
-        String baseName = fileName.substring(0, dot);
-        for (String ext : new String[]{".png", ".hdr", ".jpg", ".jpeg"}) {
-            Path candidate = requestedPath.resolveSibling(baseName + ext);
-            if (Files.isRegularFile(candidate)) {
-                return candidate;
-            }
-        }
-        return requestedPath;
-    }
-
-    private static boolean isKtxContainerPath(Path path) {
-        if (path == null || path.getFileName() == null) {
-            return false;
-        }
-        String name = path.getFileName().toString().toLowerCase();
-        return name.endsWith(".ktx") || name.endsWith(".ktx2");
-    }
-
-    private static float toneMapLdr(float hdrValue) {
-        float toneMapped = hdrValue / (1.0f + Math.max(0f, hdrValue));
-        return (float) Math.pow(Math.max(0f, toneMapped), 1.0 / 2.2);
-    }
-
-    private static float clamp01(float value) {
-        return Math.max(0f, Math.min(1f, value));
-    }
-
-    private static float toReactivePresetValue(ReactivePreset preset) {
-        if (preset == null) {
-            return 0f;
-        }
-        return switch (preset) {
-            case AUTO -> 0f;
-            case STABLE -> 1f;
-            case BALANCED -> 2f;
-            case AGGRESSIVE -> 3f;
-        };
-    }
+    // ── frame graph ──
 
     private FrameGraph buildFrameGraph() {
         FrameGraphBuilder builder = new FrameGraphBuilder()
@@ -2241,130 +1074,47 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
         };
     }
 
-    private static float radians(float degrees) {
-        return (float) Math.toRadians(degrees);
-    }
+    // ── utilities ──
 
-    private static float[] identityMatrix() {
-        return new float[]{
-                1f, 0f, 0f, 0f,
-                0f, 1f, 0f, 0f,
-                0f, 0f, 1f, 0f,
-                0f, 0f, 0f, 1f
-        };
-    }
-
-    private static float[] translationMatrix(float x, float y, float z) {
-        return new float[]{
-                1f, 0f, 0f, 0f,
-                0f, 1f, 0f, 0f,
-                0f, 0f, 1f, 0f,
-                x, y, z, 1f
-        };
-    }
-
-    private static float[] scaleMatrix(float x, float y, float z) {
-        return new float[]{
-                x, 0f, 0f, 0f,
-                0f, y, 0f, 0f,
-                0f, 0f, z, 0f,
-                0f, 0f, 0f, 1f
-        };
-    }
-
-    private static float[] rotationX(float radians) {
-        float c = (float) Math.cos(radians);
-        float s = (float) Math.sin(radians);
-        return new float[]{
-                1f, 0f, 0f, 0f,
-                0f, c, s, 0f,
-                0f, -s, c, 0f,
-                0f, 0f, 0f, 1f
-        };
-    }
-
-    private static float[] rotationY(float radians) {
-        float c = (float) Math.cos(radians);
-        float s = (float) Math.sin(radians);
-        return new float[]{
-                c, 0f, -s, 0f,
-                0f, 1f, 0f, 0f,
-                s, 0f, c, 0f,
-                0f, 0f, 0f, 1f
-        };
-    }
-
-    private static float[] rotationZ(float radians) {
-        float c = (float) Math.cos(radians);
-        float s = (float) Math.sin(radians);
-        return new float[]{
-                c, s, 0f, 0f,
-                -s, c, 0f, 0f,
-                0f, 0f, 1f, 0f,
-                0f, 0f, 0f, 1f
-        };
-    }
-
-    private static float[] lookAt(float eyeX, float eyeY, float eyeZ, float targetX, float targetY, float targetZ,
-                                  float upX, float upY, float upZ) {
-        float fx = targetX - eyeX;
-        float fy = targetY - eyeY;
-        float fz = targetZ - eyeZ;
-        float fLen = (float) Math.sqrt(fx * fx + fy * fy + fz * fz);
-        if (fLen < 0.00001f) {
-            return identityMatrix();
+    private static float safeAspect(int width, int height) {
+        if (height <= 0) {
+            return 16f / 9f;
         }
-        fx /= fLen;
-        fy /= fLen;
-        fz /= fLen;
-
-        float sx = fy * upZ - fz * upY;
-        float sy = fz * upX - fx * upZ;
-        float sz = fx * upY - fy * upX;
-        float sLen = (float) Math.sqrt(sx * sx + sy * sy + sz * sz);
-        if (sLen < 0.00001f) {
-            return identityMatrix();
-        }
-        sx /= sLen;
-        sy /= sLen;
-        sz /= sLen;
-
-        float ux = sy * fz - sz * fy;
-        float uy = sz * fx - sx * fz;
-        float uz = sx * fy - sy * fx;
-
-        return new float[]{
-                sx, ux, -fx, 0f,
-                sy, uy, -fy, 0f,
-                sz, uz, -fz, 0f,
-                -(sx * eyeX + sy * eyeY + sz * eyeZ),
-                -(ux * eyeX + uy * eyeY + uz * eyeZ),
-                (fx * eyeX + fy * eyeY + fz * eyeZ),
-                1f
-        };
+        return Math.max(0.1f, (float) width / (float) height);
     }
 
-    private static float[] perspective(float fovRad, float aspect, float near, float far) {
-        float f = 1.0f / (float) Math.tan(fovRad * 0.5f);
-        float nf = 1.0f / (near - far);
-        return new float[]{
-                f / aspect, 0f, 0f, 0f,
-                0f, f, 0f, 0f,
-                0f, 0f, (far + near) * nf, -1f,
-                0f, 0f, (2f * far * near) * nf, 0f
-        };
+    private static float clamp01(float value) {
+        return Math.max(0f, Math.min(1f, value));
     }
 
-    private static float[] mul(float[] a, float[] b) {
-        float[] out = new float[16];
-        for (int c = 0; c < 4; c++) {
-            for (int r = 0; r < 4; r++) {
-                out[c * 4 + r] = a[r] * b[c * 4]
-                        + a[4 + r] * b[c * 4 + 1]
-                        + a[8 + r] * b[c * 4 + 2]
-                        + a[12 + r] * b[c * 4 + 3];
-            }
-        }
-        return out;
+    private void pushPostProcessToContext() {
+        context.setPostProcessParameters(
+                postProcess.tonemapEnabled(),
+                postProcess.exposure(),
+                postProcess.gamma(),
+                postProcess.bloomEnabled(),
+                postProcess.bloomThreshold(),
+                postProcess.bloomStrength(),
+                postProcess.ssaoEnabled(),
+                postProcess.ssaoStrength(),
+                postProcess.ssaoRadius(),
+                postProcess.ssaoBias(),
+                postProcess.ssaoPower(),
+                postProcess.smaaEnabled(),
+                postProcess.smaaStrength(),
+                postProcess.taaEnabled(),
+                postProcess.taaBlend(),
+                postProcess.taaClipScale(),
+                postProcess.taaLumaClipEnabled(),
+                postProcess.taaSharpenStrength(),
+                postProcess.taaRenderScale(),
+                postProcess.reflectionsEnabled(),
+                postProcess.reflectionsMode(),
+                postProcess.reflectionsSsrStrength(),
+                postProcess.reflectionsSsrMaxRoughness(),
+                postProcess.reflectionsSsrStepScale(),
+                postProcess.reflectionsTemporalWeight(),
+                postProcess.reflectionsPlanarStrength()
+        );
     }
 }

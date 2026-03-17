@@ -18,7 +18,7 @@ class OpenGlSceneMathTest {
                 new Vec3(1f, 1f, 1f)
         );
 
-        float[] model = OpenGlEngineRuntime.modelMatrixOf(transform);
+        float[] model = OpenGlSceneMeshMapper.modelMatrixOf(transform);
 
         assertEquals(2f, model[12], 0.0001f);
         assertEquals(3f, model[13], 0.0001f);
