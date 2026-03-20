@@ -18,12 +18,19 @@ module org.dynamisengine.light.impl.common {
             org.dynamisengine.light.impl.opengl,
             org.dynamisengine.light.impl.vulkan,
             org.dynamisengine.sky.vulkan;
+    exports org.dynamisengine.light.impl.common.mesh to
+            org.dynamisengine.light.impl.opengl,
+            org.dynamisengine.light.impl.vulkan;
 
     requires transitive org.dynamisengine.light.api;
     requires java.desktop;
     requires org.lwjgl;
     requires org.lwjgl.ktx;
     requires com.github.luben.zstd_jni;
+    requires meshforge;
+    requires meshforge.loader;
+    requires meshforge.mgi;
+    requires meshforge.dynamisgpu;
 
     uses org.dynamisengine.light.impl.common.upscale.ExternalUpscalerBridge;
     uses org.dynamisengine.light.impl.common.upscale.VendorUpscalerSdkProvider;
