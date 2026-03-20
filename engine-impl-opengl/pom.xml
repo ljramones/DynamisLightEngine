@@ -66,6 +66,17 @@
       <artifactId>jackson-databind</artifactId>
       <version>2.18.2</version>
     </dependency>
+    <!-- MeshForge (via engine-impl-common, but needed for direct type access) -->
+    <dependency>
+      <groupId>org.dynamisengine</groupId>
+      <artifactId>meshforge</artifactId>
+      <version>1.1.0</version>
+    </dependency>
+    <dependency>
+      <groupId>org.dynamisengine</groupId>
+      <artifactId>meshforge-dynamisgpu</artifactId>
+      <version>1.1.0</version>
+    </dependency>
     <dependency>
       <groupId>org.lwjgl</groupId>
       <artifactId>lwjgl</artifactId>

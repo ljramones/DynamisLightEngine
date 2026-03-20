@@ -8,6 +8,8 @@ module org.dynamisengine.light.impl.opengl {
     requires org.lwjgl.stb;
     requires com.fasterxml.jackson.databind;
     requires java.desktop;
+    requires meshforge;
+    requires meshforge.dynamisgpu;
 
     exports org.dynamisengine.light.impl.opengl;
 
