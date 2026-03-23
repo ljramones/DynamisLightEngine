@@ -130,7 +130,16 @@ public final class VulkanContext {
     private final VulkanRenderState renderState = new VulkanRenderState();
     private final VulkanUiRenderer uiRenderer = new VulkanUiRenderer();
     private VulkanDebugOverlayRenderer debugOverlayAdapter;
-    private volatile java.util.function.Consumer<DebugOverlayRenderer> uiRenderCallback;
+    private volatile UiRenderCallback uiRenderCallback;
+
+    /**
+     * Callback for rendering UI/overlay content during the Vulkan frame.
+     * Receives the SPI renderer and screen dimensions — no Vulkan knowledge needed.
+     */
+    @FunctionalInterface
+    public interface UiRenderCallback {
+        void render(DebugOverlayRenderer renderer, int screenW, int screenH);
+    }
     private double taaHistoryRejectRate;
     private double taaConfidenceMean = 1.0;
     private long taaConfidenceDropEvents;
@@ -289,13 +298,13 @@ public final class VulkanContext {
 
     /**
      * Set a callback that will be invoked each frame during the UI pass.
-     * The callback receives the {@link DebugOverlayRenderer} SPI implementation
-     * and should call {@code renderPanels()} or equivalent on it.
+     * The callback receives the {@link DebugOverlayRenderer} SPI and screen
+     * dimensions — no Vulkan or backend knowledge required.
      *
      * <p>This is the integration point for external code (WorldEngine, proving
-     * modules) to render overlay/UI content without knowing Vulkan internals.
+     * modules) to render overlay/UI content.
      */
-    public void setUiRenderCallback(java.util.function.Consumer<DebugOverlayRenderer> callback) {
+    public void setUiRenderCallback(UiRenderCallback callback) {
         this.uiRenderCallback = callback;
     }
 
@@ -1504,7 +1513,7 @@ public final class VulkanContext {
                             uiRenderer.beginFrame(cmd, w, h, imgIdx);
                             var callback = uiRenderCallback;
                             if (callback != null && debugOverlayAdapter != null) {
-                                callback.accept(debugOverlayAdapter);
+                                callback.render(debugOverlayAdapter, w, h);
                             }
                             uiRenderer.endFrame();
                         } : null
