@@ -260,6 +260,26 @@ public final class VulkanContext {
         );
         vfxIntegration = VulkanVfxIntegration.create(this, backendResources);
         skyRuntimeBridge.initialize(backendResources);
+        initializeUiRenderer();
+    }
+
+    private void initializeUiRenderer() {
+        if (backendResources.device != null && backendResources.swapchainImageViews.length > 0) {
+            uiRenderer.initialize(
+                backendResources.device,
+                backendResources.physicalDevice.address(),
+                backendResources.commandPool,
+                backendResources.graphicsQueue.address(),
+                backendResources.swapchainImageFormat,
+                backendResources.swapchainImageViews
+            );
+            uiRenderer.recreateFramebuffers(
+                backendResources.device,
+                backendResources.swapchainImageViews,
+                backendResources.swapchainWidth,
+                backendResources.swapchainHeight
+            );
+        }
     }
 
     VulkanFrameMetrics renderFrame() throws EngineException {
@@ -1124,6 +1144,9 @@ public final class VulkanContext {
     }
 
     void shutdown() {
+        if (uiRenderer.isInitialized() && backendResources.device != null) {
+            uiRenderer.destroy(backendResources.device);
+        }
         if (vfxIntegration != null) {
             vfxIntegration.destroy();
             vfxIntegration = null;
@@ -1188,6 +1211,16 @@ public final class VulkanContext {
                 )
         );
         VulkanLifecycleOrchestrator.applySwapchainState(backendResources, renderState, state);
+
+        // Recreate UI framebuffers for new swapchain
+        if (uiRenderer.isInitialized() && backendResources.swapchainImageViews.length > 0) {
+            uiRenderer.recreateFramebuffers(
+                backendResources.device,
+                backendResources.swapchainImageViews,
+                backendResources.swapchainWidth,
+                backendResources.swapchainHeight
+            );
+        }
     }
 
     private void createShadowResources(MemoryStack stack) throws EngineException {

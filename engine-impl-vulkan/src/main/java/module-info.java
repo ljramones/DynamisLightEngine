@@ -18,9 +18,13 @@ module org.dynamisengine.light.impl.vulkan {
     requires org.vectrix;
     requires java.desktop;
     requires java.logging;
+    requires org.dynamisengine.ui.api;
+    requires org.dynamisengine.ui.core;
+    requires org.dynamisengine.ui.debug;
 
     exports org.dynamisengine.light.impl.vulkan;
     exports org.dynamisengine.light.impl.vulkan.bootstrap;
+    exports org.dynamisengine.light.impl.vulkan.ui;
 
     opens org.dynamisengine.light.impl.vulkan.state;
 
