@@ -12,6 +12,7 @@ import org.dynamisengine.gpu.api.error.GpuException;
 import org.dynamisengine.light.api.scene.ReflectionProbeDesc;
 import org.dynamisengine.light.impl.vulkan.command.VulkanFrameCommandInputAssembler;
 import org.dynamisengine.light.impl.vulkan.command.VulkanFrameCommandOrchestrator;
+import org.dynamisengine.light.impl.vulkan.ui.VulkanUiRenderer;
 import org.dynamisengine.light.impl.vulkan.command.VulkanFrameSubmitCoordinator;
 import org.dynamisengine.light.impl.vulkan.command.VulkanCommandInputCoordinator;
 import org.dynamisengine.gpu.vulkan.descriptor.VulkanBindlessDescriptorHeap;
@@ -125,6 +126,7 @@ public final class VulkanContext {
     private boolean taaPrevViewProjValid;
     private int taaJitterFrameIndex;
     private final VulkanRenderState renderState = new VulkanRenderState();
+    private final VulkanUiRenderer uiRenderer = new VulkanUiRenderer();
     private double taaHistoryRejectRate;
     private double taaConfidenceMean = 1.0;
     private long taaConfidenceDropEvents;
@@ -403,6 +405,9 @@ public final class VulkanContext {
         plannedTriangles = Math.max(1, triangles);
         plannedVisibleObjects = Math.max(1, visibleObjects);
     }
+
+    /** Access the Vulkan UI renderer for overlay/UI rendering. */
+    public VulkanUiRenderer uiRenderer() { return uiRenderer; }
 
     public SceneReuseStats sceneReuseStats() {
         return VulkanContextDiagnosticsCoordinator.sceneReuseStats(
@@ -1439,7 +1444,12 @@ public final class VulkanContext {
                         () -> prepareFrameUniforms(frameIdx),
                         () -> uploadFrameUniforms(commandBuffer),
                         value -> renderState.postIntermediateInitialized = value,
-                        value -> renderState.postTaaHistoryInitialized = value
+                        value -> renderState.postTaaHistoryInitialized = value,
+                        uiRenderer.isInitialized() ? (cmd, imgIdx, w, h) -> {
+                            uiRenderer.beginFrame(cmd, w, h, imgIdx);
+                            // UI clients record their draws here via uiRenderer()
+                            uiRenderer.endFrame();
+                        } : null
                 ),
                 commandInputs
         );

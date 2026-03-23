@@ -462,6 +462,12 @@ public final class VulkanFrameCommandOrchestrator {
 
         GRAPH_EXECUTOR.execute(stack, commandBuffer, executablePlan, bindingTable);
 
+        // UI pass: render overlay/UI after the main scene
+        if (hooks.uiPassRecorder() != null) {
+            hooks.uiPassRecorder().record(commandBuffer, imageIndex,
+                inputs.swapchainWidth(), inputs.swapchainHeight());
+        }
+
         int endResult = VulkanRenderCommandRecorder.end(commandBuffer);
         if (endResult != VK10.VK_SUCCESS) {
             throw inputs.vkFailure().failure("vkEndCommandBuffer", endResult);
@@ -615,13 +621,33 @@ public final class VulkanFrameCommandOrchestrator {
         return table;
     }
 
+    /**
+     * Callback for recording UI pass commands into the active command buffer.
+     * Called after the main render graph executes and before command buffer ends.
+     */
+    @FunctionalInterface
+    public interface UiPassRecorder {
+        void record(VkCommandBuffer cmd, int imageIndex, int width, int height) throws EngineException;
+    }
+
     public record FrameHooks(
             ThrowingRunnable updateShadowMatrices,
             ThrowingRunnable prepareUniforms,
             ThrowingRunnable uploadUniforms,
             BooleanSink postIntermediateInitializedSink,
-            BooleanSink postTaaHistoryInitializedSink
+            BooleanSink postTaaHistoryInitializedSink,
+            UiPassRecorder uiPassRecorder
     ) {
+        /** Backwards-compatible constructor without UI pass. */
+        public FrameHooks(
+                ThrowingRunnable updateShadowMatrices,
+                ThrowingRunnable prepareUniforms,
+                ThrowingRunnable uploadUniforms,
+                BooleanSink postIntermediateInitializedSink,
+                BooleanSink postTaaHistoryInitializedSink) {
+            this(updateShadowMatrices, prepareUniforms, uploadUniforms,
+                 postIntermediateInitializedSink, postTaaHistoryInitializedSink, null);
+        }
     }
 
     public record Inputs(
