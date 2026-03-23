@@ -102,7 +102,7 @@ public final class VulkanDebugOverlayRenderer implements DebugOverlayRenderer {
     public void drawPanel(DebugOverlayPanel panel, LayoutBox box) {
         boolean compact = isEmpty(panel);
 
-        // Background
+        // Background (un-clipped — drawn at full panel size)
         int bg = compact ? COLOR_BG_DIM : switch (panel.severity()) {
             case WARNING -> COLOR_BG_WARNING;
             case ERROR -> COLOR_BG_ERROR;
@@ -114,11 +114,15 @@ public final class VulkanDebugOverlayRenderer implements DebugOverlayRenderer {
             renderer.drawQuad(box.x(), box.y(), 3f, box.height(), COLOR_HIGHLIGHT);
         }
 
+        // Clip all content to panel bounds
+        renderer.pushScissor((int) box.x(), (int) box.y(), (int) box.width(), (int) box.height());
+
         float x = box.x() + PANEL_PADDING;
         float y = box.y() + (compact ? 4f : PANEL_PADDING);
 
         if (compact) {
             renderer.drawText(panel.title() + " - no data", x, y, TEXT_SCALE, COLOR_TEXT_DIM);
+            renderer.popScissor();
             return;
         }
 
@@ -153,6 +157,8 @@ public final class VulkanDebugOverlayRenderer implements DebugOverlayRenderer {
                 y += TREND_HEIGHT + 2;
             }
         }
+
+        renderer.popScissor();
     }
 
     @Override
@@ -224,13 +230,17 @@ public final class VulkanDebugOverlayRenderer implements DebugOverlayRenderer {
         float y = margin;
         float w = screen.width() - margin * 2;
 
-        // Full-screen background
+        // Full-screen background (un-clipped)
         int bg = switch (panel.severity()) {
             case WARNING -> COLOR_BG_WARNING;
             case ERROR -> COLOR_BG_ERROR;
             default -> COLOR_BG_NORMAL;
         };
         renderer.drawQuad(0, 0, screen.width(), screen.height(), bg);
+
+        // Clip content to focus area
+        renderer.pushScissor((int) margin, (int) margin,
+            (int)(screen.width() - margin * 2), (int)(screen.height() - margin * 2));
 
         // Header
         int titleColor = panel.highlighted() ? COLOR_TEXT_WARNING : COLOR_TEXT_HEADER;
@@ -314,6 +324,9 @@ public final class VulkanDebugOverlayRenderer implements DebugOverlayRenderer {
             }
         }
 
+        renderer.popScissor();
+
+        // Navigation hint (un-clipped, at screen bottom)
         renderer.drawText("F=exit focus  [/]=cycle panels", x,
             screen.height() - 20, TEXT_SCALE * 0.85f, COLOR_TEXT_DIM);
     }

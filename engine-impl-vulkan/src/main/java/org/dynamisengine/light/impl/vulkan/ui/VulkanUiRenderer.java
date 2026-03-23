@@ -21,15 +21,15 @@ import static org.lwjgl.vulkan.VK10.*;
  * <h3>Frame flow:</h3>
  * <pre>
  *   renderer.beginFrame(cmd, width, height, swapchainImageView)
- *   // ... accumulate draw calls via batch ...
+ *   renderer.pushScissor(x, y, w, h)
  *   renderer.drawQuad(...)
- *   renderer.drawLine(...)
  *   renderer.drawText(...)
+ *   renderer.popScissor()
  *   renderer.endFrame()
  * </pre>
  *
- * <p>All draw data is accumulated CPU-side in {@link VulkanUiBatch},
- * uploaded once, and drawn with minimal Vulkan calls.
+ * <p>Scissor changes cause a mini-flush: the current batch is uploaded
+ * and drawn, then the scissor is updated for the next segment.
  */
 public final class VulkanUiRenderer {
 
@@ -45,6 +45,10 @@ public final class VulkanUiRenderer {
     private int screenWidth, screenHeight;
     private long currentFramebuffer = VK_NULL_HANDLE;
     private boolean initialized;
+    private boolean renderPassActive;
+
+    // Scissor state
+    private int scissorX, scissorY, scissorW, scissorH;
 
     // Reusable framebuffers per swapchain image
     private long[] framebuffers;
@@ -60,7 +64,6 @@ public final class VulkanUiRenderer {
         frameContext.initialize();
         batch = new VulkanUiBatch(fontAtlas);
 
-        // Create framebuffers for each swapchain image
         framebuffers = new long[swapchainImageViews.length];
         for (int i = 0; i < swapchainImageViews.length; i++) {
             framebuffers[i] = createFramebuffer(device, swapchainImageViews[i], 1, 1);
@@ -70,9 +73,6 @@ public final class VulkanUiRenderer {
         LOG.info("VulkanUiRenderer initialized with " + swapchainImageViews.length + " swapchain images");
     }
 
-    /**
-     * Recreate framebuffers after swapchain resize.
-     */
     public void recreateFramebuffers(VkDevice device, long[] swapchainImageViews,
                                       int width, int height) {
         destroyFramebuffers(device);
@@ -84,11 +84,6 @@ public final class VulkanUiRenderer {
 
     /**
      * Begin a new UI frame. Call after the main scene has been rendered.
-     *
-     * @param cmd         active command buffer
-     * @param width       framebuffer width
-     * @param height      framebuffer height
-     * @param imageIndex  swapchain image index
      */
     public void beginFrame(VkCommandBuffer cmd, int width, int height, int imageIndex) {
         if (!initialized) return;
@@ -97,67 +92,100 @@ public final class VulkanUiRenderer {
         screenWidth = width;
         screenHeight = height;
         batch.clear();
+        renderPassActive = false;
+
+        // Default scissor = full screen
+        scissorX = 0;
+        scissorY = 0;
+        scissorW = width;
+        scissorH = height;
 
         if (imageIndex >= 0 && imageIndex < framebuffers.length) {
             currentFramebuffer = framebuffers[imageIndex];
         }
     }
 
+    // --- Scissor API ---
+
+    /**
+     * Set scissor rect for subsequent draws. Flushes current batch first.
+     * Coordinates are in screen-space pixels.
+     */
+    public void pushScissor(int x, int y, int w, int h) {
+        flushBatch();
+        scissorX = Math.max(0, x);
+        scissorY = Math.max(0, y);
+        scissorW = Math.min(w, screenWidth - scissorX);
+        scissorH = Math.min(h, screenHeight - scissorY);
+    }
+
+    /** Restore full-screen scissor. Flushes current batch first. */
+    public void popScissor() {
+        flushBatch();
+        scissorX = 0;
+        scissorY = 0;
+        scissorW = screenWidth;
+        scissorH = screenHeight;
+    }
+
     // --- Draw API ---
 
-    /** Draw a solid colored rectangle. */
     public void drawQuad(float x, float y, float w, float h, int color) {
         batch.addSolidQuad(x, y, w, h, color);
     }
 
-    /** Draw a textured quad. */
     public void drawTexturedQuad(float x, float y, float w, float h,
                                   float u0, float v0, float u1, float v1, int color) {
         batch.addTexturedQuad(x, y, w, h, u0, v0, u1, v1, color);
     }
 
-    /** Draw a line segment. */
     public void drawLine(float x0, float y0, float x1, float y1, int color) {
         batch.addLine(x0, y0, x1, y1, color);
     }
 
-    /** Draw text at screen coordinates. */
     public void drawText(String text, float x, float y, float scale, int color) {
         batch.addText(text, x, y, scale, color);
     }
 
     /**
-     * End the UI frame: upload batched data, record Vulkan draw commands.
+     * End the UI frame: flush remaining batch, end render pass.
      */
     public void endFrame() {
         if (!initialized || currentCmd == null) return;
+
+        flushBatch();
+
+        if (renderPassActive) {
+            vkCmdEndRenderPass(currentCmd);
+            renderPassActive = false;
+        }
+
+        currentCmd = null;
+    }
+
+    // --- Batch flush: upload + draw with current scissor ---
+
+    private void flushBatch() {
+        if (currentCmd == null) return;
         if (batch.quads().vertexCount() == 0 && batch.lines().vertexCount() == 0) return;
         if (currentFramebuffer == VK_NULL_HANDLE) return;
 
-        // Upload batch data to GPU
         frameContext.upload(batch);
 
         try (var stack = stackPush()) {
-            // Begin UI render pass
-            var clearValues = VkClearValue.calloc(0, stack); // LOAD_OP_LOAD, no clear needed
-            var renderPassInfo = VkRenderPassBeginInfo.calloc(stack)
-                .sType$Default()
-                .renderPass(pipeline.renderPass())
-                .framebuffer(currentFramebuffer)
-                .renderArea(a -> a.offset(o -> o.set(0, 0)).extent(e -> e.set(screenWidth, screenHeight)));
+            ensureRenderPassActive(stack);
 
-            vkCmdBeginRenderPass(currentCmd, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-            // Set dynamic viewport and scissor
+            // Set dynamic viewport
             var viewport = VkViewport.calloc(1, stack)
                 .x(0).y(0)
                 .width(screenWidth).height(screenHeight)
                 .minDepth(0f).maxDepth(1f);
             vkCmdSetViewport(currentCmd, 0, viewport);
 
+            // Set dynamic scissor
             var scissor = VkRect2D.calloc(1, stack)
-                .offset(o -> o.set(0, 0))
-                .extent(e -> e.set(screenWidth, screenHeight));
+                .offset(o -> o.set(scissorX, scissorY))
+                .extent(e -> e.set(scissorW, scissorH));
             vkCmdSetScissor(currentCmd, 0, scissor);
 
             // Push screen size constant
@@ -167,7 +195,7 @@ public final class VulkanUiRenderer {
             vkCmdPushConstants(currentCmd, pipeline.pipelineLayout(),
                 VK_SHADER_STAGE_VERTEX_BIT, 0, pushData);
 
-            // Draw quads (panels + text glyphs)
+            // Draw quads
             if (batch.quads().vertexCount() > 0) {
                 vkCmdBindPipeline(currentCmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.quadPipeline());
 
@@ -183,11 +211,10 @@ public final class VulkanUiRenderer {
                 vkCmdDrawIndexed(currentCmd, batch.quads().indexCount(), 1, 0, 0, 0);
             }
 
-            // Draw lines (sparklines, borders)
+            // Draw lines
             if (batch.lines().vertexCount() > 0) {
                 vkCmdBindPipeline(currentCmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.linePipeline());
 
-                // Push constants again for line pipeline
                 vkCmdPushConstants(currentCmd, pipeline.pipelineLayout(),
                     VK_SHADER_STAGE_VERTEX_BIT, 0, pushData);
 
@@ -197,11 +224,23 @@ public final class VulkanUiRenderer {
 
                 vkCmdDraw(currentCmd, batch.lines().vertexCount(), 1, 0, 0);
             }
-
-            vkCmdEndRenderPass(currentCmd);
         }
 
-        currentCmd = null;
+        // Clear batch for next segment
+        batch.clear();
+    }
+
+    private void ensureRenderPassActive(MemoryStack stack) {
+        if (renderPassActive) return;
+
+        var renderPassInfo = VkRenderPassBeginInfo.calloc(stack)
+            .sType$Default()
+            .renderPass(pipeline.renderPass())
+            .framebuffer(currentFramebuffer)
+            .renderArea(a -> a.offset(o -> o.set(0, 0)).extent(e -> e.set(screenWidth, screenHeight)));
+
+        vkCmdBeginRenderPass(currentCmd, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        renderPassActive = true;
     }
 
     public void destroy(VkDevice device) {
@@ -216,8 +255,6 @@ public final class VulkanUiRenderer {
     public VulkanFontAtlas fontAtlas() { return fontAtlas; }
     public int screenWidth() { return screenWidth; }
     public int screenHeight() { return screenHeight; }
-
-    // --- Framebuffer management ---
 
     private long createFramebuffer(VkDevice device, long imageView, int width, int height) {
         try (var stack = stackPush()) {
