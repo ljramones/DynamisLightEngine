@@ -33,6 +33,7 @@ public final class VulkanUiPipeline {
     private long descriptorPool = VK_NULL_HANDLE;
     private long descriptorSet = VK_NULL_HANDLE;
     private long renderPass = VK_NULL_HANDLE;
+    private final VulkanShaderCache shaderCache = new VulkanShaderCache();
 
     public long quadPipeline() { return quadPipeline; }
     public long linePipeline() { return linePipeline; }
@@ -338,11 +339,11 @@ public final class VulkanUiPipeline {
         return pPipeline.get(0);
     }
 
-    // --- Shader compilation ---
+    // --- Shader loading (cached SPIR-V) ---
 
     private long createShaderModule(VkDevice device, String resourcePath, int shaderKind) {
         String source = loadShaderSource(resourcePath);
-        ByteBuffer spirv = compileGlslToSpirv(source, resourcePath, shaderKind);
+        ByteBuffer spirv = shaderCache.loadOrCompile(resourcePath, source, shaderKind);
 
         try (var stack = stackPush()) {
             var createInfo = VkShaderModuleCreateInfo.calloc(stack)
@@ -365,28 +366,6 @@ public final class VulkanUiPipeline {
         } catch (IOException e) {
             throw new RuntimeException("Failed to load shader: " + resourcePath, e);
         }
-    }
-
-    private ByteBuffer compileGlslToSpirv(String source, String name, int shaderKind) {
-        long compiler = shaderc_compiler_initialize();
-        if (compiler == 0) throw new RuntimeException("Failed to initialize shaderc compiler");
-
-        long result = shaderc_compile_into_spv(compiler, source, shaderKind, name, "main", 0);
-        if (shaderc_result_get_compilation_status(result) != shaderc_compilation_status_success) {
-            String error = shaderc_result_get_error_message(result);
-            shaderc_result_release(result);
-            shaderc_compiler_release(compiler);
-            throw new RuntimeException("Shader compilation failed: " + name + "\n" + error);
-        }
-
-        ByteBuffer spirv = shaderc_result_get_bytes(result);
-        // Copy to a standalone buffer before releasing the result
-        ByteBuffer copy = org.lwjgl.system.MemoryUtil.memAlloc(spirv.remaining());
-        copy.put(spirv).flip();
-
-        shaderc_result_release(result);
-        shaderc_compiler_release(compiler);
-        return copy;
     }
 
     private static void check(int result, String operation) {
