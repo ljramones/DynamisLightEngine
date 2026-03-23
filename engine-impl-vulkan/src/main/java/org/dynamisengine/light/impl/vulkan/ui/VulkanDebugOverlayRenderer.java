@@ -212,6 +212,45 @@ public final class VulkanDebugOverlayRenderer implements DebugOverlayRenderer {
         }
     }
 
+    /**
+     * Draw event markers and alert-active tinting on a trend graph.
+     * Called in focus mode after the sparkline is drawn.
+     */
+    private void drawTrendAnnotations(LayoutBox box,
+                                       int dataPointCount,
+                                       List<DebugViewSnapshot.DebugTimelineEvent> events) {
+        if (events.isEmpty() || dataPointCount < 2) return;
+
+        // Map event frame numbers to x positions within the trend box
+        // Events span a range of frames; trend data points are the recent N frames
+        // We approximate: event positions relative to trend width
+        long minFrame = Long.MAX_VALUE, maxFrame = Long.MIN_VALUE;
+        for (var e : events) {
+            if (e.frameNumber() < minFrame) minFrame = e.frameNumber();
+            if (e.frameNumber() > maxFrame) maxFrame = e.frameNumber();
+        }
+        long frameRange = Math.max(1, maxFrame - minFrame);
+
+        for (var event : events) {
+            float t = (float)(event.frameNumber() - minFrame) / frameRange;
+            float ex = box.x() + t * box.width();
+
+            // Color by severity
+            int color;
+            float tickHeight;
+            if ("ERROR".equals(event.severity()) || "CRITICAL".equals(event.severity())) {
+                color = UiQuadVertex.packColor(1f, 0.2f, 0.2f, 0.7f);
+                tickHeight = box.height();
+            } else {
+                color = UiQuadVertex.packColor(1f, 0.8f, 0.2f, 0.5f);
+                tickHeight = box.height() * 0.6f;
+            }
+
+            // Draw vertical tick mark
+            renderer.drawQuad(ex, box.y(), 1.5f, tickHeight, color);
+        }
+    }
+
     @Override
     public void drawText(String text, float x, float y, int argbColor) {
         // Convert ARGB to our pack format
@@ -292,13 +331,17 @@ public final class VulkanDebugOverlayRenderer implements DebugOverlayRenderer {
             renderer.drawText("Trends", x, y, HEADER_SCALE, COLOR_TEXT_HEADER);
             y += ROW_HEIGHT + 2;
             float trendWidth = w * 0.8f;
+            float trendH = 40f;
             for (var trend : panel.trends()) {
                 renderer.drawText("  " + trend.metricName() +
                     String.format("  [min=%.2f max=%.2f]", trend.min(), trend.max()),
                     x, y, TEXT_SCALE * 0.85f, COLOR_TEXT_DIM);
                 y += ROW_HEIGHT;
-                drawTrend(trend, new LayoutBox(x + 8, y, trendWidth, 40f));
-                y += 46f;
+                var trendBox = new LayoutBox(x + 8, y, trendWidth, trendH);
+                drawTrend(trend, trendBox);
+                // Overlay event markers on the trend
+                drawTrendAnnotations(trendBox, trend.values().size(), timelineEvents);
+                y += trendH + 6;
             }
         }
 
