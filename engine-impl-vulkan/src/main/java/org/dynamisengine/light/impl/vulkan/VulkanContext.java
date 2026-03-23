@@ -12,7 +12,9 @@ import org.dynamisengine.gpu.api.error.GpuException;
 import org.dynamisengine.light.api.scene.ReflectionProbeDesc;
 import org.dynamisengine.light.impl.vulkan.command.VulkanFrameCommandInputAssembler;
 import org.dynamisengine.light.impl.vulkan.command.VulkanFrameCommandOrchestrator;
+import org.dynamisengine.light.impl.vulkan.ui.VulkanDebugOverlayRenderer;
 import org.dynamisengine.light.impl.vulkan.ui.VulkanUiRenderer;
+import org.dynamisengine.ui.debug.render.DebugOverlayRenderer;
 import org.dynamisengine.light.impl.vulkan.command.VulkanFrameSubmitCoordinator;
 import org.dynamisengine.light.impl.vulkan.command.VulkanCommandInputCoordinator;
 import org.dynamisengine.gpu.vulkan.descriptor.VulkanBindlessDescriptorHeap;
@@ -127,6 +129,8 @@ public final class VulkanContext {
     private int taaJitterFrameIndex;
     private final VulkanRenderState renderState = new VulkanRenderState();
     private final VulkanUiRenderer uiRenderer = new VulkanUiRenderer();
+    private VulkanDebugOverlayRenderer debugOverlayAdapter;
+    private volatile java.util.function.Consumer<DebugOverlayRenderer> uiRenderCallback;
     private double taaHistoryRejectRate;
     private double taaConfidenceMean = 1.0;
     private long taaConfidenceDropEvents;
@@ -279,7 +283,25 @@ public final class VulkanContext {
                 backendResources.swapchainWidth,
                 backendResources.swapchainHeight
             );
+            debugOverlayAdapter = new VulkanDebugOverlayRenderer(uiRenderer);
         }
+    }
+
+    /**
+     * Set a callback that will be invoked each frame during the UI pass.
+     * The callback receives the {@link DebugOverlayRenderer} SPI implementation
+     * and should call {@code renderPanels()} or equivalent on it.
+     *
+     * <p>This is the integration point for external code (WorldEngine, proving
+     * modules) to render overlay/UI content without knowing Vulkan internals.
+     */
+    public void setUiRenderCallback(java.util.function.Consumer<DebugOverlayRenderer> callback) {
+        this.uiRenderCallback = callback;
+    }
+
+    /** Get the DebugOverlayRenderer backed by the Vulkan UI pipeline. */
+    public DebugOverlayRenderer debugOverlayRenderer() {
+        return debugOverlayAdapter;
     }
 
     VulkanFrameMetrics renderFrame() throws EngineException {
@@ -1480,7 +1502,10 @@ public final class VulkanContext {
                         value -> renderState.postTaaHistoryInitialized = value,
                         uiRenderer.isInitialized() ? (cmd, imgIdx, w, h) -> {
                             uiRenderer.beginFrame(cmd, w, h, imgIdx);
-                            // UI clients record their draws here via uiRenderer()
+                            var callback = uiRenderCallback;
+                            if (callback != null && debugOverlayAdapter != null) {
+                                callback.accept(debugOverlayAdapter);
+                            }
                             uiRenderer.endFrame();
                         } : null
                 ),
