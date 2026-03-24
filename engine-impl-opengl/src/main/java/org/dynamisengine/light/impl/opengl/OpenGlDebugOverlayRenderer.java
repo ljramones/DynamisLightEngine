@@ -52,7 +52,7 @@ public final class OpenGlDebugOverlayRenderer implements DebugOverlayRenderer {
     private final OpenGlTextRenderer textRenderer;
     private int screenW, screenH;
 
-    OpenGlDebugOverlayRenderer(OpenGlTextRenderer textRenderer) {
+    public OpenGlDebugOverlayRenderer(OpenGlTextRenderer textRenderer) {
         this.textRenderer = textRenderer;
     }
 
