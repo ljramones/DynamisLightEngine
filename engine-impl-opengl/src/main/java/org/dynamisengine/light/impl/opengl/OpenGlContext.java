@@ -315,6 +315,8 @@ final class OpenGlContext {
     private int sceneRenderWidth = 1;
     private int sceneRenderHeight = 1;
     private int programId;
+    private final OpenGlDebugDrawRenderer debugDrawRenderer = new OpenGlDebugDrawRenderer();
+    private java.util.List<org.dynamisengine.debug.api.draw.DebugDrawCommand> pendingDebugDrawCommands = java.util.List.of();
     private final List<MeshBuffer> sceneMeshes = new ArrayList<>();
     private int vertexFormatLocation;
     private int modelLocation;
@@ -566,6 +568,7 @@ final class OpenGlContext {
         postProcessor.initializePipeline();
         postProcessor.recreateTargets(sceneRenderWidth, sceneRenderHeight);
         shadowRenderer.recreateShadowResources(shadowMapResolution);
+        debugDrawRenderer.initialize();
         initializeGpuQuerySupport();
         setSceneMeshes(List.of(new SceneMesh(
                 "default-triangle",
@@ -613,6 +616,7 @@ final class OpenGlContext {
         renderFogPass();
         renderSmokePass();
         renderPostProcessPass();
+        renderDebugDrawPass();
         endFrame();
 
         double cpuMs = (System.nanoTime() - startNs) / 1_000_000.0;
@@ -827,6 +831,29 @@ final class OpenGlContext {
         // Smoke is currently applied in the fragment shader during geometry pass.
     }
 
+    void renderDebugDrawPass() {
+        if (!pendingDebugDrawCommands.isEmpty()) {
+            // Build combined view-projection matrix
+            float[] vp = GlMathUtil.mul(projMatrix, viewMatrix);
+
+            // Render to default framebuffer (after post-process has resolved)
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            debugDrawRenderer.render(pendingDebugDrawCommands, vp);
+            pendingDebugDrawCommands = java.util.List.of();
+        }
+    }
+
+    /**
+     * Submit debug draw commands for the current frame.
+     * Called from the runtime before renderFrame().
+     */
+    void submitDebugDrawCommands(java.util.List<org.dynamisengine.debug.api.draw.DebugDrawCommand> commands) {
+        this.pendingDebugDrawCommands = commands != null ? commands : java.util.List.of();
+    }
+
+    boolean isDebugDrawEnabled() { return debugDrawRenderer.isEnabled(); }
+    void setDebugDrawEnabled(boolean enabled) { debugDrawRenderer.setEnabled(enabled); }
+
     void renderPostProcessPass() {
         postProcessor.renderPostProcessPass(
                 width, height, sceneRenderWidth, sceneRenderHeight,
@@ -879,6 +906,7 @@ final class OpenGlContext {
 
     void shutdown() {
         clearSceneMeshes();
+        debugDrawRenderer.shutdown();
         shadowRenderer.destroyShadowResources();
         postProcessor.destroyPipeline();
         shadowRenderer.destroyShadowProgram();
