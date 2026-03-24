@@ -10,6 +10,10 @@ module org.dynamisengine.light.impl.opengl {
     requires java.desktop;
     requires meshforge;
     requires meshforge.dynamisgpu;
+    requires org.dynamisengine.debug.api;
+    requires org.dynamisengine.ui.api;
+    requires org.dynamisengine.ui.core;
+    requires org.dynamisengine.ui.debug;
 
     exports org.dynamisengine.light.impl.opengl;
 
