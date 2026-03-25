@@ -501,6 +501,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
     private boolean reflectionPlanarPerfLastTimestampAvailable;
     private boolean reflectionPlanarPerfLastTimestampRequirementUnmet;
     private double lastFrameGpuMs;
+    private java.util.Map<String, Double> lastGpuTimingMetrics = java.util.Map.of();
     private double lastFramePlanarCaptureGpuMs = Double.NaN;
     private String lastFrameGpuTimingSource = "frame_estimate";
     private long lastFrameDrawCalls = 1L;
@@ -1054,6 +1055,7 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 plannedVisibleObjects
         );
         lastFrameGpuMs = frame.gpuMs();
+        lastGpuTimingMetrics = context.gpuTimingMetrics();
         lastFramePlanarCaptureGpuMs = frame.planarCaptureGpuMs();
         lastFrameGpuTimingSource = frame.gpuTimingSource() == null ? "frame_estimate" : frame.gpuTimingSource();
         lastFrameDrawCalls = frame.drawCalls();
@@ -1066,6 +1068,15 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 frame.visibleObjects(),
                 frame.gpuBytes()
         );
+    }
+
+    /**
+     * GPU timing metrics from the most recently resolved frame.
+     * Returns gpu.frameTimeMs, gpu.shadowPassMs, gpu.geometryPassMs, etc.
+     * Empty map if timing is not available (OpenGL, unsupported device, first frame).
+     */
+    public java.util.Map<String, Double> gpuTimingMetrics() {
+        return lastGpuTimingMetrics;
     }
 
     @Override
