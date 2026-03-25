@@ -149,7 +149,8 @@ class BackendRegistryTest {
 
                     @Override
                     public EngineStats getStats() {
-                        return new EngineStats(0, 0, 0, 0, 0, 0, 0, 0, 1, 0);
+                        return new EngineStats(0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
+                                0, 0, 0, 0, 0, 0, 0, 0, 0);
                     }
 
                     @Override

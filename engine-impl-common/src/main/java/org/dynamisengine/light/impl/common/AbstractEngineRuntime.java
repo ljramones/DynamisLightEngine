@@ -103,7 +103,16 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
             long drawCalls,
             long triangles,
             long visibleObjects,
-            long gpuMemoryBytes
+            long gpuMemoryBytes,
+            long shadowDrawCalls,
+            long geometryDrawCalls,
+            long postDrawCalls,
+            long pipelineSwitches,
+            long submittedObjects,
+            long staticDraws,
+            long morphDraws,
+            long skinnedDraws,
+            long instancedDraws
     ) {
     }
 
@@ -122,7 +131,8 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
     private EngineHostCallbacks host;
     private Path assetRoot = Path.of(".");
     private long frameIndex;
-    private EngineStats stats = new EngineStats(0.0, 0.0, 0.0, 0, 0, 0, 0, 0.0, 1.0, 0);
+    private EngineStats stats = new EngineStats(0.0, 0.0, 0.0, 0, 0, 0, 0, 0.0, 1.0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0);
     private final Map<ResourceId, ResourceInfo> resourceCache = new LinkedHashMap<>();
     private final Map<ResourceId, String> resourceChecksums = new LinkedHashMap<>();
     private List<ResourceId> activeSceneResourceIds = new ArrayList<>();
@@ -235,7 +245,8 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
             RenderMetrics renderMetrics = onRender();
             frameIndex++;
             if (renderMetrics == null) {
-                renderMetrics = new RenderMetrics(renderCpuFrameMs, renderGpuFrameMs, 1, 3, 1, 0);
+                renderMetrics = new RenderMetrics(renderCpuFrameMs, renderGpuFrameMs, 1, 3, 1, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0);
             }
             double frameMs = Math.max(renderMetrics.cpuFrameMs(), 0.0001);
             stats = new EngineStats(
@@ -248,7 +259,16 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
                     renderMetrics.gpuMemoryBytes(),
                     clamp01(aaHistoryRejectRate()),
                     clamp01(aaConfidenceMean()),
-                    Math.max(0L, aaConfidenceDropEvents())
+                    Math.max(0L, aaConfidenceDropEvents()),
+                    renderMetrics.shadowDrawCalls(),
+                    renderMetrics.geometryDrawCalls(),
+                    renderMetrics.postDrawCalls(),
+                    renderMetrics.pipelineSwitches(),
+                    renderMetrics.submittedObjects(),
+                    renderMetrics.staticDraws(),
+                    renderMetrics.morphDraws(),
+                    renderMetrics.skinnedDraws(),
+                    renderMetrics.instancedDraws()
             );
         log(LogLevel.DEBUG, "RENDER", "Rendered frame " + frameIndex);
             log(LogLevel.DEBUG, "PERF",
@@ -986,7 +1006,30 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
             long visibleObjects,
             long gpuMemoryBytes
     ) {
-        return new RenderMetrics(cpuFrameMs, gpuFrameMs, drawCalls, triangles, visibleObjects, gpuMemoryBytes);
+        return new RenderMetrics(cpuFrameMs, gpuFrameMs, drawCalls, triangles, visibleObjects, gpuMemoryBytes,
+                0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+
+    protected final RenderMetrics renderMetrics(
+            double cpuFrameMs,
+            double gpuFrameMs,
+            long drawCalls,
+            long triangles,
+            long visibleObjects,
+            long gpuMemoryBytes,
+            long shadowDrawCalls,
+            long geometryDrawCalls,
+            long postDrawCalls,
+            long pipelineSwitches,
+            long submittedObjects,
+            long staticDraws,
+            long morphDraws,
+            long skinnedDraws,
+            long instancedDraws
+    ) {
+        return new RenderMetrics(cpuFrameMs, gpuFrameMs, drawCalls, triangles, visibleObjects, gpuMemoryBytes,
+                shadowDrawCalls, geometryDrawCalls, postDrawCalls, pipelineSwitches, submittedObjects,
+                staticDraws, morphDraws, skinnedDraws, instancedDraws);
     }
 
     protected void onShutdown() {

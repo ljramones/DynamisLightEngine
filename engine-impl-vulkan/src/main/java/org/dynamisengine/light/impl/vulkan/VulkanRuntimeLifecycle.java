@@ -264,7 +264,8 @@ final class VulkanRuntimeLifecycle {
                     plannedDrawCalls,
                     plannedTriangles,
                     plannedVisibleObjects,
-                    0
+                    0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0
             );
         }
         VulkanFrameMetrics frame = context.renderFrame();
@@ -277,7 +278,16 @@ final class VulkanRuntimeLifecycle {
                 frame.drawCalls(),
                 frame.triangles(),
                 frame.visibleObjects(),
-                frame.gpuMemoryBytes()
+                frame.gpuMemoryBytes(),
+                frame.shadowDrawCalls(),
+                frame.geometryDrawCalls(),
+                frame.postDrawCalls(),
+                frame.pipelineSwitches(),
+                frame.submittedObjects(),
+                frame.staticDraws(),
+                frame.morphDraws(),
+                frame.skinnedDraws(),
+                frame.instancedDraws()
         );
     }
 
@@ -374,7 +384,16 @@ final class VulkanRuntimeLifecycle {
             long drawCalls,
             long triangles,
             long visibleObjects,
-            long gpuBytes
+            long gpuBytes,
+            long shadowDrawCalls,
+            long geometryDrawCalls,
+            long postDrawCalls,
+            long pipelineSwitches,
+            long submittedObjects,
+            long staticDraws,
+            long morphDraws,
+            long skinnedDraws,
+            long instancedDraws
     ) {
     }
 

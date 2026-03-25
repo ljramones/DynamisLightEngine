@@ -1066,7 +1066,16 @@ public final class VulkanEngineRuntime extends AbstractEngineRuntime {
                 frame.drawCalls(),
                 frame.triangles(),
                 frame.visibleObjects(),
-                frame.gpuBytes()
+                frame.gpuBytes(),
+                frame.shadowDrawCalls(),
+                frame.geometryDrawCalls(),
+                frame.postDrawCalls(),
+                frame.pipelineSwitches(),
+                frame.submittedObjects(),
+                frame.staticDraws(),
+                frame.morphDraws(),
+                frame.skinnedDraws(),
+                frame.instancedDraws()
         );
     }
 

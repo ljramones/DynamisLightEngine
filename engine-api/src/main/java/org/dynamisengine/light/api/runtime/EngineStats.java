@@ -15,6 +15,19 @@ public record EngineStats(
         long gpuMemoryBytes,
         double taaHistoryRejectRate,
         double taaConfidenceMean,
-        long taaConfidenceDropEvents
+        long taaConfidenceDropEvents,
+        // Per-pass draw call counts
+        long shadowDrawCalls,
+        long geometryDrawCalls,
+        long postDrawCalls,
+        // Pipeline/shader switch count (variant transitions in sorted draw list)
+        long pipelineSwitches,
+        // Submitted objects before culling vs visible after
+        long submittedObjects,
+        // Per-variant draw counts
+        long staticDraws,
+        long morphDraws,
+        long skinnedDraws,
+        long instancedDraws
 ) {
 }

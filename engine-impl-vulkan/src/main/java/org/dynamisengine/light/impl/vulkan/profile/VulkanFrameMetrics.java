@@ -8,6 +8,15 @@ public record VulkanFrameMetrics(
         long drawCalls,
         long triangles,
         long visibleObjects,
-        long gpuMemoryBytes
+        long gpuMemoryBytes,
+        long shadowDrawCalls,
+        long geometryDrawCalls,
+        long postDrawCalls,
+        long pipelineSwitches,
+        long submittedObjects,
+        long staticDraws,
+        long morphDraws,
+        long skinnedDraws,
+        long instancedDraws
 ) {
 }

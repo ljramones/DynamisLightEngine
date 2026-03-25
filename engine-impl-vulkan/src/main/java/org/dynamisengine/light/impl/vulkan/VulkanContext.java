@@ -393,6 +393,47 @@ public final class VulkanContext {
         if (!lastPlanarCaptureGpuMsValid) {
             lastGpuTimingSource = "frame_estimate";
         }
+        // Per-variant draw counts from the actual mesh list
+        long staticDraws = 0, morphDraws = 0, skinnedDraws = 0, instancedDraws = 0;
+        int prevVariant = -1;
+        long pipelineSwitches = 0;
+        for (var mesh : sceneResources.gpuMeshes) {
+            int variant;
+            if (mesh.skinned && mesh.morphTargetCount > 0) {
+                variant = 3; // skinned+morph counted as skinned
+                skinnedDraws++;
+            } else if (mesh.skinned) {
+                variant = 2;
+                skinnedDraws++;
+            } else if (mesh.morphTargetCount > 0) {
+                variant = 1;
+                morphDraws++;
+            } else {
+                variant = 0;
+                staticDraws++;
+            }
+            if (prevVariant >= 0 && variant != prevVariant) {
+                pipelineSwitches++;
+            }
+            prevVariant = variant;
+        }
+        // Instance batches count as instanced draws
+        if (sceneResources.instanceBatches != null) {
+            for (var batch : sceneResources.instanceBatches.values()) {
+                if (batch != null && batch.instanceCount > 0) {
+                    instancedDraws++;
+                    if (prevVariant >= 0 && prevVariant != 4) {
+                        pipelineSwitches++;
+                    }
+                    prevVariant = 4;
+                }
+            }
+        }
+        long totalDraws = staticDraws + morphDraws + skinnedDraws + instancedDraws;
+        // Shadow pass draws all meshes; geometry draws all; post draws 1 fullscreen quad
+        long shadowDrawCalls = totalDraws;
+        long geometryDrawCalls = totalDraws;
+        long postDrawCalls = 1;
         return new VulkanFrameMetrics(
                 cpuMs,
                 cpuMs * 0.7,
@@ -401,7 +442,16 @@ public final class VulkanContext {
                 plannedDrawCalls,
                 plannedTriangles,
                 plannedVisibleObjects,
-                estimatedGpuMemoryBytes
+                estimatedGpuMemoryBytes,
+                shadowDrawCalls,
+                geometryDrawCalls,
+                postDrawCalls,
+                pipelineSwitches,
+                totalDraws,
+                staticDraws,
+                morphDraws,
+                skinnedDraws,
+                instancedDraws
         );
     }
 
