@@ -131,6 +131,8 @@ public final class VulkanContext {
     private final VulkanUiRenderer uiRenderer = new VulkanUiRenderer();
     private VulkanDebugOverlayRenderer debugOverlayAdapter;
     private volatile UiRenderCallback uiRenderCallback;
+    private final org.dynamisengine.light.impl.vulkan.profile.VulkanGpuTimestamps gpuTimestamps =
+        new org.dynamisengine.light.impl.vulkan.profile.VulkanGpuTimestamps();
 
     /**
      * Callback for rendering UI/overlay content during the Vulkan frame.
@@ -274,6 +276,17 @@ public final class VulkanContext {
         vfxIntegration = VulkanVfxIntegration.create(this, backendResources);
         skyRuntimeBridge.initialize(backendResources);
         initializeUiRenderer();
+
+        // GPU timestamps
+        if (backendResources.device != null && backendResources.physicalDevice != null) {
+            try (var stack = MemoryStack.stackPush()) {
+                var props = org.lwjgl.vulkan.VkPhysicalDeviceProperties.calloc(stack);
+                org.lwjgl.vulkan.VK10.vkGetPhysicalDeviceProperties(backendResources.physicalDevice, props);
+                float period = props.limits().timestampPeriod();
+                int framesInFlight = Math.max(1, backendResources.commandBuffers.length);
+                gpuTimestamps.initialize(backendResources.device, framesInFlight, period);
+            }
+        }
     }
 
     private void initializeUiRenderer() {
@@ -315,6 +328,12 @@ public final class VulkanContext {
 
     VulkanFrameMetrics renderFrame() throws EngineException {
         long start = System.nanoTime();
+
+        // GPU timing: read previous frame's results (N+1 readback, no stalls)
+        if (gpuTimestamps.isAvailable() && backendResources.device != null) {
+            gpuTimestamps.readPreviousFrame(backendResources.device, backendResources.currentFrame);
+        }
+
         if (backendResources.device != null && backendResources.swapchain != VK_NULL_HANDLE) {
             boolean profileChanged = refreshActivePipelineProfile();
             if (profileChanged) {
@@ -459,6 +478,13 @@ public final class VulkanContext {
 
     /** Access the Vulkan UI renderer for overlay/UI rendering. */
     public VulkanUiRenderer uiRenderer() { return uiRenderer; }
+
+    /** Get GPU timestamp metrics for the most recently resolved frame. */
+    public java.util.Map<String, Double> gpuTimingMetrics() {
+        return gpuTimestamps.isAvailable() && gpuTimestamps.hasValidResults()
+            ? gpuTimestamps.getMetrics()
+            : java.util.Map.of("gpu.timingAvailable", 0.0);
+    }
 
     public SceneReuseStats sceneReuseStats() {
         return VulkanContextDiagnosticsCoordinator.sceneReuseStats(
@@ -1175,6 +1201,9 @@ public final class VulkanContext {
     }
 
     void shutdown() {
+        if (gpuTimestamps.isAvailable() && backendResources.device != null) {
+            gpuTimestamps.destroy(backendResources.device);
+        }
         if (uiRenderer.isInitialized() && backendResources.device != null) {
             uiRenderer.destroy(backendResources.device);
         }
@@ -1518,7 +1547,8 @@ public final class VulkanContext {
                             uiRenderer.endFrame();
                         } : null
                 ),
-                commandInputs
+                commandInputs,
+                gpuTimestamps.isAvailable() ? gpuTimestamps : null
         );
         vfxPhaseTracker.markPostProcess();
     }

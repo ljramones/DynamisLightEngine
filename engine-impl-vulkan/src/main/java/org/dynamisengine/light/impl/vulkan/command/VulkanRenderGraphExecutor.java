@@ -14,6 +14,7 @@ import org.dynamisengine.light.impl.vulkan.graph.VulkanRenderGraphBarrier;
 import org.dynamisengine.light.impl.vulkan.graph.VulkanRenderGraphNode;
 import org.dynamisengine.light.impl.vulkan.graph.VulkanResourceBinding;
 import org.dynamisengine.light.impl.vulkan.graph.VulkanResourceBindingTable;
+import org.dynamisengine.light.impl.vulkan.profile.VulkanGpuTimestamps;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VK10;
 import org.lwjgl.vulkan.VkBufferMemoryBarrier;
@@ -52,6 +53,16 @@ public final class VulkanRenderGraphExecutor {
             VulkanExecutableRenderGraphPlan executablePlan,
             VulkanResourceBindingTable bindingTable
     ) throws EngineException {
+        execute(stack, commandBuffer, executablePlan, bindingTable, null);
+    }
+
+    public void execute(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            VulkanExecutableRenderGraphPlan executablePlan,
+            VulkanResourceBindingTable bindingTable,
+            VulkanGpuTimestamps gpuTimestamps
+    ) throws EngineException {
         if (executablePlan == null || bindingTable == null) {
             return;
         }
@@ -64,7 +75,18 @@ public final class VulkanRenderGraphExecutor {
             for (VulkanRenderGraphBarrier barrier : before) {
                 emitBarrier(stack, commandBuffer, barrier, bindingTable);
             }
+
+            // GPU timestamp: write pass start
+            if (gpuTimestamps != null) {
+                gpuTimestamps.writePassStart(commandBuffer, node.nodeId());
+            }
+
             executablePlan.executeCallback(node.nodeId()).run();
+
+            // GPU timestamp: write pass end
+            if (gpuTimestamps != null) {
+                gpuTimestamps.writePassEnd(commandBuffer, node.nodeId());
+            }
         }
     }
 

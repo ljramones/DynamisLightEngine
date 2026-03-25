@@ -53,9 +53,27 @@ public final class VulkanFrameCommandOrchestrator {
             FrameHooks hooks,
             Inputs inputs
     ) throws EngineException {
+        record(stack, commandBuffer, imageIndex, frameIdx, hooks, inputs, null);
+    }
+
+    public static void record(
+            MemoryStack stack,
+            VkCommandBuffer commandBuffer,
+            int imageIndex,
+            int frameIdx,
+            FrameHooks hooks,
+            Inputs inputs,
+            org.dynamisengine.light.impl.vulkan.profile.VulkanGpuTimestamps gpuTimestamps
+    ) throws EngineException {
         int beginResult = VulkanRenderCommandRecorder.beginOneShot(commandBuffer, stack);
         if (beginResult != VK10.VK_SUCCESS) {
             throw inputs.vkFailure().failure("vkBeginCommandBuffer", beginResult);
+        }
+
+        // GPU timing: reset and start frame
+        if (gpuTimestamps != null) {
+            gpuTimestamps.resetForFrame(commandBuffer, frameIdx);
+            gpuTimestamps.writeFrameStart(commandBuffer);
         }
 
         hooks.updateShadowMatrices().run();
@@ -460,12 +478,19 @@ public final class VulkanFrameCommandOrchestrator {
             );
         }
 
-        GRAPH_EXECUTOR.execute(stack, commandBuffer, executablePlan, bindingTable);
+        GRAPH_EXECUTOR.execute(stack, commandBuffer, executablePlan, bindingTable, gpuTimestamps);
 
         // UI pass: render overlay/UI after the main scene
         if (hooks.uiPassRecorder() != null) {
+            if (gpuTimestamps != null) gpuTimestamps.writePassStart(commandBuffer, "ui");
             hooks.uiPassRecorder().record(commandBuffer, imageIndex,
                 inputs.swapchainWidth(), inputs.swapchainHeight());
+            if (gpuTimestamps != null) gpuTimestamps.writePassEnd(commandBuffer, "ui");
+        }
+
+        // GPU timing: frame end
+        if (gpuTimestamps != null) {
+            gpuTimestamps.writeFrameEnd(commandBuffer);
         }
 
         int endResult = VulkanRenderCommandRecorder.end(commandBuffer);
