@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.dynamisengine.debug.api.draw.DebugDrawCommand;
 import org.dynamisengine.light.api.runtime.EngineCapabilities;
 import org.dynamisengine.light.api.config.EngineConfig;
 import org.dynamisengine.light.api.error.EngineErrorCode;
@@ -290,6 +291,24 @@ public final class OpenGlEngineRuntime extends AbstractEngineRuntime {
     protected void onShutdown() {
         if (!mockContext) {
             context.shutdown();
+        }
+    }
+
+    // --- Debug draw support ---
+
+    void submitDebugDrawCommands(List<DebugDrawCommand> commands) {
+        if (!mockContext) {
+            context.submitDebugDrawCommands(commands);
+        }
+    }
+
+    boolean isDebugDrawEnabled() {
+        return !mockContext && context.isDebugDrawEnabled();
+    }
+
+    void setDebugDrawEnabled(boolean enabled) {
+        if (!mockContext) {
+            context.setDebugDrawEnabled(enabled);
         }
     }
 
