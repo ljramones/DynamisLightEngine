@@ -98,11 +98,19 @@ public final class VulkanShadowPipelineBuilder {
                     shaderc_glsl_vertex_shader,
                     "shadow_instanced.vert"
             );
-            ByteBuffer bindlessInstancedVertSpv = VulkanShaderCompiler.compileGlslToSpv(
-                    shadowBindlessInstancedVertSource,
-                    shaderc_glsl_vertex_shader,
-                    "shadow_instanced_bindless.vert"
-            );
+            ByteBuffer bindlessInstancedVertSpv = null;
+            try {
+                bindlessInstancedVertSpv = VulkanShaderCompiler.compileGlslToSpv(
+                        shadowBindlessInstancedVertSource,
+                        shaderc_glsl_vertex_shader,
+                        "shadow_instanced_bindless.vert"
+                );
+            } catch (EngineException e) {
+                // gl_DrawID may not be available on all platforms (e.g., MoltenVK).
+                // Shadow rendering still works via the non-bindless instanced path.
+                java.util.logging.Logger.getLogger(VulkanShadowPipelineBuilder.class.getName())
+                        .warning("Bindless instanced shadow shader unavailable: " + e.getMessage());
+            }
             ByteBuffer fragSpv = VulkanShaderCompiler.compileGlslToSpv(shadowFragSource, shaderc_fragment_shader, "shadow.frag");
             long vertModule = VK_NULL_HANDLE;
             long instancedVertModule = VK_NULL_HANDLE;
@@ -111,7 +119,9 @@ public final class VulkanShadowPipelineBuilder {
             try {
                 vertModule = VulkanShaderCompiler.createShaderModule(device, stack, vertSpv);
                 instancedVertModule = VulkanShaderCompiler.createShaderModule(device, stack, instancedVertSpv);
-                bindlessInstancedVertModule = VulkanShaderCompiler.createShaderModule(device, stack, bindlessInstancedVertSpv);
+                if (bindlessInstancedVertSpv != null) {
+                    bindlessInstancedVertModule = VulkanShaderCompiler.createShaderModule(device, stack, bindlessInstancedVertSpv);
+                }
                 fragModule = VulkanShaderCompiler.createShaderModule(device, stack, fragSpv);
                 VkPipelineShaderStageCreateInfo.Buffer shaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
                 shaderStages.get(0)
@@ -275,7 +285,7 @@ public final class VulkanShadowPipelineBuilder {
                 }
                 shadowInstancedPipeline = pInstancedPipeline.get(0);
 
-                if (bindlessDescriptorSetLayout != VK_NULL_HANDLE) {
+                if (bindlessDescriptorSetLayout != VK_NULL_HANDLE && bindlessInstancedVertModule != VK_NULL_HANDLE) {
                     VkPipelineShaderStageCreateInfo.Buffer bindlessInstancedShaderStages = VkPipelineShaderStageCreateInfo.calloc(2, stack);
                     bindlessInstancedShaderStages.get(0)
                             .sType(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO)
