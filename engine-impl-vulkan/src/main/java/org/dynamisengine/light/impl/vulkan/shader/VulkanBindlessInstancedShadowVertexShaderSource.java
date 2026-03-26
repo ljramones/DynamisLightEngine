@@ -8,6 +8,7 @@ public final class VulkanBindlessInstancedShadowVertexShaderSource {
         return """
                 #version 450
                 #extension GL_EXT_nonuniform_qualifier : require
+                #extension GL_ARB_shader_draw_parameters : require
                 layout(location = 0) in vec3 inPos;
                 layout(set = 0, binding = 0) uniform GlobalData {
                     mat4 uView;
