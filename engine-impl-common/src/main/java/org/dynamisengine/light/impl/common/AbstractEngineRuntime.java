@@ -300,6 +300,11 @@ public abstract class AbstractEngineRuntime implements EngineRuntime {
         } catch (EngineException e) {
             throw reportAndReturn(e);
         } catch (RuntimeException e) {
+            System.err.println("=== RENDER FAILURE DIAGNOSTIC ===");
+            System.err.println("Type: " + e.getClass().getName());
+            System.err.println("Message: " + e.getMessage());
+            e.printStackTrace(System.err);
+            System.err.println("=== END DIAGNOSTIC ===");
             throw reportAndReturn(new EngineException(EngineErrorCode.INTERNAL_ERROR, "Unexpected render failure: " + e.getMessage(), false));
         }
     }

@@ -18,6 +18,7 @@ public final class VulkanVfxIntegration {
     private final VulkanVfxTextureRegistry textureRegistry;
     private final List<VfxHandle> activeHandles = new ArrayList<>();
     private int lastDrawCount;
+    private volatile boolean disabled;
 
     private VulkanVfxIntegration(
             VulkanVfxService vfxService,
@@ -32,18 +33,24 @@ public final class VulkanVfxIntegration {
     public static VulkanVfxIntegration create(VulkanContext ctx, VulkanBackendResources backendResources)
             throws EngineException {
         if (backendResources == null || backendResources.device == null) {
-            return new VulkanVfxIntegration(null, null, null);
+            return null;
         }
-        long deviceHandle = backendResources.device.address();
-        VulkanVfxService service = VulkanVfxService.createDefault(deviceHandle);
-        service.setPhysicsHandoff(new VulkanVfxPhysicsHandoffAdapter());
-        VulkanVfxIndirectResources vfxIndirect = VulkanVfxIndirectResources.create(
-                backendResources.device,
-                backendResources.physicalDevice
-        );
-        VulkanVfxTextureRegistry textureRegistry = new VulkanVfxTextureRegistry(backendResources.bindlessDescriptorHeap);
-        textureRegistry.registerFallback(deviceHandle, null);
-        return new VulkanVfxIntegration(service, vfxIndirect, textureRegistry);
+        try {
+            long deviceHandle = backendResources.device.address();
+            VulkanVfxService service = VulkanVfxService.createDefault(deviceHandle);
+            service.setPhysicsHandoff(new VulkanVfxPhysicsHandoffAdapter());
+            VulkanVfxIndirectResources vfxIndirect = VulkanVfxIndirectResources.create(
+                    backendResources.device,
+                    backendResources.physicalDevice
+            );
+            VulkanVfxTextureRegistry textureRegistry = new VulkanVfxTextureRegistry(backendResources.bindlessDescriptorHeap);
+            textureRegistry.registerFallback(deviceHandle, null);
+            return new VulkanVfxIntegration(service, vfxIndirect, textureRegistry);
+        } catch (Throwable t) {
+            java.util.logging.Logger.getLogger(VulkanVfxIntegration.class.getName())
+                    .warning("VFX integration unavailable: " + t.getMessage());
+            return null;
+        }
     }
 
     public void simulate(
@@ -55,9 +62,10 @@ public final class VulkanVfxIntegration {
             float[] cameraProjection,
             float[] frustumPlanes
     ) {
-        if (vfxService == null) {
+        if (vfxService == null || disabled) {
             return;
         }
+        try {
         VulkanVfxFrameContextAdapter frameCtx = new VulkanVfxFrameContextAdapter(
                 commandBuffer,
                 frameIndex,
@@ -66,10 +74,16 @@ public final class VulkanVfxIntegration {
                 frustumPlanes
         );
         vfxService.simulate(activeHandles, deltaTime, frameCtx);
+        } catch (Throwable t) {
+            // VFX simulation failed — disable to avoid repeated crashes
+            java.util.logging.Logger.getLogger(VulkanVfxIntegration.class.getName())
+                    .warning("VFX simulate failed, disabling: " + t.getMessage());
+            disabled = true;
+        }
     }
 
     public void recordDraws(long frameIndex) {
-        if (vfxService == null || indirectResources == null) {
+        if (vfxService == null || indirectResources == null || disabled) {
             lastDrawCount = 0;
             return;
         }
