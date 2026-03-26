@@ -21,6 +21,9 @@ import static org.lwjgl.vulkan.VK10.vkAllocateDescriptorSets;
 import static org.lwjgl.vulkan.VK10.vkUpdateDescriptorSets;
 
 public final class VulkanTextureDescriptorWriter {
+    private static final boolean DEBUG_TEXTURE_DESCRIPTORS =
+            Boolean.parseBoolean(System.getenv().getOrDefault("DLE_VK_DEBUG_TEXTURE_DESCRIPTORS", "false"));
+
     private VulkanTextureDescriptorWriter() {
     }
 
@@ -177,8 +180,58 @@ public final class VulkanTextureDescriptorWriter {
                     }
                 }
             }
+            if (DEBUG_TEXTURE_DESCRIPTORS) {
+                logDescriptorWrite(i, mesh, shadowDepthImageView, shadowSampler, shadowMomentImageView, shadowMomentSampler,
+                        iblIrradianceTexture, iblRadianceTexture, iblBrdfLutTexture, probeRadianceTexture);
+            }
             vkUpdateDescriptorSets(device, writes, null);
         }
+    }
+
+    private static void logDescriptorWrite(
+            int meshIndex,
+            VulkanGpuMesh mesh,
+            long shadowDepthImageView,
+            long shadowSampler,
+            long shadowMomentImageView,
+            long shadowMomentSampler,
+            VulkanGpuTexture iblIrradianceTexture,
+            VulkanGpuTexture iblRadianceTexture,
+            VulkanGpuTexture iblBrdfLutTexture,
+            VulkanGpuTexture probeRadianceTexture
+    ) {
+        StringBuilder sb = new StringBuilder("[TEX_DESC_DEBUG] mesh=")
+                .append(meshIndex)
+                .append(", descriptorSet=").append(mesh == null ? 0L : mesh.textureDescriptorSet)
+                .append(", bindings=");
+        appendBinding(sb, 0, mesh == null ? null : mesh.albedoTexture);
+        appendBinding(sb, 1, mesh == null ? null : mesh.normalTexture);
+        appendBinding(sb, 2, mesh == null ? null : mesh.metallicRoughnessTexture);
+        appendBinding(sb, 3, mesh == null ? null : mesh.occlusionTexture);
+        appendRawBinding(sb, 4, shadowDepthImageView, shadowSampler);
+        appendBinding(sb, 5, iblIrradianceTexture);
+        appendBinding(sb, 6, iblRadianceTexture);
+        appendBinding(sb, 7, iblBrdfLutTexture);
+        appendRawBinding(sb, 8, shadowMomentImageView, shadowMomentSampler);
+        appendBinding(sb, 9, probeRadianceTexture);
+        System.out.println(sb);
+    }
+
+    private static void appendBinding(StringBuilder sb, int binding, VulkanGpuTexture texture) {
+        sb.append(" b").append(binding)
+                .append("[img=").append(texture == null ? 0L : texture.image())
+                .append(",mem=").append(texture == null ? 0L : texture.memory())
+                .append(",view=").append(texture == null ? 0L : texture.view())
+                .append(",samp=").append(texture == null ? 0L : texture.sampler())
+                .append(",bytes=").append(texture == null ? 0L : texture.bytes())
+                .append("]");
+    }
+
+    private static void appendRawBinding(StringBuilder sb, int binding, long view, long sampler) {
+        sb.append(" b").append(binding)
+                .append("[view=").append(view)
+                .append(",samp=").append(sampler)
+                .append("]");
     }
 
     private static VkDescriptorImageInfo.Buffer imageInfo(MemoryStack stack, long view, long sampler) {
