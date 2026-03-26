@@ -151,17 +151,24 @@ public final class VulkanSkinnedMeshUniforms implements JointPaletteBuffer {
     }
 
     public void destroy() {
-        if (mappedAddress != 0L && memory != VK_NULL_HANDLE) {
-            vkUnmapMemory(device, memory);
-        }
-        if (buffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, buffer, null);
-        }
-        if (memory != VK_NULL_HANDLE) {
-            vkFreeMemory(device, memory, null);
-        }
-        if (descriptorPool != VK_NULL_HANDLE) {
-            vkDestroyDescriptorPool(device, descriptorPool, null);
+        if (device == null) return;
+        try {
+            // Skip vkUnmapMemory — on MoltenVK the mapped address may point to
+            // freed Metal backing memory by shutdown time, causing SIGSEGV.
+            // The OS reclaims all memory on process exit regardless.
+            if (buffer != VK_NULL_HANDLE) {
+                vkDestroyBuffer(device, buffer, null);
+            }
+            if (memory != VK_NULL_HANDLE) {
+                vkFreeMemory(device, memory, null);
+            }
+            if (descriptorPool != VK_NULL_HANDLE) {
+                vkDestroyDescriptorPool(device, descriptorPool, null);
+            }
+        } catch (Throwable t) {
+            // Shutdown cleanup must not propagate — log and continue
+            java.util.logging.Logger.getLogger(VulkanSkinnedMeshUniforms.class.getName())
+                    .warning("Skinned mesh uniforms cleanup failed: " + t.getMessage());
         }
     }
 
