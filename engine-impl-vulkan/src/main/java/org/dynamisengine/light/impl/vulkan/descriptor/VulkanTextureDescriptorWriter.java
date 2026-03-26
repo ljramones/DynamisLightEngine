@@ -154,6 +154,29 @@ public final class VulkanTextureDescriptorWriter {
                     .descriptorType(VK10.VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                     .descriptorCount(1)
                     .pImageInfo(probeRadianceInfo);
+            // Validate all descriptor image infos before calling Vulkan.
+            // MoltenVK crashes (SIGSEGV) on null image view/sampler handles
+            // instead of returning a Vulkan error code.
+            for (int w = 0; w < writes.remaining(); w++) {
+                var write = writes.get(w);
+                if (write.pImageInfo() != null) {
+                    var img = write.pImageInfo();
+                    for (int d = 0; d < write.descriptorCount(); d++) {
+                        if (img.get(d).imageView() == VK_NULL_HANDLE) {
+                            throw new EngineException(
+                                    org.dynamisengine.light.api.error.EngineErrorCode.BACKEND_INIT_FAILED,
+                                    "Descriptor write binding " + write.dstBinding() + " has null imageView for mesh " + i,
+                                    false);
+                        }
+                        if (img.get(d).sampler() == VK_NULL_HANDLE) {
+                            throw new EngineException(
+                                    org.dynamisengine.light.api.error.EngineErrorCode.BACKEND_INIT_FAILED,
+                                    "Descriptor write binding " + write.dstBinding() + " has null sampler for mesh " + i,
+                                    false);
+                        }
+                    }
+                }
+            }
             vkUpdateDescriptorSets(device, writes, null);
         }
     }
