@@ -179,9 +179,14 @@ public final class VulkanSkinnedMeshUniforms implements JointPaletteBuffer {
     }
 
     private static long createDescriptorPool(VkDevice device, MemoryStack stack) throws EngineException {
-        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(1, stack);
+        // Skinned descriptor set layout requires 4 bindings:
+        // 3x STORAGE_BUFFER (joints, morph deltas, morph weights) + 1x UNIFORM_BUFFER
+        VkDescriptorPoolSize.Buffer poolSizes = VkDescriptorPoolSize.calloc(2, stack);
         poolSizes.get(0)
                 .type(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                .descriptorCount(3);
+        poolSizes.get(1)
+                .type(VK10.VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
                 .descriptorCount(1);
         VkDescriptorPoolCreateInfo poolInfo = VkDescriptorPoolCreateInfo.calloc(stack)
                 .sType(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO)
