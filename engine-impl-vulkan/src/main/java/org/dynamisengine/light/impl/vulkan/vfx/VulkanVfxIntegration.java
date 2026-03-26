@@ -37,22 +37,32 @@ public final class VulkanVfxIntegration {
         if (backendResources == null || backendResources.device == null) {
             return null;
         }
-        try {
-            long deviceHandle = backendResources.device.address();
-            VulkanVfxService service = VulkanVfxService.createDefault(deviceHandle);
-            service.setPhysicsHandoff(new VulkanVfxPhysicsHandoffAdapter());
-            VulkanVfxIndirectResources vfxIndirect = VulkanVfxIndirectResources.create(
-                    backendResources.device,
-                    backendResources.physicalDevice
-            );
-            VulkanVfxTextureRegistry textureRegistry = new VulkanVfxTextureRegistry(backendResources.bindlessDescriptorHeap);
-            textureRegistry.registerFallback(deviceHandle, null);
-            return new VulkanVfxIntegration(service, vfxIndirect, textureRegistry);
-        } catch (Throwable t) {
-            java.util.logging.Logger.getLogger(VulkanVfxIntegration.class.getName())
-                    .warning("VFX integration unavailable: " + t.getMessage());
-            return null;
+        // VFX integration is disabled until DynamisVFX correctly initializes its
+        // debris readback buffer's memoryOps field. Currently, VulkanVfxService
+        // .createDefault() leaves it null, causing NPE during simulate() which
+        // issues invalid Vulkan commands before vkBeginCommandBuffer(), poisoning
+        // the entire command buffer and crashing MoltenVK.
+        //
+        // TODO: Fix VulkanVfxService.createDefault() to initialize memoryOps,
+        // then re-enable this integration.
+        if (Boolean.parseBoolean(System.getProperty("dle.vfx.enabled", "false"))) {
+            try {
+                long deviceHandle = backendResources.device.address();
+                VulkanVfxService service = VulkanVfxService.createDefault(deviceHandle);
+                service.setPhysicsHandoff(new VulkanVfxPhysicsHandoffAdapter());
+                VulkanVfxIndirectResources vfxIndirect = VulkanVfxIndirectResources.create(
+                        backendResources.device,
+                        backendResources.physicalDevice
+                );
+                VulkanVfxTextureRegistry textureRegistry = new VulkanVfxTextureRegistry(backendResources.bindlessDescriptorHeap);
+                textureRegistry.registerFallback(deviceHandle, null);
+                return new VulkanVfxIntegration(service, vfxIndirect, textureRegistry);
+            } catch (Throwable t) {
+                java.util.logging.Logger.getLogger(VulkanVfxIntegration.class.getName())
+                        .warning("VFX integration unavailable: " + t.getMessage());
+            }
         }
+        return null;
     }
 
     public void simulate(
