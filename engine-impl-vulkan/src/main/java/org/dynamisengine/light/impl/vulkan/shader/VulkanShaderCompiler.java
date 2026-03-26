@@ -12,6 +12,7 @@ import org.lwjgl.vulkan.VkShaderModuleCreateInfo;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compilation_status_success;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_initialize;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_release;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_compile_options_set_target_env;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_initialize;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_compiler_release;
 import static org.lwjgl.util.shaderc.Shaderc.nshaderc_compile_into_spv;
@@ -19,6 +20,8 @@ import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_bytes;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_compilation_status;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_get_error_message;
 import static org.lwjgl.util.shaderc.Shaderc.shaderc_result_release;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_target_env_vulkan;
+import static org.lwjgl.util.shaderc.Shaderc.shaderc_env_version_vulkan_1_1;
 
 public final class VulkanShaderCompiler {
     private VulkanShaderCompiler() {
@@ -46,6 +49,8 @@ public final class VulkanShaderCompiler {
             shaderc_compiler_release(compiler);
             throw new EngineException(EngineErrorCode.BACKEND_INIT_FAILED, "shaderc_compile_options_initialize failed", false);
         }
+        // Target Vulkan 1.1 so gl_DrawID and other Vulkan 1.1 features are available
+        shaderc_compile_options_set_target_env(options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_1);
         long result = 0L;
         ByteBuffer sourceUtf8 = null;
         ByteBuffer sourceNameUtf8 = null;
