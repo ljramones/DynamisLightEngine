@@ -1497,7 +1497,7 @@ public final class VulkanContext {
 
     private void recordCommandBuffer(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex, int frameIdx) throws EngineException {
         vfxPhaseTracker.beginFrame();
-        if (vfxIntegration != null) {
+        if (vfxIntegration != null && !vfxIntegration.isDisabled()) {
             float[] currentView = matrixToArray(viewMatrix);
             float[] currentProj = matrixToArray(projMatrix);
             float[] frustumPlanes = new float[24];

@@ -20,6 +20,8 @@ public final class VulkanVfxIntegration {
     private int lastDrawCount;
     private volatile boolean disabled;
 
+    public boolean isDisabled() { return disabled; }
+
     private VulkanVfxIntegration(
             VulkanVfxService vfxService,
             VulkanVfxIndirectResources indirectResources,
